@@ -13,13 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.serialize;
+package net.hasor.rsf.serialize.coder;
+import java.io.IOException;
+import net.hasor.rsf.general.RSFConstants;
+import net.hasor.rsf.serialize.SerializeCoder;
+import com.alibaba.fastjson.JSON;
 /**
- * 序列化解码器（Decoder）
+ * 
  * @version : 2014年9月19日
  * @author 赵永春(zyc@hasor.net)
  */
-public interface Decoder {
-    /** decode byte[] to Object */
-    public Object decode(byte[] bytes) throws Throwable;
+public class FastJsonSerializeCoder implements SerializeCoder {
+    public byte[] encode(Object object) throws IOException {
+        String text = JSON.toJSONString(object);
+        return text.getBytes(RSFConstants.DEFAULT_CHARSET);
+    }
+    //
+    public Object decode(byte[] bytes) throws IOException {
+        return JSON.parse(new String(bytes));
+    }
 }

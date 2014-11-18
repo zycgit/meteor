@@ -13,22 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.runtime.client;
-import net.hasor.rsf.runtime.RsfRequest;
+package net.hasor.rsf.serialize;
 /**
- * 调用请求
- * @version : 2014年10月25日
+ * 序列化（编码/解码）器
+ * @version : 2014年9月19日
  * @author 赵永春(zyc@hasor.net)
  */
-public class RsfService {
-    /**新的请求*/
-    public RsfRequest newRequest(String methodName, Object[] parameterObjects) {
-        // TODO Auto-generated constructor stub
-        return null;
-    }
-    /**新的请求*/
-    public RsfRequest newRequest(String methodName,Class<?>[] parameterTypes, Object[] parameterObjects) {
-        // TODO Auto-generated constructor stub
-        return null;s
-    }
+public interface SerializeCoder {
+    /** decode byte[] to Object */
+    public Object decode(byte[] bytes) throws Throwable;
+    /** Encode Object to byte[] */
+    public byte[] encode(Object object) throws Throwable;
 }
