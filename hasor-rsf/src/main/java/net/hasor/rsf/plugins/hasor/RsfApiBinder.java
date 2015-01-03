@@ -15,19 +15,10 @@
  */
 package net.hasor.rsf.plugins.hasor;
 import net.hasor.core.ApiBinder;
-import net.hasor.core.BindInfo;
 import net.hasor.rsf.RsfBinder;
 /**
  * 服务注册器
  * @version : 2014年11月12日
  * @author 赵永春(zyc@hasor.net)
  */
-public interface RsfApiBinder extends RsfBinder, ApiBinder {
-    /***/
-    public <T> HasorLinkedBuilder<T> rsfService(Class<T> type);
-    /**处理类型和实现的绑定。*/
-    public interface HasorLinkedBuilder<T> extends LinkedBuilder<T> {
-        /**为绑定设置一个{@link BindInfo}。*/
-        public NamedBuilder<T> toBindInfo(BindInfo<T> bindInfo);
-    }
-}
+public interface RsfApiBinder extends RsfBinder, ApiBinder {}
