@@ -25,11 +25,11 @@ import net.hasor.rsf.constants.RsfException;
  * @version : 2014年11月12日
  * @author 赵永春(zyc@hasor.net)
  */
-public class RsfBeanProvider<T> implements Provider<T>, AppContextAware {
+public class RsfBindInfoProvider<T> implements Provider<T>, AppContextAware {
     private RsfBindInfo<T> bindInfo;
     private RsfContext     rsfContext;
     //
-    public RsfBeanProvider(RsfBindInfo<T> bindInfo) {
+    public RsfBindInfoProvider(RsfApiBinder apiBinder, RsfBindInfo<T> bindInfo) {
         this.bindInfo = bindInfo;
     }
     public void setAppContext(AppContext appContext) {
