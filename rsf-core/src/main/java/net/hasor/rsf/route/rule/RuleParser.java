@@ -13,25 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.rpc.executes;
-import java.util.concurrent.ThreadFactory;
+package net.hasor.rsf.route.rule;
 /**
- * 
- * @version : 2014年11月12日
+ * 路由规则解析器
+ * @version : 2015年3月29日
  * @author 赵永春(zyc@hasor.net)
  */
-public class NameThreadFactory implements ThreadFactory {
-    private String nameSample = "Thread-%s";
-    private int    index      = 1;
-    //
-    public NameThreadFactory(String nameSample) {
-        this.nameSample = nameSample;
-    }
-    //
-    public Thread newThread(Runnable run) {
-        Thread t = new Thread(run);
-        t.setName(String.format(nameSample, index++));
-        t.setDaemon(true);
-        return t;
-    }
+public interface RuleParser {
+
+    Rule
 }

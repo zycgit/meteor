@@ -13,11 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.remoting.transport.customer;
+package net.hasor.rsf.rpc.client;
 import io.netty.channel.Channel;
 import java.net.URL;
-import net.hasor.rsf.adapter.AbstractRequestManager;
-import net.hasor.rsf.adapter.AbstractRsfClient;
 import net.hasor.rsf.remoting.transport.connection.NetworkConnection;
 /**
  * 为{@link InnerRsfCustomerHandler}提供{@link RsfRequestManager}列表维护。
@@ -26,10 +24,10 @@ import net.hasor.rsf.remoting.transport.connection.NetworkConnection;
  * @author 赵永春(zyc@hasor.net)
  */
 class InnerRsfClient extends AbstractRsfClient {
-    private AbstractRequestManager requestManager;
-    private NetworkConnection      networkConnection;
+    private RsfRequestManager requestManager;
+    private NetworkConnection networkConnection;
     //
-    public InnerRsfClient(AbstractRequestManager requestManager, NetworkConnection networkConnection) {
+    public InnerRsfClient(RsfRequestManager requestManager, NetworkConnection networkConnection) {
         this.requestManager = requestManager;
         this.networkConnection = networkConnection;
     }
@@ -42,7 +40,7 @@ class InnerRsfClient extends AbstractRsfClient {
     public Channel getChannel() {
         return networkConnection.getChannel();
     }
-    public AbstractRequestManager getRequestManager() {
+    public RsfRequestManager getRequestManager() {
         return this.requestManager;
     }
     public URL getHostAddress() {

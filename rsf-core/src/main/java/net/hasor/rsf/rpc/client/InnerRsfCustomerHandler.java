@@ -13,12 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.remoting.transport.customer;
+package net.hasor.rsf.rpc.client;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import net.hasor.rsf.RsfFuture;
 import net.hasor.rsf.RsfResponse;
-import net.hasor.rsf.adapter.AbstractRequestManager;
 import net.hasor.rsf.constants.ProtocolStatus;
 import net.hasor.rsf.constants.RsfException;
 import net.hasor.rsf.remoting.transport.connection.NetworkConnection;
@@ -33,8 +32,8 @@ import org.more.logger.LoggerHelper;
  * @author 赵永春(zyc@hasor.net)
  */
 class InnerRsfCustomerHandler extends ChannelInboundHandlerAdapter {
-    private AbstractRequestManager requestManager = null;
-    public InnerRsfCustomerHandler(AbstractRequestManager requestManager) {
+    private RsfRequestManager requestManager = null;
+    public InnerRsfCustomerHandler(RsfRequestManager requestManager) {
         this.requestManager = requestManager;
     }
     //
@@ -74,11 +73,11 @@ class InnerRsfCustomerHandler extends ChannelInboundHandlerAdapter {
 }
 /**负责处理客户端 Response 回应逻辑。*/
 class ResponseHandler implements Runnable {
-    private ResponseMsg            responseMsg;
-    private AbstractRequestManager requestManager;
-    private RsfFuture              rsfFuture;
+    private ResponseMsg       responseMsg;
+    private RsfRequestManager requestManager;
+    private RsfFuture         rsfFuture;
     //
-    public ResponseHandler(ResponseMsg responseMsg, AbstractRequestManager requestManager, RsfFuture rsfFuture) {
+    public ResponseHandler(ResponseMsg responseMsg, RsfRequestManager requestManager, RsfFuture rsfFuture) {
         this.responseMsg = responseMsg;
         this.requestManager = requestManager;
         this.rsfFuture = rsfFuture;

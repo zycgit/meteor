@@ -13,20 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.adapter;
+package net.hasor.rsf.manager;
 import net.hasor.core.Provider;
-import net.hasor.core.info.CustomerProvider;
+import net.hasor.core.binder.InstanceProvider;
 import net.hasor.rsf.RsfFilter;
+import net.hasor.rsf.domain.FilterDefine;
 /**
- * 获取服务上配置有效的过滤器。
- * @version : 2014年11月12日
+ * 
+ * @version : 2015年3月28日
  * @author 赵永春(zyc@hasor.net)
  */
-public interface RsfBindDefine<T> extends CustomerProvider<T> {
-    /**获取Provider对象，可以直接取得对象实例。*/
-    public Provider<T> getCustomerProvider();
-    /**获取服务上配置有效的过滤器*/
-    public Provider<RsfFilter>[] getFilterProvider();
-    /**查找注册的Filter*/
-    public RsfFilter getFilter(String filterID);
+public class FilterManager extends ComfitManager<FilterDefine> {
+    public FilterDefine createDefine(String filterID, String forServiceID, RsfFilter filter) {
+        return createDefine(filterID, forServiceID, new InstanceProvider<RsfFilter>(filter));
+    }
+    public FilterDefine createDefine(String filterID, String forServiceID, Provider<? extends RsfFilter> provider) {
+        return new FilterDefine(filterID, forServiceID, provider);
+    }
 }

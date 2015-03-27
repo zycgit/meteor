@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.adapter;
+package net.hasor.rsf.rpc.client;
 import io.netty.channel.Channel;
 import java.lang.reflect.Method;
 import java.net.URL;
@@ -26,6 +26,7 @@ import net.hasor.rsf.RsfFuture;
 import net.hasor.rsf.RsfRequest;
 import net.hasor.rsf.RsfResponse;
 import net.hasor.rsf.constants.RsfException;
+import net.hasor.rsf.rpc.context.AbstractRsfContext;
 import net.hasor.rsf.utils.RuntimeUtils;
 import org.more.classcode.delegate.faces.MethodClassConfig;
 import org.more.classcode.delegate.faces.MethodDelegate;
@@ -45,7 +46,7 @@ public abstract class AbstractRsfClient implements RsfClient {
     /** @return 远程服务地址*/
     public abstract URL getHostAddress();
     /** @return 获取请求管理器*/
-    public abstract AbstractRequestManager getRequestManager();
+    public abstract RsfRequestManager getRequestManager();
     //
     //
     //
@@ -171,15 +172,16 @@ public abstract class AbstractRsfClient implements RsfClient {
             //
             String bindID = bindInfo.getBindID();
             Class<?> wrapperType = this.wrapperMap.get(bindID);
-            if (wrapperType == null) synchronized (LOCK_OBJECT) {
-                wrapperType = this.wrapperMap.get(bindID);
-                if (wrapperType == null){
-                    MethodClassConfig mcc = new MethodClassConfig();
-                    mcc.addDelegate(interFace, new RemoteWrapper(bindInfo, this));
-                    wrapperType = mcc.toClass();
-                    this.wrapperMap.put(bindID, wrapperType);
+            if (wrapperType == null)
+                synchronized (LOCK_OBJECT) {
+                    wrapperType = this.wrapperMap.get(bindID);
+                    if (wrapperType == null) {
+                        MethodClassConfig mcc = new MethodClassConfig();
+                        mcc.addDelegate(interFace, new RemoteWrapper(bindInfo, this));
+                        wrapperType = mcc.toClass();
+                        this.wrapperMap.put(bindID, wrapperType);
+                    }
                 }
-            }
             return (T) wrapperType.newInstance();
             //
         } catch (Exception e) {
@@ -197,7 +199,7 @@ public abstract class AbstractRsfClient implements RsfClient {
      * @throws Throwable 同步执行期间遇到的错误。
      */
     public Object syncInvoke(RsfBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects) throws Throwable {
-        AbstractRequestManager reqManager = this.getRequestManager();
+        RsfRequestManager reqManager = this.getRequestManager();
         //1.准备Request
         int timeout = validateTimeout(bindInfo.getClientTimeout());
         RsfRequest request = RuntimeUtils.buildRequest(bindInfo, reqManager, methodName, parameterTypes, parameterObjects);
@@ -216,7 +218,7 @@ public abstract class AbstractRsfClient implements RsfClient {
      * @return 返回异步执行结果
      */
     public RsfFuture asyncInvoke(RsfBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects) {
-        AbstractRequestManager reqManager = this.getRequestManager();
+        RsfRequestManager reqManager = this.getRequestManager();
         //1.准备Request
         RsfRequest request = RuntimeUtils.buildRequest(bindInfo, reqManager, methodName, parameterTypes, parameterObjects);
         //2.发起Request
@@ -252,7 +254,7 @@ public abstract class AbstractRsfClient implements RsfClient {
      * @param listener 回调监听器。
      */
     public void doCallBackRequest(RsfBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects, final FutureCallback<RsfResponse> listener) {
-        AbstractRequestManager reqManager = this.getRequestManager();
+        RsfRequestManager reqManager = this.getRequestManager();
         //1.准备Request
         RsfRequest request = RuntimeUtils.buildRequest(bindInfo, reqManager, methodName, parameterTypes, parameterObjects);
         //2.发起Request

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.remoting.address;
+package net.hasor.rsf.address;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,25 +21,24 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import net.hasor.rsf.RsfBindInfo;
-import net.hasor.rsf.adapter.AbstracAddressCenter;
-import net.hasor.rsf.adapter.Address;
 /**
  * 地址管理中心，负责维护服务的远程服务提供者列表。
  * （线程安全）
  * @version : 2014年12月15日
  * @author 赵永春(zyc@hasor.net)
  */
-public class DefaultAddressCenter extends AbstracAddressCenter {
+public class DefaultAddressCenter {
     private final Object                   lock;
     private final Map<String, AddressPool> addressMap; //维护服务和服务地址的映射
-    private final List<Address>            addressPool; //维护所有服务地址
+    private final List<AddressInfo>        addressPool; //维护所有服务地址
     public DefaultAddressCenter() {
         this.lock = new Object();
         this.addressMap = new ConcurrentHashMap<String, AddressPool>();
-        this.addressPool = new CopyOnWriteArrayList<Address>();
+        this.addressPool = new CopyOnWriteArrayList<AddressInfo>();
     }
     //
-    public Address findHostAddress(RsfBindInfo<?> bindInfo) {
+    /**查找一个有效主机地址*/
+    public AddressInfo findHostAddress(RsfBindInfo<?> bindInfo) {
         if (bindInfo == null)
             return null;
         synchronized (this.lock) {
@@ -50,18 +49,20 @@ public class DefaultAddressCenter extends AbstracAddressCenter {
         }
         return null;
     }
-    public void invalidAddress(Address refereeAddress) {
+    /**被明确为无效的地址*/
+    public void invalidAddress(AddressInfo refereeAddress) {
         if (refereeAddress == null)
             return;
         if (this.addressPool.contains(refereeAddress) == false)
             return;
         refereeAddress.setInvalid();
     }
+    /**更新静态服务提供地址*/
     public void updateAddress(RsfBindInfo<?> bindInfo, List<URL> hostAddress) {
         if (bindInfo == null || hostAddress == null || hostAddress.isEmpty() == true)
             return;
         //
-        List<Address> hostAddressList = new ArrayList<Address>();
+        List<AddressInfo> hostAddressList = new ArrayList<AddressInfo>();
         for (URL url : hostAddress) {
             hostAddressList.add(new AddressInfo(url));
         }

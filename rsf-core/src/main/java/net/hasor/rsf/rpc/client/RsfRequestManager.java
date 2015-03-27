@@ -13,18 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.remoting.transport.customer;
+package net.hasor.rsf.rpc.client;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
-import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
-import io.netty.util.Timer;
 import io.netty.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.core.Provider;
 import net.hasor.rsf.RsfBindInfo;
+import net.hasor.rsf.RsfContext;
 import net.hasor.rsf.RsfFilter;
 import net.hasor.rsf.RsfFilterChain;
 import net.hasor.rsf.RsfFuture;
@@ -32,17 +30,15 @@ import net.hasor.rsf.RsfRequest;
 import net.hasor.rsf.RsfResponse;
 import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.SendLimitPolicy;
-import net.hasor.rsf.adapter.AbstractClientManager;
-import net.hasor.rsf.adapter.AbstractRequestManager;
-import net.hasor.rsf.adapter.AbstractRsfClient;
-import net.hasor.rsf.adapter.AbstractRsfContext;
 import net.hasor.rsf.constants.ProtocolStatus;
 import net.hasor.rsf.constants.RsfException;
 import net.hasor.rsf.constants.RsfTimeoutException;
+import net.hasor.rsf.manager.TimerManager;
 import net.hasor.rsf.remoting.transport.component.RsfFilterHandler;
 import net.hasor.rsf.remoting.transport.component.RsfRequestImpl;
 import net.hasor.rsf.remoting.transport.component.RsfResponseImpl;
 import net.hasor.rsf.remoting.transport.protocol.message.RequestMsg;
+import net.hasor.rsf.rpc.context.AbstractRsfContext;
 import org.more.future.FutureCallback;
 import org.more.logger.LoggerHelper;
 /**
@@ -50,38 +46,37 @@ import org.more.logger.LoggerHelper;
  * @version : 2014年9月12日
  * @author 赵永春(zyc@hasor.net)
  */
-public class RsfRequestManager extends AbstractRequestManager {
+public class RsfRequestManager {
     private final AbstractRsfContext                 rsfContext;
-    private final AbstractClientManager              clientManager;
+    private final InnerClientManager                 clientManager;
     private final ConcurrentHashMap<Long, RsfFuture> rsfResponse;
-    private final Timer                              timer;
+    private final TimerManager                       timerManager;
     private final AtomicInteger                      requestCount;
     //
     public RsfRequestManager(AbstractRsfContext rsfContext) {
         this.rsfContext = rsfContext;
         this.clientManager = new InnerClientManager(this);
         this.rsfResponse = new ConcurrentHashMap<Long, RsfFuture>();
-        this.timer = new HashedWheelTimer();
+        this.timerManager = new TimerManager(getRsfContext().getSettings().getDefaultTimeout());
         this.requestCount = new AtomicInteger(0);
     }
-    /**获取 {@link AbstractRsfContext}*/
+    /** @return 获取{@link RsfContext}*/
     public AbstractRsfContext getRsfContext() {
         return this.rsfContext;
     }
-    /**获取客户端管理器*/
-    public AbstractClientManager getClientManager() {
+    /** @return 获取客户端管理器*/
+    public InnerClientManager getClientManager() {
         return this.clientManager;
     }
-    /**获取正在进行中的调用请求。*/
+    /**
+     * 获取正在进行中的调用请求。
+     * @param requestID 请求ID
+     * @return 返回RsfFuture。
+     */
     public RsfFuture getRequest(long requestID) {
         return this.rsfResponse.get(requestID);
     }
     //
-    private int validateTimeout(int timeout) {
-        if (timeout <= 0)
-            timeout = this.getRsfContext().getSettings().getDefaultTimeout();
-        return timeout;
-    }
     private RsfFuture removeRsfFuture(long requestID) {
         RsfFuture rsfFuture = this.rsfResponse.remove(requestID);
         if (rsfFuture != null) {
@@ -89,7 +84,11 @@ public class RsfRequestManager extends AbstractRequestManager {
         }
         return rsfFuture;
     }
-    /**收到Response响应。*/
+    /**
+     * 响应挂起的Request请求。
+     * @param requestID 请求ID
+     * @param response 响应结果
+     */
     public void putResponse(long requestID, RsfResponse response) {
         RsfFuture rsfFuture = this.removeRsfFuture(requestID);
         if (rsfFuture != null) {
@@ -99,7 +98,11 @@ public class RsfRequestManager extends AbstractRequestManager {
             LoggerHelper.logWarn("give up the response,requestID(%s) ,maybe because timeout! ", requestID);
         }
     }
-    /**收到Response响应。*/
+    /**
+     * 响应挂起的Request请求。
+     * @param requestID 请求ID
+     * @param rsfException 异常响应
+     */
     public void putResponse(long requestID, Throwable e) {
         RsfFuture rsfFuture = this.removeRsfFuture(requestID);
         if (rsfFuture != null) {
@@ -109,7 +112,10 @@ public class RsfRequestManager extends AbstractRequestManager {
             LoggerHelper.logWarn("give up the response,requestID(%s) ,maybe because timeout! ", requestID);
         }
     }
-    /**要求重新发起请求*/
+    /**
+     * 尝试再次发送Request请求（如果request已经超时则无效）。
+     * @param requestID 请求ID
+     */
     public void tryAgain(long requestID) {
         this.putResponse(requestID, new RsfException(ProtocolStatus.ChooseOther, "Server response  ChooseOther!"));
         System.out.println("RequestID:" + requestID + " -> ChooseOther"); //TODO
@@ -134,10 +140,14 @@ public class RsfRequestManager extends AbstractRequestManager {
             }
         };
         //
-        int reqTimeout = validateTimeout(request.getTimeout());
-        this.timer.newTimeout(timeTask, reqTimeout, TimeUnit.MILLISECONDS);
+        this.timerManager.atTime(timeTask, request.getTimeout());
     };
-    /**发送连接请求。*/
+    /**
+     * 发送连接请求。
+     * @param rsfRequest rsf请求
+     * @param listener FutureCallback回调监听器。
+     * @return 返回RsfFuture。
+     */
     public RsfFuture sendRequest(RsfRequest rsfRequest, FutureCallback<RsfResponse> listener) {
         final RsfFuture rsfFuture = new RsfFuture(rsfRequest, listener);
         RsfRequestImpl req = (RsfRequestImpl) rsfFuture.getRequest();

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.remoting.transport.customer;
+package net.hasor.rsf.rpc.client;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -27,16 +27,14 @@ import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.hasor.rsf.RsfBindInfo;
-import net.hasor.rsf.adapter.AbstracAddressCenter;
-import net.hasor.rsf.adapter.AbstractClientManager;
-import net.hasor.rsf.adapter.AbstractRequestManager;
-import net.hasor.rsf.adapter.AbstractRsfClient;
-import net.hasor.rsf.adapter.AbstractRsfContext;
-import net.hasor.rsf.adapter.Address;
+import net.hasor.rsf.RsfContext;
+import net.hasor.rsf.address.AddressInfo;
+import net.hasor.rsf.address.DefaultAddressCenter;
 import net.hasor.rsf.constants.ProtocolStatus;
 import net.hasor.rsf.constants.RsfException;
 import net.hasor.rsf.remoting.transport.connection.NetworkConnection;
 import net.hasor.rsf.remoting.transport.netty.RSFCodec;
+import net.hasor.rsf.rpc.context.AbstractRsfContext;
 import org.more.logger.LoggerHelper;
 /**
  * 为{@link InnerRsfCustomerHandler}提供{@link AbstractRsfClient}列表维护。
@@ -44,7 +42,7 @@ import org.more.logger.LoggerHelper;
  * @version : 2014年9月12日
  * @author 赵永春(zyc@hasor.net)
  */
-class InnerClientManager extends AbstractClientManager {
+public class InnerClientManager {
     private final RsfRequestManager           rsfRequestManager;
     private final AbstractRsfContext          rsfContext;
     private final Map<URL, AbstractRsfClient> clientMapping;
@@ -55,18 +53,23 @@ class InnerClientManager extends AbstractClientManager {
         this.clientMapping = new ConcurrentHashMap<URL, AbstractRsfClient>();
     }
     //
+    /** @return 获取{@link RsfContext}*/
     public AbstractRsfContext getRsfContext() {
         return this.rsfContext;
     }
-    private AbstractRequestManager getRequestManager() {
+    private RsfRequestManager getRequestManager() {
         return rsfRequestManager;
     }
-    /**连接远程服务*/
+    /**
+     * 获取或创建一个连接
+     * @param rsfBindInfo 服务注册信息。
+     * @return 返回远程服务所处的客户端连接。
+     */
     public AbstractRsfClient getClient(RsfBindInfo<?> bindInfo) {
         if (bindInfo == null)
             return null;
-        AbstracAddressCenter addressCenter = this.rsfContext.getAddressCenter();
-        Address refereeAddress = null;
+        DefaultAddressCenter addressCenter = this.rsfContext.getAddressCenter();
+        AddressInfo refereeAddress = null;
         while (true) {
             /*如果一个地址更新操作正在进行中，则该方法会被暂时阻塞直至操作结束。*/
             refereeAddress = addressCenter.findHostAddress(bindInfo);
@@ -94,7 +97,10 @@ class InnerClientManager extends AbstractClientManager {
         //
         throw new RsfException(ProtocolStatus.ClientError, "there is not invalid address.");
     }
-    /**关闭这个连接并解除注册。*/
+    /**
+     * 关闭这个连接并解除注册。
+     * @param hostAddress 主机地址
+     */
     public void unRegistered(URL hostAddress) {
         if (hostAddress == null)
             return;
@@ -110,7 +116,7 @@ class InnerClientManager extends AbstractClientManager {
         }
     }
     //
-    private synchronized AbstractRsfClient connSocket(final Address hostAddress) {
+    private synchronized AbstractRsfClient connSocket(final AddressInfo hostAddress) {
         final URL hostURL = hostAddress.getAddress();
         Bootstrap boot = new Bootstrap();
         boot.group(this.rsfContext.getLoopGroup());

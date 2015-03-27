@@ -13,20 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.adapter;
-import java.net.URL;
-import java.util.List;
-import net.hasor.rsf.RsfBindInfo;
+package net.hasor.rsf.address;
 /**
- * 地址管理中心，负责维护服务的远程服务提供者列表。
- * @version : 2014年11月30日
+ * 地址池
+ * @version : 2014年9月12日
  * @author 赵永春(zyc@hasor.net)
  */
-public abstract class AbstracAddressCenter {
-    /**查找一个有效主机地址*/
-    public abstract Address findHostAddress(RsfBindInfo<?> bindInfo);
-    /**被明确为无效的地址*/
-    public abstract void invalidAddress(Address refereeAddress);
-    /**更新静态服务提供地址*/
-    public abstract void updateAddress(RsfBindInfo<?> bindInfo, List<URL> serviceURLs);
+public class AddressPool {
+    RuleResultCache
+    //
+    //    private final Random                            addressRandom;      //随机数
+    //    /**轮转获取地址*/
+    //    public AddressInfo nextAddress() {
+    //        return this.activeHostAddressList.get(this.addressRandom.nextInt(this.activeHostAddressList.size()));
+    //    }
+    //      this.addressRandom = new Random(System.currentTimeMillis());
+    //
+    //
+    //
+    
 }
