@@ -13,9 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.center.server.startup;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+package net.hasor.rsf.center.server.core;
 import net.hasor.core.ApiBinder;
 import net.hasor.core.AppContext;
 import net.hasor.core.LifeModule;
@@ -24,13 +22,13 @@ import net.hasor.rsf.RsfContext;
 import net.hasor.rsf.RsfModule;
 import net.hasor.rsf.center.RsfCenterListener;
 import net.hasor.rsf.center.RsfCenterRegister;
-import net.hasor.rsf.center.server.core.commands.CenterCommandPlugin;
-import net.hasor.rsf.center.server.core.DaoModule;
 import net.hasor.rsf.center.server.domain.RsfCenterCfg;
 import net.hasor.rsf.center.server.domain.WorkMode;
 import net.hasor.rsf.center.server.push.PushQueue;
 import net.hasor.rsf.center.server.remote.RsfCenterRegisterProvider;
 import net.hasor.rsf.center.server.remote.RsfCenterServerVerifyFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 /**
  * 注册中心启动入口。
  *
@@ -41,9 +39,6 @@ public class RsfCenterServerModule implements LifeModule {
     protected Logger logger = LoggerFactory.getLogger(getClass());
     private RsfCenterCfg rsfCenterCfg;
     public RsfCenterServerModule() {
-    }
-    public RsfCenterServerModule(RsfCenterCfg rsfCenterCfg) {
-        this.rsfCenterCfg = rsfCenterCfg;
     }
     //
     @Override
@@ -59,13 +54,10 @@ public class RsfCenterServerModule implements LifeModule {
         WorkMode workMode = this.rsfCenterCfg.getWorkMode();
         logger.info("rsf work mode at : ({}){}", workMode.getCodeType(), workMode.getCodeString());
         //
-        // 3.连接数据库
-        apiBinder.installModule(new DaoModule(this.rsfCenterCfg));
-        //
-        // 4.启动RSF框架，发布注册中心接口
+        // 3.启动RSF框架，发布注册中心接口
         apiBinder.installModule(new RsfModule() {
             public void loadRsf(RsfContext rsfContext) throws Throwable {
-                rsfContext.offline();//切换下线，暂不接收任何Rsf请求
+                rsfContext.offline();                                                              //切换下线，暂不接收任何Rsf请求
                 //
                 RsfBinder rsfBinder = rsfContext.binder();
                 rsfBinder.rsfService(RsfCenterRegister.class).to(RsfCenterRegisterProvider.class)//
@@ -83,9 +75,9 @@ public class RsfCenterServerModule implements LifeModule {
     }
     //
     public void onStart(AppContext appContext) throws Throwable {
-        appContext.getInstance(RsfContext.class).online();//切换上线，开始提供服务
-        logger.info("rsfCenter online.");
         //
+        appContext.getInstance(RsfContext.class).online();                                         //切换上线，开始提供服务
+        logger.info("rsfCenter online.");
     }
     public void onStop(AppContext appContext) throws Throwable {
         //
