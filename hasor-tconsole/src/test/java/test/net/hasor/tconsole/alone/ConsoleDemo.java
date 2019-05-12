@@ -26,11 +26,8 @@ import net.hasor.tconsole.ConsoleApiBinder;
 public class ConsoleDemo {
     public static void main(String[] args) throws Throwable {
         //Server
-        Hasor.createAppContext(new Module() {
-            @Override
-            public void loadModule(ApiBinder apiBinder) throws Throwable {
-                apiBinder.tryCast(ConsoleApiBinder.class).addCommand(new String[] { "hello" }, HelloWordExecutor.class);
-            }
+        Hasor.createAppContext((Module) apiBinder -> {
+            apiBinder.tryCast(ConsoleApiBinder.class).addCommand(new String[] { "hello" }, HelloWordExecutor.class);
         });
         //
         System.out.println("server start.");
