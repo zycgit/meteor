@@ -1,4 +1,4 @@
-package net.hasor.test.beans;
+package net.hasor.test.tconsole;
 import net.hasor.tconsole.TelContext;
 import net.hasor.tconsole.spi.TelStartContextListener;
 import net.hasor.tconsole.spi.TelStopContextListener;

@@ -13,30 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.test.beans;
-import com.alibaba.fastjson.JSON;
+package net.hasor.test.tconsole;
+import net.hasor.core.Singleton;
 import net.hasor.tconsole.TelCommand;
 import net.hasor.tconsole.TelExecutor;
-import net.hasor.utils.StringUtils;
-
-import java.util.HashMap;
 
 /**
  * Hello Word
  * @version : 2016年4月3日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class TestExecutor implements TelExecutor {
-    private boolean doCommand;
-
-    public boolean isDoCommand() {
-        return doCommand;
-    }
-
-    public void setDoCommand(boolean doCommand) {
-        this.doCommand = doCommand;
-    }
-
+@Singleton
+public class EchoSessionIDExecutor implements TelExecutor {
     @Override
     public String helpInfo() {
         return "hello help.";
@@ -44,11 +32,6 @@ public class TestExecutor implements TelExecutor {
 
     @Override
     public String doCommand(TelCommand telCommand) throws Throwable {
-        this.doCommand = true;
-        return JSON.toJSONString(new HashMap<String, String>() {{
-            put("name", telCommand.getCommandName());
-            put("args", StringUtils.join(telCommand.getCommandArgs(), ","));
-            put("body", telCommand.getCommandBody());
-        }});
+        return telCommand.getSession().getSessionID();
     }
 }

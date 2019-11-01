@@ -1,4 +1,4 @@
-package net.hasor.test.beans;
+package net.hasor.test.tconsole;
 import net.hasor.tconsole.TelCommand;
 import net.hasor.tconsole.TelCommandOption;
 import net.hasor.tconsole.spi.TelAfterExecutorListener;

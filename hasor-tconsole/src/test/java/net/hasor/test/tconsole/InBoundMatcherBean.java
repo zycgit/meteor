@@ -1,4 +1,4 @@
-package net.hasor.test.beans;
+package net.hasor.test.tconsole;
 import java.util.ArrayList;
 import java.util.function.Predicate;
 

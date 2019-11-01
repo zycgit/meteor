@@ -1,4 +1,4 @@
-package net.hasor.test.beans;
+package net.hasor.test.tconsole;
 import net.hasor.tconsole.TelSession;
 import net.hasor.tconsole.spi.TelSessionCreateListener;
 import net.hasor.tconsole.spi.TelSessionDestroyListener;

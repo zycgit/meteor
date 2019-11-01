@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.test.beans;
+package net.hasor.test.tconsole;
 import net.hasor.tconsole.TelCommand;
 import net.hasor.tconsole.TelExecutor;
 
