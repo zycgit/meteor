@@ -15,7 +15,7 @@
  */
 package net.hasor.tconsole.binder;
 import net.hasor.core.ApiBinder;
-import net.hasor.core.binder.ApiBinderCreater;
+import net.hasor.core.binder.ApiBinderCreator;
 import net.hasor.tconsole.ConsoleApiBinder;
 import net.hasor.tconsole.TelContext;
 
@@ -24,7 +24,7 @@ import net.hasor.tconsole.TelContext;
  * @version : 2019年10月30日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class ConsoleApiBinderCreater implements ApiBinderCreater<ConsoleApiBinder> {
+public class ConsoleApiBinderCreator implements ApiBinderCreator<ConsoleApiBinder> {
     @Override
     public ConsoleApiBinder createBinder(final ApiBinder apiBinder) {
         InnerExecutorManager executorManager = new InnerExecutorManager();
