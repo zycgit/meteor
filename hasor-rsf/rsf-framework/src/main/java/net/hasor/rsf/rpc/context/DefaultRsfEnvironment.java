@@ -16,7 +16,7 @@
 package net.hasor.rsf.rpc.context;
 import io.netty.util.TimerTask;
 import net.hasor.core.Environment;
-import net.hasor.core.environment.EnvironmentWrap;
+import net.hasor.core.setting.EnvironmentWrap;
 import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.SerializeCoder;

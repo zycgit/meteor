@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 package test.net.hasor.rsf.functions;
-import net.hasor.core.environment.StandardEnvironment;
+import net.hasor.core.setting.StandardEnvironment;
 import net.hasor.rsf.rpc.context.DefaultRsfSettings;
 import org.junit.Test;
 

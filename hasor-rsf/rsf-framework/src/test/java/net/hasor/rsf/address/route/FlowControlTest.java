@@ -1,5 +1,5 @@
 package net.hasor.rsf.address.route;
-import net.hasor.core.environment.StandardEnvironment;
+import net.hasor.core.setting.StandardEnvironment;
 import net.hasor.rsf.InterAddress;
 import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.address.route.flowcontrol.random.RandomFlowControl;
