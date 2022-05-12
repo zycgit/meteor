@@ -15,16 +15,14 @@
  */
 package net.hasor.tconsole.launcher;
 import io.netty.buffer.ByteBuf;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.io.IOUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.tconsole.TelContext;
 import net.hasor.tconsole.TelExecutor;
 import net.hasor.tconsole.TelPhase;
 import net.hasor.tconsole.TelSession;
-import net.hasor.tconsole.spi.TelAfterExecutorListener;
-import net.hasor.tconsole.spi.TelBeforeExecutorListener;
-import net.hasor.utils.StringUtils;
-import net.hasor.utils.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -47,7 +45,6 @@ public abstract class TelSessionObject extends AttributeObject implements TelSes
     private final        String             sessionID;      //
     private final        TelReaderObject    dataReader;     // 输入流
     private final        Writer             dataWriter;     // 输出流
-    //
     private final        AbstractTelService telContext;     //
     private              TelCommandObject   currentCommand; // 当前命令
     private final        AtomicInteger      atomicInteger;  // 指令计数器
@@ -98,7 +95,7 @@ public abstract class TelSessionObject extends AttributeObject implements TelSes
     public boolean tryReceiveEvent() {
         // .更新读取区
         this.dataReader.update();
-        //
+
         // .是否有跳出动作 ^C 字符
         if (this.dataReader.expectChar(65533)) {
             this.close(); // 清掉缓冲区，重新接收
@@ -106,6 +103,7 @@ public abstract class TelSessionObject extends AttributeObject implements TelSes
         } else {
             this.dataReader.reset(); // 重置读取索引
         }
+
         // .创造命令
         if (this.currentCommand == null) {
             boolean blankLine = this.dataReader.expectBlankLine();
@@ -127,27 +125,19 @@ public abstract class TelSessionObject extends AttributeObject implements TelSes
                 return true;
             }
         }
-        //
+
         // .命令如果还未结束那么继续等待输入
         if (!this.currentCommand.testReadly(this.dataReader)) {
             return false;
         }
+
         // .设置Body
         String readData = this.dataReader.removeReadData();
         this.currentCommand.setCommandBody(readData);
         this.currentCommand.curentPhase(TelPhase.StandBy);
-        //
+
         // .执行命令
-        try {
-            this.telContext.getSpiTrigger().notifySpiWithoutResult(TelBeforeExecutorListener.class, listener -> {
-                listener.beforeExecCommand(this.currentCommand);
-            });
-            this.execCommand(this.currentCommand);
-        } finally {
-            this.telContext.getSpiTrigger().notifySpiWithoutResult(TelAfterExecutorListener.class, listener -> {
-                listener.afterExecCommand(this.currentCommand);
-            });
-        }
+        this.execCommand(this.currentCommand);
         this.currentCommand = null;
         return true;
     }
@@ -164,6 +154,7 @@ public abstract class TelSessionObject extends AttributeObject implements TelSes
             e.printStackTrace(new PrintWriter(sw));
             result = sw.toString();
         }
+
         // .输出成本
         boolean silent = aBoolean(this, SILENT);    // 静默
         boolean cost = aBoolean(this, COST);        // 成本
@@ -171,7 +162,7 @@ public abstract class TelSessionObject extends AttributeObject implements TelSes
             result = result + "\r\n--------------\r\n";
             result = result + ("cost time: " + (System.currentTimeMillis() - doStartTime) + "ms.");
         }
-        //
+
         if (StringUtils.isNotBlank(result)) {
             writeMessageLine(result);
         }

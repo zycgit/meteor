@@ -15,8 +15,6 @@
  * limitations under the License.
  */
 package net.hasor.tconsole.launcher.hosts;
-import net.hasor.core.AppContext;
-
 import java.io.IOException;
 import java.io.PipedReader;
 import java.io.PipedWriter;
@@ -31,11 +29,6 @@ public class PipedHostTelService extends HostTelService {
     private final PipedWriter inDataWriter = new PipedWriter();
 
     public PipedHostTelService(Writer outDataWriter) throws IOException {
-        this(null, outDataWriter);
-    }
-
-    public PipedHostTelService(AppContext appContext, Writer outDataWriter) throws IOException {
-        super(appContext);
         super.initConstructor(new PipedReader(this.inDataWriter), outDataWriter);
     }
 

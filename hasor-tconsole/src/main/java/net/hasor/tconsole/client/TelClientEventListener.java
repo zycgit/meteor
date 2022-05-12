@@ -17,5 +17,5 @@ package net.hasor.tconsole.client;
 /** 用于内部解耦 */
 @FunctionalInterface
 interface TelClientEventListener {
-    public void onEventClient();
+    void onEventClient();
 }

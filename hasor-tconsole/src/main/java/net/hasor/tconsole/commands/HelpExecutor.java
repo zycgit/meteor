@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 package net.hasor.tconsole.commands;
-import net.hasor.core.Singleton;
+import net.hasor.cobble.StringUtils;
 import net.hasor.tconsole.TelCommand;
 import net.hasor.tconsole.TelContext;
 import net.hasor.tconsole.TelExecutor;
-import net.hasor.utils.StringUtils;
 
 import java.io.StringWriter;
 import java.util.List;
@@ -28,7 +27,6 @@ import java.util.List;
  * @version : 2019年10月30日
  * @author 赵永春 (zyc@hasor.net)
  */
-@Singleton
 public class HelpExecutor implements TelExecutor {
     @Override
     public String helpInfo() {

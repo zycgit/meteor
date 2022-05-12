@@ -22,25 +22,25 @@ package net.hasor.tconsole;
  */
 public interface TelReader {
     /** 期望下一个字符就是回车符。 */
-    public default boolean expectBlankLine() {
+    default boolean expectBlankLine() {
         return expectChar('\n');
     }
 
     /** 连续读取到两个换行符 */
-    public default boolean expectDoubleBlankLines() {
+    default boolean expectDoubleBlankLines() {
         return expectString("\n\n");
     }
 
     /** 期待一个结束字符 */
-    public default boolean expectChar(int waitChar) {
+    default boolean expectChar(int waitChar) {
         return expectChar((char) waitChar);
     }
 
     /** 期待一个结束字符 */
-    public default boolean expectChar(char waitChar) {
+    default boolean expectChar(char waitChar) {
         return expectString(String.valueOf(waitChar));
     }
 
     /** 期待一个结束字符串 */
-    public boolean expectString(String waitString);
+    boolean expectString(String waitString);
 }

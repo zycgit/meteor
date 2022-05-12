@@ -19,13 +19,11 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.tconsole.launcher.TelSessionObject;
 import net.hasor.tconsole.launcher.TelUtils;
-import net.hasor.tconsole.spi.TelSessionCreateListener;
-import net.hasor.tconsole.spi.TelSessionDestroyListener;
-import net.hasor.utils.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -64,10 +62,10 @@ class TelNettyHandler extends SimpleChannelInboundHandler<String> {
         Channel channel = ctx.channel();
         InetSocketAddress inetAddress = (InetSocketAddress) channel.remoteAddress();
         String remoteAddress = inetAddress.getAddress().getHostAddress();
-        //
+
         // .不允许连入的情况
         if (!this.inBoundMatcher.test(remoteAddress)) {
-            logger.warn("tConsole -> reject inBound socket ,remoteAddress = {}.", remoteAddress);
+            logger.warn("tConsole -> reject inBound socket ,remoteAddress = " + remoteAddress);
             channel.write("--------------------------------------------\r\n\r\n");
             channel.write("I'm sorry you are not allowed to connect tConsole.\r\n\r\n");
             channel.write(" your address is :" + remoteAddress + "\r\n");
@@ -76,8 +74,8 @@ class TelNettyHandler extends SimpleChannelInboundHandler<String> {
             channel.close();
             return;
         }
-        logger.info("tConsole -> accept inBound socket ,remoteAddress = {}.", remoteAddress);
-        //
+        logger.info("tConsole -> accept inBound socket ,remoteAddress = " + remoteAddress);
+
         // .构造会话
         TelNettyWriter dataWriter = new TelNettyWriter(channel);
         this.dataReader = this.telContext.getByteBufAllocator().heapBuffer();
@@ -86,7 +84,7 @@ class TelNettyHandler extends SimpleChannelInboundHandler<String> {
                 return dataWriter.isClose();
             }
         };
-        //
+
         // .异步延迟 200ms 打印欢迎信息
         this.telContext.asyncExecute(() -> {
             try {
@@ -94,12 +92,9 @@ class TelNettyHandler extends SimpleChannelInboundHandler<String> {
                 printWelcome(channel);
             } catch (Exception e) { /**/ }
         });
-        //
+
         // .创建Session
         logger.info("tConsole -> trigger TelSessionListener.sessionCreated");
-        this.telContext.getSpiTrigger().notifySpiWithoutResult(TelSessionCreateListener.class, listener -> {
-            listener.sessionCreated(this.telSession);
-        });
     }
 
     private void printWelcome(Channel channel) {
@@ -156,8 +151,5 @@ class TelNettyHandler extends SimpleChannelInboundHandler<String> {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         logger.info("tConsole -> trigger TelSessionDestroyListener.sessionDestroyed");
-        this.telContext.getSpiTrigger().notifySpiWithoutResult(TelSessionDestroyListener.class, listener -> {
-            listener.sessionDestroyed(this.telSession); // .销毁Session
-        });
     }
 }

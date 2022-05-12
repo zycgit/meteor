@@ -53,7 +53,9 @@
 
     <modules>
         <module>hasor-tconsole</module>
-        <module>hasor-rsf/rsf-framework</module>
+        <module>hasor-land</module>
+        <module>rsf-framework</module>
+        <module>rsf-registry</module>
     </modules>
 
     <!-- 构建描述 -->
@@ -274,42 +276,6 @@
     <!-- 需要统一管理的依赖 -->
     <dependencyManagement>
         <dependencies>
-            <!-- self -->
-            <dependency>
-                <groupId>net.hasor</groupId>
-                <artifactId>hasor-commons</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>net.hasor</groupId>
-                <artifactId>hasor-core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>net.hasor</groupId>
-                <artifactId>hasor-db</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>net.hasor</groupId>
-                <artifactId>hasor-web</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>net.hasor</groupId>
-                <artifactId>hasor-dataql</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>net.hasor</groupId>
-                <artifactId>hasor-dataql-fx</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>net.hasor</groupId>
-                <artifactId>hasor-dataway</artifactId>
-                <version>${project.version}</version>
-            </dependency>
             <dependency>
                 <groupId>net.hasor</groupId>
                 <artifactId>hasor-tconsole</artifactId>
@@ -318,11 +284,6 @@
             <dependency>
                 <groupId>net.hasor</groupId>
                 <artifactId>hasor-rsf</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>net.hasor</groupId>
-                <artifactId>hasor-all</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

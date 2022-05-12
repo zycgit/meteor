@@ -22,13 +22,13 @@ package net.hasor.tconsole;
  */
 public interface TelOptions {
     /** 命令结束之后立刻关闭 session */
-    public static final String CLOSE_SESSION     = "TEL_CLOSE";
+    String CLOSE_SESSION     = "TEL_CLOSE";
     /** 静默：只输出命令本身的返回信息，在TelClient上该配置始终是true */
-    public static final String SILENT            = "TEL_SILENT";
+    String SILENT            = "TEL_SILENT";
     /** 静默模式下的命令结束符。TelClient 上该配置始终有值 */
-    public static final String ENDCODE_OF_SILENT = "TEL_ENDCODE_OF_SILENT";
+    String ENDCODE_OF_SILENT = "TEL_ENDCODE_OF_SILENT";
     /** 输出每条命令的成本时间 */
-    public static final String COST              = "TEL_COST";
+    String COST              = "TEL_COST";
     /** 当会话中执行命令数量达到设定值之后立刻关闭 session */
-    public static final String MAX_EXECUTOR_NUM  = "TEL_MAX_EXECUTOR_NUM";
+    String MAX_EXECUTOR_NUM  = "TEL_MAX_EXECUTOR_NUM";
 }

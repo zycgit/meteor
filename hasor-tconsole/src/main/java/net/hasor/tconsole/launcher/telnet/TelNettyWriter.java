@@ -24,7 +24,7 @@ import java.io.Writer;
  * @author 赵永春 (zyc@hasor.net)
  */
 class TelNettyWriter extends Writer {
-    private Channel channel;
+    private final Channel channel;
 
     TelNettyWriter(Channel channel) {
         this.channel = channel;

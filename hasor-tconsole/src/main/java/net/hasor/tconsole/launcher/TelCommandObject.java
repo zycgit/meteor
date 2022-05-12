@@ -61,7 +61,7 @@ final class TelCommandObject extends AttributeObject implements TelCommand, TelC
     }
 
     /** 命令状态 */
-    public TelPhase curentPhase() {
+    public TelPhase currentPhase() {
         return this.telPhase;
     }
 

@@ -22,11 +22,11 @@ package net.hasor.tconsole;
  */
 public enum TelPhase {
     /** 准备，用于命令在执行前接受内容 */
-    Prepare,    //
+    Prepare,
     /** 就绪，等待任务执行调度系统调度 */
-    StandBy,    //
+    StandBy,
     /** 运行中 */
-    Running,    //
+    Running,
     /** 执行完毕 */
-    Complete    //
+    Complete
 }

@@ -22,35 +22,35 @@ package net.hasor.tconsole;
  */
 public interface TelSession extends TelAttribute {
     /** 获取 SessionID */
-    public String getSessionID();
+    String getSessionID();
 
     /** 获取当前计数（命令无论成功或失败当执行之后计数器就会+1） */
-    public int currentCounter();
+    int currentCounter();
 
     /** 获取Telnet工具的上下文 */
-    public TelContext getTelContext();
+    TelContext getTelContext();
 
     /** 立即关闭Telnet连接 */
-    public default void close() {
+    default void close() {
         close(0, false);
     }
 
     /** 延迟 afterSeconds 秒之后，关闭Telnet连接；显示倒计时。 */
-    public default void close(int afterSeconds) {
+    default void close(int afterSeconds) {
         close(afterSeconds, true);
     }
 
     /** 延迟 afterSeconds 秒之后，关闭Telnet连接 */
-    public void close(int afterSeconds, boolean countdown);
+    void close(int afterSeconds, boolean countdown);
 
     /** 判断会话是否已经被关闭 */
-    public boolean isClose();
+    boolean isClose();
 
     /** 输出状态（带有换行）*/
-    public default void writeMessageLine(String message) {
+    default void writeMessageLine(String message) {
         this.writeMessage(message + "\r\n");
     }
 
     /**输出状态（不带换行）。*/
-    public void writeMessage(String message);
+    void writeMessage(String message);
 }

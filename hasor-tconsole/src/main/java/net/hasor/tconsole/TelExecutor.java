@@ -22,15 +22,15 @@ package net.hasor.tconsole;
  */
 public interface TelExecutor {
     /** 帮助信息 */
-    public default String helpInfo() {
+    default String helpInfo() {
         return "no more information.";
     }
 
     /** 用于确定读取一个完整的命令 */
-    public default boolean readCommand(TelCommand telCommand, TelReader telReader) {
+    default boolean readCommand(TelCommand telCommand, TelReader telReader) {
         return true;
     }
 
     /**执行命令*/
-    public String doCommand(TelCommand telCommand) throws Throwable;
+    String doCommand(TelCommand telCommand) throws Throwable;
 }

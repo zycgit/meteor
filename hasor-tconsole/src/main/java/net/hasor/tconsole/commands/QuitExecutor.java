@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 package net.hasor.tconsole.commands;
-import net.hasor.core.Singleton;
 import net.hasor.tconsole.TelCommand;
 import net.hasor.tconsole.TelExecutorVoid;
 import net.hasor.tconsole.TelOptions;
@@ -24,7 +23,6 @@ import net.hasor.tconsole.TelOptions;
  * @version : 2019年10月30日
  * @author 赵永春 (zyc@hasor.net)
  */
-@Singleton
 public class QuitExecutor implements TelExecutorVoid {
     @Override
     public String helpInfo() {
@@ -59,12 +57,12 @@ public class QuitExecutor implements TelExecutorVoid {
                 }
             }
         }
-        //
+
         if (nextCommand > 0) {
             telCommand.getSession().setAttribute(TelOptions.MAX_EXECUTOR_NUM, nextCommand);
             return;
         }
-        //
+
         telCommand.getSession().close(parseInt);
     }
 }

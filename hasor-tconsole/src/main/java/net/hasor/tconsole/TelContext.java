@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 package net.hasor.tconsole;
-import net.hasor.core.AppContext;
-
 import java.util.List;
 
 /**
@@ -25,13 +23,11 @@ import java.util.List;
  */
 public interface TelContext {
     /** 查找命令 */
-    public TelExecutor findCommand(String cmdName);
+    TelExecutor findCommand(String cmdName);
 
     /** 获取所有命令 */
-    public List<String> getCommandNames();
+    List<String> getCommandNames();
 
     /** 是否是 Host 模式 */
-    public boolean isHost();
-
-    public AppContext getAppContext();
+    boolean isHost();
 }

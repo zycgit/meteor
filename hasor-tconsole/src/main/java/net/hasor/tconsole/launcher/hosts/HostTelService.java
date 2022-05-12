@@ -17,7 +17,11 @@
 package net.hasor.tconsole.launcher.hosts;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import net.hasor.core.AppContext;
+import net.hasor.cobble.ExceptionUtils;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.concurrent.future.BasicFuture;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.tconsole.TelAttribute;
 import net.hasor.tconsole.TelOptions;
 import net.hasor.tconsole.launcher.AbstractTelService;
@@ -26,11 +30,6 @@ import net.hasor.tconsole.launcher.TelUtils;
 import net.hasor.tconsole.spi.TelSessionCreateListener;
 import net.hasor.tconsole.spi.TelSessionDestroyListener;
 import net.hasor.tconsole.spi.TelStopContextListener;
-import net.hasor.utils.ExceptionUtils;
-import net.hasor.utils.StringUtils;
-import net.hasor.utils.future.BasicFuture;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -53,19 +52,8 @@ public class HostTelService extends AbstractTelService implements TelOptions, Te
     private          BufferedReader   sourceReader = null; // 源头
     private          ByteBuf          dataReader   = null; // 读取缓冲,把源头数据丢入这个 Reader
 
-    /** 内部构造方法，给予子类扩展使用不对外 */
-    HostTelService(AppContext appContext) {
-        super(appContext);
-    }
-
     /** 创建 Host 模式的 Tel 命令服务 */
     public HostTelService(Reader reader, Writer writer) {
-        this(reader, writer, null);
-    }
-
-    /** 创建 Host 模式的 Tel 命令服务 */
-    public HostTelService(Reader reader, Writer writer, AppContext appContext) {
-        super(appContext);
         this.initConstructor(reader, writer);
     }
 

@@ -30,11 +30,10 @@ import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import net.hasor.core.AppContext;
+import net.hasor.cobble.concurrent.NameThreadFactory;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.tconsole.launcher.AbstractTelService;
-import net.hasor.utils.NameThreadFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -62,18 +61,7 @@ public class TelnetTelService extends AbstractTelService {
      * @throws UnknownHostException
      */
     public TelnetTelService(String bindAddress, int bindPort, Predicate<String> inBoundMatcher) throws UnknownHostException {
-        this(bindAddress, bindPort, inBoundMatcher, null);
-    }
-
-    /**
-     * 创建 tConsole 服务
-     * @param bindAddress 监听的本地IP。
-     * @param bindPort 监听端口
-     * @param inBoundMatcher 允许联入的IP匹配器
-     * @throws UnknownHostException
-     */
-    public TelnetTelService(String bindAddress, int bindPort, Predicate<String> inBoundMatcher, AppContext appContext) throws UnknownHostException {
-        this(new InetSocketAddress(finalBindAddress(bindAddress), bindPort), inBoundMatcher, appContext);
+        this(new InetSocketAddress(finalBindAddress(bindAddress), bindPort), inBoundMatcher);
     }
 
     /**
@@ -81,8 +69,7 @@ public class TelnetTelService extends AbstractTelService {
      * @param telnetSocket 监听的本地Socket
      * @param inBoundMatcher 允许联入的IP匹配器
      */
-    public TelnetTelService(InetSocketAddress telnetSocket, Predicate<String> inBoundMatcher, AppContext appContext) {
-        super(appContext);
+    public TelnetTelService(InetSocketAddress telnetSocket, Predicate<String> inBoundMatcher) {
         this.bindAddress = telnetSocket;
         Predicate<String> matcher = inBoundMatcher == null ? (s -> true) : inBoundMatcher;
         this.nettyHandler = new TelNettyHandler(this, matcher);

@@ -22,8 +22,8 @@ package net.hasor.tconsole;
  */
 public interface TelCommandOption extends TelCommand {
     /** 是否被取消了 */
-    public boolean isCancel();
+    boolean isCancel();
 
     /** 取消本次调用 */
-    public void cancel();
+    void cancel();
 }

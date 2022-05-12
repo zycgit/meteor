@@ -1,18 +1,53 @@
-# Hasor
+# 分布式 RPC 服务框架
 
-* Project Home: [https://www.hasor.net](https://www.hasor.net)
-* [![QQ群:193943114](https://img.shields.io/badge/QQ%E7%BE%A4-193943114-orange)](https://qm.qq.com/cgi-bin/qm/qr?k=0ZqU8WlKVENanH6ajgpbVua7WJUMOKQ9&jump_from=webapi)
-  [![Gitter](https://badges.gitter.im/hasor/hasor-dataql.svg)](https://gitter.im/hasor/hasor-dataql?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
-  [![License](https://img.shields.io/badge/license-Apache%202-4EB1BA.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-  [![Maven Central](https://maven-badges.herokuapp.com/maven-central/net.hasor/hasor-core/badge.svg)](https://maven-badges.herokuapp.com/maven-central/net.hasor/hasor-core)
-  [![Build Status](https://travis-ci.org/zycgit/hasor.svg?branch=master)](https://travis-ci.org/zycgit/hasor)
+&emsp;&emsp;一个高可用、高性能、轻量级的分布式服务框架。支持容灾、负载均衡、集群。一个典型的应用场景是，将同一个服务部署在多个`Server`上提供 request、response 消息通知。
 
-&emsp;&emsp; Hasor 本身是由多个不同系列框架组合而成的一个框架体系。这些子框架的能力涵盖了 IoC、Aop、WebMVC、数据库以及其它方方面面。这一切的基础要归功于 Hasor 的插件化能力。
+----------
+## 特性
+01. 支持服务热插拔：支持服务动态发布、动态卸载
+02. 支持服务分组：支持服务分组、分版本
+03. 支持多种方式调用：同步、异步、回调、接口代理
+04. 支持多种模式调用：RPC模式调用、Message模式调用
+        &emsp;&emsp;RPC     模式: 远程调用会等待并返回执行结果。适用于一般方法。遇到耗时方法会有调用超时风险
+        &emsp;&emsp;Message 模式: 远程调用当作消息投递到远程机器，不会产生等待，可以看作是一个简单的 MQ。适合于繁重的耗时方法
+05. 支持点对点调用。RSF的远程调用可以点对点定向调用，也可以集群大规模部署集中提供同一个服务
+06. 支持虚拟机房。通过配置虚拟机房策略可以降低跨机房远程调用
+07. 支持泛化调用。简单的理解，泛化调用就是不依赖二方包，通过传入方法名，方法签名和参数值，就可以调用服务
+08. 支持隐式传参。可以理解隐式传参的含义为，不需要在接口上明确声明参数。在发起调用的时传递到远端
+09. 内置 Telnet 控制台，可以命令行方式直接管理机器
+10. 支持 offline/online 动作
 
-&emsp;&emsp; Hasor 帮助您设计更好的 API，它独有的框架扩展能力可以使新的能力完全无缝的集成到统一的 API 体系中。我们构建了通用功能，使您能够扩展 Hasor，而不是向核心框架添加每个特性。
+## 样例
 
-&emsp;&emsp; Hasor 的扩展能力更像是一个乐高玩具的接口，任何人都可以通过非常简单的方式提供乐高积木，然后轻松的将它们融合到一起。在使用的过程中完全感受不到背后是多个不同的框架在协作。Hasor API 本身就是一个很好的例子。
+服务端
+```java
+public class ProviderServer {
+    public static void main(String[] args) throws Throwable {
+        AppContext appContext = Hasor.create().addVariable("RSF_SERVICE_PORT","2181").build((RsfModule) apiBinder -> {
+            apiBinder.rsfService(EchoService.class).to(EchoServiceImpl.class).register();
+        });
+        //
+        System.out.println("server start.");
+        appContext.joinSignal();//阻塞当前线程的继续执行，直到 shutdown 或接收到 kill -15 or kill -2 信号
+    }
+}
+```
 
-&emsp;&emsp; Hasor 的目标是使开发和调试变得更容易和更快，而不是更困难和更慢。
-
-&emsp;&emsp; 有关 Hasor 的介绍以及使用请查看我们的用户指南。自2013年开源以来，我们一直在更新和迭代，到如今已经有快 10个年头了很多关键应用程序中都在运行 Hasor，现在您可以更加放心的使用它。我们希望您和我们一样喜欢它。
+客户端
+```java
+public class CustomerClient {
+    public static void main(String[] args) throws Throwable {
+        AppContext appContext = Hasor.create().addVariable("RSF_SERVICE_PORT","2171").build((RsfModule) apiBinder -> {
+            InterAddress remote = new InterAddress("rsf://localhost:2181/default");
+            apiBinder.rsfService(EchoService.class).bindAddress(remote).register();
+        });
+        //
+        System.out.println("client start.");
+        RsfClient client = clientContext.getInstance(RsfClient.class);
+        EchoService echoService = client.wrapper(EchoService.class);
+        for (int i = 0; i < 20; i++) {
+            String res = echoService.sayHello("Hello Word for Invoker");
+        }
+    }
+}
+```

@@ -22,24 +22,24 @@ package net.hasor.tconsole;
  */
 public interface TelCommand extends TelAttribute {
     /** 获取会话属性 */
-    public TelSession getSession();
+    TelSession getSession();
 
     /** 获取命令行输入的参数 */
-    public String getCommandName();
+    String getCommandName();
 
     /** 获取命令行输入的参数 */
-    public String[] getCommandArgs();
+    String[] getCommandArgs();
 
     /** 获取命令行输入的参数 */
-    public String getCommandBody();
+    String getCommandBody();
 
     /** 输出状态（带有换行）*/
-    public default void writeMessageLine(String message) {
+    default void writeMessageLine(String message) {
         this.getSession().writeMessageLine(message);
     }
 
     /**输出状态（不带换行）*/
-    public default void writeMessage(String message) {
+    default void writeMessage(String message) {
         this.getSession().writeMessage(message);
     }
 }

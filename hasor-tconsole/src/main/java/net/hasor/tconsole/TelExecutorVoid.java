@@ -22,11 +22,11 @@ package net.hasor.tconsole;
  */
 public interface TelExecutorVoid extends TelExecutor {
     @Override
-    public default String doCommand(TelCommand telCommand) throws Throwable {
+    default String doCommand(TelCommand telCommand) throws Throwable {
         this.voidCommand(telCommand);
         return "";
     }
 
     /**执行命令*/
-    public void voidCommand(TelCommand telCommand) throws Throwable;
+    void voidCommand(TelCommand telCommand) throws Throwable;
 }

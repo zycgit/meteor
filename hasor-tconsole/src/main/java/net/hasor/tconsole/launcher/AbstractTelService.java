@@ -16,24 +16,17 @@
  */
 package net.hasor.tconsole.launcher;
 import io.netty.buffer.ByteBufAllocator;
-import net.hasor.core.AppContext;
-import net.hasor.core.container.AbstractContainer;
-import net.hasor.core.container.SpiCallerContainer;
-import net.hasor.core.spi.SpiTrigger;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.concurrent.NameThreadFactory;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.tconsole.TelContext;
 import net.hasor.tconsole.TelExecutor;
 import net.hasor.tconsole.commands.GetSetExecutor;
 import net.hasor.tconsole.commands.HelpExecutor;
 import net.hasor.tconsole.commands.QuitExecutor;
-import net.hasor.tconsole.spi.TelStartContextListener;
-import net.hasor.tconsole.spi.TelStopContextListener;
-import net.hasor.utils.NameThreadFactory;
-import net.hasor.utils.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.EventListener;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,52 +40,15 @@ import java.util.function.Supplier;
  * @version : 2016年09月20日
  * @author 赵永春 (zyc@hasor.net)
  */
-public abstract class AbstractTelService extends AbstractContainer implements TelContext {
+public abstract class AbstractTelService implements TelContext {
     public static final String                                       CMD            = "tConsole>";
     protected static    Logger                                       logger         = LoggerFactory.getLogger(AbstractTelService.class);
-    protected final     ClassLoader                                  classLoader;
-    private final       SpiTrigger                                   spiTrigger;
     private final       Map<String, Supplier<? extends TelExecutor>> telExecutorMap = new ConcurrentHashMap<>();
     private             ScheduledExecutorService                     executor       = null;
-    private             AppContext                                   appContext;
 
-    /** 创建 tConsole 服务 */
-    public AbstractTelService(AppContext appContext) {
-        if (appContext != null) {
-            this.classLoader = appContext.getClassLoader();
-            this.spiTrigger = appContext.getInstance(SpiTrigger.class);
-        } else {
-            // .空实现，防止npe
-            this.classLoader = Thread.currentThread().getContextClassLoader();
-            this.spiTrigger = new SpiCallerContainer();
-        }
-        this.appContext = appContext;
-    }
-
-    /** 注册一个 SPI 监听器 */
-    public synchronized <T extends EventListener> void addListener(Class<T> spiType, T spiListener) {
-        this.addListener(spiType, (Supplier<T>) () -> spiListener);
-    }
-
-    /** 注册一个 SPI 监听器 */
-    public synchronized <T extends EventListener> void addListener(Class<T> spiType, Supplier<T> spiListener) {
-        if (!(this.spiTrigger instanceof SpiCallerContainer)) {
-            throw new IllegalStateException("spiTrigger is not SpiCallerContainer.");
-        }
-        ((SpiCallerContainer) this.spiTrigger).addListener(spiType, spiListener);
-    }
-
-    protected void applyCommand() {
-        //
-    }
-
-    @Override
-    protected void doInitialize() {
+    public AbstractTelService() {
         // .触发SPI
         logger.info("tConsole -> trigger TelStartContextListener.onStart");
-        this.spiTrigger.notifySpiWithoutResult(TelStartContextListener.class, listener -> {
-            listener.onStart(AbstractTelService.this);
-        });
         //
         logger.info("tConsole -> applyCommand.");
         this.applyCommand();
@@ -110,6 +66,10 @@ public abstract class AbstractTelService extends AbstractContainer implements Te
         logger.info("tConsole -> create TelnetHandler , threadShortName={} , workThreadSize = {}.", shortName, workSize);
     }
 
+    protected void applyCommand() {
+        //
+    }
+
     @Override
     protected void doClose() {
         if (this.executor != null) {
@@ -120,9 +80,6 @@ public abstract class AbstractTelService extends AbstractContainer implements Te
         this.telExecutorMap.clear();
         // .触发SPI
         logger.info("tConsole -> trigger TelStopContextListener.onStop");
-        this.spiTrigger.notifySpiWithoutResult(TelStopContextListener.class, listener -> {
-            listener.onStop(AbstractTelService.this);
-        });
     }
 
     public void asyncExecute(Runnable runnable) {
@@ -130,10 +87,6 @@ public abstract class AbstractTelService extends AbstractContainer implements Te
             throw new IllegalStateException("the Container need init.");
         }
         this.executor.execute(runnable);
-    }
-
-    public SpiTrigger getSpiTrigger() {
-        return this.spiTrigger;
     }
 
     /** 添加命令 */
@@ -175,9 +128,4 @@ public abstract class AbstractTelService extends AbstractContainer implements Te
     }
 
     public abstract ByteBufAllocator getByteBufAllocator();
-
-    @Override
-    public AppContext getAppContext() {
-        return this.appContext;
-    }
 }

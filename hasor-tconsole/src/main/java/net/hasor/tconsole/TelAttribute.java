@@ -24,11 +24,11 @@ import java.util.Set;
  */
 public interface TelAttribute {
     /** 获取属性。*/
-    public Object getAttribute(String key);
+    Object getAttribute(String key);
 
     /** 设置属性。*/
-    public void setAttribute(String key, Object value);
+    void setAttribute(String key, Object value);
 
     /** 获取属性名称集合 */
-    public Set<String> getAttributeNames();
+    Set<String> getAttributeNames();
 }
