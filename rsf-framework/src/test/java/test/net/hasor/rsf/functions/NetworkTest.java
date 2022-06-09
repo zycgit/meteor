@@ -20,7 +20,7 @@ import net.hasor.rsf.InterAddress;
 import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.domain.RequestInfo;
 import net.hasor.rsf.domain.ResponseInfo;
-import net.hasor.rsf.rpc.context.DefaultRsfEnvironment;
+import net.hasor.rsf.settings.DefaultRsfEnvironment;
 import net.hasor.rsf.rpc.net.ReceivedAdapter;
 import net.hasor.rsf.rpc.net.RsfChannel;
 import net.hasor.rsf.rpc.net.RsfNetManager;

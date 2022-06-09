@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.rpc.context;
+package net.hasor.rsf.settings;
 import net.hasor.core.setting.SettingNode;
 import net.hasor.core.Settings;
 import net.hasor.core.setting.SettingsWrap;

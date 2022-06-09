@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address.route.flowcontrol.random;
-import net.hasor.core.Settings;
+import net.hasor.cobble.setting.Settings;
 import net.hasor.rsf.InterAddress;
 import net.hasor.rsf.address.route.rule.AbstractRule;
 

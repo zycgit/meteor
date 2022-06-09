@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address.route.flowcontrol.speed;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -73,7 +73,7 @@ public class QoSBucket {
                     lastRefreshTime = now;// 更新成功后，设置新的刷新时间
                     leftDouble = addedPlusDouble - addPlus;
                     if (logger.isDebugEnabled()) {
-                        logger.debug("[QoSBucket] Updated done: [{}] -> [{}], refresh time: {}.", currentValue, newValue, now);
+                        logger.debug("[QoSBucket] Updated done: [" + currentValue + "] -> [" + newValue + "], refresh time: " + now);
                     }
                 }
             }

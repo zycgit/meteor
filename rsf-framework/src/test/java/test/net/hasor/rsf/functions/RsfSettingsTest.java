@@ -15,12 +15,11 @@
  */
 package test.net.hasor.rsf.functions;
 import net.hasor.core.setting.StandardEnvironment;
-import net.hasor.rsf.rpc.context.DefaultRsfSettings;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.HashMap;
+
 /**
  *
  * @version : 2015年4月5日

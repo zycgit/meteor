@@ -27,5 +27,5 @@ public interface RsfFilter {
      * @param chain 过滤器链
      * @throws Throwable 执行期间引发的异常。
      */
-    public void doFilter(RsfRequest request, RsfResponse response, RsfFilterChain chain) throws Throwable;
+    void doFilter(RsfRequest request, RsfResponse response, RsfFilterChain chain) throws Throwable;
 }

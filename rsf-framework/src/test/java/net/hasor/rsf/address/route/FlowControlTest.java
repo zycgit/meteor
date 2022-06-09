@@ -6,7 +6,7 @@ import net.hasor.rsf.address.route.flowcontrol.random.RandomFlowControl;
 import net.hasor.rsf.address.route.flowcontrol.speed.SpeedFlowControl;
 import net.hasor.rsf.address.route.flowcontrol.unit.UnitFlowControl;
 import net.hasor.rsf.address.route.rule.RuleParser;
-import net.hasor.rsf.rpc.context.DefaultRsfEnvironment;
+import net.hasor.rsf.settings.DefaultRsfEnvironment;
 import net.hasor.rsf.utils.IOUtils;
 import net.hasor.utils.ResourcesUtils;
 import org.junit.Test;

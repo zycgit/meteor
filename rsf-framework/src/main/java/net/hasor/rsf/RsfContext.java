@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 package net.hasor.rsf;
-import net.hasor.core.AppContext;
-import net.hasor.core.Environment;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -30,75 +28,69 @@ import java.util.function.Supplier;
  * @author 赵永春 (zyc@hasor.net)
  */
 public interface RsfContext extends OnlineStatus {
-    /** 获取实例ID，实例ID在应用每次启动时生成一个全新的ID。 */
-    public String getInstanceID();
+    /** 获取实例ID，实例ID在应用每次启动时生成一个全新的ID */
+    String getInstanceID();
 
-    /** @return 发起远程调用的客户端接口*/
-    public RsfClient getRsfClient();
+    /** @return 发起远程调用的客户端接口 */
+    RsfClient getRsfClient();
 
-    /** @return 发起远程调用的客户端接口*/
-    public RsfClient getRsfClient(String targetStr) throws URISyntaxException, UnknownHostException;
+    /** @return 发起远程调用的客户端接口 */
+    RsfClient getRsfClient(String targetStr) throws URISyntaxException, UnknownHostException;
 
-    /** @return 发起远程调用的客户端接口*/
-    public RsfClient getRsfClient(URI targetURL) throws UnknownHostException;
+    /** @return 发起远程调用的客户端接口 */
+    RsfClient getRsfClient(URI targetURL) throws UnknownHostException;
 
-    /** @return 发起远程调用的客户端接口*/
-    public RsfClient getRsfClient(InterAddress target);
+    /** @return 发起远程调用的客户端接口 */
+    RsfClient getRsfClient(InterAddress target);
 
-    /**根据服务名获取服务描述。*/
-    public <T> RsfBindInfo<T> getServiceInfo(String serviceID);
+    /** 根据服务名获取服务描述 */
+    RsfBindInfo getServiceInfo(String serviceID);
 
-    /**根据别名系统来查找服务。*/
-    public <T> RsfBindInfo<T> getServiceInfo(String aliasType, String aliasName);
+    /** 根据别名系统来查找服务 */
+    RsfBindInfo getServiceInfo(String aliasType, String aliasName);
 
-    /**根据服务名获取服务描述。*/
-    public <T> RsfBindInfo<T> getServiceInfo(Class<T> serviceType);
+    /** 根据服务名获取服务描述 */
+    RsfBindInfo getServiceInfo(Class<?> serviceType);
 
-    /**根据服务名获取服务描述。*/
-    public <T> RsfBindInfo<T> getServiceInfo(String group, String name, String version);
+    /** 根据服务名获取服务描述 */
+    RsfBindInfo getServiceInfo(String group, String name, String version);
 
-    /**获取已经注册的所有服务名称。*/
-    public List<String> getServiceIDs();
+    /** 获取已经注册的所有服务名称 */
+    List<String> getServiceIDs();
 
-    /**根据别名系统来获取该别名系统下所有服务ID。*/
-    public List<String> getServiceIDs(String aliasType);
+    /** 根据别名系统来获取该别名系统下所有服务ID */
+    List<String> getServiceIDs(String aliasType);
 
     /**
      * 获取元信息所描述的服务对象
      * @param bindInfo 元信息所描述对象
      */
-    public <T> Supplier<T> getServiceProvider(RsfBindInfo<T> bindInfo);
+    <T> Supplier<T> getServiceProvider(RsfBindInfo bindInfo);
 
-    /**获取运行着的协议*/
-    public Set<String> runProtocols();
+    /** 获取运行着的协议*/
+    Set<String> runProtocols();
 
-    /**获取默认协议*/
-    public String getDefaultProtocol();
+    /** 获取默认协议 */
+    String getDefaultProtocol();
 
-    /** 获取RSF运行的地址。 */
-    public InterAddress bindAddress(String protocol);
+    /** 获取RSF运行的地址 */
+    InterAddress bindAddress(String protocol);
 
-    /**获取RSF配置*/
-    public RsfSettings getSettings();
+    /** 获取RSF配置 */
+    RsfSettings getSettings();
 
-    /**获取IoC容器*/
-    public AppContext getAppContext();
+    /** 获取地址路由更新接口 */
+    RsfUpdater getUpdater();
 
-    /**获取{@link Environment}*/
-    public RsfEnvironment getEnvironment();
+    /** 获取类加载器 */
+    ClassLoader getClassLoader();
 
-    /**获取地址路由更新接口。*/
-    public RsfUpdater getUpdater();
+    /** 创建{@link RsfPublisher} */
+    RsfPublisher publisher();
 
-    /**获取类加载器。*/
-    public ClassLoader getClassLoader();
+    /** 应用上线（优雅上线） */
+    void online();
 
-    /**创建{@link RsfPublisher}。*/
-    public RsfPublisher publisher();
-
-    /**应用上线（优雅上线）*/
-    public void online();
-
-    /**应用下线（优雅停机）*/
-    public void offline();
+    /** 应用下线（优雅停机） */
+    void offline();
 }

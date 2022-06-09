@@ -20,6 +20,6 @@ package net.hasor.rsf;
  * @author 赵永春 (zyc@hasor.net)
  */
 public interface OnlineStatus {
-    /**是否在线*/
-    public boolean isOnline();
+    /** 是否在线 */
+    boolean isOnline();
 }

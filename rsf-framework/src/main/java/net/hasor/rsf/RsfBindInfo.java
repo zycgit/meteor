@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 package net.hasor.rsf;
-import net.hasor.core.BindInfo;
 import net.hasor.rsf.domain.RsfServiceType;
 
 import java.util.Set;
@@ -24,49 +23,50 @@ import java.util.Set;
  * @version : 2014年11月12日
  * @author 赵永春 (zyc@hasor.net)
  */
-public interface RsfBindInfo<T> extends BindInfo<T> {
-    /** @return 唯一标识（客户端唯一标识）。*/
-    public String getBindID();
-
-    /** @return 服务名称。*/
-    public String getBindName();
+public interface RsfBindInfo {
 
     /** @return 获取已经定义的别名 */
-    public Set<String> getAliasTypes();
+    Set<String> getAliasTypes();
 
     /** @return 别名 */
-    public String getAliasName(String aliasType);
+    String getAliasName(String aliasType);
 
-    /** @return 服务分组。*/
-    public String getBindGroup();
+    /** @return 唯一标识（客户端唯一标识）*/
+    String getBindID();
 
-    /** @return 服务版本。*/
-    public String getBindVersion();
+    /** @return 服务名称 */
+    String getBindName();
 
-    /** @return 注册的服务类型。*/
-    public Class<T> getBindType();
+    /** @return 服务分组 */
+    String getBindGroup();
 
-    /** @return 是提供者还是消费者*/
-    public RsfServiceType getServiceType();
+    /** @return 服务版本 */
+    String getBindVersion();
 
-    /** @return 指定使用的RPC通信协议，如果为空表示没有特殊指定。RSF将使用 RsfContext.runProtocols()*/
-    public Set<String> getBindProtocols();
+    /** @return 注册的服务类型 */
+    Class<?> getBindType();
+
+    /** @return 是提供者还是消费者 */
+    RsfServiceType getServiceType();
+
+    /** @return 指定使用的RPC通信协议，如果为空表示没有特殊指定。RSF将使用 RsfContext.runProtocols() */
+    Set<String> getBindProtocols();
 
     /**
      * 返回接口是否为一个 Message 接口。
      * @see RsfMessage
      */
-    public boolean isMessage();
+    boolean isMessage();
 
-    /** 接口是否要求工作在隐藏模式下。*/
-    public boolean isShadow();
+    /** 接口是否要求工作在隐藏模式下 */
+    boolean isShadow();
 
-    /** @return 获取客户端调用服务超时时间。*/
-    public int getClientTimeout();
+    /** @return 获取客户端调用服务超时时间 */
+    int getClientTimeout();
 
-    /** @return 获取序列化方式*/
-    public String getSerializeType();
+    /** @return 获取序列化方式 */
+    String getSerializeType();
 
-    /** 服务的执行线程池是否为共享线程池。 */
-    public boolean isSharedThreadPool();
+    /** 服务的执行线程池是否为共享线程池 */
+    boolean isSharedThreadPool();
 }

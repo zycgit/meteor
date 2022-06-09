@@ -20,14 +20,12 @@ package net.hasor.rsf.address;
  * @author 赵永春 (zyc@hasor.net)
  */
 public enum AddressTypeEnum {
-    /***/
     Dynamic(1, "dynamic", "D|"),
-    /***/
     Static(2, "static", "S|"),
     ;
-    private int    type;
-    private String desc;
-    private String shortType;
+    private final int    type;
+    private final String desc;
+    private final String shortType;
 
     AddressTypeEnum(int type, String desc, String shortType) {
         this.type = type;

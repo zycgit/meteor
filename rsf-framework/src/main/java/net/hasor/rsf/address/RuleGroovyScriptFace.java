@@ -22,5 +22,5 @@ import java.util.List;
  * @author 赵永春 (zyc@hasor.net)
  */
 public interface RuleGroovyScriptFace<T> {
-    public T evalAddress(String serviceID, List<String> allAddress);
+    T evalAddress(String serviceID, List<String> allAddress);
 }

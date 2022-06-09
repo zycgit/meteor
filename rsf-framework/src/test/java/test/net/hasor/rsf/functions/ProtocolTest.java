@@ -21,7 +21,7 @@ import net.hasor.core.Hasor;
 import net.hasor.rsf.domain.RequestInfo;
 import net.hasor.rsf.domain.ResponseInfo;
 import net.hasor.rsf.protocol.rsf.v1.CodecAdapterForV1;
-import net.hasor.rsf.rpc.context.DefaultRsfEnvironment;
+import net.hasor.rsf.settings.DefaultRsfEnvironment;
 import org.junit.Test;
 
 /**

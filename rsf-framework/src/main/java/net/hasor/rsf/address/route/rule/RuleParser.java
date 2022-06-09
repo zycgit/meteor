@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address.route.rule;
-import net.hasor.core.setting.SettingNode;
-import net.hasor.core.Settings;
-import net.hasor.core.setting.InputStreamSettings;
-import net.hasor.core.setting.provider.StreamType;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
+import net.hasor.cobble.setting.MergedSettings;
+import net.hasor.cobble.setting.SettingNode;
+import net.hasor.cobble.setting.Settings;
+import net.hasor.cobble.setting.provider.StreamType;
 import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.RsfSettings;
-import net.hasor.utils.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.StringReader;
 import java.util.HashMap;
@@ -51,7 +51,7 @@ public class RuleParser {
                         Class<?> ruleClass = rsfEnvironment.getClassLoader().loadClass(ruleClassName);
                         ruleTypeMap.put(ruleID, ruleClass);
                     } catch (Throwable e) {
-                        logger.error("rule {} load type error -> {}", ruleID, e.getMessage());
+                        logger.error("rule " + ruleID + " load type error -> " + e.getMessage());
                     }
                 }
             }
@@ -66,12 +66,12 @@ public class RuleParser {
         }
         //
         try {
-            InputStreamSettings ruleSettings = new InputStreamSettings();
+            MergedSettings ruleSettings = new MergedSettings();
             ruleSettings.addReader(new StringReader("<xml>" + rawRoute + "</xml>"), StreamType.Xml);
             ruleSettings.loadSettings();
             return ruleSettings(ruleSettings);
         } catch (Exception e) {
-            logger.error("rule raw format error. -> {}", e.getMessage(), e);
+            logger.error("rule raw format error. -> " + e.getMessage(), e);
         }
         return null;
     }
@@ -94,10 +94,10 @@ public class RuleParser {
             }
             //
             ruleID = ruleID.trim().toLowerCase();
-            logger.info("process rule '{}' -> {}.", ruleID, ruleEnable);
+            logger.info("process rule '" + ruleID + "' -> " + ruleEnable);
             Class<?> ruleClass = ruleTypeMap.get(ruleID);
             if (ruleClass == null) {
-                logger.info("rule type of '{}' is undefined.", ruleID);
+                logger.info("rule type of '" + ruleID + "' is undefined.");
                 return null;
             }
             //
@@ -107,7 +107,7 @@ public class RuleParser {
             ruleObject.enable(ruleEnable);
             ruleObject.parseControl(ruleSettings);
         } catch (Exception e) {
-            logger.error("rule raw format error -> {}", e.getMessage(), e);
+            logger.error("rule raw format error -> " + e.getMessage(), e);
         }
         return ruleObject;
     }

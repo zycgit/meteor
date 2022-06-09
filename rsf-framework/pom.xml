@@ -3,17 +3,17 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>net.hasor</groupId>
-        <artifactId>hasor-parent</artifactId>
+        <artifactId>rsf-parent</artifactId>
         <version>4.2.6-SNAPSHOT</version>
     </parent>
 
     <!-- Maven Info -->
-    <artifactId>hasor-rsf</artifactId>
+    <artifactId>rsf-core</artifactId>
     <packaging>jar</packaging>
 
     <!-- Project Info -->
-    <name>Hasor-RSF/RPC</name>
-    <description>the Hasor Remote Service Framework project.</description>
+    <name>RSF Framework</name>
+    <description>request/response RPC Framework.</description>
 
     <developers>
         <developer>
@@ -22,72 +22,15 @@
         </developer>
     </developers>
 
-    <build>
-        <plugins>
-            <!-- 把 javassist、ognl 的源码和 class 集成到 hasor-dataql-fx 项目 中 -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.2.1</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <createSourcesJar>true</createSourcesJar>
-                            <createDependencyReducedPom>false</createDependencyReducedPom>
-                            <artifactSet>
-                                <includes>
-                                    <include>net.hasor:hasor-rsf</include>
-                                    <include>org.hprose:hprose-java</include>
-                                    <include>com.caucho:hessian</include>
-                                </includes>
-                            </artifactSet>
-                            <relocations>
-                                <relocation>
-                                    <pattern>hprose</pattern>
-                                    <shadedPattern>net.hasor.rsf.hprose</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>com.caucho</pattern>
-                                    <shadedPattern>net.hasor.rsf.hessian</shadedPattern>
-                                </relocation>
-                            </relocations>
-                            <filters>
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludes>
-                                        <exclude>META-INF/MANIFEST.MF</exclude>
-                                    </excludes>
-                                </filter>
-                            </filters>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
-
     <!-- 引用依赖 -->
     <dependencies>
         <dependency>
             <groupId>net.hasor</groupId>
-            <artifactId>hasor-core</artifactId>
-            <version>4.2.5</version>
-        </dependency>
-        <dependency>
-            <groupId>net.hasor</groupId>
-            <artifactId>hasor-tconsole</artifactId>
+            <artifactId>cobble-all</artifactId>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy</artifactId>
         </dependency>
 
         <dependency>
@@ -103,14 +46,6 @@
             <version>4.0.63</version>
             <scope>compile</scope>
             <optional>true</optional>
-        </dependency>
-
-
-        <!-- JSON 序列化 -->
-        <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>fastjson</artifactId>
-            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>

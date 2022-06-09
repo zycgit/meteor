@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 package net.hasor.rsf;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.rsf.utils.NetworkUtils;
-import net.hasor.utils.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.net.*;
 import java.util.List;
@@ -194,7 +194,7 @@ public class InterAddress {
         }
         //        }
         if (logger.isDebugEnabled()) {
-            logger.debug("'{}' rsfAddress format error.", serviceURL);
+            logger.debug("'" + serviceURL + "' rsfAddress format error.");
         }
         return false;
     }

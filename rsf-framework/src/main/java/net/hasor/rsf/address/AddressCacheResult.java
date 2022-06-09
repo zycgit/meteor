@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.rsf.InterAddress;
 import net.hasor.rsf.address.route.rule.ArgsKey;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.Map.Entry;
@@ -95,7 +95,7 @@ class AddressCacheResult {
             //1.计算缓存的服务接口级,地址列表
             List<InterAddress> serviceLevelResult = null;
             if (!refRule.getServiceLevel().isEnable()) {
-                logger.debug("eval routeScript [ServiceLevel], service {} route undefined.", serviceID);
+                logger.debug("eval routeScript [ServiceLevel], service " + serviceID + " route undefined.");
             } else {
                 List<String> serviceLevelResultStr = evalServiceLevel(serviceID, refRule, allStrList);
                 if (serviceLevelResultStr != null && !serviceLevelResultStr.isEmpty()) {
@@ -109,7 +109,7 @@ class AddressCacheResult {
             //
             //2.计算缓存的服务方法级,地址列表
             if (!refRule.getMethodLevel().isEnable()) {
-                logger.debug("eval routeScript [MethodLevel], service {} route undefined.", serviceID);
+                logger.debug("eval routeScript [MethodLevel], service " + serviceID + " route undefined.");
             } else {
                 Map<String, List<String>> methodLevelResultStr = evalMethodLevel(serviceID, refRule, allStrList);
                 if (methodLevelResultStr != null && !methodLevelResultStr.isEmpty()) {
@@ -120,7 +120,7 @@ class AddressCacheResult {
             //
             //3.计算缓存的服务参数级,地址列表
             if (!refRule.getArgsLevel().isEnable()) {
-                logger.debug("eval routeScript [ArgsLevel], service {} route undefined.", serviceID);
+                logger.debug("eval routeScript [ArgsLevel], service " + serviceID + " route undefined.");
             } else if (addressPool.getArgsKey() == null) {
                 logger.error("argsKeyBuilder is null , evalArgsLevel failed.");
             } else {
@@ -130,21 +130,17 @@ class AddressCacheResult {
                     cacheResultRef.argsLevel.put(serviceID, argsLevelResult);/*保存计算结果*/
                 }
             }
-            //
         }
         logger.debug("switch cacheResultRef.");
         this.cacheResultRef = cacheResultRef;
     }
 
-    //
-    //
-    //
     private static Map<String, Map<String, List<InterAddress>>> convertToAddressArgs(List<InterAddress> all, Map<String, Map<String, List<String>>> argsLevelResult) {
         Map<String, Map<String, List<InterAddress>>> result = new HashMap<>();
         for (Entry<String, Map<String, List<String>>> ent : argsLevelResult.entrySet()) {
             String key = ent.getKey();
             Map<String, List<InterAddress>> val = convertToAddressMethod(all, ent.getValue());
-            if (val != null && !val.isEmpty()) {
+            if (!val.isEmpty()) {
                 result.put(key, val);
             }
         }
@@ -156,7 +152,7 @@ class AddressCacheResult {
         for (Entry<String, List<String>> ent : methodLevelResult.entrySet()) {
             String key = ent.getKey();
             List<InterAddress> val = convertToAddress(all, ent.getValue());
-            if (val != null && !val.isEmpty()) {
+            if (!val.isEmpty()) {
                 result.put(key, val);
             }
         }
@@ -172,7 +168,7 @@ class AddressCacheResult {
                         result.add(address);
                     }
                 } catch (Exception e) {
-                    logger.info(e.getMessage(), e);
+                    logger.error(e.getMessage(), e);
                 }
             }
         }
@@ -185,7 +181,7 @@ class AddressCacheResult {
             try {
                 result.add(address.getHostPort());
             } catch (Exception e) {
-                logger.info(e.getMessage(), e);
+                logger.error(e.getMessage(), e);
             }
         }
         return result;

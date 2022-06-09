@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 package net.hasor.rsf.serialize;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
+import net.hasor.cobble.setting.SettingNode;
 import net.hasor.core.Environment;
-import net.hasor.core.setting.SettingNode;
 import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.SerializeCoder;
 import net.hasor.rsf.domain.ProtocolStatus;
 import net.hasor.rsf.domain.RsfException;
-import net.hasor.utils.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,7 +34,7 @@ import java.util.Map;
  */
 public class SerializeFactory {
     protected static Logger                      logger   = LoggerFactory.getLogger(SerializeFactory.class);
-    private          Map<String, SerializeCoder> coderMap = new HashMap<>();
+    private final    Map<String, SerializeCoder> coderMap = new HashMap<>();
 
     /**获取序列化（编码/解码）器。*/
     public SerializeCoder getSerializeCoder(String codeName) {
@@ -49,7 +49,7 @@ public class SerializeFactory {
     public static SerializeFactory createFactory(RsfEnvironment environment) {
         SerializeFactory factory = new SerializeFactory();
         SettingNode[] serList = environment.getSettings().getNodeArray("hasor.rsfConfig.serializeType.serialize");
-        //
+
         String types = "";
         for (SettingNode s : serList) {
             initSerialize(factory, s, environment);
@@ -65,7 +65,7 @@ public class SerializeFactory {
     private static void initSerialize(SerializeFactory factory, SettingNode atNode, Environment environment) {
         String serializeType = atNode.getSubValue("name");
         String serializeCoder = atNode.getValue().trim();
-        //
+
         try {
             Class<?> aClass = environment.getClassLoader().loadClass(serializeCoder);
             SerializeCoder coder = (SerializeCoder) aClass.newInstance();

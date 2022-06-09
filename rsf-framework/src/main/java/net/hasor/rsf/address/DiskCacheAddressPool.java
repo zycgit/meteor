@@ -1,11 +1,11 @@
 package net.hasor.rsf.address;
+import net.hasor.cobble.MatchUtils;
+import net.hasor.cobble.io.IOUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.domain.RsfConstants;
-import net.hasor.rsf.utils.IOUtils;
-import net.hasor.utils.MatchUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.text.SimpleDateFormat;
@@ -46,7 +46,7 @@ public class DiskCacheAddressPool extends AddressPool {
     /** 启动定时器,定时进行地址本的磁盘缓存。*/
     public void startTimer() {
         if (this.inited.compareAndSet(false, true)) {
-            this.logger.info("startTimer address snapshot Thread[{}].", timer.getName());
+            this.logger.info("startTimer address snapshot Thread[" + timer.getName() + "].");
             this.exitThread = false;
             this.timer.start();
         }
@@ -55,7 +55,7 @@ public class DiskCacheAddressPool extends AddressPool {
     /** 停止定时器,停止定时进行地址本的磁盘缓存。*/
     public void shutdownTimer() {
         if (this.inited.compareAndSet(true, false)) {
-            this.logger.info("shutdownTimer address snapshot Thread[{}].", timer.getName());
+            this.logger.info("shutdownTimer address snapshot Thread[" + timer.getName() + "].");
             this.exitThread = true;
         }
     }
@@ -71,7 +71,7 @@ public class DiskCacheAddressPool extends AddressPool {
             diskCacheTimeInterval = RsfConstants.OneHourTime;
         }
         //
-        this.logger.info("AddressPool - Timer -> start, refreshCacheTime = {}.", refreshCacheTime);
+        this.logger.info("AddressPool - Timer -> start, refreshCacheTime = " + refreshCacheTime);
         while (!this.exitThread) {
             //1.启动时做一次清理
             clearCacheData();
@@ -81,14 +81,14 @@ public class DiskCacheAddressPool extends AddressPool {
                 /**/
             }
             //2.将数据保存到缓存文件
-            this.logger.info("AddressPool - refreshCache. at = {} , refreshCacheTime = {}.", nowTime(), refreshCacheTime);
+            this.logger.info("AddressPool - refreshCache. at = " + nowTime() + " , refreshCacheTime = " + refreshCacheTime);
             this.refreshAddressCache();
             if (rsfSettings.islocalDiskCache() && nextCheckSavePoint < System.currentTimeMillis()) {
                 nextCheckSavePoint = System.currentTimeMillis() + diskCacheTimeInterval;/*每小时保存一次地址本快照。*/
                 try {
                     storeConfig();
                 } catch (IOException e) {
-                    this.logger.error("saveAddress error {} -> {}", e.getMessage(), e);
+                    this.logger.error("saveAddress error " + e.getMessage(), e);
                 }
             }
         }
@@ -123,7 +123,7 @@ public class DiskCacheAddressPool extends AddressPool {
         while (writeFile == null || writeFile.exists()) {
             writeFile = new File(this.snapshotHome, RsfConstants.AddrPoolStoreName + nowTime() + ".zip");
         }
-        this.logger.info("rsf - saveAddress to snapshot file({}) ->{}", writeFile);
+        this.logger.info("rsf - saveAddress to snapshot file({}) -> " + writeFile);
         FileOutputStream fos = null;
         FileWriter fw = null;
         try {
@@ -175,7 +175,7 @@ public class DiskCacheAddressPool extends AddressPool {
             String index = bodyList.isEmpty() ? "" : bodyList.get(0);
             readFile = new File(this.snapshotHome, index);
             if ("".equals(index) || !readFile.exists()) {
-                this.logger.error("address snapshot file is not exist.", readFile);
+                this.logger.error("address snapshot '" + readFile + "' is not exist.");
                 return;
             }
         } catch (Throwable e) {

@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.address.route.flowcontrol.random.RandomFlowControl;
 import net.hasor.rsf.address.route.flowcontrol.speed.SpeedFlowControl;
 import net.hasor.rsf.address.route.flowcontrol.unit.UnitFlowControl;
 import net.hasor.rsf.address.route.rule.Rule;
 import net.hasor.rsf.address.route.rule.RuleParser;
-import net.hasor.utils.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +46,7 @@ public class FlowControlRef {
         }
     }
 
-    /**解析路由规则*/
+    /** 解析路由规则 */
     public void updateFlowControl(String flowControl) {
         if (StringUtils.isBlank(flowControl)) {
             logger.error("flowControl body is null.");
@@ -61,7 +61,7 @@ public class FlowControlRef {
         this.flowControlScript = flowControl;
         //
         //1.提取路由配置
-        List<String> ruleBodyList = new ArrayList<String>();
+        List<String> ruleBodyList = new ArrayList<>();
         final String tagNameBegin = "<flowControl";
         final String tagNameEnd = "</flowControl>";
         int beginIndex = 0;
@@ -80,14 +80,13 @@ public class FlowControlRef {
             return;
         }
         //2.解析路由配置
-        for (int i = 0; i < ruleBodyList.size(); i++) {
-            String controlBody = ruleBodyList.get(i);
-            Rule rule = this.ruleParser.ruleSettings(controlBody);
+        for (String controlBody : ruleBodyList) {
+            Rule rule = ruleParser.ruleSettings(controlBody);
             if (rule == null) {
                 continue;
             }
             String simpleName = rule.getClass().getSimpleName();
-            logger.info("setup flowControl type is {}.", simpleName);
+            logger.info("setup flowControl type is " + simpleName + ".");
             /*  */
             if (rule instanceof UnitFlowControl) {
                 this.unitFlowControl = (UnitFlowControl) rule; /*单元规则*/
@@ -97,10 +96,9 @@ public class FlowControlRef {
                 this.speedFlowControl = (SpeedFlowControl) rule; /*速率规则*/
             }
         }
-        return;
     }
 
-    public static final FlowControlRef newRef(RsfEnvironment rsfEnvironment, FlowControlRef ref) {
+    public static FlowControlRef newRef(RsfEnvironment rsfEnvironment, FlowControlRef ref) {
         FlowControlRef newRef = defaultRef(rsfEnvironment);
         if (!StringUtils.isBlank(ref.flowControlScript)) {
             newRef.flowControlScript = ref.flowControlScript;
@@ -117,7 +115,7 @@ public class FlowControlRef {
         return newRef;
     }
 
-    public static final FlowControlRef defaultRef(RsfEnvironment rsfEnvironment) {
+    public static FlowControlRef defaultRef(RsfEnvironment rsfEnvironment) {
         FlowControlRef flowControlRef = new FlowControlRef(rsfEnvironment);
         flowControlRef.randomFlowControl = new RandomFlowControl();
         flowControlRef.speedFlowControl = SpeedFlowControl.defaultControl(rsfEnvironment);

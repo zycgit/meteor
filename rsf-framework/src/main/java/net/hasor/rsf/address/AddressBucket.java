@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
-import net.hasor.core.Settings;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.rsf.InterAddress;
 import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.address.route.flowcontrol.unit.UnitFlowControl;
 import net.hasor.rsf.domain.RsfConstants;
-import net.hasor.rsf.utils.IOUtils;
 import net.hasor.rsf.utils.ZipUtils;
-import net.hasor.utils.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.URISyntaxException;
@@ -89,7 +87,6 @@ public class AddressBucket extends Observable {
         this.refreshAddress();
     }
 
-    //
     public String getServiceID() {
         return serviceID;
     }
@@ -101,44 +98,35 @@ public class AddressBucket extends Observable {
     public RuleRef getRuleRef() {
         return this.ruleRef;
     }
-    //
 
-    /**获取所有地址（包括本地的和无效的）。*/
+    /** 获取所有地址（包括本地的和无效的） */
     public synchronized List<InterAddress> getAllAddresses() {
         return new ArrayList<>(this.allAddressList);
     }
 
-    /**获取计算之后可用的地址。*/
+    /** 获取计算之后可用的地址 */
     public synchronized List<InterAddress> getAvailableAddresses() {
         return new ArrayList<>(this.availableAddresses);
     }
 
-    /**失效地址。*/
+    /** 失效地址 */
     public synchronized List<InterAddress> getInvalidAddresses() {
         return new ArrayList<>(this.invalidAddresses.keySet());
     }
 
-    /**获取计算之后同一单元地址。*/
+    /** 获取计算之后同一单元地址 */
     public synchronized List<InterAddress> getLocalUnitAddresses() {
         return this.localUnitAddresses;
     }
-    //
 
-    /**新增地址支持动态新增*/
+    /** 新增地址支持动态新增 */
     public void newAddress(Collection<InterAddress> newHostSet, AddressTypeEnum type) {
-        if (addressLogger.isInfoEnabled()) {
-            StringBuilder strBuffer = new StringBuilder();
-            for (InterAddress addr : newHostSet) {
-                strBuffer.append(addr.toHostSchema());
-                strBuffer.append(",");
-            }
-            addressLogger.info("newAddress({}) -> {}, [{}].", serviceID, type.name(), strBuffer);
+        StringBuilder strBuffer = new StringBuilder();
+        for (InterAddress addr : newHostSet) {
+            strBuffer.append(addr.toHostSchema());
+            strBuffer.append(",");
         }
-        //
-        if (newHostSet == null || newHostSet.isEmpty()) {
-            logger.warn("address({}) -> newAddress, newHostList is empty. type is {}", serviceID, type.name());
-            return;
-        }
+        addressLogger.info("newAddress(" + serviceID + ") -> " + type.name() + ", [" + strBuffer + "].");
         //
         List<InterAddress> newAddress = new ArrayList<>();
         List<InterAddress> newStaticAddress = new ArrayList<>();
@@ -179,7 +167,6 @@ public class AddressBucket extends Observable {
         }
         this.refreshAvailableAddress();
     }
-    //
 
     /**
      * 将地址置为失效的(对于静态地址,该方法无效)。

@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
-import net.hasor.core.EventListener;
+import net.hasor.cobble.ClassUtils;
+import net.hasor.cobble.ExceptionUtils;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.rsf.*;
 import net.hasor.rsf.address.route.rule.ArgsKey;
 import net.hasor.rsf.address.route.rule.DefaultArgsKey;
 import net.hasor.rsf.domain.RsfEvent;
-import net.hasor.utils.ClassUtils;
-import net.hasor.utils.ExceptionUtils;
-import net.hasor.utils.StringUtils;
-import net.hasor.utils.io.FilenameUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,7 +53,7 @@ public class AddressPool implements RsfUpdater {
 
     public AddressPool(RsfEnvironment rsfEnvironment) {
         String unitName = rsfEnvironment.getSettings().getUnitName();
-        this.logger.info("AddressPool unitName at {}", unitName);
+        this.logger.info("AddressPool unitName at " + unitName);
         //
         this.rsfEnvironment = rsfEnvironment;
         RsfSettings rsfSettings = rsfEnvironment.getSettings();
@@ -65,7 +63,7 @@ public class AddressPool implements RsfUpdater {
         this.poolLock = new Object();
         //
         String argsKeyType = rsfSettings.getString("hasor.rsfConfig.route.argsKey", DefaultArgsKey.class.getName());
-        this.logger.info("argsKey type is {}", argsKeyType);
+        this.logger.info("argsKey type is " + argsKeyType);
         try {
             Class<?> type = Class.forName(argsKeyType, false, ClassUtils.getClassLoader(rsfEnvironment.getClassLoader()));
             this.argsKey = (ArgsKey) type.newInstance();
@@ -132,9 +130,9 @@ public class AddressPool implements RsfUpdater {
      * @return 返回地址池中注册的服务列表。
      */
     public Set<String> getBucketNames() {
-        Set<String> duplicate = new HashSet<>();
+        Set<String> duplicate;
         synchronized (this.poolLock) {
-            duplicate.addAll(this.addressPool.keySet());
+            duplicate = new HashSet<>(this.addressPool.keySet());
         }
         return duplicate;
     }
@@ -185,7 +183,7 @@ public class AddressPool implements RsfUpdater {
 
     private void _appendAddress(String serviceID, Collection<InterAddress> newHostSet, AddressTypeEnum type) {
         String hosts = StringUtils.join(newHostSet.toArray(), ", ");
-        this.logger.info("updateAddress of service {} , new Address set = {} ", serviceID, hosts);
+        this.logger.info("updateAddress of service " + serviceID + " , new Address set = " + hosts);
         //1.AddressBucketd
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -197,7 +195,7 @@ public class AddressPool implements RsfUpdater {
                 if (bucket == null) {
                     bucket = newBucket;
                 }
-                this.logger.info("newBucket {}", bucket);
+                this.logger.info("newBucket " + bucket);
             }
         }
         //2.新增服务
@@ -218,7 +216,7 @@ public class AddressPool implements RsfUpdater {
         synchronized (this.poolLock) {
             Set<String> keySet = this.addressPool.keySet();
             for (String bucketKey : keySet) {
-                logger.info("serviceID ={} ,invalid address = {} ,bucket is not exist.", bucketKey, address);
+                logger.info("serviceID =" + bucketKey + " ,invalid address = " + address + " ,bucket is not exist.");
                 AddressBucket bucket = this.addressPool.get(bucketKey);
                 bucket.invalidAddress(address, invalidWaitTime);
                 bucket.refreshAddress();

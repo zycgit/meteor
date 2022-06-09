@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 package net.hasor.rsf;
-import net.hasor.core.Settings;
+import net.hasor.cobble.setting.Settings;
 
 import java.io.IOException;
 import java.util.Set;
@@ -26,80 +26,80 @@ import java.util.Set;
  */
 public interface RsfSettings extends Settings {
     /**获取默认超时时间。*/
-    public int getDefaultTimeout();
+    int getDefaultTimeout();
 
     /**获取默认超时时间。*/
-    public String getDefaultGroup();
+    String getDefaultGroup();
 
     /**获取默认超时时间。*/
-    public String getDefaultVersion();
+    String getDefaultVersion();
 
     /**获取默认超时时间。*/
-    public String getDefaultSerializeType();
+    String getDefaultSerializeType();
 
     /**获取配置的服务器端选项*/
-    public RsfOptionSet getServerOption();
+    RsfOptionSet getServerOption();
 
     /**获取配置的客户端选项*/
-    public RsfOptionSet getClientOption();
+    RsfOptionSet getClientOption();
 
     /**处理任务队列的最大大小，作为服务端当队列满了之后所有新进来的请求都会被回应 ChooseOther*/
-    public int getQueueMaxSize();
+    int getQueueMaxSize();
 
     /**the number of threads to keep in the pool, even if they are idle, unless allowCoreThreadTimeOut is set.*/
-    public int getQueueMinPoolSize();
+    int getQueueMinPoolSize();
 
     /**the maximum number of threads to allow in the pool.*/
-    public int getQueueMaxPoolSize();
+    int getQueueMaxPoolSize();
 
     /**(SECONDS),when the number of threads is greater than the core, this is the maximum time that excess idle threads will wait for new tasks before terminating.*/
-    public long getQueueKeepAliveTime();
+    long getQueueKeepAliveTime();
 
     /**客户端请求超时时间*/
-    public int getRequestTimeout();
+    int getRequestTimeout();
 
     /**最大并发请求数*/
-    public int getMaximumRequest();
+    int getMaximumRequest();
 
     /** 并发调用请求限制策略，当并发调用达到限制值后的策略（Reject 抛出异常，WaitSecond 等待1秒重试）*/
-    public SendLimitPolicy getSendLimitPolicy();
+    SendLimitPolicy getSendLimitPolicy();
 
     /**客户端发起一个连接请求所允许的最大耗时（单位毫秒）*/
-    public int getConnectTimeout();
+    int getConnectTimeout();
 
     /**获取本地服务绑定地址*/
-    public String getBindAddress();
+    String getBindAddress();
 
     /**获取默认传输协议*/
-    public String getDefaultProtocol();
+    String getDefaultProtocol();
 
     /**可使用的协议名集合*/
-    public Set<String> getProtocos();
+    Set<String> getProtocos();
 
     /**获取本地服务绑定地址*/
-    public InterAddress getBindAddressSet(String protocolName);
+    InterAddress getBindAddressSet(String protocolName);
 
     /**获取协议配置节点名*/
-    public String getProtocolConfigKey(String protocolName);
+    String getProtocolConfigKey(String protocolName);
 
     /**获取本机所属单元*/
-    public String getUnitName();
+    String getUnitName();
 
     /**获取地址失效之后，等待重新尝试连接的时间(毫秒)。默认60秒。*/
-    public long getInvalidWaitTime();
+    long getInvalidWaitTime();
 
     /**自动刷新地址本缓存的时间，默认6分钟。*/
-    public long getRefreshCacheTime();
+    long getRefreshCacheTime();
 
     /**每次缓存地址本到磁盘时的时间间隔（单位:毫秒）默认:1小时*/
-    public long getDiskCacheTimeInterval();
+    long getDiskCacheTimeInterval();
 
     /**启用磁盘地址本缓存，在refreshCacheTime期间每隔1小时自动写入一次。（被回收的服务不享受此待遇）*/
-    public boolean islocalDiskCache();
+    boolean islocalDiskCache();
 
     /**应用自动上线*/
-    public boolean isAutomaticOnline();
+    boolean isAutomaticOnline();
 
     /**重新加载Rsf配置*/
-    public void refreshRsfConfig() throws IOException;
+    void refreshRsfConfig() throws IOException;
 }

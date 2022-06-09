@@ -18,7 +18,7 @@ import net.hasor.core.Hasor;
 import net.hasor.rsf.InterAddress;
 import net.hasor.rsf.address.AddressBucket;
 import net.hasor.rsf.address.RouteTypeEnum;
-import net.hasor.rsf.rpc.context.DefaultRsfEnvironment;
+import net.hasor.rsf.settings.DefaultRsfEnvironment;
 import net.hasor.rsf.utils.IOUtils;
 import net.hasor.utils.ResourcesUtils;
 import org.junit.Test;

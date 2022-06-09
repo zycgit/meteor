@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.codec.MD5;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.rsf.utils.groovy223.GroovyScriptEngineImpl;
-import net.hasor.utils.CommonCodeUtils;
-import net.hasor.utils.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
@@ -51,7 +51,7 @@ class InnerRuleEngine {
         //2.内容签名
         String signature = null;
         try {
-            signature = CommonCodeUtils.MD5.getMD5(ruleScript);
+            signature = MD5.getMD5(ruleScript);
         } catch (Throwable e) {
             logger.error("eval ruleScript signature error ->" + e.getMessage(), e);
             signature = ruleScript;

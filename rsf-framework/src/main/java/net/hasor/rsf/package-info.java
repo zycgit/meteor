@@ -16,6 +16,4 @@
 /**
  * RSF 分布式RPC框架。
  */
-@IgnoreProxy
 package net.hasor.rsf;
-import net.hasor.core.IgnoreProxy;

@@ -17,7 +17,7 @@ package test.net.hasor.rsf.functions;
 import net.hasor.rsf.InterAddress;
 import net.hasor.rsf.address.AddressBucket;
 import net.hasor.rsf.address.AddressTypeEnum;
-import net.hasor.rsf.rpc.context.DefaultRsfEnvironment;
+import net.hasor.rsf.settings.DefaultRsfEnvironment;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
