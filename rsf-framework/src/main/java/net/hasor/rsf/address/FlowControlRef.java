@@ -17,12 +17,11 @@ package net.hasor.rsf.address;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
-import net.hasor.rsf.RsfEnvironment;
-import net.hasor.rsf.address.route.flowcontrol.random.RandomFlowControl;
-import net.hasor.rsf.address.route.flowcontrol.speed.SpeedFlowControl;
-import net.hasor.rsf.address.route.flowcontrol.unit.UnitFlowControl;
-import net.hasor.rsf.address.route.rule.Rule;
-import net.hasor.rsf.address.route.rule.RuleParser;
+import net.hasor.rsf.address.route.Rule;
+import net.hasor.rsf.address.route.RuleParser;
+import net.hasor.rsf.address.route.random.RandomFlowControl;
+import net.hasor.rsf.address.route.speed.SpeedFlowControl;
+import net.hasor.rsf.address.route.unit.UnitFlowControl;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,17 +32,14 @@ import java.util.List;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class FlowControlRef {
-    protected final Logger            logger            = LoggerFactory.getLogger(getClass());
-    private static  RuleParser        ruleParser;
-    public          String            flowControlScript = null;
-    public          UnitFlowControl   unitFlowControl   = null; //单元规则
-    public          RandomFlowControl randomFlowControl = null; //地址选取规则
-    public          SpeedFlowControl  speedFlowControl  = null; //QoS速率规则
+    protected final      Logger            logger            = LoggerFactory.getLogger(getClass());
+    private static final RuleParser        ruleParser        = new RuleParser();
+    public               String            flowControlScript = null;
+    public               UnitFlowControl   unitFlowControl   = null; //单元规则
+    public               RandomFlowControl randomFlowControl = null; //地址选取规则
+    public               SpeedFlowControl  speedFlowControl  = null; //QoS速率规则
 
-    private FlowControlRef(RsfEnvironment rsfEnvironment) {
-        if (ruleParser == null) {
-            ruleParser = new RuleParser(rsfEnvironment);
-        }
+    private FlowControlRef() {
     }
 
     /** 解析路由规则 */
@@ -98,8 +94,8 @@ public class FlowControlRef {
         }
     }
 
-    public static FlowControlRef newRef(RsfEnvironment rsfEnvironment, FlowControlRef ref) {
-        FlowControlRef newRef = defaultRef(rsfEnvironment);
+    public static FlowControlRef newRef(FlowControlRef ref) {
+        FlowControlRef newRef = defaultRef();
         if (!StringUtils.isBlank(ref.flowControlScript)) {
             newRef.flowControlScript = ref.flowControlScript;
         }
@@ -115,10 +111,10 @@ public class FlowControlRef {
         return newRef;
     }
 
-    public static FlowControlRef defaultRef(RsfEnvironment rsfEnvironment) {
-        FlowControlRef flowControlRef = new FlowControlRef(rsfEnvironment);
+    public static FlowControlRef defaultRef() {
+        FlowControlRef flowControlRef = new FlowControlRef();
         flowControlRef.randomFlowControl = new RandomFlowControl();
-        flowControlRef.speedFlowControl = SpeedFlowControl.defaultControl(rsfEnvironment);
+        flowControlRef.speedFlowControl = SpeedFlowControl.defaultControl();
         return flowControlRef;
     }
 }

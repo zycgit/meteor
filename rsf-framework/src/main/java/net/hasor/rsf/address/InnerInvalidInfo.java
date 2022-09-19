@@ -23,16 +23,16 @@ class InnerInvalidInfo {
     private long timeoutPoint;
     private int  tryCount;
 
-    public InnerInvalidInfo(long timeout) {
-        this.timeoutPoint = System.currentTimeMillis() + timeout;
+    public InnerInvalidInfo(long timeoutMs) {
+        this.timeoutPoint = System.currentTimeMillis() + timeoutMs;
         this.tryCount = 0;
     }
 
-    public void invalid(long timeout) {
+    public void invalid(long timeoutMs) {
         if (this.timeoutPoint > System.currentTimeMillis()) {
             this.tryCount++;
         }
-        this.timeoutPoint = System.currentTimeMillis() + timeout;
+        this.timeoutPoint = System.currentTimeMillis() + timeoutMs;
     }
 
     public boolean reTry() {

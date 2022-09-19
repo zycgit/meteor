@@ -16,4 +16,4 @@
 /**
  * 流控规则：单元化流量分组
  */
-package net.hasor.rsf.address.route.flowcontrol.unit;
+package net.hasor.rsf.address.route.unit;

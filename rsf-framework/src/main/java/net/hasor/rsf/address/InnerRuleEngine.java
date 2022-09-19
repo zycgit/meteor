@@ -31,10 +31,10 @@ import java.util.List;
  * @author 赵永春 (zyc@hasor.net)
  */
 class InnerRuleEngine {
-    protected static final Logger                  logger     = LoggerFactory.getLogger(InnerRuleEngine.class);
-    private volatile       String                  ruleScript = null; //规则脚本
-    private volatile       String                  signature  = null; //脚本内容签名，用于校验是否发生变化
-    private volatile       RuleGroovyScriptFace<?> runScript  = null; //调用程序
+    protected static final Logger            logger     = LoggerFactory.getLogger(InnerRuleEngine.class);
+    private volatile       String            ruleScript = null; //规则脚本
+    private volatile       String            signature  = null; //脚本内容签名，用于校验是否发生变化
+    private volatile       RuleScriptFace<?> runScript  = null; //调用程序
 
     public boolean isEnable() {
         return runScript != null;
@@ -48,6 +48,7 @@ class InnerRuleEngine {
                 return false;/*将脚本更新为空，同时本地也为空 ->不执行脚本更新。*/
             }
         }
+
         //2.内容签名
         String signature = null;
         try {
@@ -56,7 +57,8 @@ class InnerRuleEngine {
             logger.error("eval ruleScript signature error ->" + e.getMessage(), e);
             signature = ruleScript;
         }
-        //2.内容是否变化
+
+        //3.内容是否变化
         if (signature.equalsIgnoreCase(this.signature)) {
             return false;/*无变化*/
         }
@@ -68,9 +70,8 @@ class InnerRuleEngine {
             }
             ScriptEngine engine = new GroovyScriptEngineImpl();
             engine.eval(ruleScript);
-            this.runScript = ((Invocable) engine).getInterface(RuleGroovyScriptFace.class);
+            this.runScript = ((Invocable) engine).getInterface(RuleScriptFace.class);
             logger.info("ruleEngine ruleScript compiler finish.");
-            //
             this.ruleScript = ruleScript;
             this.signature = signature;
             return true;
@@ -95,8 +96,7 @@ class InnerRuleEngine {
             return null;
         }
         try {
-            Object result = this.runScript.evalAddress(serviceID, allAddress);
-            return result;
+            return this.runScript.evalAddress(serviceID, allAddress);
         } catch (Throwable e) {
             logger.error("evalServiceLevel error ,message = " + e.getMessage(), e);
             return null;

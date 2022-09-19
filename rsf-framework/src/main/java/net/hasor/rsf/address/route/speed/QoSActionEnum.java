@@ -13,19 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.address.route.rule;
+package net.hasor.rsf.address.route.speed;
 /**
- * 路由规则
- * @version : 2015年3月29日
+ * 流控级别，可选的级别有（服务级、方法级、地址级）
+ * @version : 2015年4月6日
  * @author 赵永春 (zyc@hasor.net)
  */
-public interface Rule {
-    /**路由规则ID*/
-    public String routeID();
-
-    /**路由规则原文*/
-    public String rawRoute();
-
-    /**规则是否启用*/
-    public boolean enable();
+public enum QoSActionEnum {
+    /**限制接口所有方法的总调用速率。*/
+    Service,
+    /**限制接口某一个方法的调用速率。*/
+    Method,
+    /**限制对某一个远程服务机器的调用速率。*/
+    Address
 }

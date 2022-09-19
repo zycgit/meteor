@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.address.route.flowcontrol.random;
+package net.hasor.rsf.address.route.random;
 import net.hasor.cobble.setting.Settings;
-import net.hasor.rsf.InterAddress;
-import net.hasor.rsf.address.route.rule.AbstractRule;
+import net.hasor.rsf.address.InterAddress;
+import net.hasor.rsf.address.route.AbstractRule;
 
 import java.util.List;
 import java.util.Random;

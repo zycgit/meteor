@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf;
+package net.hasor.rsf.address;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
@@ -32,8 +32,8 @@ import java.util.regex.Pattern;
  */
 public class InterAddress {
     protected static    Logger logger         = LoggerFactory.getLogger(InterAddress.class);
-    public static final String DEFAULT_SECHMA = "rsf";
-    private final       String sechma;                                              //协议
+    public static final String DEFAULT_SCHEMA = "rsf";
+    private final       String schema;                                              //协议
     private final       String formUnit;                                            //所属单元
     private final       String hostAddress;                                         //地址
     private final       int    hostPort;                                            //端口
@@ -51,28 +51,28 @@ public class InterAddress {
         if (formPath.startsWith("/")) {
             formPath = formPath.substring(1);
         }
-        this.sechma = newAddressURL.getScheme().toLowerCase();
+        this.schema = newAddressURL.getScheme().toLowerCase();
         this.formUnit = formPath.split("/")[0];
         this.hostAddress = newAddressURL.getHost();//
         this.hostPort = newAddressURL.getPort();
-        this.hostSchema = String.format("%s://%s:%s/%s", this.sechma, this.hostAddress, this.hostPort, this.formUnit);
+        this.hostSchema = String.format("%s://%s:%s/%s", this.schema, this.hostAddress, this.hostPort, this.formUnit);
     }
 
     public InterAddress(String hostAddress, int hostPort, String formUnit) {
-        this(DEFAULT_SECHMA, hostAddress, hostPort, formUnit);
+        this(DEFAULT_SCHEMA, hostAddress, hostPort, formUnit);
     }
 
-    public InterAddress(String sechma, String hostAddress, int hostPort, String formUnit) {
-        this.sechma = Objects.requireNonNull(sechma, "sechma is null.").toLowerCase();
+    public InterAddress(String schema, String hostAddress, int hostPort, String formUnit) {
+        this.schema = Objects.requireNonNull(schema, "sechma is null.").toLowerCase();
         this.formUnit = Objects.requireNonNull(formUnit, "formUnit is null.");
         this.hostAddress = Objects.requireNonNull(hostAddress, "hostAddress is null.");
         this.hostPort = hostPort;
-        this.hostSchema = String.format("%s://%s:%s/%s", this.sechma, this.hostAddress, this.hostPort, this.formUnit);
+        this.hostSchema = String.format("%s://%s:%s/%s", this.schema, this.hostAddress, this.hostPort, this.formUnit);
     }
 
     /** 返回协议头 */
-    public String getSechma() {
-        return this.sechma;
+    public String getSchema() {
+        return this.schema;
     }
 
     /** 返回地址所属单元 */
@@ -119,7 +119,7 @@ public class InterAddress {
 
     /** 转换地址为URL形式 */
     public URI toURI() throws URISyntaxException {
-        return new URI(this.getSechma(), null, this.getHost(), this.getPort(), "/" + this.formUnit, null, null);
+        return new URI(this.getSchema(), null, this.getHost(), this.getPort(), "/" + this.formUnit, null, null);
     }
 
     /** 返回RSF协议形式表述的主机地址。格式为：“rsf://127.0.0.1:8000/unit” */

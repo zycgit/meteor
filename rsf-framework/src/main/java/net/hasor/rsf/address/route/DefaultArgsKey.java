@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.address.route.rule;
+package net.hasor.rsf.address.route;
 /**
  * 将参数映射为一个Key.
  * @version : 2015年4月16日

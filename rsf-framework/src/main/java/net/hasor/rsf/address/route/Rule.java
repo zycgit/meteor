@@ -13,7 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package net.hasor.rsf.address.route;
 /**
- * 流控规则：随机选址。
+ * 路由规则
+ * @version : 2015年3月29日
+ * @author 赵永春 (zyc@hasor.net)
  */
-package net.hasor.rsf.address.route.flowcontrol.random;
+public interface Rule {
+    /**路由规则ID*/
+    public String routeID();
+
+    /**路由规则原文*/
+    public String rawRoute();
+
+    /**规则是否启用*/
+    public boolean enable();
+}

@@ -13,12 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.address.route.rule;
 /**
- * 将参数映射为一个Key.
- * @version : 2015年4月16日
- * @author 赵永春 (zyc@hasor.net)
+ * 流控规则：随机选址。
  */
-public interface ArgsKey {
-    String eval(String serviceID, String methodName, Object[] args);
-}
+package net.hasor.rsf.address.route.random;

@@ -16,4 +16,4 @@
 /**
  * 路由规则机制。
  */
-package net.hasor.rsf.address.route.rule;
+package net.hasor.rsf.address.route;

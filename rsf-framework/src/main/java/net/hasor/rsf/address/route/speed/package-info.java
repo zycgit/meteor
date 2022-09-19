@@ -13,14 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.address;
-import java.util.List;
-
 /**
- * 路由策略脚本接口
- * @version : 2015年12月3日
- * @author 赵永春 (zyc@hasor.net)
+ * 流控规则：QoS限流
  */
-public interface RuleGroovyScriptFace<T> {
-    T evalAddress(String serviceID, List<String> allAddress);
-}
+package net.hasor.rsf.address.route.speed;

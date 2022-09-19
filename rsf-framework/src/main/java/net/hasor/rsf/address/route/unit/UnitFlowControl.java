@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.address.route.flowcontrol.unit;
-import net.hasor.core.Settings;
-import net.hasor.rsf.InterAddress;
-import net.hasor.rsf.address.route.rule.AbstractRule;
-import net.hasor.utils.MatchUtils;
+package net.hasor.rsf.address.route.unit;
+import net.hasor.cobble.MatchUtils;
+import net.hasor.cobble.setting.Settings;
+import net.hasor.rsf.address.InterAddress;
+import net.hasor.rsf.address.route.AbstractRule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,6 +40,7 @@ public class UnitFlowControl extends AbstractRule {
     private float        threshold;
     private List<String> exclusions;
 
+    @Override
     public void parseControl(Settings settings) {
         this.enable(settings.getBoolean("flowControl.enable"));
         this.threshold = settings.getFloat("flowControl.threshold");
@@ -73,9 +74,10 @@ public class UnitFlowControl extends AbstractRule {
 
     /** 筛选本机房地址 */
     public List<InterAddress> siftUnitAddress(String unitName, List<InterAddress> address) {
-        if (address == null || address.isEmpty())
+        if (address == null || address.isEmpty()) {
             return null;
-        //
+        }
+
         List<InterAddress> local = new ArrayList<>();
         List<String> exclusions = getExclusions();
         for (InterAddress inter : address) {
@@ -94,11 +96,12 @@ public class UnitFlowControl extends AbstractRule {
             if (!appendMark) {
                 appendMark = unitName.equalsIgnoreCase(inter.getFormUnit());
             }
-            //
+
             if (appendMark) {
                 local.add(inter);
             }
         }
         return local;
     }
+
 }
