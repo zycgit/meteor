@@ -213,14 +213,12 @@ class AddressCacheResult {
             return null;
         }
         try {
-            Object result = serviceLevel.runRule(serviceID, all);
-            return (List<String>) result;
+            return (List<String>) serviceLevel.runRule(serviceID, all);
         } catch (Throwable e) {
             logger.error("evalServiceLevel error ,message = " + e.getMessage(), e);
             return null;
         }
     }
-    //
 
     /** 脚本说明：
      * <pre>入参：
@@ -258,14 +256,12 @@ class AddressCacheResult {
             return null;
         }
         try {
-            Object result = methodLevel.runRule(serviceID, all);
-            return (Map<String, List<String>>) result;
+            return (Map<String, List<String>>) methodLevel.runRule(serviceID, all);
         } catch (Throwable e) {
             logger.error("evalMethodLevel error ,message = " + e.getMessage(), e);
             return null;
         }
     }
-    //
 
     /** 脚本说明：
      * <pre>入参：
@@ -308,25 +304,22 @@ class AddressCacheResult {
             return null;
         }
         try {
-            Object result = argsLevel.runRule(serviceID, all);
-            return (Map<String, Map<String, List<String>>>) result;
+            return (Map<String, Map<String, List<String>>>) argsLevel.runRule(serviceID, all);
         } catch (Throwable e) {
             logger.error("evalArgsLevel error ,message = " + e.getMessage(), e);
             return null;
         }
     }
 
-    //
     private static class CacheResult {
         public final Map<String, List<InterAddress>>                           serviceLevel; //服务接口级
         public final Map<String, Map<String, List<InterAddress>>>              methodLevel;  //方法级
         public final Map<String, Map<String, Map<String, List<InterAddress>>>> argsLevel;    //参数级
 
-        //
         public CacheResult() {
-            this.serviceLevel = new HashMap<String, List<InterAddress>>(); //服务接口级
-            this.methodLevel = new HashMap<String, Map<String, List<InterAddress>>>(); //方法级
-            this.argsLevel = new HashMap<String, Map<String, Map<String, List<InterAddress>>>>(); //参数级
+            this.serviceLevel = new HashMap<>();// 服务接口级
+            this.methodLevel = new HashMap<>(); // 方法级
+            this.argsLevel = new HashMap<>();   // 参数级
         }
     }
 }

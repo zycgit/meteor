@@ -13,13 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package test.net.hasor.rsf.functions;
-import net.hasor.rsf.InterAddress;
-import net.hasor.rsf.address.AddressBucket;
-import net.hasor.rsf.address.AddressTypeEnum;
-import net.hasor.rsf.settings.DefaultRsfEnvironment;
-
-import java.net.UnknownHostException;
+package net.hasor.rsf.address;
 import java.util.ArrayList;
 
 /**
@@ -28,21 +22,19 @@ import java.util.ArrayList;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class BuildBucketBuild {
-    private DefaultRsfEnvironment rsfEnv;
-    private String                serviceID;
-    private AddressBucket         bucket;
+    private String        serviceID;
+    private AddressBucket bucket;
 
-    public BuildBucketBuild(String serviceID, DefaultRsfEnvironment rsfEnv) {
+    public BuildBucketBuild(String serviceID) {
         this.serviceID = serviceID;
-        this.rsfEnv = rsfEnv;
     }
 
     public AddressBucket getBucket() {
         return bucket;
     }
 
-    public BuildBucketBuild invoke() throws UnknownHostException {
-        bucket = new AddressBucket(serviceID, rsfEnv);
+    public BuildBucketBuild invoke() {
+        bucket = new AddressBucket(serviceID, "default");
         //
         ArrayList<InterAddress> dynamicList = new ArrayList<>();
         dynamicList.add(new InterAddress("127.0.0.1", 8000, "etc2"));

@@ -13,14 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package test.net.hasor.rsf.functions;
-import net.hasor.core.Hasor;
-import net.hasor.rsf.InterAddress;
-import net.hasor.rsf.address.AddressBucket;
-import net.hasor.rsf.address.RouteTypeEnum;
-import net.hasor.rsf.settings.DefaultRsfEnvironment;
-import net.hasor.rsf.utils.IOUtils;
-import net.hasor.utils.ResourcesUtils;
+package net.hasor.rsf.address;
+import net.hasor.cobble.ResourcesUtils;
+import net.hasor.cobble.io.IOUtils;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -34,9 +29,8 @@ import java.net.URISyntaxException;
 public class BucketTest {
     @Test
     public void saveToZipTest() throws URISyntaxException, IOException {
-        DefaultRsfEnvironment rsfEnv = new DefaultRsfEnvironment(Hasor.create().build().getEnvironment());
         String serviceID = "tttt";
-        BuildBucketBuild buildBucket = new BuildBucketBuild(serviceID, rsfEnv).invoke();
+        BuildBucketBuild buildBucket = new BuildBucketBuild(serviceID).invoke();
         AddressBucket bucket = buildBucket.getBucket();
         //
         String flowBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/flow-control/full-flow.xml"), "utf-8");
@@ -63,9 +57,8 @@ public class BucketTest {
     public void readFormZipTest() throws IOException, URISyntaxException {
         this.saveToZipTest();
         //
-        DefaultRsfEnvironment rsfEnv = new DefaultRsfEnvironment(Hasor.create().build().getEnvironment());
         String serviceID = "tttt";
-        BuildBucketBuild buildBucket = new BuildBucketBuild(serviceID, rsfEnv).invoke();
+        BuildBucketBuild buildBucket = new BuildBucketBuild(serviceID).invoke();
         AddressBucket bucket = buildBucket.getBucket();
         //
         //        File inFile = new File(rsfEnv.getPluginDir(BucketTest.class), serviceID + ".zip");
@@ -77,9 +70,8 @@ public class BucketTest {
     //
     @Test
     public void invalidAddressTest() throws IOException, InterruptedException, URISyntaxException {
-        DefaultRsfEnvironment rsfEnv = new DefaultRsfEnvironment(Hasor.create().build().getEnvironment());
         String serviceID = "tttt";
-        BuildBucketBuild buildBucket = new BuildBucketBuild(serviceID, rsfEnv).invoke();
+        BuildBucketBuild buildBucket = new BuildBucketBuild(serviceID).invoke();
         final AddressBucket bucket = buildBucket.getBucket();
         //
         Thread watcher = new Thread(() -> {

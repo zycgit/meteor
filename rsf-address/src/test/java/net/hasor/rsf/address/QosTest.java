@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package test.net.hasor.rsf.functions;
-import net.hasor.rsf.address.route.flowcontrol.speed.QoSBucket;
+package net.hasor.rsf.address;
+import net.hasor.rsf.address.route.speed.QoSBucket;
 import org.junit.Test;
+
 /**
  *
  * @version : 2015年4月5日

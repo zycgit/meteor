@@ -13,8 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package test.net.hasor.rsf.functions;
-import net.hasor.rsf.InterAddress;
+package net.hasor.rsf.address;
 import org.junit.Test;
 
 import java.net.URISyntaxException;

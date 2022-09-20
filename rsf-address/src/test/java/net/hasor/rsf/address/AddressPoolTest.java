@@ -13,20 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package test.net.hasor.rsf.functions;
-import net.hasor.core.Hasor;
-import net.hasor.rsf.InterAddress;
-import net.hasor.rsf.address.AddressBucket;
-import net.hasor.rsf.address.AddressPool;
-import net.hasor.rsf.address.DiskCacheAddressPool;
-import net.hasor.rsf.settings.DefaultRsfEnvironment;
-import net.hasor.rsf.utils.IOUtils;
-import net.hasor.rsf.utils.NetworkUtils;
-import net.hasor.utils.ResourcesUtils;
+package net.hasor.rsf.address;
+import net.hasor.cobble.NetworkUtils;
+import net.hasor.cobble.ResourcesUtils;
+import net.hasor.cobble.io.IOUtils;
 import org.junit.Test;
 
+import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.Set;
@@ -37,7 +31,7 @@ import java.util.Set;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class AddressPoolTest {
-    protected void configService(AddressPool pool, String service) throws URISyntaxException, IOException {
+    protected void configService(AddressPool pool, String service) throws IOException {
         NetworkUtils.finalBindAddress("local");
         //
         ArrayList<InterAddress> dynamicList = new ArrayList<>();
@@ -67,18 +61,16 @@ public class AddressPoolTest {
         pool.updateArgsRoute(service, scriptBody3);
     }
 
-    //
     @Test
-    public void saveToZipTest() throws URISyntaxException, IOException {
-        DefaultRsfEnvironment rsfEnv = new DefaultRsfEnvironment(Hasor.create().build().getEnvironment());
-        AddressPool pool = new AddressPool(rsfEnv);
+    public void saveToZipTest() throws IOException {
+        AddressPool pool = new AddressPool();
         String serviceID = "HelloWord_";
-        //
+
         for (int i = 0; i < 10; i++) {
             String service = serviceID + i;
             configService(pool, service);
         }
-        //
+
         //        File outFile = new File(rsfEnv.getPluginDir(AddressPoolTest.class), "pool.zip");
         //        outFile.getParentFile().mkdirs();
         //        FileOutputStream out = new FileOutputStream(outFile, false);
@@ -88,11 +80,10 @@ public class AddressPoolTest {
     }
 
     @Test
-    public void readFormZipTest() throws IOException, URISyntaxException {
+    public void readFormZipTest() throws IOException {
         this.saveToZipTest();
         //
-        DefaultRsfEnvironment rsfEnv = new DefaultRsfEnvironment(Hasor.create().build().getEnvironment());
-        AddressPool pool = new AddressPool(rsfEnv);
+        AddressPool pool = new AddressPool();
         String serviceID = "HelloWord_";
         //
         for (int i = 0; i < 10; i++) {
@@ -112,43 +103,29 @@ public class AddressPoolTest {
     }
 
     @Test
-    public void localDiskCacheTest() throws IOException, URISyntaxException, InterruptedException {
-        //
+    public void localDiskCacheTest() throws IOException {
         // 1.修改默认配置
-        DefaultRsfEnvironment rsfEnv = new DefaultRsfEnvironment(Hasor.create().build().getEnvironment());
-        rsfEnv.getSettings().setSetting("hasor.rsfConfig.addressPool.refreshCacheTime", "1000");
-        rsfEnv.getSettings().setSetting("hasor.rsfConfig.addressPool.diskCacheTimeInterval", "3000");
-        rsfEnv.getSettings().setSetting("hasor.rsfConfig.addressPool.invalidWaitTime", "500");
-        rsfEnv.getSettings().refreshRsfConfig();
+        AddressPool pool = new AddressPool("default", 500);
+        DiskCache diskCache = new DiskCache(pool, new File(""), 1000, 3000);
         String serviceID = "HelloWord_";
-        //
         // 2.测试本地缓存保存
-        DiskCacheAddressPool pool = new DiskCacheAddressPool(rsfEnv);
         for (int i = 0; i < 10; i++) {
             configService(pool, serviceID + i);
         }
-        pool.storeConfig();//保存一次
-        //
-        // 3.测试本地地址缓存加载。
-        pool = new DiskCacheAddressPool(rsfEnv);
-        for (int i = 0; i < 10; i++) {
-            pool.appendAddress(serviceID + i, new InterAddress("192.168.1.1", 8000, "etc2"));
-        }
-        pool.restoreConfig();
+        diskCache.storeConfig();
+        diskCache.restoreConfig();
     }
 
-    //
     @Test
-    public void nextAddressTest() throws IOException, URISyntaxException, InterruptedException {
-        DefaultRsfEnvironment rsfEnv = new DefaultRsfEnvironment(Hasor.create().build().getEnvironment());
-        final AddressPool pool = new AddressPool(rsfEnv);
+    public void nextAddressTest() throws IOException, InterruptedException {
+        final AddressPool pool = new AddressPool("default", 3000);
         final String serviceID = "[RSF]test.net.hasor.rsf.services.EchoService-1.0.0";
         //
-        ArrayList<InterAddress> dynamicList = new ArrayList<InterAddress>();
+        ArrayList<InterAddress> dynamicList = new ArrayList<>();
         dynamicList.add(new InterAddress("127.0.0.1", 8000, "etc2"));
         pool.appendAddress(serviceID, dynamicList);
         //
-        ArrayList<InterAddress> staticList = new ArrayList<InterAddress>();
+        ArrayList<InterAddress> staticList = new ArrayList<>();
         staticList.add(new InterAddress("192.168.137.10", 8000, "etc2"));
         staticList.add(new InterAddress("192.168.137.11", 8000, "etc2"));
         staticList.add(new InterAddress("127.0.4.4", 8000, "etc2"));
@@ -158,20 +135,17 @@ public class AddressPoolTest {
         pool.updateFlowControl(serviceID, flowBody);
         //
         //
-        Thread thread = new Thread() {
-            @Override
-            public void run() {
-                Random random = new Random(System.currentTimeMillis());
-                while (true) {
-                    InterAddress address = pool.nextAddress(serviceID, "sayHello", new Object[] { "hello" });
-                    System.out.println(Long.toHexString(random.nextLong()).toUpperCase() + "\t" + address);
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException e) {
-                    }
+        Thread thread = new Thread(() -> {
+            Random random = new Random(System.currentTimeMillis());
+            while (true) {
+                InterAddress address = pool.nextAddress(serviceID, "sayHello", new Object[] { "hello" });
+                System.out.println(Long.toHexString(random.nextLong()).toUpperCase() + "\t" + address);
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
                 }
             }
-        };
+        });
         thread.setDaemon(true);
         thread.start();
         //

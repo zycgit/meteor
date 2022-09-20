@@ -15,9 +15,9 @@
  */
 package net.hasor.rsf.address;
 import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.function.EFunction;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
-import net.hasor.rsf.RsfUpdater;
 import net.hasor.rsf.address.route.ArgsKey;
 import net.hasor.rsf.address.route.DefaultArgsKey;
 
@@ -31,17 +31,21 @@ import java.util.concurrent.ConcurrentHashMap;
  * @version : 2014年9月12日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class AddressPool implements RsfUpdater {
-    private static final Logger                     logger = LoggerFactory.getLogger(AddressPool.class);
-    protected final      Map<String, AddressBucket> addressPool;
-    protected final      Object                     poolLock;
-    private final        String                     unitName;
-    private final        long                       invalidWakeupTimeMs;
-    private final        AddressCacheResult         rulerCache;
-    private final        ArgsKey                    argsKey;
+public class AddressPool {
+    protected static final Logger                     logger = LoggerFactory.getLogger(AddressPool.class);
+    protected final        Map<String, AddressBucket> addressPool;
+    protected final        Object                     poolLock;
+    private final          String                     unitName;
+    private final          long                       invalidWakeupTimeMs;
+    private final          AddressCacheResult         rulerCache;
+    private final          ArgsKey                    argsKey;
+
+    public AddressPool() {
+        this("default", 120000);
+    }
 
     public AddressPool(String unitName, long invalidWakeupTimeMs) {
-        this.logger.info("AddressPool unitName at " + unitName);
+        logger.info("AddressPool unitName at " + unitName);
         this.addressPool = new ConcurrentHashMap<>();
         this.unitName = unitName;
         this.invalidWakeupTimeMs = Math.max(30000, invalidWakeupTimeMs);
@@ -88,7 +92,6 @@ public class AddressPool implements RsfUpdater {
 
     /**
      * 获取地址池中注册的服务列表。
-     * @see net.hasor.rsf.RsfBindInfo#getBindID()
      * @return 返回地址池中注册的服务列表。
      */
     public Set<String> getBucketNames() {
@@ -116,7 +119,6 @@ public class AddressPool implements RsfUpdater {
      * @param serviceID 服务ID。
      * @param newHostSet 追加更新的地址。
      */
-    @Override
     public void appendStaticAddress(String serviceID, Collection<InterAddress> newHostSet) {
         this._appendAddress(serviceID, newHostSet, AddressTypeEnum.Static);
     }
@@ -138,14 +140,13 @@ public class AddressPool implements RsfUpdater {
      * @param serviceID 服务ID。
      * @param newHostSet 追加更新的地址。
      */
-    @Override
     public void appendAddress(String serviceID, Collection<InterAddress> newHostSet) {
         this._appendAddress(serviceID, newHostSet, AddressTypeEnum.Dynamic);
     }
 
     private void _appendAddress(String serviceID, Collection<InterAddress> newHostSet, AddressTypeEnum type) {
         String hosts = StringUtils.join(newHostSet.toArray(), ", ");
-        this.logger.info("updateAddress of service " + serviceID + " , new Address set = " + hosts);
+        logger.info("updateAddress of service " + serviceID + " , new Address set = " + hosts);
         //1.AddressBucketd
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -157,7 +158,7 @@ public class AddressPool implements RsfUpdater {
                 if (bucket == null) {
                     bucket = newBucket;
                 }
-                this.logger.info("newBucket " + bucket);
+                logger.info("newBucket " + bucket);
             }
         }
         //2.新增服务
@@ -168,7 +169,6 @@ public class AddressPool implements RsfUpdater {
 
     /**
      * 将服务的地址设置成临时失效状态。
-     * 在{@link net.hasor.rsf.RsfSettings#getInvalidWaitTime()}毫秒之后，失效的地址会重新被列入备选地址池。
      * 置为失效，失效并不意味着永久的。
      * @param address 失效的地址。
      */
@@ -192,7 +192,6 @@ public class AddressPool implements RsfUpdater {
      * @param serviceID 服务ID。
      * @param invalidAddress 将要删除的地址。
      */
-    @Override
     public void removeAddress(String serviceID, InterAddress invalidAddress) {
         this.removeAddress(serviceID, Collections.singletonList(invalidAddress));
     }
@@ -202,11 +201,10 @@ public class AddressPool implements RsfUpdater {
      * @param serviceID 服务ID。
      * @param invalidAddressSet 将要删除的地址。
      */
-    @Override
     public void removeAddress(String serviceID, Collection<InterAddress> invalidAddressSet) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
-            this.logger.info("serviceID =" + serviceID + " ,bucket is not exist.");
+            logger.info("serviceID =" + serviceID + " ,bucket is not exist.");
             return;
         }
         StringBuilder strBuilder = new StringBuilder("");
@@ -220,12 +218,12 @@ public class AddressPool implements RsfUpdater {
                 this.rulerCache.reset();
             }
         }
-        this.logger.info("serviceID =" + serviceID + " ,remove invalidAddress = " + strBuilder + " ,wait " + this.invalidWakeupTimeMs + " -> active.");
+        logger.info("serviceID =" + serviceID + " ,remove invalidAddress = " + strBuilder + " ,wait " + this.invalidWakeupTimeMs + " -> active.");
     }
 
-    @Override
+    /** 从所有服务中删除这个地址 */
     public void removeAddress(InterAddress address) {
-        /*在并发情况下,newAddress和invalidAddress可能正在执行,因此要锁住poolLock*/
+        /* 在并发情况下,newAddress和invalidAddress可能正在执行,因此要锁住poolLock */
         synchronized (this.poolLock) {
             Set<String> keySet = this.addressPool.keySet();
             for (String bucketKey : keySet) {
@@ -233,7 +231,7 @@ public class AddressPool implements RsfUpdater {
                 if (bucket == null) {
                     return;
                 }
-                this.logger.debug("service " + bucketKey + " removeAddress.");
+                logger.debug("service " + bucketKey + " removeAddress.");
                 bucket.removeAddress(address);
             }
             this.rulerCache.reset();
@@ -246,7 +244,7 @@ public class AddressPool implements RsfUpdater {
      */
     public boolean removeBucket(String serviceID) {
         if (this.addressPool.containsKey(serviceID)) {
-            this.logger.info("removeAddressBucket serviceID is " + serviceID);
+            logger.info("removeAddressBucket serviceID is " + serviceID);
             this.addressPool.remove(serviceID);
             this.rulerCache.reset();
             return true;
@@ -254,7 +252,7 @@ public class AddressPool implements RsfUpdater {
         return false;
     }
 
-    @Override
+    /** 刷新服务的地址本，使其使用全新的地址本 */
     public void refreshAddress(String serviceID, List<InterAddress> addressList) {
         /*在并发情况下,newAddress和invalidAddress可能正在执行,因此要锁住poolLock*/
         synchronized (this.poolLock) {
@@ -262,14 +260,13 @@ public class AddressPool implements RsfUpdater {
             if (bucket == null) {
                 return;
             }
-            this.logger.debug("service " + serviceID + " refreshCache.");
+            logger.debug("service " + serviceID + " refreshCache.");
             bucket.refreshAddressToNew(addressList);//刷新地址计算结果
         }
         this.rulerCache.reset();
     }
 
-    /**刷新地址缓存*/
-    @Override
+    /** 刷新地址缓存 */
     public void refreshAddressCache() {
         /*在并发情况下,newAddress和invalidAddress可能正在执行,因此要锁住poolLock*/
         synchronized (this.poolLock) {
@@ -279,7 +276,7 @@ public class AddressPool implements RsfUpdater {
                 if (bucket == null) {
                     return;
                 }
-                this.logger.debug("service " + bucketKey + " refreshCache.");
+                logger.debug("service " + bucketKey + " refreshCache.");
                 bucket.refreshAddress();//刷新地址计算结果
             }
             this.rulerCache.reset();
@@ -346,17 +343,17 @@ public class AddressPool implements RsfUpdater {
         return "AddressPool[" + this.unitName + "]";
     }
 
-    @Override
+    /** 更新服务地址本计算规则（服务级）*/
     public boolean updateServiceRoute(String serviceID, String scriptBody) {
         return this.updateRoute(serviceID, RouteTypeEnum.ServiceLevel, scriptBody);
     }
 
-    @Override
+    /** 更新服务地址本计算规则（方法级）*/
     public boolean updateMethodRoute(String serviceID, String scriptBody) {
         return this.updateRoute(serviceID, RouteTypeEnum.MethodLevel, scriptBody);
     }
 
-    @Override
+    /** 更新服务地址本计算规则（参数级）*/
     public boolean updateArgsRoute(String serviceID, String scriptBody) {
         return this.updateRoute(serviceID, RouteTypeEnum.ArgsLevel, scriptBody);
     }
@@ -366,7 +363,6 @@ public class AddressPool implements RsfUpdater {
      * @param serviceID 应用到的服务。
      * @param flowControl 流控规则
      */
-    @Override
     public boolean updateFlowControl(String serviceID, String flowControl) {
         if (StringUtils.isBlank(serviceID)) {
             return false;
@@ -374,10 +370,10 @@ public class AddressPool implements RsfUpdater {
 
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
-            this.logger.warn("update flowControl service=" + serviceID + " -> AddressBucket not exist.");
+            logger.warn("update flowControl service=" + serviceID + " -> AddressBucket not exist.");
             return false;
         }
-        this.logger.info("update flowControl service=" + serviceID + " -> update ok");
+        logger.info("update flowControl service=" + serviceID + " -> update ok");
         bucket.updateFlowControl(flowControl);
         this.refreshAddressCache();
         return true;
@@ -392,17 +388,17 @@ public class AddressPool implements RsfUpdater {
     public boolean updateRoute(String serviceID, RouteTypeEnum routeType, String script) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
-            this.logger.warn("update rules service=" + serviceID + " -> AddressBucket not exist.");
+            logger.warn("update rules service=" + serviceID + " -> AddressBucket not exist.");
             return false;
         }
 
-        this.logger.info("update rules service=" + serviceID + " -> update ok");
+        logger.info("update rules service=" + serviceID + " -> update ok");
         bucket.updateRoute(routeType, script);
         this.refreshAddressCache();
         return true;
     }
 
-    @Override
+    /** 获取服务级路由脚本 */
     public String serviceRoute(String serviceID) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -411,7 +407,7 @@ public class AddressPool implements RsfUpdater {
         return getServiceRouteByRef(bucket.getRuleRef());
     }
 
-    @Override
+    /** 获取方法级路由脚本 */
     public String methodRoute(String serviceID) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -420,7 +416,7 @@ public class AddressPool implements RsfUpdater {
         return getMethodRouteByRef(bucket.getRuleRef());
     }
 
-    @Override
+    /** 获取参数级路由脚本 */
     public String argsRoute(String serviceID) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -429,7 +425,7 @@ public class AddressPool implements RsfUpdater {
         return getArgsRouteByRef(bucket.getRuleRef());
     }
 
-    @Override
+    /** 获取流控脚本 */
     public String flowControl(String serviceID) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -438,7 +434,7 @@ public class AddressPool implements RsfUpdater {
         return getFlowControlByRef(bucket.getFlowControlRef());
     }
 
-    @Override
+    /** 获取所有地址（包括本地的和无效的）*/
     public List<InterAddress> queryAllAddresses(String serviceID) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -447,7 +443,7 @@ public class AddressPool implements RsfUpdater {
         return Collections.unmodifiableList(bucket.getAllAddresses());
     }
 
-    @Override
+    /** 获取计算之后可用的地址 */
     public List<InterAddress> queryAvailableAddresses(String serviceID) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -456,7 +452,7 @@ public class AddressPool implements RsfUpdater {
         return Collections.unmodifiableList(bucket.getAvailableAddresses());
     }
 
-    @Override
+    /** 失效地址 */
     public List<InterAddress> queryInvalidAddresses(String serviceID) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -465,7 +461,7 @@ public class AddressPool implements RsfUpdater {
         return Collections.unmodifiableList(bucket.getInvalidAddresses());
     }
 
-    @Override
+    /** 获取计算之后同一单元地址 */
     public List<InterAddress> queryLocalUnitAddresses(String serviceID) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -500,5 +496,11 @@ public class AddressPool implements RsfUpdater {
             return null;
         }
         return ruleRef.getServiceLevel().getScript();
+    }
+
+    protected <R, E extends Throwable> R poolLock(EFunction<AddressPool, R, E> foo) {
+        synchronized (this.poolLock) {
+            return foo.apply(this);
+        }
     }
 }

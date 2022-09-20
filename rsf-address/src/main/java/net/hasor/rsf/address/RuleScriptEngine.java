@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
-import java.util.List;
-
 /**
  * 路由策略脚本接口
  * @version : 2015年12月3日
  * @author 赵永春 (zyc@hasor.net)
  */
-public interface RuleScriptFace<T> {
-    T evalAddress(String serviceID, List<String> allAddress);
+public interface RuleScriptEngine {
+    <T> RuleScript<T> eval(String script);
 }

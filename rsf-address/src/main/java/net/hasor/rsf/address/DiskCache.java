@@ -4,6 +4,7 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.NameThreadFactory;
 import net.hasor.cobble.concurrent.timer.HashedWheelTimer;
 import net.hasor.cobble.concurrent.timer.Timer;
+import net.hasor.cobble.function.EFunction;
 import net.hasor.cobble.io.FilenameUtils;
 import net.hasor.cobble.io.IOUtils;
 import net.hasor.cobble.logging.Logger;
@@ -24,29 +25,26 @@ import java.util.zip.ZipOutputStream;
  * @version : 2014年9月12日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class DiskCacheAddressPool extends AddressPool implements Closeable {
-    private static final String AddressList_ZipEntry        = "address.sal";
-    private static final String FlowControlRef_ZipEntry     = "flow-control.xml";
-    private static final String ServiceLevelScript_ZipEntry = "service-level.groovy";
-    private static final String MethodLevelScript_ZipEntry  = "method-level.groovy";
-    private static final String ArgsLevelScript_ZipEntry    = "args-level.groovy";
-    private static final String AddrPoolStoreName           = "addr-pool-";
-    private static final String SnapshotPath                = "/snapshot";
-    private static final String SnapshotIndex               = "address.index";
+public class DiskCache implements Closeable {
+    protected static final Logger logger                      = LoggerFactory.getLogger(DiskCache.class);
+    private static final   String AddressList_ZipEntry        = "address.sal";
+    private static final   String FlowControlRef_ZipEntry     = "flow-control.xml";
+    private static final   String ServiceLevelScript_ZipEntry = "service-level.groovy";
+    private static final   String MethodLevelScript_ZipEntry  = "method-level.groovy";
+    private static final   String ArgsLevelScript_ZipEntry    = "args-level.groovy";
+    private static final   String AddrPoolStoreName           = "addr-pool-";
+    private static final   String SnapshotPath                = "/snapshot";
+    private static final   String SnapshotIndex               = "address.index";
 
-    private static final Logger logger        = LoggerFactory.getLogger(DiskCacheAddressPool.class);
-    private static final long   OneHourTime   = 3600000;
-    private static final long   SevenDaysTime = 7 * 24 * OneHourTime;
-    private              Timer  timer;
-    private              File   snapshotHome;
-    private              File   indexFile;
+    private final        AddressPool pool;
+    private static final long        OneHourTime   = 3600000;
+    private static final long        SevenDaysTime = 7 * 24 * OneHourTime;
+    private              Timer       timer;
+    private              File        snapshotHome;
+    private              File        indexFile;
 
-    public DiskCacheAddressPool(String unitName, long invalidWakeupTimeMs, File rsfDataHome, long refreshCacheMs, long diskCacheMs) {
-        super(unitName, invalidWakeupTimeMs);
-        if (rsfDataHome == null) {
-            return;
-        }
-
+    public DiskCache(AddressPool pool, File rsfDataHome, long refreshCacheMs, long diskCacheMs) {
+        this.pool = pool;
         this.snapshotHome = new File(rsfDataHome, SnapshotPath);
         this.indexFile = new File(snapshotHome, SnapshotIndex);
         long useDiskCacheMs = Math.max(diskCacheMs, OneHourTime);
@@ -57,26 +55,26 @@ public class DiskCacheAddressPool extends AddressPool implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         this.timer.stop();
     }
 
     private void doDiskCache() {
         try {
-            this.logger.info("AddressPool - refreshCache. at = " + nowTime());
-            this.refreshAddressCache();
+            logger.info("AddressPool - refreshCache. at = " + nowTime());
+            this.pool.refreshAddressCache();
             this.storeConfig();
         } catch (Exception e) {
-            this.logger.error("doDiskCache error " + e.getMessage(), e);
+            logger.error("doDiskCache error " + e.getMessage(), e);
         }
     }
 
     private void doRefreshCache() {
         try {
-            this.logger.info("AddressPool - refreshCache. at = " + nowTime());
+            logger.info("AddressPool - refreshCache. at = " + nowTime());
             this.clearCacheData();
         } catch (Exception e) {
-            this.logger.error("doRefreshCache error " + e.getMessage(), e);
+            logger.error("doRefreshCache error " + e.getMessage(), e);
         }
     }
 
@@ -107,7 +105,7 @@ public class DiskCacheAddressPool extends AddressPool implements Closeable {
         while (writeFile == null || writeFile.exists()) {
             writeFile = new File(this.snapshotHome, AddrPoolStoreName + nowTime() + ".zip");
         }
-        this.logger.info("rsf - saveAddress to snapshot file({}) -> " + writeFile);
+        logger.info("rsf - saveAddress to snapshot file({}) -> " + writeFile);
         FileOutputStream fos = null;
         FileWriter fw = null;
         try {
@@ -122,13 +120,13 @@ public class DiskCacheAddressPool extends AddressPool implements Closeable {
                 fos.close();
 
                 fw = new FileWriter(this.indexFile, false);
-                this.logger.info("rsf - update snapshot index -> " + this.indexFile.getAbsolutePath());
+                logger.info("rsf - update snapshot index -> " + this.indexFile.getAbsolutePath());
                 fw.write(writeFile.getName());
                 fw.flush();
                 fw.close();
             }
         } catch (IOException e) {
-            this.logger.error("rsf - saveAddress " + e.getClass().getSimpleName() + " :" + e.getMessage(), e);
+            logger.error("rsf - saveAddress " + e.getClass().getSimpleName() + " :" + e.getMessage(), e);
             throw e;
         } finally {
             if (fos != null) {
@@ -144,11 +142,11 @@ public class DiskCacheAddressPool extends AddressPool implements Closeable {
     public synchronized void restoreConfig() {
         //1.校验
         if (!this.indexFile.exists()) {
-            this.logger.info("address snapshot index file, undefined.");
+            logger.info("address snapshot index file, undefined.");
             return;
         }
         if (!this.indexFile.canRead()) {
-            this.logger.error("address snapshot index file, can not read.");
+            logger.error("address snapshot index file, can not read.");
             return;
         }
         //2.确定要读取的文件。
@@ -159,11 +157,11 @@ public class DiskCacheAddressPool extends AddressPool implements Closeable {
             String index = bodyList.isEmpty() ? "" : bodyList.get(0);
             readFile = new File(this.snapshotHome, index);
             if ("".equals(index) || !readFile.exists()) {
-                this.logger.error("address snapshot '" + readFile + "' is not exist.");
+                logger.error("address snapshot '" + readFile + "' is not exist.");
                 return;
             }
         } catch (Throwable e) {
-            this.logger.error("read the snapshot file name error :" + e.getMessage(), e);
+            logger.error("read the snapshot file name error :" + e.getMessage(), e);
             return;
         }
 
@@ -174,12 +172,12 @@ public class DiskCacheAddressPool extends AddressPool implements Closeable {
             this.restoreConfig(inStream);
             inStream.close();
         } catch (IOException e) {
-            this.logger.error("read the snapshot file name error :" + e.getMessage(), e);
+            logger.error("read the snapshot file name error :" + e.getMessage(), e);
             if (inStream != null) {
                 try {
                     inStream.close();
                 } catch (IOException e1) {
-                    this.logger.error(e1.getMessage(), e1);
+                    logger.error(e1.getMessage(), e1);
                 }
             }
         }
@@ -193,31 +191,25 @@ public class DiskCacheAddressPool extends AddressPool implements Closeable {
 
     /** 保存地址列表到zip流中 */
     private synchronized void storeConfig(OutputStream outStream) throws IOException {
-        this.logger.info("rsf - saveAddress to stream.");
-        ZipOutputStream zipStream = null;
-        try {
-            zipStream = new ZipOutputStream(outStream);
-            synchronized (this.poolLock) {
-                for (AddressBucket bucket : this.addressPool.values()) {
+        logger.info("rsf - saveAddress to stream.");
+        try (ZipOutputStream zipStream = new ZipOutputStream(outStream)) {
+            this.pool.poolLock((EFunction<AddressPool, Object, Throwable>) pool -> {
+                for (AddressBucket bucket : pool.addressPool.values()) {
                     if (bucket != null) {
                         String serviceID = bucket.getServiceID() + ".zip";
-                        this.logger.debug("rsf - service saveAddress " + serviceID + " storage to snapshot.");
+                        logger.debug("rsf - service saveAddress " + serviceID + " storage to snapshot.");
                         ZipEntry entry = new ZipEntry(serviceID);
                         entry.setComment("service config of " + serviceID);
                         zipStream.putNextEntry(entry);
-                        this.saveToZip(bucket, zipStream);
+                        saveToZip(bucket, zipStream);
                         zipStream.closeEntry();
                     }
                 }
-            }
+                return null;
+            });
         } catch (IOException e) {
-            this.logger.error("rsf - saveAddress " + e.getClass().getSimpleName() + " :" + e.getMessage(), e);
+            logger.error("rsf - saveAddress " + e.getClass().getSimpleName() + " :" + e.getMessage(), e);
             throw e;
-        } finally {
-            /*这里进行清理。*/
-            if (zipStream != null) {
-                zipStream.finish();
-            }
         }
     }
 
@@ -225,21 +217,22 @@ public class DiskCacheAddressPool extends AddressPool implements Closeable {
     private synchronized void restoreConfig(InputStream inStream) throws IOException {
         ZipInputStream zipStream = new ZipInputStream(inStream);
         try {
-            synchronized (this.poolLock) {
+            this.pool.poolLock((EFunction<AddressPool, Object, Throwable>) pool -> {
                 ZipEntry zipEntry = null;
                 while ((zipEntry = zipStream.getNextEntry()) != null) {
                     String serviceID = zipEntry.getName();
                     serviceID = FilenameUtils.getBaseName(serviceID);
-                    AddressBucket bucket = this.addressPool.get(serviceID);
+                    AddressBucket bucket = pool.addressPool.get(serviceID);
                     if (bucket == null) {
                         continue;
                     }
                     this.readFromZip(bucket, zipStream);
                     zipStream.closeEntry();
                 }
-            }
+                return null;
+            });
         } catch (Exception e) {
-            this.logger.error("read the snapshot file error :" + e.getMessage(), e);
+            logger.error("read the snapshot file error :" + e.getMessage(), e);
         }
     }
 

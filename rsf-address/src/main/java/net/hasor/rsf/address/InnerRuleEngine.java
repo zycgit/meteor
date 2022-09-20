@@ -18,12 +18,10 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.codec.MD5;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
-import net.hasor.rsf.utils.groovy223.GroovyScriptEngineImpl;
 
-import javax.script.Invocable;
-import javax.script.ScriptEngine;
-import javax.script.ScriptException;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ServiceLoader;
 
 /**
  *
@@ -31,16 +29,32 @@ import java.util.List;
  * @author 赵永春 (zyc@hasor.net)
  */
 class InnerRuleEngine {
-    protected static final Logger            logger     = LoggerFactory.getLogger(InnerRuleEngine.class);
-    private volatile       String            ruleScript = null; //规则脚本
-    private volatile       String            signature  = null; //脚本内容签名，用于校验是否发生变化
-    private volatile       RuleScriptFace<?> runScript  = null; //调用程序
+    protected static final Logger           logger     = LoggerFactory.getLogger(InnerRuleEngine.class);
+    private volatile       String           ruleScript = null; //规则脚本
+    private volatile       String           signature  = null; //脚本内容签名，用于校验是否发生变化
+    //
+    private final          RuleScriptEngine runScriptEngine;
+    private volatile       RuleScript<?>    runScript  = null; //调用程序
+
+    public InnerRuleEngine() {
+        ServiceLoader<RuleScriptEngine> engines = ServiceLoader.load(RuleScriptEngine.class);
+        Iterator<RuleScriptEngine> iterator = engines.iterator();
+        if (iterator.hasNext()) {
+            this.runScriptEngine = iterator.next();
+        } else {
+            this.runScriptEngine = null;
+        }
+    }
 
     public boolean isEnable() {
         return runScript != null;
     }
 
     public synchronized boolean update(String ruleScript) {
+        if (this.runScriptEngine == null) {
+            return false;
+        }
+
         //1.空内容判断
         if (StringUtils.isBlank(ruleScript)) {
             ruleScript = "";
@@ -68,21 +82,14 @@ class InnerRuleEngine {
                 this.signature = signature;
                 return true;
             }
-            ScriptEngine engine = new GroovyScriptEngineImpl();
-            engine.eval(ruleScript);
-            this.runScript = ((Invocable) engine).getInterface(RuleScriptFace.class);
+
+            this.runScript = this.runScriptEngine.eval(ruleScript);
             logger.info("ruleEngine ruleScript compiler finish.");
             this.ruleScript = ruleScript;
             this.signature = signature;
             return true;
         } catch (Throwable e) {
-            if (e instanceof ScriptException) {
-                ScriptException se = (ScriptException) e;
-                logger.error("ruleEngine ruleScript compiler error ->at line: " + se.getLineNumber() //
-                        + " , column: " + se.getColumnNumber() + " , message:" + e.getMessage(), e);
-            } else {
-                logger.error("ruleEngine ruleScript compiler error ->" + e.getMessage(), e);
-            }
+            logger.error("ruleEngine ruleScript compiler error ->" + e.getMessage(), e);
             return false;
         }
     }

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address.route;
-import net.hasor.rsf.address.route.rule.DefaultArgsKey;
 /**
  * 对指定的服务上的方法进行处理，sayEcho，testUserTag。两个方法上用于计算路由地址的参考参数是第一个传入参数。
  * @version : 2015年4月16日

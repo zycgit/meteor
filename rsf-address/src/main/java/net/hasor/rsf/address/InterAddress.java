@@ -17,11 +17,9 @@ package net.hasor.rsf.address;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
-import net.hasor.rsf.utils.NetworkUtils;
 
 import java.net.*;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -83,7 +81,7 @@ public class InterAddress {
     /** 返回目标IP地址 */
     public String getHost() {
         if ("local".equalsIgnoreCase(this.hostAddress)) {
-            List<String> localIpAddr = NetworkUtils.localIpAddr();
+            List<String> localIpAddr = localIpAddr();
             if (localIpAddr.isEmpty()) {
                 try {
                     return InetAddress.getLocalHost().getHostName();
@@ -197,5 +195,35 @@ public class InterAddress {
             logger.debug("'" + serviceURL + "' rsfAddress format error.");
         }
         return false;
+    }
+
+    /** 获取本机地址 */
+    private static List<String> localIpAddr() {
+        List<String> ipList = new ArrayList<>();
+        try {
+            Enumeration interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface ni = (NetworkInterface) interfaces.nextElement();
+                Enumeration ipAddrEnum = ni.getInetAddresses();
+                while (ipAddrEnum.hasMoreElements()) {
+                    InetAddress addr = (InetAddress) ipAddrEnum.nextElement();
+                    if (addr.isLoopbackAddress()) {
+                        continue;
+                    }
+                    String ip = addr.getHostAddress();
+                    if (ip.contains(":")) {
+                        continue;//skip the IPv6 addr
+                    }
+                    logger.debug("Interface: " + ni.getName() + ", IP: " + ip);
+                    ipList.add(ip);
+                }
+            }
+            Collections.sort(ipList);
+        } catch (Exception e) {
+            e.printStackTrace();
+            logger.error("Failed to get local ip list. " + e.getMessage());
+            throw new RuntimeException("Failed to get local ip list");
+        }
+        return ipList;
     }
 }

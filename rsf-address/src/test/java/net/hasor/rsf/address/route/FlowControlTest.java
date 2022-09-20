@@ -1,17 +1,12 @@
 package net.hasor.rsf.address.route;
-import net.hasor.core.setting.StandardEnvironment;
-import net.hasor.rsf.InterAddress;
-import net.hasor.rsf.RsfEnvironment;
-import net.hasor.rsf.address.route.flowcontrol.random.RandomFlowControl;
-import net.hasor.rsf.address.route.flowcontrol.speed.SpeedFlowControl;
-import net.hasor.rsf.address.route.flowcontrol.unit.UnitFlowControl;
-import net.hasor.rsf.address.route.rule.RuleParser;
-import net.hasor.rsf.settings.DefaultRsfEnvironment;
-import net.hasor.rsf.utils.IOUtils;
-import net.hasor.utils.ResourcesUtils;
+import net.hasor.cobble.ResourcesUtils;
+import net.hasor.cobble.io.IOUtils;
+import net.hasor.rsf.address.InterAddress;
+import net.hasor.rsf.address.route.random.RandomFlowControl;
+import net.hasor.rsf.address.route.speed.SpeedFlowControl;
+import net.hasor.rsf.address.route.unit.UnitFlowControl;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -27,9 +22,8 @@ public class FlowControlTest {
         return addresses;
     }
 
-    private RuleParser getRuleParser() throws IOException {
-        RsfEnvironment settings = new DefaultRsfEnvironment(new StandardEnvironment());
-        return new RuleParser(settings);
+    private RuleParser getRuleParser() {
+        return new RuleParser();
     }
 
     @Test
