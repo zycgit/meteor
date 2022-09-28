@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address.route.speed;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.concurrent.QoSBucket;
 import net.hasor.cobble.setting.Settings;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.address.route.AbstractRule;
@@ -48,7 +50,7 @@ public class SpeedFlowControl extends AbstractRule {
         this.rate = settings.getInteger("flowControl.rate");
         this.peak = settings.getInteger("flowControl.peak");
         this.timeWindow = settings.getInteger("flowControl.timeWindow");
-        this.qosBucketMap = new ConcurrentHashMap<String, QoSBucket>();
+        this.qosBucketMap = new ConcurrentHashMap<>();
 
         if (this.action == null) {
             this.enable(false);
@@ -58,7 +60,7 @@ public class SpeedFlowControl extends AbstractRule {
             return;
         }
         logger.info("init default QoS.");
-        QoSBucket qosBucket = this.createQoSBucket();
+        QoSBucket qosBucket = this.createQoSBucket(null);
         if (!qosBucket.validate()) {
             this.enable(false);
             logger.info("QoS config validate fail. -> " + this.defaultQoSBucket);
@@ -71,34 +73,46 @@ public class SpeedFlowControl extends AbstractRule {
         if (!this.enable()) {
             return true;
         }
-        //
+
         String key = null;
         switch (this.action) {
             case Address:
                 key = doCallAddress.toString();
                 break;
             case Method:
-                key = methodName;
+                key = serviceID + methodName;
                 break;
             case Service:
                 key = serviceID;
                 break;
         }
-        //
+
         if (key == null) {
             return true;
         }
+
         QoSBucket qos = this.qosBucketMap.get(key);
         if (qos == null) {
-            qos = this.qosBucketMap.putIfAbsent(key, this.createQoSBucket());
-            qos = this.qosBucketMap.get(key);
+            synchronized (this) {
+                qos = this.qosBucketMap.get(key);
+                if (qos == null) {
+                    qos = this.createQoSBucket(key);
+                    this.qosBucketMap.put(key, qos);
+                }
+            }
         }
         return qos.check();
     }
 
-    protected QoSBucket createQoSBucket() {
+    protected QoSBucket createQoSBucket(String qosKey) {
         QoSBucket qosBucket = new QoSBucket(this.rate, this.peak, this.timeWindow);
-        logger.info("create " + qosBucket);
+
+        if (StringUtils.isBlank(qosKey)) {
+            logger.info("create default " + qosBucket);
+        } else {
+            logger.info("create " + qosKey + " " + qosBucket);
+        }
+
         return qosBucket;
     }
 

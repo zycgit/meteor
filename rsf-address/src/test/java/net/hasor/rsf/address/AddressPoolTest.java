@@ -48,7 +48,7 @@ public class AddressPoolTest {
         staticList.add(new InterAddress("127.0.4.4", 8000, "etc2"));
         pool.appendStaticAddress(service, staticList);
         //
-        String flowBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/flow-control/full-flow.xml"), "utf-8");
+        String flowBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/full-flow.xml"), "utf-8");
         pool.updateFlowControl(service, flowBody);
         //
         String scriptBody1 = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/rule-script/service-level.groovy"), "utf-8");
@@ -59,6 +59,50 @@ public class AddressPoolTest {
         //
         String scriptBody3 = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/rule-script/args-level.groovy"), "utf-8");
         pool.updateArgsRoute(service, scriptBody3);
+    }
+
+    @Test
+    public void nextAddressTest() throws IOException, InterruptedException {
+        final AddressPool pool = new AddressPool("default", 3000);
+        final String serviceID = "[RSF]test.net.hasor.rsf.services.EchoService-1.0.0";
+
+        ArrayList<InterAddress> dynamicList = new ArrayList<>();
+        dynamicList.add(new InterAddress("127.0.0.1", 8000, "etc2"));
+        pool.appendAddress(serviceID, dynamicList);
+
+        ArrayList<InterAddress> staticList = new ArrayList<>();
+        staticList.add(new InterAddress("192.168.137.10", 8000, "etc2"));
+        staticList.add(new InterAddress("192.168.137.11", 8000, "etc2"));
+        staticList.add(new InterAddress("127.0.4.4", 8000, "etc2"));
+        pool.appendStaticAddress(serviceID, staticList);
+
+        String flowBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/flow-control/pool-performance.xml"), "utf-8");
+        pool.updateFlowControl(serviceID, flowBody);
+
+        Thread thread = new Thread(() -> {
+            Random random = new Random(System.currentTimeMillis());
+            while (true) {
+                InterAddress address = pool.nextAddress(serviceID, "sayHello", new Object[] { "hello" });
+                System.out.println(Long.toHexString(random.nextLong()).toUpperCase() + "\t" + address);
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                }
+            }
+        });
+        thread.setDaemon(true);
+        thread.start();
+
+        Thread.sleep(5000);
+        flowBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/full-flow.xml"), "utf-8");
+        pool.updateFlowControl(serviceID, flowBody);
+
+        Thread.sleep(5000);
+        String scriptBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/rule-script/service-level.groovy"), "utf-8");
+        pool.updateServiceRoute(serviceID, scriptBody);
+
+        Thread.sleep(5000);
+        thread.stop();
     }
 
     @Test
@@ -116,48 +160,4 @@ public class AddressPoolTest {
         diskCache.restoreConfig();
     }
 
-    @Test
-    public void nextAddressTest() throws IOException, InterruptedException {
-        final AddressPool pool = new AddressPool("default", 3000);
-        final String serviceID = "[RSF]test.net.hasor.rsf.services.EchoService-1.0.0";
-        //
-        ArrayList<InterAddress> dynamicList = new ArrayList<>();
-        dynamicList.add(new InterAddress("127.0.0.1", 8000, "etc2"));
-        pool.appendAddress(serviceID, dynamicList);
-        //
-        ArrayList<InterAddress> staticList = new ArrayList<>();
-        staticList.add(new InterAddress("192.168.137.10", 8000, "etc2"));
-        staticList.add(new InterAddress("192.168.137.11", 8000, "etc2"));
-        staticList.add(new InterAddress("127.0.4.4", 8000, "etc2"));
-        pool.appendStaticAddress(serviceID, staticList);
-        //
-        String flowBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/flow-control/full-performance-flow.xml"), "utf-8");
-        pool.updateFlowControl(serviceID, flowBody);
-        //
-        //
-        Thread thread = new Thread(() -> {
-            Random random = new Random(System.currentTimeMillis());
-            while (true) {
-                InterAddress address = pool.nextAddress(serviceID, "sayHello", new Object[] { "hello" });
-                System.out.println(Long.toHexString(random.nextLong()).toUpperCase() + "\t" + address);
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                }
-            }
-        });
-        thread.setDaemon(true);
-        thread.start();
-        //
-        Thread.sleep(5000);
-        flowBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/flow-control/full-flow.xml"), "utf-8");
-        pool.updateFlowControl(serviceID, flowBody);
-        //
-        Thread.sleep(5000);
-        String scriptBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/rule-script/service-level.groovy"), "utf-8");
-        pool.updateServiceRoute(serviceID, scriptBody);
-        //
-        Thread.sleep(5000);
-        thread.stop();
-    }
 }

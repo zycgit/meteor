@@ -11,8 +11,8 @@
     <packaging>jar</packaging>
 
     <!-- Project Info -->
-    <name>RSF Framework</name>
-    <description>request/response RPC Framework.</description>
+    <name>RSF Address Service</name>
+    <description>support RPC address service.</description>
 
     <developers>
         <developer>
@@ -26,25 +26,6 @@
         <dependency>
             <groupId>net.hasor</groupId>
             <artifactId>cobble-all</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-all</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.hprose</groupId>
-            <artifactId>hprose-java</artifactId>
-            <version>2.0.38</version>
-            <scope>compile</scope>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>com.caucho</groupId>
-            <artifactId>hessian</artifactId>
-            <version>4.0.63</version>
-            <scope>compile</scope>
-            <optional>true</optional>
         </dependency>
     </dependencies>
 </project>

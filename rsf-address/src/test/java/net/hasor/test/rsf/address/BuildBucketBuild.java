@@ -13,7 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package net.hasor.rsf.address;
+package net.hasor.test.rsf.address;
+import net.hasor.rsf.address.AddressBucket;
+import net.hasor.rsf.address.AddressTypeEnum;
+import net.hasor.rsf.address.InterAddress;
+
 import java.util.ArrayList;
 
 /**
@@ -35,14 +39,14 @@ public class BuildBucketBuild {
 
     public BuildBucketBuild invoke() {
         bucket = new AddressBucket(serviceID, "default");
-        //
+
         ArrayList<InterAddress> dynamicList = new ArrayList<>();
         dynamicList.add(new InterAddress("127.0.0.1", 8000, "etc2"));
         dynamicList.add(new InterAddress("127.0.0.2", 8000, "etc2"));
         dynamicList.add(new InterAddress("127.0.0.3", 8000, "etc2"));
         dynamicList.add(new InterAddress("127.0.0.4", 8000, "etc2"));
         bucket.newAddress(dynamicList, AddressTypeEnum.Dynamic);
-        //
+
         ArrayList<InterAddress> staticList = new ArrayList<>();
         staticList.add(new InterAddress("127.0.1.1", 8000, "etc2"));
         staticList.add(new InterAddress("127.0.2.2", 8000, "etc2"));

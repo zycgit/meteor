@@ -16,10 +16,10 @@
 package net.hasor.rsf.address;
 import net.hasor.cobble.ResourcesUtils;
 import net.hasor.cobble.io.IOUtils;
+import net.hasor.test.rsf.address.BuildBucketBuild;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 
 /**
  *
@@ -28,12 +28,12 @@ import java.net.URISyntaxException;
  */
 public class BucketTest {
     @Test
-    public void saveToZipTest() throws URISyntaxException, IOException {
+    public void saveToZipTest() throws IOException {
         String serviceID = "tttt";
         BuildBucketBuild buildBucket = new BuildBucketBuild(serviceID).invoke();
         AddressBucket bucket = buildBucket.getBucket();
         //
-        String flowBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/flow-control/full-flow.xml"), "utf-8");
+        String flowBody = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/full-flow.xml"), "utf-8");
         bucket.updateFlowControl(flowBody);
         //
         String scriptBody1 = IOUtils.readToString(ResourcesUtils.getResourceAsStream("/rule-script/service-level.groovy"), "utf-8");
@@ -54,7 +54,7 @@ public class BucketTest {
     }
 
     @Test
-    public void readFormZipTest() throws IOException, URISyntaxException {
+    public void readFormZipTest() throws IOException {
         this.saveToZipTest();
         //
         String serviceID = "tttt";
@@ -69,7 +69,7 @@ public class BucketTest {
 
     //
     @Test
-    public void invalidAddressTest() throws IOException, InterruptedException, URISyntaxException {
+    public void invalidAddressTest() throws InterruptedException {
         String serviceID = "tttt";
         BuildBucketBuild buildBucket = new BuildBucketBuild(serviceID).invoke();
         final AddressBucket bucket = buildBucket.getBucket();

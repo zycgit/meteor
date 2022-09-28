@@ -17,7 +17,6 @@ package net.hasor.rsf.address;
 import org.junit.Test;
 
 import java.net.URISyntaxException;
-import java.net.UnknownHostException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -28,54 +27,48 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class AddressUnitTest {
     @Test
-    public void protocol() throws UnknownHostException {
+    public void protocol() {
         ConcurrentMap<InterAddress, String> concurrentMap = new ConcurrentHashMap<>();
-        //
         concurrentMap.put(new InterAddress("127.0.0.1", 8000, "etc2"), "123");
         concurrentMap.put(new InterAddress("127.0.0.1", 8000, "etc2"), "123");
-        //
+
         assert concurrentMap.size() == 1;
-        System.out.println(concurrentMap.size());
     }
 
     @Test
-    public void test() throws UnknownHostException {
+    public void test() {
         ConcurrentMap<InterAddress, String> concurrentMap = new ConcurrentHashMap<>();
-        //
         concurrentMap.put(new InterAddress("127.0.0.1", 8000, "etc2"), "123");
         concurrentMap.put(new InterAddress("127.0.0.1", 8000, "etc2"), "123");
-        //
+
         assert concurrentMap.size() == 1;
-        System.out.println(concurrentMap.size());
     }
 
     @Test
-    public void unitAddress() throws URISyntaxException, UnknownHostException {
+    public void unitAddress() throws URISyntaxException {
         InterAddress unit = new InterAddress("rsf://127.0.0.1:8000/unit");
-        System.out.println(unit);
+        assert unit.toString().equals("rsf://127.0.0.1:8000/unit");
     }
 
     @Test
-    public void localAddress() throws URISyntaxException, UnknownHostException {
+    public void localAddress() throws URISyntaxException {
         InterAddress unit = new InterAddress("rsf://local:8000/unit");
-        System.out.println(unit);
+        assert unit.toString().equals("rsf://local:8000/unit");
     }
 
     @Test
-    public void ipAddress() throws URISyntaxException, UnknownHostException {
+    public void ipAddress() throws URISyntaxException {
         InterAddress interAddress1 = new InterAddress("127.0.0.1", 8000, "etc2");
         InterAddress interAddress2 = new InterAddress("127.0.0.1", 8000, "etc2");
         InterAddress interAddress3 = new InterAddress("rsf://127.0.0.1:8000/etc2");
         InterAddress interAddress4 = new InterAddress("RSF://127.0.0.1:8000/etc2");
-        //
         boolean eq1 = interAddress1.equals(interAddress2);
         boolean eq2 = interAddress1.equals(interAddress3);
         boolean eq3 = interAddress1.equals(interAddress4);
-        //
+
         assert eq1 && eq2 && eq3;
-        //
+
         System.out.println(eq1 + "\t" + eq2 + "\t" + eq3);
-        //
         System.out.println(interAddress1);
         System.out.println(interAddress3);
         System.out.println(interAddress4);
