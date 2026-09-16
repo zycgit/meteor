@@ -14,23 +14,22 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
+import java.util.*;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.rsf.address.route.ArgsKey;
 
-import java.util.*;
-import java.util.Map.Entry;
-
 /**
  * 路由计算结果缓存<br/>
  * 接口级    方法级      参数级
- * @version : 2015年3月29日
  * @author 赵永春 (zyc@hasor.net)
+ * @version : 2015年3月29日
  */
 class AddressCacheResult {
     protected static Logger      logger = LoggerFactory.getLogger(AddressCacheResult.class);
     private volatile CacheResult cacheResultRef;
     private final    AddressPool addressPool;
+    private          long        revision; // guarded by addressPool.poolLock
 
     //
     public AddressCacheResult(AddressPool addressPool) {
@@ -38,7 +37,7 @@ class AddressCacheResult {
     }
     //
 
-    /**从全部地址中计算执行动态计算并缓存计算结果.*/
+    /** 从全部地址中计算执行动态计算并缓存计算结果. */
     public List<InterAddress> getAddressList(String serviceID, String methodName, Object[] args) {
         if (this.cacheResultRef == null) {
             logger.warn("getAddressList fail. resultRef is null.");
@@ -77,20 +76,29 @@ class AddressCacheResult {
         return result;
     }
 
-    /**重置缓存结果*/
+    /** 重置缓存结果 */
     public void reset() {
-        this.logger.info("reset addressCache.");
-        Map<String, List<InterAddress>> allAddress = this.addressPool.allServiceAddressToSnapshot();
-        Set<String> allServiceIDs = this.addressPool.getBucketNames();
+        logger.info("reset addressCache.");
+        Snapshot snapshot = this.addressPool.poolLock(pool -> {
+            Map<String, BucketSnapshot> buckets = new HashMap<>();
+            for (Map.Entry<String, AddressBucket> entry : pool.addressPool.entrySet()) {
+                AddressBucket bucket = entry.getValue();
+                synchronized (bucket) {
+                    buckets.put(entry.getKey(), new BucketSnapshot(bucket.getAvailableAddresses(), bucket.getLocalUnitAddresses(), bucket.getRuleRef()));
+                }
+            }
+            return new Snapshot(++revision, buckets);
+        });
+
         CacheResult cacheResultRef = new CacheResult();
-        //
-        for (String serviceID : allServiceIDs) {
-            /*计算使用的地址列表(所有可用的/本单元的/本地网络的)*/
-            List<InterAddress> all = allAddress.get(serviceID);
-            List<InterAddress> unit = allAddress.get(serviceID + "_UNIT");
-            List<String> allStrList = convertToStr(all);
-            RuleRef refRule = this.addressPool.getRefRule(serviceID);
-            //
+        // Execute user scripts outside the pool lock. A newer reset supersedes this computation.
+        for (Map.Entry<String, BucketSnapshot> entry : snapshot.buckets.entrySet()) {
+            String serviceID = entry.getKey();
+            List<InterAddress> all = entry.getValue().all;
+            List<InterAddress> unit = entry.getValue().unit;
+            List<String> allStrList = Collections.unmodifiableList(convertToStr(all));
+            RuleRef refRule = entry.getValue().rules;
+
             //1.计算缓存的服务接口级,地址列表
             List<InterAddress> serviceLevelResult = null;
             if (!refRule.getServiceLevel().isEnable()) {
@@ -105,7 +113,7 @@ class AddressCacheResult {
                 serviceLevelResult = unit;/*如果计算结果为空，就使用单元化的地址 -> 如果单元化策略没有配置则单元化地址就是全量地址。*/
             }
             cacheResultRef.serviceLevel.put(serviceID, serviceLevelResult);
-            //
+
             //2.计算缓存的服务方法级,地址列表
             if (!refRule.getMethodLevel().isEnable()) {
                 logger.debug("eval routeScript [MethodLevel], service " + serviceID + " route undefined.");
@@ -116,7 +124,7 @@ class AddressCacheResult {
                     cacheResultRef.methodLevel.put(serviceID, methodLevelResult);/*保存计算结果*/
                 }
             }
-            //
+
             //3.计算缓存的服务参数级,地址列表
             if (!refRule.getArgsLevel().isEnable()) {
                 logger.debug("eval routeScript [ArgsLevel], service " + serviceID + " route undefined.");
@@ -130,40 +138,78 @@ class AddressCacheResult {
                 }
             }
         }
+
         logger.debug("switch cacheResultRef.");
-        this.cacheResultRef = cacheResultRef;
+        this.addressPool.poolLock(pool -> {
+            if (revision == snapshot.revision) {
+                this.cacheResultRef = cacheResultRef;
+            }
+            return null;
+        });
     }
 
-    private static Map<String, Map<String, List<InterAddress>>> convertToAddressArgs(List<InterAddress> all, Map<String, Map<String, List<String>>> argsLevelResult) {
+    private static class BucketSnapshot {
+        final List<InterAddress> all;
+        final List<InterAddress> unit;
+        final RuleRef            rules;
+
+        BucketSnapshot(List<InterAddress> all, List<InterAddress> unit, RuleRef rules) {
+            this.all = all;
+            this.unit = unit;
+            this.rules = rules;
+        }
+    }
+
+    private static class Snapshot {
+        final long                        revision;
+        final Map<String, BucketSnapshot> buckets;
+
+        Snapshot(long revision, Map<String, BucketSnapshot> buckets) {
+            this.revision = revision;
+            this.buckets = buckets;
+        }
+    }
+
+    private static Map<String, Map<String, List<InterAddress>>> convertToAddressArgs(List<InterAddress> all, Object value) {
         Map<String, Map<String, List<InterAddress>>> result = new HashMap<>();
-        for (Entry<String, Map<String, List<String>>> ent : argsLevelResult.entrySet()) {
-            String key = ent.getKey();
-            Map<String, List<InterAddress>> val = convertToAddressMethod(all, ent.getValue());
-            if (!val.isEmpty()) {
-                result.put(key, val);
+        if (!(value instanceof Map)) {
+            return result;
+        }
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+            Map<String, List<InterAddress>> methods = convertToAddressMethod(all, entry.getValue());
+            if (entry.getKey() instanceof String && !methods.isEmpty()) {
+                result.put((String) entry.getKey(), methods);
             }
         }
         return result;
     }
 
-    private static Map<String, List<InterAddress>> convertToAddressMethod(List<InterAddress> all, Map<String, List<String>> methodLevelResult) {
+    private static Map<String, List<InterAddress>> convertToAddressMethod(List<InterAddress> all, Object value) {
         Map<String, List<InterAddress>> result = new HashMap<>();
-        for (Entry<String, List<String>> ent : methodLevelResult.entrySet()) {
-            String key = ent.getKey();
-            List<InterAddress> val = convertToAddress(all, ent.getValue());
-            if (!val.isEmpty()) {
-                result.put(key, val);
+        if (!(value instanceof Map)) {
+            return result;
+        }
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+            List<InterAddress> addresses = convertToAddress(all, entry.getValue());
+            if (entry.getKey() instanceof String && !addresses.isEmpty()) {
+                result.put((String) entry.getKey(), addresses);
             }
         }
         return result;
     }
 
-    private static List<InterAddress> convertToAddress(List<InterAddress> all, List<String> serviceLevelResult) {
-        List<InterAddress> result = new ArrayList<>(serviceLevelResult.size());
-        for (String evalResult : serviceLevelResult) {
+    private static List<InterAddress> convertToAddress(List<InterAddress> all, Object value) {
+        Set<InterAddress> result = new LinkedHashSet<>();
+        if (!(value instanceof List)) {
+            return new ArrayList<>();
+        }
+        for (Object candidate : (List<?>) value) {
+            if (!(candidate instanceof String)) {
+                continue;
+            }
             for (InterAddress address : all) {
                 try {
-                    if (address.equalsHost(evalResult)) {
+                    if (address.equalsHost((String) candidate)) {
                         result.add(address);
                     }
                 } catch (Exception e) {
@@ -171,7 +217,7 @@ class AddressCacheResult {
                 }
             }
         }
-        return result;
+        return new ArrayList<>(result);
     }
 
     private static List<String> convertToStr(List<InterAddress> all) {
@@ -186,13 +232,13 @@ class AddressCacheResult {
         return result;
     }
 
-    /** 脚本说明：
+    /**
+     * 脚本说明：
      * <pre>入参：
      *  serviceID   （String）
      *  allAddress  （List&lt;String&gt;）
      * 返回值
      *  List&lt;String&gt;
-     *
      * 样例：
      *  def List&lt;String&gt; evalAddress(String serviceID,List&lt;String&gt; allAddress)  {
      *      //
@@ -206,7 +252,7 @@ class AddressCacheResult {
      *      }
      *      return null
      *  }</pre>
-     * */
+     */
     private List<String> evalServiceLevel(String serviceID, RuleRef refRule, List<String> all) {
         InnerRuleEngine serviceLevel = refRule.getServiceLevel();
         if (serviceLevel == null) {
@@ -220,13 +266,13 @@ class AddressCacheResult {
         }
     }
 
-    /** 脚本说明：
+    /**
+     * 脚本说明：
      * <pre>入参：
      *  serviceID   （String）
      *  allAddress  （List&lt;String&gt;）
      * 返回值
      *  Map&lt;String,List&lt;String&gt;&gt;
-     *
      * 样例：
      *  def Map&lt;String,List&lt;String&gt;&gt; evalAddress(String serviceID,List&lt;String&gt; allAddress)  {
      *      //
@@ -249,7 +295,7 @@ class AddressCacheResult {
      *      }
      *      return null
      *  }</pre>
-     * */
+     */
     private Map<String, List<String>> evalMethodLevel(String serviceID, RuleRef refRule, List<String> all) {
         InnerRuleEngine methodLevel = refRule.getMethodLevel();
         if (methodLevel == null) {
@@ -263,13 +309,13 @@ class AddressCacheResult {
         }
     }
 
-    /** 脚本说明：
+    /**
+     * 脚本说明：
      * <pre>入参：
      *  serviceID   （String）
      *  allAddress  （List&lt;String&gt;）
      * 返回值
      *  Map&lt;String, Map&lt;String, List&lt;String&gt;&gt;&gt;
-     *
      * 样例：
      *  def Map&lt;String, Map&lt;String, List&lt;String&gt;&gt;&gt; evalAddress(String serviceID,List&lt;String&gt; allAddress)  {
      *      //
@@ -297,7 +343,7 @@ class AddressCacheResult {
      *      }
      *      return null
      *  }</pre>
-     * */
+     */
     private Map<String, Map<String, List<String>>> evalArgsLevel(String serviceID, RuleRef refRule, List<String> all) {
         InnerRuleEngine argsLevel = refRule.getArgsLevel();
         if (argsLevel == null) {

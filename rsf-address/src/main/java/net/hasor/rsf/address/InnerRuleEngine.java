@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ServiceLoader;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.codec.MD5;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 
-import java.util.Iterator;
-import java.util.List;
-import java.util.ServiceLoader;
-
 /**
- *
- * @version : 2015年12月3日
  * @author 赵永春 (zyc@hasor.net)
+ * @version : 2015年12月3日
  */
 class InnerRuleEngine {
     protected static final Logger           logger     = LoggerFactory.getLogger(InnerRuleEngine.class);
@@ -44,6 +42,13 @@ class InnerRuleEngine {
         } else {
             this.runScriptEngine = null;
         }
+    }
+
+    InnerRuleEngine(InnerRuleEngine source) {
+        this.runScriptEngine = source.runScriptEngine;
+        this.ruleScript = source.ruleScript;
+        this.signature = source.signature;
+        this.runScript = source.runScript;
     }
 
     public boolean isEnable() {
@@ -78,12 +83,18 @@ class InnerRuleEngine {
         }
         try {
             if (StringUtils.isBlank(ruleScript)) {
+                this.runScript = null;
                 this.ruleScript = null;
                 this.signature = signature;
                 return true;
             }
 
-            this.runScript = this.runScriptEngine.eval(ruleScript);
+            RuleScript<?> compiled = this.runScriptEngine.eval(ruleScript);
+            if (compiled == null) {
+                return false;
+            }
+
+            this.runScript = compiled;
             logger.info("ruleEngine ruleScript compiler finish.");
             this.ruleScript = ruleScript;
             this.signature = signature;

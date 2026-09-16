@@ -16,8 +16,8 @@
 package net.hasor.rsf.address.route;
 /**
  * 将参数映射为一个Key.
- * @version : 2015年4月16日
  * @author 赵永春 (zyc@hasor.net)
+ * @version : 2015年4月16日
  */
 public class DefaultArgsKey implements ArgsKey {
     public String eval(final String serviceID, final String methodName, final Object[] args) {
@@ -29,7 +29,13 @@ public class DefaultArgsKey implements ArgsKey {
             if (obj == null) {
                 strBuilder.append("null");
             } else {
-                strBuilder.append(obj.toString());
+                String value = obj.toString();
+                // Keep ordinary legacy keys; escape separators and the reserved null token.
+                if ("null".equals(value)) {
+                    strBuilder.append("\\null");
+                } else {
+                    strBuilder.append(value.replace("\\", "\\\\").replace("-", "\\-"));
+                }
             }
             strBuilder.append("-");
         }

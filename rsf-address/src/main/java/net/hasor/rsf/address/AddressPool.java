@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.LockSupport;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.function.EFunction;
 import net.hasor.cobble.logging.Logger;
@@ -21,15 +24,12 @@ import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.rsf.address.route.ArgsKey;
 import net.hasor.rsf.address.route.DefaultArgsKey;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-
 /**
  * 服务地址池
  * <p>路由策略：随机选址
  * <p>流控规则：服务级、方法级、参数级
- * @version : 2014年9月12日
  * @author 赵永春 (zyc@hasor.net)
+ * @version : 2014年9月12日
  */
 public class AddressPool {
     protected static final Logger                     logger = LoggerFactory.getLogger(AddressPool.class);
@@ -182,7 +182,6 @@ public class AddressPool {
                 bucket.invalidAddress(address, this.invalidWakeupTimeMs);
                 bucket.refreshAddress();
             }
-            this.rulerCache.reset();
         }
         this.rulerCache.reset();
     }
@@ -207,7 +206,7 @@ public class AddressPool {
             logger.info("serviceID =" + serviceID + " ,bucket is not exist.");
             return;
         }
-        StringBuilder strBuilder = new StringBuilder("");
+        StringBuilder strBuilder = new StringBuilder();
         if (invalidAddressSet == null || invalidAddressSet.isEmpty()) {
             strBuilder.append("empty.");
         } else {
@@ -234,8 +233,8 @@ public class AddressPool {
                 logger.debug("service " + bucketKey + " removeAddress.");
                 bucket.removeAddress(address);
             }
-            this.rulerCache.reset();
         }
+        this.rulerCache.reset();
     }
 
     /**
@@ -243,13 +242,14 @@ public class AddressPool {
      * @param serviceID 服务ID。
      */
     public boolean removeBucket(String serviceID) {
-        if (this.addressPool.containsKey(serviceID)) {
-            logger.info("removeAddressBucket serviceID is " + serviceID);
-            this.addressPool.remove(serviceID);
-            this.rulerCache.reset();
-            return true;
+        boolean removed;
+        synchronized (this.poolLock) {
+            removed = this.addressPool.remove(serviceID) != null;
         }
-        return false;
+        if (removed) {
+            this.rulerCache.reset();
+        }
+        return removed;
     }
 
     /** 刷新服务的地址本，使其使用全新的地址本 */
@@ -279,8 +279,8 @@ public class AddressPool {
                 logger.debug("service " + bucketKey + " refreshCache.");
                 bucket.refreshAddress();//刷新地址计算结果
             }
-            this.rulerCache.reset();
         }
+        this.rulerCache.reset();
     }
 
     /**
@@ -297,38 +297,34 @@ public class AddressPool {
      * @return 返回可以使用的地址。
      */
     public InterAddress nextAddress(String serviceID, String methodName, Object[] args) {
-        AddressBucket bucket = addressPool.get(serviceID);
-        if (bucket == null) {
-            return null;
-        }
-
-        List<InterAddress> addresses = this.rulerCache.getAddressList(serviceID, methodName, args);
-        if (addresses == null || addresses.isEmpty()) {
-            return null;
-        }
-
-        InterAddress doCallAddress = null;
-
-        /*并发下不需要保证瞬时的一致性,只要保证最终一致性就好.*/
-        FlowControlRef flowControlRef = bucket.getFlowControlRef();
-        if (flowControlRef == null) {
-            throw new NullPointerException("flowControlRef is null.");
-        }
-        doCallAddress = flowControlRef.randomFlowControl.getServiceAddress(addresses);
         while (true) {
-            boolean check = flowControlRef.speedFlowControl.callCheck(serviceID, methodName, doCallAddress);//QoS
-            if (check) {
-                break;
+            if (Thread.currentThread().isInterrupted()) {
+                throw new java.util.concurrent.CancellationException("Address selection interrupted");
             }
+            AddressBucket bucket = addressPool.get(serviceID);
+            if (bucket == null) {
+                return null;
+            }
+            List<InterAddress> addresses = this.rulerCache.getAddressList(serviceID, methodName, args);
+            if (addresses == null || addresses.isEmpty()) {
+                return null;
+            }
+            FlowControlRef flowControl = bucket.getFlowControlRef();
+            InterAddress address = flowControl.randomFlowControl.getServiceAddress(addresses);
+            if (flowControl.speedFlowControl.callCheck(serviceID, methodName, address)) {
+                return address;
+            }
+
+            // Permit cancellation and rule/address replacement while waiting for quota.
+            LockSupport.parkNanos(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(1));
         }
-        return doCallAddress;
     }
 
     protected ArgsKey getArgsKey() {
         return this.argsKey;
     }
 
-    /**获取地址路由规则引用。*/
+    /** 获取地址路由规则引用。 */
     protected RuleRef getRefRule(String serviceID) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         RuleRef ruleRef = null;
@@ -343,17 +339,17 @@ public class AddressPool {
         return "AddressPool[" + this.unitName + "]";
     }
 
-    /** 更新服务地址本计算规则（服务级）*/
+    /** 更新服务地址本计算规则（服务级） */
     public boolean updateServiceRoute(String serviceID, String scriptBody) {
         return this.updateRoute(serviceID, RouteTypeEnum.ServiceLevel, scriptBody);
     }
 
-    /** 更新服务地址本计算规则（方法级）*/
+    /** 更新服务地址本计算规则（方法级） */
     public boolean updateMethodRoute(String serviceID, String scriptBody) {
         return this.updateRoute(serviceID, RouteTypeEnum.MethodLevel, scriptBody);
     }
 
-    /** 更新服务地址本计算规则（参数级）*/
+    /** 更新服务地址本计算规则（参数级） */
     public boolean updateArgsRoute(String serviceID, String scriptBody) {
         return this.updateRoute(serviceID, RouteTypeEnum.ArgsLevel, scriptBody);
     }
@@ -374,7 +370,10 @@ public class AddressPool {
             return false;
         }
         logger.info("update flowControl service=" + serviceID + " -> update ok");
-        bucket.updateFlowControl(flowControl);
+        if (!bucket.updateFlowControl(flowControl)) {
+            return false;
+        }
+
         this.refreshAddressCache();
         return true;
     }
@@ -393,7 +392,10 @@ public class AddressPool {
         }
 
         logger.info("update rules service=" + serviceID + " -> update ok");
-        bucket.updateRoute(routeType, script);
+        if (!bucket.updateRoute(routeType, script)) {
+            return false;
+        }
+
         this.refreshAddressCache();
         return true;
     }
@@ -434,7 +436,7 @@ public class AddressPool {
         return getFlowControlByRef(bucket.getFlowControlRef());
     }
 
-    /** 获取所有地址（包括本地的和无效的）*/
+    /** 获取所有地址（包括本地的和无效的） */
     public List<InterAddress> queryAllAddresses(String serviceID) {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
@@ -498,9 +500,9 @@ public class AddressPool {
         return ruleRef.getServiceLevel().getScript();
     }
 
-    protected <R, E extends Throwable> R poolLock(EFunction<AddressPool, R, E> foo) {
+    protected <R, E extends Throwable> R poolLock(EFunction<AddressPool, R, E> foo) throws E {
         synchronized (this.poolLock) {
-            return foo.apply(this);
+            return foo.eApply(this);
         }
     }
 }

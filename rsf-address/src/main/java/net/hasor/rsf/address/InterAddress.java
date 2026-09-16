@@ -14,28 +14,26 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
+import java.net.*;
+import java.util.*;
+import java.util.regex.Pattern;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 
-import java.net.*;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 /**
  * 服务地址例：“rsf://127.0.0.1:8000/unit”
- * @version : 2014年9月12日
  * @author 赵永春 (zyc@hasor.net)
+ * @version : 2014年9月12日
  */
-public class InterAddress {
-    protected static    Logger logger         = LoggerFactory.getLogger(InterAddress.class);
-    public static final String DEFAULT_SCHEMA = "rsf";
-    private final       String schema;                                              //协议
-    private final       String formUnit;                                            //所属单元
-    private final       String hostAddress;                                         //地址
-    private final       int    hostPort;                                            //端口
-    private final       String hostSchema;
+public final class InterAddress {
+    private static final Logger logger         = LoggerFactory.getLogger(InterAddress.class);
+    public static final  String DEFAULT_SCHEMA = "rsf";
+    private final        String schema;                                              //协议
+    private final        String formUnit;                                            //所属单元
+    private final        String hostAddress;                                         //地址
+    private final        int    hostPort;                                            //端口
+    private final        String hostSchema;
 
     public InterAddress(String newAddressURL) throws URISyntaxException {
         this(new URI(newAddressURL));
@@ -49,7 +47,8 @@ public class InterAddress {
         if (formPath.startsWith("/")) {
             formPath = formPath.substring(1);
         }
-        this.schema = newAddressURL.getScheme().toLowerCase();
+
+        this.schema = newAddressURL.getScheme().toLowerCase(Locale.ROOT);
         this.formUnit = formPath.split("/")[0];
         this.hostAddress = newAddressURL.getHost();//
         this.hostPort = newAddressURL.getPort();
@@ -61,11 +60,26 @@ public class InterAddress {
     }
 
     public InterAddress(String schema, String hostAddress, int hostPort, String formUnit) {
-        this.schema = Objects.requireNonNull(schema, "sechma is null.").toLowerCase();
-        this.formUnit = Objects.requireNonNull(formUnit, "formUnit is null.");
-        this.hostAddress = Objects.requireNonNull(hostAddress, "hostAddress is null.");
-        this.hostPort = hostPort;
-        this.hostSchema = String.format("%s://%s:%s/%s", this.schema, this.hostAddress, this.hostPort, this.formUnit);
+        this(addressURI(schema, hostAddress, hostPort, formUnit));
+    }
+
+    private static URI addressURI(String schema, String host, int port, String unit) {
+        Objects.requireNonNull(schema, "schema is null.");
+        Objects.requireNonNull(host, "hostAddress is null.");
+        Objects.requireNonNull(unit, "formUnit is null.");
+
+        try {
+            return new URI(schema, null, host, port, "/" + unit, null, null);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Invalid service address", e);
+        }
+    }
+
+    private static String hostPort(String host, int port) {
+        if (host.indexOf(':') >= 0 && !host.startsWith("[")) {
+            host = "[" + host + "]";
+        }
+        return host + ":" + port;
     }
 
     /** 返回协议头 */
@@ -107,12 +121,12 @@ public class InterAddress {
 
     /** 返回IP地址和端口，格式为：192.168.25.33:8000 */
     public String getHostPort() {
-        return this.getHost() + ":" + this.getPort();
+        return hostPort(getHost(), getPort());
     }
 
     /** 返回IP地址和端口，格式为：192.168.25.33:8000 */
     public String getIpPort() throws UnknownHostException {
-        return getIp() + ":" + this.getPort();
+        return hostPort(getIp(), getPort());
     }
 
     /** 转换地址为URL形式 */
@@ -152,19 +166,12 @@ public class InterAddress {
 
     /** 判断连接地址是否是同一个。判断依据是参数值和{@link #getHostPort()}返回值做比较 */
     public boolean equalsHost(String evalResult) throws UnknownHostException {
-        return evalResult != null && this.getIpPort().equals(evalResult);
+        return evalResult != null && (getHostPort().equalsIgnoreCase(evalResult) || getIpPort().equalsIgnoreCase(evalResult));
     }
 
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((formUnit == null) ? 0 : formUnit.hashCode());
-        result = prime * result + ((formUnit == null) ? 0 : formUnit.hashCode());
-        result = prime * result + ((hostAddress == null) ? 0 : hostAddress.hashCode());
-        result = prime * result + this.hostAddress.hashCode();
-        result = prime * result + hostPort;
-        return result;
+        return this.hostSchema.toLowerCase(Locale.ROOT).hashCode();
     }
 
     public String toString() {
@@ -172,29 +179,17 @@ public class InterAddress {
     }
 
     public static boolean checkFormat(URI serviceURL) {
-        if (serviceURL == null) {
+        if (serviceURL == null || StringUtils.isBlank(serviceURL.getScheme()) || StringUtils.isBlank(serviceURL.getHost()) || serviceURL.getPort() < 1 || serviceURL.getPort() > 65535) {
             return false;
         }
-        //        if (StringUtils.equalsBlankIgnoreCase(SECHMA, serviceURL.getScheme())) {
-        if (!StringUtils.isBlank(serviceURL.getHost())) {
-            if (serviceURL.getPort() != 0) {
-                if (StringUtils.isBlank(serviceURL.getPath())) {
-                    return false;
-                }
-                String REG = "[A-Za-z0-9_\\.]+";
-                Matcher mat = Pattern.compile("/(" + REG + ")").matcher(serviceURL.getPath());
-                mat.find();
-                String formUnit = mat.group(1);
-                if (!StringUtils.isBlank(formUnit)) {
-                    return Pattern.matches(REG, formUnit);
-                }
-            }
+        String path = serviceURL.getPath();
+        if (path == null || !path.startsWith("/") || path.length() == 1) {
+            return false;
         }
-        //        }
-        if (logger.isDebugEnabled()) {
-            logger.debug("'" + serviceURL + "' rsfAddress format error.");
-        }
-        return false;
+
+        // Keep the existing first-path-segment unit convention.
+        String unit = path.substring(1).split("/", 2)[0];
+        return Pattern.matches("[A-Za-z0-9_.]+", unit);
     }
 
     /** 获取本机地址 */
@@ -220,7 +215,6 @@ public class InterAddress {
             }
             Collections.sort(ipList);
         } catch (Exception e) {
-            e.printStackTrace();
             logger.error("Failed to get local ip list. " + e.getMessage());
             throw new RuntimeException("Failed to get local ip list");
         }

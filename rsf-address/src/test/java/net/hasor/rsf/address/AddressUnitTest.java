@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
-import org.junit.Test;
-
 import java.net.URISyntaxException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import org.junit.Test;
+import static org.junit.Assert.*;
 
 /**
- *
- * @version : 2015年4月5日
  * @author 赵永春 (zyc@hasor.net)
+ * @version : 2015年4月5日
  */
 public class AddressUnitTest {
     @Test
@@ -32,28 +31,31 @@ public class AddressUnitTest {
         concurrentMap.put(new InterAddress("127.0.0.1", 8000, "etc2"), "123");
         concurrentMap.put(new InterAddress("127.0.0.1", 8000, "etc2"), "123");
 
-        assert concurrentMap.size() == 1;
+        assertEquals(1, concurrentMap.size());
     }
 
     @Test
-    public void test() {
+    public void differentProtocolsRemainDistinctMapKeys() {
         ConcurrentMap<InterAddress, String> concurrentMap = new ConcurrentHashMap<>();
-        concurrentMap.put(new InterAddress("127.0.0.1", 8000, "etc2"), "123");
+        concurrentMap.put(new InterAddress("http", "127.0.0.1", 8000, "etc2"), "123");
         concurrentMap.put(new InterAddress("127.0.0.1", 8000, "etc2"), "123");
 
-        assert concurrentMap.size() == 1;
+        assertEquals(2, concurrentMap.size());
     }
 
     @Test
     public void unitAddress() throws URISyntaxException {
         InterAddress unit = new InterAddress("rsf://127.0.0.1:8000/unit");
-        assert unit.toString().equals("rsf://127.0.0.1:8000/unit");
+        assertEquals("rsf://127.0.0.1:8000/unit", unit.toString());
     }
 
     @Test
     public void localAddress() throws URISyntaxException {
         InterAddress unit = new InterAddress("rsf://local:8000/unit");
-        assert unit.toString().equals("rsf://local:8000/unit");
+        assertEquals("rsf://local:8000/unit", unit.toString());
+        assertNotNull(unit.getHost());
+        assertFalse(unit.getHost().isEmpty());
+        assertNotEquals("local", unit.getHost());
     }
 
     @Test
@@ -66,11 +68,6 @@ public class AddressUnitTest {
         boolean eq2 = interAddress1.equals(interAddress3);
         boolean eq3 = interAddress1.equals(interAddress4);
 
-        assert eq1 && eq2 && eq3;
-
-        System.out.println(eq1 + "\t" + eq2 + "\t" + eq3);
-        System.out.println(interAddress1);
-        System.out.println(interAddress3);
-        System.out.println(interAddress4);
+        assertTrue(eq1 && eq2 && eq3);
     }
 }

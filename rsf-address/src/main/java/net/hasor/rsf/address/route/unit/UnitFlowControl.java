@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address.route.unit;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import net.hasor.cobble.MatchUtils;
 import net.hasor.cobble.setting.Settings;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.address.route.AbstractRule;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * 单元流量控制规则，用来控制跨单元调用。<p>
@@ -34,7 +33,7 @@ import java.util.List;
  * </pre>
  * 解释： 对某一服务，开启本单元优先调用策略
  * 但当本单元内的可用机器的数量占服务地址全部数量的比例小于0.3时，本单元优先调用策略失效，启用跨单元调用。
- * 该规则对以下网段的服务消费者不生效：172.23.*,172.19.*
+ * 该规则允许以下网段的服务提供者跨单元参与选址：172.23.*,172.19.*
  */
 public class UnitFlowControl extends AbstractRule {
     private float        threshold;
@@ -42,10 +41,19 @@ public class UnitFlowControl extends AbstractRule {
 
     @Override
     public void parseControl(Settings settings) {
-        this.enable(settings.getBoolean("flowControl.enable"));
-        this.threshold = settings.getFloat("flowControl.threshold");
-        String exclusions = settings.getString("flowControl.exclusions");
-        this.exclusions = Arrays.asList(exclusions.split(","));
+        this.enable(settings.getBoolean("flowControl.enable", false));
+        this.threshold = settings.getFloat("flowControl.threshold", 0.0F);
+        if (!Float.isFinite(threshold) || threshold < 0 || threshold > 1) {
+            throw new IllegalArgumentException("unit threshold must be between 0 and 1");
+        }
+
+        String exclusions = settings.getString("flowControl.exclusions", "");
+        this.exclusions = new ArrayList<>();
+        for (String pattern : exclusions.split(",")) {
+            if (!pattern.trim().isEmpty()) {
+                this.exclusions.add(pattern.trim());
+            }
+        }
     }
 
     public float getThreshold() {
@@ -53,7 +61,7 @@ public class UnitFlowControl extends AbstractRule {
     }
 
     public List<String> getExclusions() {
-        return this.exclusions;
+        return Collections.unmodifiableList(this.exclusions);
     }
 
     /**
@@ -66,10 +74,7 @@ public class UnitFlowControl extends AbstractRule {
             return false;
         }
         float value = (localAmount + 0.0F) / allAmount;
-        if (value >= this.getThreshold()) {
-            return true;
-        }
-        return false;
+        return value >= this.getThreshold();
     }
 
     /** 筛选本机房地址 */

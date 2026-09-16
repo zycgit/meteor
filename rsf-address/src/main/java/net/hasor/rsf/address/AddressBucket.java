@@ -14,18 +14,13 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address;
-import net.hasor.cobble.StringUtils;
-import net.hasor.cobble.logging.Logger;
-import net.hasor.cobble.logging.LoggerFactory;
-import net.hasor.rsf.address.route.unit.UnitFlowControl;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Observable;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
+import net.hasor.rsf.address.route.unit.UnitFlowControl;
 
 /**
  * 描述：用于接收地址更新同时也用来计算有效和无效地址。
@@ -38,8 +33,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * </ol>
  * 所有对服务地址的进一 步处理都需要使用{@link #getAvailableAddresses()}获得的地址列表。
  * 如果应用了本地机房策略，则本地
- * @version : 2014年9月12日
  * @author 赵永春 (zyc@hasor.net)
+ * @version : 2014年9月12日
  */
 public class AddressBucket extends Observable {
     public static final    String                                        LOGGER_NAME   = "rsf-address";
@@ -106,85 +101,50 @@ public class AddressBucket extends Observable {
 
     /** 获取计算之后同一单元地址 */
     public synchronized List<InterAddress> getLocalUnitAddresses() {
-        return this.localUnitAddresses;
+        return new ArrayList<>(this.localUnitAddresses);
     }
 
     /** 新增地址支持动态新增 */
     public void newAddress(Collection<InterAddress> newHostSet, AddressTypeEnum type) {
-        StringBuilder strBuffer = new StringBuilder();
-        for (InterAddress addr : newHostSet) {
-            strBuffer.append(addr.toHostSchema());
-            strBuffer.append(",");
-        }
-        addressLogger.info("newAddress(" + serviceID + ") -> " + type.name() + ", [" + strBuffer + "].");
-
-        List<InterAddress> newAddress = new ArrayList<>();
-        List<InterAddress> newStaticAddress = new ArrayList<>();
-        List<InterAddress> toAvailable = new ArrayList<>();
-        for (InterAddress newHost : newHostSet) {
-            if (newHost == null) {
-                continue;
-            }
-            //1.保证不要重复添加。
-            boolean doAdd = true;
-            for (InterAddress hasAddress : this.allAddressList) {
-                if (newHost.equals(hasAddress)) {
-                    doAdd = false;
-                    break;
+        synchronized (this) {
+            Objects.requireNonNull(newHostSet, "addresses");
+            Objects.requireNonNull(type, "address type");
+            for (InterAddress address : newHostSet) {
+                if (address == null) {
+                    continue;
                 }
-            }
-            //2.确定是否需要再次激活。
-            for (InterAddress hasAddress : this.invalidAddresses.keySet()) {
-                if (newHost.equals(hasAddress)) {
-                    toAvailable.add(newHost);
+                if (!this.allAddressList.contains(address)) {
+                    this.allAddressList.add(address);
                 }
-            }
-
-            if (doAdd) {
-                if (AddressTypeEnum.Static.equals(type)) {
-                    newStaticAddress.add(newHost);
+                if (type == AddressTypeEnum.Static && !this.staticAddressList.contains(address)) {
+                    this.staticAddressList.add(address);
                 }
-                newAddress.add(newHost);
+                this.invalidAddresses.remove(address);
             }
+            refreshAvailableAddress();
         }
-
-        //添加新地址
-        this.allAddressList.addAll(newAddress);
-        this.staticAddressList.addAll(newStaticAddress);
-        //激活已经失效的地址
-        for (InterAddress hasAddress : toAvailable) {
-            this.invalidAddresses.remove(hasAddress);
-        }
-        this.refreshAvailableAddress();
+        notifyObservers(this);
     }
 
     /**
      * 将地址置为失效的(对于静态地址,该方法无效)。
-     * @param newInvalid 失效的地址。
+     * @param address 失效的地址。
      * @param timeoutMs 失效时长
      */
-    public void invalidAddress(InterAddress newInvalid, long timeoutMs) {
-        if (this.staticAddressList.contains(newInvalid)) {
-            addressLogger.warn("invalidAddress(" + serviceID + ") -> targetAddress =" + newInvalid + " ,addr is static.");
-            return;//对于静态地址,该方法无效
-        }
-        if (!this.allAddressList.contains(newInvalid)) {
-            addressLogger.warn("invalidAddress(" + serviceID + ") -> targetAddress =" + newInvalid + " ,addr is not exist.");
-            return;
-        }
-        InnerInvalidInfo invalidInfo = this.invalidAddresses.putIfAbsent(newInvalid, new InnerInvalidInfo(timeoutMs));
-        if (invalidInfo != null) {
-            addressLogger.info("invalidAddress(" + serviceID + ") -> targetAddress =" + newInvalid + " ,timeoutMs =" + timeoutMs);
-            invalidInfo.invalid(timeoutMs);
-        } else {
-            try {
-                synchronized (this) {
-                    refreshAvailableAddress();
-                }
-            } catch (Exception e) {
-                logger.error("address(" + serviceID + ") -> invalid Address error -> " + e.getMessage(), e);
+    public void invalidAddress(InterAddress address, long timeoutMs) {
+        synchronized (this) {
+            if (this.staticAddressList.contains(address) || !this.allAddressList.contains(address)) {
+                return;
             }
+            InnerInvalidInfo info = this.invalidAddresses.get(address);
+            if (info == null) {
+                this.invalidAddresses.put(address, new InnerInvalidInfo(timeoutMs));
+            } else {
+                info.invalid(timeoutMs);
+            }
+            refreshAvailableAddress();
         }
+        notifyObservers(this);
     }
 
     /**
@@ -192,18 +152,19 @@ public class AddressBucket extends Observable {
      * @param address 要被删除的地址。
      */
     public void removeAddress(InterAddress address) {
-        if (!this.allAddressList.contains(address)) {
-            addressLogger.warn("removeAddress(" + serviceID + ") -> targetAddress =" + address + " ,addr is not exist.");
-            return;
-        } else {
-            addressLogger.info("removeAddress(" + serviceID + ") -> targetAddress =" + address);
-        }
-        this.allAddressList.remove(address);
-        this.staticAddressList.remove(address);
-        this.invalidAddresses.remove(address);
         synchronized (this) {
+            if (!this.allAddressList.contains(address)) {
+                addressLogger.warn("removeAddress(" + serviceID + ") -> targetAddress =" + address + " ,addr is not exist.");
+                return;
+            } else {
+                addressLogger.info("removeAddress(" + serviceID + ") -> targetAddress =" + address);
+            }
+            this.allAddressList.remove(address);
+            this.staticAddressList.remove(address);
+            this.invalidAddresses.remove(address);
             refreshAvailableAddress();
         }
+        notifyObservers(this);
     }
 
     /** 刷新地址计算结果 */
@@ -211,25 +172,25 @@ public class AddressBucket extends Observable {
         synchronized (this) {
             refreshAvailableAddress();
         }
+        notifyObservers(this);
     }
 
+    /** Replace registry-provided addresses, preserving explicitly configured static addresses. */
     public void refreshAddressToNew(List<InterAddress> addressList) {
-        if (addressList == null || addressList.isEmpty()) {
-            return;
-        }
         synchronized (this) {
-            StringBuilder strBuffer = new StringBuilder();
-            for (InterAddress addr : addressList) {
-                strBuffer.append(addr.toHostSchema());
-                strBuffer.append(",");
+            Objects.requireNonNull(addressList, "addresses");
+            LinkedHashSet<InterAddress> replacement = new LinkedHashSet<>(this.staticAddressList);
+            for (InterAddress address : addressList) {
+                if (address != null) {
+                    replacement.add(address);
+                }
             }
-            addressLogger.info("refreshAddressToNew(" + serviceID + ") -> " + strBuffer);
-
             this.allAddressList.clear();
-            this.allAddressList.addAll(addressList);
+            this.allAddressList.addAll(replacement);
             this.invalidAddresses.clear();
             refreshAvailableAddress();
         }
+        notifyObservers(this);
     }
 
     /** 刷新地址 */
@@ -286,34 +247,37 @@ public class AddressBucket extends Observable {
 
         this.availableAddresses = availableList;
         this.localUnitAddresses = unitList;
-        this.notifyObservers(this);//发出消息通知自己的状态变化了
+        this.setChanged();
     }
 
     /** 更新服务的流控规则 */
     public boolean updateFlowControl(String flowControl) {
-        if (StringUtils.isBlank(flowControl)) {
-            return false;
+        synchronized (this) {
+            FlowControlRef newRef = FlowControlRef.defaultRef();
+            if (!newRef.tryUpdateFlowControl(flowControl)) {
+                return false;
+            }
+            this.flowControlRef = newRef;
+            refreshAvailableAddress();
         }
-        FlowControlRef newRef = FlowControlRef.newRef(this.flowControlRef);
-        newRef.updateFlowControl(flowControl);
-        this.flowControlRef = newRef;
-        this.refreshAddress();
+        notifyObservers(this);
         return true;
     }
 
-    /** 更新服务的路由脚本 */
+    /** 更新服务的路由脚本；发布新引用，不修改已发布的脚本状态。 */
     public boolean updateRoute(RouteTypeEnum routeType, String script) {
-        RuleRef newRuleRef = new RuleRef(this.ruleRef);
-        boolean updated = RouteTypeEnum.updateScript(routeType, script, newRuleRef);
-        if (!updated) {
-            logger.warn("address(" + serviceID + ") -> update rules -> no change.");
-            return false;
-        } else {
-            logger.info("address(" + serviceID + ") -> update rules -> update ok");
+        synchronized (this) {
+            RuleRef newRuleRef = new RuleRef(this.ruleRef);
+            if (!RouteTypeEnum.updateScript(routeType, script, newRuleRef)) {
+                return false;
+            }
+
             this.ruleRef = newRuleRef;
-            this.refreshAddress();
-            return true;
+            refreshAvailableAddress();
         }
+
+        notifyObservers(this);
+        return true;
     }
 
     @Override

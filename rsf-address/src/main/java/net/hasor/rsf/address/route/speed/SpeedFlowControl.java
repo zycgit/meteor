@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 package net.hasor.rsf.address.route.speed;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.QoSBucket;
 import net.hasor.cobble.setting.Settings;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.address.route.AbstractRule;
-
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * 基于QoS的速率控制规则。
@@ -45,26 +44,22 @@ public class SpeedFlowControl extends AbstractRule {
     private ConcurrentMap<String, QoSBucket> qosBucketMap;
 
     public void parseControl(Settings settings) {
-        this.enable(settings.getBoolean("flowControl.enable"));
+        this.enable(settings.getBoolean("flowControl.enable", false));
         this.action = settings.getEnum("flowControl.action", QoSActionEnum.class);
-        this.rate = settings.getInteger("flowControl.rate");
-        this.peak = settings.getInteger("flowControl.peak");
-        this.timeWindow = settings.getInteger("flowControl.timeWindow");
+        this.rate = settings.getInteger("flowControl.rate", 20);
+        this.peak = settings.getInteger("flowControl.peak", 200);
+        this.timeWindow = settings.getInteger("flowControl.timeWindow", 10);
         this.qosBucketMap = new ConcurrentHashMap<>();
 
-        if (this.action == null) {
-            this.enable(false);
-            logger.info("action fail. config is null.");
-        }
         if (!this.enable()) {
             return;
         }
-        logger.info("init default QoS.");
+        if (this.action == null) {
+            throw new IllegalArgumentException("speed action is required");
+        }
         QoSBucket qosBucket = this.createQoSBucket(null);
         if (!qosBucket.validate()) {
-            this.enable(false);
-            logger.info("QoS config validate fail. -> " + this.defaultQoSBucket);
-            return;
+            throw new IllegalArgumentException("Invalid speed rate, peak or time window");
         }
         defaultQoSBucket = qosBucket;
     }
@@ -80,7 +75,7 @@ public class SpeedFlowControl extends AbstractRule {
                 key = doCallAddress.toString();
                 break;
             case Method:
-                key = serviceID + methodName;
+                key = serviceID.length() + ":" + serviceID + methodName;
                 break;
             case Service:
                 key = serviceID;

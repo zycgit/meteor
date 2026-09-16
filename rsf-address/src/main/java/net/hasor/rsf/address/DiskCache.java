@@ -1,29 +1,31 @@
 package net.hasor.rsf.address;
-import net.hasor.cobble.MatchUtils;
-import net.hasor.cobble.StringUtils;
-import net.hasor.cobble.concurrent.NameThreadFactory;
+import java.io.*;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
+import net.hasor.cobble.concurrent.ThreadUtils;
 import net.hasor.cobble.concurrent.timer.HashedWheelTimer;
 import net.hasor.cobble.concurrent.timer.Timer;
 import net.hasor.cobble.function.EFunction;
-import net.hasor.cobble.io.FilenameUtils;
 import net.hasor.cobble.io.IOUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 
-import java.io.*;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
-
 /**
  * 服务地址的辅助工具,负责读写本地地址本缓存。
- * @version : 2014年9月12日
  * @author 赵永春 (zyc@hasor.net)
+ * @version : 2014年9月12日
  */
 public class DiskCache implements Closeable {
     protected static final Logger logger                      = LoggerFactory.getLogger(DiskCache.class);
@@ -36,150 +38,180 @@ public class DiskCache implements Closeable {
     private static final   String SnapshotPath                = "/snapshot";
     private static final   String SnapshotIndex               = "address.index";
 
-    private final        AddressPool pool;
-    private static final long        OneHourTime   = 3600000;
-    private static final long        SevenDaysTime = 7 * 24 * OneHourTime;
-    private              Timer       timer;
-    private              File        snapshotHome;
-    private              File        indexFile;
+    private final        AddressPool   pool;
+    private static final long          OneHourTime   = 3600000;
+    private static final long  SevenDaysTime = 7 * 24 * OneHourTime;
+    private final        Timer timer;
+    private final        File  snapshotHome;
+    private final File  indexFile;
+    private final long refreshCacheMs;
+    private final        long          diskCacheMs;
+    private final        AtomicBoolean closed        = new AtomicBoolean();
 
     public DiskCache(AddressPool pool, File rsfDataHome, long refreshCacheMs, long diskCacheMs) {
-        this.pool = pool;
+        this.pool = Objects.requireNonNull(pool, "pool");
+        if (refreshCacheMs <= 0 || diskCacheMs <= 0) {
+            throw new IllegalArgumentException("Cache intervals must be positive");
+        }
+
+        this.refreshCacheMs = refreshCacheMs;
+        this.diskCacheMs = Math.max(diskCacheMs, OneHourTime);
         this.snapshotHome = new File(rsfDataHome, SnapshotPath);
         this.indexFile = new File(snapshotHome, SnapshotIndex);
-        long useDiskCacheMs = Math.max(diskCacheMs, OneHourTime);
 
-        this.timer = new HashedWheelTimer(new NameThreadFactory("RSF-DiskCacheAddressPool-Timer-%s", Thread.currentThread().getContextClassLoader()));
-        this.timer.newTimeout(t -> doRefreshCache(), refreshCacheMs, TimeUnit.MILLISECONDS);
-        this.timer.newTimeout(t -> doDiskCache(), useDiskCacheMs, TimeUnit.MILLISECONDS);
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        this.timer = new HashedWheelTimer(ThreadUtils.threadFactory(classLoader, "RSF-DiskCacheAddressPool-Timer-%s", true));
+        scheduleRefresh();
+        scheduleStore();
     }
 
     @Override
     public void close() {
+        closed.set(true);
         this.timer.stop();
     }
 
+    private void scheduleRefresh() {
+        schedule(t -> doRefreshCache(), refreshCacheMs);
+    }
+
+    private void scheduleStore() {
+        schedule(t -> doDiskCache(), diskCacheMs);
+    }
+
+    private void schedule(net.hasor.cobble.concurrent.timer.TimerTask task, long delay) {
+        if (!closed.get()) {
+            try {
+                timer.newTimeout(task, delay, TimeUnit.MILLISECONDS);
+            } catch (IllegalStateException e) {
+                if (!closed.get()) {
+                    throw e;
+                }
+            }
+        }
+    }
+
     private void doDiskCache() {
+        if (closed.get()) {
+            return;
+        }
         try {
-            logger.info("AddressPool - refreshCache. at = " + nowTime());
-            this.pool.refreshAddressCache();
             this.storeConfig();
         } catch (Exception e) {
             logger.error("doDiskCache error " + e.getMessage(), e);
+        } finally {
+            scheduleStore();
         }
     }
 
     private void doRefreshCache() {
+        if (closed.get()) {
+            return;
+        }
         try {
-            logger.info("AddressPool - refreshCache. at = " + nowTime());
+            this.pool.refreshAddressCache();
             this.clearCacheData();
         } catch (Exception e) {
             logger.error("doRefreshCache error " + e.getMessage(), e);
-        }
-    }
-
-    /** 清理缓存的地址数据 */
-    protected void clearCacheData() {
-        String[] fileNames = this.snapshotHome.list((dir, name) -> {
-            return MatchUtils.wildToRegex("address-[0-9]{8}-[0-9]{6}.zip", name, MatchUtils.MatchTypeEnum.Regex);
-        });
-        List<String> sortList = (fileNames == null) ? new ArrayList<String>(0) : Arrays.asList(fileNames);
-        Collections.sort(sortList);
-
-        long nowTime = System.currentTimeMillis() - SevenDaysTime;//数据自动清理 7 天之前的数据
-        SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd-HHmmss");
-        for (String itemName : sortList) {
-            try {
-                String dateTimeStr = itemName.substring(AddrPoolStoreName.length(), itemName.length() - ".zip".length());
-                Date dateTime = format.parse(dateTimeStr);
-                if (dateTime.getTime() < nowTime) {
-                    new File(this.snapshotHome, itemName).delete();
-                }
-            } catch (Exception e) { /**/ }
-        }
-    }
-
-    /**保存地址列表到zip流中(每小时保存一次)，当遇到保存的文件已存在时会重新生成新的文件名。*/
-    public synchronized void storeConfig() throws IOException {
-        File writeFile = null;
-        while (writeFile == null || writeFile.exists()) {
-            writeFile = new File(this.snapshotHome, AddrPoolStoreName + nowTime() + ".zip");
-        }
-        logger.info("rsf - saveAddress to snapshot file({}) -> " + writeFile);
-        FileOutputStream fos = null;
-        FileWriter fw = null;
-        try {
-            boolean mkdirResult = writeFile.getParentFile().mkdirs();
-            if (mkdirResult || writeFile.getParentFile().exists()) {
-                fos = new FileOutputStream(writeFile, false);
-                fos.getFD().sync();//独占文件
-
-                this.storeConfig(fos);
-
-                fos.flush();
-                fos.close();
-
-                fw = new FileWriter(this.indexFile, false);
-                logger.info("rsf - update snapshot index -> " + this.indexFile.getAbsolutePath());
-                fw.write(writeFile.getName());
-                fw.flush();
-                fw.close();
-            }
-        } catch (IOException e) {
-            logger.error("rsf - saveAddress " + e.getClass().getSimpleName() + " :" + e.getMessage(), e);
-            throw e;
         } finally {
-            if (fos != null) {
-                fos.close();
-            }
-            if (fw != null) {
-                fw.close();
-            }
+            scheduleRefresh();
         }
     }
 
-    /**从保存的地址本中恢复数据。*/
-    public synchronized void restoreConfig() {
-        //1.校验
-        if (!this.indexFile.exists()) {
-            logger.info("address snapshot index file, undefined.");
+    /** Keep the indexed recovery point, and remove other snapshots older than seven days. */
+    protected synchronized void clearCacheData() {
+        File[] files = snapshotHome.listFiles();
+        if (files == null) {
             return;
         }
-        if (!this.indexFile.canRead()) {
-            logger.error("address snapshot index file, can not read.");
-            return;
-        }
-        //2.确定要读取的文件。
-        File readFile = null;
-        try {
-            FileReader reader = new FileReader(this.indexFile);
-            List<String> bodyList = IOUtils.readLines(reader);
-            String index = bodyList.isEmpty() ? "" : bodyList.get(0);
-            readFile = new File(this.snapshotHome, index);
-            if ("".equals(index) || !readFile.exists()) {
-                logger.error("address snapshot '" + readFile + "' is not exist.");
+
+        String indexed = null;
+        if (indexFile.isFile()) {
+            try {
+                List<String> lines = Files.readAllLines(indexFile.toPath(), StandardCharsets.UTF_8);
+                indexed = lines.isEmpty() ? null : lines.get(0).trim();
+            } catch (IOException e) {
+                logger.error("Cannot read snapshot index during cleanup", e);
                 return;
             }
-        } catch (Throwable e) {
-            logger.error("read the snapshot file name error :" + e.getMessage(), e);
+        }
+
+        Pattern pattern = Pattern.compile("addr-pool-([0-9]{8}-[0-9]{6})(?:-[A-Za-z0-9-]+)?\\.zip");
+        SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd-HHmmss");
+        format.setLenient(false);
+        long cutoff = System.currentTimeMillis() - SevenDaysTime;
+        for (File file : files) {
+            Matcher matcher = pattern.matcher(file.getName());
+            if (!file.isFile() || file.getName().equals(indexed) || !matcher.matches()) {
+                continue;
+            }
+
+            try {
+                if (format.parse(matcher.group(1)).getTime() < cutoff) {
+                    Files.deleteIfExists(file.toPath());
+                }
+            } catch (java.text.ParseException e) {
+                logger.warn("Ignoring snapshot with invalid date: " + file);
+            } catch (IOException e) {
+                logger.error("Cannot delete expired snapshot: " + file, e);
+            }
+        }
+    }
+
+    /** Write the archive completely before atomically publishing its index. */
+    public synchronized void storeConfig() throws IOException {
+        Path directory = snapshotHome.toPath();
+        Files.createDirectories(directory);
+        String name = AddrPoolStoreName + nowTime() + "-" + UUID.randomUUID() + ".zip";
+        Path archive = directory.resolve(name);
+        Path temporary = Files.createTempFile(directory, "archive-", ".tmp");
+        Path indexTemporary = null;
+
+        try {
+            try (FileOutputStream out = new FileOutputStream(temporary.toFile())) {
+                storeConfig(out);
+                out.getFD().sync();
+            }
+            Files.move(temporary, archive, StandardCopyOption.ATOMIC_MOVE);
+            indexTemporary = Files.createTempFile(directory, "index-", ".tmp");
+            try (FileOutputStream out = new FileOutputStream(indexTemporary.toFile())) {
+                out.write(name.getBytes(StandardCharsets.UTF_8));
+                out.getFD().sync();
+            }
+            Files.move(indexTemporary, indexFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temporary);
+            if (indexTemporary != null) {
+                Files.deleteIfExists(indexTemporary);
+            }
+        }
+    }
+
+    /** Restore only services registered in the live pool. */
+    public synchronized void restoreConfig() {
+        if (!indexFile.isFile()) {
             return;
         }
 
-        //3.恢复数据数据
-        FileInputStream inStream = null;
         try {
-            inStream = new FileInputStream(readFile);
-            this.restoreConfig(inStream);
-            inStream.close();
-        } catch (IOException e) {
-            logger.error("read the snapshot file name error :" + e.getMessage(), e);
-            if (inStream != null) {
-                try {
-                    inStream.close();
-                } catch (IOException e1) {
-                    logger.error(e1.getMessage(), e1);
-                }
+            List<String> lines = Files.readAllLines(indexFile.toPath(), StandardCharsets.UTF_8);
+            String name = lines.isEmpty() ? "" : lines.get(0).trim();
+            if (name.isEmpty() || !new File(name).getName().equals(name)) {
+                return;
             }
+
+            File archive = new File(snapshotHome, name);
+            if (!archive.isFile()) {
+                return;
+            }
+
+            try (InputStream in = Files.newInputStream(archive.toPath())) {
+                restoreConfig(in);
+            }
+        } catch (IOException e) {
+            logger.error("Cannot restore address snapshot: " + e.getMessage(), e);
+        } finally {
+            pool.refreshAddressCache();
         }
     }
 
@@ -187,275 +219,133 @@ public class DiskCache implements Closeable {
         return new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date());
     }
 
-    // ----------------------------------------- 配置的保存与恢复 -----------------------------------------
-
-    /** 保存地址列表到zip流中 */
-    private synchronized void storeConfig(OutputStream outStream) throws IOException {
-        logger.info("rsf - saveAddress to stream.");
-        try (ZipOutputStream zipStream = new ZipOutputStream(outStream)) {
-            this.pool.poolLock((EFunction<AddressPool, Object, Throwable>) pool -> {
+    private void storeConfig(OutputStream out) throws IOException {
+        try (ZipOutputStream zip = new ZipOutputStream(nonClosing(out))) {
+            pool.poolLock((EFunction<AddressPool, Object, IOException>) pool -> {
                 for (AddressBucket bucket : pool.addressPool.values()) {
+                    zip.putNextEntry(new ZipEntry(bucket.getServiceID() + ".zip"));
+                    saveToZip(bucket, zip);
+                    zip.closeEntry();
+                }
+                return null;
+            });
+        }
+    }
+
+    private void restoreConfig(InputStream in) throws IOException {
+        try (ZipInputStream zip = new ZipInputStream(in)) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                String name = entry.getName();
+                if (name.endsWith(".zip")) {
+                    String serviceID = name.substring(0, name.length() - 4);
+                    AddressBucket bucket = pool.getBucket(serviceID);
                     if (bucket != null) {
-                        String serviceID = bucket.getServiceID() + ".zip";
-                        logger.debug("rsf - service saveAddress " + serviceID + " storage to snapshot.");
-                        ZipEntry entry = new ZipEntry(serviceID);
-                        entry.setComment("service config of " + serviceID);
-                        zipStream.putNextEntry(entry);
-                        saveToZip(bucket, zipStream);
-                        zipStream.closeEntry();
-                    }
-                }
-                return null;
-            });
-        } catch (IOException e) {
-            logger.error("rsf - saveAddress " + e.getClass().getSimpleName() + " :" + e.getMessage(), e);
-            throw e;
-        }
-    }
-
-    /**从保存的地址本中恢复数据。*/
-    private synchronized void restoreConfig(InputStream inStream) throws IOException {
-        ZipInputStream zipStream = new ZipInputStream(inStream);
-        try {
-            this.pool.poolLock((EFunction<AddressPool, Object, Throwable>) pool -> {
-                ZipEntry zipEntry = null;
-                while ((zipEntry = zipStream.getNextEntry()) != null) {
-                    String serviceID = zipEntry.getName();
-                    serviceID = FilenameUtils.getBaseName(serviceID);
-                    AddressBucket bucket = pool.addressPool.get(serviceID);
-                    if (bucket == null) {
-                        continue;
-                    }
-                    this.readFromZip(bucket, zipStream);
-                    zipStream.closeEntry();
-                }
-                return null;
-            });
-        } catch (Exception e) {
-            logger.error("read the snapshot file error :" + e.getMessage(), e);
-        }
-    }
-
-    /** 保存地址列表到zip流中 */
-    protected boolean saveToZip(AddressBucket bucket, OutputStream outStream) throws IOException {
-        String serviceID = bucket.getServiceID();
-        List<InterAddress> allAddresses = bucket.getAllAddresses();
-        List<InterAddress> staticAddresses = bucket.getStaticAddresses();
-
-        boolean toSave = false;
-        ZipOutputStream zipStream = new ZipOutputStream(outStream);
-        zipStream.setComment("this config of " + serviceID);
-
-        //1.服务地址本
-        if (!allAddresses.isEmpty()) {
-            toSave = true;
-            StringBuilder strLogs = new StringBuilder();
-            StringWriter strWriter = new StringWriter();
-            BufferedWriter bfwriter = new BufferedWriter(strWriter);
-            for (InterAddress inter : allAddresses) {
-                if (staticAddresses.contains(inter)) {
-                    strLogs.append(AddressTypeEnum.Static.getShortType());
-                    bfwriter.append(AddressTypeEnum.Static.getShortType());
-                } else {
-                    strLogs.append(AddressTypeEnum.Dynamic.getShortType());
-                    bfwriter.append(AddressTypeEnum.Dynamic.getShortType());
-                }
-                strLogs.append(inter.toString());
-                strLogs.append(" , ");
-                bfwriter.write(inter.toString());
-                bfwriter.newLine();
-            }
-            bfwriter.flush();
-            logger.info("bucket save list -> " + strLogs);
-            try {
-                String comment = "the address List of [" + serviceID + "] service.";
-                writeEntry(zipStream, strWriter.toString(), AddressList_ZipEntry, comment);
-                logger.info("bucket save to entry -> " + serviceID + " ,finish.");
-            } catch (Exception e) {
-                logger.error("bucket save to entry -> " + serviceID + " ,error -> " + e.getMessage(), e);
-            }
-        }
-
-        //2.保存流控规则
-        FlowControlRef flowControlRef = bucket.getFlowControlRef();
-        if (flowControlRef != null && StringUtils.isNotBlank(flowControlRef.flowControlScript)) {
-            try {
-                toSave = true;
-                String comment = "the flowControlRef of [" + serviceID + "] service.";
-                writeEntry(zipStream, flowControlRef.flowControlScript, FlowControlRef_ZipEntry, comment);
-                logger.info("flowControlRef save to entry -> " + serviceID + " ,finish.");
-            } catch (Exception e) {
-                logger.error("flowControlRef save to entry -> " + serviceID + " ,error -> " + e.getMessage(), e);
-            }
-        }
-
-        //3.保存路由脚本
-        RuleRef ruleRef = bucket.getRuleRef();
-        if (ruleRef != null) {
-            // - 服务级路由脚本
-            if (StringUtils.isBlank(ruleRef.getServiceLevel().getScript())) {
-                try {
-                    toSave = true;
-                    String comment = "the ServiceLevelScript of [" + serviceID + "] service.";
-                    String script = ruleRef.getServiceLevel().getScript();
-                    writeEntry(zipStream, script, ServiceLevelScript_ZipEntry, comment);
-                    logger.info("ServiceLevelScript save to entry -> " + serviceID + " ,finish.");
-                } catch (Exception e) {
-                    logger.error("ServiceLevelScript save to entry -> " + serviceID + " ,error -> " + e.getMessage(), e);
-                }
-            }
-            // - 方法级路由脚本
-            if (StringUtils.isBlank(ruleRef.getMethodLevel().getScript())) {
-                try {
-                    toSave = true;
-                    String comment = "the MethodLevelScript of [" + serviceID + "] service.";
-                    String script = ruleRef.getMethodLevel().getScript();
-                    writeEntry(zipStream, script, MethodLevelScript_ZipEntry, comment);
-                    logger.info("MethodLevelScript save to entry -> " + serviceID + " ,finish.");
-                } catch (Exception e) {
-                    logger.error("MethodLevelScript save to entry -> " + serviceID + " ,error -> " + e.getMessage(), e);
-                }
-            }
-            // - 参数级路由脚本
-            if (StringUtils.isBlank(ruleRef.getArgsLevel().getScript())) {
-                try {
-                    toSave = true;
-                    String comment = "the ArgsLevelScript of [" + serviceID + "] service.";
-                    String script = ruleRef.getArgsLevel().getScript();
-                    writeEntry(zipStream, script, ArgsLevelScript_ZipEntry, comment);
-                    logger.info("ArgsLevelScript save to entry -> " + serviceID + " ,finish.");
-                } catch (Exception e) {
-                    logger.error("ArgsLevelScript save to entry -> " + serviceID + " ,error -> " + e.getMessage(), e);
-                }
-            }
-        }
-        //4.关闭输出
-        if (toSave) {
-            zipStream.finish();
-            zipStream.closeEntry();
-        }
-        return toSave;
-    }
-
-    /** 从流中读取地址列表地址列表到zip流中 */
-    protected void readFromZip(AddressBucket bucket, InputStream inStream) throws IOException {
-        String serviceID = bucket.getServiceID();
-
-        ZipInputStream zipStream = new ZipInputStream(inStream);
-        Map<String, byte[]> dataMaps = new HashMap<>();
-        ZipEntry zipEntry = null;
-        while ((zipEntry = zipStream.getNextEntry()) != null) {
-            ByteArrayOutputStream outArray = new ByteArrayOutputStream();
-            IOUtils.copy(zipStream, outArray);
-            dataMaps.put(zipEntry.getName(), outArray.toByteArray());
-        }
-        //1.服务地址本
-        try {
-            if (dataMaps.containsKey(AddressList_ZipEntry)) {                                       // 通
-                InputStream dataIn = new ByteArrayInputStream(dataMaps.get(AddressList_ZipEntry));  // 用
-                List<String> dataBody = IOUtils.readLines(dataIn, "UTF-8");                // 模
-                if (!dataBody.isEmpty()) {                                                          // 式
-                    logger.info("service " + serviceID + " read address form stream");
-                    StringBuilder strBuffer = new StringBuilder();
-                    ArrayList<InterAddress> staticNewHostSet = new ArrayList<>();
-                    ArrayList<InterAddress> dynamicNewHostSet = new ArrayList<>();
-                    for (String line : dataBody) {
-                        if (StringUtils.isBlank(line) || line.startsWith("#")) {
-                            continue;
-                        }
                         try {
-                            if (line.startsWith(AddressTypeEnum.Static.getShortType())) {
-                                staticNewHostSet.add(new InterAddress(line.substring(2)));
-                                strBuffer.append(line);
-                                strBuffer.append(" , ");
-                            } else if (line.startsWith(AddressTypeEnum.Dynamic.getShortType())) {
-                                dynamicNewHostSet.add(new InterAddress(line.substring(2)));
-                                strBuffer.append(line);
-                                strBuffer.append(" , ");
-                            }
-                        } catch (URISyntaxException e) {
-                            logger.info("read address '" + line + "' has URISyntaxException.");
+                            readFromZip(bucket, zip);
+                        } catch (IOException e) {
+                            logger.error("Cannot restore service " + serviceID, e);
                         }
                     }
-                    logger.info("bucket read list -> " + strBuffer);
-                    bucket.newAddress(staticNewHostSet, AddressTypeEnum.Static);
-                    bucket.newAddress(dynamicNewHostSet, AddressTypeEnum.Dynamic);
                 }
+                zip.closeEntry();
             }
-        } catch (Throwable e) {
-            logger.error("recoveryConfig address,failed-> serviceID =" + serviceID + " message=" + e.getMessage(), e);
-        }
-        //2.流控规则
-        try {
-            if (dataMaps.containsKey(FlowControlRef_ZipEntry)) {                                     // 通
-                InputStream dataIn = new ByteArrayInputStream(dataMaps.get(FlowControlRef_ZipEntry));// 用
-                List<String> dataBody = IOUtils.readLines(dataIn, "UTF-8");                 // 模
-                if (!dataBody.isEmpty()) {                                                           // 式
-                    String flowControl = StringUtils.join(dataBody.toArray(), "\n");
-                    if (StringUtils.isNotBlank(flowControl)) {
-                        bucket.updateFlowControl(flowControl);
-                    }
-                }
-            }
-        } catch (Throwable e) {
-            logger.error("recoveryConfig flowControl,failed-> serviceID =" + serviceID + " message=" + e.getMessage(), e);
-        }
-        //3.服务级路由脚本策略
-        try {
-            if (dataMaps.containsKey(ServiceLevelScript_ZipEntry)) {                                     // 通
-                InputStream dataIn = new ByteArrayInputStream(dataMaps.get(ServiceLevelScript_ZipEntry));// 用
-                List<String> dataBody = IOUtils.readLines(dataIn, "UTF-8");                     // 模
-                if (!dataBody.isEmpty()) {                                                               // 式
-                    String scriptBody = StringUtils.join(dataBody.toArray(), "\n");
-                    bucket.updateRoute(RouteTypeEnum.ServiceLevel, scriptBody);
-                }
-            }
-        } catch (Throwable e) {
-            logger.error("recoveryConfig serviceRoute,failed-> serviceID =" + serviceID + " message=" + e.getMessage(), e);
-        }
-        //4.方法级路由脚本策略
-        try {
-            if (dataMaps.containsKey(MethodLevelScript_ZipEntry)) {                                      // 通
-                InputStream dataIn = new ByteArrayInputStream(dataMaps.get(MethodLevelScript_ZipEntry)); // 用
-                List<String> dataBody = IOUtils.readLines(dataIn, "UTF-8");                     // 模
-                if (!dataBody.isEmpty()) {                                                               // 式
-                    String scriptBody = StringUtils.join(dataBody.toArray(), "\n");
-                    bucket.updateRoute(RouteTypeEnum.MethodLevel, scriptBody);
-                }
-            }
-        } catch (Throwable e) {
-            logger.error("recoveryConfig methodRoute,failed-> serviceID =" + serviceID + " message=" + e.getMessage(), e);
-        }
-        //5.参数级路由脚本策略
-        try {
-            if (dataMaps.containsKey(ArgsLevelScript_ZipEntry)) {                                     // 通
-                InputStream dataIn = new ByteArrayInputStream(dataMaps.get(ArgsLevelScript_ZipEntry));// 用
-                List<String> dataBody = IOUtils.readLines(dataIn, "UTF-8");                  // 模
-                if (!dataBody.isEmpty()) {                                                            // 式
-                    String scriptBody = StringUtils.join(dataBody.toArray(), "\n");
-                    bucket.updateRoute(RouteTypeEnum.ArgsLevel, scriptBody);
-                }
-            }
-        } catch (Throwable e) {
-            logger.error("recoveryConfig argsRoute,failed-> serviceID =" + serviceID + " message=" + e.getMessage(), e);
         }
     }
 
-    private static void writeEntry(ZipOutputStream zipStream, String scriptBody, String entryName, String comment) throws IOException {
-        ZipEntry entry = new ZipEntry(entryName);
-        entry.setComment(comment);
-        zipStream.putNextEntry(entry);
-        {
-            OutputStreamWriter writer = new OutputStreamWriter(zipStream, StandardCharsets.UTF_8);
-            BufferedWriter bfwriter = new BufferedWriter(writer);
-            if (StringUtils.isBlank(scriptBody)) {
-                bfwriter.write("");
-            } else {
-                bfwriter.write(scriptBody);
+    /** The caller owns out; finishing an inner ZIP must not close the outer archive. */
+    protected boolean saveToZip(AddressBucket bucket, OutputStream out) throws IOException {
+        synchronized (bucket) {
+            try (ZipOutputStream zip = new ZipOutputStream(nonClosing(out))) {
+                StringBuilder addresses = new StringBuilder();
+                Set<InterAddress> staticAddresses = new HashSet<>(bucket.getStaticAddresses());
+                for (InterAddress address : bucket.getAllAddresses()) {
+                    addresses.append(staticAddresses.contains(address) ? "S|" : "D|");
+                    addresses.append(address.toHostSchema()).append('\n');
+                }
+
+                writeEntry(zip, addresses.toString(), AddressList_ZipEntry);
+                String control = bucket.getFlowControlRef().flowControlScript;
+                if (control != null) {
+                    writeEntry(zip, control, FlowControlRef_ZipEntry);
+                }
+                RuleRef rules = bucket.getRuleRef();
+                writeEntry(zip, rules.getServiceLevel().getScript(), ServiceLevelScript_ZipEntry);
+                writeEntry(zip, rules.getMethodLevel().getScript(), MethodLevelScript_ZipEntry);
+                writeEntry(zip, rules.getArgsLevel().getScript(), ArgsLevelScript_ZipEntry);
             }
-            bfwriter.flush();
-            writer.flush();
         }
-        zipStream.closeEntry();
+        return true;
+    }
+
+    /** Read a complete service entry first, then apply valid addresses independently. */
+    protected void readFromZip(AddressBucket bucket, InputStream in) throws IOException {
+        Map<String, String> entries = new HashMap<>();
+        try (ZipInputStream zip = new ZipInputStream(new FilterInputStream(in) {
+            @Override
+            public void close() { /* The outer archive belongs to the caller. */ }
+        })) {
+
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                IOUtils.copy(zip, bytes);
+                entries.put(entry.getName(), new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+            }
+        }
+        List<InterAddress> staticAddresses = new ArrayList<>();
+        List<InterAddress> dynamicAddresses = new ArrayList<>();
+        String addresses = entries.get(AddressList_ZipEntry);
+        if (addresses != null) {
+            for (String line : addresses.split("\\r?\\n")) {
+                if (!line.startsWith("S|") && !line.startsWith("D|")) {
+                    continue;
+                }
+
+                try {
+                    InterAddress address = new InterAddress(line.substring(2));
+                    (line.startsWith("S|") ? staticAddresses : dynamicAddresses).add(address);
+                } catch (URISyntaxException | IllegalArgumentException | IllegalStateException e) {
+                    logger.warn("Ignoring malformed address in snapshot: " + line);
+                }
+            }
+        }
+        bucket.newAddress(staticAddresses, AddressTypeEnum.Static);
+        bucket.newAddress(dynamicAddresses, AddressTypeEnum.Dynamic);
+        if (entries.containsKey(FlowControlRef_ZipEntry)) {
+            bucket.updateFlowControl(entries.get(FlowControlRef_ZipEntry));
+        }
+
+        restoreScript(bucket, entries, ServiceLevelScript_ZipEntry, RouteTypeEnum.ServiceLevel);
+        restoreScript(bucket, entries, MethodLevelScript_ZipEntry, RouteTypeEnum.MethodLevel);
+        restoreScript(bucket, entries, ArgsLevelScript_ZipEntry, RouteTypeEnum.ArgsLevel);
+    }
+
+    private static void restoreScript(AddressBucket bucket, Map<String, String> entries, String name, RouteTypeEnum type) {
+        if (entries.containsKey(name)) {
+            bucket.updateRoute(type, entries.get(name));
+        }
+    }
+
+    private static OutputStream nonClosing(OutputStream out) {
+        return new FilterOutputStream(out) {
+            @Override
+            public void write(byte[] bytes, int offset, int length) throws IOException {
+                out.write(bytes, offset, length);
+            }
+
+            @Override
+            public void close() throws IOException {
+                flush();
+            }
+        };
+    }
+
+    private static void writeEntry(ZipOutputStream zip, String body, String name) throws IOException {
+        zip.putNextEntry(new ZipEntry(name));
+        if (body != null) {
+            zip.write(body.getBytes(StandardCharsets.UTF_8));
+        }
+        zip.closeEntry();
     }
 }
