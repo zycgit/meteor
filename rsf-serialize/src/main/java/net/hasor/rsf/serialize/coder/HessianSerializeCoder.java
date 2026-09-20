@@ -17,42 +17,53 @@ package net.hasor.rsf.serialize.coder;
 import com.caucho.hessian.io.HessianInput;
 import com.caucho.hessian.io.HessianOutput;
 import com.caucho.hessian.io.SerializerFactory;
-import net.hasor.core.Environment;
-import net.hasor.rsf.SerializeCoder;
+import net.hasor.rsf.serialize.SerializeCoder;
+import net.hasor.rsf.serialize.SerializeFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Objects;
 
-/**
- *
- * @version : 2014年9月19日
- * @author 赵永春 (zyc@hasor.net)
- */
+/** Hessian 1 object encoding, compatible with the original RSF coder. */
 public class HessianSerializeCoder implements SerializeCoder {
-    private SerializerFactory serializerFactory = null;
+    private volatile SerializerFactory serializerFactory = new SerializerFactory(SerializeFactory.defaultClassLoader());
 
     @Override
-    public void initCoder(Environment environment) {
-        this.serializerFactory = new SerializerFactory(environment.getClassLoader());
+    public void initCoder(ClassLoader classLoader) {
+        this.serializerFactory = new SerializerFactory(Objects.requireNonNull(classLoader, "classLoader"));
     }
 
     @Override
     public byte[] encode(Object object) throws IOException {
         ByteArrayOutputStream binary = new ByteArrayOutputStream();
-        HessianOutput hout = new HessianOutput(binary);
-        hout.setSerializerFactory(this.serializerFactory);
-        hout.writeObject(object);
-        return binary.toByteArray();
+        HessianOutput output = new HessianOutput(binary);
+        output.setSerializerFactory(this.serializerFactory);
+        try {
+            output.writeObject(object);
+            output.flush();
+            return binary.toByteArray();
+        } catch (RuntimeException e) {
+            throw new IOException("Cannot encode Hessian value", e);
+        } finally {
+            output.close();
+        }
     }
 
     @Override
     public Object decode(byte[] bytes, Class<?> returnType) throws IOException {
+        Objects.requireNonNull(returnType, "returnType");
         if (bytes == null) {
             return null;
         }
         HessianInput input = new HessianInput(new ByteArrayInputStream(bytes));
         input.setSerializerFactory(this.serializerFactory);
-        return input.readObject(returnType);
+        try {
+            return input.readObject(returnType);
+        } catch (RuntimeException e) {
+            throw new IOException("Cannot decode Hessian value", e);
+        } finally {
+            input.close();
+        }
     }
 }

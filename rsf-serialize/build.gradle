@@ -1,0 +1,14 @@
+ext.pomName = 'RSF Serialize'
+description = 'Unified serialization and deserialization support.'
+
+dependencies {
+    implementation "com.alibaba:fastjson:${property('lib.fastjson')}"
+    implementation "com.caucho:hessian:${property('lib.hessian')}"
+    implementation "org.hprose:hprose-java:${property('lib.hprose')}"
+}
+
+// Hprose 2.0.38 accesses ObjectStreamClass.newInstance on Java 9+.
+// Applications using Hprose on Java 17 need the same JVM option (see README.md).
+tasks.withType(Test).configureEach {
+    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+}

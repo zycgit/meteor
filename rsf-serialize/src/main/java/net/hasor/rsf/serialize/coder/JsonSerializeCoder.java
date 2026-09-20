@@ -14,36 +14,34 @@
  * limitations under the License.
  */
 package net.hasor.rsf.serialize.coder;
-import hprose.io.HproseReader;
-import hprose.io.HproseWriter;
-import net.hasor.core.Environment;
-import net.hasor.rsf.SerializeCoder;
+import com.alibaba.fastjson.JSON;
+import net.hasor.rsf.serialize.SerializeCoder;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
-/**
- *
- * @version : 2017年1月12日
- * @author 赵永春 (zyc@hasor.net)
- */
-public class HproseSerializeCoder implements SerializeCoder {
+/** JSON serialization with UTF-8 on both sides of the wire. */
+public class JsonSerializeCoder implements SerializeCoder {
     @Override
-    public void initCoder(Environment environment) {
-    }
-
     public byte[] encode(Object object) throws IOException {
-        ByteArrayOutputStream binary = new ByteArrayOutputStream();
-        HproseWriter writer = new HproseWriter(binary);
-        writer.serialize(object);
-        return binary.toByteArray();
+        try {
+            return JSON.toJSONString(object).getBytes(StandardCharsets.UTF_8);
+        } catch (RuntimeException e) {
+            throw new IOException("Cannot encode JSON value", e);
+        }
     }
 
+    @Override
     public Object decode(byte[] bytes, Class<?> returnType) throws IOException {
+        Objects.requireNonNull(returnType, "returnType");
         if (bytes == null) {
             return null;
         }
-        HproseReader reader = new HproseReader(bytes);
-        return reader.unserialize(returnType);
+        try {
+            return JSON.parseObject(new String(bytes, StandardCharsets.UTF_8), returnType);
+        } catch (RuntimeException e) {
+            throw new IOException("Cannot decode JSON value", e);
+        }
     }
 }
