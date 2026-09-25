@@ -10,7 +10,6 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 import net.hasor.cobble.ClassUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,13 +21,7 @@ import org.slf4j.LoggerFactory;
  */
 public class RsfRuntimeUtils {
     protected static     Logger                                                 logger      = LoggerFactory.getLogger(RsfRuntimeUtils.class);
-    private static final AtomicLong                                             requestID   = new AtomicLong(1);
     private static final ConcurrentMap<Class<?>, ConcurrentMap<String, Method>> methodCache = new ConcurrentHashMap<>();
-
-    /**生成一个新的RequestID*/
-    public static long genRequestID() {
-        return requestID.incrementAndGet();
-    }
 
     /**使用指定的ClassLoader将一个asm类型转化为Class对象。*/
     public static Class<?> toJavaType(final String tType, final ClassLoader loader) throws ClassNotFoundException {

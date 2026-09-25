@@ -75,8 +75,6 @@ public interface RsfContext extends OnlineStatus, AutoCloseable {
     /**获取RSF配置*/
     RsfSettings getSettings();
 
-    /**获取IoC容器*/
-
     /**获取{@link RsfEnvironment}*/
     RsfEnvironment getEnvironment();
 

@@ -6,8 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.connector;
+import net.hasor.rsf.domain.payload.Payload;
 
-public interface ConnectorFactory {
-    /** Assemble a connector using its configuration and manager capabilities. */
-    Connector create(ConnectorContext context) throws Exception;
+/** Application subscription to a message from a specific channel. */
+@FunctionalInterface
+public interface ConnectorSubscriber {
+    void onMessage(RsfChannel channel, long requestId, Payload payload);
 }

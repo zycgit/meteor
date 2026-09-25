@@ -13,12 +13,12 @@ public interface RsfListen extends AutoCloseable {
     /** Provider-defined listener type, such as tcp, http or udp; independent of the address schema. */
     String getType();
 
-    /** Actual bound address; its schema identifies the exposed protocol. */
+    /** Actual bound address, or null while binding; its schema identifies the exposed protocol. */
     InterAddress getBindAddress();
 
     /** Whether this listener currently accepts new inbound connections or requests. */
     boolean isActive();
 
-    /** Stop this listener. Existing sessions are owned separately by the connector. Must be idempotent. */
+    /** Stop this listener. Existing sessions are owned separately by the manager. Must be idempotent. */
     void close();
 }

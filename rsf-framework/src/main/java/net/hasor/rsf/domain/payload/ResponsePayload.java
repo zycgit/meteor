@@ -5,19 +5,23 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.rsf.domain;
+package net.hasor.rsf.domain.payload;
 /**
  * RSF Response 的化身,是封装 Response 的数据对象。
  * @version : 2014年10月25日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class ResponseInfo extends OptionInfo {
+public class ResponsePayload extends Payload {
     private long   requestID     = 0;    //请求ID
     private long   receiveTime   = 0;    //数据包到达时间
     private short  status        = 0;    //响应状态
     private String serializeType = null; //序列化类型
     private String returnType    = null; //返回数据类型
     private Object returnData    = null; //返回数据
+
+    public ResponsePayload() {
+        super(Type.RESPONSE);
+    }
 
     /**获取请求ID。*/
     public long getRequestID() {

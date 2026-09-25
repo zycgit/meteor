@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import net.hasor.rsf.address.InterAddress;
 
-/** Immutable configuration of one named protocol endpoint. */
+/** Immutable configuration for a named connector and one bind or connect operation. */
 public final class ConnectorConfig {
     private final String              name;
     private final InterAddress        address;
@@ -28,11 +28,17 @@ public final class ConnectorConfig {
         return this.name;
     }
 
+    /** Local listening address for bind; remote destination for connect. */
     public InterAddress address() {
         return this.address;
     }
 
-    /** Default transport type for framework binds and outgoing connections; explicit calls supply their own type. */
+    /** Copies this configuration for another operation address, keeping its name and options. */
+    public ConnectorConfig withAddress(InterAddress address) {
+        return new ConnectorConfig(this.name, address, this.options);
+    }
+
+    /** Transport type used to select a factory and start the requested operation. */
     public String listenType() {
         String type = this.options.get("listenType");
         if (type == null || type.trim().isEmpty()) {
