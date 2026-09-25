@@ -1,6 +1,0 @@
-ext.pomName = 'RSF Address Service'
-description = 'Support RPC address service.'
-
-dependencies {
-    api "net.hasor:cobble-all:${property('lib.cobble')}"
-}
