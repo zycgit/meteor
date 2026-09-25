@@ -1,0 +1,18 @@
+ext.pomName = 'RSF Framework'
+description = 'Combined RSF messages, addresses, serialization and public API.'
+
+dependencies {
+    api "net.hasor:cobble-all:${property('lib.cobble')}"
+    // The existing public environment contract exposes Netty TimerTask.
+    api 'io.netty:netty-all:4.1.45.Final'
+    implementation 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'org.codehaus.groovy:groovy:2.5.23'
+    implementation "com.alibaba:fastjson:${property('lib.fastjson')}"
+    implementation "com.caucho:hessian:${property('lib.hessian')}"
+    implementation "org.hprose:hprose-java:${property('lib.hprose')}"
+}
+
+// Hprose 2.0.38 requires this option on Java 17; see document/modules/rsf-framework.md.
+tasks.withType(Test).configureEach {
+    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+}

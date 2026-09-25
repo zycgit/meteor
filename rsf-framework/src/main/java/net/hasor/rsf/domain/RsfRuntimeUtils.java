@@ -1,27 +1,19 @@
 /*
- * Copyright 2008-2009 the original author or authors.
+ * Copyright 2015-2026 the original author or authors.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Licensed under the Apache License, Version 2.0.
+ * See the LICENSE.txt file for the full license.
+ * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.domain;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
+import net.hasor.cobble.ClassUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -29,10 +21,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class RsfRuntimeUtils {
-    protected static Logger                                                 logger      = LoggerFactory.getLogger(RsfRuntimeUtils.class);
-    private static   AtomicLong                                             requestID   = new AtomicLong(1);
-    private static   ConcurrentMap<String, Class<?>>                        classCache  = new ConcurrentHashMap<>();
-    private static   ConcurrentMap<Class<?>, ConcurrentMap<String, Method>> methodCache = new ConcurrentHashMap<>();
+    protected static     Logger                                                 logger      = LoggerFactory.getLogger(RsfRuntimeUtils.class);
+    private static final AtomicLong                                             requestID   = new AtomicLong(1);
+    private static final ConcurrentMap<Class<?>, ConcurrentMap<String, Method>> methodCache = new ConcurrentHashMap<>();
 
     /**生成一个新的RequestID*/
     public static long genRequestID() {
@@ -42,6 +33,9 @@ public class RsfRuntimeUtils {
     /**使用指定的ClassLoader将一个asm类型转化为Class对象。*/
     public static Class<?> toJavaType(final String tType, final ClassLoader loader) throws ClassNotFoundException {
         char atChar = tType.charAt(0);
+        if (tType.length() > 1 && atChar != '[') {
+            return ClassUtils.getClass(loader, tType, false);
+        }
         if (/*   */'I' == atChar) {
             return int.class;
         } else if ('B' == atChar) {
@@ -61,6 +55,11 @@ public class RsfRuntimeUtils {
         } else if ('V' == atChar) {
             return void.class;
         } else if (atChar == '[') {
+            // Class.getName() uses JVM array descriptors; the RSF wire format also
+            // permits names such as "[java.lang.String" without the L/; markers.
+            try {
+                return Class.forName(tType, false, loader);
+            } catch (ClassNotFoundException legacyDescriptor) { /* Resolve RSF form below. */ }
             int length = 0;
             while (true) {
                 if (tType.charAt(length) != '[') {
@@ -76,15 +75,9 @@ public class RsfRuntimeUtils {
             }
             return returnType;
         } else {
-            Class<?> cache = classCache.get(tType);
-            if (cache == null) {
-                cache = loader.loadClass(tType);
-                classCache.put(tType, cache);
-            }
-            return cache;
+            return Class.forName(tType, false, loader);
         }
     }
-    //
 
     /**将某一个类型转为asm形式的表述， int 转为 I，String转为 Ljava/lang/String。*/
     public static String toAsmType(final Class<?> classType) {
@@ -140,8 +133,9 @@ public class RsfRuntimeUtils {
                 }
             } catch (Exception e) {
                 logger.error("find method {} of type {} fail -> {}", methodName, serviceType, e);
-                if (e instanceof RuntimeException)
+                if (e instanceof RuntimeException) {
                     throw (RuntimeException) e;
+                }
                 String errorMessage = "(" + e.getClass().getName() + ") - " + e.getMessage();
                 throw new RsfException(errorMessage, e);
             }
@@ -150,22 +144,10 @@ public class RsfRuntimeUtils {
     }
 
     public static Class<?> getType(String typeName, ClassLoader classLoader) {
-        Class<?> type = classCache.get(typeName);
-        if (type == null) {
-            try {
-                Class<?> newType = toJavaType(typeName, classLoader);
-                type = classCache.putIfAbsent(typeName, newType);
-                if (type == null) {
-                    type = newType;
-                }
-            } catch (Throwable e) {
-                logger.error("find of type {} fail -> {}", typeName, e);
-                if (e instanceof RuntimeException)
-                    throw (RuntimeException) e;
-                String errorMessage = "(" + e.getClass().getName() + ") - " + e.getMessage();
-                throw new RsfException(errorMessage, e);
-            }
+        try {
+            return toJavaType(typeName, classLoader);
+        } catch (ClassNotFoundException failure) {
+            throw new RsfException("Cannot resolve RSF type " + typeName, failure);
         }
-        return type;
     }
 }

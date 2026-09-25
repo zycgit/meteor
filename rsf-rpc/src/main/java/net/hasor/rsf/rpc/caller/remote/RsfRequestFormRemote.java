@@ -1,0 +1,141 @@
+/*
+ * Copyright 2015-2026 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0.
+ * See the LICENSE.txt file for the full license.
+ * https://www.apache.org/licenses/LICENSE-2.0
+ */
+package net.hasor.rsf.rpc.caller.remote;
+import net.hasor.rsf.address.InterAddress;
+import net.hasor.rsf.RsfBindInfo;
+import net.hasor.rsf.RsfContext;
+import net.hasor.rsf.RsfRequest;
+import net.hasor.rsf.domain.AttributeSet;
+import net.hasor.rsf.domain.RequestInfo;
+import net.hasor.rsf.domain.RsfFlags;
+
+import java.lang.reflect.Method;
+
+/**
+ * RSF请求(远程发起调用)
+ * @version : 2014年10月25日
+ * @author 赵永春 (zyc@hasor.net)
+ */
+class RsfRequestFormRemote extends AttributeSet implements RsfRequest {
+    private final RequestInfo     requestInfo;
+    private final InterAddress    target;
+    private final RemoteRsfCaller rsfCaller;
+    private final RsfBindInfo<?>  bindInfo;
+    private final Method          targetMethod;
+    private final Class<?>[]      parameterTypes;
+    private final Object[]        parameterObjects;
+
+    public RsfRequestFormRemote(InterAddress target, RequestInfo requestInfo, RsfBindInfo<?> bindInfo, Method targetMethod, Object[] parameterObjects, RemoteRsfCaller rsfCaller) {
+        this.target = target;
+        this.requestInfo = requestInfo;
+        this.bindInfo = bindInfo;
+        this.targetMethod = targetMethod;
+        this.parameterTypes = targetMethod.getParameterTypes();
+        this.parameterObjects = parameterObjects;
+        this.rsfCaller = rsfCaller;
+    }
+
+    @Override
+    public String toString() {
+        return "requestID:" + this.getRequestID() + " from Remote," + this.bindInfo.toString();
+    }
+
+    @Override
+    public boolean isLocal() {
+        return false;
+    }
+
+    @Override
+    public boolean isP2PCalls() {
+        return RsfFlags.P2PFlag.testTag(this.requestInfo.getFlags());
+    }
+
+    @Override
+    public boolean isMessage() {
+        return this.requestInfo.isMessage();
+    }
+
+    @Override
+    public Method getMethod() {
+        return this.targetMethod;
+    }
+
+    @Override
+    public Class<?>[] getParameterTypes() {
+        return this.parameterTypes.clone();
+    }
+
+    @Override
+    public Object[] getParameterObject() {
+        return this.parameterObjects.clone();
+    }
+
+    @Override
+    public RsfContext getContext() {
+        return this.rsfCaller.getContext();
+    }
+
+    @Override
+    public RsfBindInfo<?> getBindInfo() {
+        return this.bindInfo;
+    }
+
+    @Override
+    public long getRequestID() {
+        return this.requestInfo.getRequestID();
+    }
+
+    @Override
+    public String getSerializeType() {
+        return this.requestInfo.getSerializeType();
+    }
+
+    @Override
+    public long getReceiveTime() {
+        return this.requestInfo.getReceiveTime();
+    }
+
+    @Override
+    public int getTimeout() {
+        int timeOut1 = this.requestInfo.getClientTimeout();
+        int timeOut2 = this.bindInfo.getClientTimeout();
+        return timeOut1 < timeOut2 ? timeOut1 : timeOut2;
+    }
+
+    @Override
+    public String[] getOptionKeys() {
+        return this.requestInfo.getOptionKeys();
+    }
+
+    @Override
+    public String getOption(String key) {
+        return this.requestInfo.getOption(key);
+    }
+
+    @Override
+    public void addOption(String key, String value) {
+        this.requestInfo.addOption(key, value);
+    }
+
+    @Override
+    public void removeOption(String key) {
+        this.requestInfo.removeOption(key);
+    }
+
+    @Override
+    public InterAddress getRemoteAddress() {
+        return this.target;
+    }
+
+    @Override
+    public InterAddress getTargetAddress() {
+        //根据远程来的请求协议，来从本地获取对应的地址端口
+        String protocol = this.target.getSchema();
+        return this.rsfCaller.getContext().bindAddress(protocol);
+    }
+}

@@ -1,3 +1,0 @@
-java.io.File                = net.hasor.rsf.hessian.io.FileDeserializer
-java.math.BigDecimal        = net.hasor.rsf.hessian.io.BigDecimalDeserializer
-javax.management.ObjectName = net.hasor.rsf.hessian.io.ObjectNameDeserializer

@@ -1,17 +1,9 @@
 /*
- * Copyright 2008-2009 the original author or authors.
+ * Copyright 2015-2026 the original author or authors.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Licensed under the Apache License, Version 2.0.
+ * See the LICENSE.txt file for the full license.
+ * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.domain;
 import java.util.ArrayList;
@@ -36,11 +28,9 @@ public class RequestInfo extends OptionInfo {
     private List<String> paramTypes     = null; //参数类型
     private List<Object> paramValues    = null; //参数值
 
-    //
-    //
     public RequestInfo() {
-        this.paramTypes = new ArrayList<String>();
-        this.paramValues = new ArrayList<Object>();
+        this.paramTypes = new ArrayList<>();
+        this.paramValues = new ArrayList<>();
     }
 
     /**获取请求ID。*/
@@ -55,7 +45,7 @@ public class RequestInfo extends OptionInfo {
 
     /**获取flag*/
     public short getFlags() {
-        return flags;
+        return this.flags;
     }
 
     /**设置flag。*/
@@ -135,12 +125,12 @@ public class RequestInfo extends OptionInfo {
 
     /**是否为消息请求*/
     public boolean isMessage() {
-        return isMessage;
+        return this.isMessage;
     }
 
     /**设置是否为消息请求*/
     public void setMessage(boolean message) {
-        isMessage = message;
+        this.isMessage = message;
     }
     //
 

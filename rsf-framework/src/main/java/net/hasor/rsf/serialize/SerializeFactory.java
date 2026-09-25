@@ -1,79 +1,81 @@
 /*
- * Copyright 2008-2009 the original author or authors.
+ * Copyright 2015-2026 the original author or authors.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Licensed under the Apache License, Version 2.0.
+ * See the LICENSE.txt file for the full license.
+ * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.serialize;
-import net.hasor.cobble.StringUtils;
-import net.hasor.cobble.logging.Logger;
-import net.hasor.cobble.logging.LoggerFactory;
-import net.hasor.cobble.setting.SettingNode;
-import net.hasor.core.Environment;
-import net.hasor.rsf.RsfEnvironment;
-import net.hasor.rsf.SerializeCoder;
-import net.hasor.rsf.domain.ProtocolStatus;
-import net.hasor.rsf.domain.RsfException;
-
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import net.hasor.rsf.serialize.coder.HessianSerializeCoder;
+import net.hasor.rsf.serialize.coder.HproseSerializeCoder;
+import net.hasor.rsf.serialize.coder.JavaSerializeCoder;
+import net.hasor.rsf.serialize.coder.JsonSerializeCoder;
 
-/**
- * 序列化工厂
- * @version : 2014年9月20日
- * @author 赵永春 (zyc@hasor.net)
- */
+/** Registry of named, reusable serialization coders, independent of the RPC container. */
 public class SerializeFactory {
-    protected static Logger                      logger   = LoggerFactory.getLogger(SerializeFactory.class);
-    private final    Map<String, SerializeCoder> coderMap = new HashMap<>();
+    private final Map<String, SerializeCoder> coderMap = new ConcurrentHashMap<>();
+    private final ClassLoader                 classLoader;
 
-    /**获取序列化（编码/解码）器。*/
+    /** Creates an empty registry using the context class loader. */
+    public SerializeFactory() {
+        this(defaultClassLoader());
+    }
+
+    /** Creates an empty registry using the supplied business class loader. */
+    public SerializeFactory(ClassLoader classLoader) {
+        this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
+    }
+
+    /** Returns null for an unknown name. Names remain case sensitive. */
     public SerializeCoder getSerializeCoder(String codeName) {
-        return this.coderMap.get(codeName);
+        return codeName == null ? null : this.coderMap.get(codeName);
     }
 
-    /**注册序列化（编码/解码）器*/
-    public void registerSerializeCoder(String codeName, SerializeCoder decoder) {
-        this.coderMap.put(codeName, decoder);
+    /** Initializes before publication; a failed replacement leaves the old coder registered. */
+    public void registerSerializeCoder(String codeName, SerializeCoder coder) {
+        if (codeName == null || codeName.trim().isEmpty()) {
+            throw new IllegalArgumentException("codeName must not be blank");
+        }
+        Objects.requireNonNull(coder, "coder").initCoder(this.classLoader);
+        this.coderMap.put(codeName, coder);
     }
 
-    public static SerializeFactory createFactory(RsfEnvironment environment) {
-        SerializeFactory factory = new SerializeFactory();
-        SettingNode[] serList = environment.getSettings().getNodeArray("hasor.rsfConfig.serializeType.serialize");
+    /** Creates a registry containing Java, Json, Hessian and Hprose. */
+    public static SerializeFactory createFactory() {
+        return createFactory(defaultClassLoader());
+    }
 
-        String types = "";
-        for (SettingNode s : serList) {
-            initSerialize(factory, s, environment);
-            types += ("," + s.getSubValue("name"));
-        }
-        if (!StringUtils.isBlank(types)) {
-            types = types.substring(1);
-        }
-        logger.info("SerializeFactory init. -> [{}]", types);
+    /** Creates the built-in registry with the supplied business class loader. */
+    public static SerializeFactory createFactory(ClassLoader classLoader) {
+        SerializeFactory factory = new SerializeFactory(classLoader);
+        factory.registerSerializeCoder("Java", new JavaSerializeCoder());
+        factory.registerSerializeCoder("Json", new JsonSerializeCoder());
+        factory.registerSerializeCoder("Hessian", new HessianSerializeCoder());
+        factory.registerSerializeCoder("Hprose", new HproseSerializeCoder());
         return factory;
     }
 
-    private static void initSerialize(SerializeFactory factory, SettingNode atNode, Environment environment) {
-        String serializeType = atNode.getSubValue("name");
-        String serializeCoder = atNode.getValue().trim();
-
-        try {
-            Class<?> aClass = environment.getClassLoader().loadClass(serializeCoder);
-            SerializeCoder coder = (SerializeCoder) aClass.newInstance();
-            coder.initCoder(environment);
-            factory.registerSerializeCoder(serializeType, coder);
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-            throw new RsfException(ProtocolStatus.SerializeError, e);
+    /** Creates a registry from name-to-class-name mappings, without framework configuration APIs. */
+    public static SerializeFactory createFactory(Map<String, String> coderClasses, ClassLoader classLoader) {
+        Objects.requireNonNull(coderClasses, "coderClasses");
+        SerializeFactory factory = new SerializeFactory(classLoader);
+        for (Map.Entry<String, String> entry : coderClasses.entrySet()) {
+            try {
+                Class<? extends SerializeCoder> type = classLoader.loadClass(entry.getValue().trim()).asSubclass(SerializeCoder.class);
+                factory.registerSerializeCoder(entry.getKey(), type.getDeclaredConstructor().newInstance());
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                throw new IllegalArgumentException("Cannot initialize serialize coder '" + entry.getKey() + "': " + entry.getValue(), e);
+            }
         }
+        return factory;
+    }
+
+    /** Chooses the context class loader, falling back when the calling thread has none. */
+    public static ClassLoader defaultClassLoader() {
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        return loader == null ? SerializeFactory.class.getClassLoader() : loader;
     }
 }
