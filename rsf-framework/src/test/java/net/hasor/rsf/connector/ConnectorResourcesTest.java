@@ -257,7 +257,7 @@ public class ConnectorResourcesTest {
             assertEquals(1, client.initialized);
             assertEquals(1, client.bound);
             assertSame(client, manager.find("client"));
-            assertSame(server, manager.forSchema("MEMORY"));
+            assertSame(server, manager.find("server"));
         }
         assertFalse(session.isActive());
         assertTrue(provider.listeners.isEmpty());
@@ -287,7 +287,7 @@ public class ConnectorResourcesTest {
             assertTrue(channel.isActive());
             server.close();
             assertFalse(listening.isActive());
-            assertTrue(manager.getListenList(server).isEmpty());
+            assertTrue(server.getListenList().isEmpty());
             assertNull(manager.find("server"));
             assertNotNull(manager.find("client"));
             assertFalse(channel.isActive());
@@ -308,7 +308,7 @@ public class ConnectorResourcesTest {
             };
             endpoint.onClosing(closing -> {
                 assertSame(endpoint, closing);
-                assertTrue(closing.connect(closing.config().address()).getCause() instanceof IOException);
+                assertTrue(closing.connect(closing.config().address()).getCause() instanceof IllegalStateException);
                 events.add("closing");
                 closing.close();
             });
@@ -352,7 +352,7 @@ public class ConnectorResourcesTest {
             endpoint.close();
             assertEquals(1, notifications.get());
             assertEquals(1, endpoint.destroyed);
-            assertTrue(ConnectorConnectionsTest.failure(endpoint.connect(config("peer", 2).address())) instanceof IOException);
+            assertTrue(ConnectorConnectionsTest.failure(endpoint.connect(config("peer", 2).address())) instanceof IllegalStateException);
             try {
                 endpoint.bind(endpoint.config().address()).get();
                 fail();

@@ -909,7 +909,7 @@ public class RsfCallerTest {
                 public void close() {
                     this.active = false;
                     LISTENERS.remove(address, MemoryConnector.this);
-                    MemoryConnector.this.manager.onListenClosed(MemoryConnector.this, this);
+                    MemoryConnector.this.onListenClosed(this);
                 }
             });
         }

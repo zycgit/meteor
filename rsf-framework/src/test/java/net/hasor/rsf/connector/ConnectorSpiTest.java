@@ -54,7 +54,7 @@ public class ConnectorSpiTest {
         try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(loader, config))) {
             manager.init();
             assertEquals(0, CountingFactory.created);
-            assertTrue(manager.getListenList(null).isEmpty());
+            assertTrue(manager.protocols().isEmpty());
             InterAddress target = new InterAddress("MEMORY://localhost:2/default");
             assertTrue(manager.connect(target).getCause() instanceof UnsupportedOperationException);
             assertSame(target, CountingFactory.target);
@@ -64,7 +64,7 @@ public class ConnectorSpiTest {
             assertEquals(1234, selected.connectTimeout());
             assertEquals(3, selected.integer("workerThread", 1));
             assertEquals("true", selected.option("tls.enabled", null));
-            assertTrue(manager.getListenList(manager.find("outgoing")).isEmpty());
+            assertTrue(manager.find("outgoing").getListenList().isEmpty());
             InterAddress another = new InterAddress("memory://localhost:3/default");
             assertTrue(manager.connect(another).getCause() instanceof UnsupportedOperationException);
             assertSame(another, CountingFactory.target);

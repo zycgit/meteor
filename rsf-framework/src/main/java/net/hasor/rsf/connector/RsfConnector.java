@@ -21,7 +21,12 @@ public interface RsfConnector extends AutoCloseable {
     /** Initialize shared resources once, without listening or connecting to a peer. */
     void init() throws Exception;
 
-    /** Drain submitted writes, close connections and release resources. Call from the lifecycle thread. */
+    /** Disable further binds, fail pending binds and close all listeners. Existing connections remain usable.
+     * Idempotent; call from the lifecycle thread before draining connections.
+     */
+    void closeBind();
+
+    /** Close listeners, drain submitted writes, close connections and release resources. Call from the lifecycle thread. */
     void close();
 
     /** Set the synchronous close callback. The manager registers it before init().
@@ -33,8 +38,8 @@ public interface RsfConnector extends AutoCloseable {
     /** Start the configured listener type at the supplied address after init(). Completes when the listener is usable.
      * Repeated binds of the same address share the operation; other bindings are independent.
      * The connector owns pending bind futures and must fail them when it closes.
-     * Register physical listener resources through ConnectorManager.onListen() as soon as they exist;
-     * close resources rejected during shutdown. AbstractConnector tracks pending operations for its subclasses.
+     * Own physical listener resources as soon as they exist;
+     * close resources rejected during shutdown. AbstractConnector tracks listeners and pending operations for its subclasses.
      */
     Future<RsfListen> bind(InterAddress address);
 
@@ -43,7 +48,7 @@ public interface RsfConnector extends AutoCloseable {
      */
     InterAddress getBindAddress();
 
-    /** Immutable snapshot of listener handles registered with the manager, including pending binds.
+    /** Immutable snapshot of listener handles owned by this connector, including pending binds.
      * Inspect isActive() before using a bound address; outbound-only connectors have an empty list.
      */
     List<RsfListen> getListenList();

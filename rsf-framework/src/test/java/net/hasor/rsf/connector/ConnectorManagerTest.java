@@ -130,10 +130,10 @@ public class ConnectorManagerTest {
             });
             assertSame(failure, ConnectorConnectionsTest.failure(manager.bind(connector.config())));
             assertNull(manager.find("endpoint"));
-            assertNull(manager.forSchema("memory"));
+            assertNull(manager.find(connector.config().name()));
             assertSame(connector.binding, manager.bind(connector.config()));
             assertSame(connector, manager.find("endpoint"));
-            assertSame(connector, manager.forSchema("MEMORY"));
+            assertSame(connector, manager.find(connector.config().name()));
             assertEquals(2, attempts.get());
         } finally {
             worker.shutdownNow();
@@ -155,13 +155,13 @@ public class ConnectorManagerTest {
             assertTrue(connector.entered.await(2, TimeUnit.SECONDS));
             Future<?> second = workers.submit(() -> manager.connect(connector.config().address()));
             assertNull(manager.find("endpoint"));
-            assertNull(manager.forSchema("memory"));
+            assertNull(manager.find(connector.config().name()));
             assertEquals(0, connector.bindings.get());
             connector.release.countDown();
             assertSame(connector.binding, first.get(2, TimeUnit.SECONDS));
             assertSame(connector.channel, ((Future<?>) second.get(2, TimeUnit.SECONDS)).get(2, TimeUnit.SECONDS));
             assertSame(connector, manager.find("endpoint"));
-            assertSame(connector, manager.forSchema("MEMORY"));
+            assertSame(connector, manager.find(connector.config().name()));
             assertEquals(1, created.get());
             assertEquals(1, connector.initializations.get());
         } finally {
@@ -218,7 +218,7 @@ public class ConnectorManagerTest {
             connector.release.countDown();
             closing.get(2, TimeUnit.SECONDS);
             assertNull(manager.find("endpoint"));
-            assertNull(manager.forSchema("memory"));
+            assertNull(manager.find(connector.config().name()));
             assertTrue(manager.protocols().isEmpty());
             BlockingConnector replacement = new BlockingConnector(false);
             manager.prepare(replacement.config(), (connectorConfig, connectorManager) -> replacement.attach(connectorManager));
@@ -402,14 +402,18 @@ public class ConnectorManagerTest {
             return this;
         }
 
+        public void closeBind() {
+            this.binding.failed(new IllegalStateException("closed"));
+        }
+
         public void close() {
+            this.closeBind();
             if (this.closingListener != null) {
                 Consumer<RsfConnector> listener = this.closingListener;
                 this.closingListener = null;
                 listener.accept(this);
             }
             this.closes.incrementAndGet();
-            this.binding.failed(new IllegalStateException("closed"));
         }
     }
 

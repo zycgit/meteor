@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.connector;
-import java.io.IOException;
 import java.util.*;
 import java.util.function.Consumer;
 import net.hasor.cobble.StringUtils;
@@ -14,22 +13,21 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.cobble.concurrent.future.FutureListener;
 import net.hasor.cobble.logging.Logger;
-import net.hasor.cobble.ref.Tuple;
 import net.hasor.rsf.address.InterAddress;
 
 /** Common endpoint lifecycle; providers supply transport operations. */
 public abstract class AbstractConnector implements RsfConnector {
-    private static final Logger                             logger   = Logger.getLogger(AbstractConnector.class);
-    protected final      ConnectorConfig                    config;
-    protected final      ConnectorManager                   manager;
-    private final        Map<Tuple, BasicFuture<RsfListen>> bindings = new LinkedHashMap<>();
-    private              State                              state    = State.NEW;
-    private              boolean                            bindDisabled;
-    private              boolean                            writeDisabled;
+    private static final Logger                                    logger   = Logger.getLogger(AbstractConnector.class);
+    protected final      ConnectorConfig                           config;
+    protected final      ConnectorManager                          manager;
+    private final        Map<InterAddress, BasicFuture<RsfListen>> bindings = new LinkedHashMap<>();
+    private final        Set<RsfListen>                            listens  = new LinkedHashSet<>();
+    private volatile     State                                     state    = State.NEW;
+    private              boolean                                   bindDisabled;
     //
-    private              Consumer<RsfConnector>             closingListener;
-    private volatile     Consumer<RsfChannel>               channelConnectedListener;
-    private volatile     Consumer<RsfChannel>               channelClosedListener;
+    private volatile     Consumer<RsfConnector>                    closingListener;
+    private volatile     Consumer<RsfChannel>                      channelConnectedListener;
+    private volatile     Consumer<RsfChannel>                      channelClosedListener;
 
     private enum State {
         NEW,
@@ -51,8 +49,22 @@ public abstract class AbstractConnector implements RsfConnector {
         return this.config;
     }
 
-    public final List<RsfListen> getListenList() {
-        return this.manager.getListenList(this);
+    public final synchronized List<RsfListen> getListenList() {
+        return Collections.unmodifiableList(new ArrayList<>(this.listens));
+    }
+
+    /** Register physical listeners immediately, even while their bind is still pending. */
+    protected final synchronized boolean onListen(RsfListen listen) {
+        if (this.state != State.READY || this.bindDisabled || !this.manager.isInitialized()) {
+            return false;
+        }
+
+        this.listens.add(listen);
+        return true;
+    }
+
+    protected final synchronized void onListenClosed(RsfListen listen) {
+        this.listens.remove(listen);
     }
 
     @Override
@@ -105,24 +117,18 @@ public abstract class AbstractConnector implements RsfConnector {
     /** Provider hook for allocating shared resources, without listening or connecting. */
     protected abstract void initialize() throws Exception;
 
-    /** Providers use the lifecycle monitor to make write admission atomic with shutdown. */
-    protected final synchronized boolean acceptsWrites() {
-        return this.state == State.READY && !this.writeDisabled && this.manager.isInitialized();
+    /** Providers hold the connector monitor around this check and write admission. */
+    protected final boolean acceptsWrites() {
+        return this.state == State.READY && this.manager.isInitialized();
     }
 
     @Override
-    public final synchronized void onClosing(Consumer<RsfConnector> listener) {
-        if (this.state == State.CLOSED) {
-            throw new IllegalStateException("RsfConnector is closed");
-        }
+    public final void onClosing(Consumer<RsfConnector> listener) {
         this.closingListener = listener;
     }
 
     @Override
-    public final synchronized void onChannelConnected(Consumer<RsfChannel> listener) {
-        if (this.state == State.CLOSED) {
-            throw new IllegalStateException("RsfConnector is closed");
-        }
+    public final void onChannelConnected(Consumer<RsfChannel> listener) {
         this.channelConnectedListener = listener;
     }
 
@@ -135,10 +141,7 @@ public abstract class AbstractConnector implements RsfConnector {
     }
 
     @Override
-    public final synchronized void onChannelClosed(Consumer<RsfChannel> listener) {
-        if (this.state == State.CLOSED) {
-            throw new IllegalStateException("RsfConnector is closed");
-        }
+    public final void onChannelClosed(Consumer<RsfChannel> listener) {
         this.channelClosedListener = listener;
     }
 
@@ -154,23 +157,20 @@ public abstract class AbstractConnector implements RsfConnector {
         synchronized (this) {
             if (this.state == State.CLOSED) {
                 return;
-            } else {
-                this.state = State.CLOSED;
             }
+            this.state = State.CLOSED;
         }
 
         this.prepareClose();
         this.doClose();
     }
 
-    /** Shared preparation for normal close and initialization rollback. */
-    private void prepareClose() {
+    @Override
+    public final void closeBind() {
         List<BasicFuture<RsfListen>> pending = new ArrayList<>();
-        Consumer<RsfConnector> listener;
+        List<RsfListen> closing;
         synchronized (this) {
             this.bindDisabled = true;
-            this.writeDisabled = true;
-
             for (BasicFuture<RsfListen> binding : this.bindings.values()) {
                 if (!binding.isDone()) {
                     pending.add(binding);
@@ -178,17 +178,31 @@ public abstract class AbstractConnector implements RsfConnector {
             }
 
             this.bindings.clear();
-            listener = this.closingListener;
-            this.closingListener = null;
+            closing = new ArrayList<>(this.listens);
+            this.listens.clear();
         }
 
         for (BasicFuture<RsfListen> binding : pending) {
             try {
-                binding.failed(new IllegalStateException("RsfConnector is closed"));
+                binding.failed(new IllegalStateException("RsfConnector binding is disabled"));
             } catch (RuntimeException | Error failure) {
                 logger.warn("Pending binding failure notification failed", failure);
             }
         }
+        for (RsfListen listen : closing) {
+            try {
+                listen.close();
+            } catch (RuntimeException | Error failure) {
+                logger.warn("Listener close failed", failure);
+            }
+        }
+    }
+
+    /** Shared preparation for normal close and initialization rollback. */
+    private void prepareClose() {
+        this.closeBind();
+        Consumer<RsfConnector> listener = this.closingListener;
+        this.closingListener = null;
         if (listener != null) {
             listener.accept(this);
         }
@@ -201,9 +215,8 @@ public abstract class AbstractConnector implements RsfConnector {
 
     public final Future<RsfListen> bind(InterAddress address) {
         Objects.requireNonNull(address, "address");
-        String type = this.config().listenType().toLowerCase(Locale.ROOT);
+        String type = this.config.listenType();
 
-        Tuple key = Tuple.of(type, address);
         BasicFuture<RsfListen> result;
         synchronized (this) {
             if (this.state != State.READY) {
@@ -213,25 +226,25 @@ public abstract class AbstractConnector implements RsfConnector {
                 throw new IllegalStateException("RsfConnector binding is disabled");
             }
 
-            Future<RsfListen> previous = this.bindings.get(key);
+            Future<RsfListen> previous = this.bindings.get(address);
             if (previous != null) {
                 RsfListen bound = previous.getResult();
                 if (bound == null || bound.isActive()) {
                     return previous;
                 }
 
-                this.manager.onListenClosed(this, bound);
+                this.onListenClosed(bound);
             }
 
             result = new BasicFuture<>();
             FutureListener<Future<RsfListen>> discard = done -> {
                 synchronized (this) {
-                    this.bindings.remove(key, result);
+                    this.bindings.remove(address, result);
                 }
             };
             // Install cleanup before publishing the future, so failure/cancellation callbacks can retry.
             result.onFailed(discard).onCancel(discard);
-            this.bindings.put(key, result);
+            this.bindings.put(address, result);
         }
 
         if (result.isDone()) {
@@ -240,7 +253,7 @@ public abstract class AbstractConnector implements RsfConnector {
 
         try {
             this.listen(type, address, this.manager).onCompleted(done -> {
-                this.finishBind(type, key, result, done.getResult());
+                this.finishBind(result, done.getResult());
             }).onFailed(done -> {
                 result.failed(done.getCause());
             }).onCancel(done -> {
@@ -254,24 +267,18 @@ public abstract class AbstractConnector implements RsfConnector {
     }
 
     /** Accept the created listener, or reclaim it if cancellation or shutdown won. */
-    private void finishBind(String type, Tuple key, BasicFuture<RsfListen> result, RsfListen bound) {
+    private void finishBind(BasicFuture<RsfListen> result, RsfListen bound) {
         Throwable failure = null;
         try {
             if (bound == null) {
                 throw new IllegalStateException("Provider returned no listener");
             }
-            if (!StringUtils.equalsIgnoreCase(type, bound.getType())) {
-                throw new IllegalStateException("Provider returned listener type " + bound.getType() + " for " + type);
+            if (!StringUtils.equalsIgnoreCase(this.config.listenType(), bound.getType())) {
+                throw new IllegalStateException("Provider returned listener type " + bound.getType() + " for " + this.config.listenType());
             }
 
-            synchronized (this) {
-                if (this.state != State.READY || this.bindDisabled || result.isDone() || this.bindings.get(key) != result) {
-                    throw new IllegalStateException("RsfConnector no longer accepts bindings");
-                }
-            }
-
-            if (!this.manager.onListen(this, bound)) {
-                throw new IllegalStateException("Manager no longer accepts listeners");
+            if (result.isDone() || !this.onListen(bound)) {
+                throw new IllegalStateException("RsfConnector no longer accepts listeners");
             }
 
             // Future callbacks must run outside the connector lock.
@@ -282,7 +289,7 @@ public abstract class AbstractConnector implements RsfConnector {
 
         // Reclaim rejected listeners, including cancellation/close after registration.
         if (bound != null && result.getResult() != bound) {
-            this.manager.onListenClosed(this, bound);
+            this.onListenClosed(bound);
             try {
                 bound.close();
             } catch (RuntimeException | Error cleanup) {
@@ -305,18 +312,10 @@ public abstract class AbstractConnector implements RsfConnector {
 
     public final Future<RsfChannel> connect(InterAddress target) {
         Objects.requireNonNull(target, "target");
-        String type = this.config().listenType().toLowerCase(Locale.ROOT);
+        String type = this.config.listenType();
 
-        synchronized (this) {
-            if (this.state == State.CLOSED) {
-                return this.failed(new IOException("RsfConnector is closed"));
-            }
-            if (this.state != State.READY) {
-                return this.failed(new IllegalStateException("RsfConnector is not initialized; call init() first"));
-            }
-            if (this.writeDisabled || !this.manager.isInitialized()) {
-                return this.failed(new IllegalStateException("RsfConnector writing is disabled"));
-            }
+        if (!this.acceptsWrites()) {
+            return this.failed(new IllegalStateException("RsfConnector is not ready for connections"));
         }
 
         if (!StringUtils.equalsIgnoreCase(this.config.address().getSchema(), target.getSchema())) {

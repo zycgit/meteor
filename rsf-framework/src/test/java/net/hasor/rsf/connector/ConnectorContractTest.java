@@ -63,9 +63,10 @@ public class ConnectorContractTest {
     }
 
     @Test
-    public void closePhasesAreNotPublicConnectorOperations() throws Exception {
+    public void onlyListenerShutdownIsPublicConnectorOperation() throws Exception {
         for (Class<?> contract : Arrays.asList(RsfConnector.class, AbstractConnector.class)) {
-            for (String name : Arrays.asList("disableBind", "closeBind", "disableWrite", "prepareClose")) {
+            assertNotNull(contract.getMethod("closeBind"));
+            for (String name : Arrays.asList("disableBind", "disableWrite", "prepareClose")) {
                 try {
                     contract.getMethod(name);
                     fail("Shutdown phases must not be public: " + name);
@@ -95,7 +96,7 @@ public class ConnectorContractTest {
     }
 
     @Test
-    public void providerWithoutCloseCallbacksUsesItsListenerHandles() throws Exception {
+    public void providerOwnsItsListenerHandles() throws Exception {
         List<String> events = new ArrayList<>();
         try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(), RECEIVER)) {
             RsfConnector connector = endpoint(manager, "plain", events, false);
@@ -109,11 +110,11 @@ public class ConnectorContractTest {
     }
 
     @Test(timeout = 10000)
-    public void allListenersCloseBeforeDrainAndResourcesWaitForEveryChannel() throws Exception {
+    public void allListenersCloseBeforeEachConnectorDrainsAndReleasesResources() throws Exception {
         List<String> events = Collections.synchronizedList(new ArrayList<>());
         List<BasicFuture<RsfChannel>> pending = new ArrayList<>();
         List<RsfChannel> channels = new ArrayList<>();
-        CountDownLatch draining = new CountDownLatch(2);
+        List<CountDownLatch> draining = Arrays.asList(new CountDownLatch(1), new CountDownLatch(1));
         ExecutorService lifecycle = Executors.newSingleThreadExecutor();
         try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(), RECEIVER)) {
             try {
@@ -122,6 +123,7 @@ public class ConnectorContractTest {
                     manager.prepare(connector.config(), (connectorConfig, connectorManager) -> connector);
                     manager.bind(manager.config(name)).get();
                     BasicFuture<RsfChannel> closed = new BasicFuture<>();
+                    CountDownLatch started = draining.get(channels.size());
                     RsfChannel channel = new AbstractRsfChannel(connector, manager.nextConnectionId(), RECEIVER) {
                         public InterAddress getLocal() {
                             return connector.config().address();
@@ -145,7 +147,7 @@ public class ConnectorContractTest {
 
                         public BasicFuture<RsfChannel> drainAndClose() {
                             assertTrue(events.containsAll(Arrays.asList("closeBind:first", "closeBind:second")));
-                            draining.countDown();
+                            started.countDown();
                             return closed;
                         }
                     };
@@ -154,15 +156,17 @@ public class ConnectorContractTest {
                     connector.accept(channel);
                 }
                 Future<?> closing = lifecycle.submit(manager::close);
-                assertTrue(draining.await(2, TimeUnit.SECONDS));
+                assertTrue(draining.get(0).await(2, TimeUnit.SECONDS));
                 assertFalse(closing.isDone());
                 assertFalse(events.contains("close:first"));
                 assertFalse(events.contains("close:second"));
                 for (int i = 0; i < pending.size(); i++) {
+                    assertTrue(draining.get(i).await(2, TimeUnit.SECONDS));
+                    assertFalse(events.contains("close:" + (i == 0 ? "first" : "second")));
                     pending.get(i).completed(channels.get(i));
                 }
                 closing.get(2, TimeUnit.SECONDS);
-                assertTrue(manager.getConnections().isEmpty());
+                assertTrue(pending.stream().allMatch(BasicFuture::isDone));
                 assertClosePhases(events.subList(2, events.size()));
             } finally {
                 for (int i = 0; i < pending.size(); i++) {
@@ -228,8 +232,15 @@ public class ConnectorContractTest {
                 public void init() {
                 }
 
+                private boolean bindDisabled;
+
                 public List<RsfListen> getListenList() {
-                    return Collections.emptyList();
+                    return this.bindDisabled ? Collections.emptyList() : Collections.singletonList(socket);
+                }
+
+                public void closeBind() {
+                    this.bindDisabled = true;
+                    socket.close();
                 }
 
                 public InterAddress getBindAddress() {
@@ -237,8 +248,8 @@ public class ConnectorContractTest {
                 }
 
                 public BasicFuture<RsfListen> bind(InterAddress address) {
-                    if (!manager.onListen(this, socket)) {
-                        socket.close();
+                    if (this.bindDisabled) {
+                        throw new IllegalStateException("Binding is disabled");
                     }
                     return binding;
                 }
@@ -248,6 +259,7 @@ public class ConnectorContractTest {
                 }
 
                 public void close() {
+                    this.closeBind();
                     if (this.closingListener != null) {
                         Consumer<RsfConnector> listener = this.closingListener;
                         this.closingListener = null;
@@ -295,8 +307,7 @@ public class ConnectorContractTest {
                 drained.completed(channel);
                 closing.get(2, TimeUnit.SECONDS);
                 assertEquals(Arrays.asList("listen", "engine"), events);
-                assertTrue(manager.getListenList(connector).isEmpty());
-                assertFalse(manager.onListen(connector, socket));
+                assertTrue(connector.getListenList().isEmpty());
             } finally {
                 drained.completed(channel);
                 lifecycle.shutdown();
@@ -384,13 +395,8 @@ public class ConnectorContractTest {
                             }
                         }
                     };
-                    if (manager.onListen(this, listen)) {
-                        this.listens.add(listen);
-                        result.completed(listen);
-                    } else {
-                        listen.close();
-                        result.failed(new IllegalStateException("Manager is closed"));
-                    }
+                    this.listens.add(listen);
+                    result.completed(listen);
                 }
                 return result;
             }
@@ -399,7 +405,16 @@ public class ConnectorContractTest {
                 throw new UnsupportedOperationException();
             }
 
+            public void closeBind() {
+                List<RsfListen> closing = new ArrayList<>(this.listens);
+                this.listens.clear();
+                for (RsfListen listen : closing) {
+                    listen.close();
+                }
+            }
+
             public void close() {
+                this.closeBind();
                 if (this.closingListener != null) {
                     Consumer<RsfConnector> listener = this.closingListener;
                     this.closingListener = null;

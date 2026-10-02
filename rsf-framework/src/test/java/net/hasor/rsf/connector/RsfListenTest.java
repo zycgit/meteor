@@ -257,6 +257,45 @@ public class RsfListenTest {
     }
 
     @Test
+    public void closeBindFailsPendingBindingsButLeavesConnectorUsable() throws Exception {
+        try (Endpoint endpoint = new Endpoint()) {
+            endpoint.initializeThroughManager();
+            endpoint.bind(address(2001));
+            TestListen active = endpoint.succeed(0, "tcp");
+            Future<RsfListen> pending = endpoint.bind(address(2002));
+            TestListen socket = new TestListen(endpoint, "tcp", address(2002));
+            assertTrue(endpoint.onListen(socket));
+            AtomicInteger notified = new AtomicInteger();
+            pending.onFailed(done -> {
+                assertFalse(Thread.holdsLock(endpoint));
+                notified.incrementAndGet();
+            });
+
+            endpoint.closeBind();
+            endpoint.closeBind();
+            assertEquals(1, notified.get());
+            assertTrue(pending.getCause() instanceof IllegalStateException);
+            assertEquals(1, active.closes);
+            assertEquals(1, socket.closes);
+            assertTrue(endpoint.getListenList().isEmpty());
+            assertNull(endpoint.getBindAddress());
+            assertTrue(endpoint.acceptsWrites());
+            assertEquals(0, endpoint.destroyed);
+            // Reaching the provider proves closeBind has not disabled outbound connection creation.
+            assertTrue(endpoint.connect(address(2003)).getCause() instanceof UnsupportedOperationException);
+            try {
+                endpoint.bind(address(2003));
+                fail("closeBind must reject new bindings");
+            } catch (IllegalStateException expected) {
+                assertEquals(2, endpoint.operations.size());
+            }
+            TestListen late = endpoint.succeed(1, "tcp");
+            assertEquals(1, late.closes);
+            assertTrue(endpoint.getListenList().isEmpty());
+        }
+    }
+
+    @Test
     public void closeStopsListenersAndWritesAndReleasesTheEngineOnce() throws Exception {
         try (Endpoint endpoint = new Endpoint()) {
             endpoint.initializeThroughManager();
