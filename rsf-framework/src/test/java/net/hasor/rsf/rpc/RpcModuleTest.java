@@ -257,7 +257,7 @@ public class RpcModuleTest {
     }
 
     @Test
-    public void clientAndServerWorkWithoutFrameworkAndUseHostFilters() throws Exception {
+    public void clientAndServerWorkWithoutRuntimeAssemblyAndUseHostFilters() throws Exception {
         try (Host host = new Host(true)) {
             Echo proxy = host.client.getRemote(host.service);
             assertEquals("hello", proxy.echo("hello"));
@@ -271,7 +271,6 @@ public class RpcModuleTest {
                 assertTrue(expected.getCause() instanceof RsfException);
             }
             assertNull(getClass().getClassLoader().getResource("net/hasor/rsf/bootstrap/RsfRuntime.class"));
-            assertNull(getClass().getClassLoader().getResource("net/hasor/rsf/container/RsfBeanContainer.class"));
         }
     }
 

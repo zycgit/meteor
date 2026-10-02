@@ -1,10 +1,10 @@
 ext.pomName = 'RSF Framework'
-description = 'RSF messages, addresses, serialization, public API, connector core and RPC invocation.'
+description = 'RSF messages, addresses, serialization, public API, connector core, RPC invocation and service container.'
 
 dependencies {
     api "net.hasor:cobble-all:${property('lib.cobble')}"
-    // The existing public environment contract exposes Netty TimerTask.
     api 'io.netty:netty-all:4.1.45.Final'
+
     implementation 'org.slf4j:slf4j-api:1.7.36'
     implementation 'org.codehaus.groovy:groovy:2.5.23'
     implementation "com.alibaba:fastjson:${property('lib.fastjson')}"
@@ -16,3 +16,16 @@ dependencies {
 tasks.withType(Test).configureEach {
     jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
 }
+
+tasks.register('verifyContainerBoundaries') {
+    doLast {
+        fileTree('src/main/java/net/hasor/rsf/container').matching { include '**/*.java' }.each { source ->
+            def text = source.getText('UTF-8')
+            if (text =~ /net\.hasor\.rsf\.(bootstrap|rpc|connector|protocol|utils)\./ ||
+                    text =~ /\bRsfContext\b/) {
+                throw new GradleException("Runtime assembly coupling in ${source}")
+            }
+        }
+    }
+}
+tasks.named('check') { dependsOn 'verifyContainerBoundaries' }

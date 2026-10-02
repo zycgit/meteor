@@ -6,49 +6,40 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.container;
-
-
-import net.hasor.cobble.bus.BusContext;
-import net.hasor.rsf.*;
-import net.hasor.rsf.address.AddressPool;
-import net.hasor.rsf.address.RouteTypeEnum;
-import net.hasor.rsf.domain.ProtocolStatus;
-import net.hasor.rsf.domain.RsfEvent;
-import net.hasor.rsf.domain.RsfException;
-import net.hasor.rsf.domain.RsfServiceType;
-import net.hasor.cobble.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
+import net.hasor.cobble.StringUtils;
+import net.hasor.rsf.*;
+import net.hasor.rsf.address.AddressPool;
+import net.hasor.rsf.address.RouteTypeEnum;
+import net.hasor.rsf.domain.ProtocolStatus;
+import net.hasor.rsf.domain.RsfException;
+import net.hasor.rsf.domain.RsfServiceType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @version : 2015年12月6日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class RsfBeanContainer {
-    protected            Logger                                               logger       = LoggerFactory.getLogger(getClass());
-    private final static Supplier[]                                           EMPTY_FILTER = new Supplier[0];
-    private final        ConcurrentMap<String, ServiceDefine<?>>              serviceMap   = new ConcurrentHashMap<>();
-    private final        ConcurrentMap<String, ConcurrentMap<String, String>> aliasNameMap = new ConcurrentHashMap<>();
-    private final        List<FilterDefine>                                   filterList   = new ArrayList<>();
-    private final        Object                                               filterLock   = new Object();
-    private final        ConcurrentMap<String, Supplier<RsfFilter>[]>         filterCache  = new ConcurrentHashMap<>();
-    private final        AddressPool                                          addressPool;
+public class RsfContainer {
+    protected            Logger                                     logger       = LoggerFactory.getLogger(this.getClass());
+    private final static Supplier[]                                 EMPTY_FILTER = new Supplier[0];
+    private final        Map<String, ServiceDefine<?>>              serviceMap   = new ConcurrentHashMap<>();
+    private final        Map<String, ConcurrentMap<String, String>> aliasNameMap = new ConcurrentHashMap<>();
+    private final        List<FilterDefine>                         filterList   = new ArrayList<>();
+    private final        Object                                     filterLock   = new Object();
+    private final        Map<String, Supplier<RsfFilter>[]>         filterCache  = new ConcurrentHashMap<>();
+    private final        AddressPool                                addressPool;
+    private final        RsfSettings                                settings;
 
-
-    private final RsfEnvironment environment;
-
-    public RsfBeanContainer(AddressPool addressPool, RsfEnvironment environment) {
-        this.environment = environment;
+    public RsfContainer(AddressPool addressPool, RsfSettings settings) {
+        this.settings = settings;
         this.addressPool = addressPool;
     }
-
-
 
     /**
      * 计算指定服务上配置的过滤器。{@link RsfFilter}按照配置方式分为共有和私有。
@@ -57,44 +48,31 @@ public class RsfBeanContainer {
      * @param serviceID 服务ID
      */
     public Supplier<RsfFilter>[] getFilterProviders(String serviceID) {
-        ServiceDefine<?> info = this.serviceMap.get(serviceID);
-        if (info == null) {
-            return EMPTY_FILTER;
-        }
-        Supplier[] result = this.filterCache.get(serviceID);
-        if (result == null) {
-            List<String> cacheIds = new LinkedList<>();
-            Map<String, FilterDefine> cacheFilters = new HashMap<>();
-            //2.计算最终结果。
-            List<FilterDefine> publicList = this.filterList;
-            if (!publicList.isEmpty()) {
-                for (FilterDefine filter : publicList) {
-                    String filterID = filter.filterID();
-                    cacheFilters.put(filterID, filter);
-                    cacheIds.add(filterID);
+        synchronized (this.filterLock) {
+            ServiceDefine<?> info = this.serviceMap.get(serviceID);
+            if (info == null) {
+                return EMPTY_FILTER;
+            }
+
+            Supplier<RsfFilter>[] result = this.filterCache.get(serviceID);
+            if (result == null) {
+                Map<String, FilterDefine> filters = new LinkedHashMap<>();
+                for (FilterDefine filter : this.filterList) {
+                    filters.put(filter.filterID(), filter);
                 }
-            }
-            List<FilterDefine> snapshotsList = info.getFilterSnapshots();
-            if (snapshotsList != null && !snapshotsList.isEmpty()) {
-                for (FilterDefine filter : snapshotsList) {
-                    String filterID = filter.filterID();
-                    cacheFilters.put(filterID, filter);//保存或覆盖已有。
-                    if (cacheIds.contains(filterID)) {
-                        cacheIds.remove(filterID);//如果全局Filter已经定义了这个ID，那么从已有顺序中删除，在尾部追加私有Filter。
-                    }
-                    cacheIds.add(filterID);
+
+                for (FilterDefine filter : info.getFilterSnapshots()) {
+                    // 私有过滤器覆盖同名全局过滤器，并按注册顺序排在全局过滤器之后。
+                    filters.remove(filter.filterID());
+                    filters.put(filter.filterID(), filter);
                 }
+
+                result = filters.values().toArray(new Supplier[0]);
+                this.filterCache.put(serviceID, result);
             }
-            //3.产出最终结果(过滤器链前端是public，后段是private)。
-            List<Supplier<RsfFilter>> filterArrays = new ArrayList<>(cacheIds.size());
-            for (String filterID : cacheIds) {
-                FilterDefine define = cacheFilters.get(filterID);
-                filterArrays.add(define);
-            }
-            result = filterArrays.toArray(new Supplier[0]);
-            this.filterCache.put(serviceID, result);
+
+            return result.clone();
         }
-        return result;
     }
 
     /**
@@ -107,10 +85,12 @@ public class RsfBeanContainer {
         if (info == null) {
             return null;
         }
+
         Supplier<?> target = info.getCustomerProvider();
         if (target != null) {
             return (Supplier<T>) target;
         }
+
         return null;
     }
 
@@ -123,6 +103,7 @@ public class RsfBeanContainer {
         if (info == null) {
             return null;
         }
+
         return info.getDomain();
     }
 
@@ -132,14 +113,16 @@ public class RsfBeanContainer {
      * @param aliasName 别名。
      */
     public RsfBindInfo<?> getRsfBindInfo(String aliasType, String aliasName) {
-        ConcurrentMap<String, String> aliasNameMaps = this.aliasNameMap.get(aliasType);
+        Map<String, String> aliasNameMaps = this.aliasNameMap.get(aliasType);
         if (aliasNameMaps == null) {
             return null;
         }
+
         String serviceID = aliasNameMaps.get(aliasName);
         if (serviceID == null) {
             return null;
         }
+
         return this.serviceMap.get(serviceID);
     }
 
@@ -149,10 +132,10 @@ public class RsfBeanContainer {
      * @param serviceType 服务类型。
      */
     public <T> RsfBindInfo<T> getRsfBindInfo(Class<T> serviceType) {
-        RsfSettings rsfSettings = this.environment.getSettings();
-        String serviceGroup = rsfSettings.getDefaultGroup();
+        String serviceGroup = this.settings.getDefaultGroup();
         String serviceName = serviceType.getName();
-        String serviceVersion = rsfSettings.getDefaultVersion();
+        String serviceVersion = this.settings.getDefaultVersion();
+
         //覆盖
         RsfService serviceInfo = serviceType.getAnnotation(RsfService.class);
         if (serviceInfo != null) {
@@ -166,7 +149,8 @@ public class RsfBeanContainer {
                 serviceVersion = serviceInfo.version();
             }
         }
-        return (RsfBindInfo<T>) getRsfBindInfo(serviceGroup, serviceName, serviceVersion);
+
+        return (RsfBindInfo<T>) this.getRsfBindInfo(serviceGroup, serviceName, serviceVersion);
     }
 
     /**
@@ -190,44 +174,36 @@ public class RsfBeanContainer {
         ConcurrentMap<String, String> aliasNameMaps = this.aliasNameMap.get(category);
         if (aliasNameMaps == null) {
             return Collections.EMPTY_LIST;
+        } else {
+            return new ArrayList<>(aliasNameMaps.keySet());
         }
-        return new ArrayList<>(aliasNameMaps.keySet());
     }
 
-    /**获取环境对象。*/
-    public RsfEnvironment getEnvironment() {
-        return this.environment;
+    /**获取配置对象。*/
+    public RsfSettings getSettings() {
+        return this.settings;
     }
 
     /* ----------------------------------------------------------------------------------------- */
 
     /**创建{@link RsfPublisher}。*/
-    public RsfPublisher createPublisher(final RsfBeanContainer container, final RsfContext rsfContext) {
-        return new ContextRsfBindBuilder() {
-            @Override
-            protected RsfBeanContainer getContainer() {
-                return container;
-            }
-
-            @Override
-            protected RsfContext getRsfContext() {
-                return rsfContext;
-            }
-        };
+    public RsfPublisher createPublisher() {
+        return new RsfBindBuilder(this);
     }
 
     /**
      * 添加一个全局服务过滤器。
      * @param define 过滤器对象。
      */
-    public void publishFilter(FilterDefine define) {
+    protected final void publishFilter(FilterDefine define) {
         String filterID = Objects.requireNonNull(define.filterID());
         synchronized (this.filterLock) {
             for (FilterDefine filter : this.filterList) {
                 if (filterID.equals(filter.filterID())) {
-                    throw new IllegalStateException("repeate filterID :" + filterID);
+                    throw new IllegalStateException("duplicate filterID :" + filterID);
                 }
             }
+
             this.filterList.add(define);
             this.filterCache.clear();
         }
@@ -237,7 +213,7 @@ public class RsfBeanContainer {
      * 发布服务
      * @param serviceDefine 服务定义。
      */
-    public synchronized <T> boolean publishService(ServiceDefine<T> serviceDefine) {
+    protected final synchronized <T> void publishService(ServiceDefine<T> serviceDefine) {
         String serviceID = serviceDefine.getDomain().getBindID();
         if (this.serviceMap.containsKey(serviceID)) {
             String serviceType = this.serviceMap.get(serviceID).getDomain().getServiceType().name();
@@ -245,28 +221,14 @@ public class RsfBeanContainer {
             this.logger.error(logMessage);
             throw new IllegalStateException(logMessage);
         }
-        this.logger.info("service to public, id= {}", serviceID);
-        ServiceDefine<?> info = this.serviceMap.putIfAbsent(serviceID, serviceDefine);
-        //
-        BusContext eventContext = this.environment.getEventContext();
-        if (RsfServiceType.Provider == serviceDefine.getServiceType()) {
-            //服务提供者
-            if (serviceDefine.getCustomerProvider() == null) {
-                throw new RsfException(ProtocolStatus.Forbidden, "Provider Not set the implementation class.");
-            }
-            try {
-                eventContext.fireEvent(RsfEvent.Rsf_ProviderService, serviceDefine);
-            } catch (Throwable e) {
-                this.logger.error(e.getMessage(), e);
-            }
-        } else {
-            //服务消费者
-            try {
-                eventContext.fireEvent(RsfEvent.Rsf_ConsumerService, serviceDefine);
-            } catch (Throwable e) {
-                this.logger.error(e.getMessage(), e);
-            }
+
+        if (RsfServiceType.Provider == serviceDefine.getServiceType() && serviceDefine.getCustomerProvider() == null) {
+            throw new RsfException(ProtocolStatus.Forbidden, "Provider Not set the implementation class.");
         }
+
+        this.logger.info("service to public, id= {}", serviceID);
+        this.serviceMap.put(serviceID, serviceDefine);
+
         // .收录别名
         Set<String> aliasTypes = serviceDefine.getAliasTypes();
         for (String aliasType : aliasTypes) {
@@ -281,14 +243,16 @@ public class RsfBeanContainer {
             }
             aliasMap.putIfAbsent(aliasName, serviceID);
         }
-        //
+
         // .追加地址
         this.addressPool.appendStaticAddress(serviceID, serviceDefine.getAddressSet());
+
         // .更新流控
         String flowControl = serviceDefine.getFlowControl();
         if (StringUtils.isNotBlank(flowControl)) {
             this.addressPool.updateFlowControl(serviceID, flowControl);
         }
+
         // .更新路由
         Map<RouteTypeEnum, String> scriptMap = serviceDefine.getRouteScript();
         if (scriptMap != null && !scriptMap.isEmpty()) {
@@ -296,8 +260,6 @@ public class RsfBeanContainer {
                 this.addressPool.updateRoute(serviceID, routeEnt.getKey(), routeEnt.getValue());
             }
         }
-        //
-        return true;
     }
 
     /**
@@ -306,19 +268,12 @@ public class RsfBeanContainer {
      */
     public synchronized boolean recoverService(String serviceID) {
         if (this.serviceMap.containsKey(serviceID)) {
-            //
-            // .发布删除消息( 1.Center解除注册、2.地址本回收)
-            BusContext eventContext = this.getEnvironment().getEventContext();
-            RsfBindInfo<?> rsfBindInfo = this.serviceMap.get(serviceID);
-            try {
-                eventContext.fireEvent(RsfEvent.Rsf_DeleteService, rsfBindInfo);
-            } catch (Throwable e) {
-                this.logger.error(e.getMessage(), e);
-            }
-            //
             // .回收服务
-            this.serviceMap.remove(serviceID);
-            //
+            synchronized (this.filterLock) {
+                this.serviceMap.remove(serviceID);
+                this.filterCache.remove(serviceID);
+            }
+
             for (Map.Entry<String, ConcurrentMap<String, String>> aliasEntry : this.aliasNameMap.entrySet()) {
                 ConcurrentMap<String, String> aliasSet = aliasEntry.getValue();
                 ArrayList<String> toRemove = new ArrayList<>();
@@ -327,19 +282,15 @@ public class RsfBeanContainer {
                         toRemove.add(entry.getKey());
                     }
                 }
-                //
+
                 for (String key : toRemove) {
                     aliasSet.remove(key);
                 }
             }
-            //
+
+            this.addressPool.removeBucket(serviceID);
             return true;
         }
         return false;
     }
-    //
-    /* ----------------------------------------------------------------------------------------- */
-    //
-
-
 }

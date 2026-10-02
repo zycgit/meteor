@@ -6,46 +6,55 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.container;
-import net.hasor.rsf.address.InterAddress;
-
-import net.hasor.rsf.*;
-import net.hasor.rsf.address.RouteTypeEnum;
-import net.hasor.rsf.domain.RsfServiceType;
-import net.hasor.rsf.domain.ServiceDomain;
-import net.hasor.cobble.StringUtils;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.function.Supplier;
+import net.hasor.cobble.StringUtils;
+import net.hasor.rsf.*;
+import net.hasor.rsf.address.InterAddress;
+import net.hasor.rsf.address.RouteTypeEnum;
+import net.hasor.rsf.domain.RsfServiceType;
+import net.hasor.rsf.domain.ServiceDomain;
 
 /**
  * 服务注册器
  * @version : 2014年11月12日
  * @author 赵永春 (zyc@hasor.net)
  */
-abstract class AbstractRsfBindBuilder implements RsfPublisher {
+final class RsfBindBuilder implements RsfPublisher {
+    private final RsfContainer container;
 
+    public RsfBindBuilder(RsfContainer container) {
+        this.container = container;
+    }
 
-    protected abstract <T> Supplier<? extends T> toProvider(Class<T> bindInfo);
+    @Override
+    public RsfSettings getSettings() {
+        return this.container.getSettings();
+    }
 
-    protected abstract <T> RsfBindInfo<T> addService(ServiceDefine<T> serviceDefine);
-
-    protected abstract void addShareFilter(FilterDefine filterDefine);
+    private <T> Supplier<T> toProvider(Class<T> type) {
+        return () -> {
+            try {
+                return type.getConstructor().newInstance();
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalArgumentException("Cannot construct " + type.getName() + "; register an instance or Supplier instead", e);
+            }
+        };
+    }
 
     public RsfPublisher bindFilter(String filterID, RsfFilter instance) {
         return this.bindFilter(filterID, () -> instance);
     }
 
-
-
     public RsfPublisher bindFilter(String filterID, Class<? extends RsfFilter> rsfFilterType) {
-        return this.bindFilter(filterID, toProvider(rsfFilterType));
+        return this.bindFilter(filterID, this.toProvider(rsfFilterType));
     }
 
     public RsfPublisher bindFilter(String filterID, Supplier<? extends RsfFilter> provider) {
-        this.addShareFilter(new FilterDefine(filterID, provider));
+        this.container.publishFilter(new FilterDefine(filterID, provider));
         return this;
     }
 
@@ -65,15 +74,12 @@ abstract class AbstractRsfBindBuilder implements RsfPublisher {
         return this.rsfService(type).toProvider(provider);
     }
 
-
-
     private class LinkedBuilderImpl<T> implements LinkedBuilder<T> {
         private final ServiceDefine<T> serviceDefine;
 
-        protected LinkedBuilderImpl(Class<T> serviceType) {
+        private LinkedBuilderImpl(Class<T> serviceType) {
             this.serviceDefine = new ServiceDefine<T>(serviceType);
-            RsfSettings settings = getEnvironment().getSettings();
-            //
+            RsfSettings settings = RsfBindBuilder.this.getSettings();
             RsfService serviceInfo = new AnnoRsfServiceValue(settings, serviceType);
             ServiceDomain<T> domain = this.serviceDefine.getDomain();
             domain.setServiceType(RsfServiceType.Consumer);
@@ -104,7 +110,6 @@ abstract class AbstractRsfBindBuilder implements RsfPublisher {
             return this;
         }
 
-        //
         @Override
         public ConfigurationBuilder<T> aliasName(String aliasType, String aliasName) {
             aliasType = Objects.requireNonNull(aliasType, "aliasType is null.");
@@ -168,19 +173,15 @@ abstract class AbstractRsfBindBuilder implements RsfPublisher {
 
         @Override
         public FilterBindBuilder<T> bindFilter(String filterID, Class<? extends RsfFilter> rsfFilterType) {
-            Supplier<? extends RsfFilter> provider = AbstractRsfBindBuilder.this.toProvider(rsfFilterType);
+            Supplier<? extends RsfFilter> provider = RsfBindBuilder.this.toProvider(rsfFilterType);
             this.serviceDefine.addRsfFilter(new FilterDefine(filterID, provider));
             return this;
         }
 
-
-
         @Override
         public ConfigurationBuilder<T> to(final Class<? extends T> implementation) {
-            return this.toProvider(AbstractRsfBindBuilder.this.toProvider(implementation));
+            return this.toProvider(RsfBindBuilder.this.toProvider(implementation));
         }
-
-
 
         @Override
         public ConfigurationBuilder<T> toInstance(T instance) {
@@ -196,7 +197,7 @@ abstract class AbstractRsfBindBuilder implements RsfPublisher {
 
         @Override
         public RegisterBuilder<T> bindAddress(String rsfHost, int port) throws UnknownHostException {
-            String unitName = getEnvironment().getSettings().getUnitName();
+            String unitName = RsfBindBuilder.this.getSettings().getUnitName();
             return this.bindAddress(new InterAddress(rsfHost, port, unitName));
         }
 
@@ -214,17 +215,16 @@ abstract class AbstractRsfBindBuilder implements RsfPublisher {
         }
 
         @Override
-        public RegisterBuilder<T> bindAddress(URI rsfURI, URI... array) throws UnknownHostException {
-            if (rsfURI != null && InterAddress.checkFormat(rsfURI)) {
+        public RegisterBuilder<T> bindAddress(URI rsfURI, URI... array) {
+            if (InterAddress.checkFormat(rsfURI)) {
                 this.bindAddress(new InterAddress(rsfURI));
             }
-            if (array.length > 0) {
-                for (URI bindItem : array) {
-                    if (rsfURI != null && InterAddress.checkFormat(bindItem)) {
-                        this.bindAddress(new InterAddress(bindItem));
-                    }
+            for (URI bindItem : array) {
+                if (!InterAddress.checkFormat(bindItem)) {
                     throw new IllegalStateException(bindItem + " check fail.");
                 }
+
+                this.bindAddress(new InterAddress(bindItem));
             }
             return this;
         }
@@ -233,13 +233,12 @@ abstract class AbstractRsfBindBuilder implements RsfPublisher {
             if (rsfAddress != null) {
                 this.serviceDefine.addAddress(rsfAddress);
             }
-            if (array.length > 0) {
-                for (InterAddress bindItem : array) {
-                    if (bindItem == null) {
-                        continue;
-                    }
-                    this.serviceDefine.addAddress(bindItem);
+
+            for (InterAddress bindItem : array) {
+                if (bindItem == null) {
+                    continue;
                 }
+                this.serviceDefine.addAddress(bindItem);
             }
             return this;
         }
@@ -263,29 +262,30 @@ abstract class AbstractRsfBindBuilder implements RsfPublisher {
         }
 
         public RsfBindInfo<T> register() {
-            return addService(this.serviceDefine);
+            RsfBindBuilder.this.container.publishService(this.serviceDefine);
+            return this.serviceDefine;
         }
 
         @Override
-        public RegisterBuilder updateFlowControl(String flowControl) {
+        public RegisterBuilder<T> updateFlowControl(String flowControl) {
             this.serviceDefine.setFlowControl(flowControl);
             return this;
         }
 
         @Override
-        public RegisterBuilder updateArgsRoute(String scriptBody) {
+        public RegisterBuilder<T> updateArgsRoute(String scriptBody) {
             this.serviceDefine.setRouteScript(RouteTypeEnum.ArgsLevel, scriptBody);
             return this;
         }
 
         @Override
-        public RegisterBuilder updateMethodRoute(String scriptBody) {
+        public RegisterBuilder<T> updateMethodRoute(String scriptBody) {
             this.serviceDefine.setRouteScript(RouteTypeEnum.MethodLevel, scriptBody);
             return this;
         }
 
         @Override
-        public RegisterBuilder updateServiceRoute(String scriptBody) {
+        public RegisterBuilder<T> updateServiceRoute(String scriptBody) {
             this.serviceDefine.setRouteScript(RouteTypeEnum.ServiceLevel, scriptBody);
             return this;
         }

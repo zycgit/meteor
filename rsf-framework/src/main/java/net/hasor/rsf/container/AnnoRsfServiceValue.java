@@ -6,11 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.container;
+import java.lang.annotation.Annotation;
+import net.hasor.cobble.StringUtils;
 import net.hasor.rsf.RsfService;
 import net.hasor.rsf.RsfSettings;
-import net.hasor.cobble.StringUtils;
-
-import java.lang.annotation.Annotation;
 
 /**
  * @version : 2014年11月10日
@@ -23,7 +22,6 @@ class AnnoRsfServiceValue implements RsfService {
     private int    clientTimeout  = 0;
     private String serializeType  = null;
 
-    //
     public AnnoRsfServiceValue(RsfSettings rsfSettings, Class<?> serviceType) {
         //1.真实值
         RsfService serviceInfo = serviceType.getAnnotation(RsfService.class);
@@ -44,6 +42,7 @@ class AnnoRsfServiceValue implements RsfService {
                 this.clientTimeout = serviceInfo.clientTimeout();
             }
         }
+
         //2.默认值
         if (StringUtils.isBlank(this.serviceGroup)) {
             this.serviceGroup = rsfSettings.getDefaultGroup();
@@ -62,7 +61,6 @@ class AnnoRsfServiceValue implements RsfService {
         }
     }
 
-    //
     @Override
     public Class<? extends Annotation> annotationType() {
         return AnnoRsfServiceValue.class;

@@ -7,22 +7,21 @@
  */
 package net.hasor.rsf.container;
 
-import net.hasor.rsf.address.InterAddress;
+import java.util.*;
+import java.util.function.Supplier;
+import net.hasor.cobble.StringUtils;
 import net.hasor.rsf.RsfBindInfo;
+import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.address.RouteTypeEnum;
 import net.hasor.rsf.domain.ServiceDomain;
 import net.hasor.rsf.domain.warp.RsfBindInfoWrap;
-import net.hasor.cobble.StringUtils;
-
-import java.util.*;
-import java.util.function.Supplier;
 
 /**
  * 服务对象，封装了服务元信息、RsfFilter、服务提供者（如果有）。
  * @version : 2014年11月12日
  * @author 赵永春 (zyc@hasor.net)
  */
-class ServiceDefine<T> extends RsfBindInfoWrap<T> implements RsfBindInfo<T>, RsfDomainProvider<T> {
+class ServiceDefine<T> extends RsfBindInfoWrap<T> implements RsfBindInfo<T> {
     private final List<FilterDefine>         filterList;
     private       Supplier<? extends T>      customerProvider;
     private       String                     oriFlowControl;

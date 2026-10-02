@@ -8,15 +8,12 @@
 package net.hasor.rsf;
 import java.nio.file.Path;
 import io.netty.util.TimerTask;
-import net.hasor.cobble.bus.BusContext;
 import net.hasor.rsf.serialize.SerializeCoder;
 
 public interface RsfEnvironment extends AutoCloseable {
     RsfSettings getSettings();
 
     ClassLoader getClassLoader();
-
-    BusContext getEventContext();
 
     Path getDataHome();
 

@@ -18,7 +18,7 @@ import net.hasor.rsf.address.InterAddress;
  * @author 赵永春 (zyc@hasor.net)
  */
 public interface RsfPublisher {
-    RsfEnvironment getEnvironment();
+    RsfSettings getSettings();
 
     /**
      * 添加全局的RsfFilter。
@@ -78,6 +78,7 @@ public interface RsfPublisher {
      * @see RsfPublisher.ConfigurationBuilder#rsfService(Class)
      */
     <T> ConfigurationBuilder<T> rsfService(Class<T> type, Supplier<T> provider);
+
     //
     //
 
@@ -191,16 +192,16 @@ public interface RsfPublisher {
     /**发布地址*/
     interface RegisterBuilder<T> {
         /**更新服务地址本计算规则（服务级）*/
-        RegisterBuilder updateServiceRoute(String scriptBody);
+        RegisterBuilder<T> updateServiceRoute(String scriptBody);
 
         /**更新服务地址本计算规则（方法级）*/
-        RegisterBuilder updateMethodRoute(String scriptBody);
+        RegisterBuilder<T> updateMethodRoute(String scriptBody);
 
         /**更新服务地址本计算规则（参数级）*/
-        RegisterBuilder updateArgsRoute(String scriptBody);
+        RegisterBuilder<T> updateArgsRoute(String scriptBody);
 
         /**更新服务路由策略*/
-        RegisterBuilder updateFlowControl(String flowControl);
+        RegisterBuilder<T> updateFlowControl(String flowControl);
 
         /**
          * @param rsfHost 远程服务地址
