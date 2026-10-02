@@ -500,10 +500,10 @@ public class ConnectorResourcesTest {
             MemoryEndpoint second = registerEndpoint(manager, secondConfig, provider);
             assertSame(firstConfig, first.config());
             assertSame(secondConfig, second.config());
-            assertSame(manager, first.manager());
-            assertSame(manager, second.manager());
-            assertSame(manager.context(), first.manager().context());
-            assertSame(first.manager().context(), second.manager().context());
+            assertSame(manager, first.manager);
+            assertSame(manager, second.manager);
+            assertSame(manager.context(), first.manager.context());
+            assertSame(first.manager.context(), second.manager.context());
             first.close();
         }
     }
@@ -686,14 +686,16 @@ public class ConnectorResourcesTest {
             this.initialized++;
         }
 
-        protected Future<RsfListen> listen(String listenType, InterAddress address, ReceivedListener listener) {
+        protected Future<RsfListen> listen(InterAddress address, ReceivedListener listener) {
+            String listenType = this.config.listenType();
             MemoryListen listening = new MemoryListen(this, listenType, address, listener);
             this.provider.listeners.put(Tuple.of(listenType, address.toString()), listening);
             this.bound++;
             return new BasicFuture<>(listening);
         }
 
-        protected Future<RsfChannel> openSession(String listenType, InterAddress target, ReceivedListener listener) {
+        protected Future<RsfChannel> openSession(InterAddress target, ReceivedListener listener) {
+            String listenType = this.config.listenType();
             MemoryListen server = this.provider.listeners.get(Tuple.of(listenType, target.toString()));
             if (server == null) {
                 BasicFuture<RsfChannel> result = new BasicFuture<>();

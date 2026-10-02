@@ -40,11 +40,6 @@ public abstract class AbstractConnector implements RsfConnector {
         this.manager = Objects.requireNonNull(manager, "manager");
     }
 
-    @Override
-    public final ConnectorManager manager() {
-        return this.manager;
-    }
-
     public final ConnectorConfig config() {
         return this.config;
     }
@@ -215,7 +210,6 @@ public abstract class AbstractConnector implements RsfConnector {
 
     public final Future<RsfListen> bind(InterAddress address) {
         Objects.requireNonNull(address, "address");
-        String type = this.config.listenType();
 
         BasicFuture<RsfListen> result;
         synchronized (this) {
@@ -252,7 +246,7 @@ public abstract class AbstractConnector implements RsfConnector {
         }
 
         try {
-            this.listen(type, address, this.manager).onCompleted(done -> {
+            this.listen(address, this.manager).onCompleted(done -> {
                 this.finishBind(result, done.getResult());
             }).onFailed(done -> {
                 result.failed(done.getCause());
@@ -306,13 +300,12 @@ public abstract class AbstractConnector implements RsfConnector {
     }
 
     /** Start one asynchronous bind. Report success only when usable, and clean partial resources on failure. */
-    protected abstract Future<RsfListen> listen(String listenType, InterAddress address, ReceivedListener listener) throws Exception;
+    protected abstract Future<RsfListen> listen(InterAddress address, ReceivedListener listener) throws Exception;
 
     //
 
     public final Future<RsfChannel> connect(InterAddress target) {
         Objects.requireNonNull(target, "target");
-        String type = this.config.listenType();
 
         if (!this.acceptsWrites()) {
             return this.failed(new IllegalStateException("RsfConnector is not ready for connections"));
@@ -323,14 +316,14 @@ public abstract class AbstractConnector implements RsfConnector {
         }
 
         try {
-            return this.openSession(type, target, this.manager);
+            return this.openSession(target, this.manager);
         } catch (Exception | Error failure) {
             return this.failed(failure);
         }
     }
 
     /** Complete only when the logical session is usable; this need not mean a physical connection exists. */
-    protected abstract Future<RsfChannel> openSession(String listenType, InterAddress target, ReceivedListener listener);
+    protected abstract Future<RsfChannel> openSession(InterAddress target, ReceivedListener listener);
 
     //
 

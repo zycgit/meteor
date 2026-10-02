@@ -897,7 +897,8 @@ public class RsfCallerTest {
             return this.manager.context().bindAddress(this.config().address().getSchema());
         }
 
-        protected Future<RsfListen> listen(String type, InterAddress address, ReceivedListener listener) {
+        protected Future<RsfListen> listen(InterAddress address, ReceivedListener listener) {
+            String type = this.config.listenType();
             LISTENERS.put(address, this);
             return new BasicFuture<>(new AbstractRsfListen(type, address, listener) {
                 private boolean active = true;
@@ -914,15 +915,15 @@ public class RsfCallerTest {
             });
         }
 
-        protected Future<RsfChannel> openSession(String type, InterAddress target, ReceivedListener listener) {
+        protected Future<RsfChannel> openSession(InterAddress target, ReceivedListener listener) {
             this.connecting = new BasicFuture<>();
             MemoryConnector server = LISTENERS.get(target);
             if (server == null) {
                 this.connecting.failed(new IOException("No listener"));
                 return this.connecting;
             }
-            this.outgoing = new MemoryChannel(this, target, listener);
-            MemoryChannel incoming = new MemoryChannel(server, this.localAddress(), server.manager);
+            this.outgoing = new MemoryChannel(this, this.manager.nextConnectionId(), target, listener);
+            MemoryChannel incoming = new MemoryChannel(server, server.manager.nextConnectionId(), this.localAddress(), server.manager);
             this.outgoing.peer = incoming;
             incoming.peer = this.outgoing;
             this.fireChannelConnected(this.outgoing);
@@ -949,8 +950,8 @@ public class RsfCallerTest {
         private          BasicFuture<RsfChannel>        drainGate;
         private          BasicFuture<RsfChannel>        writing;
 
-        private MemoryChannel(MemoryConnector owner, InterAddress remote, ReceivedListener listener) {
-            super(owner, owner.manager().nextConnectionId(), listener);
+        private MemoryChannel(MemoryConnector owner, long id, InterAddress remote, ReceivedListener listener) {
+            super(owner, id, listener);
             this.owner = owner;
             this.remote = remote;
         }

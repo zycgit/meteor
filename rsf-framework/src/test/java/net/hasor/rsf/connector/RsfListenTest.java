@@ -571,7 +571,8 @@ public class RsfListenTest {
         protected void initialize() {
         }
 
-        protected Future<RsfListen> listen(String listenType, InterAddress address, ReceivedListener listener) throws IOException {
+        protected Future<RsfListen> listen(InterAddress address, ReceivedListener listener) throws IOException {
+            String listenType = this.config.listenType();
             assertFalse(Thread.holdsLock(this));
             if (this.setupFailure != null) {
                 throw this.setupFailure;
@@ -590,7 +591,7 @@ public class RsfListenTest {
             return listen;
         }
 
-        protected Future<RsfChannel> openSession(String listenType, InterAddress target, ReceivedListener listener) {
+        protected Future<RsfChannel> openSession(InterAddress target, ReceivedListener listener) {
             BasicFuture<RsfChannel> result = new BasicFuture<>();
             result.failed(new UnsupportedOperationException());
             return result;

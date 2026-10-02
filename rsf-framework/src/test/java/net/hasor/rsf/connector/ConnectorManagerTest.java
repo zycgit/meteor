@@ -300,10 +300,6 @@ public class ConnectorManagerTest {
             this.channelConnectedListener = listener;
         }
 
-        public ConnectorManager manager() {
-            return this.manager;
-        }
-
         public List<RsfListen> getListenList() {
             return Collections.emptyList();
         }

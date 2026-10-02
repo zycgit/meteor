@@ -15,9 +15,6 @@ import net.hasor.rsf.address.InterAddress;
 public interface RsfConnector extends AutoCloseable {
     ConnectorConfig config();
 
-    /** Manager owning this connector. */
-    ConnectorManager manager();
-
     /** Initialize shared resources once, without listening or connecting to a peer. */
     void init() throws Exception;
 

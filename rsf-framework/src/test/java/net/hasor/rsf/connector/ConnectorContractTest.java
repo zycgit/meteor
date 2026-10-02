@@ -225,10 +225,6 @@ public class ConnectorContractTest {
                     return config;
                 }
 
-                public ConnectorManager manager() {
-                    return manager;
-                }
-
                 public void init() {
                 }
 
@@ -341,10 +337,6 @@ public class ConnectorContractTest {
 
             public void onChannelClosed(Consumer<RsfChannel> listener) {
                 // This listener-only fixture does not create channels.
-            }
-
-            public ConnectorManager manager() {
-                return manager;
             }
 
             private final List<RsfListen> listens = new ArrayList<>();

@@ -6,15 +6,13 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.connector;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import net.hasor.rsf.address.InterAddress;
 
-/** Immutable configuration for a named connector and one bind or connect operation. */
+/** Immutable configuration for a named connector and its local listening address. */
 public final class ConnectorConfig {
     private final String              name;
+    private final String              listenType;
     private final InterAddress        address;
     private final Map<String, String> options;
 
@@ -22,13 +20,18 @@ public final class ConnectorConfig {
         this.name = Objects.requireNonNull(name, "name");
         this.address = Objects.requireNonNull(address, "address");
         this.options = Collections.unmodifiableMap(new HashMap<>(options));
+        String type = this.options.get("listenType");
+        if (type == null || type.trim().isEmpty()) {
+            throw new IllegalArgumentException("Missing listenType for endpoint: " + name);
+        }
+        this.listenType = type.toLowerCase(Locale.ROOT);
     }
 
     public String name() {
         return this.name;
     }
 
-    /** Local listening address for bind; remote destination for connect. */
+    /** Local listening address. Remote destinations are supplied to connect separately. */
     public InterAddress address() {
         return this.address;
     }
@@ -40,11 +43,7 @@ public final class ConnectorConfig {
 
     /** Transport type used to select a factory and start the requested operation. */
     public String listenType() {
-        String type = this.options.get("listenType");
-        if (type == null || type.trim().isEmpty()) {
-            throw new IllegalStateException("Missing listenType for endpoint: " + this.name);
-        }
-        return type;
+        return this.listenType;
     }
 
     public String option(String key, String fallback) {
@@ -52,7 +51,7 @@ public final class ConnectorConfig {
     }
 
     public int integer(String key, int fallback) {
-        int value = Integer.parseInt(option(key, Integer.toString(fallback)));
+        int value = Integer.parseInt(this.option(key, Integer.toString(fallback)));
         if (value <= 0) {
             throw new IllegalArgumentException(key + " must be positive");
         }
@@ -61,6 +60,6 @@ public final class ConnectorConfig {
     }
 
     public int connectTimeout() {
-        return integer("connectTimeout", 3000);
+        return this.integer("connectTimeout", 3000);
     }
 }

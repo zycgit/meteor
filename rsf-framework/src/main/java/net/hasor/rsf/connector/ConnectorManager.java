@@ -136,7 +136,7 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
     //
 
     /** Discover factories and read configurations without creating connectors or opening listeners. */
-    public synchronized void init() {
+    public void init() {
         if (this.inited) {
             return;
         }
@@ -151,14 +151,18 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
         }
 
         Map<String, ConnectorConfig> configured = this.readConfigurations();
-        this.timer = new HashedWheelTimer(task -> {
+        HashedWheelTimer initializedTimer = new HashedWheelTimer(task -> {
             Thread thread = new Thread(task, "RSF-Connector-timer");
             thread.setContextClassLoader(this.context.getClassLoader());
             return thread;
         });
-        this.connectorFactories.putAll(discovered);
-        this.connectorConfigs.putAll(configured);
-        this.inited = true;
+
+        synchronized (this) {
+            this.connectorFactories.putAll(discovered);
+            this.connectorConfigs.putAll(configured);
+            this.timer = initializedTimer;
+            this.inited = true;
+        }
     }
 
     /** Close listeners first, drain all registered channels, then release connector resources. */
@@ -373,7 +377,9 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
 
     /** Connection termination, including normal close; independent of per-request onFailure(). */
     private synchronized void onClosed(RsfChannel channel) {
-        this.connections.remove(channel.getChannelId(), channel);
+        if (this.connections.get(channel.getChannelId()) == channel) {
+            this.connections.remove(channel.getChannelId());
+        }
     }
 
     //

@@ -27,14 +27,13 @@ public class ConnectorConnectionsTest {
             assertSame(host.connector, incoming.getConnector());
             assertSame(host.connector, outgoing.getConnector());
             assertNotEquals(incoming.getChannelId(), outgoing.getChannelId());
-            assertSame(incoming, host.manager.findConnection(incoming.getChannelId()));
-            assertSame(outgoing, host.manager.findConnection(outgoing.getChannelId()));
-            assertEquals(2, host.manager.getConnections().size());
             incoming.close();
-            assertNull(host.manager.findConnection(incoming.getChannelId()));
-            assertSame(outgoing, host.manager.findConnection(outgoing.getChannelId()));
-            outgoing.close();
-            assertTrue(host.manager.getConnections().isEmpty());
+            assertFalse(incoming.isActive());
+            assertTrue(outgoing.isActive());
+            host.close();
+            assertFalse(outgoing.isActive());
+            assertEquals(0, incoming.drains);
+            assertEquals(1, ((Channel) outgoing).drains);
         }
     }
 
@@ -44,7 +43,7 @@ public class ConnectorConnectionsTest {
             Channel channel = host.connector.accept();
             Channel stale = new Channel(channel.getChannelId(), host.connector);
             host.connector.fireChannelClosed(stale);
-            assertSame(channel, host.manager.findConnection(channel.getChannelId()));
+            assertTrue(channel.isActive());
 
             ConnectorConfig other = new ConnectorConfig("other", host.config.address(), Collections.singletonMap("listenType", "memory"));
             host.manager.prepare(other, TestConnector::new);
@@ -53,11 +52,30 @@ public class ConnectorConnectionsTest {
             Channel unrelated = new Channel(channel.getChannelId(), otherConnector);
             assertSame(otherConnector, unrelated.getConnector());
             otherConnector.fireChannelClosed(unrelated);
-            assertSame(channel, host.manager.findConnection(channel.getChannelId()));
+            assertTrue(channel.isActive());
 
-            channel.close();
+            host.close();
+            assertEquals(1, channel.drains);
             host.connector.fireChannelClosed(channel);
-            assertTrue(host.manager.getConnections().isEmpty());
+            assertEquals(1, channel.closes);
+        }
+    }
+
+    @Test
+    public void duplicateChannelIdCannotReplaceTheRegisteredConnection() throws Exception {
+        try (Harness host = new Harness()) {
+            Channel original = host.connector.accept();
+            Channel duplicate = new Channel(original.getChannelId(), host.connector);
+            try {
+                host.connector.fireChannelConnected(duplicate);
+                fail("Duplicate IDs must not replace a registered channel");
+            } catch (IllegalStateException expected) {
+                assertTrue(original.isActive());
+            }
+            duplicate.close();
+            host.close();
+            assertEquals(1, original.drains);
+            assertEquals(0, duplicate.drains);
         }
     }
 
@@ -68,8 +86,9 @@ public class ConnectorConnectionsTest {
             Channel channel = new Channel(id, host.connector);
             host.connector.fireChannelConnected(channel);
             assertEquals(id, channel.getChannelId());
-            assertSame(channel, host.manager.findConnection(id));
             assertTrue(host.connector.accept().getChannelId() > id);
+            host.close();
+            assertEquals(1, channel.drains);
         }
     }
 
@@ -80,8 +99,11 @@ public class ConnectorConnectionsTest {
             RsfChannel second = host.manager.connect(host.config.address()).get();
             assertNotSame(first, second);
             assertNotEquals(first.getChannelId(), second.getChannelId());
-            assertEquals(2, host.manager.getConnections().size());
             assertEquals(1, host.created);
+            first.close();
+            assertTrue(second.isActive());
+            host.close();
+            assertFalse(second.isActive());
         }
     }
 
@@ -90,10 +112,9 @@ public class ConnectorConnectionsTest {
         try (Harness host = new Harness()) {
             Channel channel = host.connector.accept();
             host.manager.onFailure(channel, 1, new ThrowPayload(new IOException("request timeout")));
-            assertSame(channel, host.manager.findConnection(channel.getChannelId()));
             assertTrue(channel.isActive());
-            channel.close();
-            assertNull(host.manager.findConnection(channel.getChannelId()));
+            host.close();
+            assertEquals(1, channel.drains);
         }
     }
 
@@ -104,9 +125,12 @@ public class ConnectorConnectionsTest {
             IOException cause = new IOException("connect failed");
             host.connector.failure = cause;
             assertSame(cause, failure(host.manager.connect(host.config.address())));
-            assertEquals(Collections.singletonList(incoming), host.manager.getConnections());
+            assertTrue(incoming.isActive());
             host.connector.failure = null;
-            assertNotNull(host.manager.connect(host.config.address()).get());
+            RsfChannel outgoing = host.manager.connect(host.config.address()).get();
+            host.close();
+            assertEquals(1, incoming.drains);
+            assertFalse(outgoing.isActive());
         }
     }
 
@@ -120,7 +144,8 @@ public class ConnectorConnectionsTest {
         assertEquals(1, incoming.closes);
         assertEquals(1, outgoing.closes);
         assertEquals(1, host.connector.destroyed);
-        assertTrue(host.manager.getConnections().isEmpty());
+        assertEquals(1, incoming.drains);
+        assertEquals(1, outgoing.drains);
         assertTrue(failure(host.manager.connect(host.config.address())) instanceof IllegalStateException);
     }
 
@@ -135,9 +160,11 @@ public class ConnectorConnectionsTest {
             assertTrue(current.getChannelId() > oldChannel.getChannelId());
             Channel late = old.accept();
             assertFalse(late.isActive());
-            assertNull(host.manager.findConnection(late.getChannelId()));
             old.fireChannelClosed(oldChannel);
-            assertEquals(Collections.singletonList(current), host.manager.getConnections());
+            assertTrue(current.isActive());
+            host.close();
+            assertEquals(1, current.drains);
+            assertEquals(0, late.drains);
         }
     }
 
@@ -154,7 +181,9 @@ public class ConnectorConnectionsTest {
             host.connector.close();
             assertFalse(first.isActive());
             assertTrue(second.isActive());
-            assertEquals(Collections.singletonList(second), host.manager.getConnections());
+            host.close();
+            assertEquals(1, first.drains);
+            assertEquals(1, second.drains);
         }
     }
 
@@ -171,8 +200,11 @@ public class ConnectorConnectionsTest {
             Channel late = old.accept();
             assertFalse(late.isActive());
             old.fireChannelClosed(oldChannel);
-            assertSame(current, host.manager.findConnection(current.getChannelId()));
-            assertEquals(Collections.singletonList(current), host.manager.getConnections());
+            assertTrue(current.isActive());
+            host.close();
+            assertFalse(current.isActive());
+            assertEquals(1, ((Channel) current).drains);
+            assertEquals(0, late.drains);
         }
     }
 
@@ -186,7 +218,8 @@ public class ConnectorConnectionsTest {
         assertEquals(1, bad.closes);
         assertEquals(1, good.closes);
         assertEquals(1, host.connector.destroyed);
-        assertTrue(host.manager.getConnections().isEmpty());
+        assertEquals(1, bad.drains);
+        assertEquals(1, good.drains);
         host.close();
     }
 
@@ -235,7 +268,8 @@ public class ConnectorConnectionsTest {
         protected void initialize() {
         }
 
-        protected Future<RsfListen> listen(String type, InterAddress address, ReceivedListener listener) {
+        protected Future<RsfListen> listen(InterAddress address, ReceivedListener listener) {
+            String type = this.config.listenType();
             return new BasicFuture<>(new AbstractRsfListen(type, address, listener) {
                 private boolean active = true;
 
@@ -255,7 +289,7 @@ public class ConnectorConnectionsTest {
             return channel;
         }
 
-        protected Future<RsfChannel> openSession(String type, InterAddress target, ReceivedListener listener) {
+        protected Future<RsfChannel> openSession(InterAddress target, ReceivedListener listener) {
             BasicFuture<RsfChannel> result = new BasicFuture<>();
             if (this.failure != null) {
                 result.failed(this.failure);
@@ -273,6 +307,7 @@ public class ConnectorConnectionsTest {
     private static final class Channel extends AbstractRsfChannel {
         private final TestConnector    owner;
         private       int              closes;
+        private       int              drains;
         private       RuntimeException closeFailure;
 
         private Channel(long id, TestConnector owner) {
@@ -297,6 +332,7 @@ public class ConnectorConnectionsTest {
         }
 
         public Future<RsfChannel> drainAndClose() {
+            this.drains++;
             return this.close();
         }
 

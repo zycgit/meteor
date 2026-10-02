@@ -119,11 +119,11 @@ public class ConnectorSubscriptionsTest {
                 protected void initialize() {
                 }
 
-                protected BasicFuture<RsfListen> listen(String type, InterAddress address, ReceivedListener listener) {
+                protected BasicFuture<RsfListen> listen(InterAddress address, ReceivedListener listener) {
                     throw new UnsupportedOperationException();
                 }
 
-                protected BasicFuture<RsfChannel> openSession(String type, InterAddress address, ReceivedListener listener) {
+                protected BasicFuture<RsfChannel> openSession(InterAddress address, ReceivedListener listener) {
                     throw new UnsupportedOperationException();
                 }
 

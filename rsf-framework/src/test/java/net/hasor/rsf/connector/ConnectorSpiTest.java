@@ -9,6 +9,10 @@ package net.hasor.rsf.connector;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.rsf.RsfContext;
@@ -40,6 +44,68 @@ public class ConnectorSpiTest {
 
     private ConnectorConfig config(String name) {
         return new ConnectorConfig(name, new InterAddress("memory", "localhost", 1, "default"), Collections.singletonMap("listenType", "custom"));
+    }
+
+    @Test(timeout = 10000)
+    public void operationsRejectUninitializedManagerWithoutWaitingForSpiDiscovery() throws Exception {
+        BlockingFactory.entered = new CountDownLatch(1);
+        BlockingFactory.release = new CountDownLatch(1);
+        ConnectorConfig config = this.config("outgoing");
+        ClassLoader loader = new TestConnectorManager.TestLoader(getClass().getClassLoader(), BlockingFactory.class);
+        ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(loader, config));
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        BasicFuture<Void> initialized = new BasicFuture<>();
+        try {
+            workers.execute(() -> {
+                try {
+                    manager.init();
+                    initialized.completed(null);
+                } catch (Throwable failure) {
+                    initialized.failed(failure);
+                }
+            });
+            assertTrue(BlockingFactory.entered.await(2, TimeUnit.SECONDS));
+            BasicFuture<Void> rejected = new BasicFuture<>();
+            workers.execute(() -> {
+                try {
+                    assertFalse(manager.isInitialized());
+                    assertTrue(manager.bind(config).getCause() instanceof IllegalStateException);
+                    assertTrue(manager.connect(config.address()).getCause() instanceof IllegalStateException);
+                    assertTrue(manager.protocols().isEmpty());
+                    rejected.completed(null);
+                } catch (Throwable failure) {
+                    rejected.failed(failure);
+                }
+            });
+            rejected.get(2, TimeUnit.SECONDS);
+            assertFalse(initialized.isDone());
+            BlockingFactory.release.countDown();
+            initialized.get(2, TimeUnit.SECONDS);
+            assertTrue(manager.isInitialized());
+            assertEquals(0, CountingFactory.created);
+            assertTrue(manager.connect(config.address()).getCause() instanceof UnsupportedOperationException);
+            assertEquals(1, CountingFactory.initialized);
+        } finally {
+            BlockingFactory.release.countDown();
+            workers.shutdown();
+            assertTrue(workers.awaitTermination(3, TimeUnit.SECONDS));
+            manager.close();
+        }
+    }
+
+    @Test
+    public void configurationRejectsMissingTransportBeforeConnectorCreation() {
+        for (String type : new String[] { null, "", "  " }) {
+            Map<String, String> options = new HashMap<>();
+            options.put("listenType", type);
+            try {
+                new ConnectorConfig("invalid", new InterAddress("memory", "localhost", 1, "default"), options);
+                fail("A connector configuration must identify its transport");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("listenType"));
+                assertEquals(0, CountingFactory.created);
+            }
+        }
     }
 
     @Test
@@ -206,7 +272,8 @@ public class ConnectorSpiTest {
                     initialized++;
                 }
 
-                protected Future<RsfListen> listen(String type, InterAddress address, ReceivedListener listener) {
+                protected Future<RsfListen> listen(InterAddress address, ReceivedListener listener) {
+                    String type = this.config.listenType();
                     return new BasicFuture<>(new AbstractRsfListen(type, address, listener) {
                         private boolean active = true;
 
@@ -220,7 +287,7 @@ public class ConnectorSpiTest {
                     });
                 }
 
-                protected Future<RsfChannel> openSession(String type, InterAddress target, ReceivedListener listener) {
+                protected Future<RsfChannel> openSession(InterAddress target, ReceivedListener listener) {
                     CountingFactory.target = target;
                     throw new UnsupportedOperationException();
                 }
@@ -228,6 +295,18 @@ public class ConnectorSpiTest {
                 protected void doClose() {
                 }
             };
+        }
+    }
+
+    public static final class BlockingFactory extends CountingFactory {
+        private static CountDownLatch entered;
+        private static CountDownLatch release;
+
+        public BlockingFactory() throws InterruptedException {
+            entered.countDown();
+            if (!release.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("SPI discovery was not released");
+            }
         }
     }
 
