@@ -110,7 +110,7 @@ public class RsfListenTest {
 
     @Test
     public void usesConfiguredTypeWithoutInferringItFromAddress() throws Exception {
-        try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(), RECEIVER); Endpoint endpoint = new Endpoint(manager)) {
+        try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(new ConnectorConfig("test", address(1000), Collections.singletonMap("listenType", "tcp"))), RECEIVER); Endpoint endpoint = new Endpoint(manager)) {
             manager.init();
             Future<RsfListen> binding = manager.bind(endpoint.config().withAddress(address(2001)));
             assertEquals(Collections.singletonList("tcp"), endpoint.requestedTypes);
@@ -330,7 +330,7 @@ public class RsfListenTest {
 
     @Test
     public void managerCloseReclaimsListenersCompletedAfterInternalShutdownPhases() throws Exception {
-        try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(), RECEIVER); Endpoint endpoint = new Endpoint(manager)) {
+        try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(new ConnectorConfig("test", address(1000), Collections.singletonMap("listenType", "tcp"))), RECEIVER); Endpoint endpoint = new Endpoint(manager)) {
             Future<RsfListen> pending = manager.bind(endpoint.config().withAddress(address(2001)));
             manager.close();
             assertTrue(pending.getCause() instanceof IllegalStateException);
@@ -515,7 +515,7 @@ public class RsfListenTest {
         private final TestConnectorManager runtime;
 
         Endpoint() {
-            this(subscribedManager(ConnectorResourcesTest.sharedContext(), RECEIVER));
+            this(subscribedManager(ConnectorResourcesTest.sharedContext(new ConnectorConfig("test", address(1000), Collections.singletonMap("listenType", "tcp"))), RECEIVER));
         }
 
         private Endpoint(TestConnectorManager runtime) {
@@ -526,7 +526,7 @@ public class RsfListenTest {
 
         void initializeThroughManager() {
             // The fake provider never opens an outgoing socket; connect only exercises SPI initialization.
-            assertTrue(this.runtime.connect(this.config().withAddress(address(1000))).getCause() instanceof UnsupportedOperationException);
+            assertTrue(this.runtime.connect(address(1000)).getCause() instanceof UnsupportedOperationException);
         }
 
         protected void initialize() {

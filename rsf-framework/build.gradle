@@ -1,5 +1,5 @@
 ext.pomName = 'RSF Framework'
-description = 'RSF messages, addresses, serialization, public API and connector core.'
+description = 'RSF messages, addresses, serialization, public API, connector core and RPC invocation.'
 
 dependencies {
     api "net.hasor:cobble-all:${property('lib.cobble')}"

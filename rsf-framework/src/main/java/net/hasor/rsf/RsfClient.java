@@ -71,7 +71,6 @@ public interface RsfClient {
      * @return 返回包装之后的服务接口。
      */
     <T> T wrapper(RsfBindInfo<?> bindInfo, Class<T> interFace);
-    //
 
     /**
      * 同步方式调用远程服务。
@@ -102,7 +101,7 @@ public interface RsfClient {
      * @param parameterObjects 参数值
      * @param listener 回调监听器。
      */
-    void callBackInvoke(RsfBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects, FutureCallback<Object> listener);
+    void callbackInvoke(RsfBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects, FutureCallback<Object> listener);
 
     /**
      * 以回调方式发送RSF调用请求。
@@ -112,5 +111,5 @@ public interface RsfClient {
      * @param parameterObjects 参数值
      * @param listener 回调监听器。
      */
-    void callBackRequest(RsfBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects, FutureCallback<RsfResponse> listener);
+    void callbackRequest(RsfBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects, FutureCallback<RsfResponse> listener);
 }

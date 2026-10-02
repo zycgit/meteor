@@ -40,7 +40,7 @@ public class ConnectorManagerTest {
     public void initializationOnlyPreparesManagerAndOperationsRequireIt() throws Exception {
         BlockingConnector connector = new BlockingConnector(false);
         AtomicInteger created = new AtomicInteger();
-        try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext())) {
+        try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext(connector.config()))) {
             manager.prepare(connector.config(), (connectorConfig, connectorManager) -> {
                 created.incrementAndGet();
                 return connector.attach(connectorManager);
@@ -48,7 +48,7 @@ public class ConnectorManagerTest {
             expectIllegalState(() -> manager.subscribe((channel, id, payload) -> {
             }));
             expectFailedOperation(manager.bind(connector.config()));
-            expectFailedOperation(manager.connect(connector.config()));
+            expectFailedOperation(manager.connect(connector.config().address()));
             manager.init();
             manager.init();
             assertEquals(0, created.get());
@@ -64,7 +64,7 @@ public class ConnectorManagerTest {
             manager.close();
             expectIllegalState(() -> manager.subscribe(null));
             expectFailedOperation(manager.bind(connector.config()));
-            expectFailedOperation(manager.connect(connector.config()));
+            expectFailedOperation(manager.connect(connector.config().address()));
             assertEquals(1, connector.closes.get());
         }
     }
@@ -73,12 +73,12 @@ public class ConnectorManagerTest {
     public void firstConnectInitializesWithoutOpeningAnyListener() throws Exception {
         BlockingConnector connector = new BlockingConnector(false);
         AtomicInteger created = new AtomicInteger();
-        try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(), RECEIVER)) {
+        try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(connector.config()), RECEIVER)) {
             manager.prepare(connector.config(), (connectorConfig, connectorManager) -> {
                 created.incrementAndGet();
                 return connector.attach(connectorManager);
             });
-            assertSame(connector.channel, manager.connect(manager.config("endpoint").withAddress(connector.config().address())).get());
+            assertSame(connector.channel, manager.connect(connector.config().address()).get());
             assertEquals(1, created.get());
             assertEquals(1, connector.initializations.get());
             assertEquals(0, connector.bindings.get());
@@ -146,14 +146,14 @@ public class ConnectorManagerTest {
         BlockingConnector connector = new BlockingConnector(true);
         AtomicInteger created = new AtomicInteger();
         ExecutorService workers = Executors.newFixedThreadPool(2);
-        try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(), RECEIVER)) {
+        try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(connector.config()), RECEIVER)) {
             manager.prepare(connector.config(), (connectorConfig, connectorManager) -> {
                 created.incrementAndGet();
                 return connector.attach(connectorManager);
             });
             Future<?> first = workers.submit(() -> manager.bind(connector.config()));
             assertTrue(connector.entered.await(2, TimeUnit.SECONDS));
-            Future<?> second = workers.submit(() -> manager.connect(manager.config("endpoint").withAddress(connector.config().address())));
+            Future<?> second = workers.submit(() -> manager.connect(connector.config().address()));
             assertNull(manager.find("endpoint"));
             assertNull(manager.forSchema("memory"));
             assertEquals(0, connector.bindings.get());
@@ -175,15 +175,15 @@ public class ConnectorManagerTest {
         BlockingConnector ready = new BlockingConnector("ready", false);
         BlockingConnector starting = new BlockingConnector("starting", true);
         ExecutorService workers = Executors.newFixedThreadPool(2);
-        try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(), RECEIVER)) {
+        try (TestConnectorManager manager = subscribedManager(ConnectorResourcesTest.sharedContext(ready.config()), RECEIVER)) {
             manager.prepare(ready.config(), (connectorConfig, connectorManager) -> ready.attach(connectorManager));
             manager.prepare(starting.config(), (connectorConfig, connectorManager) -> starting.attach(connectorManager));
-            assertSame(ready.channel, manager.connect(manager.config("ready").withAddress(ready.config().address())).get());
+            assertSame(ready.channel, manager.connect(ready.config().address()).get());
 
             Future<?> opening = workers.submit(() -> manager.bind(starting.config()));
             try {
                 assertTrue(starting.entered.await(2, TimeUnit.SECONDS));
-                Future<?> connecting = workers.submit(() -> manager.connect(manager.config("ready").withAddress(ready.config().address())).get());
+                Future<?> connecting = workers.submit(() -> manager.connect(ready.config().address()).get());
                 assertSame(ready.channel, connecting.get(2, TimeUnit.SECONDS));
                 Future<?> binding = workers.submit(() -> manager.bind(ready.config()));
                 assertSame(ready.binding, binding.get(2, TimeUnit.SECONDS));

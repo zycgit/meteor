@@ -23,7 +23,7 @@ public class ConnectorConnectionsTest {
     public void acceptedAndOutgoingChannelsShareTheIdRegistry() throws Exception {
         try (Harness host = new Harness()) {
             Channel incoming = host.connector.accept();
-            RsfChannel outgoing = host.manager.connect(host.config).get();
+            RsfChannel outgoing = host.manager.connect(host.config.address()).get();
             assertSame(host.connector, incoming.getConnector());
             assertSame(host.connector, outgoing.getConnector());
             assertNotEquals(incoming.getChannelId(), outgoing.getChannelId());
@@ -76,8 +76,8 @@ public class ConnectorConnectionsTest {
     @Test
     public void repeatedConnectCreatesIndependentConnectionsEvenToTheSameTarget() throws Exception {
         try (Harness host = new Harness()) {
-            RsfChannel first = host.manager.connect(host.config).get();
-            RsfChannel second = host.manager.connect(host.config).get();
+            RsfChannel first = host.manager.connect(host.config.address()).get();
+            RsfChannel second = host.manager.connect(host.config.address()).get();
             assertNotSame(first, second);
             assertNotEquals(first.getChannelId(), second.getChannelId());
             assertEquals(2, host.manager.getConnections().size());
@@ -103,10 +103,10 @@ public class ConnectorConnectionsTest {
             Channel incoming = host.connector.accept();
             IOException cause = new IOException("connect failed");
             host.connector.failure = cause;
-            assertSame(cause, failure(host.manager.connect(host.config)));
+            assertSame(cause, failure(host.manager.connect(host.config.address())));
             assertEquals(Collections.singletonList(incoming), host.manager.getConnections());
             host.connector.failure = null;
-            assertNotNull(host.manager.connect(host.config).get());
+            assertNotNull(host.manager.connect(host.config.address()).get());
         }
     }
 
@@ -114,14 +114,14 @@ public class ConnectorConnectionsTest {
     public void closeOwnsBothDirectionsAndRemovesEveryConnection() throws Exception {
         Harness host = new Harness();
         Channel incoming = host.connector.accept();
-        Channel outgoing = (Channel) host.manager.connect(host.config).get();
+        Channel outgoing = (Channel) host.manager.connect(host.config.address()).get();
         host.close();
         host.close();
         assertEquals(1, incoming.closes);
         assertEquals(1, outgoing.closes);
         assertEquals(1, host.connector.destroyed);
         assertTrue(host.manager.getConnections().isEmpty());
-        assertTrue(failure(host.manager.connect(host.config)) instanceof IllegalStateException);
+        assertTrue(failure(host.manager.connect(host.config.address())) instanceof IllegalStateException);
     }
 
     @Test
@@ -165,7 +165,7 @@ public class ConnectorConnectionsTest {
             Channel oldChannel = old.accept();
             old.close();
             assertNull(host.manager.find(host.config.name()));
-            RsfChannel current = host.manager.connect(host.config).get();
+            RsfChannel current = host.manager.connect(host.config.address()).get();
             assertNotSame(old, host.connector);
             assertEquals(2, host.created);
             Channel late = old.accept();
@@ -200,8 +200,8 @@ public class ConnectorConnectionsTest {
     }
 
     private static final class Harness implements AutoCloseable {
-        private final TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext());
         private final ConnectorConfig      config  = new ConnectorConfig("test", new InterAddress("memory", "localhost", 1, "default"), Collections.singletonMap("listenType", "memory"));
+        private final TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext(this.config));
         private       TestConnector        connector;
         private       int                  created;
 

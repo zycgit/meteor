@@ -15,11 +15,13 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.cobble.ref.Tuple;
+import net.hasor.cobble.setting.BasicSettings;
 import net.hasor.rsf.RsfContext;
 import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.domain.ProtocolStatus;
+import net.hasor.rsf.domain.RsfException;
 import net.hasor.rsf.domain.payload.Payload;
 import net.hasor.rsf.domain.payload.RequestPayload;
 import net.hasor.rsf.domain.payload.ResponsePayload;
@@ -73,7 +75,7 @@ public class ConnectorResourcesTest {
             manager.prepare(config("first", 1), provider);
             manager.prepare(config("second", 2), provider);
             assertTrue(ConnectorConnectionsTest.failure(manager.bind(manager.config("first"))) instanceof IllegalStateException);
-            assertTrue(ConnectorConnectionsTest.failure(manager.connect(manager.config("first").withAddress(config("peer", 3).address()))) instanceof IllegalStateException);
+            assertTrue(ConnectorConnectionsTest.failure(manager.connect(config("peer", 3).address())) instanceof IllegalStateException);
             manager.init();
             manager.init();
             assertNull(manager.find("first"));
@@ -94,7 +96,12 @@ public class ConnectorResourcesTest {
 
     @Test
     public void operationAddressChangesWithoutReplacingConnectorConfiguration() throws Exception {
-        try (TestConnectorManager manager = initializedManager()) {
+        Map<String, String> options = new HashMap<>();
+        options.put("listenType", "memory");
+        options.put("connectTimeout", "1234");
+        options.put("workerThread", "3");
+        ConnectorConfig client = new ConnectorConfig("client", config("local", 9).address(), options);
+        try (TestConnectorManager manager = initializedManager(client)) {
             MemoryProvider provider = new MemoryProvider();
             ConnectorConfig server = config("server", 1);
             manager.prepare(server, provider);
@@ -103,43 +110,40 @@ public class ConnectorResourcesTest {
             RsfListen second = manager.bind(server.withAddress(secondAddress)).get();
             assertSame(server, manager.find("server").config());
 
-            Map<String, String> options = new HashMap<>();
-            options.put("listenType", "memory");
-            options.put("connectTimeout", "1234");
-            options.put("workerThread", "3");
-            ConnectorConfig client = new ConnectorConfig("client", first.getBindAddress(), options);
             manager.prepare(client, provider);
-            MemorySession firstSession = (MemorySession) manager.connect(client).get();
+            MemorySession firstSession = (MemorySession) manager.connect(first.getBindAddress()).get();
             RsfConnector initialized = manager.find("client");
             ConnectorConfig next = client.withAddress(second.getBindAddress());
             assertEquals(client.name(), next.name());
             assertEquals(client.listenType(), next.listenType());
             assertEquals(1234, next.connectTimeout());
             assertEquals(3, next.integer("workerThread", 1));
-            MemorySession secondSession = (MemorySession) manager.connect(next).get();
+            MemorySession secondSession = (MemorySession) manager.connect(next.address()).get();
             assertSame(first, firstSession.server);
             assertSame(second, secondSession.server);
             assertSame(initialized, manager.find("client"));
-            assertSame(client, initialized.config());
-            assertEquals(first.getBindAddress(), client.address());
+            assertEquals(client.name(), initialized.config().name());
+            assertEquals(1234, initialized.config().connectTimeout());
+            assertEquals(3, initialized.config().integer("workerThread", 1));
+            assertEquals(client.address(), initialized.config().address());
         }
     }
 
     @Test
     public void connectionsUseTheirConfiguredTypeWithoutTargetBasedReuse() throws Exception {
-        try (TestConnectorManager manager = subscribedManager(sharedContext(), RECEIVER)) {
+        try (TestConnectorManager manager = subscribedManager(sharedContext(new ConnectorConfig("tcp-client", new InterAddress("tcp://localhost:2/default"), Collections.singletonMap("listenType", "TCP")), new ConnectorConfig("http-client", new InterAddress("http://localhost:2/default"), Collections.singletonMap("listenType", "HTTP"))), RECEIVER)) {
             MemoryProvider provider = new MemoryProvider();
-            InterAddress target = config("target", 1).address();
             for (String type : Arrays.asList("tcp", "http")) {
+                InterAddress target = new InterAddress(type + "://localhost:1/default");
                 ConnectorConfig serverConfig = new ConnectorConfig(type + "-server", target, Collections.singletonMap("listenType", type));
-                ConnectorConfig clientConfig = new ConnectorConfig(type + "-client", config("client", 2).address(), Collections.singletonMap("listenType", type.toUpperCase(Locale.ROOT)));
+                ConnectorConfig clientConfig = new ConnectorConfig(type + "-client", new InterAddress(type + "://localhost:2/default"), Collections.singletonMap("listenType", type.toUpperCase(Locale.ROOT)));
                 registerEndpoint(manager, serverConfig, provider);
                 RsfConnector client = registerEndpoint(manager, clientConfig, provider);
                 RsfListen listen = manager.bind(serverConfig).get();
-                MemorySession session = (MemorySession) manager.connect(clientConfig.withAddress(target)).get();
+                MemorySession session = (MemorySession) manager.connect(target).get();
                 assertEquals(type, listen.getType());
                 assertSame(listen, session.server);
-                assertNotSame(session, manager.connect(clientConfig.withAddress(target)).get());
+                assertNotSame(session, manager.connect(target).get());
                 assertNotSame(session, client.connect(target).get());
                 assertTrue(client.getListenList().isEmpty());
             }
@@ -148,7 +152,7 @@ public class ConnectorResourcesTest {
 
     @Test
     public void managerAndDirectConnectBothCreateIndependentConnections() throws Exception {
-        try (TestConnectorManager manager = subscribedManager(sharedContext(), RECEIVER)) {
+        try (TestConnectorManager manager = subscribedManager(sharedContext(config("first", 2)), RECEIVER)) {
             MemoryProvider provider = new MemoryProvider();
             RsfConnector server = registerEndpoint(manager, config("server", 1), provider);
             RsfConnector first = registerEndpoint(manager, config("first", 2), provider);
@@ -156,11 +160,11 @@ public class ConnectorResourcesTest {
             manager.init();
             manager.bind(manager.config("server")).get();
             InterAddress target = server.getBindAddress();
-            RsfChannel managedFirst = manager.connect(manager.config("first").withAddress(target)).get();
-            RsfChannel managedSecond = manager.connect(manager.config("second").withAddress(target)).get();
+            RsfChannel managedFirst = manager.connect(target).get();
+            RsfChannel managedSecond = manager.connect(target).get();
             assertNotSame(managedFirst, managedSecond);
-            assertNotSame(managedFirst, manager.connect(new ConnectorConfig(manager.config("first").name(), new InterAddress(target.toString()), Collections.singletonMap("listenType", "MEMORY"))).get());
-            assertNotSame(managedSecond, manager.connect(manager.config("second").withAddress(target)).get());
+            assertNotSame(managedFirst, manager.connect(new InterAddress(target.toString())).get());
+            assertNotSame(managedSecond, manager.connect(target).get());
             RsfChannel directFirst = first.connect(target).get();
             RsfChannel directSecond = first.connect(target).get();
             try {
@@ -227,18 +231,18 @@ public class ConnectorResourcesTest {
         };
         RsfChannel session;
         MemoryEndpoint client, server;
-        try (TestConnectorManager manager = subscribedManager(sharedContext(), listener)) {
+        try (TestConnectorManager manager = subscribedManager(sharedContext(config("client", 2)), listener)) {
 
             server = registerEndpoint(manager, config("server", 1), provider);
             client = registerEndpoint(manager, config("client", 2), provider);
             manager.init();
             manager.bind(manager.config("server")).get();
             assertEquals(0, client.initialized);
-            session = manager.connect(manager.config("client").withAddress(server.getBindAddress())).get(2, TimeUnit.SECONDS);
+            session = manager.connect(server.getBindAddress()).get(2, TimeUnit.SECONDS);
             assertEquals(1, client.initialized);
             assertEquals(0, client.bound);
             assertEquals(1, server.bound);
-            assertNotSame(session, manager.connect(manager.config("client").withAddress(server.getBindAddress())).get());
+            assertNotSame(session, manager.connect(server.getBindAddress()).get());
             RequestPayload request = new RequestPayload();
             request.setRequestID(1);
             session.sendData(request);
@@ -269,13 +273,13 @@ public class ConnectorResourcesTest {
                 received.completed(channel);
             }
         };
-        try (TestConnectorManager manager = subscribedManager(sharedContext(), listener)) {
+        try (TestConnectorManager manager = subscribedManager(sharedContext(config("client", 2)), listener)) {
             MemoryProvider provider = new MemoryProvider();
             RsfConnector server = registerEndpoint(manager, config("server", 1), provider);
             registerEndpoint(manager, config("client", 2), provider);
             manager.init();
             RsfListen listening = manager.bind(manager.config("server")).get();
-            MemorySession session = (MemorySession) manager.connect(manager.config("client").withAddress(server.getBindAddress())).get();
+            MemorySession session = (MemorySession) manager.connect(server.getBindAddress()).get();
             RequestPayload request = new RequestPayload();
             request.setRequestID(1);
             session.sendData(request);
@@ -368,7 +372,7 @@ public class ConnectorResourcesTest {
         try (TestConnectorManager manager = subscribedManager(sharedContext(), RECEIVER)) {
             manager.prepare(config("first", 1), factory);
             assertEquals(0, created.get());
-            assertTrue(ConnectorConnectionsTest.failure(manager.connect(new ConnectorConfig(config("missing", 3).name(), config("peer", 2).address(), Collections.singletonMap("listenType", "missing")))) instanceof IllegalArgumentException);
+            assertTrue(ConnectorConnectionsTest.failure(manager.connect(new InterAddress("missing://localhost:3/default"))) instanceof RsfException);
             manager.bind(manager.config("first")).get();
             manager.prepare(config("late", 2), factory);
             assertEquals(1, created.get());
@@ -510,7 +514,7 @@ public class ConnectorResourcesTest {
         RecordingListener outbound = new RecordingListener();
         MemoryProvider provider = new MemoryProvider();
         RsfContext shared = sharedContext();
-        try (TestConnectorManager servers = subscribedManager(shared, inbound); TestConnectorManager clients = subscribedManager(shared, outbound)) {
+        try (TestConnectorManager servers = subscribedManager(shared, inbound); TestConnectorManager clients = subscribedManager(sharedContext(config("client", 3)), outbound)) {
 
             RsfConnector first = registerEndpoint(servers, config("first", 1), provider);
             RsfConnector second = registerEndpoint(servers, config("second", 2), provider);
@@ -522,7 +526,7 @@ public class ConnectorResourcesTest {
             assertSame(clients, client.manager);
             int id = 0;
             for (RsfConnector server : Arrays.asList(first, second)) {
-                MemorySession channel = (MemorySession) clients.connect(clients.config("client").withAddress(server.getBindAddress())).get();
+                MemorySession channel = (MemorySession) clients.connect(server.getBindAddress()).get();
                 assertSame(clients, channel.listener());
                 assertSame(servers, channel.server.listener());
                 RequestPayload request = new RequestPayload();
@@ -577,19 +581,45 @@ public class ConnectorResourcesTest {
         return endpoint;
     }
 
-    private TestConnectorManager initializedManager() throws Exception {
-        TestConnectorManager manager = subscribedManager(sharedContext(), RECEIVER);
+    private TestConnectorManager initializedManager(ConnectorConfig... configs) throws Exception {
+        TestConnectorManager manager = subscribedManager(sharedContext(configs), RECEIVER);
         manager.init();
         return manager;
     }
 
-    static RsfContext sharedContext() {
-        return sharedContext(new TestConnectorManager.TestLoader(ConnectorResourcesTest.class.getClassLoader()));
+    static RsfContext sharedContext(ConnectorConfig... configs) {
+        return sharedContext(new TestConnectorManager.TestLoader(ConnectorResourcesTest.class.getClassLoader()), configs);
     }
 
-    static RsfContext sharedContext(ClassLoader loader) {
+    static RsfContext sharedContext(ClassLoader loader, ConnectorConfig... configs) {
+        BasicSettings values = new BasicSettings();
+        Map<String, ConnectorConfig> configured = new LinkedHashMap<>();
+        for (ConnectorConfig config : configs) {
+            configured.put(config.name(), config);
+            for (String key : new String[] { "listenType", "workerThread", "listenThread", "protocolFactory", "maxFrameSize", "maxPendingRequests", "handshakeTimeout", "contextPath", "tls.enabled" }) {
+                String value = config.option(key, null);
+                if (value != null) {
+                    values.setSetting("connectors." + config.name() + "." + key, value);
+                }
+            }
+        }
+
         JavaSerializeCoder coder = new JavaSerializeCoder();
         RsfSettings settings = (RsfSettings) Proxy.newProxyInstance(loader, new Class<?>[] { RsfSettings.class }, (proxy, method, args) -> {
+            switch (method.getName()) {
+                case "getProtocos":
+                    return configured.keySet();
+                case "getProtocolConfigKey":
+                    return "connectors." + args[0];
+                case "getBindAddressSet":
+                    return configured.get(args[0]).address();
+                case "getConnectTimeout":
+                    return configs.length == 0 ? 3000 : configs[0].connectTimeout();
+                case "getNodeArray":
+                    return values.getNodeArray((String) args[0]);
+                case "getString":
+                    return values.getString((String) args[0]);
+            }
             if ("getDefaultTimeout".equals(method.getName())) {
                 return 3000;
             }

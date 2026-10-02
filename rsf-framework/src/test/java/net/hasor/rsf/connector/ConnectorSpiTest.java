@@ -7,10 +7,14 @@
  */
 package net.hasor.rsf.connector;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.rsf.RsfContext;
 import net.hasor.rsf.address.InterAddress;
+import net.hasor.rsf.domain.ProtocolStatus;
+import net.hasor.rsf.domain.RsfException;
 import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -21,6 +25,8 @@ public class ConnectorSpiTest {
         CountingFactory.constructed = 0;
         CountingFactory.created = 0;
         CountingFactory.initialized = 0;
+        CountingFactory.configuration = null;
+        CountingFactory.target = null;
     }
 
     private RsfContext context(Class<?>... providers) {
@@ -34,6 +40,77 @@ public class ConnectorSpiTest {
 
     private ConnectorConfig config(String name) {
         return new ConnectorConfig(name, new InterAddress("memory", "localhost", 1, "default"), Collections.singletonMap("listenType", "custom"));
+    }
+
+    @Test
+    public void addressOnlyConnectSelectsSettingsAndPreservesLocalConfiguration() throws Exception {
+        Map<String, String> options = new HashMap<>();
+        options.put("listenType", "CUSTOM");
+        options.put("connectTimeout", "1234");
+        options.put("workerThread", "3");
+        options.put("tls.enabled", "true");
+        ConnectorConfig config = new ConnectorConfig("outgoing", new InterAddress("memory://localhost:1/default"), options);
+        ClassLoader loader = new TestConnectorManager.TestLoader(getClass().getClassLoader(), CountingFactory.class);
+        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(loader, config))) {
+            manager.init();
+            assertEquals(0, CountingFactory.created);
+            assertTrue(manager.getListenList(null).isEmpty());
+            InterAddress target = new InterAddress("MEMORY://localhost:2/default");
+            assertTrue(manager.connect(target).getCause() instanceof UnsupportedOperationException);
+            assertSame(target, CountingFactory.target);
+            ConnectorConfig selected = CountingFactory.configuration;
+            assertEquals("outgoing", selected.name());
+            assertEquals(config.address(), selected.address());
+            assertEquals(1234, selected.connectTimeout());
+            assertEquals(3, selected.integer("workerThread", 1));
+            assertEquals("true", selected.option("tls.enabled", null));
+            assertTrue(manager.getListenList(manager.find("outgoing")).isEmpty());
+            InterAddress another = new InterAddress("memory://localhost:3/default");
+            assertTrue(manager.connect(another).getCause() instanceof UnsupportedOperationException);
+            assertSame(another, CountingFactory.target);
+            assertSame(selected, CountingFactory.configuration);
+            assertEquals(1, CountingFactory.created);
+            assertEquals(1, CountingFactory.initialized);
+            try {
+                manager.configurations().clear();
+                fail("Configuration collection must be read-only");
+            } catch (UnsupportedOperationException expected) {
+                assertEquals(1, manager.configurations().size());
+            }
+        }
+    }
+
+    @Test
+    public void duplicateSchemesFailInitWithoutCreatingConnectors() throws Exception {
+        ConnectorConfig first = config("first");
+        ConnectorConfig second = new ConnectorConfig("second", new InterAddress("MEMORY://localhost:2/default"), Collections.singletonMap("listenType", "custom"));
+        ClassLoader loader = new TestConnectorManager.TestLoader(getClass().getClassLoader(), CountingFactory.class);
+        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(loader, first, second))) {
+            try {
+                manager.init();
+                fail("Duplicate schemes must not silently select a connector");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("Duplicate"));
+            }
+            assertFalse(manager.isInitialized());
+            assertEquals(0, CountingFactory.created);
+        }
+    }
+
+    @Test
+    public void unknownSchemeAndMissingFactoryFailWithoutOpeningConnections() throws Exception {
+        ConnectorConfig config = new ConnectorConfig("missing", config("missing").address(), Collections.singletonMap("listenType", "unknown"));
+        ClassLoader loader = new TestConnectorManager.TestLoader(getClass().getClassLoader(), CountingFactory.class);
+        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(loader, config))) {
+            manager.init();
+            Throwable unknownScheme = manager.connect(new InterAddress("other://localhost:2/default")).getCause();
+            assertTrue(unknownScheme instanceof RsfException);
+            assertEquals(ProtocolStatus.ProtocolUndefined, ((RsfException) unknownScheme).getStatus());
+            Throwable missingFactory = manager.connect(config.address()).getCause();
+            assertTrue(missingFactory instanceof IllegalArgumentException);
+            assertTrue(missingFactory.getMessage().contains("unknown"));
+            assertEquals(0, CountingFactory.created);
+        }
     }
 
     @Test
@@ -87,7 +164,7 @@ public class ConnectorSpiTest {
             Future<RsfListen> bound = manager.bind(new ConnectorConfig(config.name(), config.address(), Collections.singletonMap("listenType", "unknown")));
             assertTrue(bound.getCause() instanceof IllegalArgumentException);
             assertTrue(bound.getCause().getMessage().contains("unknown"));
-            assertTrue(manager.connect(new ConnectorConfig(config.name(), config.address(), Collections.singletonMap("listenType", "unknown"))).getCause() instanceof IllegalArgumentException);
+            assertTrue(manager.connect(config.address()).getCause() instanceof RsfException);
             assertEquals(0, CountingFactory.created);
             assertTrue(manager.protocols().isEmpty());
         }
@@ -107,9 +184,11 @@ public class ConnectorSpiTest {
     }
 
     public static class CountingFactory implements RsfConnectorFactory {
-        private static int constructed;
-        private static int created;
-        private static int initialized;
+        private static int             constructed;
+        private static int             created;
+        private static int             initialized;
+        private static ConnectorConfig configuration;
+        private static InterAddress    target;
 
         public CountingFactory() {
             constructed++;
@@ -121,6 +200,7 @@ public class ConnectorSpiTest {
 
         public RsfConnector create(ConnectorConfig connectorConfig, ConnectorManager connectorManager) {
             created++;
+            configuration = connectorConfig;
             return new AbstractConnector(connectorConfig, connectorManager) {
                 protected void initialize() {
                     initialized++;
@@ -141,6 +221,7 @@ public class ConnectorSpiTest {
                 }
 
                 protected Future<RsfChannel> openSession(String type, InterAddress target, ReceivedListener listener) {
+                    CountingFactory.target = target;
                     throw new UnsupportedOperationException();
                 }
 
