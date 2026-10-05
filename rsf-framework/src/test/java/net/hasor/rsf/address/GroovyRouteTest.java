@@ -7,14 +7,13 @@
  */
 package net.hasor.rsf.address;
 
-import net.hasor.rsf.address.AddressPool;
-import net.hasor.rsf.address.InterAddress;
-import org.junit.Test;
 import java.util.Arrays;
+import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class GroovyRouteTest {
-    @Test public void addressComponentLoadsGroovyThroughSpiAndKeepsLastValidRule() throws Exception {
+    @Test
+    public void addressComponentLoadsGroovyThroughSpiAndKeepsLastValidRule() throws Exception {
         AddressPool pool = new AddressPool();
         InterAddress first = new InterAddress("rsf://127.0.0.1:2181/default");
         InterAddress second = new InterAddress("rsf://127.0.0.1:2182/default");

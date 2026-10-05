@@ -9,12 +9,7 @@ package net.hasor.rsf.connector;
 import java.util.*;
 
 /** One application protocol mounted on a network endpoint. */
-public final class ProtocolConfig {
-    private final String              name;
-    private final String              scheme;
-    private final String              factory;
-    private final Map<String, String> options;
-
+public record ProtocolConfig(String name, String scheme, String factory, Map<String, String> options) {
     public ProtocolConfig(String scheme, String factory, Map<String, String> options) {
         this(scheme, scheme, factory, options);
     }
@@ -30,20 +25,9 @@ public final class ProtocolConfig {
     }
 
     /** Public protocol identifier; defaults to its address scheme. */
+    @Override
     public String name() {
         return this.name;
-    }
-
-    public String scheme() {
-        return this.scheme;
-    }
-
-    public String factory() {
-        return this.factory;
-    }
-
-    public Map<String, String> options() {
-        return this.options;
     }
 
     public String option(String key, String fallback) {
