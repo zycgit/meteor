@@ -54,7 +54,7 @@ class AnnoRsfServiceValue implements RsfService {
             this.serviceVersion = rsfSettings.getDefaultVersion();
         }
         if (StringUtils.isBlank(this.serializeType)) {
-            this.serializeType = rsfSettings.getDefaultSerializeType();
+            this.serializeType = rsfSettings.getSerializeType();
         }
         if (this.clientTimeout < 1) {
             this.clientTimeout = rsfSettings.getDefaultTimeout();

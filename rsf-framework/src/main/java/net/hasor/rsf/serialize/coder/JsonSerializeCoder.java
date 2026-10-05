@@ -15,6 +15,11 @@ import net.hasor.rsf.serialize.SerializeCoder;
 /** JSON serialization with UTF-8 on both sides of the wire. */
 public class JsonSerializeCoder implements SerializeCoder {
     @Override
+    public String name() {
+        return "Json";
+    }
+
+    @Override
     public byte[] encode(Object object) throws IOException {
         try {
             return JSON.toJSONString(object).getBytes(StandardCharsets.UTF_8);

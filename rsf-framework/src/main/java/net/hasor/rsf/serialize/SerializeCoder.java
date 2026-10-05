@@ -14,6 +14,9 @@ import java.io.IOException;
  * @author 赵永春 (zyc@hasor.net)
  */
 public interface SerializeCoder {
+    /** SPI 注册名称，匹配时不区分大小写，不能为空或空白。 */
+    String name();
+
     /**
      * 初始化编码器。工厂在注册前调用；实现不应依赖 RPC 容器。
      * @param classLoader 用于加载业务类型的类加载器

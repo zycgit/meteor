@@ -129,7 +129,7 @@ public final class RsfCaller implements AutoCloseable {
     public RsfRequestObject createRequest(AddressProvider target, RsfBindInfo<?> bindInfo, //
             String methodName, Class<?>[] parameterTypes, Object[] parameterObjects) {
         short flags = 0;
-        if (target.isDistributed()) {
+        if (!target.isDistributed()) {
             flags = RsfFlags.P2PFlag.addTag(flags);
         }
 
@@ -158,19 +158,20 @@ public final class RsfCaller implements AutoCloseable {
                 rsfRequest.getRequestID(), serviceID, rsfRequest.getMethod(), bindInfo.isMessage());
 
         try {
-            rsfRequest.addOptionMap(this.context.getSettings().getClientOption());
+            rsfRequest.addOptionMap(this.context.getSettings().getRequestOptions());
             RsfResponseObject res = new RsfResponseObject(rsfRequest);
             /*下面这段代码要负责 -> 执行rsfFilter过滤器链，并最终调用sendRequest发送请求。*/
             Supplier<RsfFilter>[] rsfFilterList = this.filterProvider.getFilterProviders(serviceID);
             new RsfFilterHandler(rsfFilterList, (request, response) -> {
-                if (response.isResponse()) {
-                    invLogger.info("request({}) -> sendRequest, response form local.", request.getRequestID());
-                    rsfFuture.completed(response);//如果本地调用链已经做出了响应，那么不在需要发送到远端。
-                } else {
+                if (!response.isResponse()) {
                     invLogger.info("request({}) -> sendRequest, response wait for remote.", request.getRequestID());
                     this.sendRequest(rsfFuture);//发送请求到远方
                 }
             }).doFilter(rsfRequest, res);
+            // A filter may respond without continuing the chain, including LocalPref.
+            if (res.isResponse()) {
+                rsfFuture.completed(res);
+            }
         } catch (Throwable e) {
             invLogger.error("request({}) -> errorFailed, sendRequest, doRsfFilterChain. error ={}.", rsfRequest.getRequestID(), e.getMessage(), e);
             this.removeRsfFuture(rsfFuture);

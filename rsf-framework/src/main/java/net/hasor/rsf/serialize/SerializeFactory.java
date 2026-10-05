@@ -8,15 +8,13 @@
 package net.hasor.rsf.serialize;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import net.hasor.rsf.serialize.coder.HessianSerializeCoder;
-import net.hasor.rsf.serialize.coder.HproseSerializeCoder;
-import net.hasor.rsf.serialize.coder.JavaSerializeCoder;
-import net.hasor.rsf.serialize.coder.JsonSerializeCoder;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 /** Registry of named, reusable serialization coders, independent of the RPC container. */
 public class SerializeFactory {
-    private final Map<String, SerializeCoder> coderMap = new ConcurrentHashMap<>();
+    private final Map<String, SerializeCoder> coderMap = new ConcurrentSkipListMap<>(String.CASE_INSENSITIVE_ORDER);
     private final ClassLoader                 classLoader;
 
     /** Creates an empty registry using the context class loader. */
@@ -29,7 +27,7 @@ public class SerializeFactory {
         this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
     }
 
-    /** Returns null for an unknown name. Names remain case sensitive. */
+    /** Looks up names without regard to case; returns null for an unknown name. */
     public SerializeCoder getSerializeCoder(String codeName) {
         return codeName == null ? null : this.coderMap.get(codeName);
     }
@@ -43,32 +41,29 @@ public class SerializeFactory {
         this.coderMap.put(codeName, coder);
     }
 
-    /** Creates a registry containing Java, Json, Hessian and Hprose. */
+    /** Discovers named coders through SPI using the context class loader. */
     public static SerializeFactory createFactory() {
         return createFactory(defaultClassLoader());
     }
 
-    /** Creates the built-in registry with the supplied business class loader. */
+    /** Discovers and initializes coders for this registry; duplicate SPI names are rejected. */
     public static SerializeFactory createFactory(ClassLoader classLoader) {
         SerializeFactory factory = new SerializeFactory(classLoader);
-        factory.registerSerializeCoder("Java", new JavaSerializeCoder());
-        factory.registerSerializeCoder("Json", new JsonSerializeCoder());
-        factory.registerSerializeCoder("Hessian", new HessianSerializeCoder());
-        factory.registerSerializeCoder("Hprose", new HproseSerializeCoder());
-        return factory;
-    }
-
-    /** Creates a registry from name-to-class-name mappings, without framework configuration APIs. */
-    public static SerializeFactory createFactory(Map<String, String> coderClasses, ClassLoader classLoader) {
-        Objects.requireNonNull(coderClasses, "coderClasses");
-        SerializeFactory factory = new SerializeFactory(classLoader);
-        for (Map.Entry<String, String> entry : coderClasses.entrySet()) {
-            try {
-                Class<? extends SerializeCoder> type = classLoader.loadClass(entry.getValue().trim()).asSubclass(SerializeCoder.class);
-                factory.registerSerializeCoder(entry.getKey(), type.getDeclaredConstructor().newInstance());
-            } catch (ReflectiveOperationException | RuntimeException e) {
-                throw new IllegalArgumentException("Cannot initialize serialize coder '" + entry.getKey() + "': " + entry.getValue(), e);
+        try {
+            for (SerializeCoder coder : ServiceLoader.load(SerializeCoder.class, classLoader)) {
+                String name = coder.name();
+                SerializeCoder previous = factory.getSerializeCoder(name);
+                if (previous != null) {
+                    throw new IllegalArgumentException("Duplicate serialize coder '" + name + "': " + previous.getClass().getName() + " and " + coder.getClass().getName());
+                }
+                try {
+                    factory.registerSerializeCoder(name, coder);
+                } catch (RuntimeException failure) {
+                    throw new IllegalArgumentException("Cannot initialize serialize coder '" + name + "': " + coder.getClass().getName(), failure);
+                }
             }
+        } catch (ServiceConfigurationError failure) {
+            throw new IllegalArgumentException("Cannot discover serialize coders through SPI", failure);
         }
         return factory;
     }

@@ -16,6 +16,7 @@ public class DefaultArgsKey implements ArgsKey {
         if (args == null) {
             return "null";
         }
+
         StringBuilder strBuilder = new StringBuilder();
         for (Object obj : args) {
             if (obj == null) {

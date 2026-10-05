@@ -16,6 +16,11 @@ import net.hasor.rsf.serialize.SerializeCoder;
 /** Hprose object serialization; type resolution follows the requested return type. */
 public class HproseSerializeCoder implements SerializeCoder {
     @Override
+    public String name() {
+        return "Hprose";
+    }
+
+    @Override
     public byte[] encode(Object object) throws IOException {
         ByteArrayOutputStream binary = new ByteArrayOutputStream();
         try {

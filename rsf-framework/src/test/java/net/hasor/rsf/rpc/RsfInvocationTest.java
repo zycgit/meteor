@@ -21,7 +21,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.rsf.RsfContext;
-import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.RsfFilter;
 import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.address.InterAddress;
@@ -189,7 +188,7 @@ public class RsfInvocationTest {
                 chain.doFilter(request, response);
                 order.add("second-after");
             } };
-            host.serverOptions.addOption("server", "option");
+            host.responseOptions.addOption("server", "option");
             ResponsePayload response = host.assertStatus(ProtocolStatus.OK, host.request());
             assertEquals(Arrays.asList("first-before", "second-before", "second-after", "first-after"), order);
             assertEquals("option", response.getOption("server"));
@@ -329,16 +328,16 @@ public class RsfInvocationTest {
     }
 
     private static final class Host implements AutoCloseable {
-        private final ServiceDomain<Service>           service        = new ServiceDomain<>(Service.class);
-        private final AtomicInteger                    invocations    = new AtomicInteger();
-        private final BlockingQueue<ResponsePayload>   responses      = new LinkedBlockingQueue<>();
-        private final OptionInfo                       serverOptions  = new OptionInfo();
+        private final ServiceDomain<Service>           service         = new ServiceDomain<>(Service.class);
+        private final AtomicInteger                    invocations     = new AtomicInteger();
+        private final BlockingQueue<ResponsePayload>   responses       = new LinkedBlockingQueue<>();
+        private final OptionInfo                       responseOptions = new OptionInfo();
         private final RsfDispatcher                    dispatcher;
         private final RsfChannel                       channel;
-        private       boolean                          servicePresent = true;
-        private       Function<String, SerializeCoder> coders         = name -> new JavaSerializeCoder();
-        private       RsfFilter[]                      filters        = new RsfFilter[0];
-        private       Supplier<Service>                provider       = () -> new Service() {
+        private       boolean                          servicePresent  = true;
+        private       Function<String, SerializeCoder> coders          = name -> new JavaSerializeCoder();
+        private       RsfFilter[]                      filters         = new RsfFilter[0];
+        private       Supplier<Service>                provider        = () -> new Service() {
             public String echo(String value) {
                 Host.this.invocations.incrementAndGet();
                 return value;
@@ -373,24 +372,18 @@ public class RsfInvocationTest {
                         return 1000L;
                     case "getDefaultTimeout":
                         return 5000;
-                    case "getServerOption":
-                        return this.serverOptions;
+                    case "getResponseOptions":
+                        return this.responseOptions;
                     default:
                         throw new AssertionError(method);
                 }
-            });
-            RsfEnvironment environment = proxy(RsfEnvironment.class, (p, method, args) -> {
-                if ("getSerializeCoder".equals(method.getName())) {
-                    return this.coders.apply((String) args[0]);
-                }
-                throw new AssertionError(method);
             });
             RsfContext context = proxy(RsfContext.class, (p, method, args) -> {
                 switch (method.getName()) {
                     case "getSettings":
                         return settings;
-                    case "getEnvironment":
-                        return environment;
+                    case "getSerializeCoder":
+                        return this.coders.apply((String) args[0]);
                     case "getClassLoader":
                         return getClass().getClassLoader();
                     case "getServiceInfo":

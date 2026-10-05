@@ -39,10 +39,10 @@ public class RsfCallerLifecycleTest {
     }
 
     @Test
-    public void clientOptionFailureCompletesFutureBeforeFiltersOrSending() throws Exception {
+    public void requestOptionFailureCompletesFutureBeforeFiltersOrSending() throws Exception {
         try (Host host = new Host(1)) {
-            IllegalStateException cause = new IllegalStateException("client options unavailable");
-            host.clientOptionFailure = cause;
+            IllegalStateException cause = new IllegalStateException("request options unavailable");
+            host.requestOptionFailure = cause;
             AtomicInteger filters = new AtomicInteger();
             host.filter = (request, response, chain) -> {
                 filters.incrementAndGet();
@@ -53,7 +53,7 @@ public class RsfCallerLifecycleTest {
             assertEquals(0, filters.get());
             assertTrue(host.sent.isEmpty());
             assertTrue(host.timers.isEmpty());
-            host.clientOptionFailure = null;
+            host.requestOptionFailure = null;
             assertOneSlotAvailable(host);
         }
     }
@@ -641,7 +641,7 @@ public class RsfCallerLifecycleTest {
         volatile             SendLimitPolicy                        policy       = SendLimitPolicy.Reject;
         volatile             RsfFilter                              filter;
         boolean rejectTimer, immediateTimeout, failSend, noFilters;
-        RuntimeException clientOptionFailure;
+        RuntimeException requestOptionFailure;
         Cancellable      timerCancellation = () -> true;
 
         @SuppressWarnings("unchecked")
@@ -651,7 +651,7 @@ public class RsfCallerLifecycleTest {
             this.service.setClientTimeout(6000);
             RsfSettings settings = proxy(RsfSettings.class, (p, m, args) -> {
                 switch (m.getName()) {
-                    case "getProtocos":
+                    case "getConnectorConfigs":
                         return Collections.emptySet();
                     case "getQueueMaxSize":
                         return 16;
@@ -665,9 +665,9 @@ public class RsfCallerLifecycleTest {
                     case "getSendLimitPolicy":
                         this.limitReached.countDown();
                         return this.policy;
-                    case "getClientOption":
-                        if (this.clientOptionFailure != null) {
-                            throw this.clientOptionFailure;
+                    case "getRequestOptions":
+                        if (this.requestOptionFailure != null) {
+                            throw this.requestOptionFailure;
                         }
                         return new OptionInfo();
                     default:

@@ -30,7 +30,7 @@ public class RsfContainerTest {
                 return "default";
             case "getDefaultVersion":
                 return "1.0";
-            case "getDefaultSerializeType":
+            case "getSerializeType":
                 return "Java";
             case "getDefaultTimeout":
                 return 3000;

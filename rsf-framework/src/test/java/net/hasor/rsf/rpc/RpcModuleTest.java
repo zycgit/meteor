@@ -270,7 +270,7 @@ public class RpcModuleTest {
             } catch (ExecutionException expected) {
                 assertTrue(expected.getCause() instanceof RsfException);
             }
-            assertNull(getClass().getClassLoader().getResource("net/hasor/rsf/bootstrap/RsfRuntime.class"));
+            assertNull(getClass().getClassLoader().getResource("net/hasor/rsf/_new/RsfContextImpl.class"));
         }
     }
 
@@ -412,7 +412,7 @@ public class RpcModuleTest {
             InterAddress peer = new InterAddress("rsf://127.0.0.1:2181/default");
             RsfSettings settings = proxy(RsfSettings.class, (p, m, args) -> {
                 switch (m.getName()) {
-                    case "getProtocos":
+                    case "getConnectorConfigs":
                         return Collections.emptySet();
                     case "getQueueMaxSize":
                         return 16;
@@ -425,30 +425,20 @@ public class RpcModuleTest {
                         return 6000;
                     case "getMaximumRequest":
                         return 100;
-                    case "getClientOption":
-                    case "getServerOption":
+                    case "getRequestOptions":
+                    case "getResponseOptions":
                         return new OptionInfo();
                     default:
                         throw new AssertionError("Unexpected setting: " + m);
                 }
             });
             JavaSerializeCoder coder = new JavaSerializeCoder();
-            RsfEnvironment environment = proxy(RsfEnvironment.class, (p, m, args) -> {
+            RsfContext context = proxy(RsfContext.class, (p, m, args) -> {
                 switch (m.getName()) {
                     case "getSettings":
                         return settings;
                     case "getSerializeCoder":
                         return coder;
-                    default:
-                        throw new AssertionError("Unexpected environment access: " + m);
-                }
-            });
-            RsfContext context = proxy(RsfContext.class, (p, m, args) -> {
-                switch (m.getName()) {
-                    case "getSettings":
-                        return settings;
-                    case "getEnvironment":
-                        return environment;
                     case "getClassLoader":
                         return getClass().getClassLoader();
                     case "getServiceInfo":

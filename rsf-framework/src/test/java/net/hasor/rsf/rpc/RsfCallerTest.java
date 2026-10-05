@@ -18,7 +18,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import net.hasor.cobble.concurrent.future.*;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.cobble.setting.BasicSettings;
 import net.hasor.rsf.*;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.address.provider.AddressProvider;
@@ -50,7 +49,7 @@ public class RsfCallerTest {
             assertEquals(2, server.remoteFilters.get());
             assertEquals(2, client.localFilters.get());
             assertEquals(2, client.cancelledTimers.get());
-            assertNull(getClass().getClassLoader().getResource("net/hasor/rsf/bootstrap/RsfRuntime.class"));
+            assertNull(getClass().getClassLoader().getResource("net/hasor/rsf/_new/RsfContextImpl.class"));
         }
     }
 
@@ -713,7 +712,9 @@ public class RsfCallerTest {
             RsfRequestObject first = host.rpc.createRequest(provider, host.service, "echo", new Class<?>[] { String.class }, arguments);
             RsfRequestObject second = host.rpc.createRequest(provider, host.service, "echo", new Class<?>[] { String.class }, arguments);
             assertNotEquals(first.getRequestID(), second.getRequestID());
-            assertEquals(RsfFlags.P2PFlag.addTag((short) 0), first.getFlags());
+            assertFalse(first.isP2PCalls());
+            RsfRequestObject fixed = host.rpc.createRequest(new InstanceAddressProvider(host.address), host.service, "echo", new Class<?>[] { String.class }, arguments);
+            assertTrue(fixed.isP2PCalls());
             assertEquals(host.address, first.getTargetAddress());
             assertNull(host.connector());
         }
@@ -758,22 +759,10 @@ public class RsfCallerTest {
             options.put("listenType", "rpc-memory");
             options.put("mode", mode);
             this.config = new ConnectorConfig("rpc", this.address, options);
-            BasicSettings values = new BasicSettings();
-            options.forEach((key, value) -> values.setSetting("connectors.rpc." + key, value));
             RsfSettings settings = proxy(RsfSettings.class, (p, method, args) -> {
                 switch (method.getName()) {
-                    case "getProtocos":
-                        return Collections.singleton("rpc");
-                    case "getProtocolConfigKey":
-                        return "connectors.rpc";
-                    case "getBindAddressSet":
-                        return this.address;
-                    case "getConnectTimeout":
-                        return 3000;
-                    case "getNodeArray":
-                        return values.getNodeArray((String) args[0]);
-                    case "getString":
-                        return values.getString((String) args[0]);
+                    case "getConnectorConfigs":
+                        return Collections.singletonList(this.config);
                     case "getQueueMaxSize":
                         return 16;
                     case "getQueueMinPoolSize":
@@ -787,30 +776,20 @@ public class RsfCallerTest {
                         return 1;
                     case "getSendLimitPolicy":
                         return SendLimitPolicy.Reject;
-                    case "getClientOption":
-                    case "getServerOption":
+                    case "getRequestOptions":
+                    case "getResponseOptions":
                         return new OptionInfo();
                     default:
                         throw new AssertionError("Unexpected setting: " + method);
                 }
             });
             JavaSerializeCoder coder = new JavaSerializeCoder();
-            RsfEnvironment environment = proxy(RsfEnvironment.class, (p, method, args) -> {
+            RsfContext context = proxy(RsfContext.class, (p, method, args) -> {
                 switch (method.getName()) {
                     case "getSettings":
                         return settings;
                     case "getSerializeCoder":
                         return coder;
-                    default:
-                        throw new AssertionError("RPC must use the connector timer: " + method);
-                }
-            });
-            RsfContext context = proxy(RsfContext.class, (p, method, args) -> {
-                switch (method.getName()) {
-                    case "getSettings":
-                        return settings;
-                    case "getEnvironment":
-                        return environment;
                     case "getClassLoader":
                         return getClass().getClassLoader();
                     case "getServiceInfo":

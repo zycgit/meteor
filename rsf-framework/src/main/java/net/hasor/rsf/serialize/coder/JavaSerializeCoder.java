@@ -16,6 +16,11 @@ public class JavaSerializeCoder implements SerializeCoder {
     private volatile ClassLoader classLoader = SerializeFactory.defaultClassLoader();
 
     @Override
+    public String name() {
+        return "Java";
+    }
+
+    @Override
     public void initCoder(ClassLoader classLoader) {
         this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
     }

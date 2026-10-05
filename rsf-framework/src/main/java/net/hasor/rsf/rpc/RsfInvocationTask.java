@@ -10,7 +10,6 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.function.Supplier;
 import net.hasor.rsf.RsfBindInfo;
-import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.RsfFilter;
 import net.hasor.rsf.RsfFilterChain;
 import net.hasor.rsf.address.InterAddress;
@@ -35,7 +34,6 @@ final class RsfInvocationTask implements Runnable {
     private final RsfChannel     channel;
     private final RequestPayload requestInfo;
     private final ClassLoader    classLoader;
-    private final RsfEnvironment rsfEnv;
 
     RsfInvocationTask(RsfChannel channel, RsfDispatcher dispatcher, RequestPayload requestInfo) {
         this.channel = channel;
@@ -43,7 +41,6 @@ final class RsfInvocationTask implements Runnable {
         this.dispatcher = dispatcher;
         this.requestInfo = requestInfo;
         this.classLoader = dispatcher.getContext().getClassLoader();
-        this.rsfEnv = dispatcher.getContext().getEnvironment();
     }
 
     @Override
@@ -82,7 +79,7 @@ final class RsfInvocationTask implements Runnable {
         Class<?>[] pTypes = null;
         try {
             //1.确定序列化器
-            SerializeCoder coder = this.rsfEnv.getSerializeCoder(serializeType);
+            SerializeCoder coder = this.dispatcher.getContext().getSerializeCoder(serializeType);
             if (coder == null) {
                 String errorInfo = "do request(" + requestID + ") failed -> serializeType(" + serializeType + ") is undefined.";
                 this.logger.error(errorInfo);
@@ -145,7 +142,7 @@ final class RsfInvocationTask implements Runnable {
             rsfRequest.setReceiveTime(this.requestInfo.getReceiveTime());
             rsfRequest.setOptions(this.requestInfo);
             RsfResponseObject rsfResponse = new RsfResponseObject(rsfRequest);
-            rsfResponse.addOptionMap(this.dispatcher.getContext().getSettings().getServerOption());//填充服务端的选项参数，并将选项参数响应到客户端。
+            rsfResponse.addOptionMap(this.dispatcher.getContext().getSettings().getResponseOptions());//填充响应的默认附加选项。
 
             String serviceID = bindInfo.getBindID();
             Supplier<RsfFilter>[] rsfFilters = this.dispatcher.getFilterProviders(serviceID);
@@ -183,7 +180,7 @@ final class RsfInvocationTask implements Runnable {
         try {
 
             //1.确定序列化器
-            SerializeCoder coder = this.rsfEnv.getSerializeCoder(serializeType);
+            SerializeCoder coder = this.dispatcher.getContext().getSerializeCoder(serializeType);
 
             //2.Response对象
             if (coder == null) {

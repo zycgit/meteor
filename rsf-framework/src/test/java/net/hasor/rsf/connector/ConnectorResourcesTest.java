@@ -15,9 +15,7 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.cobble.ref.Tuple;
-import net.hasor.cobble.setting.BasicSettings;
 import net.hasor.rsf.RsfContext;
-import net.hasor.rsf.RsfEnvironment;
 import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.domain.ProtocolStatus;
@@ -386,7 +384,7 @@ public class ConnectorResourcesTest {
         TestConnectorManager closed;
         try (TestConnectorManager first = initializedManager(); TestConnectorManager second = initializedManager()) {
             closed = first;
-            assertTrue(first.context().getEnvironment().getSerializeCoder("Java") instanceof JavaSerializeCoder);
+            assertTrue(first.context().getSerializeCoder("Java") instanceof JavaSerializeCoder);
             assertTrue(first.context().getServiceIDs().isEmpty());
             AtomicInteger fired = new AtomicInteger();
             Cancellable timer = first.schedule(fired::incrementAndGet, 10000);
@@ -592,44 +590,15 @@ public class ConnectorResourcesTest {
     }
 
     static RsfContext sharedContext(ClassLoader loader, ConnectorConfig... configs) {
-        BasicSettings values = new BasicSettings();
-        Map<String, ConnectorConfig> configured = new LinkedHashMap<>();
-        for (ConnectorConfig config : configs) {
-            configured.put(config.name(), config);
-            for (String key : new String[] { "listenType", "workerThread", "listenThread", "protocolFactory", "maxFrameSize", "maxPendingRequests", "handshakeTimeout", "contextPath", "tls.enabled" }) {
-                String value = config.option(key, null);
-                if (value != null) {
-                    values.setSetting("connectors." + config.name() + "." + key, value);
-                }
-            }
-        }
-
         JavaSerializeCoder coder = new JavaSerializeCoder();
         RsfSettings settings = (RsfSettings) Proxy.newProxyInstance(loader, new Class<?>[] { RsfSettings.class }, (proxy, method, args) -> {
-            switch (method.getName()) {
-                case "getProtocos":
-                    return configured.keySet();
-                case "getProtocolConfigKey":
-                    return "connectors." + args[0];
-                case "getBindAddressSet":
-                    return configured.get(args[0]).address();
-                case "getConnectTimeout":
-                    return configs.length == 0 ? 3000 : configs[0].connectTimeout();
-                case "getNodeArray":
-                    return values.getNodeArray((String) args[0]);
-                case "getString":
-                    return values.getString((String) args[0]);
+            if ("getConnectorConfigs".equals(method.getName())) {
+                return Arrays.asList(configs);
             }
             if ("getDefaultTimeout".equals(method.getName())) {
                 return 3000;
             }
             throw new AssertionError("Unexpected setting: " + method);
-        });
-        RsfEnvironment environment = (RsfEnvironment) Proxy.newProxyInstance(loader, new Class<?>[] { RsfEnvironment.class }, (proxy, method, args) -> {
-            if ("getSerializeCoder".equals(method.getName())) {
-                return "Java".equals(args[0]) ? coder : null;
-            }
-            throw new AssertionError("Unexpected environment access: " + method);
         });
         return (RsfContext) Proxy.newProxyInstance(loader, new Class<?>[] { RsfContext.class }, (proxy, method, args) -> {
             switch (method.getName()) {
@@ -637,8 +606,8 @@ public class ConnectorResourcesTest {
                     return loader;
                 case "getSettings":
                     return settings;
-                case "getEnvironment":
-                    return environment;
+                case "getSerializeCoder":
+                    return "Java".equals(args[0]) ? coder : null;
                 case "getServiceIDs":
                     return Collections.emptyList();
                 case "getServiceInfo":

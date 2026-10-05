@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 import net.hasor.rsf.address.InterAddress;
+import net.hasor.rsf.serialize.SerializeCoder;
 
 /**
  * RSF 环境。
@@ -75,8 +76,8 @@ public interface RsfContext extends OnlineStatus, AutoCloseable {
     /**获取RSF配置*/
     RsfSettings getSettings();
 
-    /**获取{@link RsfEnvironment}*/
-    RsfEnvironment getEnvironment();
+    /**获取当前实例的序列化器，未注册的名称返回 null。*/
+    SerializeCoder getSerializeCoder(String name);
 
     /**获取地址路由更新接口。*/
     RsfUpdater getUpdater();

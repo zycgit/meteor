@@ -6,17 +6,22 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf;
-import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Set;
-import net.hasor.cobble.setting.Settings;
 import net.hasor.rsf.address.InterAddress;
+import net.hasor.rsf.address.route.ArgsKey;
+import net.hasor.rsf.connector.ConnectorConfig;
 
 /**
  * RSF 配置。
  * @version : 2014年11月18日
  * @author 赵永春 (zyc@hasor.net)
  */
-public interface RsfSettings extends Settings {
+public interface RsfSettings {
+    /**获取本地数据目录。*/
+    Path getDataHome();
+
     /**获取默认超时时间。*/
     int getDefaultTimeout();
 
@@ -26,14 +31,14 @@ public interface RsfSettings extends Settings {
     /**获取默认超时时间。*/
     String getDefaultVersion();
 
-    /**获取默认超时时间。*/
-    String getDefaultSerializeType();
+    /**获取服务默认使用的序列化类型。*/
+    String getSerializeType();
 
-    /**获取配置的服务器端选项*/
-    RsfOptionSet getServerOption();
+    /**获取默认附加到响应中的选项。*/
+    RsfOptionSet getResponseOptions();
 
-    /**获取配置的客户端选项*/
-    RsfOptionSet getClientOption();
+    /**获取默认附加到请求中的选项。*/
+    RsfOptionSet getRequestOptions();
 
     /**处理任务队列的最大大小，作为服务端当队列满了之后所有新进来的请求都会被回应 ChooseOther*/
     int getQueueMaxSize();
@@ -66,13 +71,16 @@ public interface RsfSettings extends Settings {
     String getDefaultProtocol();
 
     /**可使用的协议名集合*/
-    Set<String> getProtocos();
+    Set<String> getProtocols();
 
     /**获取本地服务绑定地址*/
     InterAddress getBindAddressSet(String protocolName);
 
-    /**获取协议配置节点名*/
-    String getProtocolConfigKey(String protocolName);
+    /**获取已解析的连接器配置及其专属选项。*/
+    Collection<ConnectorConfig> getConnectorConfigs();
+
+    /**获取地址参数路由键的实现类。*/
+    Class<? extends ArgsKey> getArgsKeyClass();
 
     /**获取本机所属单元*/
     String getUnitName();
@@ -87,11 +95,9 @@ public interface RsfSettings extends Settings {
     long getDiskCacheTimeInterval();
 
     /**启用磁盘地址本缓存，在refreshCacheTime期间每隔1小时自动写入一次。（被回收的服务不享受此待遇）*/
-    boolean islocalDiskCache();
+    boolean isLocalDiskCache();
 
     /**应用自动上线*/
     boolean isAutomaticOnline();
 
-    /**重新加载Rsf配置*/
-    void refreshRsfConfig() throws IOException;
 }

@@ -21,6 +21,11 @@ public class HessianSerializeCoder implements SerializeCoder {
     private volatile SerializerFactory serializerFactory = new SerializerFactory(SerializeFactory.defaultClassLoader());
 
     @Override
+    public String name() {
+        return "Hessian";
+    }
+
+    @Override
     public void initCoder(ClassLoader classLoader) {
         this.serializerFactory = new SerializerFactory(Objects.requireNonNull(classLoader, "classLoader"));
     }

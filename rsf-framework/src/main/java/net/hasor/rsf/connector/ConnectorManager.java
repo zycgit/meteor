@@ -19,9 +19,7 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.cobble.concurrent.timer.HashedWheelTimer;
 import net.hasor.cobble.concurrent.timer.Timeout;
 import net.hasor.cobble.logging.Logger;
-import net.hasor.cobble.setting.SettingNode;
 import net.hasor.rsf.RsfContext;
-import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.domain.ProtocolStatus;
 import net.hasor.rsf.domain.RsfException;
@@ -64,35 +62,14 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
     }
 
     private Map<String, ConnectorConfig> readConfigurations() {
-        RsfSettings settings = this.context.getSettings();
         Map<String, ConnectorConfig> configured = new LinkedHashMap<>();
-        for (String name : settings.getProtocos()) {
-            String key = settings.getProtocolConfigKey(name);
-            Map<String, String> options = new HashMap<>();
-            for (SettingNode endpoint : settings.getNodeArray(key)) {
-                for (SettingNode child : endpoint.getSubNodes()) {
-                    this.copyOptions(settings, key, child, child.getName(), options);
-                }
-            }
-
-            options.put("connectTimeout", Integer.toString(settings.getConnectTimeout()));
-            ConnectorConfig config = new ConnectorConfig(name, settings.getBindAddressSet(name), options);
+        for (ConnectorConfig config : this.context.getSettings().getConnectorConfigs()) {
             String schema = config.address().getSchema().toLowerCase(Locale.ROOT);
             if (configured.putIfAbsent(schema, config) != null) {
                 throw new IllegalArgumentException("Duplicate connector address scheme: " + schema);
             }
         }
         return configured;
-    }
-
-    private void copyOptions(RsfSettings settings, String base, SettingNode node, String path, Map<String, String> options) {
-        String value = settings.getString(base + "." + path);
-        if (value != null) {
-            options.put(path, value);
-        }
-        for (SettingNode child : node.getSubNodes()) {
-            this.copyOptions(settings, base, child, path + "." + child.getName(), options);
-        }
     }
 
     //
