@@ -110,6 +110,7 @@ public final class RsfCaller implements AutoCloseable {
 
             for (PendingRequest request : pending) {
                 request.cancelTimeout();
+                request.payload.complete(new IllegalStateException("RSF runtime closed"));
                 request.future.failed(new IllegalStateException("RSF runtime closed"));
             }
         } finally {
@@ -174,7 +175,7 @@ public final class RsfCaller implements AutoCloseable {
             }
         } catch (Throwable e) {
             invLogger.error("request({}) -> errorFailed, sendRequest, doRsfFilterChain. error ={}.", rsfRequest.getRequestID(), e.getMessage(), e);
-            this.removeRsfFuture(rsfFuture);
+            this.removeRsfFuture(rsfFuture, e);
             rsfFuture.failed(e);
         }
 
@@ -220,7 +221,7 @@ public final class RsfCaller implements AutoCloseable {
         boolean registered = false;
         try {
             RequestPayload payload = mapping.call();
-            this.registerRequest(future);
+            this.registerRequest(future, payload);
             registered = true;
 
             this.startRequest(future);
@@ -236,7 +237,7 @@ public final class RsfCaller implements AutoCloseable {
         }
     }
 
-    private synchronized void registerRequest(RsfFuture future) {
+    private synchronized void registerRequest(RsfFuture future, RequestPayload payload) {
         if (this.isClosed()) {
             throw new IllegalStateException("RSF runtime closed");
         }
@@ -244,7 +245,7 @@ public final class RsfCaller implements AutoCloseable {
             throw new CancellationException("RPC ended before registration");
         }
 
-        if (this.rsfResponse.putIfAbsent(future.getRequest().getRequestID(), new PendingRequest(future, this.timeout(future))) != null) {
+        if (this.rsfResponse.putIfAbsent(future.getRequest().getRequestID(), new PendingRequest(future, payload, this.timeout(future))) != null) {
             throw new IllegalStateException("Request is already pending");
         }
     }
@@ -368,18 +369,18 @@ public final class RsfCaller implements AutoCloseable {
                 } finally {
                     // Always remove this invocation even if a cancellation listener throws.
                     if (this.isCancelled()) {
-                        RsfCaller.this.removeRsfFuture(this);
+                        RsfCaller.this.removeRsfFuture(this, new CancellationException("RPC cancelled"));
                     }
                 }
             }
         };
     }
 
-    private void removeRsfFuture(RsfFuture future) {
+    private void removeRsfFuture(RsfFuture future, Throwable cause) {
         long requestId = future.getRequest().getRequestID();
         PendingRequest pending = this.rsfResponse.get(requestId);
         if (pending != null && pending.future == future) {
-            this.removeRsfFuture(pending);
+            this.removeRsfFuture(pending, cause);
         }
     }
 
@@ -396,12 +397,13 @@ public final class RsfCaller implements AutoCloseable {
     private void onMessage(RsfChannel channel, long requestId, Payload payload) {
         // Responses and failures remain deliverable while connector writes drain.
         if (payload.getType() == Payload.Type.REQUEST && this.isClosed()) {
+            ((RequestPayload) payload).complete(new IllegalStateException("RPC is closed"));
             return;
         }
 
         switch (payload.getType()) {
             case REQUEST:
-                this.dispatcher.onRequest(channel, requestId, (RequestPayload) payload);
+                this.onRequest(channel, requestId, (RequestPayload) payload);
                 break;
             case RESPONSE:
                 ResponsePayload response = (ResponsePayload) payload;
@@ -411,6 +413,26 @@ public final class RsfCaller implements AutoCloseable {
                 Throwable failure = ((ThrowPayload) payload).getThrowable();
                 this.onFailure(channel, requestId, failure);
                 break;
+        }
+    }
+
+    private void onRequest(RsfChannel channel, long requestId, RequestPayload request) {
+        try {
+            int timeout = request.getClientTimeout();
+            if (timeout <= 0) {
+                timeout = this.context.getSettings().getDefaultTimeout();
+            }
+
+            Cancellable timer = this.connectors.schedule(() -> {
+                request.complete(new RsfTimeoutException("request(" + requestId + ") -> timeout for server."));
+            }, timeout);
+
+            request.completion().onFinal(done -> timer.cancel());
+            if (!request.completion().isDone()) {
+                this.dispatcher.onRequest(channel, requestId, request);
+            }
+        } catch (Throwable failure) {
+            request.complete(failure);
         }
     }
 
@@ -442,7 +464,7 @@ public final class RsfCaller implements AutoCloseable {
         if (acknowledgement && !pending.future.getRequest().isMessage()) {
             return null;
         }
-        return this.removeRsfFuture(pending);
+        return this.removeRsfFuture(pending, null);
     }
 
     /** Complete a matched request that has already released its permit and timer. */
@@ -470,14 +492,14 @@ public final class RsfCaller implements AutoCloseable {
 
     /** 响应挂起的Request请求。 */
     private void putResponse(long requestID, Throwable e) {
-        RsfFuture rsfFuture = this.removeRsfFuture(this.rsfResponse.get(requestID));
+        RsfFuture rsfFuture = this.removeRsfFuture(this.rsfResponse.get(requestID), e);
         if (rsfFuture != null) {
             invLogger.error("response({}) -> errorFailed, {}", requestID, e.getMessage(), e);
             rsfFuture.failed(e);
         }
     }
 
-    private RsfFuture removeRsfFuture(PendingRequest pending) {
+    private RsfFuture removeRsfFuture(PendingRequest pending, Throwable cause) {
         if (pending == null) {
             return null;
         }
@@ -490,19 +512,22 @@ public final class RsfCaller implements AutoCloseable {
             this.requestPermits.release();
         }
         pending.cancelTimeout();
+        pending.payload.complete(cause);
         return pending.future;
     }
 
     //
 
     private static final class PendingRequest {
-        private final    RsfFuture   future;
-        private final    long        deadline;
-        private volatile RsfChannel  channel;
-        private          Cancellable timer;
+        private final    RsfFuture      future;
+        private final    RequestPayload payload;
+        private final    long           deadline;
+        private volatile RsfChannel     channel;
+        private          Cancellable    timer;
 
-        private PendingRequest(RsfFuture future, int timeout) {
+        private PendingRequest(RsfFuture future, RequestPayload payload, int timeout) {
             this.future = future;
+            this.payload = payload;
             this.deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeout);
         }
 

@@ -69,7 +69,7 @@ public class ConnectorSpiTest {
             workers.execute(() -> {
                 try {
                     assertFalse(manager.isInitialized());
-                    assertTrue(manager.bind(config).getCause() instanceof IllegalStateException);
+                    assertTrue(manager.bind(config.name()).getCause() instanceof IllegalStateException);
                     assertTrue(manager.connect(config.address()).getCause() instanceof IllegalStateException);
                     assertTrue(manager.protocols().isEmpty());
                     rejected.completed(null);
@@ -156,7 +156,7 @@ public class ConnectorSpiTest {
                 manager.init();
                 fail("Duplicate schemes must not silently select a connector");
             } catch (IllegalArgumentException expected) {
-                assertTrue(expected.getMessage().contains("Duplicate"));
+                assertTrue(expected.getMessage().contains("multiple endpoints"));
             }
             assertFalse(manager.isInitialized());
             assertEquals(0, CountingFactory.created);
@@ -168,31 +168,31 @@ public class ConnectorSpiTest {
         ConnectorConfig config = new ConnectorConfig("missing", config("missing").address(), Collections.singletonMap("listenType", "unknown"));
         ClassLoader loader = new TestConnectorManager.TestLoader(getClass().getClassLoader(), CountingFactory.class);
         try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(loader, config))) {
-            manager.init();
-            Throwable unknownScheme = manager.connect(new InterAddress("other://localhost:2/default")).getCause();
-            assertTrue(unknownScheme instanceof RsfException);
-            assertEquals(ProtocolStatus.ProtocolUndefined, ((RsfException) unknownScheme).getStatus());
-            Throwable missingFactory = manager.connect(config.address()).getCause();
-            assertTrue(missingFactory instanceof IllegalArgumentException);
-            assertTrue(missingFactory.getMessage().contains("unknown"));
+            try {
+                manager.init();
+                fail("Missing configured transport must fail initialization");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("unknown"));
+            }
             assertEquals(0, CountingFactory.created);
         }
     }
 
     @Test
     public void discoversFactoriesAtInitAndLazilyCreatesConfiguredEndpoints() throws Exception {
-        try (ConnectorManager manager = manager(CountingFactory.class)) {
-            ConnectorConfig first = new ConnectorConfig("first", config("first").address(), Collections.singletonMap("listenType", "CUSTOM"));
+        ConnectorConfig first = new ConnectorConfig("first", config("first").address(), Collections.singletonMap("listenType", "CUSTOM"));
+        ConnectorConfig second = new ConnectorConfig("second", new InterAddress("other", "localhost", 2, "default"), Collections.singletonMap("listenType", "custom"));
+        ClassLoader loader = new TestConnectorManager.TestLoader(getClass().getClassLoader(), CountingFactory.class);
+        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(loader, first, second))) {
             manager.init();
             manager.init();
             assertEquals(1, CountingFactory.constructed);
             assertEquals(0, CountingFactory.created);
             assertTrue(manager.protocols().isEmpty());
-            RsfListen listen = manager.bind(first).get();
+            RsfListen listen = manager.bind(first.name()).get();
             assertSame(first, manager.find("first").config());
-            assertSame(listen, manager.bind(first).get());
-            ConnectorConfig second = config("second");
-            manager.bind(second).get();
+            assertSame(listen, manager.bind(first.name()).get());
+            manager.bind(second.name()).get();
             assertEquals(2, CountingFactory.created);
             assertEquals(2, CountingFactory.initialized);
             manager.close();
@@ -201,7 +201,7 @@ public class ConnectorSpiTest {
             manager.init();
             assertEquals(2, CountingFactory.constructed);
             assertEquals(2, CountingFactory.created);
-            manager.bind(first).get();
+            manager.bind(first.name()).get();
             assertEquals(3, CountingFactory.created);
         }
     }
@@ -227,9 +227,9 @@ public class ConnectorSpiTest {
         try (ConnectorManager manager = manager(CountingFactory.class)) {
             manager.init();
             ConnectorConfig config = config("missing");
-            Future<RsfListen> bound = manager.bind(new ConnectorConfig(config.name(), config.address(), Collections.singletonMap("listenType", "unknown")));
+            Future<RsfListen> bound = manager.bind(new ConnectorConfig(config.name(), config.address(), Collections.singletonMap("listenType", "unknown")).name());
             assertTrue(bound.getCause() instanceof IllegalArgumentException);
-            assertTrue(bound.getCause().getMessage().contains("unknown"));
+            assertTrue(bound.getCause().getMessage().contains("Unknown endpoint"));
             assertTrue(manager.connect(config.address()).getCause() instanceof RsfException);
             assertEquals(0, CountingFactory.created);
             assertTrue(manager.protocols().isEmpty());

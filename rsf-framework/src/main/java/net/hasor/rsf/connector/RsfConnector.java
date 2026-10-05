@@ -7,7 +7,6 @@
  */
 package net.hasor.rsf.connector;
 import java.util.List;
-import java.util.function.Consumer;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.rsf.address.InterAddress;
 
@@ -26,23 +25,10 @@ public interface RsfConnector extends AutoCloseable {
     /** Close listeners, drain submitted writes, close connections and release resources. Call from the lifecycle thread. */
     void close();
 
-    /** Set the synchronous close callback. The manager registers it before init().
-     * Invoke once on close or initialization failure, after stopping admission and before releasing resources.
-     * The callback must finish before resource release proceeds.
-     */
-    void onClosing(Consumer<RsfConnector> listener);
+    /** Bind the configured endpoint. Concurrent calls share the pending operation or active listener. */
+    Future<RsfListen> bind();
 
-    /** Start the configured listener type at the supplied address after init(). Completes when the listener is usable.
-     * Repeated binds of the same address share the operation; other bindings are independent.
-     * The connector owns pending bind futures and must fail them when it closes.
-     * Own physical listener resources as soon as they exist;
-     * close resources rejected during shutdown. AbstractConnector tracks listeners and pending operations for its subclasses.
-     */
-    Future<RsfListen> bind(InterAddress address);
-
-    /** First active listener address, or null when none is bound.
-     * Use getListenList() to enumerate multiple addresses.
-     */
+    /** Active endpoint address, or null when it is not listening. */
     InterAddress getBindAddress();
 
     /** Immutable snapshot of listener handles owned by this connector, including pending binds.
@@ -50,21 +36,9 @@ public interface RsfConnector extends AutoCloseable {
      */
     List<RsfListen> getListenList();
 
-    /** Create a new outgoing connection after init(), without requiring a local bind.
-     * The provider registers both outgoing and accepted channels through the onChannelConnected callback.
-     * Channel termination notifies the onChannelClosed callback; the manager owns unified cleanup.
-     * The listener type is taken from this connector's configuration.
+    /** Acquire a protocol session selected by the target scheme, without requiring a local bind.
+     * The connector owns incoming/outgoing sessions and their physical connections.
      */
     Future<RsfChannel> connect(InterAddress target);
 
-    /** Set the synchronous channel registration callback before init().
-     * Notify for accepted and outgoing channels before exposing them to callers or delivering messages.
-     * The callback may close a channel rejected during shutdown.
-     */
-    void onChannelConnected(Consumer<RsfChannel> listener);
-
-    /** Set the channel termination callback before init(), for both normal close and connection loss.
-     * Notify with the terminated channel; its getConnector() identifies the owner.
-     */
-    void onChannelClosed(Consumer<RsfChannel> listener);
 }

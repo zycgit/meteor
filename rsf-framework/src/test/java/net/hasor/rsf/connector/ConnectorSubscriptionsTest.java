@@ -108,13 +108,13 @@ public class ConnectorSubscriptionsTest {
 
     @Test
     public void shutdownNotificationsRemainDeliverableUntilCleanupFinishes() throws Exception {
-        try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext())) {
+        ConnectorConfig config = new ConnectorConfig("closing", new InterAddress("rsf://127.0.0.1:1/default"), Collections.singletonMap("listenType", "memory"));
+        try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext(config))) {
             manager.init();
             List<Payload> received = new ArrayList<>();
             ResponsePayload response = new ResponsePayload();
             ThrowPayload failure = new ThrowPayload(new IOException("disconnected"));
             manager.subscribe((channel, id, payload) -> received.add(payload));
-            ConnectorConfig config = new ConnectorConfig("closing", new InterAddress("rsf://127.0.0.1:1/default"), Collections.singletonMap("listenType", "memory"));
             manager.prepare(config, (connectorConfig, connectorManager) -> new AbstractConnector(connectorConfig, connectorManager) {
                 protected void initialize() {
                 }
@@ -133,7 +133,7 @@ public class ConnectorSubscriptionsTest {
                     throw new IllegalStateException("cleanup failure");
                 }
             });
-            manager.bind(manager.config("closing").withAddress(config.address()));
+            manager.bind(manager.config("closing").withAddress(config.address()).name());
             manager.close();
             assertEquals(Arrays.asList(response, failure), received);
             manager.onResponse(new TestChannel(), 1, response);

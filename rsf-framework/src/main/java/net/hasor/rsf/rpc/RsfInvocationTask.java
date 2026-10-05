@@ -45,7 +45,10 @@ final class RsfInvocationTask implements Runnable {
 
     @Override
     public void run() {
-        //
+        if (!this.requestInfo.isMessage() && this.requestInfo.completion().isDone()) {
+            return;
+        }
+
         /*正确性检验。*/
         long requestID = this.requestInfo.getRequestID();
         String group = this.requestInfo.getServiceGroup();
@@ -205,6 +208,10 @@ final class RsfInvocationTask implements Runnable {
         if (this.requestInfo.isMessage()) {
             return;/*如果是消息类型调用,则丢弃response*/
         }
-        this.channel.sendData(info);
+        if (!this.requestInfo.completion().isDone()) {
+            this.channel.sendData(info).onFinal(done -> {
+                this.requestInfo.complete(done.isCancelled() ? new IllegalStateException("Response write cancelled") : done.getCause());
+            });
+        }
     }
 }

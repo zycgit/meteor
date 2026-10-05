@@ -8,6 +8,8 @@
 package net.hasor.rsf.domain.payload;
 import java.util.ArrayList;
 import java.util.List;
+import net.hasor.cobble.concurrent.future.BasicFuture;
+import net.hasor.cobble.concurrent.future.Future;
 
 /**
  * RSF Request 的化身,是封装 Request 的数据对象。
@@ -15,23 +17,39 @@ import java.util.List;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class RequestPayload extends Payload {
-    private long         requestID      = 0;    //请求ID
-    private short        flags          = 0;    //标签
-    private long         receiveTime    = 0;    //接收请求（本地时间戳）
-    private String       serviceName    = null; //远程服务名
-    private String       serviceGroup   = null; //远程服务分组
-    private String       serviceVersion = null; //远程服务版本
-    private String       targetMethod   = null; //远程服务方法名
-    private String       serializeType  = null; //序列化策略
-    private int          clientTimeout  = 0;    //远程调用时最大忍受等待时间
-    private boolean      isMessage      = false;//是否为消息请求
-    private List<String> paramTypes     = null; //参数类型
-    private List<Object> paramValues    = null; //参数值
+    // Local lifecycle only: protocol codecs do not encode this notification.
+    private final transient BasicFuture<Void> completion     = new BasicFuture<>();
+    private                 long              requestID      = 0;    //请求ID
+    private                 short             flags          = 0;    //标签
+    private                 long              receiveTime    = 0;    //接收请求（本地时间戳）
+    private                 String            serviceName    = null; //远程服务名
+    private                 String            serviceGroup   = null; //远程服务分组
+    private                 String            serviceVersion = null; //远程服务版本
+    private                 String            targetMethod   = null; //远程服务方法名
+    private                 String            serializeType  = null; //序列化策略
+    private                 int               clientTimeout  = 0;    //远程调用时最大忍受等待时间
+    private                 boolean           isMessage      = false;//是否为消息请求
+    private                 List<String>      paramTypes     = null; //参数类型
+    private                 List<Object>      paramValues    = null; //参数值
 
     public RequestPayload() {
         super(Type.REQUEST);
         this.paramTypes = new ArrayList<>();
         this.paramValues = new ArrayList<>();
+    }
+
+    /** Invocation completion, independent of the future returned by sendData. */
+    public Future<Void> completion() {
+        return this.completion;
+    }
+
+    /** Release local protocol correlation after success, failure, timeout or cancellation. */
+    public void complete(Throwable cause) {
+        if (cause == null) {
+            this.completion.completed(null);
+        } else {
+            this.completion.failed(cause);
+        }
     }
 
     /**获取请求ID。*/

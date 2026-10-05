@@ -415,6 +415,21 @@ public class RsfCallerTest {
     }
 
     @Test
+    public void timeoutCompletesProtocolLifecycleAfterRequestWasSent() throws Exception {
+        try (Host server = new Host(10000, "normal"); Host client = new Host(200, "hold")) {
+            server.bind();
+            RsfFuture call = client.invoke(server.address);
+            RequestPayload payload = client.connector().outgoing.sent.poll(2, TimeUnit.SECONDS);
+            assertNotNull(payload);
+            Throwable cause = failure(call);
+            assertTrue(cause instanceof RsfTimeoutException);
+            assertTrue(payload.completion().isDone());
+            assertSame(cause, payload.completion().getCause());
+            assertTrue(client.connector().outgoing.isActive());
+        }
+    }
+
+    @Test
     public void cancelledCallDoesNotCloseItsChannel() throws Exception {
         try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "hold")) {
             server.bind();
@@ -424,6 +439,8 @@ public class RsfCallerTest {
             assertTrue(channel.isActive());
             assertEquals(1, client.cancelledTimers.get());
             RequestPayload request = channel.sent.poll(2, TimeUnit.SECONDS);
+            assertTrue(request.completion().isDone());
+            assertTrue(request.completion().getCause() instanceof CancellationException);
             client.manager.onResponse(channel, request.getRequestID(), response(request, ProtocolStatus.OK));
             assertTrue(call.isCancelled());
             RsfFuture next = client.invoke(server.address);
@@ -826,7 +843,7 @@ public class RsfCallerTest {
         }
 
         private RsfListen bind() throws Exception {
-            return this.manager.bind(this.config).get(2, TimeUnit.SECONDS);
+            return this.manager.bind(this.config.name()).get(2, TimeUnit.SECONDS);
         }
 
         private MemoryConnector connector() {

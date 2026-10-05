@@ -56,6 +56,7 @@ final class RsfDispatcher implements AutoCloseable {
     public void onRequest(RsfChannel channel, long requestId, RequestPayload info) {
         if (requestId != info.getRequestID()) {
             logger.warn("Request ID mismatch: envelope={}, payload={}", requestId, info.getRequestID());
+            info.complete(new IllegalArgumentException("Request ID mismatch"));
             return;
         }
 
@@ -68,7 +69,12 @@ final class RsfDispatcher implements AutoCloseable {
             Executor executor = this.dispatcherExecutor.getExecute(serviceUniqueName);
             executor.execute(new RsfInvocationTask(channel, this, info));//放入业务线程准备执行
             ResponsePayload resp = RsfPayloadBuilder.buildResponseStatus(info.getRequestID(), ProtocolStatus.Accept, null);
-            channel.sendData(resp);
+
+            channel.sendData(resp).onFinal(done -> {
+                if (info.isMessage() || resp.getStatus() != ProtocolStatus.Accept || done.getCause() != null || done.isCancelled()) {
+                    info.complete(done.isCancelled() ? new IllegalStateException("Response write cancelled") : done.getCause());
+                }
+            });
         } catch (RejectedExecutionException e) {
             invLogger.info("request({}) -> rejected request, queue is full. -> bindID ={}, targetMethod ={}, remoteAddress ={}.", //
                     info.getRequestID(), serviceUniqueName, info.getTargetMethod(), target);
@@ -77,7 +83,12 @@ final class RsfDispatcher implements AutoCloseable {
             String msgLog = "rejected request, queue is full." + errorMessage;
             logger.warn(msgLog, e);
             ResponsePayload resp = RsfPayloadBuilder.buildResponseStatus(info.getRequestID(), ProtocolStatus.QueueFull, msgLog);
-            channel.sendData(resp);
+
+            channel.sendData(resp).onFinal(done -> {
+                if (info.isMessage() || resp.getStatus() != ProtocolStatus.Accept || done.getCause() != null || done.isCancelled()) {
+                    info.complete(done.isCancelled() ? new IllegalStateException("Response write cancelled") : done.getCause());
+                }
+            });
         }
     }
 }

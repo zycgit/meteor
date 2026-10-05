@@ -11,12 +11,18 @@ import net.hasor.rsf.address.InterAddress;
 
 /** Immutable configuration for a named connector and its local listening address. */
 public final class ConnectorConfig {
-    private final String              name;
-    private final String              listenType;
-    private final InterAddress        address;
-    private final Map<String, String> options;
+    private final String                      name;
+    private final String                      listenType;
+    private final InterAddress                address;
+    private final Map<String, String>         options;
+    private final Map<String, ProtocolConfig> protocols;
 
+    /** Single-protocol endpoint shorthand. */
     public ConnectorConfig(String name, InterAddress address, Map<String, String> options) {
+        this(name, address, options, Collections.singletonList(new ProtocolConfig(name, address.getSchema(), options.getOrDefault("protocolFactory", ""), options)));
+    }
+
+    public ConnectorConfig(String name, InterAddress address, Map<String, String> options, Collection<ProtocolConfig> protocols) {
         this.name = Objects.requireNonNull(name, "name");
         this.address = Objects.requireNonNull(address, "address");
         this.options = Collections.unmodifiableMap(new HashMap<>(options));
@@ -25,6 +31,18 @@ public final class ConnectorConfig {
             throw new IllegalArgumentException("Missing listenType for endpoint: " + name);
         }
         this.listenType = type.toLowerCase(Locale.ROOT);
+
+        Map<String, ProtocolConfig> routes = new LinkedHashMap<>();
+        for (ProtocolConfig protocol : protocols) {
+            if (routes.putIfAbsent(protocol.scheme(), protocol) != null) {
+                throw new IllegalArgumentException("Duplicate protocol scheme on endpoint: " + protocol.scheme());
+            }
+        }
+
+        if (routes.isEmpty()) {
+            throw new IllegalArgumentException("Endpoint requires at least one protocol");
+        }
+        this.protocols = Collections.unmodifiableMap(routes);
     }
 
     public String name() {
@@ -38,7 +56,7 @@ public final class ConnectorConfig {
 
     /** Copies this configuration for another operation address, keeping its name and options. */
     public ConnectorConfig withAddress(InterAddress address) {
-        return new ConnectorConfig(this.name, address, this.options);
+        return new ConnectorConfig(this.name, address, this.options, this.protocols.values());
     }
 
     /** Transport type used to select a factory and start the requested operation. */
@@ -57,6 +75,24 @@ public final class ConnectorConfig {
         }
 
         return value;
+    }
+
+    public Collection<ProtocolConfig> protocols() {
+        return this.protocols.values();
+    }
+
+    public ProtocolConfig protocol(String scheme) {
+        return this.protocols.get(scheme.toLowerCase(Locale.ROOT));
+    }
+
+    /** Effective options for a protocol, retaining endpoint resource limits. */
+    public ConnectorConfig forProtocol(ProtocolConfig protocol) {
+        Map<String, String> merged = new LinkedHashMap<>(this.options);
+        merged.putAll(protocol.options());
+        merged.put("listenType", this.listenType);
+        merged.put("protocolFactory", protocol.factory());
+        InterAddress local = new InterAddress(protocol.scheme(), this.address.getHost(), this.address.getPort(), this.address.getFormUnit());
+        return new ConnectorConfig(this.name, local, merged, Collections.singletonList(protocol));
     }
 
     public int connectTimeout() {

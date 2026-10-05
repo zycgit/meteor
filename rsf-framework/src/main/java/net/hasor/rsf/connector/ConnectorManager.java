@@ -8,7 +8,6 @@
 package net.hasor.rsf.connector;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,7 +28,7 @@ import net.hasor.rsf.domain.payload.ResponsePayload;
 import net.hasor.rsf.domain.payload.ThrowPayload;
 
 /**
- * Manages connector factories, initialized connectors and all incoming/outgoing channels.
+ * Manages configured network endpoints, protocol routes, connector factories and message subscribers.
  * The owner serializes init() and close(). RsfConnector creation and stopping admission are mutually exclusive.
  */
 public class ConnectorManager implements AutoCloseable, ReceivedListener {
@@ -44,7 +43,7 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
     private final        Map<String, ConnectorConfig>     connectorConfigs   = new LinkedHashMap<>();
     private final        Map<String, RsfConnector>        connectors         = new LinkedHashMap<>();
     //
-    private final        Map<Long, RsfChannel>            connections        = new LinkedHashMap<>();
+    private final        Map<String, ConnectorConfig>     routes             = new LinkedHashMap<>();
     private final        List<ConnectorSubscriber>        subscribers        = new CopyOnWriteArrayList<>();
 
     public ConnectorManager(RsfContext context) {
@@ -64,9 +63,8 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
     private Map<String, ConnectorConfig> readConfigurations() {
         Map<String, ConnectorConfig> configured = new LinkedHashMap<>();
         for (ConnectorConfig config : this.context.getSettings().getConnectorConfigs()) {
-            String schema = config.address().getSchema().toLowerCase(Locale.ROOT);
-            if (configured.putIfAbsent(schema, config) != null) {
-                throw new IllegalArgumentException("Duplicate connector address scheme: " + schema);
+            if (configured.putIfAbsent(config.name(), config) != null) {
+                throw new IllegalArgumentException("Duplicate endpoint: " + config.name());
             }
         }
         return configured;
@@ -128,6 +126,18 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
         }
 
         Map<String, ConnectorConfig> configured = this.readConfigurations();
+        Map<String, ConnectorConfig> routing = new LinkedHashMap<>();
+        for (ConnectorConfig config : configured.values()) {
+            if (!discovered.containsKey(config.listenType())) {
+                throw new IllegalArgumentException("No connector factory for " + config.listenType());
+            }
+
+            for (ProtocolConfig protocol : config.protocols()) {
+                if (routing.putIfAbsent(protocol.scheme(), config) != null) {
+                    throw new IllegalArgumentException("Protocol scheme belongs to multiple endpoints: " + protocol.scheme());
+                }
+            }
+        }
         HashedWheelTimer initializedTimer = new HashedWheelTimer(task -> {
             Thread thread = new Thread(task, "RSF-Connector-timer");
             thread.setContextClassLoader(this.context.getClassLoader());
@@ -137,6 +147,7 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
         synchronized (this) {
             this.connectorFactories.putAll(discovered);
             this.connectorConfigs.putAll(configured);
+            this.routes.putAll(routing);
             this.timer = initializedTimer;
             this.inited = true;
         }
@@ -173,7 +184,7 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
             HashedWheelTimer stopping;
             synchronized (this) {
                 this.connectors.clear();
-                this.connections.clear();
+                this.routes.clear();
                 this.connectorFactories.clear();
                 this.connectorConfigs.clear();
                 stopping = this.timer;
@@ -191,83 +202,41 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
         }
     }
 
-    /** Also used when an individual connector closes; other connectors' channels remain untouched. */
-    private void closeConnections(RsfConnector owner) {
-        List<RsfChannel> closing = new ArrayList<>();
-        synchronized (this) {
-            if (this.inited) {
-                this.connectors.remove(owner.config().name(), owner);
-            }
-            for (RsfChannel channel : this.connections.values()) {
-                if (channel.getConnector() == owner) {
-                    closing.add(channel);
-                }
-            }
-        }
-        List<Future<RsfChannel>> pending = new ArrayList<>();
-        for (RsfChannel channel : closing) {
-            try {
-                pending.add(channel.drainAndClose());
-            } catch (RuntimeException | Error failure) {
-                logger.warn("Channel drain and close failed", failure);
-            }
-        }
-        for (Future<RsfChannel> future : pending) {
-            awaitClose(future);
-        }
-        for (RsfChannel channel : closing) {
-            this.onClosed(channel);
-        }
-    }
-
-    private static void awaitClose(Future<RsfChannel> future) {
-        boolean interrupted = false;
-        try {
-            for (; ; ) {
-                try {
-                    future.get();
-                    return;
-                } catch (InterruptedException ignored) {
-                    interrupted = true;
-                } catch (ExecutionException failure) {
-                    logger.warn("Channel drain and close failed", failure.getCause());
-                    return;
-                } catch (RuntimeException | Error failure) {
-                    logger.warn("Channel drain and close failed", failure);
-                    return;
-                }
-            }
-        } finally {
-            if (interrupted) {
-                Thread.currentThread().interrupt();
-            }
-        }
-    }
-
     //
     // bind port
     //
 
-    public Future<RsfListen> bind(ConnectorConfig config) {
+    public Future<RsfListen> bind(String endpointId) {
         try {
-            RsfConnector connector = this.getOrCreateConnector(config);
-            return connector.bind(config.address());
+            ConnectorConfig config;
+            synchronized (this) {
+                this.requireReady();
+                config = this.connectorConfigs.get(endpointId);
+            }
+
+            if (config == null) {
+                throw new IllegalArgumentException("Unknown endpoint: " + endpointId);
+            }
+
+            return this.getOrCreateConnector(config).bind();
         } catch (Exception failure) {
             return failed(failure);
         }
     }
 
-    /** Each call creates a connection. Both directions register through the connector's channel event. */
+    /** Resolve the target scheme to its endpoint, then acquire a protocol session. */
     public Future<RsfChannel> connect(InterAddress address) {
         try {
             ConnectorConfig config;
             synchronized (this) {
                 this.requireReady();
-                config = this.connectorConfigs.get(address.getSchema().toLowerCase(Locale.ROOT));
+                config = this.routes.get(address.getSchema().toLowerCase(Locale.ROOT));
             }
+
             if (config == null) {
                 throw new RsfException(ProtocolStatus.ProtocolUndefined, "No connector configured for " + address.getSchema());
             }
+
             RsfConnector connector = this.getOrCreateConnector(config);
             return connector.connect(address);
         } catch (Exception failure) {
@@ -304,9 +273,6 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
             RsfConnector connector = null;
             try {
                 connector = factory.create(config, this);
-                connector.onChannelConnected(this::onConnect);
-                connector.onChannelClosed(this::onClosed);
-                connector.onClosing(this::closeConnections);
                 if (!config.name().equals(connector.config().name())) {
                     throw new IllegalArgumentException("Provider changed connector name");
                 }
@@ -330,32 +296,6 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
             }
         } finally {
             this.creationLock.unlock();
-        }
-    }
-
-    //
-
-    /** The provider registers a channel before exposing it to callers or delivering messages. */
-    private void onConnect(RsfChannel channel) {
-        RsfConnector owner = channel.getConnector();
-        synchronized (this) {
-            if (this.inited && this.connectors.get(owner.config().name()) == owner) {
-                RsfChannel previous = this.connections.putIfAbsent(channel.getChannelId(), channel);
-                if (previous != null && previous != channel) {
-                    throw new IllegalStateException("Duplicate connection ID: " + channel.getChannelId());
-                }
-
-                return;
-            }
-        }
-
-        channel.close();
-    }
-
-    /** Connection termination, including normal close; independent of per-request onFailure(). */
-    private synchronized void onClosed(RsfChannel channel) {
-        if (this.connections.get(channel.getChannelId()) == channel) {
-            this.connections.remove(channel.getChannelId());
         }
     }
 
@@ -387,11 +327,36 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
     //
 
     public synchronized RsfConnector find(String name) {
-        return this.connectors.get(name);
+        RsfConnector endpoint = this.connectors.get(name);
+        if (endpoint != null) {
+            return endpoint;
+        }
+
+        ConnectorConfig config = this.routes.get(name.toLowerCase(Locale.ROOT));
+        if (config != null) {
+            return this.connectors.get(config.name());
+        }
+
+        for (RsfConnector connector : this.connectors.values()) {
+            for (ProtocolConfig protocol : connector.config().protocols()) {
+                if (protocol.name().equals(name)) {
+                    return connector;
+                }
+            }
+        }
+
+        return null;
     }
 
     public synchronized Set<String> protocols() {
-        return Collections.unmodifiableSet(new LinkedHashSet<>(this.connectors.keySet()));
+        Set<String> protocols = new LinkedHashSet<>();
+        for (RsfConnector connector : this.connectors.values()) {
+            for (ProtocolConfig protocol : connector.config().protocols()) {
+                protocols.add(protocol.name());
+            }
+        }
+
+        return Collections.unmodifiableSet(protocols);
     }
 
     public boolean isInitialized() {
