@@ -7,33 +7,30 @@
  */
 package net.hasor.rsf.serialize;
 
+import java.io.IOException;
+import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import net.hasor.rsf.serialize.coder.HessianSerializeCoder;
-import net.hasor.rsf.serialize.coder.HproseSerializeCoder;
 import net.hasor.rsf.serialize.coder.JavaSerializeCoder;
 import net.hasor.rsf.serialize.coder.JsonSerializeCoder;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import java.io.IOException;
-import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.*;
-
 import static org.junit.Assert.*;
 
 @RunWith(Parameterized.class)
 public class SerializeCoderTest {
     @Parameterized.Parameters(name = "{0}")
     public static Collection<Object[]> coders() {
-        return Arrays.asList(new Object[][] {
-                {"Java", new JavaSerializeCoder()}, {"Json", new JsonSerializeCoder()},
-                {"Hessian", new HessianSerializeCoder()}, {"Hprose", new HproseSerializeCoder()}
-        });
+        return Arrays.asList(new Object[][] { { "Java", new JavaSerializeCoder() }, { "Json", new JsonSerializeCoder() }, { "Hessian", new HessianSerializeCoder() } });
     }
 
-    private final String name;
+    private final String         name;
     private final SerializeCoder coder;
 
     public SerializeCoderTest(String name, SerializeCoder coder) {
@@ -68,9 +65,9 @@ public class SerializeCoderTest {
 
     @Test
     public void primitiveAndObjectArrays() throws Exception {
-        assertArrayEquals(new byte[] {0, -1, 42}, (byte[]) roundTrip(new byte[] {0, -1, 42}, byte[].class));
-        assertArrayEquals(new int[] {1, -2, 3}, (int[]) roundTrip(new int[] {1, -2, 3}, int[].class));
-        assertArrayEquals(new String[] {"中文", null, ""}, (String[]) roundTrip(new String[] {"中文", null, ""}, String[].class));
+        assertArrayEquals(new byte[] { 0, -1, 42 }, (byte[]) roundTrip(new byte[] { 0, -1, 42 }, byte[].class));
+        assertArrayEquals(new int[] { 1, -2, 3 }, (int[]) roundTrip(new int[] { 1, -2, 3 }, int[].class));
+        assertArrayEquals(new String[] { "中文", null, "" }, (String[]) roundTrip(new String[] { "中文", null, "" }, String[].class));
     }
 
     @Test
@@ -102,7 +99,7 @@ public class SerializeCoderTest {
     @Test
     public void malformedDataFailsWithIOException() throws Exception {
         try {
-            this.coder.decode(new byte[] {(byte) 0xff, 1, 0}, Payload.class);
+            this.coder.decode(new byte[] { (byte) 0xff, 1, 0 }, Payload.class);
             fail("Malformed " + this.name + " must fail");
         } catch (IOException expected) {
             // The caller can handle a format failure without knowing the backend library.
@@ -112,7 +109,7 @@ public class SerializeCoderTest {
     @Test
     public void failedDecodeDoesNotPoisonCoder() throws Exception {
         try {
-            this.coder.decode(new byte[] {(byte) 0xff}, Object.class);
+            this.coder.decode(new byte[] { (byte) 0xff }, Object.class);
             fail("Malformed input must fail");
         } catch (IOException expected) {
             assertEquals("next request", roundTrip("next request", String.class));
@@ -162,24 +159,44 @@ public class SerializeCoderTest {
     public void readsAndWritesLegacyStringFixture() throws Exception {
         byte[] fixture;
         switch (this.name) {
-            case "Java": fixture = new byte[] {(byte) 0xac, (byte) 0xed, 0, 5, 0x74, 0, 5, 'h', 'e', 'l', 'l', 'o'}; break;
-            case "Json": fixture = "\"hello\"".getBytes(StandardCharsets.UTF_8); break;
-            case "Hessian": fixture = new byte[] {'S', 0, 5, 'h', 'e', 'l', 'l', 'o'}; break;
-            case "Hprose": fixture = "s5\"hello\"".getBytes(StandardCharsets.UTF_8); break;
-            default: throw new AssertionError(this.name);
+            case "Java":
+                fixture = new byte[] { (byte) 0xac, (byte) 0xed, 0, 5, 0x74, 0, 5, 'h', 'e', 'l', 'l', 'o' };
+                break;
+            case "Json":
+                fixture = "\"hello\"".getBytes(StandardCharsets.UTF_8);
+                break;
+            case "Hessian":
+                fixture = new byte[] { 'S', 0, 5, 'h', 'e', 'l', 'l', 'o' };
+                break;
+            default:
+                throw new AssertionError(this.name);
         }
         assertEquals("hello", this.coder.decode(fixture, String.class));
         assertArrayEquals(fixture, this.coder.encode("hello"));
     }
 
     public static class Payload implements Serializable {
-        private static final long serialVersionUID = 1L;
-        private String name;
-        private int count;
-        public Payload() {}
-        public String getName() { return this.name; }
-        public void setName(String name) { this.name = name; }
-        public int getCount() { return this.count; }
-        public void setCount(int count) { this.count = count; }
+        private static final long   serialVersionUID = 1L;
+        private              String name;
+        private              int    count;
+
+        public Payload() {
+        }
+
+        public String getName() {
+            return this.name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public int getCount() {
+            return this.count;
+        }
+
+        public void setCount(int count) {
+            this.count = count;
+        }
     }
 }

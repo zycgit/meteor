@@ -29,7 +29,7 @@ public class SerializeFactoryTest {
     @Test
     public void builtinsWorkWithoutContainer() throws Exception {
         SerializeFactory factory = SerializeFactory.createFactory();
-        for (String name : new String[] { "Java", "Json", "Hessian", "Hprose" }) {
+        for (String name : new String[] { "Java", "Json", "Hessian" }) {
             SerializeCoder coder = factory.getSerializeCoder(name);
             assertNotNull(name, coder);
             assertEquals(name, coder.name());
@@ -37,6 +37,7 @@ public class SerializeFactoryTest {
             assertSame(coder, factory.getSerializeCoder(name.toUpperCase(Locale.ROOT)));
             assertEquals("hello", coder.decode(coder.encode("hello"), String.class));
         }
+        assertNull(factory.getSerializeCoder("Hprose"));
         assertNull(factory.getSerializeCoder("unknown"));
         assertNull(factory.getSerializeCoder(null));
         assertSame(factory.getSerializeCoder("Json"), factory.getSerializeCoder("jSoN"));
