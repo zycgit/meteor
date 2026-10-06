@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.protocol.hprose;
+import net.hasor.rsf.connector.transport.RouteMatch;
 import java.util.function.BiConsumer;
 import net.hasor.rsf.connector.ProtocolConfig;
 import net.hasor.rsf.connector.protocol.ProtocolContext;
@@ -17,6 +18,16 @@ import net.hasor.rsf.domain.payload.Payload;
 
 /** Hprose SPI provider using the same session contract as every other protocol. */
 public final class HproseProtocol implements ProtocolFactory<HttpExchange> {
+    @Override
+    public String scheme() {
+        return this.name();
+    }
+
+    @Override
+    public RouteMatch probe(ProtocolConfig config, HttpExchange message) {
+        return RouteMatch.REJECT;
+    }
+
     public String name() {
         return "hprose";
     }

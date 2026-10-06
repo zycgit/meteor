@@ -25,6 +25,7 @@ import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.connector.*;
 import net.hasor.rsf.connector.transport.NetworkChannel;
+import net.hasor.rsf.connector.transport.RouteMatch;
 import net.hasor.rsf.connector.transport.http.HttpExchange;
 import net.hasor.rsf.connector.transport.http.HttpRequest;
 import net.hasor.rsf.connector.transport.http.HttpResponse;
@@ -814,6 +815,16 @@ public class HttpTransportTest {
     }
 
     public static class TextProtocol implements TestHttpCodec, ProtocolFactory<HttpExchange> {
+        @Override
+        public String scheme() {
+            return this.name();
+        }
+
+        @Override
+        public RouteMatch probe(ProtocolConfig config, HttpExchange message) {
+            return RouteMatch.REJECT;
+        }
+
         public String transport() {
             return "http";
         }

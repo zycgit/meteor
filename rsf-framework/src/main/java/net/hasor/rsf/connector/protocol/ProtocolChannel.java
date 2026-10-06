@@ -45,8 +45,8 @@ final class ProtocolChannel<M> extends AbstractRsfChannel implements ChannelList
         this.connection = connection;
         this.connecting = connecting;
 
-        InterAddress local = owner.config().address();
-        InterAddress advertised = new InterAddress(protocolConfig.scheme(), local.getHost(), local.getPort(), local.getFormUnit());
+        InterAddress local = owner.getBindAddress();
+        InterAddress advertised = local == null ? null : new InterAddress(protocolConfig.scheme(), local.getHost(), local.getPort(), local.getFormUnit());
         ProtocolContext context = new ProtocolContext(owner.manager().context(), owner.manager()::schedule, advertised, connecting != null);
         this.session = factory.create(protocolConfig, context, connection, this::received);
         this.session.ready().onFinal(done -> this.connection.execute(() -> this.completeConnect(done)));

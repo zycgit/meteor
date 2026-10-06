@@ -227,8 +227,11 @@ public abstract class AbstractConnector implements RsfConnector {
     //
 
     public final Future<RsfListen> bind() {
-        InterAddress address = this.config.address();
+        if (!this.config.bindEnabled()) {
+            throw new IllegalStateException("Endpoint has no configured listener: " + this.config.name());
+        }
 
+        InterAddress address = this.config.address();
         BasicFuture<RsfListen> result;
         synchronized (this) {
             if (this.state != State.READY) {

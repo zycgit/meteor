@@ -19,6 +19,11 @@ import net.hasor.rsf.domain.payload.Payload;
  * RSF/1 message adapter, including its own request/response correlation.
  */
 public final class RsfProtocol implements ProtocolFactory<byte[]> {
+    @Override
+    public String scheme() {
+        return this.name();
+    }
+
     public String name() {
         return "rsf";
     }

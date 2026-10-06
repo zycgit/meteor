@@ -5,11 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.test.rsf.address;
-import net.hasor.rsf.address.AddressBucket;
-import net.hasor.rsf.address.AddressTypeEnum;
-import net.hasor.rsf.address.InterAddress;
-
+package net.hasor.rsf.address;
 import java.util.ArrayList;
 
 /**

@@ -24,6 +24,7 @@ import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.connector.*;
 import net.hasor.rsf.connector.transport.NetworkChannel;
+import net.hasor.rsf.connector.transport.RouteMatch;
 import net.hasor.rsf.domain.payload.Payload;
 import net.hasor.rsf.domain.payload.RequestPayload;
 import org.junit.Test;
@@ -161,6 +162,16 @@ public class SocketLifecycleTest {
     }
 
     public static class RawProtocol implements ProtocolFactory<byte[]> {
+        @Override
+        public String scheme() {
+            return this.name();
+        }
+
+        @Override
+        public RouteMatch probe(ProtocolConfig config, byte[] message) {
+            return RouteMatch.REJECT;
+        }
+
         public String transport() {
             return "tcp";
         }

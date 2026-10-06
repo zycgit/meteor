@@ -16,8 +16,12 @@ import net.hasor.rsf.connector.transport.NetworkRoute;
 public final class EndpointConnectorFactory implements RsfConnectorFactory {
     private final Map<String, NetworkConnectorFactory<?>> transports = new LinkedHashMap<>();
     private final Map<String, ProtocolFactory<?>>         protocols  = new LinkedHashMap<>();
+    private       ClassLoader                             loader;
 
     public Collection<String> listenTypes(ClassLoader loader) {
+        if (this.loader == loader) {
+            return Collections.unmodifiableSet(this.transports.keySet());
+        }
         Map<String, NetworkConnectorFactory<?>> networks = new LinkedHashMap<>();
         for (NetworkConnectorFactory<?> factory : ServiceLoader.load(NetworkConnectorFactory.class, loader)) {
             put(networks, factory.name(), factory, "transport");
@@ -32,7 +36,41 @@ public final class EndpointConnectorFactory implements RsfConnectorFactory {
         this.transports.putAll(networks);
         this.protocols.clear();
         this.protocols.putAll(codecs);
-        return networks.keySet();
+        this.loader = loader;
+        return Collections.unmodifiableSet(this.transports.keySet());
+    }
+
+    /** Resolve a user selection to the immutable identity declared by its SPI provider. */
+    public ProtocolConfig protocol(String name, Map<String, String> options) {
+        ProtocolFactory<?> factory = this.protocols.get(name.toLowerCase(Locale.ROOT));
+        if (factory == null) {
+            throw new IllegalArgumentException("Unknown protocol: " + name);
+        }
+        return new ProtocolConfig(factory.name(), factory.scheme(), factory.name(), options);
+    }
+
+    /** Validate and normalize an endpoint without constructing network resources. */
+    public ConnectorConfig prepare(ConnectorConfig config) {
+        NetworkConnectorFactory<?> transport = this.transports.get(config.listenType());
+        if (transport == null) {
+            throw new IllegalArgumentException("Unknown transport: " + config.listenType());
+        }
+        return this.prepare(config, transport);
+    }
+
+    private <M> ConnectorConfig prepare(ConnectorConfig config, NetworkConnectorFactory<M> transport) {
+        Map<String, NetworkRoute<M>> routes = new LinkedHashMap<>();
+        for (ProtocolConfig mount : config.protocols()) {
+            ProtocolFactory<M> protocol = this.resolve(mount, transport);
+            ProtocolConfig effective = config.forProtocol(mount);
+            routes.put(mount.scheme(), new NetworkRoute<>(effective.options(), message -> protocol.probe(effective, message)));
+        }
+        Map<String, NetworkRoute<M>> prepared = transport.prepareRoutes(routes);
+        List<ProtocolConfig> protocols = new ArrayList<>();
+        for (ProtocolConfig mount : config.protocols()) {
+            protocols.add(new ProtocolConfig(mount.name(), mount.scheme(), mount.protocol(), prepared.get(mount.scheme()).options()));
+        }
+        return new ConnectorConfig(config.name(), config.address(), config.options(), protocols, config.bindEnabled());
     }
 
     private static <T> void put(Map<String, T> registry, String name, T factory, String kind) {

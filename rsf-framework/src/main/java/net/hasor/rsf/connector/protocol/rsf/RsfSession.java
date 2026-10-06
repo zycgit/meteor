@@ -21,14 +21,14 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.rsf.connector.ProtocolConfig;
 import net.hasor.rsf.connector.protocol.ProtocolContext;
 import net.hasor.rsf.connector.protocol.ProtocolSession;
+import net.hasor.rsf.connector.protocol.rsf.codec.CodecAdapterForV1;
+import net.hasor.rsf.connector.protocol.rsf.codec.RsfFrameDecoder;
 import net.hasor.rsf.connector.transport.NetworkChannel;
 import net.hasor.rsf.domain.ProtocolStatus;
 import net.hasor.rsf.domain.payload.Payload;
 import net.hasor.rsf.domain.payload.RequestPayload;
 import net.hasor.rsf.domain.payload.ResponsePayload;
 import net.hasor.rsf.domain.payload.ThrowPayload;
-import net.hasor.rsf.connector.protocol.rsf.codec.CodecAdapterForV1;
-import net.hasor.rsf.connector.protocol.rsf.codec.RsfFrameDecoder;
 
 /** One connection's handshake, request correlation and RSF/1 message lifecycle. */
 final class RsfSession implements ProtocolSession<byte[]> {
@@ -72,7 +72,7 @@ final class RsfSession implements ProtocolSession<byte[]> {
         ResponsePayload hello = new ResponsePayload();
         hello.setRequestID(-1);
         hello.setStatus(ProtocolStatus.OK);
-        hello.addOption("SERVER_INFO", this.context.bindAddress().toHostSchema());
+        hello.addOption("SERVER_INFO", this.context.bindAddress() == null ? "" : this.context.bindAddress().toHostSchema());
 
         this.write(hello).onFinal(done -> {
             Throwable error = failure(done);

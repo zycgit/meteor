@@ -65,6 +65,14 @@ public class InterAddressContractTest {
     }
 
     @Test
+    public void localEndpointCanRequestAnEphemeralPortWithoutRelaxingServiceAddresses() {
+        InterAddress local = InterAddress.forBinding("tcp", "127.0.0.1", 0, "default");
+        assertEquals(0, local.getPort());
+        assertEquals("tcp://127.0.0.1:0/default", local.toHostSchema());
+        assertFalse(InterAddress.checkFormat(URI.create(local.toHostSchema())));
+    }
+
+    @Test
     public void missingPortIsRejected() {
         assertFalse(InterAddress.checkFormat(URI.create("rsf://127.0.0.1/zone")));
     }

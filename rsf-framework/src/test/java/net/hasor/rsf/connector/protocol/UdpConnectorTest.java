@@ -27,6 +27,7 @@ import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.connector.*;
 import net.hasor.rsf.connector.transport.NetworkChannel;
+import net.hasor.rsf.connector.transport.RouteMatch;
 import net.hasor.rsf.domain.payload.Payload;
 import net.hasor.rsf.domain.payload.RequestPayload;
 import net.hasor.rsf.domain.payload.ResponsePayload;
@@ -276,6 +277,16 @@ public class UdpConnectorTest {
     }
 
     public static final class TestProtocol implements ProtocolFactory<byte[]> {
+        @Override
+        public String scheme() {
+            return this.name();
+        }
+
+        @Override
+        public RouteMatch probe(ProtocolConfig config, byte[] message) {
+            return RouteMatch.REJECT;
+        }
+
         public String transport() {
             return "udp";
         }

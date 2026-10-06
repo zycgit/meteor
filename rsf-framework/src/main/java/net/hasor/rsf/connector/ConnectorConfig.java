@@ -13,6 +13,7 @@ import net.hasor.rsf.address.InterAddress;
 public final class ConnectorConfig {
     private final String                      name;
     private final String                      listenType;
+    private final boolean                     bindEnabled;
     private final InterAddress                address;
     private final Map<String, String>         options;
     private final Map<String, ProtocolConfig> protocols;
@@ -23,7 +24,12 @@ public final class ConnectorConfig {
     }
 
     public ConnectorConfig(String name, InterAddress address, Map<String, String> options, Collection<ProtocolConfig> protocols) {
+        this(name, address, options, protocols, true);
+    }
+
+    public ConnectorConfig(String name, InterAddress address, Map<String, String> options, Collection<ProtocolConfig> protocols, boolean bindEnabled) {
         this.name = Objects.requireNonNull(name, "name");
+        this.bindEnabled = bindEnabled;
         this.address = Objects.requireNonNull(address, "address");
         this.options = Collections.unmodifiableMap(new HashMap<>(options));
         String type = this.options.get("listenType");
@@ -56,7 +62,16 @@ public final class ConnectorConfig {
 
     /** Copies this configuration for another operation address, keeping its name and options. */
     public ConnectorConfig withAddress(InterAddress address) {
-        return new ConnectorConfig(this.name, address, this.options, this.protocols.values());
+        return new ConnectorConfig(this.name, address, this.options, this.protocols.values(), this.bindEnabled);
+    }
+
+    /** Whether this endpoint has an explicitly configured listener. */
+    public boolean bindEnabled() {
+        return this.bindEnabled;
+    }
+
+    public Map<String, String> options() {
+        return this.options;
     }
 
     /** Transport type used to select a factory and start the requested operation. */

@@ -32,9 +32,14 @@ public final class InterAddress {
     }
 
     public InterAddress(URI newAddressURL) {
-        if (!checkFormat(newAddressURL)) {
+        this(newAddressURL, false);
+    }
+
+    private InterAddress(URI newAddressURL, boolean local) {
+        if (!checkFormat(newAddressURL, local)) {
             throw new IllegalStateException(newAddressURL + " format error.");
         }
+
         String formPath = newAddressURL.getPath();
         if (formPath.startsWith("/")) {
             formPath = formPath.substring(1);
@@ -53,6 +58,11 @@ public final class InterAddress {
 
     public InterAddress(String schema, String hostAddress, int hostPort, String formUnit) {
         this(addressURI(schema, hostAddress, hostPort, formUnit));
+    }
+
+    /** Local endpoint configuration may use port zero; remote service addresses must use a concrete port. */
+    public static InterAddress forBinding(String schema, String host, int port, String unit) {
+        return new InterAddress(addressURI(schema, host, port, unit), true);
     }
 
     private static URI addressURI(String schema, String host, int port, String unit) {
@@ -171,7 +181,11 @@ public final class InterAddress {
     }
 
     public static boolean checkFormat(URI serviceURL) {
-        if (serviceURL == null || StringUtils.isBlank(serviceURL.getScheme()) || StringUtils.isBlank(serviceURL.getHost()) || serviceURL.getPort() < 1 || serviceURL.getPort() > 65535) {
+        return checkFormat(serviceURL, false);
+    }
+
+    private static boolean checkFormat(URI serviceURL, boolean local) {
+        if (serviceURL == null || StringUtils.isBlank(serviceURL.getScheme()) || StringUtils.isBlank(serviceURL.getHost()) || serviceURL.getPort() < (local ? 0 : 1) || serviceURL.getPort() > 65535) {
             return false;
         }
         String path = serviceURL.getPath();

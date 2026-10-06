@@ -315,6 +315,16 @@ public class EndpointRoutingTest {
     }
 
     public static class HttpA implements ProtocolFactory<HttpExchange>, TestHttpCodec {
+        @Override
+        public String scheme() {
+            return this.name();
+        }
+
+        @Override
+        public RouteMatch probe(ProtocolConfig config, HttpExchange message) {
+            return RouteMatch.REJECT;
+        }
+
         public String transport() {
             return "http";
         }
@@ -366,6 +376,11 @@ public class EndpointRoutingTest {
     }
 
     public static class WireA implements ProtocolFactory<byte[]> {
+        @Override
+        public String scheme() {
+            return this.name();
+        }
+
         public String transport() {
             return "tcp";
         }

@@ -16,14 +16,15 @@ import net.hasor.rsf.domain.payload.Payload;
 public interface ProtocolFactory<M> {
     String name();
 
+    /** Address scheme owned by this protocol, independent of user configuration. */
+    String scheme();
+
     String transport();
 
     Class<M> messageType();
 
     /** Inspect data without consuming it when the transport needs content-based routing. */
-    default RouteMatch probe(ProtocolConfig config, M message) {
-        return RouteMatch.REJECT;
-    }
+    RouteMatch probe(ProtocolConfig config, M message);
 
     ProtocolSession<M> create(ProtocolConfig config, ProtocolContext context, NetworkChannel<M> connection, BiConsumer<Long, Payload> messages);
 }

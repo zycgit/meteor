@@ -319,6 +319,19 @@ public class RsfProtocolTest {
         return new RsfSession(config(options), new ProtocolContext(this.manager.context(), this.manager::schedule, new InterAddress("rsf", "127.0.0.1", 2181, "default"), false), connection, (id, payload) -> messages.add(payload));
     }
 
+    @Test
+    public void outboundHandshakeDoesNotAdvertiseAnUnboundServiceAddress() throws Exception {
+        Connection connection = new Connection();
+        ProtocolContext outbound = new ProtocolContext(this.manager.context(), this.manager::schedule, null, true);
+        RsfSession session = new RsfSession(config(Collections.emptyMap()), outbound, connection, (id, payload) -> {
+        });
+        session.connected();
+        ResponsePayload hello = (ResponsePayload) this.codec.decode(connection.writes.get(0));
+        assertEquals("", hello.getOption("SERVER_INFO"));
+        session.receive(connection.writes.get(0));
+        assertTrue(session.ready().isDone());
+    }
+
     private byte[] fixture(String name) throws IOException {
         try (InputStream input = getClass().getResourceAsStream("/legacy/" + name); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[1024];

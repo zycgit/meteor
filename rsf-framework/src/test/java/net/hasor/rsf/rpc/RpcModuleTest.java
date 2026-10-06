@@ -270,7 +270,7 @@ public class RpcModuleTest {
             } catch (ExecutionException expected) {
                 assertTrue(expected.getCause() instanceof RsfException);
             }
-            assertNull(getClass().getClassLoader().getResource("net/hasor/rsf/_new/RsfContextImpl.class"));
+            assertNull(getClass().getClassLoader().getResource("net/hasor/rsf/protocol/hprose/HproseProtocol.class"));
         }
     }
 

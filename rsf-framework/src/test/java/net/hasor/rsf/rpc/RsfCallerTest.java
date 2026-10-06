@@ -46,7 +46,7 @@ public class RsfCallerTest {
             assertEquals(2, server.remoteFilters.get());
             assertEquals(2, client.localFilters.get());
             assertEquals(2, client.cancelledTimers.get());
-            assertNull(getClass().getClassLoader().getResource("net/hasor/rsf/_new/RsfContextImpl.class"));
+            assertNull(getClass().getClassLoader().getResource("net/hasor/rsf/protocol/hprose/HproseProtocol.class"));
         }
     }
 

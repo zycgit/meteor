@@ -25,6 +25,7 @@ public final class ProtocolContext {
         this.outbound = outbound;
     }
 
+    /** Active listener address, or null for an endpoint without a listener. */
     public InterAddress bindAddress() {
         return this.bindAddress;
     }
