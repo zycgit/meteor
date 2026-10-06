@@ -696,7 +696,8 @@ public class RsfCallerLifecycleTest {
                 }
                 throw new AssertionError("Unexpected channel access: " + m);
             });
-            this.manager = new ConnectorManager(context) {
+
+            this.manager = new ConnectorManager(context, new RsfCallerTest.MemoryFactory()) {
                 @Override
                 public BasicFuture<RsfChannel> connect(InterAddress address) {
                     return new BasicFuture<>(Host.this.channel);

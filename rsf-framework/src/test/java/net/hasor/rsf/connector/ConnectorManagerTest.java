@@ -7,10 +7,14 @@
  */
 package net.hasor.rsf.connector;
 
-import java.util.*;
-import java.util.concurrent.*;
-import net.hasor.cobble.concurrent.future.BasicFuture;
-import net.hasor.rsf.domain.payload.RequestPayload;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -50,11 +54,12 @@ public class ConnectorManagerTest {
 
     @Test
     public void operationsRequireInitAndCannotCreateUnconfiguredEndpoints() throws Exception {
-        ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext());
+        ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(), new TestConnectorManager.MemoryFactory());
         assertNotNull(ConnectorConnectionsTest.failure(manager.bind("missing")));
         assertNotNull(ConnectorConnectionsTest.failure(manager.connect(EndpointFixture.address("a"))));
         try {
-            manager.subscribe((channel, id, payload) -> {});
+            manager.subscribe((channel, id, payload) -> {
+            });
             fail();
         } catch (IllegalStateException expected) {
         }
@@ -67,7 +72,7 @@ public class ConnectorManagerTest {
     public void duplicateSchemeAcrossEndpointsIsRejected() {
         ConnectorConfig a = EndpointFixture.config("a");
         ConnectorConfig b = new ConnectorConfig("b", a.address(), Collections.singletonMap("listenType", "memory"));
-        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(a, b))) {
+        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(a, b), new TestConnectorManager.MemoryFactory())) {
             try {
                 manager.init();
                 fail();
@@ -79,8 +84,7 @@ public class ConnectorManagerTest {
 
     @Test
     public void mountedSchemesSelectTheSameEndpoint() throws Exception {
-        ConnectorConfig config = new ConnectorConfig("shared", EndpointFixture.address("memory"), Collections.singletonMap("listenType", "memory"),
-                Arrays.asList(new ProtocolConfig("one", "", Collections.emptyMap()), new ProtocolConfig("two", "", Collections.emptyMap())));
+        ConnectorConfig config = new ConnectorConfig("shared", EndpointFixture.address("memory"), Collections.singletonMap("listenType", "memory"), Arrays.asList(new ProtocolConfig("one", "", Collections.emptyMap()), new ProtocolConfig("two", "", Collections.emptyMap())));
         try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext(config))) {
             manager.prepare(config, (cfg, mgr) -> new EndpointFixture.Endpoint(cfg, mgr, new ArrayList<>()));
             manager.init();

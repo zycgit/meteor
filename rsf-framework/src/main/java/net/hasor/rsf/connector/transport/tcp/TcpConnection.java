@@ -15,6 +15,7 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.*;
+import net.hasor.neta.channel.routing.ProtoRoutingDataSelector;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.connector.transport.*;
 
@@ -39,7 +40,7 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
     /**
      * Called by the endpoint assembler after transport stages have been added.
      */
-    public static TcpConnection attach(ProtoBuildContext stack, InterAddress remote, Executor executor, ChannelFactory<byte[]> factory) throws Exception {
+    public static TcpConnection attach(ProtoBuildContext stack, InterAddress remote, Executor executor, int maxProbeSize, ChannelFactory<byte[]> factory) throws Exception {
         NetChannel socket = (NetChannel) stack.getChannel();
         TcpConnection connection = new TcpConnection(socket, remote, executor);
         ChannelListener<byte[]> receiver = factory.create(connection);
@@ -61,7 +62,7 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
 
         Function<String, ProtoInitializer> branch = route -> ctx -> ctx.addLastDecoder("messages", new TcpInboundHandler(route));
         if (receiver instanceof RoutedReceiver) {
-            ((RoutedReceiver<byte[]>) receiver).configure(stack, branch);
+            configureRouting(stack, branch, (RoutedReceiver<byte[]>) receiver, maxProbeSize);
         } else {
             branch.apply("").config(stack);
         }
@@ -90,6 +91,26 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
             });
         });
         return connection;
+    }
+
+    private static void configureRouting(ProtoBuildContext context, Function<String, ProtoInitializer> branch, RoutedReceiver<byte[]> receiver, int limit) {
+        String initial = receiver.initialRoute();
+        if (initial == null && receiver.routes().size() == 1) {
+            initial = receiver.routes().keySet().iterator().next();
+        }
+
+        if (initial != null) {
+            branch.apply(initial).config(context);
+            return;
+        }
+
+        ProtoHelper.typed(ByteBuf.class, Object.class).nextRouteAsStatic("route", (ProtoRoutingDataSelector<ByteBuf, Object>) (ctx, input, output) -> {
+            return ByteRoutingUtils.select(input.peekMessage(-1), receiver.routes(), limit, false);
+        }, routes -> {
+            receiver.routes().keySet().forEach(name -> {
+                routes.branchByInitializer(name, branch.apply(name));
+            });
+        }).build().config(context);
     }
 
     @Override

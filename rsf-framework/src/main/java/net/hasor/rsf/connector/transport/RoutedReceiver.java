@@ -6,13 +6,15 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.connector.transport;
-import java.util.function.Function;
-import net.hasor.neta.channel.ProtoBuildContext;
-import net.hasor.neta.channel.ProtoInitializer;
+import java.util.Map;
 
-/** Declares protocol branches before network activation; receives selected application events. */
+/** Declares network routes without exposing the engine's pipeline API to applications. */
 public interface RoutedReceiver<M> extends ChannelListener<M> {
-    void configure(ProtoBuildContext context, Function<String, ProtoInitializer> branch);
+    /** Routes normalized and validated by NetworkConnectorFactory.prepareRoutes. */
+    Map<String, NetworkRoute<M>> routes();
+
+    /** Outgoing route known before the first send; null means select from incoming data. */
+    String initialRoute();
 
     void receive(String route, M message) throws Exception;
 }

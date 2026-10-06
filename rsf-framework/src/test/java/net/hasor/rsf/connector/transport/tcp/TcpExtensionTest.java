@@ -96,7 +96,7 @@ public class TcpExtensionTest {
 
     private void attach(ProtoBuildContext stack, InterAddress address, SocketTransport transport, boolean server, AtomicReference<MuxSession> session) {
         try {
-            TcpConnection.attach(stack, address, transport.nextExecutor(), connection -> {
+            TcpConnection.attach(stack, address, transport.nextExecutor(), 256, connection -> {
                 MuxSession created = new MuxSession(connection, server);
                 session.set(created);
                 return created;

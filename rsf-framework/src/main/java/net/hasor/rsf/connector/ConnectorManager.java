@@ -28,26 +28,27 @@ import net.hasor.rsf.domain.payload.ResponsePayload;
 import net.hasor.rsf.domain.payload.ThrowPayload;
 
 /**
- * Manages configured network endpoints, protocol routes, connector factories and message subscribers.
+ * Manages configured network endpoints, protocol routes and message subscribers.
  * The owner serializes init() and close(). RsfConnector creation and stopping admission are mutually exclusive.
  */
 public class ConnectorManager implements AutoCloseable, ReceivedListener {
-    private static final Logger                           logger             = Logger.getLogger(ConnectorManager.class);
-    private final        RsfContext                       context;
-    private              HashedWheelTimer                 timer;
-    private volatile     boolean                          inited;
-    private final        AtomicLong                       connectionIds      = new AtomicLong();
-    private final        ReentrantLock                    creationLock       = new ReentrantLock();
+    private static final Logger                       logger           = Logger.getLogger(ConnectorManager.class);
+    private final        RsfContext                   context;
+    private              HashedWheelTimer             timer;
+    private volatile     boolean                      inited;
+    private final        AtomicLong                   connectionIds    = new AtomicLong();
+    private final        ReentrantLock                creationLock     = new ReentrantLock();
     //
-    private final        Map<String, RsfConnectorFactory> connectorFactories = new LinkedHashMap<>();
-    private final        Map<String, ConnectorConfig>     connectorConfigs   = new LinkedHashMap<>();
-    private final        Map<String, RsfConnector>        connectors         = new LinkedHashMap<>();
+    private final        RsfConnectorFactory          connectorFactory;
+    private final        Map<String, ConnectorConfig> connectorConfigs = new LinkedHashMap<>();
+    private final        Map<String, RsfConnector>    connectors       = new LinkedHashMap<>();
     //
-    private final        Map<String, ConnectorConfig>     routes             = new LinkedHashMap<>();
-    private final        List<ConnectorSubscriber>        subscribers        = new CopyOnWriteArrayList<>();
+    private final        Map<String, ConnectorConfig> routes           = new LinkedHashMap<>();
+    private final        List<ConnectorSubscriber>    subscribers      = new CopyOnWriteArrayList<>();
 
-    public ConnectorManager(RsfContext context) {
+    public ConnectorManager(RsfContext context, RsfConnectorFactory connectorFactory) {
         this.context = Objects.requireNonNull(context, "context");
+        this.connectorFactory = Objects.requireNonNull(connectorFactory, "connectorFactory");
     }
 
     //
@@ -110,25 +111,21 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
     // life method include init and close
     //
 
-    /** Discover factories and read configurations without creating connectors or opening listeners. */
+    /** Prepare the supplied assembler and read configurations without opening network resources. */
     public void init() {
         if (this.inited) {
             return;
         }
 
-        Map<String, RsfConnectorFactory> discovered = new LinkedHashMap<>();
-        for (RsfConnectorFactory factory : ServiceLoader.load(RsfConnectorFactory.class, this.context.getClassLoader())) {
-            String type = listenType(factory.name());
-            RsfConnectorFactory previous = discovered.putIfAbsent(type, factory);
-            if (previous != null) {
-                throw new IllegalStateException("Duplicate RsfConnectorFactory for listenType " + type + ": " + previous.getClass().getName() + " and " + factory.getClass().getName());
-            }
+        Set<String> supported = new HashSet<>();
+        for (String name : this.connectorFactory.listenTypes(this.context.getClassLoader())) {
+            supported.add(listenType(name));
         }
 
         Map<String, ConnectorConfig> configured = this.readConfigurations();
         Map<String, ConnectorConfig> routing = new LinkedHashMap<>();
         for (ConnectorConfig config : configured.values()) {
-            if (!discovered.containsKey(config.listenType())) {
+            if (!supported.contains(config.listenType())) {
                 throw new IllegalArgumentException("No connector factory for " + config.listenType());
             }
 
@@ -145,7 +142,6 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
         });
 
         synchronized (this) {
-            this.connectorFactories.putAll(discovered);
             this.connectorConfigs.putAll(configured);
             this.routes.putAll(routing);
             this.timer = initializedTimer;
@@ -185,7 +181,6 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
             synchronized (this) {
                 this.connectors.clear();
                 this.routes.clear();
-                this.connectorFactories.clear();
                 this.connectorConfigs.clear();
                 stopping = this.timer;
                 this.timer = null;
@@ -255,24 +250,17 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
 
         this.creationLock.lock();
         try {
-            RsfConnectorFactory factory;
             synchronized (this) {
                 this.requireReady();
                 RsfConnector ready = this.connectors.get(config.name());
                 if (ready != null) {
                     return ready;
                 }
-
-                String type = config.listenType();
-                factory = this.connectorFactories.get(type);
-                if (factory == null) {
-                    throw new IllegalArgumentException("No RsfConnectorFactory for listenType: " + type);
-                }
             }
 
             RsfConnector connector = null;
             try {
-                connector = factory.create(config, this);
+                connector = this.connectorFactory.create(config, this);
                 if (!config.name().equals(connector.config().name())) {
                     throw new IllegalArgumentException("Provider changed connector name");
                 }

@@ -7,17 +7,16 @@
  */
 package net.hasor.rsf.connector.transport.http;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.neta.channel.*;
+import net.hasor.neta.channel.routing.PartitionKey;
 import net.hasor.neta.channel.transport.tcp.TcpSoConfig;
-import net.hasor.neta.codec.http.HttpClientDuplex;
-import net.hasor.neta.codec.http.HttpRequestAggregator;
-import net.hasor.neta.codec.http.HttpResponseAggregator;
-import net.hasor.neta.codec.http.HttpServerDuplex;
+import net.hasor.neta.codec.http.*;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.connector.ConnectorConfig;
 import net.hasor.rsf.connector.transport.*;
@@ -53,7 +52,7 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
         };
 
         if (receiver instanceof RoutedReceiver) {
-            ((RoutedReceiver<HttpExchange>) receiver).configure(stack, branch);
+            this.configureRouting(stack, branch, (RoutedReceiver<HttpExchange>) receiver);
         } else {
             branch.apply("").config(stack);
         }
@@ -67,6 +66,32 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
             HttpInbound request = (HttpInbound) event.getData();
             channel.received(request.request(), request.keepAlive(), request.route());
         });
+    }
+
+    private void configureRouting(ProtoBuildContext context, Function<String, ProtoInitializer> branch, RoutedReceiver<HttpExchange> receiver) {
+        Map<String, NetworkRoute<HttpExchange>> routes = receiver.routes();
+        ProtoHelper.typed(FullHttpRequest.class, Object.class).nextPartition("route", (ctx, kind, message) -> {
+            if (!ctx.isRcv() || !(message instanceof FullHttpRequest request)) {
+                return null;
+            }
+
+            String path = request.uri().split("\\?", 2)[0];
+            String selected = "";
+            int length = -1;
+            for (Map.Entry<String, NetworkRoute<HttpExchange>> route : routes.entrySet()) {
+                String mount = route.getValue().options().get("contextPath");
+                if ((path.equals(mount) || path.startsWith(mount.endsWith("/") ? mount : mount + "/")) && mount.length() > length) {
+                    selected = route.getKey();
+                    length = mount.length();
+                }
+            }
+
+            return PartitionKey.newKey(selected);
+        }, partitions -> {
+            partitions.byInitializer(ctx -> {
+                branch.apply(PartitionKey.findKey(ctx).getKey()).config(ctx);
+            });
+        }).build().config(context);
     }
 
     public Future<Void> connect(InterAddress target, ChannelFactory<HttpExchange> factory) {

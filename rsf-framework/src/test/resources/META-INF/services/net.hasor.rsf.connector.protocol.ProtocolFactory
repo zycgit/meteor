@@ -1,0 +1,14 @@
+net.hasor.rsf.connector.protocol.EndpointRoutingTest$HttpA
+net.hasor.rsf.connector.protocol.EndpointRoutingTest$HttpB
+net.hasor.rsf.connector.protocol.EndpointRoutingTest$WireA
+net.hasor.rsf.connector.protocol.EndpointRoutingTest$WireB
+net.hasor.rsf.connector.protocol.EndpointRoutingTest$DatagramWireA
+net.hasor.rsf.connector.protocol.EndpointRoutingTest$DatagramWireB
+net.hasor.rsf.connector.protocol.EndpointRoutingTest$IncompleteProbe
+net.hasor.rsf.connector.protocol.HttpTransportTest$TextProtocol
+net.hasor.rsf.connector.protocol.HttpTransportTest$ExpiringProtocol
+net.hasor.rsf.connector.protocol.HttpTransportTest$SameIdProtocol
+net.hasor.rsf.connector.protocol.HttpTransportTest$AcknowledgementProtocol
+net.hasor.rsf.connector.protocol.HttpTransportTest$DrainProtocol
+net.hasor.rsf.connector.protocol.SocketLifecycleTest$RawProtocol
+net.hasor.rsf.connector.protocol.UdpConnectorTest$TestProtocol

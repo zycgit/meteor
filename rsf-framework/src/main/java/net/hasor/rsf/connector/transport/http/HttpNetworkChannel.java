@@ -7,6 +7,7 @@
  */
 package net.hasor.rsf.connector.transport.http;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -42,7 +43,13 @@ abstract class HttpNetworkChannel implements NetworkChannel<HttpExchange> {
 
     protected final void received(String route, HttpExchange exchange) throws Exception {
         if (this.receiver instanceof RoutedReceiver) {
-            ((RoutedReceiver<HttpExchange>) this.receiver).receive(route, exchange);
+            RoutedReceiver<HttpExchange> routed = (RoutedReceiver<HttpExchange>) this.receiver;
+            if (routed.routes().containsKey(route)) {
+                routed.receive(route, exchange);
+            } else {
+                exchange.respond(new HttpResponse(404, Collections.emptyMap(), new byte[0]));
+                this.write(exchange);
+            }
         } else {
             this.receiver.receive(exchange);
         }

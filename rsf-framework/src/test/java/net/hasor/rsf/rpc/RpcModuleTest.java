@@ -343,7 +343,7 @@ public class RpcModuleTest {
         RsfContext context = proxy(RsfContext.class, (object, method, arguments) -> {
             throw new AssertionError("Uninitialized manager must be rejected before accessing the context");
         });
-        try (ConnectorManager manager = new ConnectorManager(context)) {
+        try (ConnectorManager manager = new ConnectorManager(context, new RsfCallerTest.MemoryFactory())) {
             try {
                 new RsfCaller(manager, id -> null);
                 fail("Expected uninitialized manager rejection");
@@ -372,7 +372,7 @@ public class RpcModuleTest {
 
     @Test
     public void subscriptionFailureDoesNotCloseHostManager() throws Exception {
-        try (Host host = new Host(false); ConnectorManager manager = new ConnectorManager(host.caller.getContext()) {
+        try (Host host = new Host(false); ConnectorManager manager = new ConnectorManager(host.caller.getContext(), new RsfCallerTest.MemoryFactory()) {
             @Override
             public void subscribe(ConnectorSubscriber subscriber) {
                 throw new IllegalStateException("subscription failed");
@@ -480,7 +480,7 @@ public class RpcModuleTest {
                 }
                 throw new AssertionError("Unexpected outgoing channel access: " + method);
             });
-            this.callerManager = new ConnectorManager(context) {
+            this.callerManager = new ConnectorManager(context, new RsfCallerTest.MemoryFactory()) {
                 @Override
                 public BasicFuture<RsfChannel> connect(InterAddress address) {
                     Host.this.targets.add(address);
@@ -493,7 +493,7 @@ public class RpcModuleTest {
                     return () -> true;
                 }
             };
-            this.serverManager = new ConnectorManager(context);
+            this.serverManager = new ConnectorManager(context, new RsfCallerTest.MemoryFactory());
             this.callerManager.init();
             this.serverManager.init();
             this.server = new RsfCaller(this.serverManager, filters);

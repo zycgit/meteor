@@ -9,7 +9,7 @@ package net.hasor.rsf.connector.transport;
 import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -23,13 +23,29 @@ import net.hasor.rsf.connector.transport.http.HttpResponse;
 import net.hasor.rsf.connector.transport.tcp.TcpConnector;
 import net.hasor.rsf.connector.transport.udp.UdpConnector;
 import org.junit.Test;
-
 import static org.junit.Assert.*;
 
 /**
  * End-to-end use of the network API without an application protocol, manager or Payload.
  */
 public class NetworkConnectorTest {
+    @Test
+    public void transportSpiIsAvailableWithoutProtocolModule() throws Exception {
+        Map<String, NetworkConnectorFactory<?>> factories = new HashMap<>();
+        ClassLoader loader = this.getClass().getClassLoader();
+        for (NetworkConnectorFactory<?> factory : ServiceLoader.load(NetworkConnectorFactory.class, loader)) {
+            assertNull(factories.put(factory.name(), factory));
+        }
+        assertEquals(Set.of("tcp", "udp", "http"), factories.keySet());
+        assertEquals(byte[].class, factories.get("tcp").messageType());
+        assertEquals(byte[].class, factories.get("udp").messageType());
+        assertEquals(HttpExchange.class, factories.get("http").messageType());
+        for (NetworkConnectorFactory<?> factory : factories.values()) {
+            try (NetworkConnector<?> network = factory.create(this.config(factory.name()), loader)) {
+                assertNotNull(network);
+            }
+        }
+    }
 
     @Test(timeout = 10000)
     public void tcpIsUsableWithoutRsf() throws Exception {

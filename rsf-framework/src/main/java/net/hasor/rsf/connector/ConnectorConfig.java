@@ -19,7 +19,7 @@ public final class ConnectorConfig {
 
     /** Single-protocol endpoint shorthand. */
     public ConnectorConfig(String name, InterAddress address, Map<String, String> options) {
-        this(name, address, options, Collections.singletonList(new ProtocolConfig(name, address.getSchema(), options.getOrDefault("protocolFactory", ""), options)));
+        this(name, address, options, Collections.singletonList(new ProtocolConfig(name, address.getSchema(), options.getOrDefault("protocol", address.getSchema()), options)));
     }
 
     public ConnectorConfig(String name, InterAddress address, Map<String, String> options, Collection<ProtocolConfig> protocols) {
@@ -86,13 +86,10 @@ public final class ConnectorConfig {
     }
 
     /** Effective options for a protocol, retaining endpoint resource limits. */
-    public ConnectorConfig forProtocol(ProtocolConfig protocol) {
+    public ProtocolConfig forProtocol(ProtocolConfig protocol) {
         Map<String, String> merged = new LinkedHashMap<>(this.options);
         merged.putAll(protocol.options());
-        merged.put("listenType", this.listenType);
-        merged.put("protocolFactory", protocol.factory());
-        InterAddress local = new InterAddress(protocol.scheme(), this.address.getHost(), this.address.getPort(), this.address.getFormUnit());
-        return new ConnectorConfig(this.name, local, merged, Collections.singletonList(protocol));
+        return new ProtocolConfig(protocol.name(), protocol.scheme(), protocol.protocol(), merged);
     }
 
     public int connectTimeout() {

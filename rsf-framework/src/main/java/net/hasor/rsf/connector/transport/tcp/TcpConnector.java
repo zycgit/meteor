@@ -25,6 +25,6 @@ public class TcpConnector extends SocketConnector<byte[]> {
     }
 
     protected void initialize(ProtoBuildContext stack, InterAddress target, ChannelFactory<byte[]> factory, boolean accepted) throws Exception {
-        TcpConnection.attach(stack, target, this.transport.nextExecutor(), factory);
+        TcpConnection.attach(stack, target, this.transport.nextExecutor(), this.config.integer("maxProbeSize", 256), factory);
     }
 }

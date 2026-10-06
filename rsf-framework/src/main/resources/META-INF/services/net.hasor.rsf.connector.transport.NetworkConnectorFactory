@@ -1,0 +1,3 @@
+net.hasor.rsf.connector.transport.tcp.TcpConnectorFactory
+net.hasor.rsf.connector.transport.http.HttpConnectorFactory
+net.hasor.rsf.connector.transport.udp.UdpConnectorFactory

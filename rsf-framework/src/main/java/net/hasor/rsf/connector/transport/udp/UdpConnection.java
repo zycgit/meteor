@@ -8,16 +8,15 @@
 package net.hasor.rsf.connector.transport.udp;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Collections;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.neta.bytebuf.ByteBuf;
-import net.hasor.neta.channel.NetChannel;
-import net.hasor.neta.channel.ProtoBuildContext;
-import net.hasor.neta.channel.ProtoInitializer;
-import net.hasor.neta.channel.SubscribeMode;
+import net.hasor.neta.channel.*;
+import net.hasor.neta.channel.routing.PartitionKey;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.connector.transport.*;
 
@@ -73,7 +72,7 @@ public final class UdpConnection implements NetworkChannel<byte[]> {
         };
 
         if (receiver instanceof RoutedReceiver) {
-            ((RoutedReceiver<byte[]>) receiver).configure(stack, branch);
+            configureRouting(stack, branch, (RoutedReceiver<byte[]>) receiver);
         } else {
             branch.apply("").config(stack);
         }
@@ -101,6 +100,24 @@ public final class UdpConnection implements NetworkChannel<byte[]> {
             });
         });
         return connection;
+    }
+
+    private static void configureRouting(ProtoBuildContext context, Function<String, ProtoInitializer> branch, RoutedReceiver<byte[]> receiver) {
+        if (receiver.routes().size() == 1) {
+            branch.apply(receiver.routes().keySet().iterator().next()).config(context);
+            return;
+        }
+
+        ProtoHelper.typed(ByteBuf.class, Object.class).nextPartition("route", (ctx, kind, message) -> {
+            if (!ctx.isRcv() || !(message instanceof ByteBuf bytes)) {
+                return null;
+            }
+            return PartitionKey.newKey(ByteRoutingUtils.select(Collections.singletonList(bytes), receiver.routes(), bytes.readableBytes(), true));
+        }, partitions -> {
+            partitions.byInitializer(ctx -> {
+                branch.apply(PartitionKey.findKey(ctx).getKey()).config(ctx);
+            });
+        }).build().config(context);
     }
 
     @Override

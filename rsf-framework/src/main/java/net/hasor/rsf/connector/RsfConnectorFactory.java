@@ -6,10 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.connector;
+import java.util.Collection;
 
+/** Explicitly supplied connector assembler. This contract is not a ServiceLoader SPI. */
 public interface RsfConnectorFactory {
-    /** Transport listenType served by this SPI provider, for example tcp or http. */
-    String name();
+    /** Discover the transport types this assembler can serve, without opening network resources. */
+    Collection<String> listenTypes(ClassLoader loader);
 
     /** Assemble a connector using its configuration and manager capabilities.
      * AbstractConnector provides close preparation and a doClose resource-release hook.

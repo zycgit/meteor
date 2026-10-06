@@ -9,10 +9,7 @@ package net.hasor.rsf.rpc;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -602,7 +599,7 @@ public class RsfCallerTest {
     @Test
     public void constructorRequiresInitializedManager() throws Exception {
         try (Host host = new Host(10000, "normal")) {
-            try (ConnectorManager uninitialized = new ConnectorManager(host.manager.context())) {
+            try (ConnectorManager uninitialized = new ConnectorManager(host.manager.context(), new RsfCallerTest.MemoryFactory())) {
                 try {
                     new RsfCaller(uninitialized, id -> new Supplier[0]);
                     fail("Manager must be initialized first");
@@ -693,7 +690,7 @@ public class RsfCallerTest {
 
     @Test
     public void subscriptionFailureDoesNotCloseTheProvidedManager() throws Exception {
-        try (Host host = new Host(10000, "normal"); ConnectorManager manager = new ConnectorManager(host.manager.context()) {
+        try (Host host = new Host(10000, "normal"); ConnectorManager manager = new ConnectorManager(host.manager.context(), new RsfCallerTest.MemoryFactory()) {
             @Override
             public void subscribe(ConnectorSubscriber subscriber) {
                 throw new IllegalStateException("subscription failed");
@@ -819,7 +816,7 @@ public class RsfCallerTest {
                         throw new AssertionError("Unexpected context: " + method);
                 }
             });
-            this.manager = new ConnectorManager(context) {
+            this.manager = new ConnectorManager(context, new RsfCallerTest.MemoryFactory()) {
                 @Override
                 public Cancellable schedule(Runnable task, long delay) {
                     Cancellable timer = super.schedule(task, delay);
@@ -865,8 +862,8 @@ public class RsfCallerTest {
     }
 
     public static final class MemoryFactory implements RsfConnectorFactory {
-        public String name() {
-            return "rpc-memory";
+        public Collection<String> listenTypes(ClassLoader loader) {
+            return Collections.singletonList("rpc-memory");
         }
 
         public RsfConnector create(ConnectorConfig connectorConfig, ConnectorManager connectorManager) {
