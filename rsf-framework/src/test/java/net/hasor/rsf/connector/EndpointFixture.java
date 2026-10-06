@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.connector;
-
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import net.hasor.cobble.concurrent.future.BasicFuture;
@@ -109,7 +108,7 @@ final class EndpointFixture implements AutoCloseable {
         }
     }
 
-    static final class Channel extends AbstractRsfChannel {
+    static class Channel extends AbstractRsfChannel {
         private final Endpoint                owner;
         private final BasicFuture<RsfChannel> closed       = new BasicFuture<>();
         final         CountDownLatch          drainStarted = new CountDownLatch(1);

@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.serialize;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
@@ -97,22 +96,14 @@ public class SerializeCoderTest {
     }
 
     @Test
-    public void malformedDataFailsWithIOException() throws Exception {
-        try {
-            this.coder.decode(new byte[] { (byte) 0xff, 1, 0 }, Payload.class);
-            fail("Malformed " + this.name + " must fail");
-        } catch (IOException expected) {
-            // The caller can handle a format failure without knowing the backend library.
-        }
-    }
-
-    @Test
-    public void failedDecodeDoesNotPoisonCoder() throws Exception {
-        try {
-            this.coder.decode(new byte[] { (byte) 0xff }, Object.class);
-            fail("Malformed input must fail");
-        } catch (IOException expected) {
-            assertEquals("next request", roundTrip("next request", String.class));
+    public void malformedDataFailsWithIOExceptionAndDoesNotPoisonCoder() throws Exception {
+        for (byte[] malformed : new byte[][] { { (byte) 0xff, 1, 0 }, { (byte) 0xff } }) {
+            try {
+                this.coder.decode(malformed, Payload.class);
+                fail("Malformed " + this.name + " must fail");
+            } catch (IOException expected) {
+                assertEquals("next request", this.roundTrip("next request", String.class));
+            }
         }
     }
 

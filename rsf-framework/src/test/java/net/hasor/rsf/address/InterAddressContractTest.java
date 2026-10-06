@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.address;
-
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,6 +23,8 @@ public class InterAddressContractTest {
         assertEquals("127.0.0.1:8000", address.getHostPort());
         assertEquals(address, new InterAddress(address.toURI()));
         assertEquals(8000, address.toSocketAddress().getPort());
+        assertEquals("rsf://127.0.0.1:8000/zone", address.toString());
+        assertEquals(address, new InterAddress("127.0.0.1", 8000, "zone"));
         assertTrue(address.equalsHost("127.0.0.1:8000"));
         assertTrue(address.equalsHost(new InterAddress("http", "127.0.0.1", 8000, "other")));
         assertFalse(address.equalsHost((String) null));
@@ -42,6 +43,19 @@ public class InterAddressContractTest {
         map.put(upper, "provider");
         assertEquals("Equal addresses must resolve the same hash entry", "provider", map.get(lower));
         assertEquals(upper.hashCode(), lower.hashCode());
+        map.put(lower, "replacement");
+        assertEquals(1, map.size());
+        map.put(new InterAddress("http", "localhost", 8000, "zone"), "http");
+        assertEquals(2, map.size());
+    }
+
+    @Test
+    public void localHostAliasResolvesWithoutChangingItsDeclaredAddress() throws Exception {
+        InterAddress address = new InterAddress("rsf://local:8000/unit");
+        assertEquals("rsf://local:8000/unit", address.toString());
+        assertNotNull(address.getHost());
+        assertFalse(address.getHost().isEmpty());
+        assertNotEquals("local", address.getHost());
     }
 
     @Test

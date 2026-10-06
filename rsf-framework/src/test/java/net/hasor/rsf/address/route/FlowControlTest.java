@@ -1,12 +1,3 @@
-/*
- * Copyright 2015-2026 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0.
- * See the LICENSE.txt file for the full license.
- * https://www.apache.org/licenses/LICENSE-2.0
- */
-package net.hasor.rsf.address.route;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,6 +6,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.hasor.cobble.concurrent.QoSBucket;
 import net.hasor.cobble.setting.MergedSettings;
+import net.hasor.cobble.setting.Settings;
 import net.hasor.cobble.setting.provider.StreamType;
 import net.hasor.rsf.address.AddressPool;
 import net.hasor.rsf.address.FlowControlRef;
@@ -24,7 +16,6 @@ import net.hasor.rsf.address.route.speed.SpeedFlowControl;
 import net.hasor.rsf.address.route.unit.UnitFlowControl;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import net.hasor.cobble.setting.Settings;
 
 public class FlowControlTest {
     private final InterAddress local  = new InterAddress("127.0.0.1", 8000, "local");

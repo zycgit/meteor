@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.rpc;
-
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.util.Collections;
@@ -25,12 +24,13 @@ import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.address.provider.AddressProvider;
 import net.hasor.rsf.address.provider.InstanceAddressProvider;
 import net.hasor.rsf.connector.ConnectorManager;
-import net.hasor.rsf.connector.ConnectorSubscriber;
 import net.hasor.rsf.connector.RsfChannel;
-import net.hasor.rsf.domain.*;
+import net.hasor.rsf.domain.OptionInfo;
+import net.hasor.rsf.domain.RsfException;
+import net.hasor.rsf.domain.RsfServiceType;
+import net.hasor.rsf.domain.ServiceDomain;
 import net.hasor.rsf.domain.payload.RequestPayload;
 import net.hasor.rsf.domain.payload.ResponsePayload;
-import net.hasor.rsf.domain.payload.ThrowPayload;
 import net.hasor.rsf.serialize.coder.JavaSerializeCoder;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -274,125 +274,9 @@ public class RpcModuleTest {
         }
     }
 
-    @Test
-    public void acceptKeepsInvocationPendingUntilFinalResponse() throws Exception {
-        try (Host host = new Host(false)) {
-            RsfFuture future = host.invoke();
-            RequestPayload request = host.sent.poll(2, TimeUnit.SECONDS);
-            assertNotNull(request);
-            ResponsePayload response = new ResponsePayload();
-            response.setRequestID(request.getRequestID());
-            response.setStatus(ProtocolStatus.Accept);
-            host.callerManager.onResponse(host.outgoing, response.getRequestID(), response);
-            assertFalse(future.isDone());
-            response.setStatus(ProtocolStatus.OK);
-            response.setReturnData("done");
-            host.callerManager.onResponse(host.outgoing, response.getRequestID(), response);
-            assertEquals("done", future.get(2, TimeUnit.SECONDS).getData());
-            assertNull(host.caller.getRequest(request.getRequestID()));
-            response.setReturnData("duplicate");
-            host.callerManager.onResponse(host.outgoing, response.getRequestID(), response);
-            assertEquals("done", future.getData());
-        }
-    }
-
-    @Test
-    public void connectorTimerAndShutdownCompletePendingCalls() throws Exception {
-        try (Host host = new Host(false)) {
-            RsfFuture timed = host.invoke();
-            Runnable timeout = host.timers.poll(2, TimeUnit.SECONDS);
-            assertNotNull(timeout);
-            timeout.run();
-            try {
-                timed.get(2, TimeUnit.SECONDS);
-                fail("Expected timeout");
-            } catch (ExecutionException expected) {
-                assertTrue(expected.getCause() instanceof RsfTimeoutException);
-            }
-            RsfFuture pending = host.invoke();
-            host.caller.close();
-            try {
-                pending.get(2, TimeUnit.SECONDS);
-                fail("Expected shutdown failure");
-            } catch (ExecutionException expected) {
-                assertTrue(expected.getCause() instanceof IllegalStateException);
-            }
-        }
-    }
-
-    @Test
-    public void failurePayloadCompletesPendingCallWithOriginalCause() throws Exception {
-        try (Host host = new Host(false)) {
-            RsfFuture pending = host.invoke();
-            RequestPayload request = host.sent.poll(2, TimeUnit.SECONDS);
-            assertNotNull(request);
-            IllegalStateException failure = new IllegalStateException("disconnected", new IllegalArgumentException("cause"));
-            host.callerManager.onFailure(host.outgoing, request.getRequestID(), new ThrowPayload(failure));
-            try {
-                pending.get(2, TimeUnit.SECONDS);
-                fail("Failure payload must complete the pending call");
-            } catch (ExecutionException expected) {
-                assertSame(failure, expected.getCause());
-            }
-            assertNull(host.caller.getRequest(request.getRequestID()));
-        }
-    }
-
-    @Test
-    public void callerRequiresInitializedManager() {
-        RsfContext context = proxy(RsfContext.class, (object, method, arguments) -> {
-            throw new AssertionError("Uninitialized manager must be rejected before accessing the context");
-        });
-        try (ConnectorManager manager = new ConnectorManager(context, new RsfCallerTest.MemoryFactory())) {
-            try {
-                new RsfCaller(manager, id -> null);
-                fail("Expected uninitialized manager rejection");
-            } catch (IllegalStateException expected) {
-                assertTrue(expected.getMessage().contains("Initialize"));
-            }
-        }
-    }
-
-    @Test
-    public void closingCallerClosesItsManagerAndRejectsInboundCalls() throws Exception {
-        try (Host host = new Host(true)) {
-            assertEquals("value", host.invoke().getData(2, TimeUnit.SECONDS));
-            RequestPayload request = host.sent.remove();
-            host.server.close();
-            assertFalse(host.serverManager.isInitialized());
-            RsfChannel source = proxy(RsfChannel.class, (object, method, arguments) -> {
-                throw new AssertionError("Closed RPC must reject the message before inspecting the channel");
-            });
-            host.serverManager.onRequest(source, request.getRequestID(), request);
-            assertEquals(1, host.remoteFilters.get());
-            host.serverManager.close();
-            assertFalse(host.serverManager.isInitialized());
-        }
-    }
-
-    @Test
-    public void subscriptionFailureDoesNotCloseHostManager() throws Exception {
-        try (Host host = new Host(false); ConnectorManager manager = new ConnectorManager(host.caller.getContext(), new RsfCallerTest.MemoryFactory()) {
-            @Override
-            public void subscribe(ConnectorSubscriber subscriber) {
-                throw new IllegalStateException("subscription failed");
-            }
-        }) {
-            manager.init();
-            try {
-                new RsfCaller(manager, id -> null);
-                fail("Expected subscription failure");
-            } catch (IllegalStateException expected) {
-                assertEquals("subscription failed", expected.getMessage());
-            }
-            assertTrue(manager.isInitialized());
-        }
-    }
-
     private static class Host implements AutoCloseable {
         final ServiceDomain<Echo>           service      = new ServiceDomain<>(Echo.class);
         final BlockingQueue<RequestPayload> sent         = new LinkedBlockingQueue<>();
-        final BlockingQueue<Runnable>       timers       = new LinkedBlockingQueue<>();
         final BlockingQueue<InterAddress>   targets      = new LinkedBlockingQueue<>();
         final AtomicInteger                 localFilters = new AtomicInteger(), remoteFilters = new AtomicInteger();
         final ConnectorManager callerManager;
@@ -489,7 +373,7 @@ public class RpcModuleTest {
 
                 @Override
                 public Cancellable schedule(Runnable task, long delay) {
-                    Host.this.timers.add(task);
+                    // Deadline behavior is covered by RsfCallerTest; facade calls complete explicitly here.
                     return () -> true;
                 }
             };

@@ -360,7 +360,7 @@ public class RsfCallerTest {
             server.bind();
             RsfFuture first = client.invoke(server.address);
             MemoryChannel source = client.connector().outgoing;
-            IOException failure = new IOException("connection lost");
+            IOException failure = new IOException("connection lost", new IllegalArgumentException("original cause"));
             client.manager.onFailure(source, first.getRequest().getRequestID(), new ThrowPayload(failure));
             assertSame(failure, failure(first));
             RsfFuture next = client.invoke(server.address);
@@ -664,6 +664,7 @@ public class RsfCallerTest {
             client.rpc.close();
             client.rpc.close();
             assertTrue(client.rpc.isClosed());
+            assertFalse(client.manager.isInitialized());
             assertTrue(failure(active) instanceof IllegalStateException);
             RsfRequestObject rejected = client.rpc.createRequest(new InstanceAddressProvider(server.address), client.service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             assertTrue(failure(client.rpc.invoke(rejected)) instanceof IllegalStateException);

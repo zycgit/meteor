@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.connector;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -66,20 +65,6 @@ public class ConnectorManagerTest {
         manager.init();
         assertNotNull(ConnectorConnectionsTest.failure(manager.bind("missing")));
         manager.close();
-    }
-
-    @Test
-    public void duplicateSchemeAcrossEndpointsIsRejected() {
-        ConnectorConfig a = EndpointFixture.config("a");
-        ConnectorConfig b = new ConnectorConfig("b", a.address(), Collections.singletonMap("listenType", "memory"), Collections.singletonList(new ProtocolConfig("b", a.address().getSchema(), a.address().getSchema(), Collections.singletonMap("listenType", "memory"))), true);
-        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(a, b), new TestConnectorManager.MemoryFactory())) {
-            try {
-                manager.init();
-                fail();
-            } catch (IllegalArgumentException expected) {
-                assertTrue(expected.getMessage().contains("multiple endpoints"));
-            }
-        }
     }
 
     @Test

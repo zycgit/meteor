@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.address;
-
 import java.io.*;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
@@ -19,9 +18,9 @@ import java.util.zip.ZipOutputStream;
 import net.hasor.cobble.concurrent.timer.Timeout;
 import net.hasor.cobble.concurrent.timer.Timer;
 import net.hasor.cobble.concurrent.timer.TimerTask;
+import net.hasor.rsf.address.route.FlowControlTest;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import net.hasor.rsf.address.route.FlowControlTest;
 
 public class DiskCacheTest extends ScriptTestSupport {
     private final InterAddress a = new InterAddress("127.0.0.1", 8000, "zone");
@@ -137,26 +136,13 @@ public class DiskCacheTest extends ScriptTestSupport {
         try (DiskCache cache = cache(restored, home)) {
             cache.restoreConfig();
         }
+
         assertEquals(Collections.singletonList(this.a), restored.queryAllAddresses("s.one"));
         assertEquals(Collections.singletonList(this.b), restored.queryAllAddresses("s.two"));
+        assertEquals(Collections.singletonList(this.a), restored.queryAvailableAddresses("s.one"));
+        assertEquals(this.a, restored.nextAddress("s.one", "get", null));
+        assertEquals(this.b, restored.nextAddress("s.two", "get", null));
         assertTrue(new File(home, "snapshot/address.index").isFile());
-    }
-
-    @Test
-    public void restoredAddressesAreImmediatelySelectable() throws Exception {
-        File home = this.temporary.newFolder();
-        AddressPool source = new AddressPool();
-        source.appendAddress("s", this.a);
-        try (DiskCache cache = cache(source, home)) {
-            cache.storeConfig();
-        }
-        AddressPool restored = new AddressPool();
-        restored.appendAddress("s", Collections.emptyList());
-        try (DiskCache cache = cache(restored, home)) {
-            cache.restoreConfig();
-        }
-        assertEquals(Collections.singletonList(this.a), restored.queryAvailableAddresses("s"));
-        assertEquals("restoreConfig must rebuild selection caches", this.a, restored.nextAddress("s", "get", null));
     }
 
     @Test

@@ -244,6 +244,61 @@ public class ConnectorAssemblyTest {
         }
     }
 
+    @Test
+    public void duplicateEndpointNamesFailBeforeCreatingAnyConnector() {
+        ConnectorConfig first = this.config("duplicate");
+        ConnectorConfig second = new ConnectorConfig(first.name(), first.address(), first.options(), Collections.singletonList(new ProtocolConfig("other", "other", Collections.emptyMap())), true);
+        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(first, second), new CountingFactory())) {
+            try {
+                manager.init();
+                fail("Duplicate endpoint names must be rejected");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("Duplicate endpoint"));
+            }
+            assertFalse(manager.isInitialized());
+            assertEquals(0, CountingFactory.created);
+        }
+    }
+
+    @Test
+    public void initializationFailurePreservesCleanupCauseAndAllowsFreshConnector() throws Exception {
+        ConnectorConfig config = this.config("retry");
+        IllegalStateException initialization = new IllegalStateException("initialization failed");
+        IllegalArgumentException cleanup = new IllegalArgumentException("cleanup failed");
+        List<String> events = new ArrayList<>();
+        CountingFactory factory = new CountingFactory() {
+            private int attempts;
+
+            @Override
+            public RsfConnector create(ConnectorConfig value, ConnectorManager manager) {
+                if (this.attempts++ != 0) {
+                    return super.create(value, manager);
+                }
+                return new EndpointFixture.Endpoint(value, manager, events) {
+                    @Override
+                    protected void initialize() {
+                        throw initialization;
+                    }
+
+                    @Override
+                    protected void doClose() {
+                        events.add("cleanup");
+                        throw cleanup;
+                    }
+                };
+            }
+        };
+        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(config), factory)) {
+            manager.init();
+            assertSame(initialization, manager.bind(config.name()).getCause());
+            assertArrayEquals(new Throwable[] { cleanup }, initialization.getSuppressed());
+            assertEquals(Collections.singletonList("cleanup"), events);
+            assertNull(manager.find(config.name()));
+            assertTrue(manager.bind(config.name()).get().isActive());
+            assertEquals(1, CountingFactory.created);
+        }
+    }
+
     public static class CountingFactory implements RsfConnectorFactory {
         private static int             constructed;
         private static int             created;

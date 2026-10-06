@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.connector;
-
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -74,6 +73,33 @@ public class RsfListenTest {
     }
 
     @Test
+    public void cancelledProviderBindAllowsRetryWithoutReinitialization() throws Exception {
+        try (EndpointFixture fixture = new EndpointFixture("tcp")) {
+            EndpointFixture.Endpoint endpoint = this.endpoint(fixture);
+            Future<RsfListen> pending = endpoint.bind();
+            endpoint.binding.cancel();
+            assertTrue(pending.isCancelled());
+            assertTrue(endpoint.getListenList().isEmpty());
+            endpoint.binding = null;
+            assertTrue(endpoint.bind().get().isActive());
+            assertEquals(1, endpoint.starts);
+        }
+    }
+
+    @Test
+    public void missingProviderListenerFailsAndCanBeRetried() throws Exception {
+        try (EndpointFixture fixture = new EndpointFixture("tcp")) {
+            EndpointFixture.Endpoint endpoint = this.endpoint(fixture);
+            Future<RsfListen> pending = endpoint.bind();
+            endpoint.binding.completed(null);
+            assertTrue(pending.getCause() instanceof IllegalStateException);
+            assertTrue(endpoint.getListenList().isEmpty());
+            endpoint.binding = null;
+            assertTrue(endpoint.bind().get().isActive());
+        }
+    }
+
+    @Test
     public void closeBindRejectsLateCompletionAndFurtherBinds() throws Exception {
         try (EndpointFixture fixture = new EndpointFixture("tcp")) {
             EndpointFixture.Endpoint endpoint = this.endpoint(fixture);
@@ -137,6 +163,7 @@ public class RsfListenTest {
                 public boolean isActive() {
                     return !closed.get();
                 }
+
                 public void close() {
                     closed.set(true);
                 }

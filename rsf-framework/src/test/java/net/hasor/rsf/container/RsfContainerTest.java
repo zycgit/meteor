@@ -259,6 +259,45 @@ public class RsfContainerTest {
         assertTrue(bound.contains(new InterAddress("rsf://127.0.0.1:2101/unit")));
     }
 
+    @Test
+    public void recoveringAnAliasCompetitorDoesNotRemoveItsOriginalOwner() {
+        RsfBindInfo<Echo> first = this.publisher.rsfService(Echo.class).name("first").aliasName("http", "shared").register();
+        RsfBindInfo<Echo> second = this.publisher.rsfService(Echo.class).name("second").aliasName("http", "shared").register();
+        assertEquals(first.getBindID(), this.container.getRsfBindInfo("http", "shared").getBindID());
+        assertTrue(this.container.recoverService(second.getBindID()));
+        assertEquals(first.getBindID(), this.container.getRsfBindInfo("http", "shared").getBindID());
+        assertTrue(this.container.recoverService(first.getBindID()));
+        assertNull(this.container.getRsfBindInfo("http", "shared"));
+        RsfBindInfo<Echo> replacement = this.publisher.rsfService(Echo.class).aliasName("http", "shared").register();
+        assertEquals(replacement.getBindID(), this.container.getRsfBindInfo("http", "shared").getBindID());
+    }
+
+    @Test
+    public void publishedServiceRoutesReachTheAddressPoolBeforeSelection() {
+        InterAddress first = new InterAddress("rsf", "127.0.0.1", 2101, "unit");
+        InterAddress second = new InterAddress("rsf", "127.0.0.1", 2102, "unit");
+        String route = "def evalAddress(id, addresses) { addresses.findAll { it.endsWith(':2102') } }";
+        RsfBindInfo<Echo> service = this.publisher.rsfService(Echo.class).bindAddress(first, second).updateServiceRoute(route).register();
+        assertEquals(route, this.addresses.serviceRoute(service.getBindID()));
+        assertEquals(second, this.addresses.nextAddress(service.getBindID(), "echo", new Object[0]));
+        assertTrue(this.container.recoverService(service.getBindID()));
+        RsfBindInfo<Echo> replacement = this.publisher.rsfService(Echo.class).bindAddress(first).register();
+        assertNull(this.addresses.serviceRoute(replacement.getBindID()));
+        assertEquals(first, this.addresses.nextAddress(replacement.getBindID(), "echo", new Object[0]));
+    }
+
+    @Test
+    public void invalidBuilderValuesLeaveNoPublishedServiceAndCanBeCorrected() {
+        RsfPublisher.ConfigurationBuilder<Echo> builder = this.publisher.rsfService(Echo.class);
+        for (Runnable invalid : Arrays.<Runnable>asList(() -> builder.group("bad/group"), () -> builder.name("bad/name"), () -> builder.version("bad/version"), () -> builder.serialize("bad/type"), () -> builder.timeout(0), () -> builder.timeout(-1))) {
+            assertThrows(IllegalStateException.class, invalid);
+            assertTrue(this.container.getServiceIDs().isEmpty());
+        }
+        RsfBindInfo<Echo> valid = builder.group("fixed").name("echo").version("1").serialize("Java").timeout(1000).register();
+        assertEquals("[fixed]echo-1", valid.getBindID());
+        assertEquals(1, this.container.getServiceIDs().size());
+    }
+
     private static <T> T proxy(Class<T> type, InvocationHandler handler) {
         return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, handler));
     }

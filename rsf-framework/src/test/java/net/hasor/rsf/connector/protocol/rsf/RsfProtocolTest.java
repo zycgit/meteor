@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Proxy;
 import java.util.*;
+import java.util.concurrent.TimeoutException;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
@@ -26,6 +27,8 @@ import net.hasor.rsf.connector.protocol.ProtocolContext;
 import net.hasor.rsf.connector.protocol.rsf.codec.*;
 import net.hasor.rsf.connector.transport.NetworkChannel;
 import net.hasor.rsf.domain.OptionInfo;
+import net.hasor.rsf.domain.ProtocolStatus;
+import net.hasor.rsf.domain.payload.Payload;
 import net.hasor.rsf.domain.payload.RequestPayload;
 import net.hasor.rsf.domain.payload.ResponsePayload;
 import net.hasor.rsf.domain.payload.ThrowPayload;
@@ -304,6 +307,93 @@ public class RsfProtocolTest {
         }
     }
 
+    @Test
+    public void outgoingCapacityIsReleasedByRpcCompletionWithoutWaitingForReply() throws Exception {
+        Connection connection = new Connection();
+        List<OptionInfo> messages = new ArrayList<>();
+        RsfSession session = this.session(connection, messages, Collections.singletonMap("maxPendingRequests", "1"));
+        session.connected();
+        session.receive(this.fixture("handshake-v1.bin"));
+        RequestPayload first = (RequestPayload) this.codec.decode(this.fixture("request-v1.bin"));
+        first.setRequestID(101);
+        session.send(first).get();
+        RequestPayload second = (RequestPayload) this.codec.decode(this.fixture("request-v1.bin"));
+        second.setRequestID(102);
+        int written = connection.writes.size();
+        assertTrue(session.send(second).getCause() instanceof IOException);
+        assertEquals(written, connection.writes.size());
+        assertEquals(1, messages.size());
+        assertTrue(messages.get(0) instanceof ThrowPayload);
+        first.complete(new TimeoutException("RPC expired"));
+        session.send(second).get();
+        assertEquals(written + 1, connection.writes.size());
+        second.complete(null);
+        session.closed(null);
+        assertEquals(1, messages.size());
+    }
+
+    @Test
+    public void completedAndUnencodableRequestsDoNotOccupyProtocolCapacity() throws Exception {
+        Connection connection = new Connection();
+        List<OptionInfo> messages = new ArrayList<>();
+        RsfSession session = this.session(connection, messages, Collections.singletonMap("maxPendingRequests", "1"));
+        session.connected();
+        session.receive(this.fixture("handshake-v1.bin"));
+        RequestPayload completed = (RequestPayload) this.codec.decode(this.fixture("request-v1.bin"));
+        IOException expired = new IOException("RPC already finished");
+        completed.complete(expired);
+        int written = connection.writes.size();
+        assertSame(expired, session.send(completed).getCause());
+        assertEquals(written, connection.writes.size());
+        RequestPayload broken = (RequestPayload) this.codec.decode(this.fixture("request-v1.bin"));
+        broken.setSerializeType("missing");
+        assertNotNull(session.send(broken).getCause());
+        assertEquals(written, connection.writes.size());
+        assertEquals(1, messages.size());
+        RequestPayload valid = (RequestPayload) this.codec.decode(this.fixture("request-v1.bin"));
+        session.send(valid).get();
+        assertEquals(written + 1, connection.writes.size());
+        valid.complete(null);
+        session.closed(null);
+    }
+
+    @Test
+    public void unknownSerializerCannotSilentlyDiscardBusinessData() throws Exception {
+        RequestPayload request = (RequestPayload) this.codec.decode(this.fixture("request-v1.bin"));
+        request.setSerializeType("missing");
+        ResponsePayload response = new ResponsePayload();
+        response.setRequestID(request.getRequestID());
+        response.setSerializeType("missing");
+        response.setStatus(ProtocolStatus.OK);
+        response.setReturnType(String.class.getName());
+        response.setReturnData("must not disappear");
+        for (Payload message : Arrays.asList(request, response)) {
+            try {
+                this.codec.encode(message);
+                fail("Unknown serializers must fail instead of encoding empty data");
+            } catch (IOException expected) {
+                assertTrue(expected.getMessage().contains("missing"));
+            }
+        }
+        response.setReturnData(null);
+        try {
+            this.codec.encode(response);
+            fail("A typed null result also requires its declared serializer");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains("missing"));
+        }
+        response.setReturnType(null);
+        response.setStatus(ProtocolStatus.SerializeForbidden);
+        response.addOption("message", "unsupported serializer");
+        ResponsePayload error = (ResponsePayload) this.codec.decode(this.codec.encode(response));
+        assertEquals(ProtocolStatus.SerializeForbidden, error.getStatus());
+        assertEquals("unsupported serializer", error.getOption("message"));
+        response.setSerializeType("Java");
+        response.setReturnType(String.class.getName());
+        response.setReturnData("recovered");
+        assertEquals("recovered", ((ResponsePayload) this.codec.decode(this.codec.encode(response))).getReturnData());
+    }
+
     private byte[] encode(RequestPayload request) throws Exception {
         RequestBlock block = this.codec.buildRequestBlock(request);
         WireBuffer out = new WireBuffer();
@@ -333,7 +423,7 @@ public class RsfProtocolTest {
     }
 
     private byte[] fixture(String name) throws IOException {
-        try (InputStream input = getClass().getResourceAsStream("/legacy/" + name); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+        try (InputStream input = getClass().getResourceAsStream("/rsf-v1-wire-fixtures/" + name); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[1024];
             int count;
             while ((count = input.read(buffer)) != -1) {

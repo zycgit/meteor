@@ -100,10 +100,14 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
         List<Object> pValues = info.getParameterValues();
         if ((pTypes != null && !pTypes.isEmpty()) && (pValues != null && !pValues.isEmpty())) {
             SerializeCoder coder = this.context.getSerializeCoder(info.getSerializeType());
+            if (coder == null) {
+                throw new IOException("Unsupported serialization type: " + info.getSerializeType());
+            }
+
             for (int i = 0; i < pTypes.size(); i++) {
                 String typeKey = pTypes.get(i);
                 Object value = pValues.get(i);
-                byte[] valKey = (coder != null) ? coder.encode(value) : new byte[0];
+                byte[] valKey = coder.encode(value);
 
                 short paramType = pushString(block, typeKey);
                 short paramData = block.pushData(valKey);
@@ -138,6 +142,10 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
         //2.returnData
         String returnType = info.getReturnType();
         SerializeCoder serializeCoder = this.context.getSerializeCoder(info.getSerializeType());
+        if (serializeCoder == null && (StringUtils.isNotBlank(returnType) || info.getReturnData() != null)) {
+            throw new IOException("Unsupported serialization type: " + info.getSerializeType());
+        }
+
         byte[] encode = (serializeCoder != null) ? serializeCoder.encode(info.getReturnData()) : new byte[0];
         block.setReturnType(pushString(block, returnType));
         block.setReturnData(block.pushData(encode));

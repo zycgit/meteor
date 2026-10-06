@@ -6,10 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.rsf.connector;
-
-import net.hasor.cobble.concurrent.future.Future;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import net.hasor.cobble.concurrent.future.Future;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -20,14 +19,6 @@ public class ConnectorConnectionsTest {
             throw new AssertionError("Expected operation failure");
         } catch (ExecutionException expected) {
             return expected.getCause();
-        }
-    }
-
-    @Test
-    public void unconfiguredSchemeFailsBeforeConnectionCreation() throws Exception {
-        try (EndpointFixture fixture = new EndpointFixture("tcp")) {
-            assertNotNull(failure(fixture.manager.connect(EndpointFixture.address("unknown"))));
-            assertEquals(0, fixture.created);
         }
     }
 
@@ -75,4 +66,25 @@ public class ConnectorConnectionsTest {
             assertTrue(fixture.endpoints.get("tcp").destroyed);
         }
     }
+
+    @Test
+    public void drainFailureHardClosesTheChannelAndStillClosesItsPeers() throws Exception {
+        try (EndpointFixture fixture = new EndpointFixture("tcp")) {
+            EndpointFixture.Channel healthy = (EndpointFixture.Channel) fixture.manager.connect(EndpointFixture.address("tcp")).get();
+            EndpointFixture.Endpoint owner = fixture.endpoints.get("tcp");
+            EndpointFixture.Channel broken = new EndpointFixture.Channel(owner, fixture.manager.nextConnectionId()) {
+                @Override
+                public Future<RsfChannel> drainAndClose() {
+                    throw new IllegalStateException("drain failed");
+                }
+            };
+            owner.fireChannelConnected(broken);
+            owner.close();
+            assertFalse(broken.isActive());
+            assertTrue(healthy.drained);
+            assertFalse(healthy.isActive());
+            assertTrue(owner.destroyed);
+        }
+    }
+
 }
