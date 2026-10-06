@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.rsf.serialize.coder;
+package net.hasor.rsf.protocol.hprose;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Objects;

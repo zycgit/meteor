@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.rsf.protocol.http_hprose;
+package net.hasor.rsf.protocol.hprose;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,8 +18,12 @@ import hprose.io.HproseTags;
 import hprose.io.HproseWriter;
 import net.hasor.cobble.StringUtils;
 import net.hasor.rsf.RsfBindInfo;
-import net.hasor.rsf.connector.ConnectorContext;
-import net.hasor.rsf.domain.*;
+import net.hasor.rsf.RsfContext;
+import net.hasor.rsf.domain.ProtocolStatus;
+import net.hasor.rsf.domain.RsfException;
+import net.hasor.rsf.domain.RsfServiceType;
+import net.hasor.rsf.domain.payload.RequestPayload;
+import net.hasor.rsf.domain.payload.ResponsePayload;
 
 /**
  * Hprose 工具
@@ -28,22 +32,23 @@ import net.hasor.rsf.domain.*;
  */
 public class HproseUtils implements HproseConstants {
     /***/
-    public static String[] doFunction(ConnectorContext rsfContext) throws IOException {
-        Set<String> allMethod = new LinkedHashSet<String>();
+    public static String[] doFunction(RsfContext context) {
+        Set<String> allMethod = new LinkedHashSet<>();
         allMethod.add("*");
-        //
+
         // .请求函数列表
-        List<String> serviceIDs = rsfContext.services().getServiceIDs();
+        List<String> serviceIDs = context.getServiceIDs();
         for (String serviceID : serviceIDs) {
-            RsfBindInfo<?> serviceInfo = rsfContext.services().getServiceInfo(serviceID);
+            RsfBindInfo<?> serviceInfo = context.getServiceInfo(serviceID);
             if (serviceInfo.isShadow() || RsfServiceType.Provider != serviceInfo.getServiceType()) {
                 continue;
             }
+
             String aliasName = serviceInfo.getAliasName(HPROSE);
             if (StringUtils.isBlank(aliasName)) {
                 continue;
             }
-            //
+
             Method[] methodArrays = serviceInfo.getBindType().getMethods();
             for (Method method : methodArrays) {
                 StringBuilder define = new StringBuilder();
@@ -52,33 +57,26 @@ public class HproseUtils implements HproseConstants {
                 define = define.append(method.getName());
                 allMethod.add(define.toString());
             }
-            //
         }
         return allMethod.toArray(new String[allMethod.size()]);
     }
 
     /***/
-    public static RequestInfo[] doCall(ConnectorContext rsfContext, InputStream content, String requestURI, String origin) throws RsfException, IOException {
-        //
+    public static RequestPayload[] doCall(RsfContext context, InputStream content, String requestURI, String origin) throws RsfException, IOException {
         HproseReader reader = new HproseReader(content);
-        List<RequestInfo> infoArrays = new ArrayList<RequestInfo>();
-        //
-        parseRequest(rsfContext, reader, infoArrays);
+        List<RequestPayload> infoArrays = new ArrayList<RequestPayload>();
+        parseRequest(context, reader, infoArrays);
         content.skip(content.available());
-        //
-        for (RequestInfo info : infoArrays) {
+        for (RequestPayload info : infoArrays) {
             info.addOption("Location", requestURI);
             info.addOption("Origin", origin);
         }
-        //
-        return infoArrays.toArray(new RequestInfo[infoArrays.size()]);
+
+        return infoArrays.toArray(new RequestPayload[infoArrays.size()]);
     }
-    //
-    //
 
     /***/
-    private static void parseRequest(ConnectorContext rsfContext, HproseReader reader, List<RequestInfo> infoArrays) throws IOException {
-        long requestID = rsfContext.nextRequestId();
+    private static void parseRequest(RsfContext context, HproseReader reader, List<RequestPayload> infoArrays) throws IOException {
         String callName = null;
         try {
             callName = reader.readString();
@@ -86,28 +84,27 @@ public class HproseUtils implements HproseConstants {
         } catch (IOException e) {
             throw new RsfException(ProtocolStatus.ProtocolError, "decode callName error -> " + e.getMessage());
         }
-        //
-        // 创建 RequestInfo 对象
+
+        // 创建 RequestPayload 对象
         RsfBindInfo<?> serviceInfo = null;
-        RequestInfo request = new RequestInfo();
-        request.setRequestID(requestID);
+        RequestPayload request = new RequestPayload();
         try {
             String[] lastParams = callName.split("_");
             String methodName = lastParams[lastParams.length - 1];
             String serviceID = callName.substring(0, callName.length() - methodName.length() - 1);
-            //
-            serviceInfo = rsfContext.services().getServiceInfo(HPROSE, serviceID);
+
+            serviceInfo = context.getServiceInfo(HPROSE, serviceID);
             if (serviceInfo == null) {
                 throw new RsfException(ProtocolStatus.NotFound, "serviceID not found in alias. -> " + serviceID);
             }
-            //
+
             request.setServiceGroup(serviceInfo.getBindGroup());
             request.setServiceName(serviceInfo.getBindName());
             request.setServiceVersion(serviceInfo.getBindVersion());
             request.setTargetMethod(methodName);
             request.setMessage(false);
             request.setSerializeType("Hprose");
-            request.setClientTimeout(rsfContext.defaultTimeout());
+            request.setClientTimeout(context.getSettings().getDefaultTimeout());
             request.setReceiveTime(System.currentTimeMillis());
         } catch (Exception e) {
             if (e instanceof RsfException) {
@@ -135,6 +132,7 @@ public class HproseUtils implements HproseConstants {
                 }
                 reader.readInt(HproseTags.TagClosebrace);
             }
+
             args = (args == null) ? new byte[0][] : args;
             Method[] allMethods = serviceInfo.getBindType().getMethods();
             for (Method method : allMethods) {
@@ -148,16 +146,17 @@ public class HproseUtils implements HproseConstants {
                 atMethod = method;
                 break;
             }
+
             if (atMethod == null) {
                 throw new RsfException(ProtocolStatus.NotFound, "serviceID : " + serviceInfo.getBindID() + " ,not found method " + methodName);
             }
-            //
         } catch (Exception e) {
             if (e instanceof RsfException) {
                 throw (RsfException) e;
             }
             throw new RsfException(ProtocolStatus.Unknown, "error(" + e.getClass() + ") -> " + e.getMessage());
         }
+
         // .参数处理(isRef是否为引用参数调用 (遇到引用参数方法，会在response时将请求参数一同返回给客户端)
         for (int i = 0; i < parameterTypes.length; i++) {
             Class<?> paramType = parameterTypes[i];
@@ -165,9 +164,10 @@ public class HproseUtils implements HproseConstants {
             Object paramData = paramDataReader.unserialize(paramType);
             request.addParameter(paramType.getName(), paramData);
         }
+
         // .请求参数
         infoArrays.add(request);
-        //
+
         // .如果最后一个读取到的标签是结束标签那么结束整个解析，否则在读取一个标签。
         try {
             if (lastTag == TagEnd) {
@@ -180,16 +180,18 @@ public class HproseUtils implements HproseConstants {
             }
             throw new RsfException(ProtocolStatus.SerializeError, "error(" + e.getClass() + ") reader.checkTags -> " + e.getMessage());
         }
-        //
+
         // .当读取的最后一个标签不是结束标签那么继续处理直到遇到结束标签
         if (lastTag == TagEnd) {
             return;
         }
+
         // .如果下一个标签还是一个call，表示当前请求是批量调用。
         if (lastTag == TagCall) {
             throw new RsfException(ProtocolStatus.ProtocolError, "hprose batch calls, is not support.");
-            //parseRequest(rsfContext, reader, infoArrays);
+            //parseRequest(context, reader, infoArrays);
         }
+
         // .表示是参数引用调用，面对参数引用时候在响应时需要讲参数一同响应给客户端
         if (lastTag == TagTrue) {
             throw new RsfException(ProtocolStatus.ProtocolError, "hprose ref param, is not support.");
@@ -197,7 +199,7 @@ public class HproseUtils implements HproseConstants {
     }
 
     /***/
-    public static void parseResponse(long requestID, ResponseInfo response, OutputStream output) throws IOException {
+    public static void parseResponse(long requestID, ResponsePayload response, OutputStream output) throws IOException {
         if (response.getStatus() == ProtocolStatus.OK) {
             output.write(new byte[] { 'R' });
             ByteArrayOutputStream binary = new ByteArrayOutputStream();
@@ -225,16 +227,16 @@ public class HproseUtils implements HproseConstants {
     }
 
     /***/
-    public static byte[] encodeRequest(ConnectorContext rsfContext, RequestInfo request) throws IOException {
-        RsfBindInfo<?> bindInfo = rsfContext.services().getServiceInfo(request.getServiceGroup(), request.getServiceName(), request.getServiceVersion());
+    public static byte[] encodeRequest(RsfContext context, RequestPayload request) throws IOException {
+        RsfBindInfo<?> bindInfo = context.getServiceInfo(request.getServiceGroup(), request.getServiceName(), request.getServiceVersion());
         String aliasName = bindInfo.getAliasName(HPROSE);
-        //
+
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         HproseWriter writer = new HproseWriter(out);
         writer.writeString(aliasName + "_" + request.getTargetMethod());
-        //
+
         writer.writeArray(request.getParameterValues().toArray());
-        //
+
         ByteArrayOutputStream frame = new ByteArrayOutputStream();
         frame.write('C');
         frame.write(out.toByteArray());
@@ -252,6 +254,7 @@ public class HproseUtils implements HproseConstants {
             }
             return value;
         }
+
         if ((char) aByte == 'E') {
             throw new IOException("Remote Hprose error: " + new HproseReader(inputStream).readString());
         }
