@@ -5,10 +5,8 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.rsf.protocol.rsf.v1;
+package net.hasor.rsf.connector.protocol.rsf.codec;
 import java.io.IOException;
-import net.hasor.rsf.protocol.rsf.Protocol;
-import net.hasor.rsf.protocol.rsf.WireBuffer;
 
 /**
  * Protocol Interface,for custom network protocol
@@ -16,7 +14,10 @@ import net.hasor.rsf.protocol.rsf.WireBuffer;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class RpcResponseProtocolV1 implements Protocol<ResponseBlock> {
-    /**encode Message to byte & write to network framework*/
+
+    /**
+     * encode Message to byte & write to network framework
+     */
     public void encode(ResponseBlock resMsg, WireBuffer buf) throws IOException {
         //
         //* --------------------------------------------------------bytes =13
@@ -73,7 +74,9 @@ public class RpcResponseProtocolV1 implements Protocol<ResponseBlock> {
         return bodyBuf;
     }
 
-    /**decode stream to object*/
+    /**
+     * decode stream to object
+     */
     public ResponseBlock decode(WireBuffer buf) throws IOException {
         //* --------------------------------------------------------bytes =13
         //* byte[1]  version                              RSF版本
@@ -83,7 +86,8 @@ public class RpcResponseProtocolV1 implements Protocol<ResponseBlock> {
         //* byte[1]  keepData                             保留区
         buf.skipBytes(1);
         //* byte[3]  contentLength                        内容大小
-        buf.skipBytes(3);//.readUnsignedMedium()
+        //.readUnsignedMedium()
+        buf.skipBytes(3);
         //
         ResponseBlock res = new ResponseBlock();
         res.setHead(version);

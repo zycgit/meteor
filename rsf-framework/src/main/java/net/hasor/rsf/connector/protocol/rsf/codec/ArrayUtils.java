@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.rsf.protocol.rsf.v1;
+package net.hasor.rsf.connector.protocol.rsf.codec;
 import java.lang.reflect.Array;
 
 /**

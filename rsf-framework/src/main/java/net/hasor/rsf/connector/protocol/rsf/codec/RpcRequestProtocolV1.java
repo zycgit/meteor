@@ -5,11 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.rsf.protocol.rsf.v1;
-import net.hasor.rsf.protocol.rsf.WireBuffer;
-import net.hasor.rsf.protocol.rsf.Protocol;
-
-
+package net.hasor.rsf.connector.protocol.rsf.codec;
 import java.io.IOException;
 
 /**
@@ -18,7 +14,10 @@ import java.io.IOException;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class RpcRequestProtocolV1 implements Protocol<RequestBlock> {
-    /**encode Message to byte & write to network framework*/
+
+    /**
+     * encode Message to byte & write to network framework
+     */
     public void encode(RequestBlock reqMsg, WireBuffer buf) throws IOException {
         //* --------------------------------------------------------bytes =13
         //* byte[1]  version                              RSF版本
@@ -34,7 +33,8 @@ public class RpcRequestProtocolV1 implements Protocol<RequestBlock> {
             int bodyLength = requestBody.readableBytes();
             if (bodyLength > 0xFFFFFF) {
                 throw new IOException("RSF frame exceeds 24-bit length");
-            }//左移8未，在无符号右移8位。形成最大16777215字节的限制。
+            }
+            //左移8未，在无符号右移8位。形成最大16777215字节的限制。
             buf.writeMedium(bodyLength);
             //
             buf.writeBytes(requestBody);
@@ -90,7 +90,9 @@ public class RpcRequestProtocolV1 implements Protocol<RequestBlock> {
         return bodyBuf;
     }
 
-    /**decode stream to object*/
+    /**
+     * decode stream to object
+     */
     public RequestBlock decode(WireBuffer buf) throws IOException {
         //* --------------------------------------------------------bytes =13
         //* byte[1]  version                              RSF版本(0xC1)
@@ -100,7 +102,8 @@ public class RpcRequestProtocolV1 implements Protocol<RequestBlock> {
         //* byte[1]  keepData                             保留区
         buf.skipBytes(1);
         //* byte[3]  contentLength                        内容大小
-        buf.skipBytes(3);//.readUnsignedMedium()
+        //.readUnsignedMedium()
+        buf.skipBytes(3);
         //
         RequestBlock req = new RequestBlock();
         req.setHead(rsfHead);
