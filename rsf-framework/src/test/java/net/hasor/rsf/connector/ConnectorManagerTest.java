@@ -71,7 +71,7 @@ public class ConnectorManagerTest {
     @Test
     public void duplicateSchemeAcrossEndpointsIsRejected() {
         ConnectorConfig a = EndpointFixture.config("a");
-        ConnectorConfig b = new ConnectorConfig("b", a.address(), Collections.singletonMap("listenType", "memory"));
+        ConnectorConfig b = new ConnectorConfig("b", a.address(), Collections.singletonMap("listenType", "memory"), Collections.singletonList(new ProtocolConfig("b", a.address().getSchema(), a.address().getSchema(), Collections.singletonMap("listenType", "memory"))), true);
         try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(a, b), new TestConnectorManager.MemoryFactory())) {
             try {
                 manager.init();
@@ -84,7 +84,7 @@ public class ConnectorManagerTest {
 
     @Test
     public void mountedSchemesSelectTheSameEndpoint() throws Exception {
-        ConnectorConfig config = new ConnectorConfig("shared", EndpointFixture.address("memory"), Collections.singletonMap("listenType", "memory"), Arrays.asList(new ProtocolConfig("one", "", Collections.emptyMap()), new ProtocolConfig("two", "", Collections.emptyMap())));
+        ConnectorConfig config = new ConnectorConfig("shared", EndpointFixture.address("memory"), Collections.singletonMap("listenType", "memory"), Arrays.asList(new ProtocolConfig("one", "", Collections.emptyMap()), new ProtocolConfig("two", "", Collections.emptyMap())), true);
         try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext(config))) {
             manager.prepare(config, (cfg, mgr) -> new EndpointFixture.Endpoint(cfg, mgr, new ArrayList<>()));
             manager.init();

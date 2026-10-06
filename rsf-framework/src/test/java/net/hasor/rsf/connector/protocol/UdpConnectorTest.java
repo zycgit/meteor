@@ -239,7 +239,7 @@ public class UdpConnectorTest {
             options.put("protocol", protocol.getSimpleName().toLowerCase(Locale.ROOT));
             options.put("workerThread", "1");
             options.put("maxDatagramSize", String.valueOf(size));
-            this.config = new ConnectorConfig("udp", new InterAddress("udp", "127.0.0.1", port, "default"), options);
+            this.config = new ConnectorConfig("udp", new InterAddress("udp", "127.0.0.1", port, "default"), options, Collections.singletonList(new ProtocolConfig("udp", "udp", options.getOrDefault("protocol", "udp"), options)), true);
             ClassLoader loader = getClass().getClassLoader();
             RsfSettings settings = (RsfSettings) Proxy.newProxyInstance(loader, new Class<?>[] { RsfSettings.class }, (proxy, method, args) -> {
                 if ("getConnectorConfigs".equals(method.getName())) {

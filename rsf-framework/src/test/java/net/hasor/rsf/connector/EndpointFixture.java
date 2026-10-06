@@ -16,9 +16,9 @@ import net.hasor.rsf.domain.payload.Payload;
 
 /** A configured provider fixture, with no reflective access to production lifecycle state. */
 final class EndpointFixture implements AutoCloseable {
-    final TestConnectorManager manager;
+    final TestConnectorManager  manager;
     final Map<String, Endpoint> endpoints = new LinkedHashMap<>();
-    final List<String> events = Collections.synchronizedList(new ArrayList<>());
+    final List<String>          events    = Collections.synchronizedList(new ArrayList<>());
     int created;
 
     static InterAddress address(String scheme) {
@@ -26,7 +26,7 @@ final class EndpointFixture implements AutoCloseable {
     }
 
     static ConnectorConfig config(String name) {
-        return new ConnectorConfig(name, address(name), Collections.singletonMap("listenType", "memory"));
+        return new ConnectorConfig(name, address(name), Collections.singletonMap("listenType", "memory"), Collections.singletonList(new ProtocolConfig(name, name, name, Collections.singletonMap("listenType", "memory"))), true);
     }
 
     EndpointFixture(String... names) {
@@ -50,10 +50,10 @@ final class EndpointFixture implements AutoCloseable {
     static class Endpoint extends AbstractConnector {
         final List<String> events;
         BasicFuture<RsfListen> binding;
-        Listen listen;
-        boolean destroyed;
-        int starts;
-        int binds;
+        Listen                 listen;
+        boolean                destroyed;
+        int                    starts;
+        int                    binds;
 
         Endpoint(ConnectorConfig config, ConnectorManager manager, List<String> events) {
             super(config, manager);
@@ -91,7 +91,7 @@ final class EndpointFixture implements AutoCloseable {
 
     static final class Listen extends AbstractRsfListen {
         private final Endpoint owner;
-        private boolean active = true;
+        private       boolean  active = true;
 
         Listen(Endpoint owner, ReceivedListener receiver) {
             super(owner.config().listenType(), owner.config().address(), receiver);
@@ -110,10 +110,10 @@ final class EndpointFixture implements AutoCloseable {
     }
 
     static final class Channel extends AbstractRsfChannel {
-        private final Endpoint owner;
-        private final BasicFuture<RsfChannel> closed = new BasicFuture<>();
-        final CountDownLatch drainStarted = new CountDownLatch(1);
-        volatile boolean drained;
+        private final Endpoint                owner;
+        private final BasicFuture<RsfChannel> closed       = new BasicFuture<>();
+        final         CountDownLatch          drainStarted = new CountDownLatch(1);
+        volatile      boolean                 drained;
         boolean pending;
 
         Channel(Endpoint owner, long id) {

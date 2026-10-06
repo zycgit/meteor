@@ -22,6 +22,7 @@ import net.hasor.neta.channel.data.ProtoRcvQueue;
 import net.hasor.neta.channel.data.ProtoSndQueue;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.connector.ConnectorConfig;
+import net.hasor.rsf.connector.ProtocolConfig;
 import net.hasor.rsf.connector.transport.ChannelListener;
 import net.hasor.rsf.connector.transport.NetworkChannel;
 import net.hasor.rsf.connector.transport.SocketTransport;
@@ -61,7 +62,7 @@ public class TcpExtensionTest {
             availablePort = available.getLocalPort();
         }
         InterAddress address = new InterAddress("mux", "127.0.0.1", availablePort, "default");
-        ConnectorConfig config = new ConnectorConfig("mux", address, options);
+        ConnectorConfig config = new ConnectorConfig("mux", address, options, Collections.singletonList(new ProtocolConfig("mux", address.getSchema(), options.getOrDefault("protocol", address.getSchema()), options)), true);
         try (SocketTransport server = new SocketTransport(config, this.getClass().getClassLoader(), SoConfig.TCP()); SocketTransport client = new SocketTransport(config, this.getClass().getClassLoader(), SoConfig.TCP())) {
             AtomicReference<MuxSession> responder = new AtomicReference<>();
             NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));

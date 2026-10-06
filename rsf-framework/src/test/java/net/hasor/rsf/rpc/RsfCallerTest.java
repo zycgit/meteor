@@ -772,7 +772,7 @@ public class RsfCallerTest {
             Map<String, String> options = new HashMap<>();
             options.put("listenType", "rpc-memory");
             options.put("mode", mode);
-            this.config = new ConnectorConfig("rpc", this.address, options);
+            this.config = new ConnectorConfig("rpc", this.address, options, Collections.singletonList(new ProtocolConfig("rpc", this.address.getSchema(), options.getOrDefault("protocol", this.address.getSchema()), options)), true);
             RsfSettings settings = proxy(RsfSettings.class, (p, method, args) -> {
                 switch (method.getName()) {
                     case "getConnectorConfigs":

@@ -136,7 +136,7 @@ public class SocketLifecycleTest {
         options.put("listenType", "tcp");
         options.put("workerThread", "1");
         options.put("protocol", "rawprotocol");
-        ConnectorConfig config = new ConnectorConfig("raw", this.address(port), options);
+        ConnectorConfig config = new ConnectorConfig("raw", this.address(port), options, Collections.singletonList(new ProtocolConfig("raw", "raw", options.getOrDefault("protocol", "raw"), options)), true);
         ClassLoader loader = this.getClass().getClassLoader();
         RsfSettings settings = (RsfSettings) Proxy.newProxyInstance(loader, new Class<?>[] { RsfSettings.class }, (proxy, method, args) -> {
             if ("getConnectorConfigs".equals(method.getName())) {

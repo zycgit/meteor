@@ -62,7 +62,7 @@ public class HttpTransportTest {
         options.put("workerThread", "1");
         options.put("listenType", "http");
         options.put("protocol", protocol.getSimpleName().toLowerCase(Locale.ROOT));
-        return new ConnectorConfig(schema, new InterAddress(schema + "://127.0.0.1:" + port + "/default"), options);
+        return new ConnectorConfig(schema, new InterAddress(schema + "://127.0.0.1:" + port + "/default"), options, Collections.singletonList(new ProtocolConfig(schema, schema, options.getOrDefault("protocol", schema), options)), true);
     }
 
     private Endpoint endpoint(ConnectorConfig config, ReceivedListener listener) {
@@ -411,7 +411,7 @@ public class HttpTransportTest {
         Map<String, String> options = new HashMap<>();
         options.put("listenType", "http");
         options.put("protocol", "wirea");
-        ConnectorConfig config = new ConnectorConfig("http", new InterAddress("http://127.0.0.1:" + port() + "/default"), options);
+        ConnectorConfig config = new ConnectorConfig("http", new InterAddress("http://127.0.0.1:" + port() + "/default"), options, Collections.singletonList(new ProtocolConfig("http", "http", options.getOrDefault("protocol", "http"), options)), true);
         try (ConnectorManager manager = subscribedManager(runtimeContext(config), RECEIVER)) {
             manager.bind("http").get();
             fail();

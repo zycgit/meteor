@@ -50,7 +50,7 @@ public class TcpTransportTest {
         options.put("workerThread", "1");
         options.put("listenType", "tcp");
         options.put("protocol", "rsf");
-        return new ConnectorConfig(schema, new InterAddress(schema + "://127.0.0.1:" + port + "/default"), options);
+        return new ConnectorConfig(schema, new InterAddress(schema + "://127.0.0.1:" + port + "/default"), options, Collections.singletonList(new ProtocolConfig(schema, schema, options.getOrDefault("protocol", schema), options)), true);
     }
 
     private Endpoint endpoint(ConnectorConfig config, ReceivedListener listener) {
@@ -329,7 +329,7 @@ public class TcpTransportTest {
             options.put("handshakeTimeout", "200");
             options.put("listenType", "tcp");
             options.put("protocol", "rsf");
-            ConnectorConfig shortHandshake = new ConnectorConfig("rsf", config("rsf", port()).address(), options);
+            ConnectorConfig shortHandshake = new ConnectorConfig("rsf", config("rsf", port()).address(), options, Collections.singletonList(new ProtocolConfig("rsf", "rsf", options.getOrDefault("protocol", "rsf"), options)), true);
             Endpoint client = bind(endpoint(shortHandshake, new Inbox()));
             Future<RsfChannel> connection = connect(client, new InterAddress("rsf://127.0.0.1:" + silentPeer.getLocalPort() + "/default"));
             try (Socket accepted = silentPeer.accept()) {
@@ -535,7 +535,7 @@ public class TcpTransportTest {
         options.put("maxFrameSize", "1024");
         options.put("listenType", "tcp");
         options.put("protocol", "rsf");
-        ConnectorConfig serverConfig = new ConnectorConfig("server", config("rsf", port()).address(), options);
+        ConnectorConfig serverConfig = new ConnectorConfig("server", config("rsf", port()).address(), options, Collections.singletonList(new ProtocolConfig("server", "rsf", options.getOrDefault("protocol", "rsf"), options)), true);
         Endpoint server = bind(endpoint(serverConfig, new Inbox() {
             public void onRequest(RsfChannel channel, long id, RequestPayload request) {
                 ReceivedRequest received = new ReceivedRequest(channel, id);
@@ -578,7 +578,7 @@ public class TcpTransportTest {
         options.put("maxPendingRequests", "1");
         options.put("listenType", "tcp");
         options.put("protocol", "rsf");
-        ConnectorConfig config = new ConnectorConfig("server", config("rsf", port()).address(), options);
+        ConnectorConfig config = new ConnectorConfig("server", config("rsf", port()).address(), options, Collections.singletonList(new ProtocolConfig("server", "rsf", options.getOrDefault("protocol", "rsf"), options)), true);
         Endpoint server = bind(endpoint(config, new Inbox() {
             public void onRequest(RsfChannel channel, long id, RequestPayload request) {
                 ReceivedRequest received = new ReceivedRequest(channel, id);

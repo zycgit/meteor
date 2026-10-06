@@ -137,7 +137,7 @@ public class ProtocolSpiTest {
         try (ServerSocket available = new ServerSocket(0)) {
             port = available.getLocalPort();
         }
-        return new ConnectorConfig("test", new InterAddress("custom", "127.0.0.1", port, "test"), Map.of("listenType", "custom", "workerThread", "1"), Collections.singletonList(new ProtocolConfig("custom", protocol, Collections.emptyMap())));
+        return new ConnectorConfig("test", new InterAddress("custom", "127.0.0.1", port, "test"), Map.of("listenType", "custom", "workerThread", "1"), Collections.singletonList(new ProtocolConfig("custom", protocol, Collections.emptyMap())), true);
     }
 
     private ConnectorManager manager(ClassLoader loader, ConnectorConfig config) {

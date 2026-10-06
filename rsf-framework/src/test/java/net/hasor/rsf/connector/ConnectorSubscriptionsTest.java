@@ -108,7 +108,7 @@ public class ConnectorSubscriptionsTest {
 
     @Test
     public void shutdownNotificationsRemainDeliverableUntilCleanupFinishes() throws Exception {
-        ConnectorConfig config = new ConnectorConfig("closing", new InterAddress("rsf://127.0.0.1:1/default"), Collections.singletonMap("listenType", "memory"));
+        ConnectorConfig config = new ConnectorConfig("closing", new InterAddress("rsf://127.0.0.1:1/default"), Collections.singletonMap("listenType", "memory"), Collections.singletonList(new ProtocolConfig("closing", "rsf", "rsf", Collections.singletonMap("listenType", "memory"))), true);
         try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext(config))) {
             manager.init();
             List<Payload> received = new ArrayList<>();

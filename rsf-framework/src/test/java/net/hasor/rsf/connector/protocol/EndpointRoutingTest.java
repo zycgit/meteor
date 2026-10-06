@@ -268,7 +268,7 @@ public class EndpointRoutingTest {
             Map<String, String> options = new HashMap<>();
             options.put("listenType", transport);
             options.put("workerThread", "1");
-            ConnectorConfig config = new ConnectorConfig("shared", new InterAddress(transport, "127.0.0.1", port(), "test"), options, Arrays.asList(new ProtocolConfig("a", (transport.equals("udp") ? "datagram" : "") + a.getSimpleName().toLowerCase(Locale.ROOT), Collections.singletonMap("contextPath", "/a")), new ProtocolConfig("b", (transport.equals("udp") ? "datagram" : "") + b.getSimpleName().toLowerCase(Locale.ROOT), Collections.singletonMap("contextPath", "/b"))));
+            ConnectorConfig config = new ConnectorConfig("shared", new InterAddress(transport, "127.0.0.1", port(), "test"), options, Arrays.asList(new ProtocolConfig("a", (transport.equals("udp") ? "datagram" : "") + a.getSimpleName().toLowerCase(Locale.ROOT), Collections.singletonMap("contextPath", "/a")), new ProtocolConfig("b", (transport.equals("udp") ? "datagram" : "") + b.getSimpleName().toLowerCase(Locale.ROOT), Collections.singletonMap("contextPath", "/b"))), true);
             ClassLoader loader = this.getClass().getClassLoader();
             RsfSettings settings = (RsfSettings) Proxy.newProxyInstance(loader, new Class<?>[] { RsfSettings.class }, (proxy, method, args) -> {
                 if (method.getName().equals("getConnectorConfigs")) {

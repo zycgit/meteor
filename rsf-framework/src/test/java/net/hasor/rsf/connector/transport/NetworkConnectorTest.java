@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.connector.ConnectorConfig;
+import net.hasor.rsf.connector.ProtocolConfig;
 import net.hasor.rsf.connector.transport.http.HttpConnector;
 import net.hasor.rsf.connector.transport.http.HttpExchange;
 import net.hasor.rsf.connector.transport.http.HttpRequest;
@@ -191,6 +192,6 @@ public class NetworkConnectorTest {
                 port = socket.getLocalPort();
             }
         }
-        return new ConnectorConfig(type, new InterAddress(type, "127.0.0.1", port, "default"), Collections.singletonMap("listenType", type));
+        return new ConnectorConfig(type, new InterAddress(type, "127.0.0.1", port, "default"), Collections.singletonMap("listenType", type), Collections.singletonList(new ProtocolConfig(type, type, type, Collections.singletonMap("listenType", type))), true);
     }
 }

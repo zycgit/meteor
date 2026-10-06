@@ -21,6 +21,7 @@ import net.hasor.neta.channel.NetChannel;
 import net.hasor.neta.channel.transport.udp.UdpSoConfig;
 import net.hasor.rsf.address.InterAddress;
 import net.hasor.rsf.connector.ConnectorConfig;
+import net.hasor.rsf.connector.ProtocolConfig;
 import net.hasor.rsf.connector.transport.ChannelListener;
 import net.hasor.rsf.connector.transport.SocketTransport;
 import org.junit.Assume;
@@ -140,7 +141,7 @@ public class UdpConnectionTest {
 
         private Endpoint(int port, int maximum) throws Exception {
             InterAddress remote = new InterAddress("udp", "127.0.0.1", port, "default");
-            ConnectorConfig config = new ConnectorConfig("raw-udp", remote, Collections.singletonMap("listenType", "udp"));
+            ConnectorConfig config = new ConnectorConfig("raw-udp", remote, Collections.singletonMap("listenType", "udp"), Collections.singletonList(new ProtocolConfig("raw-udp", remote.getSchema(), remote.getSchema(), Collections.singletonMap("listenType", "udp"))), true);
             UdpSoConfig socket = new UdpSoConfig();
             socket.setRcvPacketSize(65536);
             this.transport = new SocketTransport(config, getClass().getClassLoader(), socket);
