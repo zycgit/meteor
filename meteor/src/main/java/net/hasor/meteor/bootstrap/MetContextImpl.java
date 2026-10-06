@@ -22,8 +22,8 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.protocol.EndpointConnectorFactory;
 import net.hasor.meteor.container.MetContainer;
-import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.MetException;
+import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.rpc.MetCaller;
 import net.hasor.meteor.rpc.MetClientImpl;
 import net.hasor.meteor.rpc.filters.local.LocalPref;
@@ -130,7 +130,6 @@ public final class MetContextImpl implements MetContext {
 
         this.state = State.CLOSED;
         try {
-            // Cancel address maintenance before its shared scheduler is closed with the connectors.
             this.addresses.close();
         } finally {
             this.rsfCaller.close();
