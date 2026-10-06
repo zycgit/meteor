@@ -18,15 +18,6 @@ public final class ConnectorConfig {
     private final Map<String, String>         options;
     private final Map<String, ProtocolConfig> protocols;
 
-    /** Single-protocol endpoint shorthand. */
-    public ConnectorConfig(String name, InterAddress address, Map<String, String> options) {
-        this(name, address, options, Collections.singletonList(new ProtocolConfig(name, address.getSchema(), options.getOrDefault("protocol", address.getSchema()), options)));
-    }
-
-    public ConnectorConfig(String name, InterAddress address, Map<String, String> options, Collection<ProtocolConfig> protocols) {
-        this(name, address, options, protocols, true);
-    }
-
     public ConnectorConfig(String name, InterAddress address, Map<String, String> options, Collection<ProtocolConfig> protocols, boolean bindEnabled) {
         this.name = Objects.requireNonNull(name, "name");
         this.bindEnabled = bindEnabled;
