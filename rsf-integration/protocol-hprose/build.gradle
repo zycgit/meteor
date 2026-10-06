@@ -3,9 +3,11 @@ dependencies {
     api project(':rsf-framework')
     api "org.hprose:hprose-java:${property('lib.hprose')}"
     api "com.alibaba:fastjson:${property('lib.fastjson')}"
+    testRuntimeOnly 'org.slf4j:slf4j-simple:1.7.36'
 }
 
 // Hprose bean decoding reflects into java.io on Java 17.
 tasks.withType(Test).configureEach {
     jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+    systemProperty 'org.slf4j.simpleLogger.defaultLogLevel', 'warn'
 }

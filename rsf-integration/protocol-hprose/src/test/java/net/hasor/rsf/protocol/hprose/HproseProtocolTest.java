@@ -9,21 +9,15 @@ package net.hasor.rsf.protocol.hprose;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.lang.reflect.Proxy;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 import hprose.io.HproseReader;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.rsf.RsfBindInfo;
 import net.hasor.rsf.RsfContext;
-import net.hasor.rsf.RsfSettings;
 import net.hasor.rsf.address.InterAddress;
-import net.hasor.rsf.connector.ConnectorManager;
+import net.hasor.rsf.bootstrap.Configuration;
 import net.hasor.rsf.connector.ProtocolConfig;
-import net.hasor.rsf.connector.ReceivedListener;
-import net.hasor.rsf.connector.RsfChannel;
-import net.hasor.rsf.connector.protocol.EndpointConnectorFactory;
 import net.hasor.rsf.connector.protocol.ProtocolContext;
 import net.hasor.rsf.connector.protocol.ProtocolSession;
 import net.hasor.rsf.connector.transport.NetworkChannel;
@@ -31,7 +25,6 @@ import net.hasor.rsf.connector.transport.http.HttpExchange;
 import net.hasor.rsf.connector.transport.http.HttpRequest;
 import net.hasor.rsf.connector.transport.http.HttpResponse;
 import net.hasor.rsf.domain.ProtocolStatus;
-import net.hasor.rsf.domain.RsfServiceType;
 import net.hasor.rsf.domain.payload.Payload;
 import net.hasor.rsf.domain.payload.RequestPayload;
 import net.hasor.rsf.domain.payload.ResponsePayload;
@@ -41,40 +34,29 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class HproseProtocolTest {
-    private static final ReceivedListener RECEIVER = new ReceivedListener() {
-        public void onRequest(RsfChannel channel, long id, RequestPayload request) {
-            throw new AssertionError("Unexpected request");
-        }
-
-        public void onResponse(RsfChannel channel, long id, ResponsePayload response) {
-            throw new AssertionError("Unexpected response");
-        }
-
-        public void onFailure(RsfChannel channel, long id, ThrowPayload failure) {
-            throw new AssertionError(failure.getThrowable());
-        }
-    };
-
     public interface Echo {
         String echo(String value);
     }
 
-    private final ConnectorManager manager = subscribedManager(services(), RECEIVER);
+    private final RsfContext context;
 
     @After
     public void close() {
-        this.manager.close();
+        this.context.close();
     }
 
     private final InterAddress address;
     private final HproseCodec  protocol;
 
     public HproseProtocolTest() throws Exception {
+        this.context = new Configuration().buildContext();
+        this.context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
         this.address = new InterAddress("hprose://127.0.0.1:8080/default");
+
         Map<String, String> options = new HashMap<>();
         options.put("listenType", "http");
         options.put("contextPath", "/rpc");
-        this.protocol = new HproseCodec(new ProtocolConfig("hprose", "hprose", options), this.manager.context());
+        this.protocol = new HproseCodec(new ProtocolConfig("hprose", "hprose", options), this.context);
     }
 
     @Test
@@ -225,7 +207,9 @@ public class HproseProtocolTest {
     }
 
     private ProtocolSession<HttpExchange> session(MemoryNetwork network, List<Payload> received, boolean outbound) {
-        ProtocolContext context = new ProtocolContext(this.manager.context(), this.manager::schedule, this.address, outbound);
+        ProtocolContext context = new ProtocolContext(this.context, (action, delay) -> {
+            throw new AssertionError("Hprose must use RPC deadlines rather than schedule its own timeout");
+        }, this.address, outbound);
         ProtocolSession<HttpExchange> session = new HproseProtocol().create(new ProtocolConfig("hprose", "hprose", Map.of("contextPath", "/rpc")), context, network, (id, payload) -> received.add(payload));
         session.connected();
         assertTrue(session.ready().isDone());
@@ -289,70 +273,4 @@ public class HproseProtocolTest {
         }
     }
 
-    private static RsfContext services() {
-        RsfSettings settings = (RsfSettings) Proxy.newProxyInstance(HproseProtocolTest.class.getClassLoader(), new Class<?>[] { RsfSettings.class }, (proxy, method, args) -> {
-            if ("getConnectorConfigs".equals(method.getName())) {
-                return Collections.emptySet();
-            }
-            if ("getDefaultTimeout".equals(method.getName())) {
-                return 3000;
-            }
-            throw new UnsupportedOperationException(method.getName());
-        });
-        RsfBindInfo<?> info = (RsfBindInfo<?>) Proxy.newProxyInstance(HproseProtocolTest.class.getClassLoader(), new Class<?>[] { RsfBindInfo.class }, (proxy, method, args) -> {
-            switch (method.getName()) {
-                case "getBindID":
-                    return "[RSF]Echo-1.0.0";
-                case "getBindGroup":
-                    return "RSF";
-                case "getBindName":
-                    return "Echo";
-                case "getBindVersion":
-                    return "1.0.0";
-                case "getBindType":
-                    return Echo.class;
-                case "getAliasName":
-                    return "echo";
-                case "getServiceType":
-                    return RsfServiceType.Provider;
-                case "isShadow":
-                    return false;
-                default:
-                    throw new UnsupportedOperationException(method.getName());
-            }
-        });
-        return (RsfContext) Proxy.newProxyInstance(HproseProtocolTest.class.getClassLoader(), new Class<?>[] { RsfContext.class }, (proxy, method, args) -> {
-            switch (method.getName()) {
-                case "getClassLoader":
-                    return HproseProtocolTest.class.getClassLoader();
-                case "getSettings":
-                    return settings;
-                case "getServiceIDs":
-                    return Collections.singletonList("[RSF]Echo-1.0.0");
-                case "getServiceInfo":
-                    return info;
-                default:
-                    throw new AssertionError("Unexpected context access: " + method);
-            }
-        });
-    }
-
-    private static ConnectorManager subscribedManager(RsfContext context, ReceivedListener receiver) {
-        ConnectorManager manager = new ConnectorManager(context, new EndpointConnectorFactory());
-        manager.init();
-        manager.subscribe((channel, id, payload) -> {
-            switch (payload.getType()) {
-                case REQUEST:
-                    receiver.onRequest(channel, id, (RequestPayload) payload);
-                    break;
-                case RESPONSE:
-                    receiver.onResponse(channel, id, (ResponsePayload) payload);
-                    break;
-                case THROW:
-                    receiver.onFailure(channel, id, (ThrowPayload) payload);
-                    break;
-            }
-        });
-        return manager;
-    }
 }

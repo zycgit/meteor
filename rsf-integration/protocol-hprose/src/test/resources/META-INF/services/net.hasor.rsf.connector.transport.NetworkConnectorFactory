@@ -1,0 +1,2 @@
+net.hasor.rsf.protocol.hprose.bootstrap.ConnectorSpiTest$CustomTransport
+net.hasor.rsf.protocol.hprose.bootstrap.ConnectorSpiTest$FailingTransport

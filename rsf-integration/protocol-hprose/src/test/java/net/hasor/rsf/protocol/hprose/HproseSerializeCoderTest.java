@@ -27,6 +27,10 @@ public class HproseSerializeCoderTest {
         SerializeFactory factory = SerializeFactory.createFactory(this.getClass().getClassLoader());
         SerializeCoder discovered = factory.getSerializeCoder("hprose");
         assertTrue(discovered instanceof HproseSerializeCoder);
+        Class<?> type = discovered.getClass();
+        assertEquals(1, Collections.list(this.getClass().getClassLoader().getResources(type.getName().replace('.', '/') + ".class")).size());
+        assertEquals(HproseProtocol.class.getProtectionDomain().getCodeSource().getLocation(), type.getProtectionDomain().getCodeSource().getLocation());
+        assertNotEquals(SerializeCoder.class.getProtectionDomain().getCodeSource().getLocation(), type.getProtectionDomain().getCodeSource().getLocation());
         assertEquals("Hprose", discovered.name());
         assertSame(discovered, factory.getSerializeCoder("HPROSE"));
         assertEquals("hello", discovered.decode(discovered.encode("hello"), String.class));
