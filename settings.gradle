@@ -1,0 +1,28 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'meteor-parent'
+
+include 'meteor'
+include 'meteor-protocol-hprose'
+project(':meteor-protocol-hprose').projectDir = file('met-integration/meteor-protocol-hprose')
+
+//
+include 'met-example-api'
+include 'met-example-server'
+include 'met-example-client'
+project(':met-example-api').projectDir = file('met-example/met-example-api')
+project(':met-example-server').projectDir = file('met-example/met-example-server')
+project(':met-example-client').projectDir = file('met-example/met-example-client')

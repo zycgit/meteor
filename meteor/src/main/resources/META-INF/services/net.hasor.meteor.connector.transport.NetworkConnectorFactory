@@ -1,0 +1,3 @@
+net.hasor.meteor.connector.transport.tcp.TcpConnectorFactory
+net.hasor.meteor.connector.transport.http.HttpConnectorFactory
+net.hasor.meteor.connector.transport.udp.UdpConnectorFactory

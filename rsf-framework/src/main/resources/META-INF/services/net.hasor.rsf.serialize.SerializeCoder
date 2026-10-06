@@ -1,3 +1,0 @@
-net.hasor.rsf.serialize.coder.JavaSerializeCoder
-net.hasor.rsf.serialize.coder.JsonSerializeCoder
-net.hasor.rsf.serialize.coder.HessianSerializeCoder

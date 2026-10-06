@@ -1,0 +1,65 @@
+/*
+ * Copyright 2015-2026 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0.
+ * See the LICENSE.txt file for the full license.
+ * https://www.apache.org/licenses/LICENSE-2.0
+ */
+package net.hasor.meteor.connector.protocol.rsf.codec;
+
+/**
+ * 各种常量
+ * <p>一个RSF数据包头的定义如下:
+ *  <li>第 1 个二进制位:表示是否为 RSF 数据包,合法的数据为 0x80 (1000 0000)<li/>
+ *  <li>第 2 ~ 4 个二进制位:表示数据包的分类,加上包头合法的数据为 0x80 ~ 0xF0 (1000 0000 ~ 1111 0000)<li/>
+ *  <li>最后的 4 个二进制位,用于表示该分类包的版本。可选范围为:0~15 (0000 0000 ~ 0000 1111) <li/>
+ * </p>
+ * @version : 2014年9月20日
+ * @author 赵永春 (zyc@hasor.net)
+ */
+public interface ProtocolConstants {
+
+    // RSF数据包           -（1000 0000）
+    byte RSF_Packet = (byte) (0x80);
+
+    // RSF所有包头分类      -（1000 0000 ~ 1111 0000）
+    // 1000 (心跳)
+    byte RSF_Packet_Heart = RSF_Packet | 0x00;
+
+    // 1001 (请求类型：调用)
+    byte RSF_Packet_InvokerRequest = RSF_Packet | 0x10;
+
+    // 1010 (请求类型：消息)
+    byte RSF_Packet_MessageRequest = RSF_Packet | 0x20;
+
+    // 1011 (响应)
+    byte RSF_Packet_Response = RSF_Packet | 0x30;
+
+    // 1100 (选项参数)
+    byte RSF_Packet_Options = RSF_Packet | 0x40;
+
+    // 1101 (未使用)
+    byte RSF_Packet_xxxx5 = RSF_Packet | 0x50;
+
+    // 1110 (未使用)
+    byte RSF_Packet_xxxx6 = RSF_Packet | 0x60;
+
+    // 1111 (未使用)
+    byte RSF_Packet_xxxx7 = RSF_Packet | 0x70;
+
+    // 协议头1.0
+    // 1000 0001
+    byte Version_1 = (byte) (0x01);
+
+    // 1001 0001
+    byte RSF_InvokerRequest = Version_1 | RSF_Packet_InvokerRequest;
+
+    // 1010 0001
+    byte RSF_MessageRequest = Version_1 | RSF_Packet_MessageRequest;
+
+    // 1011 0001
+    byte RSF_Response = Version_1 | RSF_Packet_Response;
+
+    // 1100 0001
+    byte RSF_Options = Version_1 | RSF_Packet_Options;
+}

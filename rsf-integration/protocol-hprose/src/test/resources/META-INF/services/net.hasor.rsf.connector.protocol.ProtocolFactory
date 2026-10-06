@@ -1,5 +1,0 @@
-net.hasor.rsf.protocol.hprose.bootstrap.ConnectorSpiTest$CustomProtocol
-net.hasor.rsf.protocol.hprose.bootstrap.ConnectorSpiTest$FailingProtocol
-net.hasor.rsf.protocol.hprose.bootstrap.ConnectorSpiTest$SecondFailingProtocol
-net.hasor.rsf.protocol.hprose.bootstrap.spi.TestHproseProtocolA
-net.hasor.rsf.protocol.hprose.bootstrap.spi.TestHproseProtocolB

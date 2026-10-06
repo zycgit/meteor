@@ -1,0 +1,81 @@
+allprojects {
+    group = 'net.hasor'
+}
+
+subprojects {
+    apply plugin: 'jacoco'
+    jacoco {
+        toolVersion = property('lib.jacoco')
+    }
+
+    plugins.withType(JavaPlugin).configureEach {
+        tasks.named('test') {
+            finalizedBy tasks.named('jacocoTestReport')
+        }
+        tasks.named('jacocoTestReport') {
+            reports {
+                xml.required = true
+                html.required = true
+            }
+        }
+
+        java {
+            toolchain.languageVersion = JavaLanguageVersion.of(17)
+        }
+        tasks.withType(JavaCompile).configureEach {
+            options.encoding = 'UTF-8'
+            options.release = 17
+        }
+        tasks.withType(Javadoc).configureEach {
+            options.encoding = 'UTF-8'
+            options.addStringOption('Xdoclint:none', '-quiet')
+            failOnError = false
+        }
+        tasks.withType(Test).configureEach {
+            useJUnit()
+        }
+        tasks.withType(GenerateModuleMetadata).configureEach { enabled = false }
+        dependencies {
+            testImplementation "junit:junit:${property('lib.junit')}"
+        }
+
+        plugins.withId('maven-publish') {
+            apply plugin: 'signing'
+            java {
+                withSourcesJar()
+                withJavadocJar()
+            }
+            publishing {
+                publications {
+                    mavenJava(MavenPublication) {
+                        from components.java
+                        pom {
+                            name = providers.provider { project.findProperty('pomName') ?: project.name }
+                            description = providers.provider { project.description ?: project.name }
+                            url = 'https://www.hasor.net/rsf'
+                            licenses { license { name = 'The Apache Software License, Version 2.0'; url = 'https://www.apache.org/licenses/LICENSE-2.0.txt' } }
+                            developers { developer { name = '赵永春(Mr.Zhao)'; email = 'zyc@hasor.net' } }
+                            scm {
+                                connection = 'scm:git:git@gitee.com:zycgit/rsf.git'
+                                developerConnection = connection
+                                url = 'https://gitee.com/zycgit/rsf'
+                                tag = 'HEAD'
+                            }
+                        }
+                    }
+                }
+                if (findProperty('centralBundleDir')) {
+                    repositories { maven { name = 'centralBundle'; url = uri(findProperty('centralBundleDir')) } }
+                }
+            }
+            signing {
+                required { findProperty('centralRelease') == 'true' }
+                def key = findProperty('maven.central.signing_key')
+                if (key) {
+                    useInMemoryPgpKeys(key.replace('\\n', '\n'), findProperty('maven.central.signing_password'))
+                }
+                sign publishing.publications.mavenJava
+            }
+        }
+    }
+}

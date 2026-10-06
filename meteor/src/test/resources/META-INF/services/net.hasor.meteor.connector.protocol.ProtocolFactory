@@ -1,0 +1,14 @@
+net.hasor.meteor.connector.protocol.EndpointRoutingTest$HttpA
+net.hasor.meteor.connector.protocol.EndpointRoutingTest$HttpB
+net.hasor.meteor.connector.protocol.EndpointRoutingTest$WireA
+net.hasor.meteor.connector.protocol.EndpointRoutingTest$WireB
+net.hasor.meteor.connector.protocol.EndpointRoutingTest$DatagramWireA
+net.hasor.meteor.connector.protocol.EndpointRoutingTest$DatagramWireB
+net.hasor.meteor.connector.protocol.EndpointRoutingTest$IncompleteProbe
+net.hasor.meteor.connector.protocol.HttpTransportTest$TextProtocol
+net.hasor.meteor.connector.protocol.HttpTransportTest$ExpiringProtocol
+net.hasor.meteor.connector.protocol.HttpTransportTest$SameIdProtocol
+net.hasor.meteor.connector.protocol.HttpTransportTest$AcknowledgementProtocol
+net.hasor.meteor.connector.protocol.HttpTransportTest$DrainProtocol
+net.hasor.meteor.connector.protocol.SocketLifecycleTest$RawProtocol
+net.hasor.meteor.connector.protocol.UdpConnectorTest$TestProtocol
