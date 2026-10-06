@@ -108,6 +108,31 @@ public class HproseProtocolTest {
     }
 
     @Test
+    public void structuredErrorsAcceptNumericAndStringStatusesFromOtherPeers() throws Exception {
+        for (String status : Arrays.asList("404", "\"404\"")) {
+            String json = "{\"status\":" + status + ",\"message\":\"不存在🙂\",\"extra\":true}";
+            ResponsePayload decoded = this.protocol.decode(7, this.protocol.error(new IOException(json)));
+            assertEquals(ProtocolStatus.NotFound, decoded.getStatus());
+            assertEquals("不存在🙂", decoded.getOption("message"));
+        }
+        for (short status : new short[] { ProtocolStatus.OK, ProtocolStatus.Accept }) {
+            String json = "{\"status\":" + status + ",\"message\":\"still an error\"}";
+            ResponsePayload decoded = this.protocol.decode(8, this.protocol.error(new IOException(json)));
+            assertEquals(ProtocolStatus.InvokeError, decoded.getStatus());
+            assertEquals("still an error", decoded.getOption("message"));
+        }
+    }
+
+    @Test
+    public void malformedStructuredErrorsRemainReadableAsPlainErrors() throws Exception {
+        for (String error : Arrays.asList("{", "[]", "null", "{\"status\":null}", "{\"status\":\"bad\"}", "{\"status\":99999}", "{\"status\":404} {\"status\":200}", "ordinary error 中文🙂")) {
+            ResponsePayload decoded = this.protocol.decode(9, this.protocol.error(new IOException(error)));
+            assertEquals(ProtocolStatus.InvokeError, decoded.getStatus());
+            assertEquals(error, decoded.getOption("message"));
+        }
+    }
+
+    @Test
     public void malformedOrTruncatedSuccessfulResponsesAreRejected() throws Exception {
         for (byte[] body : new byte[][] { new byte[0], new byte[] { 'R', 'n' }, new byte[] { 'R', 'n', 'z', 'x' }, new byte[] { '?' } }) {
             try {

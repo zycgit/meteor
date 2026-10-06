@@ -1,31 +1,18 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
 ext.pomName = 'RSF Framework'
-description = 'RSF messages, addresses, serialization, public API, connector core, RPC invocation and service container.'
+description = 'RSF framework with configuration, context assembly, RPC, service container, addresses, serialization and Neta transports.'
 
 dependencies {
     api "net.hasor:cobble-all:${property('lib.cobble')}"
-    api 'io.netty:netty-all:4.1.45.Final'
+    api "net.hasor:neta-core:${property('lib.neta')}"
+    api "net.hasor:neta-codec-http:${property('lib.neta')}"
+    api "org.codehaus.groovy:groovy:${property('lib.groovy')}"
 
-    implementation 'org.slf4j:slf4j-api:1.7.36'
-    implementation 'org.codehaus.groovy:groovy:2.5.23'
-    implementation "com.alibaba:fastjson:${property('lib.fastjson')}"
+    implementation "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
     implementation "com.caucho:hessian:${property('lib.hessian')}"
-    implementation "org.hprose:hprose-java:${property('lib.hprose')}"
 }
-
-// Hprose 2.0.38 requires this option on Java 17; see document/modules/rsf-framework.md.
-tasks.withType(Test).configureEach {
-    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
-}
-
-tasks.register('verifyContainerBoundaries') {
-    doLast {
-        fileTree('src/main/java/net/hasor/rsf/container').matching { include '**/*.java' }.each { source ->
-            def text = source.getText('UTF-8')
-            if (text =~ /net\.hasor\.rsf\.(bootstrap|rpc|connector|protocol|utils)\./ ||
-                    text =~ /\bRsfContext\b/) {
-                throw new GradleException("Runtime assembly coupling in ${source}")
-            }
-        }
-    }
-}
-tasks.named('check') { dependsOn 'verifyContainerBoundaries' }
