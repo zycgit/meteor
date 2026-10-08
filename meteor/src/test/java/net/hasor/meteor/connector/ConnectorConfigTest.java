@@ -60,7 +60,9 @@ public class ConnectorConfigTest {
 
     @Test
     public void emptyAndCaseInsensitiveDuplicateMountsAreRejected() {
-        List<List<ProtocolConfig>> invalid = Arrays.asList(Collections.emptyList(), Arrays.asList(new ProtocolConfig("first", "rsf", "rsf", Collections.emptyMap()), new ProtocolConfig("second", "RSF", "rsf", Collections.emptyMap())));
+        ProtocolConfig first = new ProtocolConfig("first", "rsf", "rsf", Collections.emptyMap());
+        ProtocolConfig second = new ProtocolConfig("second", "RSF", "rsf", Collections.emptyMap());
+        List<List<ProtocolConfig>> invalid = Arrays.asList(Collections.emptyList(), Arrays.asList(first, second));
         for (List<ProtocolConfig> protocols : invalid) {
             try {
                 new ConnectorConfig("endpoint", EndpointFixture.address("tcp"), Map.of("listenType", "tcp"), protocols, true);

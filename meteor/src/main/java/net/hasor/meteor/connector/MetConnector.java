@@ -22,7 +22,7 @@ public interface MetConnector extends AutoCloseable {
      */
     void closeBind();
 
-    /** Close listeners, drain submitted writes, close connections and release resources. Call from the lifecycle thread. */
+    /** 从生命周期线程关闭监听，排空已提交写入，再关闭连接并释放资源。 */
     void close();
 
     /** Bind the configured endpoint. Concurrent calls share the pending operation or active listener. */

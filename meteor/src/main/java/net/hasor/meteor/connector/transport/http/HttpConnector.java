@@ -10,16 +10,18 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.transport.*;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.channel.routing.PartitionKey;
 import net.hasor.neta.channel.transport.tcp.TcpSoConfig;
 import net.hasor.neta.codec.http.*;
-import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.transport.*;
 
 /**
  * Complete HTTP messages over serial HTTP/1 exchanges. No application protocol is selected here.
@@ -39,12 +41,21 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
     }
 
     protected void initialize(ProtoBuildContext stack, InterAddress target, ChannelFactory<HttpExchange> factory, boolean accepted) throws Exception {
-        HttpServerChannel channel = new HttpServerChannel(this.config, this.transport, (NetChannel) stack.getChannel(), this.transport.nextExecutor());
+        NetChannel socket = (NetChannel) stack.getChannel();
+        Executor executor = this.transport.nextExecutor();
+        HttpServerChannel channel = new HttpServerChannel(this.config, this.transport, socket, executor);
         ChannelListener<HttpExchange> receiver = factory.create(channel);
         channel.receiver(receiver);
         stack.addLast("http", new HttpServerDuplex());
-        stack.addLastDecoder("aggregate", new HttpRequestAggregator(this.config.integer("maxFrameSize", 16 * 1024 * 1024)));
-        stack.addFirstDecoder("lifecycle", new ConnectionEvents(channel::connected, channel::terminated, failure -> channel.close()));
+
+        int maxFrameSize = this.config.integer("maxFrameSize", 16 * 1024 * 1024);
+        HttpRequestAggregator aggregate = new HttpRequestAggregator(maxFrameSize);
+        stack.addLastDecoder("aggregate", aggregate);
+        ConnectionEvents lifecycle = new ConnectionEvents(channel::connected, channel::terminated, failure -> {
+            channel.close();
+        });
+        stack.addFirstDecoder("lifecycle", lifecycle);
+
         Function<String, ProtoInitializer> branch = route -> {
             return ctx -> {
                 ctx.addLastDecoder("messages", new HttpServerHandler(route));
@@ -80,24 +91,26 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
             int length = -1;
             for (Map.Entry<String, NetworkRoute<HttpExchange>> route : routes.entrySet()) {
                 String mount = route.getValue().options().get("contextPath");
-                if ((path.equals(mount) || path.startsWith(mount.endsWith("/") ? mount : mount + "/")) && mount.length() > length) {
+                String prefix = mount.endsWith("/") ? mount : mount + "/";
+                boolean matchesPath = StringUtils.equals(path, mount) || path.startsWith(prefix);
+                boolean moreSpecific = mount.length() > length;
+                if (matchesPath && moreSpecific) {
                     selected = route.getKey();
                     length = mount.length();
                 }
             }
 
             return PartitionKey.newKey(selected);
-        }, partitions -> {
-            partitions.byInitializer(ctx -> {
-                branch.apply(PartitionKey.findKey(ctx).getKey()).config(ctx);
-            });
-        }).build().config(context);
+        }, p -> p.byInitializer(ctx -> {
+            branch.apply(PartitionKey.findKey(ctx).getKey()).config(ctx);
+        })).build().config(context);
     }
 
     public Future<Void> connect(InterAddress target, ChannelFactory<HttpExchange> factory) {
         BasicFuture<Void> result = new BasicFuture<>();
         try {
-            HttpClientChannel channel = new HttpClientChannel(this.config, this.transport, target, this.transport.nextExecutor(), this::initializeClient);
+            Executor executor = this.transport.nextExecutor();
+            HttpClientChannel channel = new HttpClientChannel(this.config, this.transport, target, executor, this::initializeClient);
             channel.receiver(factory.create(channel));
 
             this.clients.add(channel);
@@ -141,7 +154,10 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
 
     private void initializeClient(ProtoBuildContext stack, HttpClientChannel channel) {
         stack.addLast("http", new HttpClientDuplex());
-        stack.addLastDecoder("aggregate", new HttpResponseAggregator(this.config.integer("maxFrameSize", 16 * 1024 * 1024)));
+        int maxFrameSize = this.config.integer("maxFrameSize", 16 * 1024 * 1024);
+        HttpResponseAggregator aggregate = new HttpResponseAggregator(maxFrameSize);
+        stack.addLastDecoder("aggregate", aggregate);
+
         NetChannel socket = (NetChannel) stack.getChannel();
         stack.addLastDecoder("messages", new HttpClientHandler(channel, socket));
         socket.subscribe(event -> event.isInbound() || !event.isSuccess(), SubscribeMode.SYNC, event -> {

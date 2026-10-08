@@ -17,6 +17,8 @@ import java.util.function.Supplier;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.provider.AddressProvider;
@@ -27,8 +29,6 @@ import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Coordinates outbound invocations, inbound dispatch, connector messages and RPC shutdown. */
 public final class MetCaller implements AutoCloseable {
@@ -142,6 +142,9 @@ public final class MetCaller implements AutoCloseable {
         request.setSerializeType(bindInfo.getSerializeType());
         request.setMessage(bindInfo.isMessage());
         request.setTimeout(bindInfo.getClientTimeout());
+
+        // 创建时复制默认选项，后续由调用方覆盖或删除。
+        request.addOptionMap(this.context.getSettings().getRequestOptions());
         return request;
     }
 
@@ -155,26 +158,31 @@ public final class MetCaller implements AutoCloseable {
             return rsfFuture;
         }
 
-        invLogger.info("request({}) -> doSendRequest, bindID ={}, callMethod ={}, isMessage ={}.", //
-                rsfRequest.getRequestID(), serviceID, rsfRequest.getMethod(), bindInfo.isMessage());
+        invLogger.info("request(" + rsfRequest.getRequestID() + ") -> doSendRequest, bindID =" + serviceID + ", callMethod =" + rsfRequest.getMethod() + ", isMessage =" + bindInfo.isMessage() + ".");
 
         try {
-            rsfRequest.addOptionMap(this.context.getSettings().getRequestOptions());
+            // 执行调用过滤器；未被本地处理的请求才进入网络发送。
             MetResponseObject res = new MetResponseObject(rsfRequest);
             /*下面这段代码要负责 -> 执行rsfFilter过滤器链，并最终调用sendRequest发送请求。*/
             Supplier<MetFilter>[] rsfFilterList = this.filterProvider.getFilterProviders(serviceID);
-            new MetFilterHandler(rsfFilterList, (request, response) -> {
+            MetFilterHandler filters = new MetFilterHandler(rsfFilterList, (request, response) -> {
                 if (!response.isResponse()) {
-                    invLogger.info("request({}) -> sendRequest, response wait for remote.", request.getRequestID());
+                    invLogger.info("request(" + request.getRequestID() + ") -> sendRequest, response wait for remote.");
                     this.sendRequest(rsfFuture);//发送请求到远方
                 }
-            }).doFilter(rsfRequest, res);
+            });
+            filters.doFilter(rsfRequest, res);
+
             // A filter may respond without continuing the chain, including LocalPref.
             if (res.isResponse()) {
-                rsfFuture.completed(res);
+                if (res.getStatus() == ProtocolStatus.OK || res.getStatus() == ProtocolStatus.Accept) {
+                    rsfFuture.completed(res);
+                } else {
+                    rsfFuture.failed(new MetException(res.getStatus(), res.getOption("message")));
+                }
             }
         } catch (Throwable e) {
-            invLogger.error("request({}) -> errorFailed, sendRequest, doRsfFilterChain. error ={}.", rsfRequest.getRequestID(), e.getMessage(), e);
+            invLogger.error("request(" + rsfRequest.getRequestID() + ") -> errorFailed, sendRequest, doRsfFilterChain. error =" + e.getMessage() + ".", e);
             this.removeRsfFuture(rsfFuture, e);
             rsfFuture.failed(e);
         }
@@ -190,7 +198,9 @@ public final class MetCaller implements AutoCloseable {
 
         InterAddress address = request.getTargetAddress();
         if (address == null) {
-            future.failed(new MetException(ProtocolStatus.Forbidden, "Service [" + request.getBindInfo().getBindID() + "] Address Unavailable."));
+            String serviceId = request.getBindInfo().getBindID();
+            String message = "Service [" + serviceId + "] Address Unavailable.";
+            future.failed(new MetException(ProtocolStatus.Forbidden, message));
             return;
         }
 
@@ -206,7 +216,11 @@ public final class MetCaller implements AutoCloseable {
 
         Future<?> sending = this.sendRequest(address, payload);
         sending.onFailed(sent -> this.putResponse(payload.getRequestID(), sent.getCause()));
-        sending.onCancel(sent -> this.putResponse(payload.getRequestID(), new CancellationException("Request send cancelled")));
+        sending.onCancel(sent -> {
+            long requestId = payload.getRequestID();
+            CancellationException failure = new CancellationException("Request send cancelled");
+            this.putResponse(requestId, failure);
+        });
     }
 
     /** Reserve capacity before mapping; a registered entry owns its permit and timer. */
@@ -245,7 +259,9 @@ public final class MetCaller implements AutoCloseable {
             throw new CancellationException("RPC ended before registration");
         }
 
-        if (this.rsfResponse.putIfAbsent(future.getRequest().getRequestID(), new PendingRequest(future, payload, this.timeout(future))) != null) {
+        long requestId = future.getRequest().getRequestID();
+        PendingRequest pending = new PendingRequest(future, payload, this.timeout(future));
+        if (this.rsfResponse.putIfAbsent(requestId, pending) != null) {
             throw new IllegalStateException("Request is already pending");
         }
     }
@@ -283,7 +299,9 @@ public final class MetCaller implements AutoCloseable {
             }
         }
 
-        future.failed(new MetException(ProtocolStatus.SendLimitPolicy, "request(" + future.getRequest().getRequestID() + ") -> maximum number of requests, apply SendPolicy = " + policy));
+        long requestId = future.getRequest().getRequestID();
+        String message = "request(" + requestId + ") -> maximum number of requests, apply SendPolicy = " + policy;
+        future.failed(new MetException(ProtocolStatus.SendLimitPolicy, message));
         return false;
     }
 
@@ -450,7 +468,7 @@ public final class MetCaller implements AutoCloseable {
     private void onFailure(MetChannel channel, long requestId, Throwable failure) {
         MetFuture future = this.takeResponse(channel, requestId, false);
         if (future != null) {
-            invLogger.error("response({}) -> errorFailed, {}", requestId, failure.getMessage(), failure);
+            invLogger.error("response(" + requestId + ") -> errorFailed, " + failure.getMessage(), failure);
             future.failed(failure);
         }
     }
@@ -472,8 +490,11 @@ public final class MetCaller implements AutoCloseable {
         MetRequest request = future.getRequest();
         short successStatus = request.isMessage() ? ProtocolStatus.Accept : ProtocolStatus.OK;
         if (info.getStatus() != successStatus) {
-            String errorInfo = request.isMessage() ? "errorCode = " + info.getStatus() + ", errorMessage=" + info.getOption("message") : "status.";
-            invLogger.error("response({}) -> statusFailed, bindID ={}, status ={}.", request.getRequestID(), request.getBindInfo().getBindID(), info.getStatus());
+            String errorInfo = "status.";
+            if (request.isMessage()) {
+                errorInfo = "errorCode = " + info.getStatus() + ", errorMessage=" + info.getOption("message");
+            }
+            invLogger.error("response(" + request.getRequestID() + ") -> statusFailed, bindID =" + request.getBindInfo().getBindID() + ", status =" + info.getStatus() + ".");
             future.failed(new MetException(info.getStatus(), errorInfo));
             return;
         }
@@ -481,12 +502,15 @@ public final class MetCaller implements AutoCloseable {
         Object result = info.getReturnData();
         if (request.isMessage()) {
             Class<?> returnType = request.getMethod().getReturnType();
-            result = returnType.isAssignableFrom(MetResult.class) ? new MetResultDO(request.getRequestID(), true) : null;
+            result = null;
+            if (returnType.isAssignableFrom(MetResult.class)) {
+                result = new MetResultDO(request.getRequestID(), true);
+            }
         }
         MetResponseObject response = new MetResponseObject(request);
         response.addOptionMap(info);
         response.sendData(result);
-        invLogger.info("response({}) -> successful, bindID ={}.", request.getRequestID(), request.getBindInfo().getBindID());
+        invLogger.info("response(" + request.getRequestID() + ") -> successful, bindID =" + request.getBindInfo().getBindID() + ".");
         future.completed(response);
     }
 
@@ -494,7 +518,7 @@ public final class MetCaller implements AutoCloseable {
     private void putResponse(long requestID, Throwable e) {
         MetFuture rsfFuture = this.removeRsfFuture(this.rsfResponse.get(requestID), e);
         if (rsfFuture != null) {
-            invLogger.error("response({}) -> errorFailed, {}", requestID, e.getMessage(), e);
+            invLogger.error("response(" + requestID + ") -> errorFailed, " + e.getMessage(), e);
             rsfFuture.failed(e);
         }
     }

@@ -8,7 +8,6 @@
 package net.hasor.meteor.domain;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetMessage;
@@ -19,37 +18,20 @@ import net.hasor.meteor.MetMessage;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class ServiceDomain<T> implements MetBindInfo<T> {
-    private final ConcurrentMap<String, Object> metadata = new ConcurrentHashMap<>();
-
-    public Object getMetaData(String key) {
-        return this.metadata.get(key);
-    }
-
-    public void setMetaData(String key, Object value) {
-        if (value == null) {
-            this.metadata.remove(key);
-        } else {
-            this.metadata.put(key, value);
-        }
-    }
-
-    public void removeMetaData(String key) {
-        this.metadata.remove(key);
-    }
-
-    private String              bindID             = null;      // 服务ID
-    private String              bindName           = null;      // 服务名
-    private String              bindGroup          = "default"; // 服务分组
-    private String              bindVersion        = "1.0.0";   // 服务版本
-    private Map<String, String> aliasNameMap       = null;      // 别名
-    private Class<T>            bindType           = null;      // 服务类型
-    private boolean             asMessage          = false;     // 是否为消息接口
-    private boolean             asShadow           = false;     // 是否为消息接口
-    private boolean             isSharedThreadPool = true;      // 是否共享调用线程池(提供者)
-    private int                 clientTimeout      = 6000;      // 调用超时（毫秒）
-    private String              serializeType      = null;      // 传输序列化类型
-    private MetServiceType      serviceType        = null;      // 服务类型（提供者 or 消费者）
-    private Set<String>         bindProtocols      = null;      // 服务特殊置顶的协议类型
+    private       String              bindID             = null;      // 服务ID
+    private       String              bindName           = null;      // 服务名
+    private       String              bindGroup          = "default"; // 服务分组
+    private       String              bindVersion        = "1.0.0";   // 服务版本
+    private       Map<String, String> aliasNameMap       = null;      // 别名
+    private       Class<T>            bindType           = null;      // 服务类型
+    private       boolean             asMessage          = false;     // 是否为消息接口
+    private       boolean             asShadow           = false;     // 是否为消息接口
+    private       boolean             isSharedThreadPool = true;      // 是否共享调用线程池(提供者)
+    private       int                 clientTimeout      = 6000;      // 调用超时（毫秒）
+    private       String              serializeType      = null;      // 传输序列化类型
+    private       MetServiceType      serviceType        = null;      // 服务类型（提供者 or 消费者）
+    private       Set<String>         bindProtocols      = null;      // 服务特殊置顶的协议类型
+    private final Map<String, Object> metadata           = new ConcurrentHashMap<>();
 
     public ServiceDomain(Class<T> bindType) {
         this.bindType = bindType;
@@ -187,13 +169,63 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
         this.bindProtocols.add(bindProtocol);
     }
 
+    public Object getMetaData(String key) {
+        return this.metadata.get(Objects.requireNonNull(key, "metadata key"));
+    }
+
+    public void setMetaData(String key, Object value) {
+        Objects.requireNonNull(key, "metadata key");
+        if (value == null) {
+            this.metadata.remove(key);
+        } else {
+            if (!this.metadata.containsKey(key) && this.metadata.size() >= MAX_METADATA_SIZE) {
+                throw new IllegalArgumentException("Service metadata cannot exceed " + MAX_METADATA_SIZE + " entries");
+            }
+            this.metadata.put(key, value);
+        }
+    }
+
+    public void setMetaData(Map<String, Object> values) {
+        // 先在副本上应用删除，腾出新增条目的容量。
+        Map<String, Object> merged = new HashMap<>(this.metadata);
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            String key = Objects.requireNonNull(entry.getKey(), "metadata key");
+            if (entry.getValue() == null) {
+                merged.remove(key);
+            }
+        }
+
+        // 按当前可见数据检查容量，校验失败不写入；并发更新时允许超过上限。
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            if (entry.getValue() != null) {
+                if (!merged.containsKey(entry.getKey()) && merged.size() >= MAX_METADATA_SIZE) {
+                    throw new IllegalArgumentException("Service metadata cannot exceed " + MAX_METADATA_SIZE + " entries");
+                }
+                merged.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        // 只更新本次传入的键，保留其他线程对无关键的修改。
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            if (entry.getValue() == null) {
+                this.metadata.remove(entry.getKey());
+            } else {
+                this.metadata.put(entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
+    public void removeMetaData(String key) {
+        this.metadata.remove(Objects.requireNonNull(key, "metadata key"));
+    }
+
     @Override
     public String toString() {
-        return "ServiceDomain{" + "bindID='" + this.bindID + '\'' +//
-                ", bindName='" + this.bindName + '\'' + //
-                ", bindGroup='" + this.bindGroup + '\'' +//
-                ", bindVersion='" + this.bindVersion + '\'' + //
-                ", bindType=" + this.bindType + //
+        return "ServiceDomain{" + "bindID='" + this.bindID + '\'' + //
+                ", bindName='" + this.bindName + '\'' +             //
+                ", bindGroup='" + this.bindGroup + '\'' +           //
+                ", bindVersion='" + this.bindVersion + '\'' +       //
+                ", bindType=" + this.bindType +                     //
                 '}';
     }
 }

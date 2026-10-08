@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
@@ -137,21 +138,23 @@ public class ProtocolSpiTest {
         try (ServerSocket available = new ServerSocket(0)) {
             port = available.getLocalPort();
         }
-        return new ConnectorConfig("test", new InterAddress("custom", "127.0.0.1", port, "test"), Map.of("listenType", "custom", "workerThread", "1"), Collections.singletonList(new ProtocolConfig("custom", protocol, Collections.emptyMap())), true);
+        InterAddress localAddress = new InterAddress("custom", "127.0.0.1", port, "test");
+        ProtocolConfig mount = new ProtocolConfig("custom", protocol, Collections.emptyMap());
+        return new ConnectorConfig("test", localAddress, Map.of("listenType", "custom", "workerThread", "1"), Collections.singletonList(mount), true);
     }
 
     private ConnectorManager manager(ClassLoader loader, ConnectorConfig config) {
         MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
-            if (method.getName().equals("getConnectorConfigs")) {
+            if (StringUtils.equals(method.getName(), "getConnectorConfigs")) {
                 return Collections.singletonList(config);
             }
             throw new UnsupportedOperationException(method.getName());
         });
         MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
-            if (method.getName().equals("getSettings")) {
+            if (StringUtils.equals(method.getName(), "getSettings")) {
                 return settings;
             }
-            if (method.getName().equals("getClassLoader")) {
+            if (StringUtils.equals(method.getName(), "getClassLoader")) {
                 return loader;
             }
             throw new UnsupportedOperationException(method.getName());
@@ -167,7 +170,10 @@ public class ProtocolSpiTest {
             @Override
             public Enumeration<URL> getResources(String name) throws IOException {
                 URL descriptor = descriptors.get(name);
-                return descriptor == null ? super.getResources(name) : Collections.enumeration(Collections.singletonList(descriptor));
+                if (descriptor == null) {
+                    return super.getResources(name);
+                }
+                return Collections.enumeration(Collections.singletonList(descriptor));
             }
         };
     }

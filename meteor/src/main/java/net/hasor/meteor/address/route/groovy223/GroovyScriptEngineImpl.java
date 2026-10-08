@@ -35,18 +35,20 @@ import org.codehaus.groovy.util.ReferenceBundle;
  * @author Jochen Theodorou
  */
 public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Compilable, Invocable {
-    private static final boolean                                    debug          = false;
+    private static final boolean                                       debug          = false;
     // script-string-to-generated Class map
-    private final        ManagedConcurrentValueMap<String, Class>   classMap       = new ManagedConcurrentValueMap<String, Class>(ReferenceBundle.getSoftBundle());
+    private final        ManagedConcurrentValueMap<String, Class<?>>   classMap       =//
+            new ManagedConcurrentValueMap<>(ReferenceBundle.getSoftBundle());
     // global closures map - this is used to simulate a single
     // global functions namespace 
-    private final        ManagedConcurrentValueMap<String, Closure> globalClosures = new ManagedConcurrentValueMap<String, Closure>(ReferenceBundle.getHardBundle());
+    private final        ManagedConcurrentValueMap<String, Closure<?>> globalClosures =//
+            new ManagedConcurrentValueMap<>(ReferenceBundle.getHardBundle());
     // class loader for Groovy generated classes
-    private              GroovyClassLoader                          loader;
+    private              GroovyClassLoader                             loader;
     // lazily initialized factory
-    private volatile     GroovyScriptEngineFactory                  factory;
+    private volatile     GroovyScriptEngineFactory                     factory;
     // counter used to generate unique global Script class names
-    private static       int                                        counter;
+    private static       int                                           counter;
 
     static {
         counter = 0;
@@ -82,6 +84,7 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
             }
             this.globalClosures.setBundle(bundle);
         } catch (ClassCastException cce) { /*ignore.*/ }
+
         try {
             Class clazz = getScriptClass(script);
             if (clazz == null) {
@@ -119,10 +122,8 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
             return new GroovyCompiledScript(this, getScriptClass(scriptSource));
         } catch (SyntaxException e) {
             throw new ScriptException(e.getMessage(), e.getSourceLocator(), e.getLine());
-        } catch (IOException e) {
+        } catch (IOException | CompilationFailedException e) {
             throw new ScriptException(e);
-        } catch (CompilationFailedException ee) {
-            throw new ScriptException(ee);
         }
     }
 
@@ -154,7 +155,7 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
     }
 
     // package-privates
-    Object eval(Class scriptClass, final ScriptContext ctx) throws ScriptException {
+    Object eval(Class<?> scriptClass, final ScriptContext ctx) throws ScriptException {
         // Bindings so script has access to this environment.
         // Only initialize once.
         if (null == ctx.getAttribute("context", ScriptContext.ENGINE_SCOPE)) {
@@ -164,32 +165,15 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
             // If we're wrapping with a PrintWriter here,
             // enable autoFlush because otherwise it might not get done!
             final Writer writer = ctx.getWriter();
-            ctx.setAttribute("out", (writer instanceof PrintWriter) ? writer : new PrintWriter(writer, true), ScriptContext.ENGINE_SCOPE);
-            // Not going to do this after all (at least for now).
-            // Scripts can use context.{reader, writer, errorWriter}.
-            // That is a modern version of System.{in, out, err} or Console.{reader, writer}().
-            //
-            //            // New I/O names consistent with ScriptContext and java.io.Console.
-            //
-            //            ctx.setAttribute("writer", writer, ScriptContext.ENGINE_SCOPE);
-            //
-            //            // Direct errors to ctx.getErrorWriter
-            //            final Writer errorWriter = ctx.getErrorWriter();
-            //            ctx.setAttribute("errorWriter", (errorWriter instanceof PrintWriter) ?
-            //                                    errorWriter :
-            //                                    new PrintWriter(errorWriter),
-            //                                    ScriptContext.ENGINE_SCOPE);
-            //
-            //            // Get input from ctx.getReader
-            //            // We don't wrap with BufferedReader here because we expect that if
-            //            // the host wants that they do it.  Either way Groovy scripts will
-            //            // always have readLine because the GDK supplies it for Reader.
-            //            ctx.setAttribute("reader", ctx.getReader(), ScriptContext.ENGINE_SCOPE);
+            Writer output = writer instanceof PrintWriter ? writer : new PrintWriter(writer, true);
+            ctx.setAttribute("out", output, ScriptContext.ENGINE_SCOPE);
         }
+
         // Fix for GROOVY-3669: Can't use several times the same JSR-223 ScriptContext for differents groovy script
         if (ctx.getWriter() != null) {
             ctx.setAttribute("out", new PrintWriter(ctx.getWriter(), true), ScriptContext.ENGINE_SCOPE);
         }
+
         /*
          * We use the following Binding instance so that global variable lookup
          * will be done in the current ScriptContext instance.
@@ -217,6 +201,7 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
                 }
             }
         };
+
         try {
             // if this class is not an instance of Script, it's a full-blown class
             // then simply return that class
@@ -231,6 +216,7 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
                     String name = m.getName();
                     this.globalClosures.put(name, new MethodClosure(scriptObject, name));
                 }
+
                 MetaClass oldMetaClass = scriptObject.getMetaClass();
                 /*
                  * We override the MetaClass of this script object so that we can
@@ -284,11 +270,12 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
         }
     }
 
-    Class getScriptClass(String script) throws SyntaxException, CompilationFailedException, IOException {
-        Class clazz = this.classMap.get(script);
+    Class<?> getScriptClass(String script) throws SyntaxException, CompilationFailedException, IOException {
+        Class<?> clazz = this.classMap.get(script);
         if (clazz != null) {
             return clazz;
         }
+
         clazz = this.loader.parseClass(script, generateScriptName());
         this.classMap.put(script, clazz);
         return clazz;
@@ -308,6 +295,7 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
         if (name == null) {
             throw new NullPointerException("method name is null");
         }
+
         try {
             if (thiz != null) {
                 return InvokerHelper.invokeMethod(thiz, name, args);
@@ -327,7 +315,7 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
     }
 
     private Object callGlobal(String name, Object[] args, ScriptContext ctx) {
-        Closure closure = this.globalClosures.get(name);
+        Closure<?> closure = this.globalClosures.get(name);
         if (closure != null) {
             return closure.call(args);
         } else {
@@ -335,7 +323,7 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
             // given ScriptContext. If available, call it.
             Object value = ctx.getAttribute(name);
             if (value instanceof Closure) {
-                return ((Closure) value).call(args);
+                return ((Closure<?>) value).call(args);
             } // else fall thru..
         }
         throw new MissingMethodException(name, getClass(), args);
@@ -352,6 +340,7 @@ public class GroovyScriptEngineImpl extends AbstractScriptEngine implements Comp
         if (clazz == null || !clazz.isInterface()) {
             throw new IllegalArgumentException("interface Class expected");
         }
+
         return (T) Proxy.newProxyInstance(clazz.getClassLoader(), new Class[] { clazz }, new InvocationHandler() {
             public Object invoke(Object proxy, Method m, Object[] args) throws Throwable {
                 return invokeImpl(thiz, m.getName(), args);

@@ -11,14 +11,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.*;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.RouteTypeEnum;
-import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetServiceType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.hasor.meteor.domain.ProtocolStatus;
 
 /**
  *
@@ -160,7 +160,7 @@ public class MetContainer {
      * @param version 服务版本
      */
     public MetBindInfo<?> getRsfBindInfo(String group, String name, String version) {
-        String serviceID = "[" + group + "]" + name + "-" + version;//String.format("[%s]%s-%s", group, name, version);
+        String serviceID = "[" + group + "]" + name + "-" + version;
         return this.getRsfBindInfo(serviceID);
     }
 
@@ -199,7 +199,7 @@ public class MetContainer {
         String filterID = Objects.requireNonNull(define.filterID());
         synchronized (this.filterLock) {
             for (FilterDefine filter : this.filterList) {
-                if (filterID.equals(filter.filterID())) {
+                if (StringUtils.equals(filterID, filter.filterID())) {
                     throw new IllegalStateException("duplicate filterID :" + filterID);
                 }
             }
@@ -222,11 +222,12 @@ public class MetContainer {
             throw new IllegalStateException(logMessage);
         }
 
-        if (MetServiceType.Provider == serviceDefine.getServiceType() && serviceDefine.getCustomerProvider() == null) {
+        boolean provider = MetServiceType.Provider == serviceDefine.getServiceType();
+        if (provider && serviceDefine.getCustomerProvider() == null) {
             throw new MetException(ProtocolStatus.Forbidden, "Provider Not set the implementation class.");
         }
 
-        this.logger.info("service to public, id= {}", serviceID);
+        this.logger.info("service to public, id= " + serviceID);
         this.serviceMap.put(serviceID, serviceDefine);
 
         // .收录别名
@@ -260,6 +261,11 @@ public class MetContainer {
                 this.addressPool.updateRoute(serviceID, routeEnt.getKey(), routeEnt.getValue());
             }
         }
+        this.onServiceChanged(serviceID);
+    }
+
+    /** 本地服务声明已完成变更，子类可转发实例事件。 */
+    protected void onServiceChanged(String serviceId) {
     }
 
     /**
@@ -278,7 +284,7 @@ public class MetContainer {
                 ConcurrentMap<String, String> aliasSet = aliasEntry.getValue();
                 ArrayList<String> toRemove = new ArrayList<>();
                 for (Map.Entry<String, String> entry : aliasSet.entrySet()) {
-                    if (serviceID.equals(entry.getValue())) {
+                    if (StringUtils.equals(serviceID, entry.getValue())) {
                         toRemove.add(entry.getKey());
                     }
                 }
@@ -289,6 +295,7 @@ public class MetContainer {
             }
 
             this.addressPool.removeBucket(serviceID);
+            this.onServiceChanged(serviceID);
             return true;
         }
         return false;

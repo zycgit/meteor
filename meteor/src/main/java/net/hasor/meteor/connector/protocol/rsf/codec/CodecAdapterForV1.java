@@ -98,7 +98,9 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
         //2.params
         List<String> pTypes = info.getParameterTypes();
         List<Object> pValues = info.getParameterValues();
-        if ((pTypes != null && !pTypes.isEmpty()) && (pValues != null && !pValues.isEmpty())) {
+        boolean hasTypes = pTypes != null && !pTypes.isEmpty();
+        boolean hasValues = pValues != null && !pValues.isEmpty();
+        if (hasTypes && hasValues) {
             SerializeCoder coder = this.context.getSerializeCoder(info.getSerializeType());
             if (coder == null) {
                 throw new IOException("Unsupported serialization type: " + info.getSerializeType());
@@ -197,14 +199,12 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
 
             //3.Opt参数
             int[] optionArray = rsfBlock.getOptions();
-            if (optionArray.length > 0) {
-                for (int optItem : optionArray) {
-                    short optKey = (short) (optItem >>> 16);
-                    short optVal = (short) (optItem & PoolBlock.PoolMaxSize);
-                    String optKeyStr = WireStrings.fromCache(rsfBlock.readPool(optKey));
-                    String optValStr = WireStrings.fromCache(rsfBlock.readPool(optVal));
-                    info.addOption(optKeyStr, optValStr);
-                }
+            for (int optItem : optionArray) {
+                short optKey = (short) (optItem >>> 16);
+                short optVal = (short) (optItem & PoolBlock.PoolMaxSize);
+                String optKeyStr = WireStrings.fromCache(rsfBlock.readPool(optKey));
+                String optValStr = WireStrings.fromCache(rsfBlock.readPool(optVal));
+                info.addOption(optKeyStr, optValStr);
             }
 
             //4.Request
@@ -278,8 +278,9 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
             info.setReturnType(returnType);
             byte[] returnByte = rsfBlock.readPool(rsfBlock.getReturnData());
             Object returnData = null;
-            if (serializeCoder != null && StringUtils.isNotBlank(returnType)) {
-                returnData = serializeCoder.decode(returnByte, ClassUtils.getClass(this.classLoader, returnType, false));
+            if (serializeCoder != null && StringUtils.isNotBlank(returnType) && !StringUtils.equals("void", returnType)) {
+                Class<?> resultType = ClassUtils.getClass(this.classLoader, returnType, false);
+                returnData = serializeCoder.decode(returnByte, resultType);
             }
             info.setReturnData(returnData);
         } finally {

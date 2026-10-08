@@ -312,7 +312,9 @@ public class FlowControlTest {
     @Test
     public void argumentKeySeparatesEmbeddedDelimiters() {
         DefaultArgsKey key = new DefaultArgsKey();
-        assertNotEquals("Distinct argument tuples must not route as the same tuple", key.eval("s", "get", new Object[] { "a-b", "c" }), key.eval("s", "get", new Object[] { "a", "b-c" }));
+        String firstKey = key.eval("s", "get", new Object[] { "a-b", "c" });
+        String secondKey = key.eval("s", "get", new Object[] { "a", "b-c" });
+        assertNotEquals("Distinct argument tuples must not route as the same tuple", firstKey, secondKey);
     }
 
     @Test

@@ -13,6 +13,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.*;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.*;
@@ -194,13 +195,13 @@ public class MetCallerTest {
                 });
                 MemoryChannel channel = client.connector().outgoing;
                 RequestPayload request = channel.sent.remove();
-                if ("hold".equals(mode)) {
+                if (StringUtils.equals("hold", mode)) {
                     client.manager.onResponse(channel, request.getRequestID(), response(request, ProtocolStatus.OK));
                 }
                 assertEquals(1, callbacks.get());
                 assertNull(client.rpc.getRequest(request.getRequestID()));
                 MetFuture next = client.invoke(server.address);
-                if ("hold".equals(mode)) {
+                if (StringUtils.equals("hold", mode)) {
                     assertFalse(next.isDone());
                     next.cancel();
                 } else {
@@ -735,6 +736,67 @@ public class MetCallerTest {
         }
     }
 
+    @Test
+    public void requestCreationCopiesDefaultsWithoutSharingLaterChanges() throws Exception {
+        try (Host host = new Host(10000, "normal")) {
+            host.requestOptions.addOption("trace", "initial");
+            host.requestOptions.addOption("nullable", null);
+            InstanceAddressProvider target = new InstanceAddressProvider(host.address);
+            Class<?>[] types = { String.class };
+            Object[] arguments = { "value" };
+            MetRequestObject first = host.rpc.createRequest(target, host.service, "echo", types, arguments);
+            assertEquals("initial", first.getOption("trace"));
+            assertTrue(Arrays.asList(first.getOptionKeys()).contains("nullable"));
+            assertNull(first.getOption("nullable"));
+
+            // 默认值的后续修改只影响新创建的请求。
+            host.requestOptions.addOption("trace", "updated");
+            host.requestOptions.removeOption("nullable");
+            MetRequestObject next = host.rpc.createRequest(target, host.service, "echo", types, arguments);
+            assertEquals("initial", first.getOption("trace"));
+            assertEquals("updated", next.getOption("trace"));
+            assertFalse(Arrays.asList(next.getOptionKeys()).contains("nullable"));
+
+            first.addOption("trace", "custom");
+            assertEquals("updated", host.requestOptions.getOption("trace"));
+            assertEquals("updated", next.getOption("trace"));
+        }
+    }
+
+    @Test
+    public void invokePreservesOverridesAndRemovalsWithoutReloadingDefaults() throws Exception {
+        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "normal")) {
+            server.bind();
+            client.requestOptions.addOption("override", "default");
+            client.requestOptions.addOption("remove", "default");
+            client.requestOptions.addOption("version", "initial");
+            InstanceAddressProvider target = new InstanceAddressProvider(server.address);
+            Class<?>[] types = { String.class };
+            Object[] arguments = { "value" };
+            MetRequestObject request = client.rpc.createRequest(target, client.service, "echo", types, arguments);
+            request.addOption("override", "custom");
+            request.removeOption("remove");
+
+            client.requestOptions.addOption("version", "updated");
+            client.requestOptions.addOption("later", "added-after-creation");
+            assertEquals("value", client.rpc.invoke(request).getData(3, TimeUnit.SECONDS));
+
+            // 出站过滤器与入站请求看到的都是调用方最终选定的选项。
+            MetRequest outgoing = client.requests.poll(2, TimeUnit.SECONDS);
+            MetRequest incoming = server.requests.poll(2, TimeUnit.SECONDS);
+            assertSame(request, outgoing);
+            assertNotNull(incoming);
+            for (MetRequest observed : new MetRequest[] { outgoing, incoming }) {
+                assertEquals("custom", observed.getOption("override"));
+                assertEquals("initial", observed.getOption("version"));
+                List<String> keys = Arrays.asList(observed.getOptionKeys());
+                assertFalse(keys.contains("remove"));
+                assertFalse(keys.contains("later"));
+            }
+            assertEquals("default", client.requestOptions.getOption("remove"));
+        }
+    }
+
     private static ResponsePayload response(RequestPayload request, short status) {
         ResponsePayload response = new ResponsePayload();
         response.setRequestID(request.getRequestID());
@@ -760,6 +822,7 @@ public class MetCallerTest {
         private final        AtomicInteger             remoteFilters   = new AtomicInteger();
         private final        AtomicInteger             cancelledTimers = new AtomicInteger();
         private final        BlockingQueue<MetRequest> requests        = new LinkedBlockingQueue<>();
+        private final        OptionInfo                requestOptions  = new OptionInfo();
         private final        ConnectorConfig           config;
         private final        ConnectorManager          manager;
         private final        MetCaller                 rpc;
@@ -773,7 +836,9 @@ public class MetCallerTest {
             Map<String, String> options = new HashMap<>();
             options.put("listenType", "rpc-memory");
             options.put("mode", mode);
-            this.config = new ConnectorConfig("rpc", this.address, options, Collections.singletonList(new ProtocolConfig("rpc", this.address.getSchema(), options.getOrDefault("protocol", this.address.getSchema()), options)), true);
+            String protocolName = options.getOrDefault("protocol", this.address.getSchema());
+            ProtocolConfig mount = new ProtocolConfig("rpc", this.address.getSchema(), protocolName, options);
+            this.config = new ConnectorConfig("rpc", this.address, options, Collections.singletonList(mount), true);
             MetSettings settings = proxy(MetSettings.class, (p, method, args) -> {
                 switch (method.getName()) {
                     case "getConnectorConfigs":
@@ -792,6 +857,7 @@ public class MetCallerTest {
                     case "getSendLimitPolicy":
                         return SendLimitPolicy.Reject;
                     case "getRequestOptions":
+                        return this.requestOptions;
                     case "getResponseOptions":
                         return new OptionInfo();
                     default:
@@ -922,7 +988,7 @@ public class MetCallerTest {
             incoming.peer = this.outgoing;
             this.fireChannelConnected(this.outgoing);
             server.fireChannelConnected(incoming);
-            if (!"delayed".equals(this.config().option("mode", "normal"))) {
+            if (!StringUtils.equals("delayed", this.config().option("mode", "normal"))) {
                 this.connecting.completed(this.outgoing);
             }
             return this.connecting;
@@ -964,24 +1030,24 @@ public class MetCallerTest {
 
         public Future<MetChannel> sendData(Payload payload) {
             BasicFuture<MetChannel> result = new BasicFuture<>();
-            if (!this.active || "fail-write".equals(this.owner.config().option("mode", "normal"))) {
+            if (!this.active || StringUtils.equals("fail-write", this.owner.config().option("mode", "normal"))) {
                 result.failed(new IOException("Write failed"));
                 return result;
             }
             String mode = this.owner.config().option("mode", "normal");
-            if ("throw-write".equals(mode)) {
+            if (StringUtils.equals("throw-write", mode)) {
                 throw new IllegalStateException("write threw");
             }
-            if ("async-write".equals(mode)) {
+            if (StringUtils.equals("async-write", mode)) {
                 this.writing = result;
                 return result;
             }
             if (payload instanceof RequestPayload) {
                 RequestPayload request = (RequestPayload) payload;
                 this.sent.add(request);
-                if ("instant".equals(this.owner.config().option("mode", "normal"))) {
+                if (StringUtils.equals("instant", this.owner.config().option("mode", "normal"))) {
                     this.listener().onResponse(this, request.getRequestID(), response(request, ProtocolStatus.OK));
-                } else if (!"hold".equals(this.owner.config().option("mode", "normal"))) {
+                } else if (!StringUtils.equals("hold", this.owner.config().option("mode", "normal"))) {
                     request.setReceiveTime(System.currentTimeMillis());
                     this.peer.listener().onRequest(this.peer, request.getRequestID(), request);
                 }

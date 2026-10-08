@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import net.hasor.cobble.concurrent.future.FutureCallback;
@@ -16,6 +17,9 @@ import net.hasor.cobble.concurrent.future.FutureCallback;
  * @author 赵永春 (zyc@hasor.net)
  */
 public interface MetClient {
+    /** Return an independent client carrying these request options; existing options are merged. */
+    MetClient withOptions(Map<String, String> options);
+
     /**
      * 根据服务ID，获取远程服务对象
      * @param serviceID 服务ID
@@ -81,7 +85,8 @@ public interface MetClient {
      * @return 返回执行结果
      * @throws Throwable 同步执行期间遇到的错误。
      */
-    Object syncInvoke(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects) throws InterruptedException, ExecutionException, TimeoutException;
+    Object syncInvoke(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes,//
+            Object[] parameterObjects) throws InterruptedException, ExecutionException, TimeoutException;
 
     /**
      * 异步方式调用远程服务。
@@ -91,7 +96,8 @@ public interface MetClient {
      * @param parameterObjects 参数值
      * @return 返回异步执行结果
      */
-    MetFuture asyncInvoke(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects);
+    MetFuture asyncInvoke(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes,//
+            Object[] parameterObjects);
 
     /**
      * 以回调方式调用远程服务。
@@ -101,7 +107,8 @@ public interface MetClient {
      * @param parameterObjects 参数值
      * @param listener 回调监听器。
      */
-    void callbackInvoke(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects, FutureCallback<Object> listener);
+    void callbackInvoke(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes,//
+            Object[] parameterObjects, FutureCallback<Object> listener);
 
     /**
      * 以回调方式发送RSF调用请求。
@@ -111,5 +118,6 @@ public interface MetClient {
      * @param parameterObjects 参数值
      * @param listener 回调监听器。
      */
-    void callbackRequest(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects, FutureCallback<MetResponse> listener);
+    void callbackRequest(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes,//
+            Object[] parameterObjects, FutureCallback<MetResponse> listener);
 }

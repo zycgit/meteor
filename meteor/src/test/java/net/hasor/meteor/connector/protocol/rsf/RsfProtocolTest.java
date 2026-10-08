@@ -12,6 +12,8 @@ import java.io.InputStream;
 import java.lang.reflect.Proxy;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.ObjectUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
@@ -19,9 +21,9 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorManager;
+import net.hasor.meteor.connector.MetChannel;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ReceivedListener;
-import net.hasor.meteor.connector.MetChannel;
 import net.hasor.meteor.connector.protocol.EndpointConnectorFactory;
 import net.hasor.meteor.connector.protocol.ProtocolContext;
 import net.hasor.meteor.connector.protocol.rsf.codec.*;
@@ -477,10 +479,10 @@ public class RsfProtocolTest {
     private static MetContext runtimeContext() {
         ClassLoader loader = RsfProtocolTest.class.getClassLoader();
         MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
-            if ("getConnectorConfigs".equals(method.getName())) {
+            if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                 return Collections.emptySet();
             }
-            if ("getDefaultTimeout".equals(method.getName())) {
+            if (StringUtils.equals("getDefaultTimeout", method.getName())) {
                 return 6000;
             }
             throw new UnsupportedOperationException(method.getName());
@@ -492,7 +494,7 @@ public class RsfProtocolTest {
                 case "getSettings":
                     return settings;
                 case "getSerializeCoder":
-                    return "Java".equals(args[0]) ? new JavaSerializeCoder() : null;
+                    return ObjectUtils.equals("Java", args[0]) ? new JavaSerializeCoder() : null;
                 default:
                     throw new UnsupportedOperationException(method.getName());
             }

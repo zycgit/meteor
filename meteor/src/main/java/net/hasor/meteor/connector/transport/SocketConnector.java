@@ -10,11 +10,11 @@ import java.net.InetSocketAddress;
 import net.hasor.cobble.ExceptionUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.neta.channel.NetChannel;
 import net.hasor.neta.channel.ProtoBuildContext;
 import net.hasor.neta.channel.SoConfig;
-import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
 
 /**
  * Owns network resources only. The receiver is supplied by the layer assembling the channel.
@@ -33,7 +33,8 @@ public abstract class SocketConnector<M> implements NetworkConnector<M> {
     public NetworkListen bind(InterAddress address, ChannelFactory<M> factory) throws Exception {
         return new SocketListen(address, this.transport.bind(address, stack -> {
             InetSocketAddress remote = (InetSocketAddress) stack.getChannel().getRemoteAddr();
-            InterAddress target = new InterAddress(address.getSchema(), remote.getAddress().getHostAddress(), remote.getPort(), "unknown");
+            String host = remote.getAddress().getHostAddress();
+            InterAddress target = new InterAddress(address.getSchema(), host, remote.getPort(), "unknown");
             this.attach(stack, target, factory, true);
         }), this.datagram);
     }

@@ -13,6 +13,7 @@ import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
@@ -183,7 +184,7 @@ public class NetworkConnectorTest {
 
     private ConnectorConfig config(String type) throws Exception {
         int port;
-        if ("udp".equals(type)) {
+        if (StringUtils.equals("udp", type)) {
             try (DatagramSocket socket = new DatagramSocket()) {
                 port = socket.getLocalPort();
             }
@@ -192,6 +193,9 @@ public class NetworkConnectorTest {
                 port = socket.getLocalPort();
             }
         }
-        return new ConnectorConfig(type, new InterAddress(type, "127.0.0.1", port, "default"), Collections.singletonMap("listenType", type), Collections.singletonList(new ProtocolConfig(type, type, type, Collections.singletonMap("listenType", type))), true);
+        InterAddress address = new InterAddress(type, "127.0.0.1", port, "default");
+        Map<String, String> options = Collections.singletonMap("listenType", type);
+        ProtocolConfig protocol = new ProtocolConfig(type, type, type, options);
+        return new ConnectorConfig(type, address, options, Collections.singletonList(protocol), true);
     }
 }

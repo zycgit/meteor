@@ -15,6 +15,7 @@ import java.nio.file.StandardCopyOption;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
@@ -22,6 +23,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.ThreadUtils;
 import net.hasor.cobble.concurrent.timer.HashedWheelTimer;
 import net.hasor.cobble.concurrent.timer.Timer;
@@ -69,7 +71,8 @@ public class DiskCache implements Closeable {
         this.indexFile = new File(this.snapshotHome, SnapshotIndex);
 
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        this.timer = new HashedWheelTimer(ThreadUtils.threadFactory(classLoader, "RSF-DiskCacheAddressPool-Timer-%s", true));
+        ThreadFactory threads = ThreadUtils.threadFactory(classLoader, "RSF-DiskCacheAddressPool-Timer-%s", true);
+        this.timer = new HashedWheelTimer(threads);
         scheduleRefresh();
         scheduleStore();
     }
@@ -151,7 +154,7 @@ public class DiskCache implements Closeable {
         long cutoff = System.currentTimeMillis() - SevenDaysTime;
         for (File file : files) {
             Matcher matcher = pattern.matcher(file.getName());
-            if (!file.isFile() || file.getName().equals(indexed) || !matcher.matches()) {
+            if (!file.isFile() || StringUtils.equals(file.getName(), indexed) || !matcher.matches()) {
                 continue;
             }
 
@@ -177,11 +180,14 @@ public class DiskCache implements Closeable {
         Path indexTemporary = null;
 
         try {
+            // 完整写入快照并落盘，再将临时文件发布为正式归档。
             try (FileOutputStream out = new FileOutputStream(temporary.toFile())) {
                 storeConfig(out);
                 out.getFD().sync();
             }
             Files.move(temporary, archive, StandardCopyOption.ATOMIC_MOVE);
+
+            // 归档就绪后切换索引，读取者始终只能看到完整的快照。
             indexTemporary = Files.createTempFile(directory, "index-", ".tmp");
             try (FileOutputStream out = new FileOutputStream(indexTemporary.toFile())) {
                 out.write(name.getBytes(StandardCharsets.UTF_8));
@@ -205,7 +211,7 @@ public class DiskCache implements Closeable {
         try {
             List<String> lines = Files.readAllLines(this.indexFile.toPath(), StandardCharsets.UTF_8);
             String name = lines.isEmpty() ? "" : lines.get(0).trim();
-            if (name.isEmpty() || !new File(name).getName().equals(name)) {
+            if (name.isEmpty() || !StringUtils.equals(new File(name).getName(), name)) {
                 return;
             }
 
@@ -289,6 +295,7 @@ public class DiskCache implements Closeable {
 
     /** Read a complete service entry first, then apply valid addresses independently. */
     protected void readFromZip(AddressBucket bucket, InputStream in) throws IOException {
+        // 先读取归档条目，再分别恢复地址与治理规则。
         Map<String, String> entries = new HashMap<>();
         try (ZipInputStream zip = new ZipInputStream(new FilterInputStream(in) {
             @Override
@@ -299,7 +306,7 @@ public class DiskCache implements Closeable {
             while ((entry = zip.getNextEntry()) != null) {
                 ByteArrayOutputStream bytes = new ByteArrayOutputStream();
                 IOUtils.copy(zip, bytes);
-                entries.put(entry.getName(), new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+                entries.put(entry.getName(), bytes.toString(StandardCharsets.UTF_8));
             }
         }
         List<InterAddress> staticAddresses = new ArrayList<>();
@@ -313,7 +320,11 @@ public class DiskCache implements Closeable {
 
                 try {
                     InterAddress address = new InterAddress(line.substring(2));
-                    (line.startsWith("S|") ? staticAddresses : dynamicAddresses).add(address);
+                    if (line.startsWith("S|")) {
+                        staticAddresses.add(address);
+                    } else {
+                        dynamicAddresses.add(address);
+                    }
                 } catch (URISyntaxException | IllegalArgumentException | IllegalStateException e) {
                     logger.warn("Ignoring malformed address in snapshot: " + line);
                 }

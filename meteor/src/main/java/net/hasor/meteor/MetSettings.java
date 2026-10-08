@@ -49,7 +49,7 @@ public interface MetSettings {
     /**the maximum number of threads to allow in the pool.*/
     int getQueueMaxPoolSize();
 
-    /**(SECONDS),when the number of threads is greater than the core, this is the maximum time that excess idle threads will wait for new tasks before terminating.*/
+    /** 超过核心线程数的空闲线程在退出前等待新任务的最长时间（秒）。 */
     long getQueueKeepAliveTime();
 
     /**客户端请求超时时间*/

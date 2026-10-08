@@ -7,6 +7,8 @@
  */
 package net.hasor.meteor.rpc;
 import java.lang.reflect.Proxy;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -15,24 +17,33 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.CancelFutureCallback;
 import net.hasor.cobble.concurrent.future.FutureCallback;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.MetResponse;
 import net.hasor.meteor.address.provider.AddressProvider;
 import net.hasor.meteor.domain.MetRequestObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Client facade with a fixed address provider; the host owns the shared caller's lifecycle. */
 public final class MetClientImpl implements MetClient {
-    private static final Logger          logger = LoggerFactory.getLogger(MetClientImpl.class);
-    private final        MetCaller       caller;
-    private final        AddressProvider provider;
+    private static final Logger              logger  = LoggerFactory.getLogger(MetClientImpl.class);
+    private final        MetCaller           caller;
+    private final        AddressProvider     provider;
+    private final        Map<String, String> options = new LinkedHashMap<>();
 
     public MetClientImpl(MetCaller caller, AddressProvider provider) {
         this.caller = caller;
         this.provider = provider;
+    }
+
+    @Override
+    public MetClient withOptions(Map<String, String> options) {
+        MetClientImpl client = new MetClientImpl(this.caller, this.provider);
+        client.options.putAll(this.options);
+        client.options.putAll(options);
+        return client;
     }
 
     @Override
@@ -76,7 +87,10 @@ public final class MetClientImpl implements MetClient {
         if (!interFace.isInterface()) {
             throw new UnsupportedOperationException("interFace " + interFace.getName() + " must be an interface");
         }
-        Object proxy = Proxy.newProxyInstance(this.caller.getContext().getClassLoader(), new Class<?>[] { interFace }, new MetServiceProxy(this, bindInfo));
+        ClassLoader loader = this.caller.getContext().getClassLoader();
+        Class<?>[] interfaces = { interFace };
+        MetServiceProxy handler = new MetServiceProxy(this, bindInfo);
+        Object proxy = Proxy.newProxyInstance(loader, interfaces, handler);
         return interFace.cast(proxy);
     }
 
@@ -93,17 +107,20 @@ public final class MetClientImpl implements MetClient {
     @Override
     public MetFuture asyncInvoke(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects) {
         MetRequestObject request = this.caller.createRequest(this.provider, bindInfo, methodName, parameterTypes, parameterObjects);
+        this.options.forEach(request::addOption);
         return this.caller.invoke(request);
     }
 
     @Override
     public void callbackInvoke(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects, FutureCallback<Object> listener) {
-        this.notifyCallback(this.asyncInvoke(bindInfo, methodName, parameterTypes, parameterObjects), listener, MetResponse::getData);
+        MetFuture future = this.asyncInvoke(bindInfo, methodName, parameterTypes, parameterObjects);
+        this.notifyCallback(future, listener, MetResponse::getData);
     }
 
     @Override
     public void callbackRequest(MetBindInfo<?> bindInfo, String methodName, Class<?>[] parameterTypes, Object[] parameterObjects, FutureCallback<MetResponse> listener) {
-        this.notifyCallback(this.asyncInvoke(bindInfo, methodName, parameterTypes, parameterObjects), listener, Function.identity());
+        MetFuture future = this.asyncInvoke(bindInfo, methodName, parameterTypes, parameterObjects);
+        this.notifyCallback(future, listener, Function.identity());
     }
 
     private <T> MetBindInfo<T> requireService(MetBindInfo<T> service, String name) {

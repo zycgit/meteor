@@ -128,12 +128,14 @@ public class AddressBucket extends Observable {
             if (this.staticAddressList.contains(address) || !this.allAddressList.contains(address)) {
                 return;
             }
+
             InnerInvalidInfo info = this.invalidAddresses.get(address);
             if (info == null) {
                 this.invalidAddresses.put(address, new InnerInvalidInfo(timeoutMs));
             } else {
                 info.invalid(timeoutMs);
             }
+
             refreshAvailableAddress();
         }
         notifyObservers(this);
@@ -151,6 +153,7 @@ public class AddressBucket extends Observable {
             } else {
                 addressLogger.info("removeAddress(" + this.serviceID + ") -> targetAddress =" + address);
             }
+
             this.allAddressList.remove(address);
             this.staticAddressList.remove(address);
             this.invalidAddresses.remove(address);
@@ -177,6 +180,7 @@ public class AddressBucket extends Observable {
                     replacement.add(address);
                 }
             }
+
             this.allAddressList.clear();
             this.allAddressList.addAll(replacement);
             this.invalidAddresses.clear();
@@ -197,6 +201,7 @@ public class AddressBucket extends Observable {
                     break;
                 }
             }
+
             //当失效的地址达到重试时间之后，再次刷新地址时候不被列入失效名单。
             InnerInvalidInfo info = this.invalidAddresses.get(addressInfo);
             if (info != null && info.reTry()) {
@@ -252,6 +257,7 @@ public class AddressBucket extends Observable {
             this.flowControlRef = newRef;
             refreshAvailableAddress();
         }
+
         notifyObservers(this);
         return true;
     }

@@ -13,6 +13,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.*;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.ObjectUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
@@ -50,7 +52,9 @@ public class TcpTransportTest {
         options.put("workerThread", "1");
         options.put("listenType", "tcp");
         options.put("protocol", "rsf");
-        return new ConnectorConfig(schema, new InterAddress(schema + "://127.0.0.1:" + port + "/default"), options, Collections.singletonList(new ProtocolConfig(schema, schema, options.getOrDefault("protocol", schema), options)), true);
+        InterAddress address = new InterAddress(schema + "://127.0.0.1:" + port + "/default");
+        ProtocolConfig protocol = new ProtocolConfig(schema, schema, options.getOrDefault("protocol", schema), options);
+        return new ConnectorConfig(schema, address, options, Collections.singletonList(protocol), true);
     }
 
     private Endpoint endpoint(ConnectorConfig config, ReceivedListener listener) {
@@ -329,7 +333,10 @@ public class TcpTransportTest {
             options.put("handshakeTimeout", "200");
             options.put("listenType", "tcp");
             options.put("protocol", "rsf");
-            ConnectorConfig shortHandshake = new ConnectorConfig("rsf", config("rsf", port()).address(), options, Collections.singletonList(new ProtocolConfig("rsf", "rsf", options.getOrDefault("protocol", "rsf"), options)), true);
+            InterAddress localAddress = config("rsf", port()).address();
+            String protocolName = options.getOrDefault("protocol", "rsf");
+            ProtocolConfig mount = new ProtocolConfig("rsf", "rsf", protocolName, options);
+            ConnectorConfig shortHandshake = new ConnectorConfig("rsf", localAddress, options, Collections.singletonList(mount), true);
             Endpoint client = bind(endpoint(shortHandshake, new Inbox()));
             Future<MetChannel> connection = connect(client, new InterAddress("rsf://127.0.0.1:" + silentPeer.getLocalPort() + "/default"));
             try (Socket accepted = silentPeer.accept()) {
@@ -535,7 +542,10 @@ public class TcpTransportTest {
         options.put("maxFrameSize", "1024");
         options.put("listenType", "tcp");
         options.put("protocol", "rsf");
-        ConnectorConfig serverConfig = new ConnectorConfig("server", config("rsf", port()).address(), options, Collections.singletonList(new ProtocolConfig("server", "rsf", options.getOrDefault("protocol", "rsf"), options)), true);
+        InterAddress localAddress = config("rsf", port()).address();
+        String protocolName = options.getOrDefault("protocol", "rsf");
+        ProtocolConfig mount = new ProtocolConfig("server", "rsf", protocolName, options);
+        ConnectorConfig serverConfig = new ConnectorConfig("server", localAddress, options, Collections.singletonList(mount), true);
         Endpoint server = bind(endpoint(serverConfig, new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest received = new ReceivedRequest(channel, id);
@@ -578,7 +588,10 @@ public class TcpTransportTest {
         options.put("maxPendingRequests", "1");
         options.put("listenType", "tcp");
         options.put("protocol", "rsf");
-        ConnectorConfig config = new ConnectorConfig("server", config("rsf", port()).address(), options, Collections.singletonList(new ProtocolConfig("server", "rsf", options.getOrDefault("protocol", "rsf"), options)), true);
+        InterAddress localAddress = config("rsf", port()).address();
+        String protocolName = options.getOrDefault("protocol", "rsf");
+        ProtocolConfig mount = new ProtocolConfig("server", "rsf", protocolName, options);
+        ConnectorConfig config = new ConnectorConfig("server", localAddress, options, Collections.singletonList(mount), true);
         Endpoint server = bind(endpoint(config, new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest received = new ReceivedRequest(channel, id);
@@ -649,10 +662,10 @@ public class TcpTransportTest {
     private static MetContext runtimeContext(ConnectorConfig... configs) {
         ClassLoader loader = TcpTransportTest.class.getClassLoader();
         MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
-            if ("getConnectorConfigs".equals(method.getName())) {
+            if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                 return Arrays.asList(configs);
             }
-            if ("getDefaultTimeout".equals(method.getName())) {
+            if (StringUtils.equals("getDefaultTimeout", method.getName())) {
                 return 3000;
             }
             throw new UnsupportedOperationException(method.getName());
@@ -664,7 +677,7 @@ public class TcpTransportTest {
                 case "getSettings":
                     return settings;
                 case "getSerializeCoder":
-                    return "Java".equals(args[0]) ? new JavaSerializeCoder() : null;
+                    return ObjectUtils.equals("Java", args[0]) ? new JavaSerializeCoder() : null;
                 default:
                     throw new UnsupportedOperationException(method.getName());
             }

@@ -73,7 +73,12 @@ final class TestHttpSession implements ProtocolSession<HttpExchange> {
             this.pending.put(id, item);
             request.completion().onFinal(done -> this.connection.execute(() -> {
                 if (this.pending.remove(id, item)) {
-                    this.reply(exchange, this.protocol.error(done.getCause() != null ? done.getCause() : new CancellationException("RPC completed without a response")));
+                    Throwable failure = done.getCause();
+                    if (failure == null) {
+                        failure = new CancellationException("RPC completed without a response");
+                    }
+                    HttpResponse response = this.protocol.error(failure);
+                    this.reply(exchange, response);
                 }
             }));
             exchange.completion().onFinal(done -> request.complete(done.getCause()));
@@ -107,7 +112,11 @@ final class TestHttpSession implements ProtocolSession<HttpExchange> {
         HttpExchange exchange = new HttpExchange(this.protocol.encode(this.connection.getRemote(), request));
         request.completion().onFinal(done -> {
             if (!exchange.completion().isDone()) {
-                exchange.complete(done.getCause() != null ? done.getCause() : new CancellationException("RPC completed"));
+                Throwable failure = done.getCause();
+                if (failure == null) {
+                    failure = new CancellationException("RPC completed");
+                }
+                exchange.complete(failure);
             }
         });
         exchange.response().onFinal(done -> this.connection.execute(() -> {

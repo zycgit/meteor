@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.address.route.groovy223;
+import net.hasor.cobble.StringUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -67,17 +68,17 @@ public class GroovyScriptEngineFactory implements ScriptEngineFactory {
     }
 
     public Object getParameter(String key) {
-        if (ScriptEngine.NAME.equals(key)) {
+        if (StringUtils.equals(ScriptEngine.NAME, key)) {
             return SHORT_NAME;
-        } else if (ScriptEngine.ENGINE.equals(key)) {
+        } else if (StringUtils.equals(ScriptEngine.ENGINE, key)) {
             return getEngineName();
-        } else if (ScriptEngine.ENGINE_VERSION.equals(key)) {
+        } else if (StringUtils.equals(ScriptEngine.ENGINE_VERSION, key)) {
             return VERSION;
-        } else if (ScriptEngine.LANGUAGE.equals(key)) {
+        } else if (StringUtils.equals(ScriptEngine.LANGUAGE, key)) {
             return LANGUAGE_NAME;
-        } else if (ScriptEngine.LANGUAGE_VERSION.equals(key)) {
+        } else if (StringUtils.equals(ScriptEngine.LANGUAGE_VERSION, key)) {
             return GroovySystem.getVersion();
-        } else if ("THREADING".equals(key)) {
+        } else if (StringUtils.equals("THREADING", key)) {
             return "MULTITHREADED";
         } else {
             throw new IllegalArgumentException("Invalid key");

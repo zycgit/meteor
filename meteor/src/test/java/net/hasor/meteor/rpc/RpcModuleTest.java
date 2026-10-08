@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.CancelFutureCallback;
 import net.hasor.cobble.concurrent.future.Cancellable;
@@ -25,9 +26,9 @@ import net.hasor.meteor.address.provider.AddressProvider;
 import net.hasor.meteor.address.provider.InstanceAddressProvider;
 import net.hasor.meteor.connector.ConnectorManager;
 import net.hasor.meteor.connector.MetChannel;
-import net.hasor.meteor.domain.OptionInfo;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.OptionInfo;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -80,7 +81,11 @@ public class RpcModuleTest {
         try (Host host = new Host(true)) {
             for (int timeout : new int[] { 0, -1 }) {
                 host.service.setClientTimeout(timeout);
-                assertEquals("default timeout", host.client.syncInvoke(host.service, "echo", new Class<?>[] { String.class }, new Object[] { "default timeout" }));
+                assertEquals("default timeout", host.client.syncInvoke(//
+                        host.service, //
+                        "echo", //
+                        new Class<?>[] { String.class }, //
+                        new Object[] { "default timeout" }));
             }
         }
     }
@@ -131,7 +136,11 @@ public class RpcModuleTest {
     public void missingServiceLookupFailsBeforeCreatingOrSendingRequests() throws Exception {
         try (Host host = new Host(true)) {
             host.serviceAvailable = false;
-            Runnable[] lookups = { () -> host.client.getRemoteByID("missing"), () -> host.client.getRemote("RSF", "missing", "1.0.0"), () -> host.client.wrapperByID("missing", Echo.class), () -> host.client.wrapper(Echo.class) };
+            Runnable[] lookups = { //
+                    () -> host.client.getRemoteByID("missing"), //
+                    () -> host.client.getRemote("RSF", "missing", "1.0.0"), //
+                    () -> host.client.wrapperByID("missing", Echo.class), //
+                    () -> host.client.wrapper(Echo.class) };
             for (Runnable lookup : lookups) {
                 try {
                     lookup.run();
@@ -342,10 +351,10 @@ public class RpcModuleTest {
                 return new Supplier[] { (Supplier<MetFilter>) () -> filter };
             };
             this.incoming = proxy(MetChannel.class, (object, method, arguments) -> {
-                if ("getRemote".equals(method.getName())) {
+                if (StringUtils.equals("getRemote", method.getName())) {
                     return peer;
                 }
-                if ("sendData".equals(method.getName())) {
+                if (StringUtils.equals("sendData", method.getName())) {
                     ResponsePayload response = (ResponsePayload) arguments[0];
                     this.deliverResponse(response);
                     return new BasicFuture<>((MetChannel) object);
@@ -353,7 +362,7 @@ public class RpcModuleTest {
                 throw new AssertionError("Unexpected incoming channel access: " + method);
             });
             this.outgoing = proxy(MetChannel.class, (object, method, arguments) -> {
-                if ("sendData".equals(method.getName())) {
+                if (StringUtils.equals("sendData", method.getName())) {
                     RequestPayload request = (RequestPayload) arguments[0];
                     request.setReceiveTime(System.currentTimeMillis());
                     this.sent.add(request);

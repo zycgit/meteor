@@ -17,6 +17,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.ObjectUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
@@ -62,7 +64,10 @@ public class HttpTransportTest {
         options.put("workerThread", "1");
         options.put("listenType", "http");
         options.put("protocol", protocol.getSimpleName().toLowerCase(Locale.ROOT));
-        return new ConnectorConfig(schema, new InterAddress(schema + "://127.0.0.1:" + port + "/default"), options, Collections.singletonList(new ProtocolConfig(schema, schema, options.getOrDefault("protocol", schema), options)), true);
+        InterAddress localAddress = new InterAddress(schema + "://127.0.0.1:" + port + "/default");
+        String protocolName = options.getOrDefault("protocol", schema);
+        ProtocolConfig mount = new ProtocolConfig(schema, schema, protocolName, options);
+        return new ConnectorConfig(schema, localAddress, options, Collections.singletonList(mount), true);
     }
 
     private Endpoint endpoint(ConnectorConfig config, ReceivedListener listener) {
@@ -386,10 +391,22 @@ public class HttpTransportTest {
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         session.sendData(request(1, "blocked")).get(2, TimeUnit.SECONDS);
         assertNotNull(arrivals.poll(2, TimeUnit.SECONDS));
-        RequestPayload queued = request(2, "expire before send");
+        // 等待异步发送进入编码阶段，避免把“排队超时”测成“发送前已完成”。
+        CountDownLatch encoding = new CountDownLatch(1);
+        RequestPayload queued = new RequestPayload() {
+            @Override
+            public List<Object> getParameterValues() {
+                encoding.countDown();
+                return super.getParameterValues();
+            }
+        };
+        queued.setRequestID(2);
+        queued.setSerializeType("Java");
+        queued.addParameter("java.lang.String", "expire before send");
         queued.setClientTimeout(50);
         try {
             Future<MetChannel> queuedWrite = session.sendData(queued);
+            assertTrue("Queued request did not enter encoding", encoding.await(2, TimeUnit.SECONDS));
             queued.complete(new TimeoutException("RPC timed out"));
             queuedWrite.get(2, TimeUnit.SECONDS);
             fail("Queued send must expire");
@@ -411,7 +428,10 @@ public class HttpTransportTest {
         Map<String, String> options = new HashMap<>();
         options.put("listenType", "http");
         options.put("protocol", "wirea");
-        ConnectorConfig config = new ConnectorConfig("http", new InterAddress("http://127.0.0.1:" + port() + "/default"), options, Collections.singletonList(new ProtocolConfig("http", "http", options.getOrDefault("protocol", "http"), options)), true);
+        InterAddress localAddress = new InterAddress("http://127.0.0.1:" + port() + "/default");
+        String protocolName = options.getOrDefault("protocol", "http");
+        ProtocolConfig mount = new ProtocolConfig("http", "http", protocolName, options);
+        ConnectorConfig config = new ConnectorConfig("http", localAddress, options, Collections.singletonList(mount), true);
         try (ConnectorManager manager = subscribedManager(runtimeContext(config), RECEIVER)) {
             manager.bind("http").get();
             fail();
@@ -845,7 +865,10 @@ public class HttpTransportTest {
 
         public TestHttpInvocation receive(HttpRequest request) {
             RequestPayload decoded = request(this.requestIds.incrementAndGet(), new String(request.body(), StandardCharsets.UTF_8));
-            return TestHttpInvocation.dispatch(decoded, response -> new HttpResponse(200, Collections.emptyMap(), String.valueOf(response.getReturnData()).getBytes(StandardCharsets.UTF_8)));
+            return TestHttpInvocation.dispatch(decoded, response -> {
+                byte[] body = String.valueOf(response.getReturnData()).getBytes(StandardCharsets.UTF_8);
+                return new HttpResponse(200, Collections.emptyMap(), body);
+            });
         }
 
         public HttpRequest encode(InterAddress target, RequestPayload request) {
@@ -868,10 +891,10 @@ public class HttpTransportTest {
     private static MetContext runtimeContext(ConnectorConfig... configs) {
         ClassLoader loader = HttpTransportTest.class.getClassLoader();
         MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
-            if ("getConnectorConfigs".equals(method.getName())) {
+            if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                 return Arrays.asList(configs);
             }
-            if ("getDefaultTimeout".equals(method.getName())) {
+            if (StringUtils.equals("getDefaultTimeout", method.getName())) {
                 return 3000;
             }
             throw new UnsupportedOperationException(method.getName());
@@ -883,7 +906,7 @@ public class HttpTransportTest {
                 case "getSettings":
                     return settings;
                 case "getSerializeCoder":
-                    return "Java".equals(args[0]) ? new JavaSerializeCoder() : null;
+                    return ObjectUtils.equals("Java", args[0]) ? new JavaSerializeCoder() : null;
                 default:
                     throw new UnsupportedOperationException(method.getName());
             }
@@ -949,7 +972,7 @@ public class HttpTransportTest {
     public static class ExpiringProtocol extends TextProtocol {
         public TestHttpInvocation receive(HttpRequest request) {
             TestHttpInvocation invocation = super.receive(request);
-            if ("expire".equals(invocation.request().getParameterValues().get(0))) {
+            if (ObjectUtils.equals("expire", invocation.request().getParameterValues().get(0))) {
                 invocation.request().setClientTimeout(100);
             }
             return invocation;
@@ -968,8 +991,8 @@ public class HttpTransportTest {
         public TestHttpInvocation receive(HttpRequest request) {
             TestHttpInvocation invocation = super.receive(request);
             String value = (String) invocation.request().getParameterValues().get(0);
-            invocation.request().setMessage("message".equals(value));
-            if ("broken".equals(value)) {
+            invocation.request().setMessage(StringUtils.equals("message", value));
+            if (StringUtils.equals("broken", value)) {
                 return TestHttpInvocation.dispatch(invocation.request(), response -> {
                     throw new IOException("encode failed");
                 });

@@ -17,10 +17,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.address.provider.InstanceAddressProvider;
 import net.hasor.meteor.connector.ConnectorManager;
 import net.hasor.meteor.connector.MetChannel;
 import net.hasor.meteor.domain.*;
@@ -38,7 +40,7 @@ public class MetCallerLifecycleTest {
     }
 
     @Test
-    public void requestOptionFailureCompletesFutureBeforeFiltersOrSending() throws Exception {
+    public void requestOptionFailureAbortsCreationBeforeFiltersOrSending() throws Exception {
         try (Host host = new Host(1)) {
             IllegalStateException cause = new IllegalStateException("request options unavailable");
             host.requestOptionFailure = cause;
@@ -47,8 +49,13 @@ public class MetCallerLifecycleTest {
                 filters.incrementAndGet();
                 chain.doFilter(request, response);
             };
-            MetFuture failed = host.invoke();
-            assertSame(cause, assertFailure(failed, IllegalStateException.class));
+            InstanceAddressProvider target = new InstanceAddressProvider(host.peer);
+            Class<?>[] types = { String.class };
+            Object[] arguments = { "value" };
+            IllegalStateException failure = assertThrows(IllegalStateException.class, () -> {
+                host.caller.createRequest(target, host.service, "echo", types, arguments);
+            });
+            assertSame(cause, failure);
             assertEquals(0, filters.get());
             assertTrue(host.sent.isEmpty());
             assertTrue(host.timers.isEmpty());
@@ -684,7 +691,7 @@ public class MetCallerLifecycleTest {
                 }
             });
             this.channel = proxy(MetChannel.class, (p, m, args) -> {
-                if ("sendData".equals(m.getName())) {
+                if (StringUtils.equals("sendData", m.getName())) {
                     if (this.failSend) {
                         throw new IllegalStateException("send failed");
                     }
@@ -715,7 +722,15 @@ public class MetCallerLifecycleTest {
                 }
             };
             this.manager.init();
-            this.caller = new MetCaller(this.manager, id -> this.noFilters ? null : this.filter == null ? new Supplier[0] : new Supplier[] { (Supplier<MetFilter>) () -> this.filter });
+            this.caller = new MetCaller(this.manager, id -> {
+                if (this.noFilters) {
+                    return null;
+                }
+                if (this.filter == null) {
+                    return new Supplier[0];
+                }
+                return new Supplier[] { (Supplier<MetFilter>) () -> this.filter };
+            });
         }
 
         MetRequestObject request(InterAddress target, Object[] arguments) {

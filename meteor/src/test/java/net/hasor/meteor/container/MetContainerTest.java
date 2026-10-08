@@ -16,9 +16,9 @@ import java.util.function.Supplier;
 import net.hasor.meteor.*;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.ProtocolStatus;
 import org.junit.Test;
 import static org.junit.Assert.*;
 

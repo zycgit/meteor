@@ -7,10 +7,7 @@
  */
 package net.hasor.meteor.connector;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.address.InterAddress;
@@ -108,7 +105,10 @@ public class ConnectorSubscriptionsTest {
 
     @Test
     public void shutdownNotificationsRemainDeliverableUntilCleanupFinishes() throws Exception {
-        ConnectorConfig config = new ConnectorConfig("closing", new InterAddress("rsf://127.0.0.1:1/default"), Collections.singletonMap("listenType", "memory"), Collections.singletonList(new ProtocolConfig("closing", "rsf", "rsf", Collections.singletonMap("listenType", "memory"))), true);
+        InterAddress localAddress = new InterAddress("rsf://127.0.0.1:1/default");
+        Map<String, String> options = Collections.singletonMap("listenType", "memory");
+        ProtocolConfig mount = new ProtocolConfig("closing", "rsf", "rsf", options);
+        ConnectorConfig config = new ConnectorConfig("closing", localAddress, options, Collections.singletonList(mount), true);
         try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext(config))) {
             manager.init();
             List<Payload> received = new ArrayList<>();

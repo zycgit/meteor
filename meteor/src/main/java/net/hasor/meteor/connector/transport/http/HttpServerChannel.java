@@ -13,6 +13,9 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.transport.SocketTransport;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.NetChannel;
 import net.hasor.neta.channel.ReadPause;
@@ -20,9 +23,6 @@ import net.hasor.neta.codec.http.DefaultFullHttpResponse;
 import net.hasor.neta.codec.http.FullHttpResponse;
 import net.hasor.neta.codec.http.HttpStatus;
 import net.hasor.neta.codec.http.HttpVersion;
-import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.transport.SocketTransport;
 
 /**
  * Owns incoming HTTP request routes and preserves HTTP/1 response order.
@@ -38,7 +38,9 @@ class HttpServerChannel extends HttpNetworkChannel {
         this.channel = channel;
 
         InetSocketAddress remote = (InetSocketAddress) channel.getRemoteAddr();
-        this.remote = new InterAddress(this.config.address().getSchema(), remote.getAddress().getHostAddress(), remote.getPort(), "unknown");
+        String scheme = this.config.address().getSchema();
+        String host = remote.getAddress().getHostAddress();
+        this.remote = new InterAddress(scheme, host, remote.getPort(), "unknown");
     }
 
     protected void connected() {
@@ -152,7 +154,9 @@ class HttpServerChannel extends HttpNetworkChannel {
                 return;
             }
 
-            FullHttpResponse out = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpStatus.valueOf(response.status()), ByteBuf.wrap(response.body()));
+            HttpStatus status = HttpStatus.valueOf(response.status());
+            ByteBuf body = ByteBuf.wrap(response.body());
+            FullHttpResponse out = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, body);
             response.headers().forEach(out::setHeader);
             out.removeHeader("Transfer-Encoding");
             out.setHeader("Content-Length", String.valueOf(response.body().length));

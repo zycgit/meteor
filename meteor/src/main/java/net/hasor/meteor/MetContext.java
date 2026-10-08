@@ -11,7 +11,9 @@ import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
+import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.serialize.SerializeCoder;
 
@@ -22,6 +24,9 @@ import net.hasor.meteor.serialize.SerializeCoder;
  */
 public interface MetContext extends OnlineStatus, AutoCloseable {
     void start();
+
+    /** 订阅本地事件；回调应快速返回，关闭后释放订阅，取消不打断正在执行的回调。 */
+    Cancellable subscribe(Consumer<MetContextEvent> listener);
 
     /** 获取实例ID，实例ID在应用每次启动时生成一个全新的ID。 */
     String getInstanceID();

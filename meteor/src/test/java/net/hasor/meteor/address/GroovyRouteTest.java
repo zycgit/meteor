@@ -53,7 +53,10 @@ public class GroovyRouteTest {
         AddressPool pool = new AddressPool();
         InterAddress address = new InterAddress("rsf", "127.0.0.1", 2181, "default");
         pool.appendAddress("service", address);
-        for (String script : Arrays.asList("def evalAddress(id, addresses) { throw new IllegalStateException('route failed') }", "def differentFunction() { [] }", "def evalAddress(id, addresses) { 42 }")) {
+        String failing = "def evalAddress(id, addresses) { throw new IllegalStateException('route failed') }";
+        String missing = "def differentFunction() { [] }";
+        String wrongType = "def evalAddress(id, addresses) { 42 }";
+        for (String script : Arrays.asList(failing, missing, wrongType)) {
             assertTrue(pool.updateServiceRoute("service", script));
             assertEquals(script, address, pool.nextAddress("service", "echo", new Object[0]));
         }

@@ -6,12 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.transport.tcp;
-import net.hasor.neta.channel.ProtoBuildContext;
-import net.hasor.neta.channel.transport.tcp.TcpSoConfig;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.transport.ChannelFactory;
 import net.hasor.meteor.connector.transport.SocketConnector;
+import net.hasor.neta.channel.ProtoBuildContext;
+import net.hasor.neta.channel.transport.tcp.TcpSoConfig;
 
 public class TcpConnector extends SocketConnector<byte[]> {
     public TcpConnector(ConnectorConfig config, ClassLoader loader) {

@@ -211,7 +211,8 @@ public class AddressPool {
                 this.rulerCache.reset();
             }
         }
-        logger.info("serviceID =" + serviceID + " ,remove invalidAddress = " + strBuilder + " ,wait " + this.invalidWakeupTimeMs + " -> active.");
+        logger.info("serviceID =" + serviceID + " ,remove invalidAddress = " + strBuilder + //
+                " ,wait " + this.invalidWakeupTimeMs + " -> active.");
     }
 
     /** 从所有服务中删除这个地址 */

@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Locale;
 import java.util.ServiceConfigurationError;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import org.junit.Rule;
 import org.junit.Test;
@@ -114,7 +115,7 @@ public class SerializeFactoryTest {
         ClassLoader loader = new ClassLoader(this.getClass().getClassLoader()) {
             @Override
             public Enumeration<URL> getResources(String name) throws IOException {
-                if (name.equals("META-INF/services/" + SerializeCoder.class.getName())) {
+                if (StringUtils.equals(name, "META-INF/services/" + SerializeCoder.class.getName())) {
                     return Collections.enumeration(Collections.<URL>emptyList());
                 }
                 return super.getResources(name);

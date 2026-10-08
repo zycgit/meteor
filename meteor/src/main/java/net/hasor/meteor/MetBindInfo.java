@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor;
+import java.util.Map;
 import java.util.Set;
 import net.hasor.meteor.domain.MetServiceType;
 
@@ -15,9 +16,16 @@ import net.hasor.meteor.domain.MetServiceType;
  * @author 赵永春 (zyc@hasor.net)
  */
 public interface MetBindInfo<T> {
+    /** 服务元数据容量检查阈值，并发写入时允许超出。 */
+    int MAX_METADATA_SIZE = 1000;
+
     Object getMetaData(String key);
 
+    /** 设置一个元数据值，null 表示删除，新增键按当前可见容量检查。 */
     void setMetaData(String key, Object value);
+
+    /** 合并元数据，null 值表示删除；先校验再逐项更新，不保证整批原子性。 */
+    void setMetaData(Map<String, Object> values);
 
     void removeMetaData(String key);
 

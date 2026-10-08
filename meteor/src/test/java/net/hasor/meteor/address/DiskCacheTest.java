@@ -101,7 +101,14 @@ public class DiskCacheTest extends ScriptTestSupport {
         try (DiskCache cache = cache(pool, this.temporary.newFolder())) {
             AddressBucket restored = new AddressBucket("s", "zone");
             cache.readFromZip(restored, new ByteArrayInputStream(saveBucket(cache, pool.getBucket("s"))));
-            InnerRuleEngine engine = type == RouteTypeEnum.ServiceLevel ? restored.getRuleRef().getServiceLevel() : type == RouteTypeEnum.MethodLevel ? restored.getRuleRef().getMethodLevel() : restored.getRuleRef().getArgsLevel();
+            InnerRuleEngine engine;
+            if (type == RouteTypeEnum.ServiceLevel) {
+                engine = restored.getRuleRef().getServiceLevel();
+            } else if (type == RouteTypeEnum.MethodLevel) {
+                engine = restored.getRuleRef().getMethodLevel();
+            } else {
+                engine = restored.getRuleRef().getArgsLevel();
+            }
             assertEquals(source, engine.getScript());
             assertTrue(engine.isEnable());
         }
@@ -197,7 +204,9 @@ public class DiskCacheTest extends ScriptTestSupport {
         File snapshot = new File(home, "snapshot");
         assertTrue(snapshot.mkdirs());
         SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd-HHmmss");
-        File old = new File(snapshot, "addr-pool-" + format.format(new Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(9))) + ".zip");
+        long oldTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(9);
+        String oldName = "addr-pool-" + format.format(new Date(oldTimestamp)) + ".zip";
+        File old = new File(snapshot, oldName);
         File recent = new File(snapshot, "addr-pool-" + format.format(new Date()) + ".zip");
         assertTrue(old.createNewFile());
         assertTrue(recent.createNewFile());
@@ -241,9 +250,10 @@ public class DiskCacheTest extends ScriptTestSupport {
         File home = this.temporary.newFolder();
         try (DiskCache cache = cache(new AddressPool(), home)) {
             cache.storeConfig();
-            String first = new String(Files.readAllBytes(new File(home, "snapshot/address.index").toPath()), StandardCharsets.UTF_8);
+            File index = new File(home, "snapshot/address.index");
+            String first = new String(Files.readAllBytes(index.toPath()), StandardCharsets.UTF_8);
             cache.storeConfig();
-            String second = new String(Files.readAllBytes(new File(home, "snapshot/address.index").toPath()), StandardCharsets.UTF_8);
+            String second = new String(Files.readAllBytes(index.toPath()), StandardCharsets.UTF_8);
             assertNotEquals(first, second);
             assertTrue(new File(home, "snapshot/" + first).isFile());
             assertTrue(new File(home, "snapshot/" + second).isFile());

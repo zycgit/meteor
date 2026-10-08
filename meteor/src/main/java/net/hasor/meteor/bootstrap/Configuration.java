@@ -441,13 +441,18 @@ public final class Configuration implements MetSettings {
     private Map<String, ConnectorConfig> createConnectorConfigs(EndpointConnectorFactory factory) throws IOException {
         List<ConnectorSettings> endpoints = this.connectors;
         if (endpoints.isEmpty()) {
-            ConnectorSettings defaults = new ConnectorSettings("tcp").bind(this.bindAddress, 2181).option("workerThread", 2).option("taskThread", 2);
+            ConnectorSettings defaults = new ConnectorSettings("tcp");
+            defaults.bind(this.bindAddress, 2181);
+            defaults.option("workerThread", 2);
+            defaults.option("taskThread", 2);
             defaults.protocol("rsf");
             endpoints = Collections.singletonList(defaults);
         }
+
         Map<String, ConnectorConfig> configured = new LinkedHashMap<>();
         Set<String> schemes = new HashSet<>();
         for (ConnectorSettings endpoint : endpoints) {
+            // 先解析协议挂载，确保每种地址协议只属于一个端点。
             List<ProtocolConfig> protocols = new ArrayList<>();
             for (ProtocolSettings selection : endpoint.protocols) {
                 ProtocolConfig protocol = factory.protocol(selection.name, selection.options);
@@ -456,6 +461,8 @@ public final class Configuration implements MetSettings {
                 }
                 protocols.add(protocol);
             }
+
+            // 合并连接参数，再由工厂校验传输层与协议的组合。
             Map<String, String> options = new LinkedHashMap<>(endpoint.options);
             options.put("listenType", endpoint.type);
             options.putIfAbsent("connectTimeout", Integer.toString(this.connectTimeout));
@@ -472,7 +479,9 @@ public final class Configuration implements MetSettings {
     private String resolveDefaultProtocol(Map<String, ConnectorConfig> configured) {
         for (ConnectorConfig endpoint : configured.values()) {
             for (ProtocolConfig protocol : endpoint.protocols()) {
-                if (this.defaultProtocol == null || StringUtils.equalsIgnoreCase(this.defaultProtocol, protocol.name()) || StringUtils.equalsIgnoreCase(this.defaultProtocol, protocol.scheme())) {
+                boolean matchesName = StringUtils.equalsIgnoreCase(this.defaultProtocol, protocol.name());
+                boolean matchesScheme = StringUtils.equalsIgnoreCase(this.defaultProtocol, protocol.scheme());
+                if (this.defaultProtocol == null || matchesName || matchesScheme) {
                     return protocol.name();
                 }
             }
@@ -488,7 +497,9 @@ public final class Configuration implements MetSettings {
     }
 
     private static void option(Map<String, String> options, String name, Object value) {
-        if (StringUtils.isBlank(name) || Set.of("name", "listentype", "factory", "scheme", "protocol", "localport").contains(name.toLowerCase(Locale.ROOT))) {
+        Set<String> identityOptions = Set.of("name", "listentype", "factory", "scheme", "protocol", "localport");
+        boolean reserved = name != null && identityOptions.contains(name.toLowerCase(Locale.ROOT));
+        if (StringUtils.isBlank(name) || reserved) {
             throw new IllegalArgumentException("Option cannot redefine connector or protocol identity: " + name);
         }
         options.put(name, Objects.requireNonNull(value, "value").toString());

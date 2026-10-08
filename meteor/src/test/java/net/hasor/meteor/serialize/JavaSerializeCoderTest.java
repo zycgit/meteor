@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.serialize;
 import java.io.*;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
@@ -24,7 +25,7 @@ public class JavaSerializeCoderTest {
         ClassLoader isolated = new ClassLoader(null) {
             @Override
             protected Class<?> findClass(String className) throws ClassNotFoundException {
-                if (!className.equals(name)) {
+                if (!StringUtils.equals(className, name)) {
                     throw new ClassNotFoundException(className);
                 }
                 try (InputStream in = Model.class.getResourceAsStream("/" + name.replace('.', '/') + ".class")) {

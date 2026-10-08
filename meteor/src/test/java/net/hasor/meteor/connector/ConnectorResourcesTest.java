@@ -12,6 +12,8 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.ObjectUtils;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
@@ -28,10 +30,10 @@ public class ConnectorResourcesTest {
     static MetContext sharedContext(ClassLoader loader, ConnectorConfig... configs) {
         JavaSerializeCoder coder = new JavaSerializeCoder();
         MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
-            if ("getConnectorConfigs".equals(method.getName())) {
+            if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                 return Arrays.asList(configs);
             }
-            if ("getDefaultTimeout".equals(method.getName())) {
+            if (StringUtils.equals("getDefaultTimeout", method.getName())) {
                 return 3000;
             }
             throw new AssertionError("Unexpected setting: " + method);
@@ -43,7 +45,7 @@ public class ConnectorResourcesTest {
                 case "getSettings":
                     return settings;
                 case "getSerializeCoder":
-                    return "Java".equals(args[0]) ? coder : null;
+                    return ObjectUtils.equals("Java", args[0]) ? coder : null;
                 case "getServiceIDs":
                     return Collections.emptyList();
                 case "getServiceInfo":

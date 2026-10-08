@@ -63,18 +63,23 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
         for (ProtocolConfig mount : config.protocols()) {
             ProtocolFactory<M> protocol = this.resolve(mount, transport);
             ProtocolConfig effective = config.forProtocol(mount);
-            routes.put(mount.scheme(), new NetworkRoute<>(effective.options(), message -> protocol.probe(effective, message)));
+            NetworkRoute<M> route = new NetworkRoute<>(effective.options(), m -> protocol.probe(effective, m));
+            routes.put(mount.scheme(), route);
         }
+
         Map<String, NetworkRoute<M>> prepared = transport.prepareRoutes(routes);
         List<ProtocolConfig> protocols = new ArrayList<>();
         for (ProtocolConfig mount : config.protocols()) {
-            protocols.add(new ProtocolConfig(mount.name(), mount.scheme(), mount.protocol(), prepared.get(mount.scheme()).options()));
+            Map<String, String> options = prepared.get(mount.scheme()).options();
+            ProtocolConfig protocol = new ProtocolConfig(mount.name(), mount.scheme(), mount.protocol(), options);
+            protocols.add(protocol);
         }
+
         return new ConnectorConfig(config.name(), config.address(), config.options(), protocols, config.bindEnabled());
     }
 
     private static <T> void put(Map<String, T> registry, String name, T factory, String kind) {
-        if (name == null || name.isBlank()) {
+        if (StringUtils.isBlank(name)) {
             throw new IllegalArgumentException("Missing " + kind + " SPI name");
         }
 
@@ -99,7 +104,8 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
             ProtocolFactory<M> protocol = this.resolve(mount, transport);
             ProtocolConfig effective = config.forProtocol(mount);
             mounted.put(mount.scheme(), protocol);
-            routes.put(mount.scheme(), new NetworkRoute<>(effective.options(), message -> protocol.probe(effective, message)));
+            NetworkRoute<M> route = new NetworkRoute<>(effective.options(), m -> protocol.probe(effective, m));
+            routes.put(mount.scheme(), route);
         }
 
         Map<String, NetworkRoute<M>> prepared = Map.copyOf(transport.prepareRoutes(routes));

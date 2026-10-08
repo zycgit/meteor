@@ -13,11 +13,11 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.connector.transport.*;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.channel.routing.ProtoRoutingDataSelector;
-import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.transport.*;
 
 /**
  * A byte connection: no RPC messages, request correlation or logical stream state.
@@ -44,7 +44,8 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
         NetChannel socket = (NetChannel) stack.getChannel();
         TcpConnection connection = new TcpConnection(socket, remote, executor);
         ChannelListener<byte[]> receiver = factory.create(connection);
-        stack.addLastDecoder("lifecycle", new ConnectionEvents(() -> {
+        // 生命周期通知在连接的串行执行器中执行。
+        Runnable connected = () -> {
             connection.execute(() -> {
                 try {
                     receiver.connected();
@@ -52,21 +53,33 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
                     connection.fail(failure);
                 }
             });
-        }, () -> connection.execute(() -> {
-            try {
-                receiver.closed(connection.failure());
-            } finally {
-                connection.terminated();
-            }
-        }), connection::fail));
+        };
 
-        Function<String, ProtoInitializer> branch = route -> ctx -> ctx.addLastDecoder("messages", new TcpInboundHandler(route));
+        Runnable closed = () -> {
+            connection.execute(() -> {
+                try {
+                    receiver.closed(connection.failure());
+                } finally {
+                    connection.terminated();
+                }
+            });
+        };
+        stack.addLastDecoder("lifecycle", new ConnectionEvents(connected, closed, connection::fail));
+
+        // 根据协议路由挂载消息处理分支。
+        Function<String, ProtoInitializer> branch = route -> {
+            return ctx -> {
+                ctx.addLastDecoder("messages", new TcpInboundHandler(route));
+            };
+        };
+
         if (receiver instanceof RoutedReceiver) {
             configureRouting(stack, branch, (RoutedReceiver<byte[]>) receiver, maxProbeSize);
         } else {
             branch.apply("").config(stack);
         }
 
+        // 网络事件只负责投递，业务收包仍在串行执行器中处理。
         socket.subscribe(event -> event.isInbound() || !event.isSuccess(), SubscribeMode.SYNC, event -> {
             if (!event.isSuccess()) {
                 connection.execute(() -> connection.fail(event.getError()));
@@ -119,7 +132,8 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
         if (address == null) {
             return null;
         } else {
-            return new InterAddress(this.remote.getSchema(), address.getAddress().getHostAddress(), address.getPort(), this.remote.getFormUnit());
+            String host = address.getAddress().getHostAddress();
+            return new InterAddress(this.remote.getSchema(), host, address.getPort(), this.remote.getFormUnit());
         }
     }
 
@@ -167,7 +181,10 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
 
         try {
             this.socket.sendData(ByteBuf.wrap(bytes)).onFinal(done -> {
-                Throwable error = done.isCancelled() ? new CancellationException("Socket write cancelled") : done.getCause();
+                Throwable error = done.getCause();
+                if (done.isCancelled()) {
+                    error = new CancellationException("Socket write cancelled");
+                }
 
                 if (error == null) {
                     result.completed(null);

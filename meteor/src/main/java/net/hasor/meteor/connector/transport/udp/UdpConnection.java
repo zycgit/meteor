@@ -14,11 +14,11 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.connector.transport.*;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.channel.routing.PartitionKey;
-import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.transport.*;
 
 /**
  * A UDP peer view: one write is one datagram; no RPC state, retransmission or stream assembly.
@@ -51,7 +51,8 @@ public final class UdpConnection implements NetworkChannel<byte[]> {
         NetChannel socket = (NetChannel) stack.getChannel();
         UdpConnection connection = new UdpConnection(socket, remote, executor, maxDatagramSize);
         ChannelListener<byte[]> receiver = factory.create(connection);
-        stack.addLastDecoder("lifecycle", new ConnectionEvents(() -> {
+        // 生命周期通知在连接的串行执行器中执行。
+        Runnable connected = () -> {
             connection.execute(() -> {
                 try {
                     receiver.connected();
@@ -59,13 +60,18 @@ public final class UdpConnection implements NetworkChannel<byte[]> {
                     connection.fail(failure);
                 }
             });
-        }, () -> connection.execute(() -> {
-            try {
-                receiver.closed(connection.failure());
-            } finally {
-                connection.terminated();
-            }
-        }), connection::fail));
+        };
+
+        Runnable closed = () -> {
+            connection.execute(() -> {
+                try {
+                    receiver.closed(connection.failure());
+                } finally {
+                    connection.terminated();
+                }
+            });
+        };
+        stack.addLastDecoder("lifecycle", new ConnectionEvents(connected, closed, connection::fail));
 
         Function<String, ProtoInitializer> branch = route -> {
             return ctx -> ctx.addLastDecoder("messages", new UdpInboundHandler(route));
@@ -77,7 +83,10 @@ public final class UdpConnection implements NetworkChannel<byte[]> {
             branch.apply("").config(stack);
         }
 
-        socket.subscribe(event -> event.isInbound() || !event.isSuccess(), SubscribeMode.SYNC, event -> {
+        // 网络事件只负责投递，业务收包仍在串行执行器中处理。
+        socket.subscribe(event -> {
+            return event.isInbound() || !event.isSuccess();
+        }, SubscribeMode.SYNC, event -> {
             if (!event.isSuccess()) {
                 connection.execute(() -> connection.fail(event.getError()));
                 return;
@@ -111,8 +120,10 @@ public final class UdpConnection implements NetworkChannel<byte[]> {
         ProtoHelper.typed(ByteBuf.class, Object.class).nextPartition("route", (ctx, kind, message) -> {
             if (!ctx.isRcv() || !(message instanceof ByteBuf bytes)) {
                 return null;
+            } else {
+                String route = ByteRoutingUtils.select(Collections.singletonList(bytes), receiver.routes(), bytes.readableBytes(), true);
+                return PartitionKey.newKey(route);
             }
-            return PartitionKey.newKey(ByteRoutingUtils.select(Collections.singletonList(bytes), receiver.routes(), bytes.readableBytes(), true));
         }, partitions -> {
             partitions.byInitializer(ctx -> {
                 branch.apply(PartitionKey.findKey(ctx).getKey()).config(ctx);
@@ -126,7 +137,8 @@ public final class UdpConnection implements NetworkChannel<byte[]> {
         if (address == null) {
             return null;
         } else {
-            return new InterAddress(this.remote.getSchema(), address.getAddress().getHostAddress(), address.getPort(), this.remote.getFormUnit());
+            String host = address.getAddress().getHostAddress();
+            return new InterAddress(this.remote.getSchema(), host, address.getPort(), this.remote.getFormUnit());
         }
     }
 
@@ -179,7 +191,10 @@ public final class UdpConnection implements NetworkChannel<byte[]> {
 
         try {
             this.socket.sendData(ByteBuf.wrap(bytes)).onFinal(done -> {
-                Throwable error = done.isCancelled() ? new CancellationException("Socket write cancelled") : done.getCause();
+                Throwable error = done.getCause();
+                if (done.isCancelled()) {
+                    error = new CancellationException("Socket write cancelled");
+                }
                 if (error == null) {
                     result.completed(null);
                 } else {

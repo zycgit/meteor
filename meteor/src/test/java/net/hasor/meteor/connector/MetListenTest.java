@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector;
+import net.hasor.cobble.StringUtils;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -123,7 +124,7 @@ public class MetListenTest {
             endpoint.close();
             endpoint.close();
             assertNotNull(pending.getCause());
-            assertEquals(1, fixture.events.stream().filter("tcp:closed"::equals).count());
+            assertEquals(1, fixture.events.stream().filter(event -> StringUtils.equals("tcp:closed", event)).count());
         }
     }
 

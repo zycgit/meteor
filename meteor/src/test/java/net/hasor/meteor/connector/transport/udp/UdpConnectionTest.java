@@ -9,21 +9,20 @@ package net.hasor.meteor.connector.transport.udp;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
-import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.neta.channel.NetChannel;
-import net.hasor.neta.channel.transport.udp.UdpSoConfig;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.transport.ChannelListener;
 import net.hasor.meteor.connector.transport.SocketTransport;
-import org.junit.Assume;
+import net.hasor.neta.channel.NetChannel;
+import net.hasor.neta.channel.transport.udp.UdpSoConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -34,7 +33,7 @@ public class UdpConnectionTest {
 
     @Test(timeout = 10000)
     public void datagramsAndSeparateRepliesPreserveBoundaries() throws Exception {
-        try (DatagramSocket peer = new DatagramSocket(); Endpoint endpoint = new Endpoint(peer.getLocalPort(), 65507)) {
+        try (DatagramSocket peer = new DatagramSocket(); Endpoint endpoint = new Endpoint("127.0.0.1", peer.getLocalPort(), 65507)) {
             peer.setSoTimeout(2000);
             byte[] large = new byte[1200];
             Arrays.fill(large, (byte) 73);
@@ -51,30 +50,41 @@ public class UdpConnectionTest {
     }
 
     @Test(timeout = 10000)
-    public void largeDatagramPreservesBoundaryWhenNetworkSupportsIt() throws Exception {
+    public void largeDatagramsAndRepliesPreserveBoundaries() throws Exception {
         byte[] bytes = new byte[50000];
-        Arrays.fill(bytes, (byte) 73);
-        try (DatagramSocket probe = new DatagramSocket(); DatagramSocket sender = new DatagramSocket()) {
-            probe.setSoTimeout(300);
-            sender.send(new DatagramPacket(bytes, bytes.length, new InetSocketAddress("127.0.0.1", probe.getLocalPort())));
-            try {
-                receive(probe);
-            } catch (SocketTimeoutException unavailable) {
-                Assume.assumeNoException("Environment drops large UDP datagrams independently of Neta", unavailable);
-            }
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) (i % 251);
         }
-        try (DatagramSocket peer = new DatagramSocket(); Endpoint endpoint = new Endpoint(peer.getLocalPort(), 65507)) {
+
+        // IPv6 回环直接走本地 lo，避免 WSL 对 IPv4 回环的虚拟网卡转发。
+        InetSocketAddress local = new InetSocketAddress("::1", 0);
+        try (DatagramSocket peer = new DatagramSocket(local); Endpoint endpoint = new Endpoint("::1", peer.getLocalPort(), 65507)) {
             peer.setSoTimeout(2000);
-            endpoint.connection.write(bytes).get(2, TimeUnit.SECONDS);
-            DatagramPacket packet = receive(peer);
-            assertEquals(bytes.length, packet.getLength());
-            assertArrayEquals(bytes, Arrays.copyOf(packet.getData(), packet.getLength()));
+            for (int round = 0; round < 10; round++) {
+                // 双向校验大报文内容，每轮使用不同标记。
+                bytes[0] = (byte) round;
+                endpoint.connection.write(bytes).get(2, TimeUnit.SECONDS);
+                DatagramPacket packet = receive(peer);
+                assertEquals(bytes.length, packet.getLength());
+                assertArrayEquals(bytes, Arrays.copyOf(packet.getData(), packet.getLength()));
+                peer.send(new DatagramPacket(bytes, bytes.length, packet.getSocketAddress()));
+                assertArrayEquals(bytes, endpoint.received.poll(2, TimeUnit.SECONDS));
+
+                // 大小报文交替，校验每次收发仍保留独立边界。
+                byte[] marker = new byte[] { (byte) round, 2, 3 };
+                peer.send(new DatagramPacket(marker, marker.length, packet.getSocketAddress()));
+                assertArrayEquals(marker, endpoint.received.poll(2, TimeUnit.SECONDS));
+                endpoint.connection.write(marker).get(2, TimeUnit.SECONDS);
+                DatagramPacket small = receive(peer);
+                assertArrayEquals(marker, Arrays.copyOf(small.getData(), small.getLength()));
+                assertTrue(endpoint.connection.isOpen());
+            }
         }
     }
 
     @Test(timeout = 10000)
     public void copiesAndCancelsQueuedDatagramsThenDrainsWithoutPeerReply() throws Exception {
-        try (DatagramSocket peer = new DatagramSocket(); Endpoint endpoint = new Endpoint(peer.getLocalPort(), 32)) {
+        try (DatagramSocket peer = new DatagramSocket(); Endpoint endpoint = new Endpoint("127.0.0.1", peer.getLocalPort(), 32)) {
             peer.setSoTimeout(2000);
             CountDownLatch entered = new CountDownLatch(1);
             CountDownLatch release = new CountDownLatch(1);
@@ -138,9 +148,12 @@ public class UdpConnectionTest {
 
         private final BlockingQueue<byte[]> received = new LinkedBlockingQueue<>();
 
-        private Endpoint(int port, int maximum) throws Exception {
-            InterAddress remote = new InterAddress("udp", "127.0.0.1", port, "default");
-            ConnectorConfig config = new ConnectorConfig("raw-udp", remote, Collections.singletonMap("listenType", "udp"), Collections.singletonList(new ProtocolConfig("raw-udp", remote.getSchema(), remote.getSchema(), Collections.singletonMap("listenType", "udp"))), true);
+        private Endpoint(String host, int port, int maximum) throws Exception {
+            InterAddress remote = new InterAddress("udp", host, port, "default");
+            Map<String, String> options = Collections.singletonMap("listenType", "udp");
+            String scheme = remote.getSchema();
+            ProtocolConfig mount = new ProtocolConfig("raw-udp", scheme, scheme, options);
+            ConnectorConfig config = new ConnectorConfig("raw-udp", remote, options, Collections.singletonList(mount), true);
             UdpSoConfig socket = new UdpSoConfig();
             socket.setRcvPacketSize(65536);
             this.transport = new SocketTransport(config, getClass().getClassLoader(), socket);

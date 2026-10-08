@@ -7,11 +7,11 @@
  */
 package net.hasor.meteor.connector.transport.http;
 import java.io.IOException;
+import java.util.Map;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.channel.data.ProtoRcvQueue;
 import net.hasor.neta.channel.data.ProtoSndQueue;
 import net.hasor.neta.codec.http.FullHttpResponse;
-
 import static net.hasor.meteor.connector.transport.http.HttpMessages.*;
 
 final class HttpClientHandler implements ProtoHandler<FullHttpResponse, Object> {
@@ -31,7 +31,10 @@ final class HttpClientHandler implements ProtoHandler<FullHttpResponse, Object> 
                 if (response.isBad()) {
                     throw new IOException("Malformed HTTP response: " + response.badReason());
                 }
-                HttpResponse copy = new HttpResponse(response.status().code(), headers(response), body(response.content()));
+                int status = response.status().code();
+                Map<String, String> responseHeaders = headers(response);
+                byte[] content = body(response.content());
+                HttpResponse copy = new HttpResponse(status, responseHeaders, content);
                 boolean keep = keepAlive(response.protocolVersion(), response);
                 dst.offerMessage(new HttpInboundResponse(copy, keep));
             } finally {
@@ -43,7 +46,10 @@ final class HttpClientHandler implements ProtoHandler<FullHttpResponse, Object> 
 
     @Override
     public void onClose(ProtoContext context) {
-        this.channel.dispatch(() -> this.channel.failed(this.socket, new IOException("HTTP connection closed before response")));
+        this.channel.dispatch(() -> {
+            IOException failure = new IOException("HTTP connection closed before response");
+            this.channel.failed(this.socket, failure);
+        });
     }
 
     @Override

@@ -20,6 +20,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
@@ -169,7 +170,8 @@ public class UdpConnectorTest {
     @Test(timeout = 10000)
     public void rejectsStreamProtocolAndInvalidDatagramLimitsBeforeBind() throws Exception {
         try (Host wrongProtocol = new Host(128, EndpointRoutingTest.WireA.class)) {
-            assertTrue(failure(wrongProtocol.manager.bind(wrongProtocol.config.name())) instanceof IllegalArgumentException);
+            Future<MetListen> binding = wrongProtocol.manager.bind(wrongProtocol.config.name());
+            assertTrue(failure(binding) instanceof IllegalArgumentException);
         }
         for (int size : new int[] { 0, 65508 }) {
             try (Host invalid = new Host(size, TestProtocol.class)) {
@@ -239,19 +241,22 @@ public class UdpConnectorTest {
             options.put("protocol", protocol.getSimpleName().toLowerCase(Locale.ROOT));
             options.put("workerThread", "1");
             options.put("maxDatagramSize", String.valueOf(size));
-            this.config = new ConnectorConfig("udp", new InterAddress("udp", "127.0.0.1", port, "default"), options, Collections.singletonList(new ProtocolConfig("udp", "udp", options.getOrDefault("protocol", "udp"), options)), true);
+            InterAddress localAddress = new InterAddress("udp", "127.0.0.1", port, "default");
+            String protocolName = options.getOrDefault("protocol", "udp");
+            ProtocolConfig mount = new ProtocolConfig("udp", "udp", protocolName, options);
+            this.config = new ConnectorConfig("udp", localAddress, options, Collections.singletonList(mount), true);
             ClassLoader loader = getClass().getClassLoader();
             MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
-                if ("getConnectorConfigs".equals(method.getName())) {
+                if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                     return Collections.singletonList(this.config);
                 }
                 throw new AssertionError(method);
             });
             MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
-                if ("getSettings".equals(method.getName())) {
+                if (StringUtils.equals("getSettings", method.getName())) {
                     return settings;
                 }
-                if ("getClassLoader".equals(method.getName())) {
+                if (StringUtils.equals("getClassLoader", method.getName())) {
                     return loader;
                 }
                 throw new AssertionError(method);

@@ -206,11 +206,11 @@ final class MetBindBuilder implements MetPublisher {
             if (!StringUtils.isBlank(rsfURI)) {
                 this.bindAddress(new InterAddress(rsfURI));
             }
-            if (array.length > 0) {
-                for (String bindItem : array) {
-                    this.bindAddress(new InterAddress(bindItem));
-                }
+
+            for (String bindItem : array) {
+                this.bindAddress(new InterAddress(bindItem));
             }
+
             return this;
         }
 

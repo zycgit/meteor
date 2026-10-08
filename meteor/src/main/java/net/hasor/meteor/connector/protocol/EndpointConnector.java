@@ -27,7 +27,8 @@ public final class EndpointConnector<M> extends AbstractConnector {
     private final Map<String, ProtocolFactory<M>> protocols;
     private final Map<String, NetworkRoute<M>>    routes;
 
-    public EndpointConnector(ConnectorConfig config, ConnectorManager manager, NetworkConnectorFactory<M> transport, Map<String, ProtocolFactory<M>> protocols, Map<String, NetworkRoute<M>> routes) {
+    public EndpointConnector(ConnectorConfig config, ConnectorManager manager,//
+            NetworkConnectorFactory<M> transport, Map<String, ProtocolFactory<M>> protocols, Map<String, NetworkRoute<M>> routes) {
         super(config, manager);
         this.transport = transport;
         this.protocols = protocols;
@@ -75,7 +76,9 @@ public final class EndpointConnector<M> extends AbstractConnector {
     private ChannelListener<M> attach(NetworkChannel<M> channel, ReceivedListener receiver, BasicFuture<MetChannel> connecting) {
         this.connections.add(channel);
         try {
-            return new ProtocolRouter<>(this, channel, receiver, this.protocols, this.routes, connecting, this.transport.sharedRoutes(), () -> this.connections.remove(channel));
+            boolean shared = this.transport.sharedRoutes();
+            Runnable terminated = () -> EndpointConnector.this.connections.remove(channel);
+            return new ProtocolRouter<>(this, channel, receiver, this.protocols, this.routes, connecting, shared, terminated);
         } catch (RuntimeException | Error failure) {
             this.connections.remove(channel);
             channel.close();
@@ -108,15 +111,15 @@ public final class EndpointConnector<M> extends AbstractConnector {
         }
     }
 
-    protected ConnectorManager manager() {
+    ConnectorManager manager() {
         return this.manager;
     }
 
-    protected boolean writable() {
+    boolean writable() {
         return this.acceptsWrites();
     }
 
-    protected void connected(MetChannel channel) {
+    void connected(MetChannel channel) {
         if (this.acceptsWrites()) {
             this.fireChannelConnected(channel);
         } else {
@@ -124,7 +127,7 @@ public final class EndpointConnector<M> extends AbstractConnector {
         }
     }
 
-    protected void disconnected(MetChannel channel) {
+    void disconnected(MetChannel channel) {
         this.fireChannelClosed(channel);
     }
 }

@@ -18,6 +18,7 @@ import java.util.function.BiConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.protocol.ProtocolContext;
 import net.hasor.meteor.connector.protocol.ProtocolSession;
@@ -68,11 +69,15 @@ final class RsfSession implements ProtocolSession<byte[]> {
             return;
         }
 
-        this.handshakeTimer = this.context.schedule(() -> this.connection.execute(this::handshakeExpired), this.handshakeTimeout);
+        Runnable expireHandshake = () -> this.connection.execute(this::handshakeExpired);
+        this.handshakeTimer = this.context.schedule(expireHandshake, this.handshakeTimeout);
+
         ResponsePayload hello = new ResponsePayload();
         hello.setRequestID(-1);
         hello.setStatus(ProtocolStatus.OK);
-        hello.addOption("SERVER_INFO", this.context.bindAddress() == null ? "" : this.context.bindAddress().toHostSchema());
+        InterAddress address = this.context.bindAddress();
+        String serverInfo = address == null ? "" : address.toHostSchema();
+        hello.addOption("SERVER_INFO", serverInfo);
 
         this.write(hello).onFinal(done -> {
             Throwable error = failure(done);
@@ -104,7 +109,11 @@ final class RsfSession implements ProtocolSession<byte[]> {
 
             Payload message = this.codec.decode(frame);
             if (!this.ready.isDone()) {
-                if (!(message instanceof ResponsePayload response) || response.getRequestID() != -1 || response.getOption("SERVER_INFO") == null) {
+                boolean handshake = false;
+                if (message instanceof ResponsePayload response) {
+                    handshake = response.getRequestID() == -1 && response.getOption("SERVER_INFO") != null;
+                }
+                if (!handshake) {
                     throw new IOException("Expected RSF handshake before application data");
                 }
                 if (this.handshakeTimer != null) {
@@ -125,7 +134,12 @@ final class RsfSession implements ProtocolSession<byte[]> {
             return failed(new UnsupportedOperationException("RSF/1 only sends requests and responses"));
         }
 
-        if (this.closed || !this.connection.isOpen() || !this.ready.isDone() || this.ready.isCancelled() || this.ready.getCause() != null) {
+        if (this.closed || !this.connection.isOpen()) {
+            return failed(new IOException("RSF session is not ready"));
+        }
+
+        boolean handshakeComplete = this.ready.isDone() && !this.ready.isCancelled() && this.ready.getCause() == null;
+        if (!handshakeComplete) {
             return failed(new IOException("RSF session is not ready"));
         }
 
@@ -163,7 +177,9 @@ final class RsfSession implements ProtocolSession<byte[]> {
             }));
             // RPC can complete on another thread while the completion callback is being installed.
             if (!request.completion().isDone()) {
-                this.write(request).onFinal(done -> this.execute(sent, () -> this.finishRequestWrite(entry, failure(done))));
+                this.write(request).onFinal(done -> {
+                    this.execute(sent, () -> this.finishRequestWrite(entry, failure(done)));
+                });
             }
         } catch (Throwable error) {
             this.finishRequestWrite(entry, error);
@@ -224,7 +240,9 @@ final class RsfSession implements ProtocolSession<byte[]> {
         }
 
         this.inbound.put(id, request);
-        request.completion().onFinal(done -> this.connection.execute(() -> this.inbound.remove(id, request)));
+        request.completion().onFinal(done -> {
+            this.connection.execute(() -> this.inbound.remove(id, request));
+        });
         this.messages.accept(id, request);
     }
 

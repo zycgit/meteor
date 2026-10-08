@@ -69,7 +69,9 @@ public class ConnectorManagerTest {
 
     @Test
     public void mountedSchemesSelectTheSameEndpoint() throws Exception {
-        ConnectorConfig config = new ConnectorConfig("shared", EndpointFixture.address("memory"), Collections.singletonMap("listenType", "memory"), Arrays.asList(new ProtocolConfig("one", "", Collections.emptyMap()), new ProtocolConfig("two", "", Collections.emptyMap())), true);
+        ProtocolConfig firstProtocol = new ProtocolConfig("one", "", Collections.emptyMap());
+        ProtocolConfig secondProtocol = new ProtocolConfig("two", "", Collections.emptyMap());
+        ConnectorConfig config = new ConnectorConfig("shared", EndpointFixture.address("memory"), Collections.singletonMap("listenType", "memory"), Arrays.asList(firstProtocol, secondProtocol), true);
         try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext(config))) {
             manager.prepare(config, (cfg, mgr) -> new EndpointFixture.Endpoint(cfg, mgr, new ArrayList<>()));
             manager.init();

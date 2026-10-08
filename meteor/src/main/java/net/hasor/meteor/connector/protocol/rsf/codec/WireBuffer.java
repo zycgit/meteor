@@ -50,7 +50,9 @@ public final class WireBuffer {
         }
 
         if (this.writer + count > this.data.length) {
-            this.data = Arrays.copyOf(this.data, Math.min(LIMIT, Math.max(this.writer + count, this.data.length * 2)));
+            int required = this.writer + count;
+            int capacity = Math.min(LIMIT, Math.max(required, this.data.length * 2));
+            this.data = Arrays.copyOf(this.data, capacity);
         }
     }
 

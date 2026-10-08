@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.bootstrap;
+import java.io.File;
 import java.util.function.BiFunction;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.MetSettings;
@@ -81,7 +82,9 @@ public class CacheAddressPool extends AddressPool implements MetUpdater, AutoClo
             }
 
             if (this.settings.isLocalDiskCache()) {
-                this.diskCache = new DiskCache(this, this.settings.getDataHome().toFile(), this.refreshCacheMs, this.settings.getDiskCacheTimeInterval());
+                File dataHome = this.settings.getDataHome().toFile();
+                long diskCacheInterval = this.settings.getDiskCacheTimeInterval();
+                this.diskCache = new DiskCache(this, dataHome, this.refreshCacheMs, diskCacheInterval);
                 this.diskCache.restoreConfig();
             } else {
                 this.scheduler = scheduler;

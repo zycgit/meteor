@@ -13,10 +13,10 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.neta.channel.NetChannel;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.transport.*;
+import net.hasor.neta.channel.NetChannel;
 
 /**
  * Common write admission and completion-driven drain, independent of TCP/HTTP protocols.
@@ -42,8 +42,7 @@ abstract class HttpNetworkChannel implements NetworkChannel<HttpExchange> {
     }
 
     protected final void received(String route, HttpExchange exchange) throws Exception {
-        if (this.receiver instanceof RoutedReceiver) {
-            RoutedReceiver<HttpExchange> routed = (RoutedReceiver<HttpExchange>) this.receiver;
+        if (this.receiver instanceof RoutedReceiver<HttpExchange> routed) {
             if (routed.routes().containsKey(route)) {
                 routed.receive(route, exchange);
             } else {
@@ -141,7 +140,8 @@ abstract class HttpNetworkChannel implements NetworkChannel<HttpExchange> {
 
     private void checkDrain() {
         synchronized (this) {
-            if (!this.draining || this.closed.isDone() || !this.submitted.isEmpty() || this.writing != 0) {
+            boolean pendingWrites = !this.submitted.isEmpty() || this.writing != 0;
+            if (!this.draining || this.closed.isDone() || pendingWrites) {
                 return;
             }
         }

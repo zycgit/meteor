@@ -15,10 +15,7 @@ import java.util.concurrent.Executor;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.AbstractMetChannel;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ReceivedListener;
-import net.hasor.meteor.connector.MetChannel;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.ChannelListener;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.payload.Payload;
@@ -46,17 +43,30 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
         this.connecting = connecting;
 
         InterAddress local = owner.getBindAddress();
-        InterAddress advertised = local == null ? null : new InterAddress(protocolConfig.scheme(), local.getHost(), local.getPort(), local.getFormUnit());
-        ProtocolContext context = new ProtocolContext(owner.manager().context(), owner.manager()::schedule, advertised, connecting != null);
+        InterAddress advertised = null;
+        if (local != null) {
+            advertised = new InterAddress(protocolConfig.scheme(), local.getHost(), local.getPort(), local.getFormUnit());
+        }
+
+        ConnectorManager manager = owner.manager();
+        boolean outbound = connecting != null;
+        ProtocolContext context = new ProtocolContext(manager.context(), manager::schedule, advertised, outbound);
         this.session = factory.create(protocolConfig, context, connection, this::received);
-        this.session.ready().onFinal(done -> this.connection.execute(() -> this.completeConnect(done)));
+        this.session.ready().onFinal(done -> {
+            this.connection.execute(() -> this.completeConnect(done));
+        });
     }
 
     private void completeConnect(Future<Void> done) {
         if (done.isCancelled() || done.getCause() != null) {
             if (this.connecting != null) {
-                this.connecting.failed(done.isCancelled() ? new CancellationException("Protocol handshake cancelled") : done.getCause());
+                Throwable failure = done.getCause();
+                if (done.isCancelled()) {
+                    failure = new CancellationException("Protocol handshake cancelled");
+                }
+                this.connecting.failed(failure);
             }
+
             this.close();
         } else if (this.connected && this.isActive() && this.connecting != null) {
             if (!this.connecting.isDone()) {
@@ -215,7 +225,7 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
     }
 
     @Override
-    public final Future<MetChannel> drainAndClose() {
+    public Future<MetChannel> drainAndClose() {
         synchronized (this) {
             this.draining = true;
         }

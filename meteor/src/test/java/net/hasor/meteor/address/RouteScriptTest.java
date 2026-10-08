@@ -8,6 +8,8 @@
 package net.hasor.meteor.address;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.meteor.address.route.ArgsKey;
 import net.hasor.meteor.address.route.FlowControlTest;
@@ -27,8 +29,15 @@ public class RouteScriptTest extends ScriptTestSupport {
 
     private void routes(AddressPool pool) {
         pool.updateServiceRoute("s", script("service", (id, all) -> Collections.singletonList(this.a.getHostPort())));
-        pool.updateMethodRoute("s", script("method", (id, all) -> Collections.singletonMap("get", Collections.singletonList(this.b.getHostPort()))));
-        pool.updateArgsRoute("s", script("args", (id, all) -> Collections.singletonMap("get", Collections.singletonMap("vip-", Collections.singletonList(this.c.getHostPort())))));
+        pool.updateMethodRoute("s", script("method", (id, all) -> {
+            List<String> addresses = Collections.singletonList(this.b.getHostPort());
+            return Collections.singletonMap("get", addresses);
+        }));
+        pool.updateArgsRoute("s", script("args", (id, all) -> {
+            List<String> addresses = Collections.singletonList(this.c.getHostPort());
+            Map<String, List<String>> arguments = Collections.singletonMap("vip-", addresses);
+            return Collections.singletonMap("get", arguments);
+        }));
     }
 
     @Test
@@ -173,7 +182,11 @@ public class RouteScriptTest extends ScriptTestSupport {
             }
         };
         pool.appendAddress("s", Arrays.asList(this.a, this.b));
-        pool.updateArgsRoute("s", script("custom", (id, all) -> Collections.singletonMap("get", Collections.singletonMap("tenant", Collections.singletonList(this.b.getHostPort())))));
+        pool.updateArgsRoute("s", script("custom", (id, all) -> {
+            List<String> addresses = Collections.singletonList(this.b.getHostPort());
+            Map<String, List<String>> arguments = Collections.singletonMap("tenant", addresses);
+            return Collections.singletonMap("get", arguments);
+        }));
         assertEquals(this.b, pool.nextAddress("s", "get", new Object[] { new Object() }));
     }
 
@@ -198,7 +211,10 @@ public class RouteScriptTest extends ScriptTestSupport {
         pool.updateArgsRoute("s", script("empty-args", (id, all) -> Collections.emptyMap()));
         assertEquals(this.a, pool.nextAddress("s", "get", null));
         pool.updateMethodRoute("s", script("empty-method-addresses", (id, all) -> Collections.singletonMap("get", Collections.emptyList())));
-        pool.updateArgsRoute("s", script("empty-args-addresses", (id, all) -> Collections.singletonMap("get", Collections.singletonMap("vip-", Collections.emptyList()))));
+        pool.updateArgsRoute("s", script("empty-args-addresses", (id, all) -> {
+            Map<String, List<String>> arguments = Collections.singletonMap("vip-", Collections.emptyList());
+            return Collections.singletonMap("get", arguments);
+        }));
         assertEquals(this.a, pool.nextAddress("s", "get", new Object[] { "vip" }));
     }
 

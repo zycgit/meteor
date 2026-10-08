@@ -12,6 +12,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
@@ -20,8 +21,8 @@ import net.hasor.cobble.concurrent.timer.Timeout;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.MetException;
+import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -261,7 +262,7 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
             MetConnector connector = null;
             try {
                 connector = this.connectorFactory.create(config, this);
-                if (!config.name().equals(connector.config().name())) {
+                if (!StringUtils.equals(config.name(), connector.config().name())) {
                     throw new IllegalArgumentException("Provider changed connector name");
                 }
 
@@ -327,7 +328,7 @@ public class ConnectorManager implements AutoCloseable, ReceivedListener {
 
         for (MetConnector connector : this.connectors.values()) {
             for (ProtocolConfig protocol : connector.config().protocols()) {
-                if (protocol.name().equals(name)) {
+                if (StringUtils.equals(protocol.name(), name)) {
                     return connector;
                 }
             }

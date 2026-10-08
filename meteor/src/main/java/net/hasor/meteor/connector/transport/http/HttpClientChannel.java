@@ -14,6 +14,9 @@ import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.transport.SocketTransport;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.NetChannel;
 import net.hasor.neta.channel.ProtoBuildContext;
@@ -21,9 +24,6 @@ import net.hasor.neta.codec.http.DefaultFullHttpRequest;
 import net.hasor.neta.codec.http.FullHttpRequest;
 import net.hasor.neta.codec.http.HttpMethod;
 import net.hasor.neta.codec.http.HttpVersion;
-import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.transport.SocketTransport;
 
 /**
  * Serial HTTP/1 exchanges over a reusable, lazily connected socket.
@@ -80,11 +80,16 @@ final class HttpClientChannel extends HttpNetworkChannel {
 
     private void enqueue(HttpExchange request, BasicFuture<Void> sent) {
         if (request.completion().isDone()) {
-            sent.failed(request.completion().getCause() != null ? request.completion().getCause() : new CancellationException("RPC already completed"));
+            Throwable failure = request.completion().getCause();
+            if (failure == null) {
+                failure = new CancellationException("RPC already completed");
+            }
+            sent.failed(failure);
             return;
         }
 
-        if (this.closed || this.queue.size() + (this.active == null ? 0 : 1) >= this.config.integer("maxPendingRequests", 1024)) {
+        int pendingCount = this.queue.size() + (this.active == null ? 0 : 1);
+        if (this.closed || pendingCount >= this.config.integer("maxPendingRequests", 1024)) {
             IOException failure = new IOException("HTTP session closed or request queue full");
             sent.failed(failure);
             request.complete(failure);
@@ -96,7 +101,12 @@ final class HttpClientChannel extends HttpNetworkChannel {
 
         try {
             request.completion().onFinal(done -> this.executor.execute(() -> {
-                this.finishCall(call, done.getCause() != null ? done.getCause() : new CancellationException("RPC completed"));
+                Throwable failure = done.getCause();
+                if (failure == null) {
+                    failure = new CancellationException("RPC completed");
+                }
+
+                this.finishCall(call, failure);
             }));
             if (!request.completion().isDone()) {
                 this.next();
@@ -133,7 +143,12 @@ final class HttpClientChannel extends HttpNetworkChannel {
                     if (this.closed) {
                         this.finishClose(socket);
                     } else if (done.isCancelled() || done.getCause() != null) {
-                        this.failQueue(done.isCancelled() ? new CancellationException("HTTP connect cancelled") : done.getCause());
+                        Throwable failure = done.getCause();
+                        if (done.isCancelled()) {
+                            failure = new CancellationException("HTTP connect cancelled");
+                        }
+
+                        this.failQueue(failure);
                     } else {
                         this.channel = socket;
                         this.next();
@@ -155,7 +170,9 @@ final class HttpClientChannel extends HttpNetworkChannel {
                 throw new IOException("HTTP request too large");
             }
 
-            FullHttpRequest out = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.valueOf(request.method()), request.uri(), ByteBuf.wrap(request.body()));
+            HttpMethod method = HttpMethod.valueOf(request.method());
+            ByteBuf body = ByteBuf.wrap(request.body());
+            FullHttpRequest out = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, request.uri(), body);
             request.headers().forEach(out::setHeader);
             out.setHeader("Host", this.getRemote().getHostPort());
             out.removeHeader("Transfer-Encoding");

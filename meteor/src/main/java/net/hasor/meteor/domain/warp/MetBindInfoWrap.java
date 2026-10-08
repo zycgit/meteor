@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.domain.warp;
+import java.util.Map;
 import java.util.Set;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.domain.MetServiceType;
@@ -104,6 +105,11 @@ public class MetBindInfoWrap<T> implements MetBindInfo<T> {
     @Override
     public void setMetaData(String key, Object value) {
         this.target.setMetaData(key, value);
+    }
+
+    @Override
+    public void setMetaData(Map<String, Object> values) {
+        this.target.setMetaData(values);
     }
 
     @Override

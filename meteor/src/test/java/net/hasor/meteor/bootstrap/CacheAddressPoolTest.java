@@ -206,7 +206,15 @@ public class CacheAddressPoolTest {
     }
 
     private MetSettings settings() {
-        return new Configuration().setUnitName("default").setInvalidWaitTime(30000).setRefreshCacheTime(this.refreshInterval).setLocalDiskCache(this.diskCache).setDiskCacheTimeInterval(3600000).setDataHome(this.temporary.getRoot().toPath()).setArgsKey(this.argsKey);
+        Configuration settings = new Configuration();
+        settings.setUnitName("default");
+        settings.setInvalidWaitTime(30000);
+        settings.setRefreshCacheTime(this.refreshInterval);
+        settings.setLocalDiskCache(this.diskCache);
+        settings.setDiskCacheTimeInterval(3600000);
+        settings.setDataHome(this.temporary.getRoot().toPath());
+        settings.setArgsKey(this.argsKey);
+        return settings;
     }
 
     private static final class ManualScheduler implements BiFunction<Runnable, Long, Cancellable> {

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.address.route;
+import net.hasor.cobble.StringUtils;
 /**
  * 将参数映射为一个Key.
  * @author 赵永春 (zyc@hasor.net)
@@ -24,7 +25,7 @@ public class DefaultArgsKey implements ArgsKey {
             } else {
                 String value = obj.toString();
                 // Keep ordinary legacy keys; escape separators and the reserved null token.
-                if ("null".equals(value)) {
+                if (StringUtils.equals("null", value)) {
                     strBuilder.append("\\null");
                 } else {
                     strBuilder.append(value.replace("\\", "\\\\").replace("-", "\\-"));

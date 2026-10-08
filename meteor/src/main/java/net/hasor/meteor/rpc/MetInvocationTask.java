@@ -9,6 +9,8 @@ package net.hasor.meteor.rpc;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.function.Supplier;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetFilter;
 import net.hasor.meteor.MetFilterChain;
@@ -18,8 +20,6 @@ import net.hasor.meteor.domain.*;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.serialize.SerializeCoder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * 负责处理远程Request对象的请求调用，同时也负责将产生的Response对象写回客户端。
@@ -78,8 +78,8 @@ final class MetInvocationTask implements Runnable {
 
         /*准备参数*/
         String serializeType = this.requestInfo.getSerializeType();
-        Object[] pObjects = null;
-        Class<?>[] pTypes = null;
+        Object[] pObjects;
+        Class<?>[] pTypes;
         try {
             //1.确定序列化器
             SerializeCoder coder = this.dispatcher.getContext().getSerializeCoder(serializeType);
@@ -122,7 +122,7 @@ final class MetInvocationTask implements Runnable {
         }
 
         /*执行调用*/
-        Method targetMethod = null;
+        Method targetMethod;
         try {
             String methodName = this.requestInfo.getTargetMethod();
             targetMethod = bindInfo.getBindType().getMethod(methodName, pTypes);
@@ -210,7 +210,11 @@ final class MetInvocationTask implements Runnable {
         }
         if (!this.requestInfo.completion().isDone()) {
             this.channel.sendData(info).onFinal(done -> {
-                this.requestInfo.complete(done.isCancelled() ? new IllegalStateException("Response write cancelled") : done.getCause());
+                Throwable failure = done.getCause();
+                if (done.isCancelled()) {
+                    failure = new IllegalStateException("Response write cancelled");
+                }
+                this.requestInfo.complete(failure);
             });
         }
     }

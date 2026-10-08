@@ -76,7 +76,12 @@ class AddressCacheResult {
             for (Map.Entry<String, AddressBucket> entry : pool.addressPool.entrySet()) {
                 AddressBucket bucket = entry.getValue();
                 synchronized (bucket) {
-                    buckets.put(entry.getKey(), new BucketSnapshot(bucket.getAvailableAddresses(), bucket.getLocalUnitAddresses(), bucket.getRuleRef()));
+                    List<InterAddress> available = bucket.getAvailableAddresses();
+                    List<InterAddress> localUnit = bucket.getLocalUnitAddresses();
+                    RuleRef rules = bucket.getRuleRef();
+
+                    BucketSnapshot cached = new BucketSnapshot(available, localUnit, rules);
+                    buckets.put(entry.getKey(), cached);
                 }
             }
             return new Snapshot(++this.revision, buckets);
@@ -110,10 +115,10 @@ class AddressCacheResult {
             if (!refRule.getMethodLevel().isEnable()) {
                 logger.debug("eval routeScript [MethodLevel], service " + serviceID + " route undefined.");
             } else {
-                Map<String, List<String>> methodLevelResultStr = evalMethodLevel(serviceID, refRule, allStrList);
-                if (methodLevelResultStr != null && !methodLevelResultStr.isEmpty()) {
-                    Map<String, List<InterAddress>> methodLevelResult = convertToAddressMethod(all, methodLevelResultStr);
-                    cacheResultRef.methodLevel.put(serviceID, methodLevelResult);/*保存计算结果*/
+                Map<String, List<String>> methodRoutes = evalMethodLevel(serviceID, refRule, allStrList);
+                if (methodRoutes != null && !methodRoutes.isEmpty()) {
+                    Map<String, List<InterAddress>> resolvedMethods = convertToAddressMethod(all, methodRoutes);
+                    cacheResultRef.methodLevel.put(serviceID, resolvedMethods);/*保存计算结果*/
                 }
             }
 
@@ -123,10 +128,10 @@ class AddressCacheResult {
             } else if (this.addressPool.getArgsKey() == null) {
                 logger.error("argsKeyBuilder is null , evalArgsLevel failed.");
             } else {
-                Map<String, Map<String, List<String>>> argsLevelResultStr = evalArgsLevel(serviceID, refRule, allStrList);
-                if (argsLevelResultStr != null && !argsLevelResultStr.isEmpty()) {
-                    Map<String, Map<String, List<InterAddress>>> argsLevelResult = convertToAddressArgs(all, argsLevelResultStr);
-                    cacheResultRef.argsLevel.put(serviceID, argsLevelResult);/*保存计算结果*/
+                Map<String, Map<String, List<String>>> argsRoutes = evalArgsLevel(serviceID, refRule, allStrList);
+                if (argsRoutes != null && !argsRoutes.isEmpty()) {
+                    Map<String, Map<String, List<InterAddress>>> resolvedArgs = convertToAddressArgs(all, argsRoutes);
+                    cacheResultRef.argsLevel.put(serviceID, resolvedArgs);/*保存计算结果*/
                 }
             }
         }
@@ -140,26 +145,10 @@ class AddressCacheResult {
         });
     }
 
-    private static class BucketSnapshot {
-        final List<InterAddress> all;
-        final List<InterAddress> unit;
-        final RuleRef            rules;
-
-        BucketSnapshot(List<InterAddress> all, List<InterAddress> unit, RuleRef rules) {
-            this.all = all;
-            this.unit = unit;
-            this.rules = rules;
-        }
+    private record BucketSnapshot(List<InterAddress> all, List<InterAddress> unit, RuleRef rules) {
     }
 
-    private static class Snapshot {
-        final long                        revision;
-        final Map<String, BucketSnapshot> buckets;
-
-        Snapshot(long revision, Map<String, BucketSnapshot> buckets) {
-            this.revision = revision;
-            this.buckets = buckets;
-        }
+    private record Snapshot(long revision, Map<String, BucketSnapshot> buckets) {
     }
 
     private static Map<String, Map<String, List<InterAddress>>> convertToAddressArgs(List<InterAddress> all, Object value) {
@@ -309,7 +298,7 @@ class AddressCacheResult {
      * 返回值
      *  Map&lt;String, Map&lt;String, List&lt;String&gt;&gt;&gt;
      * 样例：
-     *  def Map&lt;String, Map&lt;String, List&lt;String&gt;&gt;&gt; evalAddress(String serviceID,List&lt;String&gt; allAddress)  {
+     *  def Map&lt;String, Map&lt;String, List&lt;String&gt;&gt;&gt; evalAddress(String serviceID, List&lt;String&gt; allAddress) {
      *      //
      *      //[RSF]sorg.mytest.FooFacse-1.0.0 ---- Group=RSF, Name=sorg.mytest.FooFacse, Version=1.0.0
      *      if ( serviceID == "[RSF]sorg.mytest.FooFacse-1.0.0" ) {

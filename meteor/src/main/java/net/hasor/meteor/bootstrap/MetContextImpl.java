@@ -13,10 +13,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.*;
@@ -34,16 +39,18 @@ import net.hasor.meteor.serialize.SerializeFactory;
 
 /** Composes RSF components and owns their lifecycle without requiring a container or subclass. */
 public final class MetContextImpl implements MetContext {
-    private final    MetSettings      settings;
-    private final    ClassLoader      classLoader;
-    private final    String           instanceID = UUID.randomUUID().toString().replace("-", "");
-    private final    SerializeFactory serializeFactory;
-    private final    CacheAddressPool addresses;
-    private final    MetContainer     rsfContainer;
-    private final    MetPublisher     publisher;
-    private final    ConnectorManager connectors;
-    private final    MetCaller        rsfCaller;
-    private volatile State            state      = State.NEW;
+    private static final Logger                          LOGGER     = LoggerFactory.getLogger(MetContextImpl.class);
+    private final        List<Consumer<MetContextEvent>> listeners  = new CopyOnWriteArrayList<>();
+    private final        MetSettings                     settings;
+    private final        ClassLoader                     classLoader;
+    private final        String                          instanceID = UUID.randomUUID().toString().replace("-", "");
+    private final        SerializeFactory                serializeFactory;
+    private final        CacheAddressPool                addresses;
+    private final        MetContainer                    rsfContainer;
+    private final        MetPublisher                    publisher;
+    private final        ConnectorManager                connectors;
+    private final        MetCaller                       rsfCaller;
+    private volatile     State                           state      = State.NEW;
 
     private enum State {
         NEW,
@@ -56,11 +63,21 @@ public final class MetContextImpl implements MetContext {
     MetContextImpl(MetSettings settings, ClassLoader classLoader, EndpointConnectorFactory factory) {
         this.settings = Objects.requireNonNull(settings, "settings");
         this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
+
+        // 组装服务注册、序列化和地址管理能力。
         this.serializeFactory = this.createSerializeFactory();
         this.addresses = new CacheAddressPool(this.settings);
-        this.rsfContainer = new MetContainer(this.addresses, this.settings);
+        this.rsfContainer = new MetContainer(this.addresses, this.settings) {
+            @Override
+            protected void onServiceChanged(String serviceId) {
+                MetContextImpl.this.notifyEvent(MetContextEvent.SERVICES_CHANGED);
+            }
+        };
+
         this.publisher = new Publisher(this.rsfContainer.createPublisher());
         this.installFilters();
+
+        // 连接事件交给 RPC 层，连接失败同时反馈给地址池。
         this.connectors = new ConnectorManager(this, factory) {
             @Override
             public Future<MetChannel> connect(InterAddress address) {
@@ -95,6 +112,7 @@ public final class MetContextImpl implements MetContext {
         }
 
         try {
+            // 地址维护先就绪，再依次开启配置中的监听端点。
             this.addresses.start(this.connectors::schedule);
             for (ConnectorConfig config : this.connectors.configurations()) {
                 if (config.bindEnabled()) {
@@ -102,7 +120,9 @@ public final class MetContextImpl implements MetContext {
                 }
             }
 
+            // 所有监听创建成功后，才发布实例启动事件。
             this.state = this.settings.isAutomaticOnline() ? State.ONLINE : State.OFFLINE;
+            this.notifyEvent(MetContextEvent.STARTED);
         } catch (Exception | Error failure) {
             Throwable cause = failure instanceof ExecutionException ? failure.getCause() : failure;
             try {
@@ -129,6 +149,8 @@ public final class MetContextImpl implements MetContext {
         }
 
         this.state = State.CLOSED;
+        this.notifyEvent(MetContextEvent.CLOSED);
+        this.listeners.clear();
         try {
             this.addresses.close();
         } finally {
@@ -142,13 +164,39 @@ public final class MetContextImpl implements MetContext {
             throw new IllegalStateException("RSF context is not started");
         }
 
-        this.state = State.ONLINE;
+        if (this.state != State.ONLINE) {
+            this.state = State.ONLINE;
+            this.notifyEvent(MetContextEvent.ONLINE);
+        }
     }
 
     @Override
     public synchronized void offline() {
         if (this.state == State.ONLINE) {
             this.state = State.OFFLINE;
+            this.notifyEvent(MetContextEvent.OFFLINE);
+        }
+    }
+
+    @Override
+    public synchronized Cancellable subscribe(Consumer<MetContextEvent> listener) {
+        if (this.state == State.CLOSED) {
+            throw new IllegalStateException("Meteor context is closed");
+        }
+
+        Objects.requireNonNull(listener, "listener");
+        Consumer<MetContextEvent> subscription = listener::accept;
+        this.listeners.add(subscription);
+        return () -> this.listeners.remove(subscription);
+    }
+
+    private void notifyEvent(MetContextEvent event) {
+        for (Consumer<MetContextEvent> listener : this.listeners) {
+            try {
+                listener.accept(event);
+            } catch (RuntimeException failure) {
+                LOGGER.warn("Meteor context event callback failed: " + event, failure);
+            }
         }
     }
 
@@ -290,12 +338,7 @@ public final class MetContextImpl implements MetContext {
         });
     }
 
-    private static final class Publisher implements MetPublisher {
-        private final MetPublisher publisher;
-
-        private Publisher(MetPublisher publisher) {
-            this.publisher = publisher;
-        }
+    private record Publisher(MetPublisher publisher) implements MetPublisher {
 
         @Override
         public MetSettings getSettings() {

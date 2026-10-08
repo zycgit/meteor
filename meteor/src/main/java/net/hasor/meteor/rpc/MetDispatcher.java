@@ -9,16 +9,16 @@ package net.hasor.meteor.rpc;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFilter;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.MetChannel;
-import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.MetConstants;
+import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Dispatches inbound requests without owning outbound calls or client proxies. */
 final class MetDispatcher implements AutoCloseable {
@@ -55,7 +55,7 @@ final class MetDispatcher implements AutoCloseable {
      */
     public void onRequest(MetChannel channel, long requestId, RequestPayload info) {
         if (requestId != info.getRequestID()) {
-            logger.warn("Request ID mismatch: envelope={}, payload={}", requestId, info.getRequestID());
+            logger.warn("Request ID mismatch: envelope=" + requestId + ", payload=" + info.getRequestID());
             info.complete(new IllegalArgumentException("Request ID mismatch"));
             return;
         }
@@ -63,21 +63,24 @@ final class MetDispatcher implements AutoCloseable {
         InterAddress target = channel.getRemote();
         String serviceUniqueName = "[" + info.getServiceGroup() + "]" + info.getServiceName() + "-" + info.getServiceVersion();
         try {
-            invLogger.info("request({}) -> received, bindID ={}, targetMethod ={}, remoteAddress ={}.", //
-                    info.getRequestID(), serviceUniqueName, info.getTargetMethod(), target);
-
+            invLogger.info("request(" + info.getRequestID() + ") -> received, bindID =" + serviceUniqueName + ", targetMethod =" + info.getTargetMethod() + ", remoteAddress =" + target + ".");
             Executor executor = this.dispatcherExecutor.getExecute(serviceUniqueName);
             executor.execute(new MetInvocationTask(channel, this, info));//放入业务线程准备执行
             ResponsePayload resp = MetPayloadBuilder.buildResponseStatus(info.getRequestID(), ProtocolStatus.Accept, null);
 
             channel.sendData(resp).onFinal(done -> {
-                if (info.isMessage() || resp.getStatus() != ProtocolStatus.Accept || done.getCause() != null || done.isCancelled()) {
-                    info.complete(done.isCancelled() ? new IllegalStateException("Response write cancelled") : done.getCause());
+                boolean finalResponse = info.isMessage() || resp.getStatus() != ProtocolStatus.Accept;
+                boolean writeFailed = done.getCause() != null || done.isCancelled();
+                if (finalResponse || writeFailed) {
+                    Throwable failure = done.getCause();
+                    if (done.isCancelled()) {
+                        failure = new IllegalStateException("Response write cancelled");
+                    }
+                    info.complete(failure);
                 }
             });
         } catch (RejectedExecutionException e) {
-            invLogger.info("request({}) -> rejected request, queue is full. -> bindID ={}, targetMethod ={}, remoteAddress ={}.", //
-                    info.getRequestID(), serviceUniqueName, info.getTargetMethod(), target);
+            invLogger.info("request(" + info.getRequestID() + ") -> rejected request, queue is full. -> bindID =" + serviceUniqueName + ", targetMethod =" + info.getTargetMethod() + ", remoteAddress =" + target + ".");
 
             String errorMessage = "(" + e.getClass().getName() + ")" + e.getMessage();
             String msgLog = "rejected request, queue is full." + errorMessage;
@@ -85,8 +88,14 @@ final class MetDispatcher implements AutoCloseable {
             ResponsePayload resp = MetPayloadBuilder.buildResponseStatus(info.getRequestID(), ProtocolStatus.QueueFull, msgLog);
 
             channel.sendData(resp).onFinal(done -> {
-                if (info.isMessage() || resp.getStatus() != ProtocolStatus.Accept || done.getCause() != null || done.isCancelled()) {
-                    info.complete(done.isCancelled() ? new IllegalStateException("Response write cancelled") : done.getCause());
+                boolean finalResponse = info.isMessage() || resp.getStatus() != ProtocolStatus.Accept;
+                boolean writeFailed = done.getCause() != null || done.isCancelled();
+                if (finalResponse || writeFailed) {
+                    Throwable failure = done.getCause();
+                    if (done.isCancelled()) {
+                        failure = new IllegalStateException("Response write cancelled");
+                    }
+                    info.complete(failure);
                 }
             });
         }

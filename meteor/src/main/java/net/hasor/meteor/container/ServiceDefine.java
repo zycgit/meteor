@@ -45,7 +45,7 @@ class ServiceDefine<T> extends MetBindInfoWrap<T> implements MetBindInfo<T> {
             String defFilterID = filterDef.filterID();
             String filterID = filterDefine.filterID();
             //
-            if (filterID.equals(defFilterID)) {
+            if (StringUtils.equals(filterID, defFilterID)) {
                 return;
             }
         }
@@ -102,7 +102,7 @@ class ServiceDefine<T> extends MetBindInfoWrap<T> implements MetBindInfo<T> {
 
     @Override
     public String toString() {
-        StringBuilder buffer = new StringBuilder("");
+        StringBuilder buffer = new StringBuilder();
         List<FilterDefine> defines = this.filterList;
         if (defines == null) {
             buffer.append(" null");
@@ -112,6 +112,6 @@ class ServiceDefine<T> extends MetBindInfoWrap<T> implements MetBindInfo<T> {
                 buffer.append(",");
             }
         }
-        return "ServiceDefine[Domain=" + this.getTarget() + ",Filters=" + buffer.toString() + "]";
+        return "ServiceDefine[Domain=" + this.getTarget() + ",Filters=" + buffer + "]";
     }
 }

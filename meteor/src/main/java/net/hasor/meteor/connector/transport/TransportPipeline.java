@@ -6,8 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.transport;
-import net.hasor.neta.channel.ProtoBuildContext;
 import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.neta.channel.ProtoBuildContext;
 
 /**
  * Builds per-connection transport stages before the application codec, in inbound order.

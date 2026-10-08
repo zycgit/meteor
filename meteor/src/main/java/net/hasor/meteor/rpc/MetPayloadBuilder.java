@@ -66,8 +66,6 @@ final class MetPayloadBuilder {
     public static ResponsePayload buildResponsePayload(MetResponse rsfResponse) throws IOException {
         ResponsePayload info = new ResponsePayload();
         String serializeType = rsfResponse.getSerializeType();
-        //        SerializeCoder coder = env.getSerializeCoder(serializeType);
-        //        byte[] returnData = coder.encode(rsfResponse.getData());
         info.setRequestID(rsfResponse.getRequestID());
         info.setStatus(rsfResponse.getStatus());
         info.setSerializeType(serializeType);

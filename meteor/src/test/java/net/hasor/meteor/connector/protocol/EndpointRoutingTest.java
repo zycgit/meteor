@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.BiConsumer;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
@@ -22,8 +23,8 @@ import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ConnectorManager;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.MetChannel;
+import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.RouteMatch;
 import net.hasor.meteor.connector.transport.http.HttpExchange;
@@ -268,19 +269,25 @@ public class EndpointRoutingTest {
             Map<String, String> options = new HashMap<>();
             options.put("listenType", transport);
             options.put("workerThread", "1");
-            ConnectorConfig config = new ConnectorConfig("shared", new InterAddress(transport, "127.0.0.1", port(), "test"), options, Arrays.asList(new ProtocolConfig("a", (transport.equals("udp") ? "datagram" : "") + a.getSimpleName().toLowerCase(Locale.ROOT), Collections.singletonMap("contextPath", "/a")), new ProtocolConfig("b", (transport.equals("udp") ? "datagram" : "") + b.getSimpleName().toLowerCase(Locale.ROOT), Collections.singletonMap("contextPath", "/b"))), true);
+            String prefix = StringUtils.equals(transport, "udp") ? "datagram" : "";
+            String firstProtocol = prefix + a.getSimpleName().toLowerCase(Locale.ROOT);
+            String secondProtocol = prefix + b.getSimpleName().toLowerCase(Locale.ROOT);
+            ProtocolConfig first = new ProtocolConfig("a", firstProtocol, Collections.singletonMap("contextPath", "/a"));
+            ProtocolConfig second = new ProtocolConfig("b", secondProtocol, Collections.singletonMap("contextPath", "/b"));
+            InterAddress address = new InterAddress(transport, "127.0.0.1", port(), "test");
+            ConnectorConfig config = new ConnectorConfig("shared", address, options, Arrays.asList(first, second), true);
             ClassLoader loader = this.getClass().getClassLoader();
             MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
-                if (method.getName().equals("getConnectorConfigs")) {
+                if (StringUtils.equals(method.getName(), "getConnectorConfigs")) {
                     return Collections.singleton(config);
                 }
                 throw new UnsupportedOperationException(method.getName());
             });
             MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
-                if (method.getName().equals("getSettings")) {
+                if (StringUtils.equals(method.getName(), "getSettings")) {
                     return settings;
                 }
-                if (method.getName().equals("getClassLoader")) {
+                if (StringUtils.equals(method.getName(), "getClassLoader")) {
                     return loader;
                 }
                 throw new UnsupportedOperationException(method.getName());
@@ -401,7 +408,7 @@ public class EndpointRoutingTest {
             if (prefix.length < 2) {
                 return RouteMatch.NEED_MORE;
             }
-            return this.marker().equals(new String(prefix, 0, 2, StandardCharsets.US_ASCII)) ? RouteMatch.MATCH : RouteMatch.REJECT;
+            return StringUtils.equals(this.marker(), new String(prefix, 0, 2, StandardCharsets.US_ASCII)) ? RouteMatch.MATCH : RouteMatch.REJECT;
         }
 
         public ProtocolSession<byte[]> create(ProtocolConfig config, ProtocolContext context, NetworkChannel<byte[]> network, BiConsumer<Long, Payload> messages) {

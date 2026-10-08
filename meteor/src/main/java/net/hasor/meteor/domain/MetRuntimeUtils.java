@@ -11,8 +11,8 @@ import java.lang.reflect.Method;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import net.hasor.cobble.ClassUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 
 /**
  *
@@ -100,12 +100,7 @@ public class MetRuntimeUtils {
     }
 
     public static Method getServiceMethod(Class<?> serviceType, String methodName, Class<?>[] parameterTypes) {
-        StringBuilder oriStr = new StringBuilder(methodName);
-        if (parameterTypes != null) {
-            for (Class<?> paramType : parameterTypes) {
-                oriStr.append(paramType.getName());
-            }
-        }
+        // 先取得服务类型对应的方法缓存。
         ConcurrentMap<String, Method> methodMap = methodCache.get(serviceType);
         if (methodMap == null) {
             ConcurrentMap<String, Method> newMethodMap = new ConcurrentHashMap<String, Method>();
@@ -114,7 +109,15 @@ public class MetRuntimeUtils {
                 methodMap = newMethodMap;
             }
         }
-        //
+
+        // 参数类型共同构成方法键，用于区分重载。
+        StringBuilder oriStr = new StringBuilder(methodName);
+        if (parameterTypes != null) {
+            for (Class<?> paramType : parameterTypes) {
+                oriStr.append(paramType.getName());
+            }
+        }
+
         String finalStr = oriStr.toString();
         Method method = methodMap.get(finalStr);
         if (method == null) {
@@ -125,7 +128,7 @@ public class MetRuntimeUtils {
                     method = newMethod;
                 }
             } catch (Exception e) {
-                logger.error("find method {} of type {} fail -> {}", methodName, serviceType, e);
+                logger.error("find method " + methodName + " of type " + serviceType + " fail", e);
                 if (e instanceof RuntimeException) {
                     throw (RuntimeException) e;
                 }

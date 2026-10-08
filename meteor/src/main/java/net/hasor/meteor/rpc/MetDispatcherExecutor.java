@@ -12,9 +12,9 @@ import java.util.Map;
 import java.util.concurrent.*;
 import java.util.function.Supplier;
 import net.hasor.cobble.concurrent.ThreadUtils;
+import net.hasor.cobble.logging.Logger;
+import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.MetSettings;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * 业务线程
@@ -32,8 +32,7 @@ final class MetDispatcherExecutor {
         final int maxCorePoolSize = settings.getQueueMaxPoolSize();
         final int queueSize = settings.getQueueMaxSize();
         final long keepAliveTime = settings.getQueueKeepAliveTime();
-        this.logger.info("dispatcherExecutor init ->> minCorePoolSize ={}, maxCorePoolSize ={}, queueSize ={}, keepAliveTime ={}",//
-                minCorePoolSize, maxCorePoolSize, queueSize, keepAliveTime);
+        this.logger.info("dispatcherExecutor init ->> minCorePoolSize =" + minCorePoolSize + ", maxCorePoolSize =" + maxCorePoolSize + ", queueSize =" + queueSize + ", keepAliveTime =" + keepAliveTime);
 
         final BlockingQueue<Runnable> inWorkQueue = new LinkedBlockingQueue<>(queueSize);
         this.defaultExecutorProvider = () -> new ThreadPoolExecutor(//

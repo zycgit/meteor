@@ -19,7 +19,8 @@ public class JsonSerializeCoderTest {
 
     @Test
     public void unknownFieldsAndMissingFieldsAllowServiceDtoEvolution() throws Exception {
-        Payload decoded = (Payload) this.coder.decode("{\"name\":\"中文🙂\",\"futureField\":{\"value\":1}}".getBytes(StandardCharsets.UTF_8), Payload.class);
+        String json = "{\"name\":\"中文🙂\",\"futureField\":{\"value\":1}}";
+        Payload decoded = (Payload) this.coder.decode(json.getBytes(StandardCharsets.UTF_8), Payload.class);
         assertEquals("中文🙂", decoded.getName());
         assertEquals(0, decoded.getCount());
         assertEquals("\"中文\"", new String(this.coder.encode("中文"), StandardCharsets.UTF_8));

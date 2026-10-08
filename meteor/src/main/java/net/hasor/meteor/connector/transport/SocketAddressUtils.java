@@ -20,6 +20,7 @@ public final class SocketAddressUtils {
         }
 
         InetSocketAddress local = (InetSocketAddress) address;
-        return new InterAddress(configured.getSchema(), local.getAddress().getHostAddress(), local.getPort(), configured.getFormUnit());
+        String host = local.getAddress().getHostAddress();
+        return new InterAddress(configured.getSchema(), host, local.getPort(), configured.getFormUnit());
     }
 }

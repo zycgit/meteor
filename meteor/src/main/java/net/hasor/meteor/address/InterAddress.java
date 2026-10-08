@@ -152,9 +152,8 @@ public final class InterAddress {
      * @return 返回结果。
      */
     public boolean equals(Object obj) {
-        String diffURI = "";
         if (obj instanceof InterAddress) {
-            diffURI = ((InterAddress) obj).toHostSchema();
+            String diffURI = ((InterAddress) obj).toHostSchema();
             return StringUtils.equalsIgnoreCase(diffURI, this.toHostSchema());
         } else {
             return false;
@@ -168,7 +167,14 @@ public final class InterAddress {
 
     /** 判断连接地址是否是同一个。判断依据是参数值和{@link #getHostPort()}返回值做比较 */
     public boolean equalsHost(String evalResult) throws UnknownHostException {
-        return evalResult != null && (StringUtils.equalsIgnoreCase(getHostPort(), evalResult) || StringUtils.equalsIgnoreCase(getIpPort(), evalResult));
+        if (evalResult == null) {
+            return false;
+        }
+        if (StringUtils.equalsIgnoreCase(this.getHostPort(), evalResult)) {
+            return true;
+        }
+
+        return StringUtils.equalsIgnoreCase(this.getIpPort(), evalResult);
     }
 
     @Override
@@ -185,9 +191,19 @@ public final class InterAddress {
     }
 
     private static boolean checkFormat(URI serviceURL, boolean local) {
-        if (serviceURL == null || StringUtils.isBlank(serviceURL.getScheme()) || StringUtils.isBlank(serviceURL.getHost()) || serviceURL.getPort() < (local ? 0 : 1) || serviceURL.getPort() > 65535) {
+        if (serviceURL == null) {
             return false;
         }
+
+        boolean missingHost = StringUtils.isBlank(serviceURL.getHost());
+        boolean missingScheme = StringUtils.isBlank(serviceURL.getScheme());
+        int minimumPort = local ? 0 : 1;
+        int port = serviceURL.getPort();
+        boolean invalidPort = port < minimumPort || port > 65535;
+        if (missingScheme || missingHost || invalidPort) {
+            return false;
+        }
+
         String path = serviceURL.getPath();
         if (path == null || !path.startsWith("/") || path.length() == 1) {
             return false;
@@ -202,10 +218,10 @@ public final class InterAddress {
     private static List<String> localIpAddr() {
         List<String> ipList = new ArrayList<>();
         try {
-            Enumeration interfaces = NetworkInterface.getNetworkInterfaces();
+            Enumeration<?> interfaces = NetworkInterface.getNetworkInterfaces();
             while (interfaces.hasMoreElements()) {
                 NetworkInterface ni = (NetworkInterface) interfaces.nextElement();
-                Enumeration ipAddrEnum = ni.getInetAddresses();
+                Enumeration<?> ipAddrEnum = ni.getInetAddresses();
                 while (ipAddrEnum.hasMoreElements()) {
                     InetAddress addr = (InetAddress) ipAddrEnum.nextElement();
                     if (addr.isLoopbackAddress()) {
@@ -215,6 +231,7 @@ public final class InterAddress {
                     if (ip.contains(":")) {
                         continue;//skip the IPv6 addr
                     }
+
                     logger.debug("Interface: " + ni.getName() + ", IP: " + ip);
                     ipList.add(ip);
                 }

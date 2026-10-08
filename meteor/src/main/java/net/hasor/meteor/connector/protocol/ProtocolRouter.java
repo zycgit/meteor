@@ -11,9 +11,9 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import net.hasor.cobble.concurrent.future.BasicFuture;
+import net.hasor.meteor.connector.MetChannel;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ReceivedListener;
-import net.hasor.meteor.connector.MetChannel;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.NetworkRoute;
 import net.hasor.meteor.connector.transport.RoutedReceiver;
@@ -31,7 +31,11 @@ final class ProtocolRouter<M> implements RoutedReceiver<M> {
     private final Map<String, ProtocolChannel<M>>   sessions = new LinkedHashMap<>();
     private final Map<String, SessionConnection<M>> views    = new LinkedHashMap<>();
 
-    ProtocolRouter(EndpointConnector<M> owner, NetworkChannel<M> network, ReceivedListener receiver, Map<String, ProtocolFactory<M>> factories, Map<String, NetworkRoute<M>> routes, BasicFuture<MetChannel> connecting, boolean shared, Runnable terminated) {
+    ProtocolRouter(EndpointConnector<M> owner, NetworkChannel<M> network, ReceivedListener receiver,//
+            Map<String, ProtocolFactory<M>> factories,  //
+            Map<String, NetworkRoute<M>> routes,        //
+            BasicFuture<MetChannel> connecting,         //
+            boolean shared, Runnable terminated) {
         this.owner = owner;
         this.network = network;
         this.receiver = receiver;
@@ -63,9 +67,15 @@ final class ProtocolRouter<M> implements RoutedReceiver<M> {
         ProtocolChannel<M> session = this.sessions.get(route);
         if (session == null) {
             ProtocolConfig configured = this.owner.config().protocol(route);
-            ProtocolConfig effective = new ProtocolConfig(configured.name(), route, configured.protocol(), this.routes.get(route).options());
-            SessionConnection<M> view = new SessionConnection<>(this.network, route, this.shared && this.connecting == null);
-            session = new ProtocolChannel<>(this.owner, this.owner.manager().nextConnectionId(), this.receiver, view::execute, view, this.factories.get(route), this.connecting, effective);
+            Map<String, String> options = this.routes.get(route).options();
+            ProtocolConfig effective = new ProtocolConfig(configured.name(), route, configured.protocol(), options);
+
+            boolean inboundPartition = this.shared && this.connecting == null;
+            SessionConnection<M> view = new SessionConnection<>(this.network, route, inboundPartition);
+            long channelId = this.owner.manager().nextConnectionId();
+            ProtocolFactory<M> factory = this.factories.get(route);
+
+            session = new ProtocolChannel<>(this.owner, channelId, this.receiver, view::execute, view, factory, this.connecting, effective);
             view.onClose(session::closed);
             this.views.put(route, view);
             this.sessions.put(route, session);

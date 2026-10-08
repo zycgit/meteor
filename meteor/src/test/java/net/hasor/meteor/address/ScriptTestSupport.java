@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.address;
+import net.hasor.cobble.StringUtils;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -41,7 +42,11 @@ public abstract class ScriptTestSupport {
         Thread.currentThread().setContextClassLoader(new ClassLoader(this.originalLoader) {
             @Override
             public Enumeration<URL> getResources(String name) throws IOException {
-                return SERVICE.equals(name) ? Collections.enumeration(Collections.singletonList(url)) : super.getResources(name);
+                if (StringUtils.equals(SERVICE, name)) {
+                    return Collections.enumeration(Collections.singletonList(url));
+                } else {
+                    return super.getResources(name);
+                }
             }
         });
     }
@@ -61,7 +66,7 @@ public abstract class ScriptTestSupport {
         return new ClassLoader(this.originalLoader) {
             @Override
             public Enumeration<URL> getResources(String name) throws IOException {
-                return SERVICE.equals(name) ? Collections.emptyEnumeration() : super.getResources(name);
+                return StringUtils.equals(SERVICE, name) ? Collections.emptyEnumeration() : super.getResources(name);
             }
         };
     }

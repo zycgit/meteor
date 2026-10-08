@@ -8,6 +8,7 @@
 package net.hasor.meteor.address;
 import java.io.StringReader;
 import java.io.StringWriter;
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
@@ -57,8 +58,10 @@ public class FlowControlRef {
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            Element root = factory.newDocumentBuilder().parse(new InputSource(new StringReader(flowControl))).getDocumentElement();
-            if (!"controlSet".equals(root.getTagName())) {
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            InputSource source = new InputSource(new StringReader(flowControl));
+            Element root = builder.parse(source).getDocumentElement();
+            if (!StringUtils.equals("controlSet", root.getTagName())) {
                 return false;
             }
 
@@ -68,7 +71,7 @@ public class FlowControlRef {
                 if (!(node instanceof Element)) {
                     continue;
                 }
-                if (!"flowControl".equals(node.getNodeName())) {
+                if (!StringUtils.equals("flowControl", node.getNodeName())) {
                     return false;
                 }
 

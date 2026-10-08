@@ -38,7 +38,11 @@ public final class SessionConnection<M> implements NetworkChannel<M> {
     }
 
     private InterAddress address(InterAddress address) {
-        return address == null ? null : new InterAddress(this.scheme, address.getHost(), address.getPort(), address.getFormUnit());
+        if (address == null) {
+            return null;
+        } else {
+            return new InterAddress(this.scheme, address.getHost(), address.getPort(), address.getFormUnit());
+        }
     }
 
     public InterAddress getLocal() {

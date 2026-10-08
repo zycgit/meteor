@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
@@ -136,22 +137,24 @@ public class SocketLifecycleTest {
         options.put("listenType", "tcp");
         options.put("workerThread", "1");
         options.put("protocol", "rawprotocol");
-        ConnectorConfig config = new ConnectorConfig("raw", this.address(port), options, Collections.singletonList(new ProtocolConfig("raw", "raw", options.getOrDefault("protocol", "raw"), options)), true);
+        String protocolName = options.getOrDefault("protocol", "raw");
+        ProtocolConfig mount = new ProtocolConfig("raw", "raw", protocolName, options);
+        ConnectorConfig config = new ConnectorConfig("raw", this.address(port), options, Collections.singletonList(mount), true);
         ClassLoader loader = this.getClass().getClassLoader();
         MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
-            if ("getConnectorConfigs".equals(method.getName())) {
+            if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                 return Collections.singletonList(config);
             }
-            if ("getDefaultTimeout".equals(method.getName())) {
+            if (StringUtils.equals("getDefaultTimeout", method.getName())) {
                 return 10000;
             }
             throw new AssertionError(method);
         });
         MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
-            if ("getSettings".equals(method.getName())) {
+            if (StringUtils.equals("getSettings", method.getName())) {
                 return settings;
             }
-            if ("getClassLoader".equals(method.getName())) {
+            if (StringUtils.equals("getClassLoader", method.getName())) {
                 return loader;
             }
             throw new AssertionError(method);

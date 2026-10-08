@@ -7,13 +7,13 @@
  */
 package net.hasor.meteor.connector.transport.http;
 import java.io.IOException;
+import java.util.Map;
 import net.hasor.neta.channel.ProtoContext;
 import net.hasor.neta.channel.ProtoHandler;
 import net.hasor.neta.channel.ProtoStatus;
 import net.hasor.neta.channel.data.ProtoRcvQueue;
 import net.hasor.neta.channel.data.ProtoSndQueue;
 import net.hasor.neta.codec.http.FullHttpRequest;
-
 import static net.hasor.meteor.connector.transport.http.HttpMessages.*;
 
 /**
@@ -35,7 +35,10 @@ final class HttpServerHandler implements ProtoHandler<FullHttpRequest, Object> {
                     throw new IOException("Malformed HTTP request: " + request.badReason());
                 }
 
-                HttpRequest copy = new HttpRequest(request.method().name(), request.uri(), headers(request), body(request.content()));
+                String method = request.method().name();
+                Map<String, String> requestHeaders = headers(request);
+                byte[] content = body(request.content());
+                HttpRequest copy = new HttpRequest(method, request.uri(), requestHeaders, content);
                 dst.offerMessage(new HttpInbound(this.route, copy, keepAlive(request.protocolVersion(), request)));
             } finally {
                 request.release();

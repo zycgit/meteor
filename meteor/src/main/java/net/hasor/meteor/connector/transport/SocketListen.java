@@ -7,8 +7,8 @@
  */
 package net.hasor.meteor.connector.transport;
 import net.hasor.cobble.concurrent.future.BasicFuture;
-import net.hasor.neta.channel.NetListen;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.neta.channel.NetListen;
 
 /**
  * UDP suspension preserves the shared socket for established peers until connector disposal.

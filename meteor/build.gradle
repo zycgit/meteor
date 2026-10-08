@@ -9,10 +9,9 @@ description = 'Meteor framework with configuration, context assembly, RPC, servi
 dependencies {
     api "net.hasor:cobble-all:${property('lib.cobble')}"
     api "net.hasor:neta-core:${property('lib.neta')}"
-    api "net.hasor:neta-codec-http:${property('lib.neta')}"
     api "org.codehaus.groovy:groovy:${property('lib.groovy')}"
 
-    implementation "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+    implementation "net.hasor:neta-codec-http:${property('lib.neta')}"
     implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
     implementation "com.caucho:hessian:${property('lib.hessian')}"
 }

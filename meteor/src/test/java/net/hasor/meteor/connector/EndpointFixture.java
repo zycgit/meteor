@@ -25,7 +25,9 @@ final class EndpointFixture implements AutoCloseable {
     }
 
     static ConnectorConfig config(String name) {
-        return new ConnectorConfig(name, address(name), Collections.singletonMap("listenType", "memory"), Collections.singletonList(new ProtocolConfig(name, name, name, Collections.singletonMap("listenType", "memory"))), true);
+        Map<String, String> options = Collections.singletonMap("listenType", "memory");
+        ProtocolConfig protocol = new ProtocolConfig(name, name, name, options);
+        return new ConnectorConfig(name, address(name), options, Collections.singletonList(protocol), true);
     }
 
     EndpointFixture(String... names) {
