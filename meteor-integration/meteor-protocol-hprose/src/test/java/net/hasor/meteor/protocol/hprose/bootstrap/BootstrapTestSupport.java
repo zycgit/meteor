@@ -20,23 +20,21 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.address.route.ArgsKey;
-import net.hasor.meteor.bootstrap.Configuration;
+import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.serialize.SerializeCoder;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.fail;
 
-/** Test-owned context construction and cleanup; no separate network manager or production test hook. */
+/** 集成用例共用的配置、服务契约和线程泄漏检查；资源由各场景自行关闭。 */
 public abstract class BootstrapTestSupport {
     @Rule
-    public        TemporaryFolder  temporary       = new TemporaryFolder();
-    private final List<MetContext> contexts        = new ArrayList<>();
-    private final Set<Integer>     allocatedPorts  = new HashSet<>();
-    private final Set<Thread>      originalThreads = Thread.getAllStackTraces().keySet();
+    public        TemporaryFolder temporary       = new TemporaryFolder();
+    private final Set<Integer>    allocatedPorts  = new HashSet<>();
+    private final Set<Thread>     originalThreads = Thread.getAllStackTraces().keySet();
 
     protected final int port() throws IOException {
         while (true) {
@@ -49,20 +47,14 @@ public abstract class BootstrapTestSupport {
         }
     }
 
-    protected final Configuration configuration() throws IOException {
-        return this.configuration(this.port());
+    protected final MetConfiguration configuration() {
+        return this.configuration(0);
     }
 
-    protected final Configuration configuration(int port) {
-        Configuration configuration = new Configuration().setSerializeType("Java");
+    protected final MetConfiguration configuration(int port) {
+        MetConfiguration configuration = new MetConfiguration().setSerializeType("Java");
         configuration.connector("tcp").bind("127.0.0.1", port).protocol("rsf");
         return configuration;
-    }
-
-    protected final MetContext context(Configuration configuration) throws IOException {
-        MetContext context = configuration.buildContext(this.getClass().getClassLoader());
-        this.contexts.add(context);
-        return context;
     }
 
     protected final URLClassLoader spiLoader(String provider) throws IOException {
@@ -74,29 +66,26 @@ public abstract class BootstrapTestSupport {
     }
 
     @After
-    public final void closeContextsAndCheckThreads() throws Exception {
-        try {
-            for (int index = this.contexts.size() - 1; index >= 0; index--) {
-                this.contexts.get(index).close();
-            }
-        } finally {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-            List<String> remaining = new ArrayList<>();
-            do {
-                remaining.clear();
-                for (Thread thread : Thread.getAllStackTraces().keySet()) {
-                    if (!this.originalThreads.contains(thread) && thread.isAlive() && thread.getName().startsWith("RSF")) {
-                        remaining.add(thread.getName());
-                    }
+    public final void checkThreadsAfterTest() throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        List<String> remaining = new ArrayList<>();
+        do {
+            remaining.clear();
+            for (Thread thread : Thread.getAllStackTraces().keySet()) {
+                String name = thread.getName();
+                boolean frameworkThread = name.startsWith("RSF") || name.startsWith("Meteor");
+                boolean newThread = !this.originalThreads.contains(thread);
+                if (newThread && thread.isAlive() && frameworkThread) {
+                    remaining.add(thread.getName());
                 }
-                if (remaining.isEmpty()) {
-                    break;
-                }
-                Thread.sleep(10);
-            } while (System.nanoTime() < deadline);
-            if (!remaining.isEmpty()) {
-                fail("RSF threads leaked: " + remaining);
             }
+            if (remaining.isEmpty()) {
+                break;
+            }
+            Thread.sleep(10);
+        } while (System.nanoTime() < deadline);
+        if (!remaining.isEmpty()) {
+            fail("Meteor threads leaked: " + remaining);
         }
     }
 
@@ -107,23 +96,6 @@ public abstract class BootstrapTestSupport {
         } catch (ExecutionException expected) {
             return expected.getCause();
         }
-    }
-
-    @FunctionalInterface
-    protected interface ThrowingAction {
-        void run() throws Throwable;
-    }
-
-    protected static <T extends Throwable> T assertThrows(Class<T> type, ThrowingAction action) {
-        try {
-            action.run();
-        } catch (Throwable failure) {
-            if (!type.isInstance(failure)) {
-                throw new AssertionError("Expected " + type.getName(), failure);
-            }
-            return type.cast(failure);
-        }
-        throw new AssertionError("Expected " + type.getName());
     }
 
     public interface Echo {

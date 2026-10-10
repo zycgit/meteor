@@ -1,0 +1,14 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+description = 'Meteor nacos registry adapter.'
+
+dependencies {
+    api project(':meteor-registry')
+    implementation "com.alibaba.nacos:nacos-client:${property('lib.nacos')}"
+
+    // for test
+    testImplementation "org.mockito:mockito-core:${property('lib.mockito')}"
+}

@@ -6,20 +6,20 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.hprose.bootstrap;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.ServiceConfigurationError;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.bootstrap.Configuration;
+import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.protocol.rsf.codec.CodecAdapterForV1;
 import net.hasor.meteor.connector.protocol.rsf.codec.RequestBlock;
-import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetRuntimeUtils;
+import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.serialize.SerializeCoder;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
@@ -97,8 +97,10 @@ public class ContextIsolationTest extends BootstrapTestSupport {
 
     @Test
     public void invalidSpiCoderIsReportedAsAnRsfSerializationError() throws Exception {
-        for (String coderClass : new String[] { "missing.Coder", ContextIsolationTest.class.getName(), FailingCoder.class.getName(), NoDefaultConstructorCoder.class.getName() }) {
-            Configuration settings = new Configuration();
+        // 分别验证类缺失、类型不符、初始化失败及构造方法不符合 SPI 要求。
+        String[] invalidProviders = { "missing.Coder", ContextIsolationTest.class.getName(), FailingCoder.class.getName(), NoDefaultConstructorCoder.class.getName() };
+        for (String coderClass : invalidProviders) {
+            MetConfiguration settings = new MetConfiguration();
             try (URLClassLoader loader = this.spiLoader(coderClass)) {
                 try (MetContext ignored = settings.buildContext(loader)) {
                     fail("Invalid coder accepted: " + coderClass);
@@ -106,7 +108,7 @@ public class ContextIsolationTest extends BootstrapTestSupport {
                     assertEquals(ProtocolStatus.SerializeError, expected.getStatus());
                     assertTrue(expected.getCause() instanceof IllegalArgumentException);
                     Throwable cause = expected.getCause();
-                    if (coderClass.equals("missing.Coder")) {
+                    if (StringUtils.equals(coderClass, "missing.Coder")) {
                         assertTrue(cause.getCause() instanceof ServiceConfigurationError);
                     }
                     if (cause.getCause() instanceof ServiceConfigurationError) {
@@ -121,19 +123,27 @@ public class ContextIsolationTest extends BootstrapTestSupport {
     @Test
     public void protocolAdaptersUseTheirOwnRuntimeSpiCoders() throws Exception {
         for (String tag : new String[] { "first-", "second-" }) {
-            Configuration settings = new Configuration().setSerializeType("Tagged");
-            Class<? extends SerializeCoder> coderClass = tag.equals("first-") ? TaggedCoder.class : SecondTaggedCoder.class;
-            try (URLClassLoader loader = this.spiLoader(coderClass.getName()); MetContext runtime = settings.buildContext(loader)) {
+            MetConfiguration settings = new MetConfiguration().setSerializeType("Tagged");
+            Class<? extends SerializeCoder> coderClass = TaggedCoder.class;
+            if (StringUtils.equals(tag, "second-")) {
+                coderClass = SecondTaggedCoder.class;
+            }
+            try (URLClassLoader loader = this.spiLoader(coderClass.getName()); //
+                 MetContext runtime = settings.buildContext(loader)) {
                 assertSame(loader, ((TaggedCoder) runtime.getSerializeCoder("Tagged")).initializedLoader);
                 assertSame(runtime.getSerializeCoder("Tagged"), runtime.getSerializeCoder("tagged"));
                 assertNull(runtime.getSerializeCoder("unknown"));
+
+                // 检查 RSF 实际报文池中的字节，确认使用当前上下文发现的编码器。
                 RequestPayload request = new RequestPayload();
                 request.setRequestID(1);
                 request.setSerializeType("tagged");
                 request.addParameter("java.lang.String", "value");
                 RequestBlock block = new CodecAdapterForV1(runtime).buildRequestBlock(request);
                 try {
-                    assertEquals(tag + "value", new String(block.readPool((short) (block.getParameters()[0] & 0xFFFF)), StandardCharsets.UTF_8));
+                    short valueIndex = (short) (block.getParameters()[0] & 0xFFFF);
+                    byte[] encoded = block.readPool(valueIndex);
+                    assertEquals(tag + "value", new String(encoded, StandardCharsets.UTF_8));
                 } finally {
                     block.release();
                 }
@@ -143,9 +153,12 @@ public class ContextIsolationTest extends BootstrapTestSupport {
 
     @Test
     public void runtimesOwnIdentityAndCodersWhenSharingSettings() throws Exception {
-        Configuration settings = new Configuration();
+        MetConfiguration settings = new MetConfiguration();
         settings.setDataHome(Paths.get("runtime-data"));
-        try (URLClassLoader firstLoader = this.spiLoader(TaggedCoder.class.getName()); URLClassLoader secondLoader = this.spiLoader(TaggedCoder.class.getName()); MetContext first = settings.buildContext(firstLoader); MetContext second = settings.buildContext(secondLoader)) {
+        try (URLClassLoader firstLoader = this.spiLoader(TaggedCoder.class.getName()); //
+             URLClassLoader secondLoader = this.spiLoader(TaggedCoder.class.getName()); //
+             MetContext first = settings.buildContext(firstLoader); //
+             MetContext second = settings.buildContext(secondLoader)) {
             assertNotSame(first.getSettings(), second.getSettings());
             TaggedCoder firstTagged = (TaggedCoder) first.getSerializeCoder("Tagged");
             TaggedCoder secondTagged = (TaggedCoder) second.getSerializeCoder("Tagged");
@@ -166,6 +179,8 @@ public class ContextIsolationTest extends BootstrapTestSupport {
             assertNotSame(firstCoder, secondCoder);
             assertSame(firstCoder, first.getSerializeCoder("Java"));
             assertNull(first.getSerializeCoder(null));
+
+            // 关闭一个上下文不影响另一个上下文的编解码器及实例标识。
             first.close();
             assertSame(secondCoder, second.getSerializeCoder("Java"));
             assertEquals("active", secondCoder.decode(secondCoder.encode("active"), String.class));
@@ -180,27 +195,22 @@ public class ContextIsolationTest extends BootstrapTestSupport {
         String name = Payload.class.getName();
         byte[] bytes;
         try (InputStream input = this.getClass().getResourceAsStream("/" + name.replace('.', '/') + ".class")) {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            byte[] buffer = new byte[1024];
-            int n;
-            while ((n = input.read(buffer)) != -1) {
-                output.write(buffer, 0, n);
-            }
-            bytes = output.toByteArray();
+            bytes = input.readAllBytes();
         }
+        // 同名类由另一个加载器重新定义，类型缓存不能跨加载器复用。
         ClassLoader isolated = new ClassLoader(this.getClass().getClassLoader()) {
             @Override
             protected Class<?> loadClass(String requested, boolean resolve) throws ClassNotFoundException {
-                if (!name.equals(requested)) {
+                if (!StringUtils.equals(name, requested)) {
                     return super.loadClass(requested, resolve);
                 }
-                synchronized (getClassLoadingLock(requested)) {
-                    Class<?> type = findLoadedClass(requested);
+                synchronized (this.getClassLoadingLock(requested)) {
+                    Class<?> type = this.findLoadedClass(requested);
                     if (type == null) {
-                        type = defineClass(requested, bytes, 0, bytes.length);
+                        type = this.defineClass(requested, bytes, 0, bytes.length);
                     }
                     if (resolve) {
-                        resolveClass(type);
+                        this.resolveClass(type);
                     }
                     return type;
                 }
@@ -214,9 +224,12 @@ public class ContextIsolationTest extends BootstrapTestSupport {
 
     @Test
     public void spiCodersAreDiscoveredPerContextAndUsedForRemoteCalls() throws Exception {
-        Configuration serverSettings = this.configuration().setSerializeType("spi");
-        Configuration clientSettings = this.configuration().setSerializeType("sPi");
-        try (URLClassLoader serverLoader = this.spiLoader(SpiCoder.class.getName()); URLClassLoader clientLoader = this.spiLoader(SpiCoder.class.getName()); MetContext server = serverSettings.buildContext(serverLoader); MetContext client = clientSettings.buildContext(clientLoader)) {
+        MetConfiguration serverSettings = this.configuration().setSerializeType("spi");
+        MetConfiguration clientSettings = this.configuration().setSerializeType("sPi");
+        try (URLClassLoader serverLoader = this.spiLoader(SpiCoder.class.getName()); //
+             URLClassLoader clientLoader = this.spiLoader(SpiCoder.class.getName()); //
+             MetContext server = serverSettings.buildContext(serverLoader); //
+             MetContext client = clientSettings.buildContext(clientLoader)) {
             SpiCoder serverCoder = (SpiCoder) server.getSerializeCoder("SPI");
             SpiCoder clientCoder = (SpiCoder) client.getSerializeCoder("SPI");
             assertSame(serverCoder, server.getSerializeCoder("spi"));
@@ -226,11 +239,15 @@ public class ContextIsolationTest extends BootstrapTestSupport {
             assertSame(clientLoader, clientCoder.loader);
             assertEquals(1, serverCoder.initializations);
             assertEquals(1, clientCoder.initializations);
+
+            // 用真实网络调用确认客户端和服务端使用各自的 SPI 编解码器。
             server.publisher().rsfService(Echo.class, new EchoService()).register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
             assertEquals("sPi", service.getSerializeType());
+
             server.start();
             client.start();
+
             Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
             assertEquals("SPI 中文", remote.echo("SPI 中文"));
             assertEquals(5, remote.add(2, 3));

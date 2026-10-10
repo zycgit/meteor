@@ -11,8 +11,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import hprose.io.HproseWriter;
 import org.junit.Test;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class HproseResponseTest {
     @Test
@@ -21,19 +21,16 @@ public class HproseResponseTest {
         out.write('E');
         new HproseWriter(out).writeString("远端失败");
         out.write('z');
-        try {
-            HproseUtils.decodeResponse(new ByteArrayInputStream(out.toByteArray()));
-            fail();
-        } catch (IOException expected) {
-            assertTrue(expected.getMessage().contains("远端失败"));
-        }
+        // 协议错误帧必须保留远端原因，不得被当作 null 返回值。
+        ByteArrayInputStream input = new ByteArrayInputStream(out.toByteArray());
+        IOException failure = assertThrows(IOException.class, () -> HproseUtils.decodeResponse(input));
+        assertTrue(failure.getMessage().contains("远端失败"));
+
+        // 缺失响应标记与未知响应标记都属于格式错误。
         for (byte[] malformed : new byte[][] { new byte[0], new byte[] { '?' } }) {
-            try {
-                HproseUtils.decodeResponse(new ByteArrayInputStream(malformed));
-                fail();
-            } catch (IOException expected) {
-                assertTrue(expected.getMessage().contains("Invalid Hprose response"));
-            }
+            ByteArrayInputStream invalid = new ByteArrayInputStream(malformed);
+            IOException error = assertThrows(IOException.class, () -> HproseUtils.decodeResponse(invalid));
+            assertTrue(error.getMessage().contains("Invalid Hprose response"));
         }
     }
 }

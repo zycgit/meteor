@@ -12,7 +12,7 @@ import java.util.function.BiConsumer;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.bootstrap.Configuration;
+import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.protocol.ProtocolContext;
@@ -26,10 +26,16 @@ import static org.junit.Assert.*;
 public class ConnectorSpiTest {
     @Test
     public void connectorSpecificConfigurationIsPassedWithoutFrameworkChanges() throws Exception {
-        Configuration settings = new Configuration();
-        settings.connector("custom").bind("127.0.0.1", 23000).option("custom.nested", "custom-value").option("custom.parallelism", 3).protocol("custom-test");
+        // 自定义传输和协议均通过测试 SPI 注册，参数从正式配置传递。
+        MetConfiguration settings = new MetConfiguration();
+        MetConfiguration.ConnectorSettings custom = settings.connector("custom");
+        custom.bind("127.0.0.1", 23000);
+        custom.option("custom.nested", "custom-value");
+        custom.option("custom.parallelism", 3);
+        custom.protocol("custom-test");
         try (MetContext runtime = settings.buildContext()) {
             assertNull(runtime.bindAddress("custom-test"));
+
             runtime.start();
             assertEquals(Collections.singleton("custom-test"), runtime.runProtocols());
             assertEquals(23000, runtime.bindAddress("custom-test").getPort());
@@ -39,26 +45,24 @@ public class ConnectorSpiTest {
 
     @Test
     public void assemblyClosesAllConnectorsAfterPartialBindAndPreservesCause() throws Exception {
+        // 第二个监听故障不能留下第一个监听及任意已创建连接器。
         FailingTransport.events.clear();
         FailingTransport.bindings = 0;
         FailingTransport.firstListen = null;
-        Configuration settings = new Configuration();
+        MetConfiguration settings = new MetConfiguration();
         settings.connector("failing").bind("127.0.0.1", 2181).protocol("failing-test");
         settings.connector("failing").bind("127.0.0.1", 2182).protocol("failing-second");
         try (MetContext runtime = settings.buildContext()) {
-            try {
-                runtime.start();
-                fail("Second listener must fail startup");
-            } catch (IllegalStateException expected) {
-                assertSame(FailingTransport.failure, expected.getCause());
-            }
+            IllegalStateException failure = assertThrows(IllegalStateException.class, runtime::start);
+            assertSame(FailingTransport.failure, failure.getCause());
             assertFalse(runtime.isOnline());
             assertTrue(runtime.runProtocols().isEmpty());
             assertEquals(4, FailingTransport.events.size());
             String first = FailingTransport.events.get(0).substring("bind:".length());
             String second = FailingTransport.events.get(1).substring("bind:".length());
             assertEquals(Arrays.asList("bind:" + first, "bind:" + second), FailingTransport.events.subList(0, 2));
-            assertEquals(new HashSet<>(Arrays.asList("close:" + first, "close:" + second)), new HashSet<>(FailingTransport.events.subList(2, 4)));
+            Set<String> closed = new HashSet<>(FailingTransport.events.subList(2, 4));
+            assertEquals(Set.of("close:" + first, "close:" + second), closed);
             assertNotNull(FailingTransport.firstListen);
             assertFalse(FailingTransport.firstListen.isOpen());
         }
@@ -75,7 +79,7 @@ public class ConnectorSpiTest {
         }
 
         public NetworkConnector<byte[]> create(ConnectorConfig config, ClassLoader loader) {
-            // Plugin options reach the actual transport without changing the assembler.
+            // 验证组装器把协议专属参数原样传给传输提供者。
             assertEquals("custom-value", config.option("custom.nested", null));
             assertEquals(3, config.integer("custom.parallelism", 1));
             return new StubConnector();

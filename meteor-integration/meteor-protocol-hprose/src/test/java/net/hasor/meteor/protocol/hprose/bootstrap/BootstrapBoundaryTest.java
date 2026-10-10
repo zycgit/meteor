@@ -44,79 +44,53 @@ import static org.junit.Assert.*;
 
 public class BootstrapBoundaryTest {
     @Test
-    public void builtinSerializationClassesComeOnlyFromTheFrameworkComponent() throws Exception {
+    public void frameworkClassesHaveASingleOwner() throws Exception {
+        // 插件仅提供协议能力；基础契约、容器、地址本和调用链仍来自同一个框架组件。
+        List<Class<?>> types = new ArrayList<>();
+        types.addAll(List.of(SerializeCoder.class, SerializeFactory.class, JavaSerializeCoder.class, JsonSerializeCoder.class, HessianSerializeCoder.class));
+        types.addAll(List.of(AddressPool.class, DiskCache.class, InterAddress.class, AddressProvider.class, InstanceAddressProvider.class, PoolAddressProvider.class, GroovyRuleScriptEngine.class));
+        types.addAll(List.of(MetContext.class, MetRequest.class, RequestPayload.class, MetRequestObject.class, MetResponseObject.class, ServiceDomain.class, MetCaller.class, MetClientImpl.class));
+        types.addAll(List.of(LocalPref.class, OnlineMetFilter.class, LocalWarpFilter.class, MetRequestLocal.class, MetResponseLocal.class, MetContainer.class));
         ClassLoader loader = this.getClass().getClassLoader();
-        for (Class<?> type : Arrays.asList(SerializeCoder.class, SerializeFactory.class, JavaSerializeCoder.class, JsonSerializeCoder.class, HessianSerializeCoder.class)) {
-            assertEquals(1, Collections.list(loader.getResources(type.getName().replace('.', '/') + ".class")).size());
-            assertEquals(RequestPayload.class.getProtectionDomain().getCodeSource().getLocation(), type.getProtectionDomain().getCodeSource().getLocation());
-            assertEquals(MetContextImpl.class.getProtectionDomain().getCodeSource().getLocation(), type.getProtectionDomain().getCodeSource().getLocation());
+        URL framework = MetContextImpl.class.getProtectionDomain().getCodeSource().getLocation();
+        for (Class<?> type : types) {
+            String resource = type.getName().replace('.', '/') + ".class";
+            List<URL> definitions = Collections.list(loader.getResources(resource));
+            assertEquals(type.getName(), 1, definitions.size());
+            assertEquals(type.getName(), framework, type.getProtectionDomain().getCodeSource().getLocation());
         }
-    }
-
-    @Test
-    public void addressAndApiClassesComeOnlyFromTheFrameworkComponent() throws Exception {
-        ClassLoader loader = this.getClass().getClassLoader();
-        for (Class<?> type : Arrays.asList(AddressPool.class, DiskCache.class, InterAddress.class, AddressProvider.class, InstanceAddressProvider.class, PoolAddressProvider.class, GroovyRuleScriptEngine.class, MetContext.class, MetRequest.class, RequestPayload.class, MetRequestObject.class, MetResponseObject.class, ServiceDomain.class)) {
-            assertEquals(1, Collections.list(loader.getResources(type.getName().replace('.', '/') + ".class")).size());
-            assertEquals(RequestPayload.class.getProtectionDomain().getCodeSource().getLocation(), type.getProtectionDomain().getCodeSource().getLocation());
-            assertEquals(MetContextImpl.class.getProtectionDomain().getCodeSource().getLocation(), type.getProtectionDomain().getCodeSource().getLocation());
-        }
-        try {
-            Class.forName("net.hasor.meteor.InterAddress");
-            fail("Legacy address model still exists");
-        } catch (ClassNotFoundException expected) {
-        }
-    }
-
-    @Test
-    public void rpcClassesComeOnlyFromTheFrameworkComponent() throws Exception {
-        URL rpcLocation = MetCaller.class.getProtectionDomain().getCodeSource().getLocation();
-        assertEquals(MetContext.class.getProtectionDomain().getCodeSource().getLocation(), rpcLocation);
-        for (Class<?> type : Arrays.asList(MetCaller.class, MetClientImpl.class, LocalPref.class, OnlineMetFilter.class, LocalWarpFilter.class, MetRequestLocal.class, MetResponseLocal.class)) {
-            assertEquals(1, Collections.list(this.getClass().getClassLoader().getResources(type.getName().replace('.', '/') + ".class")).size());
-            assertEquals(rpcLocation, type.getProtectionDomain().getCodeSource().getLocation());
-        }
-        assertEquals(MetContextImpl.class.getProtectionDomain().getCodeSource().getLocation(), rpcLocation);
-    }
-
-    @Test
-    public void containerClassesComeOnlyFromTheFrameworkComponent() throws Exception {
-        URL containerLocation = MetContainer.class.getProtectionDomain().getCodeSource().getLocation();
-        assertEquals(MetContextImpl.class.getProtectionDomain().getCodeSource().getLocation(), containerLocation);
-        assertEquals(MetContext.class.getProtectionDomain().getCodeSource().getLocation(), containerLocation);
-        for (Class<?> type : Arrays.asList(MetContainer.class)) {
-            assertEquals(1, Collections.list(this.getClass().getClassLoader().getResources(type.getName().replace('.', '/') + ".class")).size());
-            assertEquals(containerLocation, type.getProtectionDomain().getCodeSource().getLocation());
-        }
+        assertThrows(ClassNotFoundException.class, () -> Class.forName("net.hasor.meteor.InterAddress"));
     }
 
     @Test
     public void runtimeClasspathContainsNoHasorContainerOrLegacyUtilities() throws Exception {
-        for (String name : Arrays.asList("net.hasor.core.AppContext", "net.hasor.core.Hasor", "net.hasor.utils.StringUtils", "net.hasor.tconsole.TelCommand")) {
-            try {
-                Class.forName(name);
-                fail("Unexpected dependency: " + name);
-            } catch (ClassNotFoundException expected) {
-            }
+        // 插件引入后仍不应带回旧容器、工具包或控制台依赖。
+        List<String> legacyTypes = List.of("net.hasor.core.AppContext", "net.hasor.core.Hasor", "net.hasor.utils.StringUtils", "net.hasor.tconsole.TelCommand");
+        for (String name : legacyTypes) {
+            assertThrows("Unexpected dependency: " + name, ClassNotFoundException.class, () -> Class.forName(name));
         }
         assertNull(this.getClass().getClassLoader().getResource("META-INF/hasor.schemas"));
     }
 
     @Test
     public void originalWireTypeDescriptorsResolvePrimitivesAndArrays() throws Exception {
-        for (Class<?> type : new Class<?>[] { int.class, boolean.class, byte.class, short.class, long.class, float.class, double.class, char.class, String.class, int[].class, String[][].class }) {
-            assertSame(type, MetRuntimeUtils.getType(MetRuntimeUtils.toAsmType(type), this.getClass().getClassLoader()));
+        List<Class<?>> types = List.of(int.class, boolean.class, byte.class, short.class, long.class, float.class, double.class, char.class, String.class, int[].class, String[][].class);
+        for (Class<?> type : types) {
+            String descriptor = MetRuntimeUtils.toAsmType(type);
+            assertSame(type, MetRuntimeUtils.getType(descriptor, this.getClass().getClassLoader()));
             assertSame(type, MetRuntimeUtils.getType(type.getName(), this.getClass().getClassLoader()));
         }
     }
 
     @Test
     public void publisherPublicApiDoesNotExposeContainerTypes() {
-        List<Class<?>> types = new ArrayList<>(Arrays.asList(MetPublisher.class, MetContext.class, MetBindInfo.class, MetSettings.class));
+        List<Class<?>> contracts = List.of(MetPublisher.class, MetContext.class, MetBindInfo.class, MetSettings.class);
+        List<Class<?>> types = new ArrayList<>(contracts);
         types.addAll(Arrays.asList(MetPublisher.class.getDeclaredClasses()));
         for (Class<?> type : types) {
             for (Method method : type.getMethods()) {
-                assertFalse(method.toGenericString(), method.toGenericString().contains("net.hasor.core"));
+                String signature = method.toGenericString();
+                assertFalse(signature, signature.contains("net.hasor.core"));
             }
         }
     }

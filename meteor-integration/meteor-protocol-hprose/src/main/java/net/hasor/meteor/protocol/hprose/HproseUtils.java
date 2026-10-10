@@ -13,16 +13,18 @@ import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.util.*;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import hprose.io.HproseReader;
-import hprose.io.HproseTags;
 import hprose.io.HproseWriter;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.MetException;
+import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 
@@ -31,10 +33,15 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
  * @version : 2017年1月28日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class HproseUtils implements HproseConstants {
-    private static final ObjectMapper ERROR_MAPPER = new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
+public final class HproseUtils implements HproseConstants {
+    private static final ObjectMapper ERROR_MAPPER = new ObjectMapper()//
+            .setSerializationInclusion(JsonInclude.Include.NON_NULL)//
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
-    /***/
+    private HproseUtils() {
+    }
+
+    /** 返回已发布服务的 Hprose 方法别名。 */
     public static String[] doFunction(MetContext context) {
         Set<String> allMethod = new LinkedHashSet<>();
         allMethod.add("*");
@@ -52,166 +59,91 @@ public class HproseUtils implements HproseConstants {
                 continue;
             }
 
-            Method[] methodArrays = serviceInfo.getBindType().getMethods();
+            Method[] methodArrays = MetRuntimeUtils.getServiceMethods(serviceInfo.getBindType());
             for (Method method : methodArrays) {
-                StringBuilder define = new StringBuilder();
-                define = define.append(aliasName);
-                define = define.append("_");
-                define = define.append(method.getName());
-                allMethod.add(define.toString());
+                allMethod.add(aliasName + "_" + method.getName());
             }
         }
         return allMethod.toArray(new String[allMethod.size()]);
     }
 
-    /***/
-    public static RequestPayload[] doCall(MetContext context, InputStream content, String requestURI, String origin) throws MetException, IOException {
+    /** 解析单个调用；批量调用和引用参数返回尚不支持。 */
+    public static RequestPayload doCall(MetContext context, InputStream content, String requestURI, String origin) throws IOException {
         HproseReader reader = new HproseReader(content);
-        List<RequestPayload> infoArrays = new ArrayList<RequestPayload>();
-        parseRequest(context, reader, infoArrays);
-        content.skip(content.available());
-        for (RequestPayload info : infoArrays) {
-            info.addOption("Location", requestURI);
-            info.addOption("Origin", origin);
+        String callName = reader.readString();
+        int separator = callName == null ? -1 : callName.lastIndexOf('_');
+        if (separator <= 0 || separator == callName.length() - 1) {
+            throw new MetException(ProtocolStatus.ProtocolError, "Invalid Hprose call name: " + callName);
         }
 
-        return infoArrays.toArray(new RequestPayload[infoArrays.size()]);
-    }
-
-    /***/
-    private static void parseRequest(MetContext context, HproseReader reader, List<RequestPayload> infoArrays) throws IOException {
-        String callName = null;
-        try {
-            callName = reader.readString();
+        // 先确定服务与参数个数，再使用同一个 reader 解析完整参数列表，保留参数间的引用。
+        String alias = callName.substring(0, separator);
+        MetBindInfo<?> service = context.getServiceInfo(HPROSE, alias);
+        while (service == null && (separator = callName.lastIndexOf('_', separator - 1)) > 0) {
+            alias = callName.substring(0, separator);
+            service = context.getServiceInfo(HPROSE, alias);
+        }
+        if (service == null) {
+            throw new MetException(ProtocolStatus.NotFound, "Hprose service alias not found: " + callName);
+        }
+        String methodName = callName.substring(separator + 1);
+        int tag = reader.checkTags("azC");
+        int count = 0;
+        if (tag == TagList) {
             reader.reset();
-        } catch (IOException e) {
-            throw new MetException(ProtocolStatus.ProtocolError, "decode callName error -> " + e.getMessage());
+            count = reader.readInt(TagOpenbrace);
+        }
+        Method method = findMethod(service, methodName, count);
+        Object[] arguments = new Object[count];
+        if (tag == TagList) {
+            reader.readArray(method.getGenericParameterTypes(), arguments, count);
+            tag = reader.checkTags("tzC");
+        }
+        if (tag != TagEnd) {
+            throw new MetException(ProtocolStatus.ProtocolError, "Hprose batch calls and reference returns are unsupported");
+        }
+        if (content.read() != -1) {
+            throw new MetException(ProtocolStatus.ProtocolError, "Unexpected data after Hprose call");
         }
 
-        // 创建 RequestPayload 对象
-        MetBindInfo<?> serviceInfo = null;
+        // 只向 RPC 层交付已完整解析并校验的请求。
         RequestPayload request = new RequestPayload();
-        try {
-            String[] lastParams = callName.split("_");
-            String methodName = lastParams[lastParams.length - 1];
-            String serviceID = callName.substring(0, callName.length() - methodName.length() - 1);
-
-            serviceInfo = context.getServiceInfo(HPROSE, serviceID);
-            if (serviceInfo == null) {
-                throw new MetException(ProtocolStatus.NotFound, "serviceID not found in alias. -> " + serviceID);
-            }
-
-            request.setServiceGroup(serviceInfo.getBindGroup());
-            request.setServiceName(serviceInfo.getBindName());
-            request.setServiceVersion(serviceInfo.getBindVersion());
-            request.setTargetMethod(methodName);
-            request.setMessage(false);
-            request.setSerializeType("Hprose");
-            request.setClientTimeout(context.getSettings().getDefaultTimeout());
-            request.setReceiveTime(System.currentTimeMillis());
-        } catch (Exception e) {
-            if (e instanceof MetException) {
-                throw (MetException) e;
-            }
-            throw new MetException(ProtocolStatus.Unknown, "error(" + e.getClass() + ") -> " + e.getMessage());
+        request.setServiceGroup(service.getBindGroup());
+        request.setServiceName(service.getBindName());
+        request.setServiceVersion(service.getBindVersion());
+        request.setTargetMethod(methodName);
+        request.setSerializeType(HPROSE);
+        request.setClientTimeout(context.getSettings().getDefaultTimeout());
+        request.setReceiveTime(System.currentTimeMillis());
+        request.addOption("Location", requestURI);
+        request.addOption("Origin", origin);
+        Class<?>[] types = method.getParameterTypes();
+        for (int index = 0; index < count; index++) {
+            request.addParameter(types[index].getName(), arguments[index]);
         }
-        // 确定方法
-        int lastTag = 0;
-        Method atMethod = null;
-        Class<?>[] parameterTypes = null;
-        byte[][] args = null;
-        try {
-            int argCount = 0;
-            String methodName = request.getTargetMethod();
-            lastTag = reader.checkTags(String.valueOf((char) TagList) + (char) TagEnd + (char) TagCall);
-            if (lastTag == HproseTags.TagList) {
-                reader.reset();
-                argCount = reader.readInt(HproseTags.TagOpenbrace);
-                args = new byte[argCount][];
-                for (int i = 0; i < argCount; i++) {
-                    ByteArrayOutputStream out = new ByteArrayOutputStream();
-                    reader.readRaw(out);
-                    args[i] = out.toByteArray();
-                }
-                reader.readInt(HproseTags.TagClosebrace);
-            }
-
-            args = (args == null) ? new byte[0][] : args;
-            Method[] allMethods = serviceInfo.getBindType().getMethods();
-            for (Method method : allMethods) {
-                if (!method.getName().equals(methodName)) {
-                    continue;
-                }
-                parameterTypes = method.getParameterTypes();
-                if (argCount != parameterTypes.length) {
-                    continue;
-                }
-                atMethod = method;
-                break;
-            }
-
-            if (atMethod == null) {
-                throw new MetException(ProtocolStatus.NotFound, "serviceID : " + serviceInfo.getBindID() + " ,not found method " + methodName);
-            }
-        } catch (Exception e) {
-            if (e instanceof MetException) {
-                throw (MetException) e;
-            }
-            throw new MetException(ProtocolStatus.Unknown, "error(" + e.getClass() + ") -> " + e.getMessage());
-        }
-
-        // .参数处理(isRef是否为引用参数调用 (遇到引用参数方法，会在response时将请求参数一同返回给客户端)
-        for (int i = 0; i < parameterTypes.length; i++) {
-            Class<?> paramType = parameterTypes[i];
-            HproseReader paramDataReader = new HproseReader(args[i]);
-            Object paramData = paramDataReader.unserialize(paramType);
-            request.addParameter(paramType.getName(), paramData);
-        }
-
-        // .请求参数
-        infoArrays.add(request);
-
-        // .如果最后一个读取到的标签是结束标签那么结束整个解析，否则在读取一个标签。
-        try {
-            if (lastTag == TagEnd) {
-                return;
-            }
-            lastTag = reader.checkTags(String.valueOf((char) TagTrue) + (char) TagEnd + (char) TagCall);
-        } catch (Exception e) {
-            if (e instanceof MetException) {
-                throw (MetException) e;
-            }
-            throw new MetException(ProtocolStatus.SerializeError, "error(" + e.getClass() + ") reader.checkTags -> " + e.getMessage());
-        }
-
-        // .当读取的最后一个标签不是结束标签那么继续处理直到遇到结束标签
-        if (lastTag == TagEnd) {
-            return;
-        }
-
-        // .如果下一个标签还是一个call，表示当前请求是批量调用。
-        if (lastTag == TagCall) {
-            throw new MetException(ProtocolStatus.ProtocolError, "hprose batch calls, is not support.");
-            //parseRequest(context, reader, infoArrays);
-        }
-
-        // .表示是参数引用调用，面对参数引用时候在响应时需要讲参数一同响应给客户端
-        if (lastTag == TagTrue) {
-            throw new MetException(ProtocolStatus.ProtocolError, "hprose ref param, is not support.");
-        }
+        return request;
     }
 
-    /***/
+    private static Method findMethod(MetBindInfo<?> service, String name, int count) {
+        for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
+            if (StringUtils.equals(method.getName(), name) && method.getParameterCount() == count) {
+                return method;
+            }
+        }
+        throw new MetException(ProtocolStatus.NotFound, "Hprose method not found: " + name + "/" + count);
+    }
+
+    /** 解析 Hprose 错误字符串中的 JSON 扩展信息。 */
+    public static JsonNode parseError(String error) throws IOException {
+        return ERROR_MAPPER.readTree(error);
+    }
+
+    /** 写入结果，或包含状态码及响应选项的错误报文。 */
     public static void parseResponse(long requestID, ResponsePayload response, OutputStream output) throws IOException {
         if (response.getStatus() == ProtocolStatus.OK) {
-            output.write(new byte[] { 'R' });
-            ByteArrayOutputStream binary = new ByteArrayOutputStream();
-            HproseWriter writer = new HproseWriter(binary);
-            writer.serialize(response.getReturnData());
-            byte[] encode = binary.toByteArray();
-            output.write(encode);
-            output.write(new byte[] { 'z' });
-            //
+            output.write('R');
+            new HproseWriter(output).serialize(response.getReturnData());
+            output.write('z');
         } else {
             Map<String, String> errorMsg = new HashMap<String, String>();
             String[] optionKeys = response.getOptionKeys();
@@ -220,6 +152,7 @@ public class HproseUtils implements HproseConstants {
                     errorMsg.put(optKey, response.getOption(optKey));
                 }
             }
+
             errorMsg.put("requestID", String.valueOf(requestID));
             errorMsg.put("status", String.valueOf(response.getStatus()));
             String jsonData = ERROR_MAPPER.writeValueAsString(errorMsg);
@@ -229,20 +162,17 @@ public class HproseUtils implements HproseConstants {
         }
     }
 
-    /***/
+    /** 通过已注册服务的 Hprose 别名编码单个请求。 */
     public static byte[] encodeRequest(MetContext context, RequestPayload request) throws IOException {
         MetBindInfo<?> bindInfo = context.getServiceInfo(request.getServiceGroup(), request.getServiceName(), request.getServiceVersion());
         String aliasName = bindInfo.getAliasName(HPROSE);
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        HproseWriter writer = new HproseWriter(out);
-        writer.writeString(aliasName + "_" + request.getTargetMethod());
-
-        writer.writeArray(request.getParameterValues().toArray());
-
         ByteArrayOutputStream frame = new ByteArrayOutputStream();
         frame.write('C');
-        frame.write(out.toByteArray());
+        HproseWriter writer = new HproseWriter(frame);
+        writer.writeString(aliasName + "_" + request.getTargetMethod());
+        writer.reset();
+        writer.writeArray(request.getParameterValues().toArray());
         frame.write('z');
         return frame.toByteArray();
     }

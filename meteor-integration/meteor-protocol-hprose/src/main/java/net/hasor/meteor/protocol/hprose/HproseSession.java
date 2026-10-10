@@ -69,18 +69,26 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
                 this.reply(exchange, invocation.immediate());
                 return;
             }
+
             RequestPayload request = invocation.request();
             long id = request.getRequestID();
             if (this.pending.containsKey(id)) {
                 throw new IllegalStateException("Duplicate HTTP request ID on this channel");
             }
+
             HprosePendingRequest item = new HprosePendingRequest(exchange, invocation);
             this.pending.put(id, item);
             request.completion().onFinal(done -> this.connection.execute(() -> {
                 if (this.pending.remove(id, item)) {
-                    this.reply(exchange, this.protocol.error(done.getCause() != null ? done.getCause() : new CancellationException("RPC completed without a response")));
+                    Throwable failure = done.getCause();
+                    if (failure == null) {
+                        failure = new CancellationException("RPC completed without a response");
+                    }
+                    HttpResponse response = this.protocol.error(failure);
+                    this.reply(exchange, response);
                 }
             }));
+
             exchange.completion().onFinal(done -> request.complete(done.getCause()));
             this.messages.accept(id, request);
         } catch (Exception error) {
@@ -109,12 +117,18 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
             sent.failed(new CancellationException("RPC already completed"));
             return;
         }
-        HttpExchange exchange = new HttpExchange(this.protocol.encode(this.connection.getRemote(), request));
+
+        HttpExchange exchange = new HttpExchange(this.protocol.encode(request));
         request.completion().onFinal(done -> {
             if (!exchange.completion().isDone()) {
-                exchange.complete(done.getCause() != null ? done.getCause() : new CancellationException("RPC completed"));
+                Throwable failure = done.getCause();
+                if (failure == null) {
+                    failure = new CancellationException("RPC completed");
+                }
+                exchange.complete(failure);
             }
         });
+
         exchange.response().onFinal(done -> this.connection.execute(() -> {
             try {
                 if (done.getCause() != null) {
@@ -122,6 +136,7 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
                     this.messages.accept(request.getRequestID(), new ThrowPayload(done.getCause()));
                     return;
                 }
+
                 ResponsePayload response = this.protocol.decode(request.getRequestID(), done.getResult());
                 this.messages.accept(response.getRequestID(), response);
                 request.complete(null);
@@ -130,7 +145,11 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
                 this.messages.accept(request.getRequestID(), new ThrowPayload(error));
             }
         }));
-        sent.onCancel(done -> request.complete(new CancellationException("HTTP write cancelled")));
+
+        sent.onCancel(done -> {
+            request.complete(new CancellationException("HTTP write cancelled"));
+        });
+
         this.bridge(this.connection.write(exchange), sent);
     }
 
@@ -144,6 +163,7 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
             sent.completed(null);
             return;
         }
+
         this.pending.remove(response.getRequestID());
         HttpResponse encoded;
         try {
@@ -151,6 +171,7 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
         } catch (Exception error) {
             encoded = this.protocol.error(error);
         }
+
         item.exchange().respond(encoded);
         this.bridge(this.connection.write(item.exchange()), sent);
     }
@@ -187,5 +208,4 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
             this.connection.drainAndClose();
         }
     }
-
 }

@@ -17,9 +17,9 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.address.route.ArgsKey;
-import net.hasor.meteor.bootstrap.Configuration;
-import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
+import net.hasor.meteor.domain.ProtocolStatus;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -27,99 +27,119 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
 
     @Test
     public void closeDrainsConnectionsAndCompletesOutstandingCalls() throws Exception {
-        MetContext server = this.context(this.configuration()), client = this.context(this.configuration());
-        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
-        server.publisher().rsfService(Echo.class).toInstance(new EchoService() {
-            @Override
-            public String slow(int millis) throws InterruptedException {
-                entered.countDown();
-                release.await();
-                return "done";
+        // 建立真实调用并阻塞服务，关闭调用方必须结束在途 Future。
+        MetConfiguration serverConfiguration = this.configuration();
+        MetConfiguration clientConfiguration = this.configuration();
+        try (MetContext server = serverConfiguration.buildContext(); //
+             MetContext client = clientConfiguration.buildContext()) {
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            server.publisher().rsfService(Echo.class).toInstance(new EchoService() {
+                @Override
+                public String slow(int millis) throws InterruptedException {
+                    entered.countDown();
+                    assertTrue("Handler was not released", release.await(10, TimeUnit.SECONDS));
+                    return "done";
+                }
+            }).register();
+            MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
+
+            server.start();
+            client.start();
+
+            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            try {
+                MetFuture call = remote.asyncInvoke(service, "slow", new Class<?>[] { int.class }, new Object[] { 1 });
+                assertTrue(entered.await(5, TimeUnit.SECONDS));
+
+                client.close();
+                assertTrue("Close must finish pending calls before returning", call.isDone());
+                Throwable failure = assertFailure(call);
+                boolean closedFailure = failure instanceof IOException || failure instanceof IllegalStateException;
+                assertTrue("Unexpected close failure: " + failure, closedFailure);
+                Class<?>[] types = { String.class };
+                MetFuture afterClose = remote.asyncInvoke(service, "echo", types, new Object[] { "closed" });
+                assertFailure(afterClose);
+            } finally {
+                release.countDown();
             }
-        }).register();
-        MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
-        server.start();
-        client.start();
-        MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
-        try {
-            MetFuture call = remote.asyncInvoke(service, "slow", new Class<?>[] { int.class }, new Object[] { 1 });
-            assertTrue(entered.await(5, TimeUnit.SECONDS));
-            client.close();
-            assertTrue("Close must finish pending calls before returning", call.isDone());
-            Throwable failure = assertFailure(call);
-            assertTrue("Unexpected close failure: " + failure, failure instanceof IOException || failure instanceof IllegalStateException);
-            assertFailure(remote.asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "closed" }));
-        } finally {
-            release.countDown();
         }
     }
 
     @Test
     public void failedBindRollsBackNetworkResources() throws Exception {
+        // 占用监听地址后启动，失败必须回收网络资源。
         try (ServerSocket occupied = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
-            MetContext runtime = this.context(this.configuration(occupied.getLocalPort()));
-            try {
-                runtime.start();
-                fail();
-            } catch (IllegalStateException expected) {
+            try (MetContext runtime = this.configuration(occupied.getLocalPort()).buildContext()) {
+                assertThrows(IllegalStateException.class, runtime::start);
+                assertFalse(runtime.isOnline());
+                assertTrue(runtime.runProtocols().isEmpty());
             }
+        }
+    }
+
+    @Test
+    public void invalidAddressMaintenanceConfigurationRollsBackNetworkStartup() throws Exception {
+        // 地址维护配置错误时，已经启动的网络资源必须回收。
+        MetConfiguration config = this.configuration();
+        config.setRefreshCacheTime(0);
+        try (MetContext runtime = config.buildContext()) {
+            IllegalStateException failure = assertThrows(IllegalStateException.class, runtime::start);
+            assertTrue(failure.getCause() instanceof IllegalArgumentException);
             assertFalse(runtime.isOnline());
             assertTrue(runtime.runProtocols().isEmpty());
         }
     }
 
     @Test
-    public void invalidAddressMaintenanceConfigurationRollsBackNetworkStartup() throws Exception {
-        Configuration config = this.configuration();
-        config.setRefreshCacheTime(0);
-        MetContext runtime = this.context(config);
-        try {
-            runtime.start();
-            fail("Invalid address maintenance interval must fail startup");
-        } catch (IllegalStateException failure) {
-            assertTrue(failure.getCause() instanceof IllegalArgumentException);
-        }
-        assertFalse(runtime.isOnline());
-        assertTrue(runtime.runProtocols().isEmpty());
-    }
-
-    @Test
     public void manualOnlineStateControlsRemoteAdmissionAndStartIsIdempotent() throws Exception {
-        Configuration config = this.configuration();
+        // 禁用自动上线，显式上线后才接受远程调用。
+        MetConfiguration config = this.configuration();
         config.setAutomaticOnline(false);
-        MetContext server = this.context(config);
-        MetContext client = this.context(this.configuration());
-        server.publisher().rsfService(Echo.class, new EchoService()).register();
-        MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
-        server.start();
-        client.start();
-        Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
-        assertFalse(server.isOnline());
-        MetFuture denied = client.getRsfClient(server.bindAddress("rsf")).asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "offline" });
-        Throwable failure = assertThrows(ExecutionException.class, () -> denied.getData(5, TimeUnit.SECONDS)).getCause();
-        assertEquals(ProtocolStatus.Forbidden, ((MetException) failure).getStatus());
-        server.online();
-        server.online();
-        assertEquals("online", remote.echo("online"));
-        server.offline();
-        server.start();
-        assertFalse("Repeated start must not undo explicit offline", server.isOnline());
-        server.close();
-        server.close();
-        assertNull(server.bindAddress("rsf"));
-        assertTrue(server.runProtocols().isEmpty());
-        assertThrows(IllegalStateException.class, server::start);
-        assertThrows(IllegalStateException.class, server::online);
+        try (MetContext server = config.buildContext(); //
+             MetContext client = this.configuration().buildContext()) {
+            server.publisher().rsfService(Echo.class, new EchoService()).register();
+            MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
+
+            server.start();
+            client.start();
+
+            MetClient caller = client.getRsfClient(server.bindAddress("rsf"));
+            Echo remote = caller.getRemote(service);
+            assertFalse(server.isOnline());
+            Class<?>[] types = { String.class };
+            MetFuture denied = caller.asyncInvoke(service, "echo", types, new Object[] { "offline" });
+            ExecutionException rejected = assertThrows(ExecutionException.class, () -> denied.getData(5, TimeUnit.SECONDS));
+            Throwable failure = rejected.getCause();
+            assertEquals(ProtocolStatus.Forbidden, ((MetException) failure).getStatus());
+
+            // 重复上线不改变语义，显式下线也不会被再次 start 覆盖。
+            server.online();
+            server.online();
+            assertEquals("online", remote.echo("online"));
+            server.offline();
+            server.start();
+            assertFalse("Repeated start must not undo explicit offline", server.isOnline());
+
+            // 关闭幂等，监听释放后不能重新启动。
+            server.close();
+            server.close();
+            assertNull(server.bindAddress("rsf"));
+            assertTrue(server.runProtocols().isEmpty());
+            assertThrows(IllegalStateException.class, server::start);
+            assertThrows(IllegalStateException.class, server::online);
+        }
     }
 
     @Test
     public void invalidSpiIsRejectedBeforeAnyListenerIsOpened() throws Exception {
-        Configuration config = this.configuration();
+        // 缺失 SPI 在构建阶段报错，不得占用监听端口。
+        MetConfiguration config = this.configuration(this.port());
         int firstPort = config.getBindAddressSet("rsf").getPort();
         config.connector("missing-factory").protocol("hprose");
         config.setLocalDiskCache(true);
         config.setDataHome(this.temporary.newFolder().toPath());
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> this.context(config));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> config.buildContext());
         assertTrue(failure.getMessage().contains("missing-factory"));
         try (ServerSocket rebound = new ServerSocket(firstPort, 1, InetAddress.getLoopbackAddress())) {
             assertEquals(firstPort, rebound.getLocalPort());
@@ -128,19 +148,24 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
 
     @Test
     public void closeBeforeStartAndConstructorFailureReleaseResources() throws Exception {
-        MetContext context = this.context(this.configuration());
-        context.close();
-        context.close();
-        assertThrows(IllegalStateException.class, context::start);
-        Configuration config = this.configuration();
-        config.setQueueMaxSize(0);
-        assertThrows(IllegalArgumentException.class, () -> this.context(config));
+        // 构建后未启动也可以关闭，关闭后不可重新启动。
+        MetConfiguration contextConfiguration = this.configuration();
+        try (MetContext context = contextConfiguration.buildContext()) {
+
+            context.close();
+            context.close();
+            assertThrows(IllegalStateException.class, context::start);
+            MetConfiguration config = this.configuration();
+            config.setQueueMaxSize(0);
+            assertThrows(IllegalArgumentException.class, () -> config.buildContext());
+        }
     }
 
     @Test
     public void invalidArgsKeyFailsDuringConstruction() throws Exception {
-        Configuration invalidRoute = this.configuration();
+        // 路由参数键必须是可构建的具体实现。
+        MetConfiguration invalidRoute = this.configuration();
         invalidRoute.setArgsKey(ArgsKey.class);
-        assertThrows(IllegalArgumentException.class, () -> this.context(invalidRoute));
+        assertThrows(IllegalArgumentException.class, () -> invalidRoute.buildContext());
     }
 }

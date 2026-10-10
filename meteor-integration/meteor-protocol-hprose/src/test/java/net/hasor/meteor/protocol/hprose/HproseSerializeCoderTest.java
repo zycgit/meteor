@@ -8,6 +8,7 @@
 package net.hasor.meteor.protocol.hprose;
 import java.io.IOException;
 import java.io.Serializable;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -27,10 +28,17 @@ public class HproseSerializeCoderTest {
         SerializeFactory factory = SerializeFactory.createFactory(this.getClass().getClassLoader());
         SerializeCoder discovered = factory.getSerializeCoder("hprose");
         assertTrue(discovered instanceof HproseSerializeCoder);
+
+        // 序列化器仅由插件提供，SPI 大小写查询仍返回同一个实例。
         Class<?> type = discovered.getClass();
-        assertEquals(1, Collections.list(this.getClass().getClassLoader().getResources(type.getName().replace('.', '/') + ".class")).size());
-        assertEquals(HproseProtocol.class.getProtectionDomain().getCodeSource().getLocation(), type.getProtectionDomain().getCodeSource().getLocation());
-        assertNotEquals(SerializeCoder.class.getProtectionDomain().getCodeSource().getLocation(), type.getProtectionDomain().getCodeSource().getLocation());
+        String resource = type.getName().replace('.', '/') + ".class";
+        List<URL> definitions = Collections.list(this.getClass().getClassLoader().getResources(resource));
+        assertEquals(1, definitions.size());
+        URL plugin = HproseProtocol.class.getProtectionDomain().getCodeSource().getLocation();
+        URL framework = SerializeCoder.class.getProtectionDomain().getCodeSource().getLocation();
+        URL coderLocation = type.getProtectionDomain().getCodeSource().getLocation();
+        assertEquals(plugin, coderLocation);
+        assertNotEquals(framework, coderLocation);
         assertEquals("Hprose", discovered.name());
         assertSame(discovered, factory.getSerializeCoder("HPROSE"));
         assertEquals("hello", discovered.decode(discovered.encode("hello"), String.class));
@@ -43,41 +51,44 @@ public class HproseSerializeCoderTest {
 
     @Test
     public void nullValueAndMissingBytes() throws Exception {
-        assertNull(roundTrip(null, Object.class));
+        assertNull(this.roundTrip(null, Object.class));
         assertNull(this.coder.decode(null, Object.class));
     }
 
     @Test
     public void unicodeAndEmptyStrings() throws Exception {
         for (String value : Arrays.asList("", "你好，Meteor 🚀", "line\n\t\"\\\u0000")) {
-            assertEquals(value, roundTrip(value, String.class));
+            assertEquals(value, this.roundTrip(value, String.class));
         }
     }
 
     @Test
     public void primitiveParameters() throws Exception {
-        assertEquals(42, roundTrip(42, int.class));
-        assertEquals(true, roundTrip(true, boolean.class));
-        assertEquals(1.25d, roundTrip(1.25d, double.class));
-        assertEquals(Long.MAX_VALUE, roundTrip(Long.MAX_VALUE, long.class));
+        assertEquals(42, this.roundTrip(42, int.class));
+        assertEquals(true, this.roundTrip(true, boolean.class));
+        assertEquals(1.25d, this.roundTrip(1.25d, double.class));
+        assertEquals(Long.MAX_VALUE, this.roundTrip(Long.MAX_VALUE, long.class));
     }
 
     @Test
     public void primitiveAndObjectArrays() throws Exception {
-        assertArrayEquals(new byte[] { 0, -1, 42 }, (byte[]) roundTrip(new byte[] { 0, -1, 42 }, byte[].class));
-        assertArrayEquals(new int[] { 1, -2, 3 }, (int[]) roundTrip(new int[] { 1, -2, 3 }, int[].class));
-        assertArrayEquals(new String[] { "中文", null, "" }, (String[]) roundTrip(new String[] { "中文", null, "" }, String[].class));
+        byte[] bytes = { 0, -1, 42 };
+        assertArrayEquals(bytes, (byte[]) this.roundTrip(bytes, byte[].class));
+        int[] numbers = { 1, -2, 3 };
+        assertArrayEquals(numbers, (int[]) this.roundTrip(numbers, int[].class));
+        String[] strings = { "中文", null, "" };
+        assertArrayEquals(strings, (String[]) this.roundTrip(strings, String[].class));
     }
 
     @Test
     public void collectionsAndNestedValues() throws Exception {
         List<String> list = new ArrayList<>(Arrays.asList("中文", null, "tail"));
-        assertEquals(list, roundTrip(list, ArrayList.class));
+        assertEquals(list, this.roundTrip(list, ArrayList.class));
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("items", list);
         map.put("count", 3);
         map.put("empty", null);
-        Map<?, ?> result = (Map<?, ?>) roundTrip(map, LinkedHashMap.class);
+        Map<?, ?> result = (Map<?, ?>) this.roundTrip(map, LinkedHashMap.class);
         assertEquals(list, result.get("items"));
         assertEquals(3, result.get("count"));
         assertNull(result.get("empty"));
@@ -88,7 +99,7 @@ public class HproseSerializeCoderTest {
         Payload value = new Payload();
         value.setName("业务参数 🚀");
         value.setCount(7);
-        Payload decoded = (Payload) roundTrip(value, Payload.class);
+        Payload decoded = (Payload) this.roundTrip(value, Payload.class);
         assertEquals(value.getName(), decoded.getName());
         assertEquals(value.getCount(), decoded.getCount());
         assertNotSame(value, decoded);
@@ -96,27 +107,20 @@ public class HproseSerializeCoderTest {
 
     @Test
     public void malformedDataFailsWithIOException() throws Exception {
-        try {
-            this.coder.decode(new byte[] { (byte) 0xff, 1, 0 }, Payload.class);
-            fail("Malformed Hprose must fail");
-        } catch (IOException expected) {
-            // The caller can handle a format failure without knowing the backend library.
-        }
+        byte[] malformed = { (byte) 0xff, 1, 0 };
+        assertThrows(IOException.class, () -> this.coder.decode(malformed, Payload.class));
     }
 
     @Test
     public void failedDecodeDoesNotPoisonCoder() throws Exception {
-        try {
-            this.coder.decode(new byte[] { (byte) 0xff }, Object.class);
-            fail("Malformed input must fail");
-        } catch (IOException expected) {
-            assertEquals("next request", roundTrip("next request", String.class));
-        }
+        // 单次解码失败不污染序列化器，后续消息使用独立状态。
+        assertThrows(IOException.class, () -> this.coder.decode(new byte[] { (byte) 0xff }, Object.class));
+        assertEquals("next request", this.roundTrip("next request", String.class));
     }
 
     @Test
     public void independentMessagesDoNotShareReferences() throws Exception {
-        String first = new String("repeated value");
+        String first = "repeated value";
         byte[] encoded = this.coder.encode(first);
         assertArrayEquals(encoded, this.coder.encode(first));
         assertEquals(first, this.coder.decode(encoded, String.class));
@@ -127,23 +131,27 @@ public class HproseSerializeCoderTest {
     public void sharedCoderSupportsConcurrentCalls() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(4);
         try {
+            // 所有任务共用同一个序列化器，各自的引用表与对象状态必须独立。
             List<Future<?>> futures = new ArrayList<>();
             for (int i = 0; i < 8; i++) {
                 final int worker = i;
-                futures.add(executor.submit(() -> {
+                Future<?> task = executor.submit(() -> {
                     for (int j = 0; j < 30; j++) {
                         String value = worker + ":" + j + "中文";
-                        assertEquals(value, roundTrip(value, String.class));
+                        assertEquals(value, this.roundTrip(value, String.class));
                         Payload payload = new Payload();
                         payload.setName(value);
                         payload.setCount(j);
-                        Payload decoded = (Payload) roundTrip(payload, Payload.class);
+                        Payload decoded = (Payload) this.roundTrip(payload, Payload.class);
                         assertEquals(value, decoded.getName());
                         assertEquals(j, decoded.getCount());
                     }
                     return null;
-                }));
+                });
+                futures.add(task);
             }
+
+            // 等待每个任务完成，工作线程内的断言失败必须传回测试线程。
             for (Future<?> future : futures) {
                 future.get(15, TimeUnit.SECONDS);
             }
