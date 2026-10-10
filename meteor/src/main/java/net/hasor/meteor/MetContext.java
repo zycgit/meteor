@@ -28,8 +28,14 @@ public interface MetContext extends OnlineStatus, AutoCloseable {
     /** 订阅本地事件；回调应快速返回，关闭后释放订阅，取消不打断正在执行的回调。 */
     Cancellable subscribe(Consumer<MetContextEvent> listener);
 
+    /** 获取扩展运行对象或其提供的服务；未提供返回 null，存在多个匹配扩展时抛出异常。 */
+    <T> T getExtension(Class<T> type);
+
     /** 获取实例ID，实例ID在应用每次启动时生成一个全新的ID。 */
     String getInstanceID();
+
+    /** 获取所属应用名称，默认 application。 */
+    String getApplicationName();
 
     /** @return 发起远程调用的客户端接口*/
     MetClient getRsfClient();

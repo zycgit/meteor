@@ -22,7 +22,7 @@ public class MetContextEventTest {
 
     @Test
     public void reportsCommittedLifecycleAndServiceEventsAndIsolatesListeners() throws Exception {
-        Configuration configuration = new Configuration();
+        MetConfiguration configuration = new MetConfiguration();
         configuration.connector("tcp").protocol("rsf");
         configuration.setAutomaticOnline(false);
         try (MetContext context = configuration.buildContext()) {
@@ -38,18 +38,20 @@ public class MetContextEventTest {
             context.online();
             context.offline();
             context.offline();
+            context.publisher().rsfService(Echo.class).name("late").register();
             assertTrue(broken.cancel());
             assertFalse(broken.cancel());
             context.close();
             context.close();
-            assertEquals(List.of(MetContextEvent.SERVICES_CHANGED, MetContextEvent.STARTED, MetContextEvent.ONLINE, MetContextEvent.OFFLINE, MetContextEvent.CLOSED), events);
+            List<MetContextEvent> expected = List.of(MetContextEvent.SERVICES_CHANGED, MetContextEvent.STARTED, MetContextEvent.ONLINE, MetContextEvent.OFFLINE, MetContextEvent.SERVICES_CHANGED, MetContextEvent.CLOSED);
+            assertEquals(expected, events);
             assertThrows(IllegalStateException.class, () -> context.subscribe(events::add));
         }
     }
 
     @Test
     public void cancellingOneRegistrationDoesNotRemoveAnotherForTheSameListener() throws Exception {
-        try (MetContext context = new Configuration().buildContext()) {
+        try (MetContext context = new MetConfiguration().buildContext()) {
             List<MetContextEvent> events = new ArrayList<>();
             Consumer<MetContextEvent> listener = events::add;
             Cancellable first = context.subscribe(listener);

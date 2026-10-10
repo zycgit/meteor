@@ -16,14 +16,16 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 /** The framework must be usable without any optional protocol plugin on its runtime classpath. */
-public class StandaloneConfigurationTest {
+public class StandaloneMetConfigurationTest {
     public interface Echo {
         String echo(String value);
     }
 
     @Test
     public void defaultsUseAnAvailableCoderWithoutOpeningAListener() throws Exception {
-        try (MetContext context = new Configuration().buildContext()) {
+        try (MetContext context = new MetConfiguration().buildContext()) {
+            assertEquals("application", context.getApplicationName());
+            assertEquals("application", context.getSettings().getApplicationName());
             assertEquals("Java", context.getSettings().getSerializeType());
             assertTrue(context.getSerializeCoder("Java") instanceof JavaSerializeCoder);
             assertNull(context.getSerializeCoder("Hprose"));
@@ -36,9 +38,9 @@ public class StandaloneConfigurationTest {
 
     @Test
     public void defaultSerializationCompletesRealRpcWithoutPlugins() throws Exception {
-        Configuration serverConfig = new Configuration();
+        MetConfiguration serverConfig = new MetConfiguration();
         serverConfig.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
-        Configuration clientConfig = new Configuration();
+        MetConfiguration clientConfig = new MetConfiguration();
         clientConfig.connector("tcp").protocol("rsf");
         try (MetContext server = serverConfig.buildContext(); MetContext client = clientConfig.buildContext()) {
             server.publisher().rsfService(Echo.class, value -> "remote:" + value).register();
@@ -52,7 +54,7 @@ public class StandaloneConfigurationTest {
 
     @Test
     public void absentPluginIsRejectedRatherThanSubstitutedByTheBuiltinProtocol() throws Exception {
-        Configuration config = new Configuration();
+        MetConfiguration config = new MetConfiguration();
         config.connector("http").protocol("hprose");
         try {
             config.buildContext();
@@ -65,7 +67,7 @@ public class StandaloneConfigurationTest {
 
     @Test
     public void builtSettingsDoNotRediscoverSpiThroughAnotherThreadClassLoader() throws Exception {
-        Configuration source = new Configuration();
+        MetConfiguration source = new MetConfiguration();
         source.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
         Thread thread = Thread.currentThread();
         ClassLoader original = thread.getContextClassLoader();
@@ -89,8 +91,28 @@ public class StandaloneConfigurationTest {
     }
 
     @Test
+    public void applicationNameBelongsToEachContextConfigurationSnapshot() throws Exception {
+        MetConfiguration source = new MetConfiguration().setApplicationName("orders");
+        try (MetContext orders = source.buildContext()) {
+            source.setApplicationName("inventory");
+            try (MetContext inventory = source.buildContext()) {
+                assertEquals("orders", orders.getApplicationName());
+                assertEquals("orders", orders.getSettings().getApplicationName());
+                assertEquals("inventory", inventory.getApplicationName());
+            }
+            source.setApplicationName(" ");
+            try (MetContext defaults = source.buildContext()) {
+                assertEquals("application", defaults.getApplicationName());
+            }
+            source.setApplicationName(null);
+            assertEquals("application", source.getApplicationName());
+            assertEquals("orders", orders.getApplicationName());
+        }
+    }
+
+    @Test
     public void editingRuntimeOptionsDoesNotMutateTheBuilderOrAnotherContext() throws Exception {
-        Configuration source = new Configuration().setRequestOption("trace", "initial").setResponseOption("tag", "initial");
+        MetConfiguration source = new MetConfiguration().setRequestOption("trace", "initial").setResponseOption("tag", "initial");
         try (MetContext first = source.buildContext(); MetContext second = source.buildContext()) {
             first.getSettings().getRequestOptions().addOption("trace", "first");
             first.getSettings().getResponseOptions().removeOption("tag");
