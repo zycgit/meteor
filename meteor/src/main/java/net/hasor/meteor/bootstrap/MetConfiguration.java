@@ -14,66 +14,58 @@ import java.nio.file.Paths;
 import java.util.*;
 import net.hasor.cobble.NetworkUtils;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetOptionSet;
-import net.hasor.meteor.MetSettings;
-import net.hasor.meteor.SendLimitPolicy;
+import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.address.route.ArgsKey;
-import net.hasor.meteor.address.route.DefaultArgsKey;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.protocol.EndpointConnectorFactory;
 import net.hasor.meteor.domain.OptionInfo;
 
 /** Configures RSF components and creates a context ready for service registration. */
-public final class Configuration implements MetSettings {
-
+public final class MetConfiguration implements MetSettings {
     // 服务默认值
-    private       int                      defaultTimeout        = 6000;
-    private       String                   defaultGroup          = "RSF";
-    private       String                   defaultVersion        = "1.0.0";
+    private       int                          defaultTimeout        = 6000;
+    private       String                       defaultGroup          = "default";
+    private       String                       defaultVersion        = "1.0.0";
     // 序列化器
-    private       String                   serializeType         = "Java";
     // 连接与协议
-    private       String                   bindAddress           = "127.0.0.1";
-    private       String                   defaultProtocol       = null;
-    private final List<ConnectorSettings>  connectors            = new ArrayList<>();
+    private       String                       bindAddress           = "127.0.0.1";
+    private       String                       defaultProtocol       = null;
+    private final List<ConnectorSettings>      connectors            = new ArrayList<>();
     // 请求与响应
-    private       int                      requestTimeout        = 6000;
-    private       int                      maximumRequest        = 200;
-    private       SendLimitPolicy          sendLimitPolicy       = SendLimitPolicy.Reject;
-    private       int                      connectTimeout        = 3000;
-    private final OptionInfo               requestOptions        = new OptionInfo();
-    private final OptionInfo               responseOptions       = new OptionInfo();
+    private       int                          requestTimeout        = 6000;
+    private       int                          maximumRequest        = 200;
+    private       SendLimitPolicy              sendLimitPolicy       = SendLimitPolicy.Reject;
+    private       int                          connectTimeout        = 3000;
+    private final OptionInfo                   requestOptions        = new OptionInfo();
+    private final OptionInfo                   responseOptions       = new OptionInfo();
     // 处理调用
-    private       int                      queueMaxSize          = 4096;
-    private       int                      queueMinPoolSize      = 1;
-    private       int                      queueMaxPoolSize      = 4;
-    private       long                     queueKeepAliveTime    = 300L;
+    private       int                          queueMaxSize          = 4096;
+    private       int                          queueMinPoolSize      = 1;
+    private       int                          queueMaxPoolSize      = 4;
+    private       long                         queueKeepAliveTime    = 300L;
     // 地址缓存与路由
-    private       String                   unitName              = "default";
-    private       Path                     dataHome              = Paths.get("rsf-data");
-    private       long                     invalidWaitTime       = 120000L;
-    private       long                     refreshCacheTime      = 60000L;
-    private       boolean                  localDiskCache        = false;
-    private       long                     diskCacheTimeInterval = 3600000L;
-    private       Class<? extends ArgsKey> argsKeyClass          = DefaultArgsKey.class;
+    private       String                       unitName              = "default";
+    private       Path                         dataHome              = Paths.get("meteor-data");
+    private       long                         invalidWaitTime       = 120000L;
+    private       long                         refreshCacheTime      = 60000L;
+    private       boolean                      localDiskCache        = false;
+    private       long                         diskCacheTimeInterval = 3600000L;
     // 实例配置
-    private       boolean                  automaticOnline       = true;
-
+    private       String                       applicationName       = "application";
+    private       boolean                      automaticOnline       = true;
     /** Connector configurations prepared for a context; editable configurations derive them on demand. */
     private final Map<String, ConnectorConfig> connectorConfigs;
+    private final List<MetExtensionFactory>    extensionFactory      = new ArrayList<>();
 
-    public Configuration() {
+    public MetConfiguration() {
         this.connectorConfigs = null;
     }
 
-    private Configuration(Configuration source, EndpointConnectorFactory factory) throws IOException {
+    private MetConfiguration(MetConfiguration source, EndpointConnectorFactory factory) throws IOException {
         this.defaultTimeout = source.defaultTimeout;
         this.defaultGroup = source.defaultGroup;
         this.defaultVersion = source.defaultVersion;
-        this.serializeType = source.serializeType;
         this.bindAddress = source.bindAddress;
         this.defaultProtocol = source.defaultProtocol;
         this.requestTimeout = source.requestTimeout;
@@ -90,7 +82,7 @@ public final class Configuration implements MetSettings {
         this.refreshCacheTime = source.refreshCacheTime;
         this.localDiskCache = source.localDiskCache;
         this.diskCacheTimeInterval = source.diskCacheTimeInterval;
-        this.argsKeyClass = source.argsKeyClass;
+        this.applicationName = source.applicationName;
         this.automaticOnline = source.automaticOnline;
         this.requestOptions.addOptionMap(source.requestOptions);
         this.responseOptions.addOptionMap(source.responseOptions);
@@ -100,59 +92,54 @@ public final class Configuration implements MetSettings {
     }
 
     // 服务默认值与序列化器
-    public Configuration setDefaultTimeout(int value) {
+    public MetConfiguration setDefaultTimeout(int value) {
         this.defaultTimeout = value;
         return this;
     }
 
-    public Configuration setDefaultGroup(String value) {
+    public MetConfiguration setDefaultGroup(String value) {
         this.defaultGroup = value;
         return this;
     }
 
-    public Configuration setDefaultVersion(String value) {
+    public MetConfiguration setDefaultVersion(String value) {
         this.defaultVersion = value;
         return this;
     }
 
-    public Configuration setSerializeType(String value) {
-        this.serializeType = value;
-        return this;
-    }
-
     // 处理调用
-    public Configuration setResponseOption(String name, String value) {
+    public MetConfiguration setResponseOption(String name, String value) {
         this.responseOptions.addOption(name, value);
         return this;
     }
 
-    public Configuration setQueueMaxSize(int value) {
+    public MetConfiguration setQueueMaxSize(int value) {
         this.queueMaxSize = value;
         return this;
     }
 
-    public Configuration setQueueMinPoolSize(int value) {
+    public MetConfiguration setQueueMinPoolSize(int value) {
         this.queueMinPoolSize = value;
         return this;
     }
 
-    public Configuration setQueueMaxPoolSize(int value) {
+    public MetConfiguration setQueueMaxPoolSize(int value) {
         this.queueMaxPoolSize = value;
         return this;
     }
 
-    public Configuration setQueueKeepAliveTime(long value) {
+    public MetConfiguration setQueueKeepAliveTime(long value) {
         this.queueKeepAliveTime = value;
         return this;
     }
 
     // 连接与协议
-    public Configuration setBindAddress(String value) {
+    public MetConfiguration setBindAddress(String value) {
         this.bindAddress = value;
         return this;
     }
 
-    public Configuration setDefaultProtocol(String value) {
+    public MetConfiguration setDefaultProtocol(String value) {
         this.defaultProtocol = value;
         return this;
     }
@@ -165,85 +152,95 @@ public final class Configuration implements MetSettings {
     }
 
     // 发起调用
-    public Configuration setRequestOption(String name, String value) {
+    public MetConfiguration setRequestOption(String name, String value) {
         this.requestOptions.addOption(name, value);
         return this;
     }
 
-    public Configuration setRequestTimeout(int value) {
+    public MetConfiguration setRequestTimeout(int value) {
         this.requestTimeout = value;
         return this;
     }
 
-    public Configuration setMaximumRequest(int value) {
+    public MetConfiguration setMaximumRequest(int value) {
         this.maximumRequest = value;
         return this;
     }
 
-    public Configuration setSendLimitPolicy(SendLimitPolicy value) {
+    public MetConfiguration setSendLimitPolicy(SendLimitPolicy value) {
         this.sendLimitPolicy = value;
         return this;
     }
 
-    public Configuration setConnectTimeout(int value) {
+    public MetConfiguration setConnectTimeout(int value) {
         this.connectTimeout = value;
         return this;
     }
 
     // 地址缓存与路由
-    public Configuration setInvalidWaitTime(long value) {
+    public MetConfiguration setInvalidWaitTime(long value) {
         this.invalidWaitTime = value;
         return this;
     }
 
-    public Configuration setRefreshCacheTime(long value) {
+    public MetConfiguration setRefreshCacheTime(long value) {
         this.refreshCacheTime = value;
         return this;
     }
 
-    public Configuration setLocalDiskCache(boolean value) {
+    public MetConfiguration setLocalDiskCache(boolean value) {
         this.localDiskCache = value;
         return this;
     }
 
-    public Configuration setDiskCacheTimeInterval(long value) {
+    public MetConfiguration setDiskCacheTimeInterval(long value) {
         this.diskCacheTimeInterval = value;
         return this;
     }
 
-    public Configuration setArgsKey(Class<? extends ArgsKey> type) {
-        this.argsKeyClass = Objects.requireNonNull(type, "argsKeyClass");
-        return this;
-    }
-
     // 实例配置
-    public Configuration setUnitName(String value) {
+    public MetConfiguration setUnitName(String value) {
         this.unitName = value;
         return this;
     }
 
-    public Configuration setDataHome(Path value) {
+    public MetConfiguration setDataHome(Path value) {
         this.dataHome = value;
         return this;
     }
 
-    public Configuration setAutomaticOnline(boolean value) {
+    /** 设置应用名称；null 或空白使用默认名称 application。 */
+    public MetConfiguration setApplicationName(String value) {
+        this.applicationName = StringUtils.defaultIfBlank(value, "application");
+        return this;
+    }
+
+    public MetConfiguration setAutomaticOnline(boolean value) {
         this.automaticOnline = value;
+        return this;
+    }
+
+    /** 添加扩展工厂；每次构建上下文都会创建独立的扩展实例。 */
+    public MetConfiguration addExtension(MetExtensionFactory factory) {
+        this.extensionFactory.add(Objects.requireNonNull(factory, "factory"));
         return this;
     }
 
     /** Builds the components; start() on the returned context opens its listeners. */
     public MetContext buildContext() throws IOException {
         ClassLoader loader = Thread.currentThread().getContextClassLoader();
-        return this.buildContext(loader == null ? Configuration.class.getClassLoader() : loader);
+        return this.buildContext(loader == null ? MetConfiguration.class.getClassLoader() : loader);
     }
 
     public MetContext buildContext(ClassLoader classLoader) throws IOException {
         Objects.requireNonNull(classLoader, "classLoader");
         EndpointConnectorFactory factory = new EndpointConnectorFactory();
         factory.listenTypes(classLoader);
-        Configuration settings = new Configuration(this, factory);
-        return new MetContextImpl(settings, classLoader, factory);
+
+        MetConfiguration settings = new MetConfiguration(this, factory);
+        MetContextImpl context = new MetContextImpl(settings, classLoader);
+        context.init(factory, this.extensionFactory);
+        return context;
     }
 
     //
@@ -264,11 +261,6 @@ public final class Configuration implements MetSettings {
     @Override
     public String getDefaultVersion() {
         return this.defaultVersion;
-    }
-
-    @Override
-    public String getSerializeType() {
-        return this.serializeType;
     }
 
     // 处理调用
@@ -394,12 +386,12 @@ public final class Configuration implements MetSettings {
         return this.diskCacheTimeInterval;
     }
 
+    // 实例配置
     @Override
-    public Class<? extends ArgsKey> getArgsKeyClass() {
-        return this.argsKeyClass;
+    public String getApplicationName() {
+        return this.applicationName;
     }
 
-    // 实例配置
     @Override
     public String getUnitName() {
         return this.unitName;
@@ -422,7 +414,7 @@ public final class Configuration implements MetSettings {
         try {
             ClassLoader loader = Thread.currentThread().getContextClassLoader();
             EndpointConnectorFactory factory = new EndpointConnectorFactory();
-            factory.listenTypes(loader == null ? Configuration.class.getClassLoader() : loader);
+            factory.listenTypes(loader == null ? MetConfiguration.class.getClassLoader() : loader);
             return this.createConnectorConfigs(factory);
         } catch (IOException failure) {
             throw new UncheckedIOException(failure);
@@ -470,7 +462,8 @@ public final class Configuration implements MetSettings {
             InterAddress address = InterAddress.forBinding(endpoint.type, host, endpoint.port, this.unitName);
             String id = endpoint.type + "-" + configured.size();
             ConnectorConfig config = new ConnectorConfig(id, address, options, protocols, endpoint.host != null);
-            configured.put(id, factory.prepare(config));
+            factory.prepare(config);
+            configured.put(id, config);
         }
         this.resolveDefaultProtocol(configured);
         return Collections.unmodifiableMap(configured);
@@ -527,7 +520,7 @@ public final class Configuration implements MetSettings {
         }
 
         public ConnectorSettings option(String name, Object value) {
-            Configuration.option(this.options, name, value);
+            MetConfiguration.option(this.options, name, value);
             return this;
         }
 
@@ -548,7 +541,7 @@ public final class Configuration implements MetSettings {
         }
 
         public ProtocolSettings option(String name, Object value) {
-            Configuration.option(this.options, name, value);
+            MetConfiguration.option(this.options, name, value);
             return this;
         }
 

@@ -17,8 +17,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.ObjectUtils;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
@@ -435,8 +435,8 @@ public class HttpTransportTest {
         try (ConnectorManager manager = subscribedManager(runtimeContext(config), RECEIVER)) {
             manager.bind("http").get();
             fail();
-        } catch (ExecutionException expected) {
-            assertTrue(expected.getCause().getMessage().contains("requires transport tcp"));
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("requires transport tcp"));
         }
     }
 
@@ -505,7 +505,7 @@ public class HttpTransportTest {
                 bytes.write(b);
             }
         }
-        return bytes.toString("US-ASCII");
+        return bytes.toString(StandardCharsets.US_ASCII);
     }
 
     @Test
@@ -845,6 +845,10 @@ public class HttpTransportTest {
             return RouteMatch.REJECT;
         }
 
+        public String defaultSerializeType() {
+            return "Java";
+        }
+
         public String transport() {
             return "http";
         }
@@ -914,9 +918,18 @@ public class HttpTransportTest {
     }
 
     private static ConnectorManager subscribedManager(MetContext context, ReceivedListener receiver) {
-        ConnectorManager manager = new ConnectorManager(context, new EndpointConnectorFactory());
+        ConnectorManager manager = new ConnectorManager(context, preparedFactory(context));
         subscribe(manager, receiver);
         return manager;
+    }
+
+    private static EndpointConnectorFactory preparedFactory(MetContext context) {
+        EndpointConnectorFactory factory = new EndpointConnectorFactory();
+        factory.listenTypes(context.getClassLoader());
+        for (ConnectorConfig config : context.getSettings().getConnectorConfigs()) {
+            factory.prepare(config);
+        }
+        return factory;
     }
 
     private static void subscribe(ConnectorManager manager, ReceivedListener receiver) {
@@ -944,7 +957,8 @@ public class HttpTransportTest {
 
         private Endpoint(ConnectorConfig config, ReceivedListener listener) {
             this.config = config;
-            this.manager = new ConnectorManager(runtimeContext(config), new EndpointConnectorFactory()) {
+            MetContext context = runtimeContext(config);
+            this.manager = new ConnectorManager(context, preparedFactory(context)) {
                 @Override
                 public Cancellable schedule(Runnable task, long delayMillis) {
                     if (HttpTransportTest.this.timersStopped) {

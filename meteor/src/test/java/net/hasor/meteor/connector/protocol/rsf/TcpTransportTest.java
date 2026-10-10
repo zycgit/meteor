@@ -13,8 +13,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.*;
-import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.ObjectUtils;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
@@ -709,7 +709,11 @@ public class TcpTransportTest {
 
         private Endpoint(ConnectorConfig config, ReceivedListener listener) {
             this.config = config;
-            this.manager = new ConnectorManager(runtimeContext(config), new EndpointConnectorFactory()) {
+            MetContext context = runtimeContext(config);
+            EndpointConnectorFactory factory = new EndpointConnectorFactory();
+            factory.listenTypes(context.getClassLoader());
+            factory.prepare(config);
+            this.manager = new ConnectorManager(context, factory) {
                 @Override
                 public Cancellable schedule(Runnable task, long delayMillis) {
                     if (TcpTransportTest.this.timersStopped) {

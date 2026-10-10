@@ -14,17 +14,21 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.NetworkConnector;
 import net.hasor.meteor.connector.transport.NetworkConnectorFactory;
 import net.hasor.meteor.connector.transport.tcp.TcpConnector;
+import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import org.junit.Before;
 import org.junit.Rule;
@@ -40,15 +44,25 @@ public class ProtocolSpiTest {
     @Before
     public void reset() {
         CustomTransport.created.set(0);
+        CustomTransport.prepared.set(0);
+        CustomProtocol.configurations.clear();
     }
 
     @Test
     public void customTransportAndProtocolComposeLazilyThroughContextClassLoader() throws Exception {
         ClassLoader loader = this.loader(new Class<?>[] { CustomTransport.class }, new Class<?>[] { CustomProtocol.class });
-        try (ConnectorManager manager = this.manager(loader, config("CUSTOM-PROTOCOL")); ServerSocket server = new ServerSocket(0)) {
+        ConnectorConfig config = config("CUSTOM-PROTOCOL");
+        ProtocolConfig mount = config.protocol("custom");
+        try (ConnectorManager manager = this.manager(loader, config); ServerSocket server = new ServerSocket(0)) {
+            // 准备配置不创建网络资源，后续连接和监听使用同一个配置对象。
             manager.init();
             assertEquals(0, CustomTransport.created.get());
+            assertEquals(1, CustomTransport.prepared.get());
+            assertSame(mount, config.protocol("custom"));
+            assertEquals("ready", mount.option("preparation", null));
+            assertEquals("Java", mount.option("serializeType", null));
             MetChannel channel = manager.connect(new InterAddress("custom", "127.0.0.1", server.getLocalPort(), "test")).get(3, TimeUnit.SECONDS);
+            assertSame(mount, CustomProtocol.configurations.poll(3, TimeUnit.SECONDS));
             server.setSoTimeout(3000);
             try (Socket peer = server.accept()) {
                 peer.setSoTimeout(3000);
@@ -61,6 +75,12 @@ public class ProtocolSpiTest {
                 assertTrue(manager.find("test") instanceof EndpointConnector);
                 assertEquals(1, CustomTransport.created.get());
                 channel.close().get(3, TimeUnit.SECONDS);
+
+                // 同一端点收到入站连接时也复用配置，不再次规范化或复制。
+                try (Socket incoming = new Socket("127.0.0.1", listen.getBindAddress().getPort())) {
+                    assertSame(mount, CustomProtocol.configurations.poll(3, TimeUnit.SECONDS));
+                    assertEquals(1, CustomTransport.prepared.get());
+                }
             }
         }
     }
@@ -68,69 +88,52 @@ public class ProtocolSpiTest {
     @Test
     public void protocolMissingFromContextLoaderIsRejectedWithoutAllocatingTransport() throws Exception {
         ClassLoader loader = this.loader(new Class<?>[] { CustomTransport.class }, new Class<?>[0]);
-        this.assertBindFailure(loader, config("custom-protocol"), "Unknown protocol");
+        this.assertPreparationFailure(loader, config("custom-protocol"), "Unknown protocol");
     }
 
     @Test
     public void incompatibleTransportIsRejectedBeforeCreatingNetworkResources() throws Exception {
         ClassLoader loader = this.loader(new Class<?>[] { CustomTransport.class }, new Class<?>[] { EndpointRoutingTest.HttpA.class });
-        this.assertBindFailure(loader, config("httpa"), "requires transport http");
+        this.assertPreparationFailure(loader, config("httpa"), "requires transport http");
     }
 
     @Test
     public void incompatibleMessageContractIsRejectedBeforeCreatingNetworkResources() throws Exception {
         ClassLoader loader = this.loader(new Class<?>[] { CustomTransport.class }, new Class<?>[] { WrongMessageProtocol.class });
-        this.assertBindFailure(loader, config("wrong-message"), "message type");
+        this.assertPreparationFailure(loader, config("wrong-message"), "message type");
     }
 
     @Test
     public void transportNamesMustBeUniqueIgnoringCase() throws Exception {
         ClassLoader loader = this.loader(new Class<?>[] { CustomTransport.class, DuplicateTransport.class }, null);
-        this.assertInitFailure(loader, "Duplicate transport SPI name");
+        this.assertPreparationFailure(loader, config("custom-protocol"), "Duplicate transport SPI name");
     }
 
     @Test
     public void protocolNamesMustBeUniqueIgnoringCase() throws Exception {
         ClassLoader loader = this.loader(null, new Class<?>[] { CustomProtocol.class, DuplicateProtocol.class });
-        this.assertInitFailure(loader, "Duplicate protocol SPI name");
+        this.assertPreparationFailure(loader, config("custom-protocol"), "Duplicate protocol SPI name");
     }
 
     @Test
     public void blankProtocolNameIsRejectedDuringDiscovery() throws Exception {
         ClassLoader loader = this.loader(null, new Class<?>[] { BlankProtocol.class });
-        this.assertInitFailure(loader, "Missing protocol SPI name");
+        this.assertPreparationFailure(loader, config("custom-protocol"), "Missing protocol SPI name");
     }
 
     @Test
-    public void missingTransportIsRejectedDuringInitialization() throws Exception {
+    public void missingTransportIsRejectedDuringPreparation() throws Exception {
         ClassLoader loader = this.loader(new Class<?>[0], new Class<?>[] { CustomProtocol.class });
-        this.assertInitFailure(loader, "No connector factory for custom");
+        this.assertPreparationFailure(loader, config("custom-protocol"), "Unknown transport: custom");
     }
 
-    private void assertBindFailure(ClassLoader loader, ConnectorConfig config, String expected) throws Exception {
+    private void assertPreparationFailure(ClassLoader loader, ConnectorConfig config, String expected) throws Exception {
         try (ConnectorManager manager = this.manager(loader, config)) {
-            manager.init();
-            try {
-                manager.bind("test").get(3, TimeUnit.SECONDS);
-                fail("Invalid assembly must fail before listening");
-            } catch (ExecutionException failure) {
-                assertTrue(failure.getCause().toString(), failure.getCause().getMessage().contains(expected));
-            }
-            assertNull(manager.find("test"));
-            assertEquals(0, CustomTransport.created.get());
+            fail("Invalid configuration must fail before creating network resources");
+        } catch (IllegalArgumentException | IllegalStateException failure) {
+            assertTrue(failure.toString(), failure.getMessage().contains(expected));
         }
-    }
-
-    private void assertInitFailure(ClassLoader loader, String expected) throws Exception {
-        try (ConnectorManager manager = this.manager(loader, config("custom-protocol"))) {
-            try {
-                manager.init();
-                fail("Invalid SPI registry must fail initialization");
-            } catch (IllegalArgumentException | IllegalStateException failure) {
-                assertTrue(failure.toString(), failure.getMessage().contains(expected));
-            }
-            assertEquals(0, CustomTransport.created.get());
-        }
+        assertEquals(0, CustomTransport.created.get());
     }
 
     private static ConnectorConfig config(String protocol) throws IOException {
@@ -159,7 +162,10 @@ public class ProtocolSpiTest {
             }
             throw new UnsupportedOperationException(method.getName());
         });
-        return new ConnectorManager(context, new EndpointConnectorFactory());
+        EndpointConnectorFactory factory = new EndpointConnectorFactory();
+        factory.listenTypes(loader);
+        factory.prepare(config);
+        return new ConnectorManager(context, factory);
     }
 
     private ClassLoader loader(Class<?>[] transports, Class<?>[] protocols) throws Exception {
@@ -188,7 +194,15 @@ public class ProtocolSpiTest {
     }
 
     public static class CustomTransport implements NetworkConnectorFactory<byte[]> {
-        private static final AtomicInteger created = new AtomicInteger();
+        private static final AtomicInteger created  = new AtomicInteger();
+        private static final AtomicInteger prepared = new AtomicInteger();
+
+        public void configRoutes(Map<String, Map<String, String>> routes) {
+            prepared.incrementAndGet();
+            for (Map<String, String> options : routes.values()) {
+                options.put("preparation", "ready");
+            }
+        }
 
         public String name() {
             return "CUSTOM";
@@ -211,6 +225,13 @@ public class ProtocolSpiTest {
     }
 
     public static class CustomProtocol extends SocketLifecycleTest.RawProtocol {
+        private static final BlockingQueue<ProtocolConfig> configurations = new LinkedBlockingQueue<>();
+
+        public ProtocolSession<byte[]> create(ProtocolConfig config, ProtocolContext context, NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
+            configurations.add(config);
+            return super.create(config, context, connection, messages);
+        }
+
         public String name() {
             return "CUSTOM-PROTOCOL";
         }

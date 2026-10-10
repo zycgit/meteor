@@ -17,12 +17,10 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.provider.AddressProvider;
 import net.hasor.meteor.address.provider.InstanceAddressProvider;
 import net.hasor.meteor.address.provider.PoolAddressProvider;
-import net.hasor.meteor.address.route.ArgsKey;
 
 /** Composes the independent address pool, disk cache and providers using RSF settings. */
 public class CacheAddressPool extends AddressPool implements MetUpdater, AutoCloseable {
     private final    MetSettings                             settings;
-    private final    ArgsKey                                 routeArgsKey;
     private final    PoolAddressProvider                     provider;
     private volatile State                                   state = State.NEW;
     private          DiskCache                               diskCache;
@@ -39,13 +37,7 @@ public class CacheAddressPool extends AddressPool implements MetUpdater, AutoClo
     public CacheAddressPool(MetSettings settings) {
         super(settings.getUnitName(), settings.getInvalidWaitTime());
         this.settings = settings;
-        this.routeArgsKey = this.createArgsKey();
         this.provider = new PoolAddressProvider(this);
-    }
-
-    @Override
-    protected ArgsKey getArgsKey() {
-        return this.routeArgsKey;
     }
 
     public AddressProvider getProvider() {
@@ -54,15 +46,6 @@ public class CacheAddressPool extends AddressPool implements MetUpdater, AutoClo
 
     public AddressProvider getProvider(InterAddress target) {
         return new InstanceAddressProvider(target);
-    }
-
-    private ArgsKey createArgsKey() {
-        Class<? extends ArgsKey> type = this.settings.getArgsKeyClass();
-        try {
-            return type.getConstructor().newInstance();
-        } catch (ReflectiveOperationException failure) {
-            throw new IllegalArgumentException("Cannot construct address ArgsKey: " + type.getName(), failure);
-        }
     }
 
     /** Start the disk cache, or borrow the scheduler for memory-only maintenance. */
@@ -101,20 +84,26 @@ public class CacheAddressPool extends AddressPool implements MetUpdater, AutoClo
     }
 
     @Override
-    public synchronized void close() {
-        if (this.state == State.CLOSED) {
-            return;
+    public void close() {
+        Cancellable refresh;
+        DiskCache cache;
+        synchronized (this) {
+            if (this.state == State.CLOSED) {
+                return;
+            }
+            this.state = State.CLOSED;
+            refresh = this.refreshTask;
+            cache = this.diskCache;
         }
 
-        this.state = State.CLOSED;
-
+        // 停止定时器可能等待正在执行的维护任务，不能同时占用任务所需的锁。
         try {
-            if (this.refreshTask != null) {
-                this.refreshTask.cancel();
+            if (refresh != null) {
+                refresh.cancel();
             }
         } finally {
-            if (this.diskCache != null) {
-                this.diskCache.close();
+            if (cache != null) {
+                cache.close();
             }
         }
     }

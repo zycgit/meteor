@@ -6,93 +6,48 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.address;
-import java.util.Iterator;
 import java.util.List;
-import java.util.ServiceLoader;
 import net.hasor.cobble.StringUtils;
-import net.hasor.cobble.codec.MD5;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
+import net.hasor.meteor.address.dsl.RouteContext;
+import net.hasor.meteor.address.dsl.RouteRule;
+import net.hasor.meteor.address.dsl.XmlRuleParser;
 
-/**
- * @author 赵永春 (zyc@hasor.net)
- * @version : 2015年12月3日
- */
+/** 随 RuleRef 发布的规则正文和解析结果，更新失败保留旧规则。 */
 class InnerRuleEngine {
-    protected static final Logger           logger     = LoggerFactory.getLogger(InnerRuleEngine.class);
-    private volatile       String           ruleScript = null; //规则脚本
-    private volatile       String           signature  = null; //脚本内容签名，用于校验是否发生变化
-    //
-    private final          RuleScriptEngine runScriptEngine;
-    private volatile       RuleScript<?>    runScript  = null; //调用程序
+    private static final Logger    logger = LoggerFactory.getLogger(InnerRuleEngine.class);
+    private              String    ruleScript;
+    private              RouteRule rule;
 
-    public InnerRuleEngine() {
-        ServiceLoader<RuleScriptEngine> engines = ServiceLoader.load(RuleScriptEngine.class);
-        Iterator<RuleScriptEngine> iterator = engines.iterator();
-        if (iterator.hasNext()) {
-            this.runScriptEngine = iterator.next();
-        } else {
-            this.runScriptEngine = null;
-        }
+    InnerRuleEngine() {
     }
 
     InnerRuleEngine(InnerRuleEngine source) {
-        this.runScriptEngine = source.runScriptEngine;
         this.ruleScript = source.ruleScript;
-        this.signature = source.signature;
-        this.runScript = source.runScript;
+        this.rule = source.rule;
     }
 
     public boolean isEnable() {
-        return this.runScript != null;
+        return this.rule != null;
     }
 
-    public synchronized boolean update(String ruleScript) {
-        if (this.runScriptEngine == null) {
+    public boolean update(String script) {
+        if (StringUtils.isBlank(script)) {
+            script = null;
+        }
+
+        if (StringUtils.equals(script, this.ruleScript)) {
             return false;
         }
 
-        //1.空内容判断
-        if (StringUtils.isBlank(ruleScript)) {
-            ruleScript = "";
-            if (this.ruleScript == null) {
-                return false;/*将脚本更新为空，同时本地也为空 ->不执行脚本更新。*/
-            }
-        }
-
-        //2.内容签名
-        String signature = null;
         try {
-            signature = MD5.getMD5(ruleScript);
-        } catch (Throwable e) {
-            logger.error("eval ruleScript signature error ->" + e.getMessage(), e);
-            signature = ruleScript;
-        }
-
-        //3.内容是否变化
-        if (StringUtils.equalsIgnoreCase(signature, this.signature)) {
-            return false;/*无变化*/
-        }
-        try {
-            if (StringUtils.isBlank(ruleScript)) {
-                this.runScript = null;
-                this.ruleScript = null;
-                this.signature = signature;
-                return true;
-            }
-
-            RuleScript<?> compiled = this.runScriptEngine.eval(ruleScript);
-            if (compiled == null) {
-                return false;
-            }
-
-            this.runScript = compiled;
-            logger.info("ruleEngine ruleScript compiler finish.");
-            this.ruleScript = ruleScript;
-            this.signature = signature;
+            RouteRule compiled = script == null ? null : new XmlRuleParser().parse(script);
+            this.rule = compiled;
+            this.ruleScript = script;
             return true;
-        } catch (Throwable e) {
-            logger.error("ruleEngine ruleScript compiler error ->" + e.getMessage(), e);
+        } catch (IllegalArgumentException failure) {
+            logger.error("Cannot parse XML route", failure);
             return false;
         }
     }
@@ -101,15 +56,7 @@ class InnerRuleEngine {
         return this.ruleScript;
     }
 
-    public Object runRule(String serviceID, List<String> allAddress) {
-        if (this.runScript == null) {
-            return null;
-        }
-        try {
-            return this.runScript.evalAddress(serviceID, allAddress);
-        } catch (Throwable e) {
-            logger.error("evalServiceLevel error ,message = " + e.getMessage(), e);
-            return null;
-        }
+    List<InterAddress> evaluate(RouteContext input, List<InterAddress> candidates) {
+        return this.rule.evaluate(input, candidates);
     }
 }

@@ -16,28 +16,28 @@ import net.hasor.meteor.address.InterAddress;
  * @author 赵永春 (zyc@hasor.net)
  */
 public interface MetUpdater {
-    /**更新服务地址本计算规则（服务级）*/
+    /** 使用 XML 更新服务级路由；空正文清除规则。 */
     boolean updateServiceRoute(String serviceID, String scriptBody);
 
     /**更新服务地址本计算规则（服务级）*/
     String serviceRoute(String serviceID);
 
-    /**更新本地方法级地址计算脚本。*/
+    /** 使用 XML 更新方法级路由；空正文清除规则。 */
     boolean updateMethodRoute(String serviceID, String scriptBody);
 
     /**更新本地方法级地址计算脚本。*/
     String methodRoute(String serviceID);
 
-    /**更新本地参数级地址计算脚本。*/
+    /** 使用 XML 更新参数级路由；空正文清除规则。 */
     boolean updateArgsRoute(String serviceID, String scriptBody);
 
     /**更新本地参数级地址计算脚本。*/
     String argsRoute(String serviceID);
 
-    /**更新服务路由策略*/
+    /** 使用 XML 更新流控；空正文清除规则。 */
     boolean updateFlowControl(String serviceID, String flowControl);
 
-    /**更新服务路由策略*/
+    /** 获取当前流控正文，未配置时返回 null。 */
     String flowControl(String serviceID);
 
     /**获取所有地址（包括本地的和无效的）。*/

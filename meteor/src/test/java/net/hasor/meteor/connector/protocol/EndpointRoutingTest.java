@@ -231,7 +231,7 @@ public class EndpointRoutingTest {
                 line.write(value);
             }
         }
-        return line.toString("UTF-8");
+        return line.toString(StandardCharsets.UTF_8);
     }
 
     private static String readHttp(Socket socket, int status) throws Exception {
@@ -249,16 +249,7 @@ public class EndpointRoutingTest {
         return new String(body, StandardCharsets.UTF_8);
     }
 
-    private static final class Delivery {
-        final MetChannel channel;
-        final long       id;
-        final Payload    payload;
-
-        Delivery(MetChannel channel, long id, Payload payload) {
-            this.channel = channel;
-            this.id = id;
-            this.payload = payload;
-        }
+    private record Delivery(MetChannel channel, long id, Payload payload) {
     }
 
     private static final class Runtime implements AutoCloseable {
@@ -272,8 +263,8 @@ public class EndpointRoutingTest {
             String prefix = StringUtils.equals(transport, "udp") ? "datagram" : "";
             String firstProtocol = prefix + a.getSimpleName().toLowerCase(Locale.ROOT);
             String secondProtocol = prefix + b.getSimpleName().toLowerCase(Locale.ROOT);
-            ProtocolConfig first = new ProtocolConfig("a", firstProtocol, Collections.singletonMap("contextPath", "/a"));
-            ProtocolConfig second = new ProtocolConfig("b", secondProtocol, Collections.singletonMap("contextPath", "/b"));
+            ProtocolConfig first = new ProtocolConfig("a", firstProtocol, Collections.singletonMap("contextPath", "/a///"));
+            ProtocolConfig second = new ProtocolConfig("b", secondProtocol, Collections.singletonMap("contextPath", "/b///"));
             InterAddress address = new InterAddress(transport, "127.0.0.1", port(), "test");
             ConnectorConfig config = new ConnectorConfig("shared", address, options, Arrays.asList(first, second), true);
             ClassLoader loader = this.getClass().getClassLoader();
@@ -292,7 +283,10 @@ public class EndpointRoutingTest {
                 }
                 throw new UnsupportedOperationException(method.getName());
             });
-            this.manager = new ConnectorManager(context, new EndpointConnectorFactory());
+            EndpointConnectorFactory factory = new EndpointConnectorFactory();
+            factory.listenTypes(loader);
+            factory.prepare(config);
+            this.manager = new ConnectorManager(context, factory);
             this.manager.init();
             this.manager.subscribe((channel, id, payload) -> this.messages.add(new Delivery(channel, id, payload)));
         }
@@ -330,6 +324,10 @@ public class EndpointRoutingTest {
         @Override
         public RouteMatch probe(ProtocolConfig config, HttpExchange message) {
             return RouteMatch.REJECT;
+        }
+
+        public String defaultSerializeType() {
+            return "Java";
         }
 
         public String transport() {
@@ -386,6 +384,10 @@ public class EndpointRoutingTest {
         @Override
         public String scheme() {
             return this.name();
+        }
+
+        public String defaultSerializeType() {
+            return "Java";
         }
 
         public String transport() {

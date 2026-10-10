@@ -38,16 +38,12 @@ public class ConnectorConfigTest {
     }
 
     @Test
-    public void protocolOverridesDoNotMutateEndpointOrOtherRoutes() {
+    public void changingTheTargetAddressRetainsProtocolMountsAndEndpointOptions() {
         Map<String, String> options = Map.of("listenType", "tcp", "limit", "10", "workerThread", "2");
         ProtocolConfig first = new ProtocolConfig("one", "one", Map.of("limit", "20"));
         ProtocolConfig second = new ProtocolConfig("two", "two", Collections.emptyMap());
         ConnectorConfig config = new ConnectorConfig("endpoint", EndpointFixture.address("tcp"), options, Arrays.asList(first, second), false);
-        assertEquals("20", config.forProtocol(first).option("limit", null));
-        assertEquals("2", config.forProtocol(first).option("workerThread", null));
-        assertEquals("10", config.forProtocol(second).option("limit", null));
-        assertEquals("10", config.option("limit", null));
-        assertNull(first.option("workerThread", null));
+        // 出站连接更换目标地址，继续使用端点已准备的协议挂载。
         InterAddress remote = new InterAddress("tcp", "127.0.0.1", 2182, "other");
         ConnectorConfig copy = config.withAddress(remote);
         assertEquals(remote, copy.address());

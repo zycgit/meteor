@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
@@ -25,6 +26,7 @@ import net.hasor.meteor.domain.payload.ThrowPayload;
 
 /** Common RSF channel facade and write lifecycle for every protocol session. */
 final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelListener<M> {
+    private final String                  serializeType;
     private final Executor                executor;
     private final EndpointConnector<?>    owner;
     private final BasicFuture<MetChannel> closed    = new BasicFuture<>();
@@ -41,6 +43,7 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
         this.executor = executor;
         this.connection = connection;
         this.connecting = connecting;
+        this.serializeType = protocolConfig.option("serializeType", null);
 
         InterAddress local = owner.getBindAddress();
         InterAddress advertised = null;
@@ -130,6 +133,9 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
         if (this.admitWrite(sent)) {
             this.executeWrite(this.executor, sent, () -> {
                 if (!sent.isCancelled()) {
+                    if (payload instanceof RequestPayload request && StringUtils.isBlank(request.getSerializeType())) {
+                        request.setSerializeType(this.serializeType);
+                    }
                     Future<Void> writing = this.session.send(payload);
 
                     sent.onCancel(done -> {

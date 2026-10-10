@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Set;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.address.route.ArgsKey;
 import net.hasor.meteor.connector.ConnectorConfig;
 
 /**
@@ -33,9 +32,6 @@ public interface MetSettings {
 
     /**获取默认超时时间。*/
     String getDefaultVersion();
-
-    /**获取服务默认使用的序列化类型。*/
-    String getSerializeType();
 
     /**获取默认附加到响应中的选项。*/
     MetOptionSet getResponseOptions();
@@ -81,9 +77,6 @@ public interface MetSettings {
 
     /**获取已解析的连接器配置及其专属选项。*/
     Collection<ConnectorConfig> getConnectorConfigs();
-
-    /**获取地址参数路由键的实现类。*/
-    Class<? extends ArgsKey> getArgsKeyClass();
 
     /**获取本机所属单元*/
     String getUnitName();

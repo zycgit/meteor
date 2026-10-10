@@ -22,6 +22,7 @@ import net.hasor.cobble.concurrent.future.CancelFutureCallback;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.address.dsl.RouteContext;
 import net.hasor.meteor.address.provider.AddressProvider;
 import net.hasor.meteor.address.provider.InstanceAddressProvider;
 import net.hasor.meteor.connector.ConnectorManager;
@@ -167,7 +168,10 @@ public class RpcModuleTest {
                     return true;
                 }
 
-                public InterAddress get(String serviceID, String method, Object[] arguments) {
+                public InterAddress get(RouteContext input) {
+                    String serviceID = input.getServiceId();
+                    String method = (String) input.getMethod().get("name");
+                    Object[] arguments = input.getArgs();
                     assertEquals(host.service.getBindID(), serviceID);
                     assertEquals("echo", method);
                     assertEquals(1, arguments.length);
@@ -318,6 +322,8 @@ public class RpcModuleTest {
                         return 6000;
                     case "getMaximumRequest":
                         return 100;
+                    case "getUnitName":
+                        return "default";
                     case "getRequestOptions":
                     case "getResponseOptions":
                         return new OptionInfo();
@@ -328,6 +334,8 @@ public class RpcModuleTest {
             JavaSerializeCoder coder = new JavaSerializeCoder();
             MetContext context = proxy(MetContext.class, (p, m, args) -> {
                 switch (m.getName()) {
+                    case "getApplicationName":
+                        return "application";
                     case "getSettings":
                         return settings;
                     case "getSerializeCoder":

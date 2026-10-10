@@ -8,6 +8,7 @@
 package net.hasor.meteor.address.provider;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.address.dsl.RouteContext;
 
 /**
  *
@@ -22,8 +23,8 @@ public class PoolAddressProvider implements AddressProvider {
     }
 
     @Override
-    public InterAddress get(String serviceID, String methodName, Object[] args) {
-        return this.pool.nextAddress(serviceID, methodName, args);
+    public InterAddress get(RouteContext input) {
+        return this.pool.nextAddress(input);
     }
 
     @Override

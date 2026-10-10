@@ -67,15 +67,13 @@ final class ProtocolRouter<M> implements RoutedReceiver<M> {
         ProtocolChannel<M> session = this.sessions.get(route);
         if (session == null) {
             ProtocolConfig configured = this.owner.config().protocol(route);
-            Map<String, String> options = this.routes.get(route).options();
-            ProtocolConfig effective = new ProtocolConfig(configured.name(), route, configured.protocol(), options);
 
             boolean inboundPartition = this.shared && this.connecting == null;
             SessionConnection<M> view = new SessionConnection<>(this.network, route, inboundPartition);
             long channelId = this.owner.manager().nextConnectionId();
             ProtocolFactory<M> factory = this.factories.get(route);
 
-            session = new ProtocolChannel<>(this.owner, channelId, this.receiver, view::execute, view, factory, this.connecting, effective);
+            session = new ProtocolChannel<>(this.owner, channelId, this.receiver, view::execute, view, factory, this.connecting, configured);
             view.onClose(session::closed);
             this.views.put(route, view);
             this.sessions.put(route, session);

@@ -8,10 +8,27 @@
 package net.hasor.meteor;
 
 /** 实例生命周期与本地服务声明变化，不包含任何注册中心行为。 */
-public enum MetContextEvent {
-    STARTED,
-    SERVICES_CHANGED,
-    ONLINE,
-    OFFLINE,
-    CLOSED
+public final class MetContextEvent {
+    private final MetContextEventType type;
+    private final MetBindInfo<?>      serviceInfo;
+
+    public MetContextEvent(MetContextEventType type, MetBindInfo<?> serviceInfo) {
+        this.type = type;
+        this.serviceInfo = serviceInfo;
+    }
+
+    /** 已经发生的生命周期或服务变化。 */
+    public MetContextEventType getType() {
+        return this.type;
+    }
+
+    /** 服务登记、移除事件对应的服务 ID；实例生命周期事件为 null。 */
+    public String getServiceId() {
+        return this.serviceInfo == null ? null : this.serviceInfo.getBindID();
+    }
+
+    /** 对应的服务声明，可通过 getServiceType() 判断身份；实例生命周期事件为 null。 */
+    public MetBindInfo<?> getServiceInfo() {
+        return this.serviceInfo;
+    }
 }

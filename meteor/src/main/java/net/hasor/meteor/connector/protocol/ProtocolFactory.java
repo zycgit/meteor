@@ -21,6 +21,9 @@ public interface ProtocolFactory<M> {
 
     String transport();
 
+    /** Default serializer for calls sent through this protocol. */
+    String defaultSerializeType();
+
     Class<M> messageType();
 
     /** Inspect data without consuming it when the transport needs content-based routing. */

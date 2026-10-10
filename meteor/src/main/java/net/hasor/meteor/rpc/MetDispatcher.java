@@ -11,19 +11,19 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFilter;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.MetChannel;
-import net.hasor.meteor.domain.MetConstants;
+import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 
 /** Dispatches inbound requests without owning outbound calls or client proxies. */
 final class MetDispatcher implements AutoCloseable {
-    private static final Logger                logger    = LoggerFactory.getLogger(MetDispatcher.class);
-    private static final Logger                invLogger = LoggerFactory.getLogger(MetConstants.LoggerName_Invoker);
+    private static final Logger                logger = LoggerFactory.getLogger(MetDispatcher.class);
     private final        MetContext            context;
     private final        MetFilterProvider     filters;
     private final        MetDispatcherExecutor dispatcherExecutor;
@@ -60,10 +60,23 @@ final class MetDispatcher implements AutoCloseable {
             return;
         }
 
+        // 协议暴露限制在入队和 Accept 回执之前检查，消息调用同样不能绕过。
+        MetBindInfo<?> service = this.context.getServiceInfo(info.getServiceGroup(), info.getServiceName(), info.getServiceVersion());
+        if (service != null && !service.getBindProtocols().isEmpty()) {
+            String scheme = channel.getLocal().getSchema();
+            ProtocolConfig protocol = channel.getConnector().config().protocol(scheme);
+            if (protocol == null || !protocol.accepts(service.getBindProtocols())) {
+                String message = "Service is not exposed through protocol: " + scheme;
+                ResponsePayload response = MetPayloadBuilder.buildResponseStatus(requestId, ProtocolStatus.Forbidden, message);
+                channel.sendData(response).onFinal(done -> info.complete(done.getCause()));
+                return;
+            }
+        }
+
         InterAddress target = channel.getRemote();
         String serviceUniqueName = "[" + info.getServiceGroup() + "]" + info.getServiceName() + "-" + info.getServiceVersion();
         try {
-            invLogger.info("request(" + info.getRequestID() + ") -> received, bindID =" + serviceUniqueName + ", targetMethod =" + info.getTargetMethod() + ", remoteAddress =" + target + ".");
+            logger.info("request(" + info.getRequestID() + ") -> received, bindID =" + serviceUniqueName + ", targetMethod =" + info.getTargetMethod() + ", remoteAddress =" + target + ".");
             Executor executor = this.dispatcherExecutor.getExecute(serviceUniqueName);
             executor.execute(new MetInvocationTask(channel, this, info));//放入业务线程准备执行
             ResponsePayload resp = MetPayloadBuilder.buildResponseStatus(info.getRequestID(), ProtocolStatus.Accept, null);
@@ -80,7 +93,7 @@ final class MetDispatcher implements AutoCloseable {
                 }
             });
         } catch (RejectedExecutionException e) {
-            invLogger.info("request(" + info.getRequestID() + ") -> rejected request, queue is full. -> bindID =" + serviceUniqueName + ", targetMethod =" + info.getTargetMethod() + ", remoteAddress =" + target + ".");
+            logger.info("request(" + info.getRequestID() + ") -> rejected request, queue is full. -> bindID =" + serviceUniqueName + ", targetMethod =" + info.getTargetMethod() + ", remoteAddress =" + target + ".");
 
             String errorMessage = "(" + e.getClass().getName() + ")" + e.getMessage();
             String msgLog = "rejected request, queue is full." + errorMessage;

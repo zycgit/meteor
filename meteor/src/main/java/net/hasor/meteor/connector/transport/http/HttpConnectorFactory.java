@@ -7,21 +7,19 @@
  */
 package net.hasor.meteor.connector.transport.http;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.transport.NetworkConnector;
 import net.hasor.meteor.connector.transport.NetworkConnectorFactory;
-import net.hasor.meteor.connector.transport.NetworkRoute;
 
 public final class HttpConnectorFactory implements NetworkConnectorFactory<HttpExchange> {
-    public Map<String, NetworkRoute<HttpExchange>> prepareRoutes(Map<String, NetworkRoute<HttpExchange>> routes) {
-        Map<String, NetworkRoute<HttpExchange>> prepared = new LinkedHashMap<>();
+    public void configRoutes(Map<String, Map<String, String>> routes) {
         Set<String> paths = new HashSet<>();
-        routes.forEach((name, route) -> {
-            Map<String, String> options = new LinkedHashMap<>(route.options());
-            String path = options.getOrDefault("contextPath", routes.size() == 1 ? "/" : "/" + name);
+        for (Map.Entry<String, Map<String, String>> route : routes.entrySet()) {
+            Map<String, String> options = route.getValue();
+            String defaultPath = routes.size() == 1 ? "/" : "/" + route.getKey();
+            String path = options.getOrDefault("contextPath", defaultPath);
             if (!path.startsWith("/")) {
                 throw new IllegalArgumentException("Invalid HTTP mount: " + path);
             }
@@ -33,9 +31,7 @@ public final class HttpConnectorFactory implements NetworkConnectorFactory<HttpE
             }
 
             options.put("contextPath", path);
-            prepared.put(name, route.withOptions(options));
-        });
-        return prepared;
+        }
     }
 
     public boolean sharedRoutes() {

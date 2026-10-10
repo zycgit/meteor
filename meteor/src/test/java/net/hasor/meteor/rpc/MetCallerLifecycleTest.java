@@ -671,6 +671,8 @@ public class MetCallerLifecycleTest {
                     case "getSendLimitPolicy":
                         this.limitReached.countDown();
                         return this.policy;
+                    case "getUnitName":
+                        return "default";
                     case "getRequestOptions":
                         if (this.requestOptionFailure != null) {
                             throw this.requestOptionFailure;
@@ -682,6 +684,8 @@ public class MetCallerLifecycleTest {
             });
             MetContext context = proxy(MetContext.class, (p, m, args) -> {
                 switch (m.getName()) {
+                    case "getApplicationName":
+                        return "application";
                     case "getSettings":
                         return settings;
                     case "getClassLoader":

@@ -20,9 +20,8 @@ public interface NetworkConnectorFactory<M> {
         return false;
     }
 
-    /** Normalize and validate routes before allocating resource. */
-    default Map<String, NetworkRoute<M>> prepareRoutes(Map<String, NetworkRoute<M>> routes) {
-        return routes;
+    /** 构建阶段按挂载名校验并更新参数；此时不创建资源和消息探测器。 */
+    default void configRoutes(Map<String, Map<String, String>> routes) {
     }
 
     NetworkConnector<M> create(ConnectorConfig config, ClassLoader loader);

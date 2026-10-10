@@ -11,7 +11,6 @@ import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.address.InterAddress;
@@ -25,8 +24,8 @@ import net.hasor.meteor.serialize.SerializeCoder;
 public interface MetContext extends OnlineStatus, AutoCloseable {
     void start();
 
-    /** 订阅本地事件；回调应快速返回，关闭后释放订阅，取消不打断正在执行的回调。 */
-    Cancellable subscribe(Consumer<MetContextEvent> listener);
+    /** 订阅本地生命周期与服务事件；同步回调应快速返回，关闭后释放订阅，取消不打断正在执行的回调。 */
+    Cancellable subscribe(MetContextListener listener);
 
     /** 获取扩展运行对象或其提供的服务；未提供返回 null，存在多个匹配扩展时抛出异常。 */
     <T> T getExtension(Class<T> type);

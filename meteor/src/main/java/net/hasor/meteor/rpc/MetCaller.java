@@ -7,10 +7,7 @@
  */
 package net.hasor.meteor.rpc;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -21,6 +18,7 @@ import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.address.dsl.RouteContext;
 import net.hasor.meteor.address.provider.AddressProvider;
 import net.hasor.meteor.connector.ConnectorManager;
 import net.hasor.meteor.connector.MetChannel;
@@ -32,8 +30,8 @@ import net.hasor.meteor.domain.payload.ThrowPayload;
 
 /** Coordinates outbound invocations, inbound dispatch, connector messages and RPC shutdown. */
 public final class MetCaller implements AutoCloseable {
+    private static final Logger                    invLogger   = LoggerFactory.getLogger(MetCaller.class);
     private static final AtomicLong                REQUEST_IDS = new AtomicLong(1);
-    private static final Logger                    invLogger   = LoggerFactory.getLogger(MetConstants.LoggerName_Invoker);
     private final        Map<Long, PendingRequest> rsfResponse = new ConcurrentHashMap<>();
     private final        MetContext                context;
     private final        Semaphore                 requestPermits;
@@ -135,7 +133,20 @@ public final class MetCaller implements AutoCloseable {
         }
 
         Method targetMethod = MetRuntimeUtils.getServiceMethod(bindInfo.getBindType(), methodName, parameterTypes);
-        InterAddress targetAddress = target.get(bindInfo.getBindID(), methodName, parameterObjects);
+        RouteContext routing = new RouteContext(bindInfo.getBindID(), methodName, parameterObjects);
+        routing.getEnv().put("applicationName", this.context.getApplicationName());
+        routing.getEnv().put("unitName", this.context.getSettings().getUnitName());
+        routing.getService().put("name", bindInfo.getBindName());
+        routing.getService().put("group", bindInfo.getBindGroup());
+        routing.getService().put("version", bindInfo.getBindVersion());
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        for (String key : bindInfo.getMetaKeys()) {
+            metadata.put(key, bindInfo.getMetaData(key));
+        }
+
+        routing.getService().put("meta", metadata);
+        routing.getMethod().put("signature", targetMethod.toGenericString());
+        InterAddress targetAddress = target.get(routing);
         MetRequestObject request = new MetRequestObject(REQUEST_IDS.incrementAndGet(), true, this.context, bindInfo, targetMethod, parameterObjects);
         request.setPeerAddress(targetAddress);
         request.setFlags(flags);

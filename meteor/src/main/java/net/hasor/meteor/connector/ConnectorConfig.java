@@ -9,7 +9,7 @@ package net.hasor.meteor.connector;
 import java.util.*;
 import net.hasor.meteor.address.InterAddress;
 
-/** Immutable configuration for a named connector and its local listening address. */
+/** 固定的连接端点及协议挂载，协议参数在启动前完成准备。 */
 public final class ConnectorConfig {
     private final String                      name;
     private final String                      listenType;
@@ -89,13 +89,6 @@ public final class ConnectorConfig {
 
     public ProtocolConfig protocol(String scheme) {
         return this.protocols.get(scheme.toLowerCase(Locale.ROOT));
-    }
-
-    /** Effective options for a protocol, retaining endpoint resource limits. */
-    public ProtocolConfig forProtocol(ProtocolConfig protocol) {
-        Map<String, String> merged = new LinkedHashMap<>(this.options);
-        merged.putAll(protocol.options());
-        return new ProtocolConfig(protocol.name(), protocol.scheme(), protocol.protocol(), merged);
     }
 
     public int connectTimeout() {

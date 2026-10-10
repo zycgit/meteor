@@ -13,18 +13,21 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.*;
+import net.hasor.meteor.address.AddressBucket;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.ProtocolStatus;
+import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class MetContainerTest {
-    private final AddressPool  addresses = new AddressPool("unit", 1000);
-    private final MetSettings  settings  = proxy(MetSettings.class, (p, method, args) -> {
+    private final AddressPool  addresses      = new AddressPool("unit", 1000);
+    private final MetSettings  settings       = proxy(MetSettings.class, (p, method, args) -> {
         switch (method.getName()) {
             case "getDefaultGroup":
                 return "default";
@@ -40,8 +43,135 @@ public class MetContainerTest {
                 throw new AssertionError("Unexpected setting: " + method.getName());
         }
     });
-    private final MetContainer container = new MetContainer(this.addresses, this.settings);
-    private final MetPublisher publisher = this.container.createPublisher();
+    private final List<String> serviceChanges = new ArrayList<>();
+    private final MetContainer container      = new MetContainer(this.addresses, this.settings);
+    private final MetPublisher publisher      = this.container.createPublisher();
+
+    @Before
+    public void observeServiceChanges() {
+        this.container.subscribe(event -> this.serviceChanges.add(event.getServiceId()));
+    }
+
+    @Test
+    public void registrationBecomesVisibleAfterAddressesAreReady() throws Exception {
+        CountDownLatch preparing = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AddressPool addresses = new AddressPool() {
+            @Override
+            public void registerBucket(AddressBucket bucket) {
+                preparing.countDown();
+                try {
+                    assertTrue(release.await(10, TimeUnit.SECONDS));
+                } catch (InterruptedException failure) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(failure);
+                }
+                super.registerBucket(bucket);
+            }
+        };
+        MetContainer local = new MetContainer(addresses, this.settings);
+        ExecutorService worker = Executors.newSingleThreadExecutor();
+        try {
+            Future<MetBindInfo<Echo>> publishing = worker.submit(() -> {
+                return local.createPublisher().rsfService(Echo.class).bindAddress("rsf://localhost:2181/default").register();
+            });
+            try {
+                assertTrue(preparing.await(5, TimeUnit.SECONDS));
+                assertNull(local.getRsfBindInfo(Echo.class));
+                assertTrue(local.getServiceIDs().isEmpty());
+            } finally {
+                release.countDown();
+            }
+            MetBindInfo<Echo> service = publishing.get(5, TimeUnit.SECONDS);
+            assertNotNull(local.getRsfBindInfo(service.getBindID()));
+            assertNotNull(addresses.nextAddress(service.getBindID(), "echo", null));
+        } finally {
+            release.countDown();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    public void registrationPreservesAddressesDiscoveredBeforeServiceDeclaration() throws Exception {
+        String id = "[default]" + Echo.class.getName() + "-1.0";
+        InterAddress discovered = new InterAddress("rsf://localhost:2181/default");
+        InterAddress fixed = new InterAddress("rsf://localhost:2182/default");
+        this.addresses.appendAddress(id, discovered);
+        String methodRoute = "<route><return value='addresses'/></route>";
+        this.addresses.updateMethodRoute(id, methodRoute);
+
+        MetBindInfo<Echo> service = this.publisher.rsfService(Echo.class).bindAddress(fixed).register();
+        assertEquals(id, service.getBindID());
+        assertEquals(Set.of(discovered, fixed), new HashSet<>(this.addresses.queryAllAddresses(id)));
+        assertEquals(List.of(fixed), this.addresses.getBucket(id).getStaticAddresses());
+        assertEquals(methodRoute, this.addresses.methodRoute(id));
+    }
+
+    @Test
+    public void subscriptionsObserveCommittedChangesOutsideContainerLock() {
+        // 独立容器不要求监听器；多个监听器失败隔离，读取的是变更完成后的数据。
+        MetContainer local = new MetContainer(new AddressPool(), this.settings);
+        MetBindInfo<Echo> earlier = local.createPublisher().rsfService(Echo.class).name("earlier").register();
+        assertNotNull(local.getRsfBindInfo(earlier.getBindID()));
+        List<MetContextEvent> events = new ArrayList<>();
+        local.subscribe(event -> {
+            throw new IllegalStateException("listener failure");
+        });
+        local.subscribe(event -> {
+            assertFalse(Thread.holdsLock(local));
+            if (event.getType() == MetContextEventType.REGISTERED) {
+                assertSame(local.getRsfBindInfo(event.getServiceId()), event.getServiceInfo());
+            } else {
+                assertNull(local.getRsfBindInfo(event.getServiceId()));
+            }
+            events.add(event);
+        });
+
+        // 提供者发布和移除各通知一次，失败及重复操作不产生事件。
+        MetPublisher publisher = local.createPublisher();
+        MetBindInfo<Echo> service = publisher.rsfService(Echo.class, value -> value).register();
+        assertThrows(IllegalStateException.class, () -> publisher.rsfService(Echo.class).register());
+        assertTrue(local.recoverService(service.getBindID()));
+        assertFalse(local.recoverService(service.getBindID()));
+        assertEquals(2, events.size());
+        assertEquals(MetContextEventType.REGISTERED, events.get(0).getType());
+        assertEquals(MetContextEventType.REMOVED, events.get(1).getType());
+        assertEquals(MetServiceType.Provider, events.get(0).getServiceInfo().getServiceType());
+        assertSame(events.get(0).getServiceInfo(), events.get(1).getServiceInfo());
+
+        // 同一服务 ID 重新声明为消费者，复用事件类型；旧事件仍指向原提供者。
+        MetBindInfo<Echo> consumer = publisher.rsfService(Echo.class).register();
+        assertEquals(service.getBindID(), consumer.getBindID());
+        assertThrows(IllegalStateException.class, () -> publisher.rsfService(Echo.class).register());
+        assertTrue(local.recoverService(consumer.getBindID()));
+        assertFalse(local.recoverService(consumer.getBindID()));
+        assertEquals(4, events.size());
+        assertEquals(MetContextEventType.REGISTERED, events.get(2).getType());
+        assertEquals(MetContextEventType.REMOVED, events.get(3).getType());
+        assertEquals(MetServiceType.Consumer, events.get(2).getServiceInfo().getServiceType());
+        assertSame(events.get(2).getServiceInfo(), events.get(3).getServiceInfo());
+        assertEquals(MetServiceType.Provider, events.get(1).getServiceInfo().getServiceType());
+        for (MetContextEvent event : events) {
+            assertEquals(service.getBindID(), event.getServiceId());
+        }
+    }
+
+    @Test
+    public void eachContainerSubscriptionCanBeCancelledIndependently() {
+        List<MetContextEvent> events = new ArrayList<>();
+        MetContextListener listener = events::add;
+        Cancellable first = this.container.subscribe(listener);
+        Cancellable second = this.container.subscribe(listener);
+
+        // 同一监听对象的两次订阅彼此独立，取消其中一次不影响另一次。
+        assertTrue(first.cancel());
+        assertFalse(first.cancel());
+        MetBindInfo<Echo> service = this.publisher.rsfService(Echo.class).register();
+        assertEquals(1, events.size());
+        assertTrue(second.cancel());
+        assertTrue(this.container.recoverService(service.getBindID()));
+        assertEquals(1, events.size());
+    }
 
     @Test
     public void registersAndFindsConsumerWithoutRuntimeContext() {
@@ -50,12 +180,13 @@ public class MetContainerTest {
         assertEquals("default", service.getBindGroup());
         assertEquals(Echo.class.getName(), service.getBindName());
         assertEquals("1.0", service.getBindVersion());
-        assertEquals("Java", service.getSerializeType());
+        assertNull(service.getSerializeType());
         assertEquals(3000, service.getClientTimeout());
         assertEquals(MetServiceType.Consumer, service.getServiceType());
         assertEquals(service.getBindID(), this.container.getRsfBindInfo(Echo.class).getBindID());
         assertEquals(service.getBindID(), this.container.getRsfBindInfo("default", Echo.class.getName(), "1.0").getBindID());
         assertEquals(Collections.singletonList(service.getBindID()), this.container.getServiceIDs());
+        assertEquals(List.of(service.getBindID()), this.serviceChanges);
         assertNull(this.container.getProvider(service));
         service.setMetaData("tag", "value");
         assertEquals("value", this.container.getRsfBindInfo(service.getBindID()).getMetaData("tag"));
@@ -116,6 +247,7 @@ public class MetContainerTest {
         assertEquals(ProtocolStatus.Forbidden, failure.getStatus());
         assertTrue(this.container.getServiceIDs().isEmpty());
         assertNull(this.container.getRsfBindInfo("http", "echo"));
+        assertTrue(this.serviceChanges.isEmpty());
         assertNotNull(this.publisher.rsfService(Echo.class, new EchoImpl()).register());
     }
 
@@ -126,6 +258,7 @@ public class MetContainerTest {
         assertThrows(IllegalStateException.class, () -> this.publisher.rsfService(Echo.class).register());
         assertSame(original, this.container.getProvider(service).get());
         assertEquals(1, this.container.getServiceIDs().size());
+        assertEquals(List.of(service.getBindID()), this.serviceChanges);
     }
 
     @Test
@@ -154,6 +287,7 @@ public class MetContainerTest {
             }
             assertEquals(1, registered);
             assertEquals(1, this.container.getServiceIDs().size());
+            assertEquals(this.container.getServiceIDs(), this.serviceChanges);
         } finally {
             executor.shutdownNow();
             assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
@@ -222,6 +356,8 @@ public class MetContainerTest {
         assertSame(oldFilter, this.container.getFilterProviders(first.getBindID())[0].get());
         assertTrue(this.container.recoverService(first.getBindID()));
         assertFalse(this.container.recoverService(first.getBindID()));
+        // 发布和成功回收各通知一次，重复回收不产生额外事件。
+        assertEquals(List.of(first.getBindID(), first.getBindID()), this.serviceChanges);
         assertNull(this.container.getRsfBindInfo(first.getBindID()));
         assertNull(this.container.getRsfBindInfo("http", "old"));
         assertNull(this.container.getProvider(first));
@@ -276,7 +412,7 @@ public class MetContainerTest {
     public void publishedServiceRoutesReachTheAddressPoolBeforeSelection() {
         InterAddress first = new InterAddress("rsf", "127.0.0.1", 2101, "unit");
         InterAddress second = new InterAddress("rsf", "127.0.0.1", 2102, "unit");
-        String route = "def evalAddress(id, addresses) { addresses.findAll { it.endsWith(':2102') } }";
+        String route = "<route><filter name='selected' from='addresses' item='a' test='a.port == 2102'/><return value='selected'/></route>";
         MetBindInfo<Echo> service = this.publisher.rsfService(Echo.class).bindAddress(first, second).updateServiceRoute(route).register();
         assertEquals(route, this.addresses.serviceRoute(service.getBindID()));
         assertEquals(second, this.addresses.nextAddress(service.getBindID(), "echo", new Object[0]));
@@ -293,6 +429,10 @@ public class MetContainerTest {
             assertThrows(IllegalStateException.class, invalid);
             assertTrue(this.container.getServiceIDs().isEmpty());
         }
+        // 错误规则在装配时拒绝，不能发布一个静默忽略治理配置的服务。
+        assertThrows(IllegalArgumentException.class, () -> builder.updateServiceRoute("<route/>"));
+        assertThrows(IllegalArgumentException.class, () -> builder.updateFlowControl("<invalid/>"));
+        assertTrue(this.container.getServiceIDs().isEmpty());
         MetBindInfo<Echo> valid = builder.group("fixed").name("echo").version("1").serialize("Java").timeout(1000).register();
         assertEquals("[fixed]echo-1", valid.getBindID());
         assertEquals(1, this.container.getServiceIDs().size());

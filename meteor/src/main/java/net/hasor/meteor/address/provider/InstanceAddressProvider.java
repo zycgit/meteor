@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.address.provider;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.address.dsl.RouteContext;
 
 /**
  *
@@ -21,7 +22,7 @@ public class InstanceAddressProvider implements AddressProvider {
     }
 
     @Override
-    public InterAddress get(String serviceID, String methodName, Object[] args) {
+    public InterAddress get(RouteContext input) {
         return this.interAddress;
     }
 

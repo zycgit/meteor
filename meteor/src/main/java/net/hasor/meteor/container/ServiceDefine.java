@@ -12,6 +12,8 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.RouteTypeEnum;
+import net.hasor.meteor.address.dsl.FlowRuleParser;
+import net.hasor.meteor.address.dsl.XmlRuleParser;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 
@@ -79,15 +81,18 @@ class ServiceDefine<T> extends MetBindInfoWrap<T> implements MetBindInfo<T> {
         return this.oriFlowControl;
     }
 
-    public void setFlowControl(String oriFlowControl) {
-        this.oriFlowControl = oriFlowControl;
+    public void setFlowControl(String script) {
+        if (StringUtils.isNotBlank(script)) {
+            new FlowRuleParser().parse(script);
+        }
+        this.oriFlowControl = script;
     }
 
-    /** 设置路由策略 */
     public void setRouteScript(RouteTypeEnum routeType, String scriptBody) {
         if (routeType == null || StringUtils.isBlank(scriptBody)) {
             return;
         }
+        new XmlRuleParser().parse(scriptBody);
         this.oriRouteScript.put(routeType, scriptBody);
     }
 

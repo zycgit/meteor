@@ -28,6 +28,11 @@ public final class RsfProtocol implements ProtocolFactory<byte[]> {
         return "rsf";
     }
 
+    @Override
+    public String defaultSerializeType() {
+        return "Java";
+    }
+
     public String transport() {
         return "tcp";
     }

@@ -10,7 +10,7 @@ import java.util.Map;
 
 /** Declares network routes without exposing the engine's pipeline API to applications. */
 public interface RoutedReceiver<M> extends ChannelListener<M> {
-    /** Routes normalized and validated by NetworkConnectorFactory.prepareRoutes. */
+    /** Routes normalized and validated by NetworkConnectorFactory.configRoutes. */
     Map<String, NetworkRoute<M>> routes();
 
     /** Outgoing route known before the first send; null means select from incoming data. */

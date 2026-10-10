@@ -71,7 +71,7 @@ public interface MetBindInfo<T> {
     /** @return 获取客户端调用服务超时时间。*/
     int getClientTimeout();
 
-    /** @return 获取序列化方式*/
+    /** @return 服务显式指定的序列化器；null 表示由调用所用的协议接入点决定。 */
     String getSerializeType();
 
     /** 服务的执行线程池是否为共享线程池。 */

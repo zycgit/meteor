@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetContextEvent;
+import net.hasor.meteor.MetContextEventType;
 import net.hasor.meteor.MetExtension;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -66,11 +67,19 @@ public class ExtensionLifecycleTest {
             context.offline();
             context.online();
             context.publisher().rsfService(Echo.class).name("late").register();
-            assertEquals(List.of(MetContextEvent.OFFLINE, MetContextEvent.ONLINE, MetContextEvent.SERVICES_CHANGED), extension.events);
+            List<MetContextEventType> types = extension.events.stream().map(MetContextEvent::getType).toList();
+            List<MetContextEventType> expected = List.of(//
+                    MetContextEventType.REGISTERED, //
+                    MetContextEventType.STARTED,//
+                    MetContextEventType.OFFLINE,//
+                    MetContextEventType.ONLINE,//
+                    MetContextEventType.REGISTERED);
+            assertEquals(expected, types);
             context.close();
             context.close();
             assertEquals(List.of("create", "beforeStart", "afterStart", "close"), extension.calls);
             assertNull(context.getExtension(Recording.class));
+            assertEquals(MetContextEventType.CLOSED, extension.events.get(extension.events.size() - 1).getType());
         }
     }
 
@@ -251,6 +260,7 @@ public class ExtensionLifecycleTest {
         private Recording(MetContext context) {
             this.context = context;
             this.calls.add("create");
+            this.context.subscribe(this.events::add);
         }
 
         @Override
@@ -282,11 +292,6 @@ public class ExtensionLifecycleTest {
             if (this.afterFailure != null) {
                 throw this.afterFailure;
             }
-        }
-
-        @Override
-        public void onEvent(MetContextEvent event) {
-            this.events.add(event);
         }
 
         @Override

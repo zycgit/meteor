@@ -1,3 +1,10 @@
+/*
+ * Copyright 2015-2026 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0.
+ * See the LICENSE.txt file for the full license.
+ * https://www.apache.org/licenses/LICENSE-2.0
+ */
 package net.hasor.meteor.address.route;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,7 +65,8 @@ public class FlowControlTest {
     public void poolUsesLocalUnitAndFallsBackWhenItBecomesUnavailable() {
         AddressPool pool = new AddressPool("local", 30000);
         pool.appendAddress("s", Arrays.asList(this.local, this.remote));
-        pool.updateFlowControl("s", "<controlSet>" + unit(true, 0.5, "192.0.2.*") + "</controlSet>");
+        String flowScript = "<controlSet>" + unit(true, 0.5, "192.0.2.*") + "</controlSet>";
+        pool.updateFlowControl("s", flowScript);
         assertEquals(this.local, pool.nextAddress("s", "get", null));
         pool.invalidAddress(this.local);
         assertEquals(this.remote, pool.nextAddress("s", "get", null));
@@ -68,7 +76,8 @@ public class FlowControlTest {
     public void disabledUnitRuleKeepsAllProviders() {
         AddressPool pool = new AddressPool("local", 30000);
         pool.appendAddress("s", Arrays.asList(this.local, this.remote));
-        pool.updateFlowControl("s", "<controlSet>" + unit(false, 0.5, "192.0.2.*") + "</controlSet>");
+        String flowScript2 = "<controlSet>" + unit(false, 0.5, "192.0.2.*") + "</controlSet>";
+        pool.updateFlowControl("s", flowScript2);
         assertEquals(Arrays.asList(this.local, this.remote), pool.queryLocalUnitAddresses("s"));
     }
 
@@ -106,8 +115,10 @@ public class FlowControlTest {
         AddressPool pool = new AddressPool("local", 30000);
         pool.appendAddress("one", Arrays.asList(this.local, this.remote));
         pool.appendAddress("two", Arrays.asList(this.local, this.remote));
-        pool.updateFlowControl("one", "<controlSet>" + unit(true, 0.5, "192.0.2.*") + "</controlSet>");
-        pool.updateFlowControl("two", "<controlSet>" + unit(false, 0.5, "192.0.2.*") + "</controlSet>");
+        String flowScript3 = "<controlSet>" + unit(true, 0.5, "192.0.2.*") + "</controlSet>";
+        pool.updateFlowControl("one", flowScript3);
+        String flowScript4 = "<controlSet>" + unit(false, 0.5, "192.0.2.*") + "</controlSet>";
+        pool.updateFlowControl("two", flowScript4);
         assertEquals("Rule state must be isolated per service", Collections.singletonList(this.local), pool.queryLocalUnitAddresses("one"));
     }
 
@@ -245,18 +256,12 @@ public class FlowControlTest {
     }
 
     @Test
-    public void defaultArgumentKeysHandleNullEmptyAndOrdinaryValues() {
-        DefaultArgsKey key = new DefaultArgsKey();
-        assertEquals("null", key.eval("s", "get", null));
-        assertEquals("", key.eval("s", "get", new Object[0]));
-        assertEquals("hello-2-null-", key.eval("s", "get", new Object[] { "hello", 2, null }));
-    }
-
-    @Test
     public void compoundConfigurationAppliesAllRuleTypes() {
-        FlowControlRef ref = FlowControlRef.defaultRef();
         String xml = "<controlSet>" + unit(true, 0.5, "192.0.2.*") + "<flowControl type='random' enable='true'></flowControl>" + speed("service", true, 1, 60, 60000) + "</controlSet>";
-        ref.updateFlowControl(xml);
+        AddressPool pool = new AddressPool("local", 30000);
+        pool.appendAddress("s", List.of());
+        assertTrue(pool.updateFlowControl("s", xml));
+        FlowControlRef ref = pool.getBucket("s").getFlowControlRef();
         assertEquals(xml, ref.flowControlScript);
         assertTrue(ref.unitFlowControl.enable());
         assertTrue(ref.randomFlowControl.enable());
@@ -271,7 +276,8 @@ public class FlowControlTest {
     public void emptyControlSetRestoresDefaultRules() {
         AddressPool pool = new AddressPool("local", 30000);
         pool.appendAddress("s", Arrays.asList(this.local, this.remote));
-        assertTrue(pool.updateFlowControl("s", "<controlSet>" + unit(true, 0.5, "") + "</controlSet>"));
+        String flowScript5 = "<controlSet>" + unit(true, 0.5, "") + "</controlSet>";
+        assertTrue(pool.updateFlowControl("s", flowScript5));
         assertEquals(Collections.singletonList(this.local), pool.queryLocalUnitAddresses("s"));
         assertTrue(pool.updateFlowControl("s", "<controlSet/>"));
         assertEquals(Arrays.asList(this.local, this.remote), pool.queryLocalUnitAddresses("s"));
@@ -284,17 +290,10 @@ public class FlowControlTest {
         pool.appendAddress("s", Arrays.asList(this.local, this.remote));
         String original = "<controlSet>" + unit(true, 0.5, "") + "</controlSet>";
         assertTrue(pool.updateFlowControl("s", original));
-        assertFalse(pool.updateFlowControl("s", "<controlSet>" + unit(false, 0.5, "") + speed("service", true, 0, 1, 1) + "</controlSet>"));
+        String flowScript6 = "<controlSet>" + unit(false, 0.5, "") + speed("service", true, 0, 1, 1) + "</controlSet>";
+        assertFalse(pool.updateFlowControl("s", flowScript6));
         assertEquals(original, pool.flowControl("s"));
         assertEquals(Collections.singletonList(this.local), pool.queryLocalUnitAddresses("s"));
-    }
-
-    @Test
-    public void argumentEscapingPreservesOrdinaryKeysAndSeparatesLiteralEscapes() {
-        DefaultArgsKey key = new DefaultArgsKey();
-        assertEquals("vip-", key.eval("s", "get", new Object[] { "vip" }));
-        assertNotEquals(key.eval("s", "get", new Object[] { "a-b" }), key.eval("s", "get", new Object[] { "a\\-b" }));
-        assertNotEquals(key.eval("s", "get", new Object[] { "null" }), key.eval("s", "get", new Object[] { "\\null" }));
     }
 
     @Test
@@ -304,22 +303,10 @@ public class FlowControlTest {
         String valid = "<controlSet>" + unit(true, 0.5, "192.0.2.*") + "</controlSet>";
         pool.updateFlowControl("s", valid);
         // An out-of-range threshold must fail without altering the previous rule.
-        pool.updateFlowControl("s", "<controlSet><flowControl type='unit' enable='true'>" + "<threshold>2.0</threshold></flowControl></controlSet>");
+        String flowScript7 = "<controlSet><flowControl type='unit' enable='true'>" + "<threshold>2.0</threshold></flowControl></controlSet>";
+        pool.updateFlowControl("s", flowScript7);
         assertEquals(Collections.singletonList(this.local), pool.queryLocalUnitAddresses("s"));
         assertEquals(valid, pool.flowControl("s"));
     }
 
-    @Test
-    public void argumentKeySeparatesEmbeddedDelimiters() {
-        DefaultArgsKey key = new DefaultArgsKey();
-        String firstKey = key.eval("s", "get", new Object[] { "a-b", "c" });
-        String secondKey = key.eval("s", "get", new Object[] { "a", "b-c" });
-        assertNotEquals("Distinct argument tuples must not route as the same tuple", firstKey, secondKey);
-    }
-
-    @Test
-    public void argumentKeySeparatesNullFromLiteralNull() {
-        DefaultArgsKey key = new DefaultArgsKey();
-        assertNotEquals(key.eval("s", "get", new Object[] { null }), key.eval("s", "get", new Object[] { "null" }));
-    }
 }

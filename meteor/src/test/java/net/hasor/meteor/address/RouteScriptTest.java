@@ -6,240 +6,129 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.address;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import net.hasor.meteor.address.route.ArgsKey;
-import net.hasor.meteor.address.route.FlowControlTest;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import net.hasor.meteor.address.dsl.RouteContext;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-public class RouteScriptTest extends ScriptTestSupport {
-    private final InterAddress a = new InterAddress("127.0.0.1", 8000, "zone");
-    private final InterAddress b = new InterAddress("127.0.0.2", 8000, "zone");
-    private final InterAddress c = new InterAddress("127.0.0.3", 8000, "zone");
+public class RouteScriptTest {
+    private final        InterAddress first  = new InterAddress("rsf", "127.0.0.1", 2181, "east");
+    private final        InterAddress second = new InterAddress("rsf", "127.0.0.1", 2182, "west");
+    private static final String       ALL    = "<route><return value='addresses'/></route>";
+    private static final String       PORT   = "<route><filter name='selected' from='addresses' item='a' " + "test='a.port == args[0]'/><return value='selected'/></route>";
 
     private AddressPool pool() {
-        AddressPool pool = new AddressPool("zone", 30000);
-        pool.appendAddress("s", Arrays.asList(this.a, this.b, this.c));
+        AddressPool pool = new AddressPool();
+        pool.appendAddress("s", List.of(this.first, this.second));
         return pool;
     }
 
-    private void routes(AddressPool pool) {
-        pool.updateServiceRoute("s", script("service", (id, all) -> Collections.singletonList(this.a.getHostPort())));
-        pool.updateMethodRoute("s", script("method", (id, all) -> {
-            List<String> addresses = Collections.singletonList(this.b.getHostPort());
-            return Collections.singletonMap("get", addresses);
-        }));
-        pool.updateArgsRoute("s", script("args", (id, all) -> {
-            List<String> addresses = Collections.singletonList(this.c.getHostPort());
-            Map<String, List<String>> arguments = Collections.singletonMap("vip-", addresses);
-            return Collections.singletonMap("get", arguments);
-        }));
+    @Test
+    public void callsUseActualArgumentsAndLatestAddresses() {
+        AddressPool pool = this.pool();
+        assertTrue(pool.updateArgsRoute("s", PORT));
+        assertEquals(this.first, pool.nextAddress("s", "query", new Object[] { 2181 }));
+        assertEquals(this.second, pool.nextAddress("s", "query", new Object[] { 2182 }));
+
+        // 移除地址后即使规则仍命中原端口，也不允许回退到其他目标。
+        pool.invalidAddress(this.second);
+        assertNull(pool.nextAddress("s", "query", new Object[] { 2182 }));
+        pool.appendAddress("s", this.second);
+        assertEquals(this.second, pool.nextAddress("s", "query", new Object[] { 2182 }));
     }
 
     @Test
-    public void argsOverrideMethodAndMethodOverridesService() {
-        AddressPool pool = pool();
-        routes(pool);
-        assertEquals(this.c, pool.nextAddress("s", "get", new Object[] { "vip" }));
-        assertEquals(this.b, pool.nextAddress("s", "get", new Object[] { "normal" }));
-        assertEquals(this.a, pool.nextAddress("s", "other", null));
-        assertEquals("service", pool.serviceRoute("s"));
-        assertEquals("method", pool.methodRoute("s"));
-        assertEquals("args", pool.argsRoute("s"));
-    }
-
-    @Test
-    public void invalidatedRouteFallsBackAndAppendRestoresIt() {
-        AddressPool pool = pool();
-        routes(pool);
-        pool.invalidAddress(this.c);
-        assertEquals(this.b, pool.nextAddress("s", "get", new Object[] { "vip" }));
-        pool.invalidAddress(this.b);
-        assertEquals(this.a, pool.nextAddress("s", "get", new Object[] { "vip" }));
-        pool.appendAddress("s", this.c);
-        assertEquals(this.c, pool.nextAddress("s", "get", new Object[] { "vip" }));
-    }
-
-    @Test
-    public void scriptsAreEvaluatedOnRefreshNotEveryRequest() {
-        AddressPool pool = pool();
-        AtomicInteger calls = new AtomicInteger();
-        pool.updateServiceRoute("s", script("count", (id, all) -> {
-            assertEquals("s", id);
-            assertEquals(3, all.size());
-            calls.incrementAndGet();
-            return Collections.singletonList(this.a.getHostPort());
-        }));
-        int initial = calls.get();
-        assertTrue(initial > 0);
-        for (int i = 0; i < 10; i++) {
-            assertEquals(this.a, pool.nextAddress("s", "get", null));
-        }
-        assertEquals(initial, calls.get());
-        pool.refreshAddressCache();
-        assertTrue(calls.get() > initial);
-    }
-
-    @Test
-    public void emptyUnknownAndThrowingServiceRoutesFallBackToCandidates() {
-        AddressPool pool = new AddressPool();
-        pool.appendAddress("s", this.a);
-        pool.updateServiceRoute("s", script("empty", (id, all) -> Collections.emptyList()));
-        assertEquals(this.a, pool.nextAddress("s", "get", null));
-        pool.updateServiceRoute("s", script("unknown", (id, all) -> Collections.singletonList("127.0.0.9:8000")));
-        assertEquals(this.a, pool.nextAddress("s", "get", null));
-        pool.updateServiceRoute("s", script("throws", (id, all) -> {
-            throw new IllegalStateException("test");
-        }));
-        assertEquals(this.a, pool.nextAddress("s", "get", null));
-    }
-
-    @Test
-    public void wrongTopLevelScriptResultTypesFallBackToCandidates() {
-        AddressPool pool = new AddressPool();
-        pool.appendAddress("s", this.a);
-        pool.updateServiceRoute("s", script("wrong-service-type", (id, all) -> 42));
-        pool.updateMethodRoute("s", script("wrong-method-type", (id, all) -> Collections.emptyList()));
-        pool.updateArgsRoute("s", script("wrong-args-type", (id, all) -> Collections.emptyList()));
-        assertEquals(this.a, pool.nextAddress("s", "get", null));
-    }
-
-    @Test
-    public void clearingServiceRouteDisablesCompiledScript() {
-        AddressPool pool = pool();
-        routes(pool);
-        assertTrue(pool.updateServiceRoute("s", ""));
+    public void invalidUpdatesKeepLastValidRuleAndClearingRestoresCandidates() {
+        AddressPool pool = this.pool();
+        assertTrue(pool.updateServiceRoute("s", PORT));
+        assertFalse(pool.updateServiceRoute("s", PORT));
+        assertFalse(pool.updateServiceRoute("s", "<route><bad/></route>"));
+        assertEquals(PORT, pool.serviceRoute("s"));
+        assertEquals(this.second, pool.nextAddress("s", "query", new Object[] { 2182 }));
+        assertTrue(pool.updateServiceRoute("s", " "));
         assertNull(pool.serviceRoute("s"));
-        assertFalse("Clearing source must also clear the executable", pool.getBucket("s").getRuleRef().getServiceLevel().isEnable());
+        assertFalse(pool.updateServiceRoute("s", null));
+        pool.removeAddress("s", this.second);
+        assertEquals(this.first, pool.nextAddress("s", "query", null));
     }
 
     @Test
-    public void clearingMethodRouteFallsBackToService() {
-        AddressPool pool = pool();
-        routes(pool);
-        pool.updateMethodRoute("s", null);
-        assertEquals(this.a, pool.nextAddress("s", "get", new Object[] { "normal" }));
+    public void levelsFilterInOrderAndClearingOneDoesNotClearOthers() {
+        AddressPool pool = this.pool();
+        pool.updateServiceRoute("s", ALL);
+        pool.updateMethodRoute("s", "<route><if test=\"utils.equals(method.name, 'blocked')\">" + "<return value='{}'/></if><return value='addresses'/></route>");
+        pool.updateArgsRoute("s", PORT);
+        assertNull(pool.nextAddress("s", "blocked", new Object[] { 2181 }));
+        assertNull(pool.nextAddress("s", "blocked", null));
+        assertEquals(this.first, pool.nextAddress("s", "query", new Object[] { 2181 }));
+        assertTrue(pool.updateMethodRoute("s", null));
+        assertEquals(this.first, pool.nextAddress("s", "blocked", new Object[] { 2181 }));
+        assertEquals(PORT, pool.argsRoute("s"));
     }
 
     @Test
-    public void clearingArgsRouteFallsBackToMethod() {
-        AddressPool pool = pool();
-        routes(pool);
-        pool.updateArgsRoute("s", " ");
-        assertEquals(this.b, pool.nextAddress("s", "get", new Object[] { "vip" }));
+    public void runtimeFailurePropagatesAndAnotherServiceIsUnaffected() {
+        AddressPool pool = this.pool();
+        pool.appendAddress("other", this.first);
+        pool.updateServiceRoute("s", "<route><return value='args[1]'/></route>");
+        assertThrows(IllegalArgumentException.class, () -> pool.nextAddress("s", "query", new Object[0]));
+        assertEquals(this.first, pool.nextAddress("other", "query", null));
+        pool.updateServiceRoute("s", ALL);
+        assertNotNull(pool.nextAddress("s", "query", null));
     }
 
     @Test
-    public void failedCompilationPreservesLastWorkingScript() {
-        AddressBucket bucket = pool().getBucket("s");
-        String valid = script("valid", (id, all) -> Collections.singletonList(this.a.getHostPort()));
-        assertTrue(bucket.updateRoute(RouteTypeEnum.ServiceLevel, valid));
-        assertFalse(bucket.updateRoute(RouteTypeEnum.ServiceLevel, "invalid"));
-        assertEquals(valid, bucket.getRuleRef().getServiceLevel().getScript());
-        assertFalse(bucket.updateRoute(RouteTypeEnum.ServiceLevel, valid));
+    public void environmentAndMetadataAreReadOnEverySelection() {
+        AddressPool pool = this.pool();
+        String xml = "<route><filter name='selected' from='addresses' item='a' " + "test='a.port == service.meta[env.key]'/><return value='selected'/></route>";
+        pool.updateServiceRoute("s", xml);
+        RouteContext input = new RouteContext("s", "query", null);
+        input.getEnv().put("key", "port");
+        input.getService().put("meta", Map.of("port", 2181));
+        assertEquals(this.first, pool.nextAddress(input));
+        input.getService().put("meta", Map.of("port", 2182));
+        assertEquals(this.second, pool.nextAddress(input));
     }
 
     @Test
-    public void updatingScriptDoesNotMutatePreviouslyPublishedRuleSnapshot() {
-        AddressBucket bucket = pool().getBucket("s");
-        bucket.updateRoute(RouteTypeEnum.ServiceLevel, script("old", (id, all) -> Collections.emptyList()));
-        RuleRef previous = bucket.getRuleRef();
-        bucket.updateRoute(RouteTypeEnum.ServiceLevel, script("new", (id, all) -> Collections.emptyList()));
-        assertEquals("old", previous.getServiceLevel().getScript());
-        assertEquals("new", bucket.getRuleRef().getServiceLevel().getScript());
+    public void slowEvaluationDoesNotHoldAddressPoolLockOrOverwriteNewSnapshot() throws Exception {
+        AddressPool pool = this.pool();
+        BlockingInput argument = new BlockingInput();
+        pool.updateArgsRoute("s", "<route><bind name='port' value='args[0].port'/>" + "<filter name='selected' from='addresses' item='a' test='a.port == port'/>" + "<return value='selected'/></route>");
+        var executor = Executors.newSingleThreadExecutor();
+        try {
+            var selecting = executor.submit(() -> pool.nextAddress("s", "query", new Object[] { argument }));
+            assertTrue(argument.entered.await(5, TimeUnit.SECONDS));
+
+            // 执行中的规则不阻止地址更新；旧调用结束也不会覆盖新快照。
+            pool.refreshAddress("s", List.of(this.first));
+            pool.updateArgsRoute("s", ALL);
+            pool.appendAddress("other", this.second);
+            argument.resume.countDown();
+            selecting.get(5, TimeUnit.SECONDS);
+            assertEquals(this.first, pool.nextAddress("s", "query", null));
+            assertEquals(this.second, pool.nextAddress("other", "query", null));
+        } finally {
+            argument.resume.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+        }
     }
 
-    @Test
-    public void poolReportsFailedCompilation() {
-        AddressPool pool = pool();
-        assertFalse("Update failure must reach the caller", pool.updateServiceRoute("s", "invalid"));
-    }
+    public static final class BlockingInput {
+        private final CountDownLatch entered = new CountDownLatch(1);
+        private final CountDownLatch resume  = new CountDownLatch(1);
 
-    @Test
-    public void absentSpiProviderReportsRouteNotApplied() {
-        Thread.currentThread().setContextClassLoader(withoutScriptProvider());
-        AddressPool pool = pool();
-        assertFalse(pool.updateServiceRoute("s", "any source"));
-    }
-
-    @Test
-    public void malformedNestedScriptResultDoesNotBreakAddressUpdates() {
-        AddressPool pool = pool();
-        pool.updateMethodRoute("s", script("bad-result", (id, all) -> Collections.singletonMap("get", null)));
-        assertNotNull(pool.nextAddress("s", "get", null));
-    }
-
-    @Test
-    public void argumentKeyCanBeCustomized() {
-        AddressPool pool = new AddressPool() {
-            @Override
-            protected ArgsKey getArgsKey() {
-                return (service, method, args) -> "tenant";
+        public int getPort() throws InterruptedException {
+            this.entered.countDown();
+            if (!this.resume.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Timed out waiting for address update");
             }
-        };
-        pool.appendAddress("s", Arrays.asList(this.a, this.b));
-        pool.updateArgsRoute("s", script("custom", (id, all) -> {
-            List<String> addresses = Collections.singletonList(this.b.getHostPort());
-            Map<String, List<String>> arguments = Collections.singletonMap("tenant", addresses);
-            return Collections.singletonMap("get", arguments);
-        }));
-        assertEquals(this.b, pool.nextAddress("s", "get", new Object[] { new Object() }));
-    }
-
-    @Test
-    public void nullArgumentKeyProviderFallsBackToService() {
-        AddressPool pool = new AddressPool() {
-            @Override
-            protected ArgsKey getArgsKey() {
-                return null;
-            }
-        };
-        pool.appendAddress("s", this.a);
-        pool.updateArgsRoute("s", script("unused", (id, all) -> Collections.emptyMap()));
-        assertEquals(this.a, pool.nextAddress("s", "get", null));
-    }
-
-    @Test
-    public void nullAndEmptyNestedRouteMapsFallBackToService() {
-        AddressPool pool = new AddressPool();
-        pool.appendAddress("s", this.a);
-        pool.updateMethodRoute("s", script("null-method", (id, all) -> null));
-        pool.updateArgsRoute("s", script("empty-args", (id, all) -> Collections.emptyMap()));
-        assertEquals(this.a, pool.nextAddress("s", "get", null));
-        pool.updateMethodRoute("s", script("empty-method-addresses", (id, all) -> Collections.singletonMap("get", Collections.emptyList())));
-        pool.updateArgsRoute("s", script("empty-args-addresses", (id, all) -> {
-            Map<String, List<String>> arguments = Collections.singletonMap("vip-", Collections.emptyList());
-            return Collections.singletonMap("get", arguments);
-        }));
-        assertEquals(this.a, pool.nextAddress("s", "get", new Object[] { "vip" }));
-    }
-
-    @Test
-    public void serviceRoutingCanOverrideLocalUnitPreference() {
-        AddressPool pool = new AddressPool("other", 30000);
-        InterAddress local = new InterAddress("127.0.0.9", 8000, "other");
-        pool.appendAddress("s", Arrays.asList(local, this.a));
-        pool.updateFlowControl("s", "<controlSet>" + FlowControlTest.unit(true, 0.5, "192.0.2.*") + "</controlSet>");
-        assertEquals(local, pool.nextAddress("s", "get", null));
-        pool.updateServiceRoute("s", script("override-unit", (id, all) -> Collections.singletonList(this.a.getHostPort())));
-        assertEquals(this.a, pool.nextAddress("s", "get", null));
-    }
-
-    @Test
-    public void scriptMayReturnHostnameFromItsInputAddresses() {
-        AddressPool pool = new AddressPool("local", 30000);
-        InterAddress hostname = new InterAddress("localhost", 8000, "remote");
-        InterAddress local = new InterAddress("127.0.0.9", 8000, "local");
-        pool.appendAddress("s", Arrays.asList(hostname, local));
-        pool.updateFlowControl("s", "<controlSet>" + FlowControlTest.unit(true, 0.5, "192.0.2.*") + "</controlSet>");
-        pool.updateServiceRoute("s", script("select-hostname", (id, all) -> {
-            assertTrue(all.contains("localhost:8000"));
-            return Collections.singletonList("localhost:8000");
-        }));
-        assertEquals("A valid address supplied to a script must be recognized when returned", hostname, pool.nextAddress("s", "get", null));
+            return 2182;
+        }
     }
 }

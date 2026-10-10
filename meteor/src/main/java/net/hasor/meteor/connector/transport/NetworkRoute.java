@@ -27,8 +27,4 @@ public final class NetworkRoute<M> {
     public RouteMatch match(M message) {
         return this.probe.apply(message);
     }
-
-    public NetworkRoute<M> withOptions(Map<String, String> options) {
-        return new NetworkRoute<>(options, this.probe);
-    }
 }

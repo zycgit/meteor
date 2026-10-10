@@ -9,12 +9,16 @@ package net.hasor.meteor.container;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.*;
+import net.hasor.meteor.address.AddressBucket;
 import net.hasor.meteor.address.AddressPool;
+import net.hasor.meteor.address.AddressTypeEnum;
 import net.hasor.meteor.address.RouteTypeEnum;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetServiceType;
@@ -35,10 +39,29 @@ public class MetContainer {
     private final        Map<String, Supplier<MetFilter>[]>         filterCache  = new ConcurrentHashMap<>();
     private final        AddressPool                                addressPool;
     private final        MetSettings                                settings;
+    private final        List<MetContextListener>                   listeners    = new CopyOnWriteArrayList<>();
 
     public MetContainer(AddressPool addressPool, MetSettings settings) {
         this.settings = settings;
         this.addressPool = addressPool;
+    }
+
+    /** 监听服务提供者、订阅者的注册与移除；变更完成后同步通知，取消不打断正在执行的回调。 */
+    public Cancellable subscribe(MetContextListener listener) {
+        Objects.requireNonNull(listener, "listener");
+        MetContextListener subscription = listener::onEvent;
+        this.listeners.add(subscription);
+        return () -> this.listeners.remove(subscription);
+    }
+
+    private void notifyEvent(MetContextEvent event) {
+        for (MetContextListener listener : this.listeners) {
+            try {
+                listener.onEvent(event);
+            } catch (RuntimeException failure) {
+                this.logger.warn("Meteor container event callback failed: " + event.getType(), failure);
+            }
+        }
     }
 
     /**
@@ -48,6 +71,12 @@ public class MetContainer {
      * @param serviceID 服务ID
      */
     public Supplier<MetFilter>[] getFilterProviders(String serviceID) {
+        // 正常调用直接读取已发布的缓存，只有首次计算或过滤器变更后才加锁。
+        Supplier<MetFilter>[] cached = this.filterCache.get(serviceID);
+        if (cached != null) {
+            return cached.clone();
+        }
+
         synchronized (this.filterLock) {
             ServiceDefine<?> info = this.serviceMap.get(serviceID);
             if (info == null) {
@@ -213,67 +242,68 @@ public class MetContainer {
      * 发布服务
      * @param serviceDefine 服务定义。
      */
-    protected final synchronized <T> void publishService(ServiceDefine<T> serviceDefine) {
+    protected final <T> void publishService(ServiceDefine<T> serviceDefine) {
         String serviceID = serviceDefine.getDomain().getBindID();
-        if (this.serviceMap.containsKey(serviceID)) {
-            String serviceType = this.serviceMap.get(serviceID).getDomain().getServiceType().name();
-            String logMessage = "a " + serviceType + " of the same name already exists , serviceID -> " + serviceID;
-            this.logger.error(logMessage);
-            throw new IllegalStateException(logMessage);
-        }
-
         boolean provider = MetServiceType.Provider == serviceDefine.getServiceType();
         if (provider && serviceDefine.getCustomerProvider() == null) {
             throw new MetException(ProtocolStatus.Forbidden, "Provider Not set the implementation class.");
         }
 
-        this.logger.info("service to public, id= " + serviceID);
-        this.serviceMap.put(serviceID, serviceDefine);
-
-        // .收录别名
-        Set<String> aliasTypes = serviceDefine.getAliasTypes();
-        for (String aliasType : aliasTypes) {
-            ConcurrentMap<String, String> aliasMap = this.aliasNameMap.get(aliasType);
-            if (aliasMap == null) {
-                aliasMap = new ConcurrentHashMap<>();
-                this.aliasNameMap.putIfAbsent(aliasType, aliasMap);
-            }
-            String aliasName = serviceDefine.getAliasName(aliasType);
-            if (StringUtils.isBlank(aliasName)) {
-                continue;
-            }
-            aliasMap.putIfAbsent(aliasName, serviceID);
-        }
-
-        // .追加地址
-        this.addressPool.appendStaticAddress(serviceID, serviceDefine.getAddressSet());
-
-        // .更新流控
+        // 地址计算与 XML 解析只操作未发布的地址本，不占用容器注册锁。
+        AddressBucket prepared = new AddressBucket(serviceID, this.addressPool.getUnitName());
+        prepared.newAddress(serviceDefine.getAddressSet(), AddressTypeEnum.Static);
         String flowControl = serviceDefine.getFlowControl();
         if (StringUtils.isNotBlank(flowControl)) {
-            this.addressPool.updateFlowControl(serviceID, flowControl);
+            prepared.updateFlowControl(flowControl);
+        }
+        for (Map.Entry<RouteTypeEnum, String> route : serviceDefine.getRouteScript().entrySet()) {
+            prepared.updateRoute(route.getKey(), route.getValue());
         }
 
-        // .更新路由
-        Map<RouteTypeEnum, String> scriptMap = serviceDefine.getRouteScript();
-        if (scriptMap != null && !scriptMap.isEmpty()) {
-            for (Map.Entry<RouteTypeEnum, String> routeEnt : scriptMap.entrySet()) {
-                this.addressPool.updateRoute(serviceID, routeEnt.getKey(), routeEnt.getValue());
+        synchronized (this) {
+            if (this.serviceMap.containsKey(serviceID)) {
+                String serviceType = this.serviceMap.get(serviceID).getDomain().getServiceType().name();
+                String logMessage = "a " + serviceType + " of the same name already exists , serviceID -> " + serviceID;
+                this.logger.error(logMessage);
+                throw new IllegalStateException(logMessage);
             }
-        }
-        this.onServiceChanged(serviceID);
-    }
 
-    /** 本地服务声明已完成变更，子类可转发实例事件。 */
-    protected void onServiceChanged(String serviceId) {
+            // .收录别名
+            Set<String> aliasTypes = serviceDefine.getAliasTypes();
+            for (String aliasType : aliasTypes) {
+                ConcurrentMap<String, String> aliasMap = this.aliasNameMap.get(aliasType);
+                if (aliasMap == null) {
+                    aliasMap = new ConcurrentHashMap<>();
+                    this.aliasNameMap.putIfAbsent(aliasType, aliasMap);
+                }
+                String aliasName = serviceDefine.getAliasName(aliasType);
+                if (StringUtils.isBlank(aliasName)) {
+                    continue;
+                }
+                aliasMap.putIfAbsent(aliasName, serviceID);
+            }
+
+            this.addressPool.registerBucket(prepared);
+            // 地址和规则就绪后再对调用方暴露服务。
+            this.serviceMap.put(serviceID, serviceDefine);
+        }
+
+        this.logger.info("service published, id= " + serviceID);
+        this.notifyEvent(new MetContextEvent(MetContextEventType.REGISTERED, serviceDefine.getDomain()));
     }
 
     /**
      * 回收发布的服务
      * @param serviceID 服务定义。
      */
-    public synchronized boolean recoverService(String serviceID) {
-        if (this.serviceMap.containsKey(serviceID)) {
+    public boolean recoverService(String serviceID) {
+        ServiceDefine<?> service;
+        synchronized (this) {
+            service = this.serviceMap.get(serviceID);
+            if (service == null) {
+                return false;
+            }
+
             // .回收服务
             synchronized (this.filterLock) {
                 this.serviceMap.remove(serviceID);
@@ -295,9 +325,9 @@ public class MetContainer {
             }
 
             this.addressPool.removeBucket(serviceID);
-            this.onServiceChanged(serviceID);
-            return true;
         }
-        return false;
+
+        this.notifyEvent(new MetContextEvent(MetContextEventType.REMOVED, service.getDomain()));
+        return true;
     }
 }

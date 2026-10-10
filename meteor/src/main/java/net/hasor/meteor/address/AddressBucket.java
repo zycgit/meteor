@@ -10,8 +10,10 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
+import net.hasor.meteor.address.dsl.FlowRuleParser;
 import net.hasor.meteor.address.route.unit.UnitFlowControl;
 
 /**
@@ -69,6 +71,39 @@ public class AddressBucket extends Observable {
 
     public RuleRef getRuleRef() {
         return this.ruleRef;
+    }
+
+    /** 合入已准备好的服务初始配置，保留提前发现的地址及未覆盖的规则。 */
+    void initialize(AddressBucket prepared) {
+        synchronized (this) {
+            for (InterAddress address : prepared.staticAddressList) {
+                if (!this.allAddressList.contains(address)) {
+                    this.allAddressList.add(address);
+                }
+                if (!this.staticAddressList.contains(address)) {
+                    this.staticAddressList.add(address);
+                }
+                this.invalidAddresses.remove(address);
+            }
+            if (prepared.flowControlRef.flowControlScript != null) {
+                this.flowControlRef = prepared.flowControlRef;
+            }
+
+            RuleRef merged = new RuleRef(this.ruleRef);
+            RuleRef initial = prepared.ruleRef;
+            if (initial.getServiceLevel().isEnable()) {
+                merged.setServiceLevel(initial.getServiceLevel());
+            }
+            if (initial.getMethodLevel().isEnable()) {
+                merged.setMethodLevel(initial.getMethodLevel());
+            }
+            if (initial.getArgsLevel().isEnable()) {
+                merged.setArgsLevel(initial.getArgsLevel());
+            }
+            this.ruleRef = merged;
+            this.refreshAvailableAddress();
+        }
+        this.notifyObservers(this);
     }
 
     /** 获取所有地址（包括本地的和无效的） */
@@ -248,33 +283,54 @@ public class AddressBucket extends Observable {
     }
 
     /** 更新服务的流控规则 */
-    public boolean updateFlowControl(String flowControl) {
-        synchronized (this) {
-            FlowControlRef newRef = FlowControlRef.defaultRef();
-            if (!newRef.tryUpdateFlowControl(flowControl)) {
-                return false;
-            }
-            this.flowControlRef = newRef;
-            refreshAvailableAddress();
+    public boolean updateFlowControl(String script) {
+        boolean empty = StringUtils.isBlank(script);
+        String normalized = empty ? null : script;
+        if (StringUtils.equals(normalized, this.flowControlRef.flowControlScript)) {
+            return false;
         }
 
-        notifyObservers(this);
+        // XML 解析只使用输入数据，不占用地址本读写锁。
+        FlowControlRef prepared = FlowControlRef.defaultRef();
+        if (!empty) {
+            try {
+                prepared = new FlowRuleParser().parse(script);
+            } catch (IllegalArgumentException failure) {
+                logger.error("Cannot parse XML flow control", failure);
+                return false;
+            }
+        }
+        synchronized (this) {
+            if (StringUtils.equals(normalized, this.flowControlRef.flowControlScript)) {
+                return false;
+            }
+            this.flowControlRef = prepared;
+            this.refreshAvailableAddress();
+        }
+
+        this.notifyObservers(this);
         return true;
     }
 
-    /** 更新服务的路由脚本；发布新引用，不修改已发布的脚本状态。 */
     public boolean updateRoute(RouteTypeEnum routeType, String script) {
-        synchronized (this) {
-            RuleRef newRuleRef = new RuleRef(this.ruleRef);
-            if (!RouteTypeEnum.updateScript(routeType, script, newRuleRef)) {
-                return false;
-            }
-
-            this.ruleRef = newRuleRef;
-            refreshAvailableAddress();
+        RuleRef prepared = new RuleRef(this.ruleRef);
+        if (!RouteTypeEnum.updateScript(routeType, script, prepared)) {
+            return false;
         }
 
-        notifyObservers(this);
+        synchronized (this) {
+            // 基于最新引用只替换当前层级，避免并发更新覆盖其他层级的规则。
+            RuleRef updated = new RuleRef(this.ruleRef);
+            switch (routeType) {
+                case ServiceLevel -> updated.setServiceLevel(prepared.getServiceLevel());
+                case MethodLevel -> updated.setMethodLevel(prepared.getMethodLevel());
+                case ArgsLevel -> updated.setArgsLevel(prepared.getArgsLevel());
+            }
+            this.ruleRef = updated;
+            this.setChanged();
+        }
+
+        this.notifyObservers(this);
         return true;
     }
 

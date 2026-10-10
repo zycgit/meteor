@@ -11,6 +11,8 @@ import java.util.Collections;
 import java.util.Enumeration;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -26,7 +28,8 @@ public class StandaloneMetConfigurationTest {
         try (MetContext context = new MetConfiguration().buildContext()) {
             assertEquals("application", context.getApplicationName());
             assertEquals("application", context.getSettings().getApplicationName());
-            assertEquals("Java", context.getSettings().getSerializeType());
+            var endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            assertEquals("Java", endpoint.protocol("rsf").option("serializeType", null));
             assertTrue(context.getSerializeCoder("Java") instanceof JavaSerializeCoder);
             assertNull(context.getSerializeCoder("Hprose"));
             assertNull(this.getClass().getClassLoader().getResource("net/hasor/meteor/protocol/hprose/HproseProtocol.class"));
@@ -123,6 +126,44 @@ public class StandaloneMetConfigurationTest {
             source.setRequestOption("trace", "later");
             assertEquals("first", first.getSettings().getRequestOptions().getOption("trace"));
             assertEquals("initial", second.getSettings().getRequestOptions().getOption("trace"));
+        }
+    }
+
+    @Test
+    public void protocolPreparationMergesOptionsAndKeepsContextSnapshotsIndependent() throws Exception {
+        // 两个协议共享端点参数，单个挂载可以覆盖参数并指定自己的路径。
+        MetConfiguration source = new MetConfiguration();
+        MetConfiguration.ConnectorSettings http = source.connector("http");
+        http.option("workerThread", 1).option("limit", 10).option("serializeType", "Json");
+        MetConfiguration.ProtocolSettings first = http.protocol("httpa");
+        first.option("limit", 20).option("serializeType", "Java").contextPath("/first///");
+        http.protocol("httpb");
+
+        try (MetContext before = source.buildContext()) {
+            ConnectorConfig endpoint = before.getSettings().getConnectorConfigs().iterator().next();
+            ProtocolConfig a = endpoint.protocol("httpa");
+            ProtocolConfig b = endpoint.protocol("httpb");
+            assertEquals("20", a.option("limit", null));
+            assertEquals("10", b.option("limit", null));
+            assertEquals("10", endpoint.option("limit", null));
+            assertEquals("1", a.option("workerThread", null));
+            assertEquals("Java", a.option("serializeType", null));
+            assertEquals("Json", b.option("serializeType", null));
+            assertEquals("/first", a.option("contextPath", null));
+            assertEquals("/httpb", b.option("contextPath", null));
+
+            // 修改用户配置后再次构建，不影响已有上下文和其他协议的配置。
+            first.option("limit", 30).contextPath("/later/");
+            try (MetContext after = source.buildContext()) {
+                ConnectorConfig changed = after.getSettings().getConnectorConfigs().iterator().next();
+                assertNotSame(a, changed.protocol("httpa"));
+                assertEquals("30", changed.protocol("httpa").option("limit", null));
+                assertEquals("/later", changed.protocol("httpa").option("contextPath", null));
+                assertEquals("20", a.option("limit", null));
+                assertEquals("/first", a.option("contextPath", null));
+                assertEquals("10", b.option("limit", null));
+                assertEquals("/httpb", b.option("contextPath", null));
+            }
         }
     }
 }

@@ -169,10 +169,14 @@ public class UdpConnectorTest {
 
     @Test(timeout = 10000)
     public void rejectsStreamProtocolAndInvalidDatagramLimitsBeforeBind() throws Exception {
+        // 协议和传输类型在配置准备阶段就必须匹配。
         try (Host wrongProtocol = new Host(128, EndpointRoutingTest.WireA.class)) {
-            Future<MetListen> binding = wrongProtocol.manager.bind(wrongProtocol.config.name());
-            assertTrue(failure(binding) instanceof IllegalArgumentException);
+            fail("A TCP protocol must not be mounted on UDP");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("requires transport tcp"));
         }
+
+        // 报文大小属于 UDP 网络资源参数，在创建连接器时拒绝非法值。
         for (int size : new int[] { 0, 65508 }) {
             try (Host invalid = new Host(size, TestProtocol.class)) {
                 assertTrue(failure(invalid.manager.bind(invalid.config.name())) instanceof IllegalArgumentException);
@@ -212,14 +216,7 @@ public class UdpConnectorTest {
         return response;
     }
 
-    private static final class Delivery {
-        private final MetChannel channel;
-        private final Payload    payload;
-
-        private Delivery(MetChannel channel, Payload payload) {
-            this.channel = channel;
-            this.payload = payload;
-        }
+    private record Delivery(MetChannel channel, Payload payload) {
     }
 
     private static final class Host implements AutoCloseable {
@@ -261,7 +258,10 @@ public class UdpConnectorTest {
                 }
                 throw new AssertionError(method);
             });
-            this.manager = new ConnectorManager(context, new EndpointConnectorFactory());
+            EndpointConnectorFactory factory = new EndpointConnectorFactory();
+            factory.listenTypes(loader);
+            factory.prepare(this.config);
+            this.manager = new ConnectorManager(context, factory);
             this.manager.init();
             this.manager.subscribe((channel, id, payload) -> this.messages.add(new Delivery(channel, payload)));
         }
@@ -290,6 +290,10 @@ public class UdpConnectorTest {
         @Override
         public RouteMatch probe(ProtocolConfig config, byte[] message) {
             return RouteMatch.REJECT;
+        }
+
+        public String defaultSerializeType() {
+            return "Java";
         }
 
         public String transport() {
@@ -331,8 +335,7 @@ public class UdpConnectorTest {
                 }
 
                 public Future<Void> send(Payload payload) {
-                    if (payload instanceof RequestPayload) {
-                        RequestPayload request = (RequestPayload) payload;
+                    if (payload instanceof RequestPayload request) {
                         return connection.write(packet(1, request.getRequestID(), request.getTargetMethod()));
                     }
                     ResponsePayload response = (ResponsePayload) payload;

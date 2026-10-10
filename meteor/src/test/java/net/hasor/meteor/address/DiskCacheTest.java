@@ -19,12 +19,16 @@ import net.hasor.cobble.concurrent.timer.Timeout;
 import net.hasor.cobble.concurrent.timer.Timer;
 import net.hasor.cobble.concurrent.timer.TimerTask;
 import net.hasor.meteor.address.route.FlowControlTest;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
-public class DiskCacheTest extends ScriptTestSupport {
-    private final InterAddress a = new InterAddress("127.0.0.1", 8000, "zone");
-    private final InterAddress b = new InterAddress("127.0.0.2", 8000, "zone");
+public class DiskCacheTest {
+    @Rule
+    public final  TemporaryFolder temporary = new TemporaryFolder();
+    private final InterAddress    a         = new InterAddress("127.0.0.1", 8000, "zone");
+    private final InterAddress    b         = new InterAddress("127.0.0.2", 8000, "zone");
 
     private DiskCache cache(AddressPool pool, File home) {
         return new DiskCache(pool, home, TimeUnit.HOURS.toMillis(1), TimeUnit.HOURS.toMillis(1));
@@ -36,12 +40,14 @@ public class DiskCacheTest extends ScriptTestSupport {
         return bytes.toByteArray();
     }
 
-    private byte[] zipEntry(String name, String value) throws IOException {
+    private byte[] zipEntry(String... entries) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
-            zip.putNextEntry(new ZipEntry(name));
-            zip.write(value.getBytes(StandardCharsets.UTF_8));
-            zip.closeEntry();
+            for (int i = 0; i < entries.length; i += 2) {
+                zip.putNextEntry(new ZipEntry(entries[i]));
+                zip.write(entries[i + 1].getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
         }
         return bytes.toByteArray();
     }
@@ -95,7 +101,7 @@ public class DiskCacheTest extends ScriptTestSupport {
     private void assertScriptRoundTrip(RouteTypeEnum type) throws Exception {
         AddressPool pool = new AddressPool();
         pool.appendAddress("s", this.a);
-        String source = script("route-中文", (id, all) -> Collections.singletonList(this.a.getHostPort()));
+        String source = "<route><!-- 中文 --><return value='addresses'/></route>";
         // Saving a bucket only needs a compiled script; routing return shapes are tested in RouteScriptTest.
         assertTrue(pool.getBucket("s").updateRoute(type, source));
         try (DiskCache cache = cache(pool, this.temporary.newFolder())) {
@@ -116,11 +122,12 @@ public class DiskCacheTest extends ScriptTestSupport {
 
     @Test
     public void restoreReadsExternallyCreatedScriptEntries() throws Exception {
-        String source = script("restore-script", (id, all) -> Collections.emptyList());
+        String source = "<route><return value='{}'/></route>";
         AddressBucket bucket = new AddressBucket("s", "zone");
         try (DiskCache cache = cache(new AddressPool(), this.temporary.newFolder())) {
-            for (String entry : Arrays.asList("service-level.groovy", "method-level.groovy", "args-level.groovy")) {
-                cache.readFromZip(bucket, new ByteArrayInputStream(zipEntry(entry, source)));
+            for (String entry : Arrays.asList("service-level.xml", "method-level.xml", "args-level.xml")) {
+                byte[] snapshot = zipEntry(entry, source);
+                cache.readFromZip(bucket, new ByteArrayInputStream(snapshot));
             }
             assertEquals(source, bucket.getRuleRef().getServiceLevel().getScript());
             assertEquals(source, bucket.getRuleRef().getMethodLevel().getScript());

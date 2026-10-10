@@ -50,32 +50,31 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
     }
 
     /** Validate and normalize an endpoint without constructing network resources. */
-    public ConnectorConfig prepare(ConnectorConfig config) {
+    public void prepare(ConnectorConfig config) {
         NetworkConnectorFactory<?> transport = this.transports.get(config.listenType());
         if (transport == null) {
             throw new IllegalArgumentException("Unknown transport: " + config.listenType());
         }
-        return this.prepare(config, transport);
+        this.prepare(config, transport);
     }
 
-    private <M> ConnectorConfig prepare(ConnectorConfig config, NetworkConnectorFactory<M> transport) {
-        Map<String, NetworkRoute<M>> routes = new LinkedHashMap<>();
+    private <M> void prepare(ConnectorConfig config, NetworkConnectorFactory<M> transport) {
+        // 参数优先级：协议显式配置 > 端点公共参数 > 协议默认值。
+        Map<String, Map<String, String>> routes = new LinkedHashMap<>();
         for (ProtocolConfig mount : config.protocols()) {
             ProtocolFactory<M> protocol = this.resolve(mount, transport);
-            ProtocolConfig effective = config.forProtocol(mount);
-            NetworkRoute<M> route = new NetworkRoute<>(effective.options(), m -> protocol.probe(effective, m));
-            routes.put(mount.scheme(), route);
+            Map<String, String> options = new LinkedHashMap<>(config.options());
+            options.putAll(mount.options());
+            options.putIfAbsent("serializeType", protocol.defaultSerializeType());
+            routes.put(mount.scheme(), options);
         }
 
-        Map<String, NetworkRoute<M>> prepared = transport.prepareRoutes(routes);
-        List<ProtocolConfig> protocols = new ArrayList<>();
+        // 传输层只整理参数；校验完成后更新原来的协议配置。
+        transport.configRoutes(routes);
+
         for (ProtocolConfig mount : config.protocols()) {
-            Map<String, String> options = prepared.get(mount.scheme()).options();
-            ProtocolConfig protocol = new ProtocolConfig(mount.name(), mount.scheme(), mount.protocol(), options);
-            protocols.add(protocol);
+            mount.setOptions(routes.get(mount.scheme()));
         }
-
-        return new ConnectorConfig(config.name(), config.address(), config.options(), protocols, config.bindEnabled());
     }
 
     private static <T> void put(Map<String, T> registry, String name, T factory, String kind) {
@@ -102,14 +101,12 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
         Map<String, NetworkRoute<M>> routes = new LinkedHashMap<>();
         for (ProtocolConfig mount : config.protocols()) {
             ProtocolFactory<M> protocol = this.resolve(mount, transport);
-            ProtocolConfig effective = config.forProtocol(mount);
             mounted.put(mount.scheme(), protocol);
-            NetworkRoute<M> route = new NetworkRoute<>(effective.options(), m -> protocol.probe(effective, m));
+            NetworkRoute<M> route = new NetworkRoute<>(mount.options(), message -> protocol.probe(mount, message));
             routes.put(mount.scheme(), route);
         }
 
-        Map<String, NetworkRoute<M>> prepared = Collections.unmodifiableMap(transport.prepareRoutes(routes));
-        return new EndpointConnector<>(config, manager, transport, mounted, prepared);
+        return new EndpointConnector<>(config, manager, transport, mounted, Collections.unmodifiableMap(routes));
     }
 
     @SuppressWarnings("unchecked")

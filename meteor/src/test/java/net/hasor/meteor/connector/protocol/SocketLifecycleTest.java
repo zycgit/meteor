@@ -159,7 +159,10 @@ public class SocketLifecycleTest {
             }
             throw new AssertionError(method);
         });
-        ConnectorManager manager = new ConnectorManager(context, new EndpointConnectorFactory());
+        EndpointConnectorFactory factory = new EndpointConnectorFactory();
+        factory.listenTypes(loader);
+        factory.prepare(config);
+        ConnectorManager manager = new ConnectorManager(context, factory);
         manager.init();
         return manager;
     }
@@ -173,6 +176,10 @@ public class SocketLifecycleTest {
         @Override
         public RouteMatch probe(ProtocolConfig config, byte[] message) {
             return RouteMatch.REJECT;
+        }
+
+        public String defaultSerializeType() {
+            return "Java";
         }
 
         public String transport() {

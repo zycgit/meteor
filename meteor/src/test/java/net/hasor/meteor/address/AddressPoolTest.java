@@ -10,14 +10,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.meteor.address.route.speed.SpeedFlowControl;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-public class AddressPoolTest extends ScriptTestSupport {
+public class AddressPoolTest {
     private final InterAddress a = new InterAddress("127.0.0.1", 8000, "local");
     private final InterAddress b = new InterAddress("127.0.0.2", 8000, "remote");
 
@@ -176,74 +175,4 @@ public class AddressPoolTest extends ScriptTestSupport {
         assertNull(pool.nextAddress("s", "get", null));
     }
 
-    @Test
-    public void concurrentServiceAdditionDuringCacheResetDoesNotThrow() throws Exception {
-        AddressPool pool = new AddressPool();
-        BlockingRoute route = new BlockingRoute();
-        String service = pool.getBucket("s") == null ? "first" : "s";
-        pool.appendAddress(service, this.a);
-        pool.updateServiceRoute(service, script("blocking-route", route));
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        try {
-            route.pause.set(true);
-            Future<?> first = executor.submit(() -> pool.appendAddress("first", this.a));
-            assertTrue(route.captured.await(5, TimeUnit.SECONDS));
-            pool.appendAddress("second", this.b);
-            route.resume.countDown();
-            first.get(5, TimeUnit.SECONDS);
-            assertEquals(this.a, pool.nextAddress("first", "get", null));
-            assertEquals(this.b, pool.nextAddress("second", "get", null));
-        } finally {
-            route.resume.countDown();
-            executor.shutdownNow();
-            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
-        }
-    }
-
-    @Test
-    public void olderCacheResetCannotOverwriteNewerProviderList() throws Exception {
-        AddressPool pool = new AddressPool();
-        pool.appendAddress("s", this.a);
-        BlockingRoute route = new BlockingRoute();
-        String service = pool.getBucket("s") == null ? "first" : "s";
-        pool.appendAddress(service, this.a);
-        pool.updateServiceRoute(service, script("blocking-route", route));
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        try {
-            route.pause.set(true);
-            Future<?> olderReset = executor.submit(() -> pool.appendAddress("s", this.a));
-            assertTrue(route.captured.await(5, TimeUnit.SECONDS));
-            pool.refreshAddress("s", Collections.singletonList(this.b));
-            assertEquals(this.b, pool.nextAddress("s", "get", null));
-            route.resume.countDown();
-            olderReset.get(5, TimeUnit.SECONDS);
-            assertEquals("After both writers finish, routing must use the latest provider list", this.b, pool.nextAddress("s", "get", null));
-        } finally {
-            route.resume.countDown();
-            executor.shutdownNow();
-            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
-        }
-    }
-
-    private static class BlockingRoute implements RuleScript<List<String>> {
-        final AtomicBoolean  pause    = new AtomicBoolean();
-        final CountDownLatch captured = new CountDownLatch(1);
-        final CountDownLatch resume   = new CountDownLatch(1);
-
-        @Override
-        public List<String> evalAddress(String service, List<String> addresses) {
-            if (this.pause.compareAndSet(true, false)) {
-                this.captured.countDown();
-                try {
-                    if (!this.resume.await(5, TimeUnit.SECONDS)) {
-                        throw new AssertionError("Timed out waiting for concurrent update");
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError(e);
-                }
-            }
-            return addresses;
-        }
-    }
 }

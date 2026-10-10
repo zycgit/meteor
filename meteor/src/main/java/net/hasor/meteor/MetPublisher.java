@@ -153,7 +153,7 @@ public interface MetPublisher {
         ConfigurationBuilder<T> serialize(String serializeType);
 
         /**
-         * 设置使用的协议
+         * 选择服务暴露的协议名称或 scheme，忽略大小写；未设置时覆盖所有已配置协议接入点。
          * @param protocol 使用的协议
          * @param protocolArrays 使用的协议
          * @return 返回ConfigurationBuilder
@@ -191,16 +191,16 @@ public interface MetPublisher {
 
     /**发布地址*/
     interface RegisterBuilder<T> {
-        /**更新服务地址本计算规则（服务级）*/
+        /** 使用 XML 设置路由脚本。 */
         RegisterBuilder<T> updateServiceRoute(String scriptBody);
 
-        /**更新服务地址本计算规则（方法级）*/
+        /** 使用 XML 设置路由脚本。 */
         RegisterBuilder<T> updateMethodRoute(String scriptBody);
 
-        /**更新服务地址本计算规则（参数级）*/
+        /** 使用 XML 设置路由脚本。 */
         RegisterBuilder<T> updateArgsRoute(String scriptBody);
 
-        /**更新服务路由策略*/
+        /** 使用 XML 设置流控脚本。 */
         RegisterBuilder<T> updateFlowControl(String flowControl);
 
         /**

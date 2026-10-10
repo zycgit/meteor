@@ -15,8 +15,7 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.function.EFunction;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
-import net.hasor.meteor.address.route.ArgsKey;
-import net.hasor.meteor.address.route.DefaultArgsKey;
+import net.hasor.meteor.address.dsl.RouteContext;
 
 /**
  * 服务地址池
@@ -32,7 +31,6 @@ public class AddressPool {
     private final          String                     unitName;
     private final          long                       invalidWakeupTimeMs;
     private final          AddressCacheResult         rulerCache;
-    private final          ArgsKey                    argsKey;
 
     public AddressPool() {
         this("default", 120000);
@@ -45,11 +43,22 @@ public class AddressPool {
         this.invalidWakeupTimeMs = Math.max(30000, invalidWakeupTimeMs);
         this.rulerCache = new AddressCacheResult(this);
         this.poolLock = new Object();
-        this.argsKey = new DefaultArgsKey();
     }
 
     public AddressBucket getBucket(String serviceID) {
         return this.addressPool.getOrDefault(serviceID, null);
+    }
+
+    /** 登记已完成地址与规则初始化的服务地址本；已有发现结果继续保留。 */
+    public void registerBucket(AddressBucket prepared) {
+        AddressBucket existing;
+        synchronized (this.poolLock) {
+            existing = this.addressPool.putIfAbsent(prepared.getServiceID(), prepared);
+        }
+        if (existing != null) {
+            existing.initialize(prepared);
+        }
+        this.rulerCache.reset();
     }
 
     /**
@@ -72,9 +81,9 @@ public class AddressPool {
      */
     public Map<String, List<InterAddress>> allServiceAddressToSnapshot() {
         Map<String, List<InterAddress>> snapshot = new HashMap<>();
-        synchronized (this.poolLock) {
-            for (String key : this.addressPool.keySet()) {
-                AddressBucket bucket = this.addressPool.get(key);
+        for (AddressBucket bucket : this.addressPool.values()) {
+            String key = bucket.getServiceID();
+            synchronized (bucket) {
                 snapshot.put(key + "_ALL", bucket.getAllAddresses());
                 snapshot.put(key + "_UNIT", bucket.getLocalUnitAddresses());
                 snapshot.put(key + "_INVALID", bucket.getInvalidAddresses());
@@ -144,10 +153,8 @@ public class AddressPool {
         //1.AddressBucketd
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
-            /*在并发情况下,invalidAddress可能正打算读取AddressBucket,因此要锁住poolLock*/
+            AddressBucket newBucket = new AddressBucket(serviceID, this.unitName);
             synchronized (this.poolLock) {
-                AddressBucket newBucket = new AddressBucket(serviceID, this.unitName);
-                //newBucket.addObserver(this.refreshCacheNotify);
                 bucket = this.addressPool.putIfAbsent(serviceID, newBucket);
                 if (bucket == null) {
                     bucket = newBucket;
@@ -157,7 +164,6 @@ public class AddressPool {
         }
         //2.新增服务
         bucket.newAddress(newHostSet, type);
-        bucket.refreshAddress();//局部更新
         this.rulerCache.reset();
     }
 
@@ -167,15 +173,9 @@ public class AddressPool {
      * @param address 失效的地址。
      */
     public void invalidAddress(InterAddress address) {
-        /*在并发情况下,newAddress和invalidAddress可能正在执行,因此要锁住poolLock*/
-        synchronized (this.poolLock) {
-            Set<String> keySet = this.addressPool.keySet();
-            for (String bucketKey : keySet) {
-                logger.info("serviceID =" + bucketKey + " ,invalid address = " + address + " ,bucket is not exist.");
-                AddressBucket bucket = this.addressPool.get(bucketKey);
-                bucket.invalidAddress(address, this.invalidWakeupTimeMs);
-                bucket.refreshAddress();
-            }
+        // 每个服务独立更新，地址本通知不占用整个地址池的锁。
+        for (AddressBucket bucket : this.addressPool.values()) {
+            bucket.invalidAddress(address, this.invalidWakeupTimeMs);
         }
         this.rulerCache.reset();
     }
@@ -207,9 +207,8 @@ public class AddressPool {
             for (InterAddress invalidAddress : invalidAddressSet) {
                 strBuilder.append(invalidAddress.toHostSchema() + ",");
                 bucket.removeAddress(invalidAddress);
-                bucket.refreshAddress();
-                this.rulerCache.reset();
             }
+            this.rulerCache.reset();
         }
         logger.info("serviceID =" + serviceID + " ,remove invalidAddress = " + strBuilder + //
                 " ,wait " + this.invalidWakeupTimeMs + " -> active.");
@@ -217,17 +216,8 @@ public class AddressPool {
 
     /** 从所有服务中删除这个地址 */
     public void removeAddress(InterAddress address) {
-        /* 在并发情况下,newAddress和invalidAddress可能正在执行,因此要锁住poolLock */
-        synchronized (this.poolLock) {
-            Set<String> keySet = this.addressPool.keySet();
-            for (String bucketKey : keySet) {
-                AddressBucket bucket = this.addressPool.get(bucketKey);
-                if (bucket == null) {
-                    return;
-                }
-                logger.debug("service " + bucketKey + " removeAddress.");
-                bucket.removeAddress(address);
-            }
+        for (AddressBucket bucket : this.addressPool.values()) {
+            bucket.removeAddress(address);
         }
         this.rulerCache.reset();
     }
@@ -249,31 +239,18 @@ public class AddressPool {
 
     /** 刷新服务的地址本，使其使用全新的地址本 */
     public void refreshAddress(String serviceID, List<InterAddress> addressList) {
-        /*在并发情况下,newAddress和invalidAddress可能正在执行,因此要锁住poolLock*/
-        synchronized (this.poolLock) {
-            AddressBucket bucket = this.addressPool.get(serviceID);
-            if (bucket == null) {
-                return;
-            }
-            logger.debug("service " + serviceID + " refreshCache.");
-            bucket.refreshAddressToNew(addressList);//刷新地址计算结果
+        AddressBucket bucket = this.addressPool.get(serviceID);
+        if (bucket == null) {
+            return;
         }
+        bucket.refreshAddressToNew(addressList);
         this.rulerCache.reset();
     }
 
     /** 刷新地址缓存 */
     public void refreshAddressCache() {
-        /*在并发情况下,newAddress和invalidAddress可能正在执行,因此要锁住poolLock*/
-        synchronized (this.poolLock) {
-            Set<String> keySet = this.addressPool.keySet();
-            for (String bucketKey : keySet) {
-                AddressBucket bucket = this.addressPool.get(bucketKey);
-                if (bucket == null) {
-                    return;
-                }
-                logger.debug("service " + bucketKey + " refreshCache.");
-                bucket.refreshAddress();//刷新地址计算结果
-            }
+        for (AddressBucket bucket : this.addressPool.values()) {
+            bucket.refreshAddress();
         }
         this.rulerCache.reset();
     }
@@ -292,6 +269,14 @@ public class AddressPool {
      * @return 返回可以使用的地址。
      */
     public InterAddress nextAddress(String serviceID, String methodName, Object[] args) {
+        return this.nextAddress(new RouteContext(serviceID, methodName, args));
+    }
+
+    /** 根据本次调用的上下文动态选址。 */
+    public InterAddress nextAddress(RouteContext input) {
+        String serviceID = input.getServiceId();
+        String methodName = (String) input.getMethod().get("name");
+        input.getEnv().putIfAbsent("unitName", this.unitName);
         while (true) {
             if (Thread.currentThread().isInterrupted()) {
                 throw new CancellationException("Address selection interrupted");
@@ -300,7 +285,7 @@ public class AddressPool {
             if (bucket == null) {
                 return null;
             }
-            List<InterAddress> addresses = this.rulerCache.getAddressList(serviceID, methodName, args);
+            List<InterAddress> addresses = this.rulerCache.getAddressList(input);
             if (addresses == null || addresses.isEmpty()) {
                 return null;
             }
@@ -313,10 +298,6 @@ public class AddressPool {
             // Permit cancellation and rule/address replacement while waiting for quota.
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
         }
-    }
-
-    protected ArgsKey getArgsKey() {
-        return this.argsKey;
     }
 
     /** 获取地址路由规则引用。 */
@@ -334,17 +315,14 @@ public class AddressPool {
         return "AddressPool[" + this.unitName + "]";
     }
 
-    /** 更新服务地址本计算规则（服务级） */
     public boolean updateServiceRoute(String serviceID, String scriptBody) {
         return this.updateRoute(serviceID, RouteTypeEnum.ServiceLevel, scriptBody);
     }
 
-    /** 更新服务地址本计算规则（方法级） */
     public boolean updateMethodRoute(String serviceID, String scriptBody) {
         return this.updateRoute(serviceID, RouteTypeEnum.MethodLevel, scriptBody);
     }
 
-    /** 更新服务地址本计算规则（参数级） */
     public boolean updateArgsRoute(String serviceID, String scriptBody) {
         return this.updateRoute(serviceID, RouteTypeEnum.ArgsLevel, scriptBody);
     }
@@ -369,7 +347,7 @@ public class AddressPool {
             return false;
         }
 
-        this.refreshAddressCache();
+        this.rulerCache.reset();
         return true;
     }
 
@@ -391,7 +369,7 @@ public class AddressPool {
             return false;
         }
 
-        this.refreshAddressCache();
+        this.rulerCache.reset();
         return true;
     }
 

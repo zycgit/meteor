@@ -9,13 +9,10 @@ package net.hasor.meteor.bootstrap;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Cancellable;
@@ -39,46 +36,48 @@ import net.hasor.meteor.serialize.SerializeFactory;
 
 /** Composes RSF components and owns their lifecycle without requiring a container or subclass. */
 public final class MetContextImpl implements MetContext {
-    private static final Logger                          LOGGER     = LoggerFactory.getLogger(MetContextImpl.class);
-    private final        List<Consumer<MetContextEvent>> listeners  = new CopyOnWriteArrayList<>();
-    private final        MetSettings                     settings;
-    private final        ClassLoader                     classLoader;
-    private final        String                          instanceID = UUID.randomUUID().toString().replace("-", "");
-    private final        SerializeFactory                serializeFactory;
-    private final        CacheAddressPool                addresses;
-    private final        MetContainer                    rsfContainer;
-    private final        MetPublisher                    publisher;
-    private final        ConnectorManager                connectors;
-    private final        MetCaller                       rsfCaller;
-    private volatile     State                           state      = State.NEW;
+    private static final Logger                   LOGGER        = LoggerFactory.getLogger(MetContextImpl.class);
+    private final        List<MetContextListener> listeners     = new CopyOnWriteArrayList<>();
+    private final        MetSettings              settings;
+    private final        ClassLoader              classLoader;
+    private final        String                   instanceID    = UUID.randomUUID().toString().replace("-", "");
+    private final        SerializeFactory         serializeFactory;
+    private final        CacheAddressPool         addresses;
+    private final        MetContainer             rsfContainer;
+    private final        MetPublisher             publisher;
+    private              ConnectorManager         connectors;
+    private              MetCaller                rsfCaller;
+    private final        List<MetExtension>       extensions    = new CopyOnWriteArrayList<>();
+    private final        ReentrantLock            lifecycleLock = new ReentrantLock();
+    private volatile     State                    state         = State.NEW;
 
     private enum State {
         NEW,
+        STARTING,
         OFFLINE,
         ONLINE,
         CLOSED
     }
 
-    /** Initializes components for registration and invocation; start() opens the configured listeners. */
-    MetContextImpl(MetSettings settings, ClassLoader classLoader, EndpointConnectorFactory factory) {
+    /** 组装配置、服务容器、序列化器和地址管理组件。 */
+    MetContextImpl(MetSettings settings, ClassLoader classLoader) {
         this.settings = Objects.requireNonNull(settings, "settings");
         this.classLoader = Objects.requireNonNull(classLoader, "classLoader");
 
         // 组装服务注册、序列化和地址管理能力。
         this.serializeFactory = this.createSerializeFactory();
         this.addresses = new CacheAddressPool(this.settings);
-        this.rsfContainer = new MetContainer(this.addresses, this.settings) {
-            @Override
-            protected void onServiceChanged(String serviceId) {
-                MetContextImpl.this.notifyEvent(MetContextEvent.SERVICES_CHANGED);
-            }
-        };
-
+        this.rsfContainer = new MetContainer(this.addresses, this.settings);
+        this.rsfContainer.subscribe(this::notifyEvent);
         this.publisher = new Publisher(this.rsfContainer.createPublisher());
+    }
+
+    /** 构建入口在返回上下文前完成初始化；监听仍由 start() 开启。 */
+    void init(EndpointConnectorFactory connectorFactory, List<MetExtensionFactory> extensionFactory) {
         this.installFilters();
 
         // 连接事件交给 RPC 层，连接失败同时反馈给地址池。
-        this.connectors = new ConnectorManager(this, factory) {
+        this.connectors = new ConnectorManager(this, connectorFactory) {
             @Override
             public Future<MetChannel> connect(InterAddress address) {
                 Future<MetChannel> connecting = super.connect(address);
@@ -100,109 +99,220 @@ public final class MetContextImpl implements MetContext {
             }
             throw failure;
         }
-    }
 
-    @Override
-    public synchronized void start() {
-        if (this.state == State.CLOSED) {
-            throw new IllegalStateException("RSF context is closed");
-        }
-        if (this.state != State.NEW) {
-            return;
-        }
-
+        // 核心组件就绪后再创建扩展，扩展失败时回收已完成初始化的组件。
         try {
-            // 地址维护先就绪，再依次开启配置中的监听端点。
-            this.addresses.start(this.connectors::schedule);
-            for (ConnectorConfig config : this.connectors.configurations()) {
-                if (config.bindEnabled()) {
-                    this.connectors.bind(config.name()).get();
-                }
+            for (MetExtensionFactory factory : extensionFactory) {
+                MetExtension extension = factory.create(this);
+                this.extensions.add(Objects.requireNonNull(extension, "extension"));
             }
-
-            // 所有监听创建成功后，才发布实例启动事件。
-            this.state = this.settings.isAutomaticOnline() ? State.ONLINE : State.OFFLINE;
-            this.notifyEvent(MetContextEvent.STARTED);
         } catch (Exception | Error failure) {
-            Throwable cause = failure instanceof ExecutionException ? failure.getCause() : failure;
             try {
                 this.close();
             } catch (Throwable cleanup) {
+                failure.addSuppressed(cleanup);
+            }
+            if (failure instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException("Cannot create Meteor extension", failure);
+        }
+    }
+
+    @Override
+    public void start() {
+        Throwable startupFailure = null;
+        this.lifecycleLock.lock();
+        try {
+            if (this.state == State.CLOSED) {
+                throw new IllegalStateException("Meteor context is closed");
+            }
+            if (this.state != State.NEW) {
+                return;
+            }
+            this.state = State.STARTING;
+
+            try {
+                // 扩展先准备治理配置；此时网络尚未接受请求。
+                for (MetExtension extension : this.extensions) {
+                    extension.beforeStart();
+                }
+
+                this.addresses.start(this.connectors::schedule);
+                for (ConnectorConfig config : this.connectors.configurations()) {
+                    if (config.bindEnabled()) {
+                        this.connectors.bind(config.name()).get();
+                    }
+                }
+
+                // 监听成功后，扩展才能发布实际地址。
+                this.state = this.settings.isAutomaticOnline() ? State.ONLINE : State.OFFLINE;
+                for (MetExtension extension : this.extensions) {
+                    extension.afterStart();
+                }
+            } catch (Exception | Error failure) {
+                synchronized (this.listeners) {
+                    this.state = State.CLOSED;
+                }
+                startupFailure = failure;
+            }
+        } finally {
+            this.lifecycleLock.unlock();
+        }
+
+        // 事件和失败回收不占用生命周期锁，订阅者可以调用其他生命周期 API。
+        if (startupFailure != null) {
+            Throwable cause = startupFailure;
+            if (startupFailure instanceof ExecutionException) {
+                cause = startupFailure.getCause();
+            }
+
+            try {
+                this.closeResources();
+            } catch (Throwable cleanup) {
                 cause.addSuppressed(cleanup);
             } finally {
-                if (failure instanceof InterruptedException) {
+                if (startupFailure instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
                 }
             }
-
-            if (cause instanceof Error) {
-                throw (Error) cause;
+            if (cause instanceof Error error) {
+                throw error;
             }
-            throw new IllegalStateException("Cannot start RSF context", cause);
+            throw new IllegalStateException("Cannot start Meteor context", cause);
         }
+        this.notifyEvent(new MetContextEvent(MetContextEventType.STARTED, null));
     }
 
     @Override
-    public synchronized void close() {
-        if (this.state == State.CLOSED) {
-            return;
-        }
-
-        this.state = State.CLOSED;
-        this.notifyEvent(MetContextEvent.CLOSED);
-        this.listeners.clear();
+    public void close() {
+        this.lifecycleLock.lock();
         try {
-            this.addresses.close();
+            if (this.state == State.CLOSED) {
+                return;
+            }
+            synchronized (this.listeners) {
+                this.state = State.CLOSED;
+            }
         } finally {
-            this.rsfCaller.close();
+            this.lifecycleLock.unlock();
+        }
+        this.closeResources();
+    }
+
+    private void closeResources() {
+        this.notifyEvent(new MetContextEvent(MetContextEventType.CLOSED, null));
+        this.listeners.clear();
+
+        // 停止后台任务和网络排空可能等待其他线程，不能同时占用生命周期锁。
+        List<AutoCloseable> resources = new ArrayList<>(this.extensions);
+        resources.add(this.addresses);
+        resources.add(this.rsfCaller);
+        Throwable failure = null;
+        for (AutoCloseable resource : resources) {
+            try {
+                resource.close();
+            } catch (Throwable cleanup) {
+                if (failure == null) {
+                    failure = cleanup;
+                } else if (failure != cleanup) {
+                    failure.addSuppressed(cleanup);
+                }
+            }
+        }
+
+        this.extensions.clear();
+        if (failure instanceof Error error) {
+            throw error;
+        }
+        if (failure != null) {
+            throw new IllegalStateException("Cannot close Meteor context", failure);
         }
     }
 
     @Override
-    public synchronized void online() {
-        if (this.state == State.NEW || this.state == State.CLOSED) {
-            throw new IllegalStateException("RSF context is not started");
-        }
-
-        if (this.state != State.ONLINE) {
+    public void online() {
+        this.lifecycleLock.lock();
+        try {
+            if (this.state == State.NEW || this.state == State.STARTING || this.state == State.CLOSED) {
+                throw new IllegalStateException("Meteor context is not started");
+            }
+            if (this.state == State.ONLINE) {
+                return;
+            }
             this.state = State.ONLINE;
-            this.notifyEvent(MetContextEvent.ONLINE);
+        } finally {
+            this.lifecycleLock.unlock();
         }
+        this.notifyEvent(new MetContextEvent(MetContextEventType.ONLINE, null));
     }
 
     @Override
-    public synchronized void offline() {
-        if (this.state == State.ONLINE) {
+    public void offline() {
+        this.lifecycleLock.lock();
+        try {
+            if (this.state != State.ONLINE) {
+                return;
+            }
             this.state = State.OFFLINE;
-            this.notifyEvent(MetContextEvent.OFFLINE);
+        } finally {
+            this.lifecycleLock.unlock();
         }
+        this.notifyEvent(new MetContextEvent(MetContextEventType.OFFLINE, null));
     }
 
     @Override
-    public synchronized Cancellable subscribe(Consumer<MetContextEvent> listener) {
-        if (this.state == State.CLOSED) {
-            throw new IllegalStateException("Meteor context is closed");
-        }
-
+    public Cancellable subscribe(MetContextListener listener) {
         Objects.requireNonNull(listener, "listener");
-        Consumer<MetContextEvent> subscription = listener::accept;
-        this.listeners.add(subscription);
+        MetContextListener subscription = listener::onEvent;
+        synchronized (this.listeners) {
+            if (this.state == State.CLOSED) {
+                throw new IllegalStateException("Meteor context is closed");
+            }
+            this.listeners.add(subscription);
+        }
         return () -> this.listeners.remove(subscription);
     }
 
     private void notifyEvent(MetContextEvent event) {
-        for (Consumer<MetContextEvent> listener : this.listeners) {
+        for (MetContextListener listener : this.listeners) {
             try {
-                listener.accept(event);
+                listener.onEvent(event);
             } catch (RuntimeException failure) {
-                LOGGER.warn("Meteor context event callback failed: " + event, failure);
+                LOGGER.warn("Meteor context event callback failed: " + event.getType(), failure);
             }
         }
+    }
+
+    @Override
+    public <T> T getExtension(Class<T> type) {
+        T result = null;
+        for (MetExtension extension : this.extensions) {
+            T service;
+            if (type.isInstance(extension)) {
+                service = type.cast(extension);
+            } else {
+                service = extension.getService(type);
+            }
+
+            if (service != null) {
+                if (result != null) {
+                    throw new IllegalStateException("Multiple extensions provide " + type.getName());
+                }
+                result = service;
+            }
+        }
+        return result;
     }
 
     @Override
     public boolean isOnline() {
         return this.state == State.ONLINE;
+    }
+
+    @Override
+    public String getApplicationName() {
+        return this.settings.getApplicationName();
     }
 
     @Override

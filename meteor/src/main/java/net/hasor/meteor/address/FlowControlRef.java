@@ -6,100 +6,19 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.address;
-import java.io.StringReader;
-import java.io.StringWriter;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import net.hasor.cobble.StringUtils;
-import net.hasor.cobble.logging.Logger;
-import net.hasor.cobble.logging.LoggerFactory;
-import net.hasor.meteor.address.route.Rule;
-import net.hasor.meteor.address.route.RuleParser;
 import net.hasor.meteor.address.route.random.RandomFlowControl;
 import net.hasor.meteor.address.route.speed.SpeedFlowControl;
 import net.hasor.meteor.address.route.unit.UnitFlowControl;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.xml.sax.InputSource;
 
-/**
- * 方便引用切换。
- * @author 赵永春 (zyc@hasor.net)
- * @version : 2014年9月12日
- */
+/** 一份编译完成的流控配置，随地址桶整体替换。 */
 public class FlowControlRef {
-    protected final      Logger            logger            = LoggerFactory.getLogger(getClass());
-    private static final RuleParser        ruleParser        = new RuleParser();
-    public               String            flowControlScript = null;
-    public               UnitFlowControl   unitFlowControl   = null; //单元规则
-    public               RandomFlowControl randomFlowControl = null; //地址选取规则
-    public               SpeedFlowControl  speedFlowControl  = null; //QoS速率规则
+    public String            flowControlScript;
+    public UnitFlowControl   unitFlowControl;
+    public RandomFlowControl randomFlowControl;
+    public SpeedFlowControl  speedFlowControl;
 
     private FlowControlRef() {
-    }
-
-    /** Apply a complete controlSet. An empty set restores defaults; invalid input leaves it unchanged. */
-    public void updateFlowControl(String flowControl) {
-        tryUpdateFlowControl(flowControl);
-    }
-
-    boolean tryUpdateFlowControl(String flowControl) {
-        if (StringUtils.isBlank(flowControl)) {
-            return false;
-        }
-        FlowControlRef parsed = defaultRef();
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            InputSource source = new InputSource(new StringReader(flowControl));
-            Element root = builder.parse(source).getDocumentElement();
-            if (!StringUtils.equals("controlSet", root.getTagName())) {
-                return false;
-            }
-
-            Transformer transformer = TransformerFactory.newInstance().newTransformer();
-            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-            for (Node node = root.getFirstChild(); node != null; node = node.getNextSibling()) {
-                if (!(node instanceof Element)) {
-                    continue;
-                }
-                if (!StringUtils.equals("flowControl", node.getNodeName())) {
-                    return false;
-                }
-
-                StringWriter xml = new StringWriter();
-                transformer.transform(new DOMSource(node), new StreamResult(xml));
-                Rule rule = ruleParser.ruleSettings(xml.toString());
-                if (rule == null) {
-                    return false;
-                }
-
-                if (rule instanceof UnitFlowControl) {
-                    parsed.unitFlowControl = (UnitFlowControl) rule;
-                } else if (rule instanceof RandomFlowControl) {
-                    parsed.randomFlowControl = (RandomFlowControl) rule;
-                } else if (rule instanceof SpeedFlowControl) {
-                    parsed.speedFlowControl = (SpeedFlowControl) rule;
-                }
-            }
-        } catch (Exception e) {
-            this.logger.error("Invalid flow control: " + e.getMessage(), e);
-            return false;
-        }
-
-        this.unitFlowControl = parsed.unitFlowControl;
-        this.randomFlowControl = parsed.randomFlowControl;
-        this.speedFlowControl = parsed.speedFlowControl;
-        this.flowControlScript = flowControl.trim();
-        return true;
     }
 
     public static FlowControlRef newRef(FlowControlRef ref) {

@@ -28,7 +28,6 @@ import net.hasor.cobble.concurrent.ThreadUtils;
 import net.hasor.cobble.concurrent.timer.HashedWheelTimer;
 import net.hasor.cobble.concurrent.timer.Timer;
 import net.hasor.cobble.concurrent.timer.TimerTask;
-import net.hasor.cobble.function.EFunction;
 import net.hasor.cobble.io.IOUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
@@ -42,9 +41,9 @@ public class DiskCache implements Closeable {
     protected static final Logger logger                      = LoggerFactory.getLogger(DiskCache.class);
     private static final   String AddressList_ZipEntry        = "address.sal";
     private static final   String FlowControlRef_ZipEntry     = "flow-control.xml";
-    private static final   String ServiceLevelScript_ZipEntry = "service-level.groovy";
-    private static final   String MethodLevelScript_ZipEntry  = "method-level.groovy";
-    private static final   String ArgsLevelScript_ZipEntry    = "args-level.groovy";
+    private static final   String ServiceLevelScript_ZipEntry = "service-level.xml";
+    private static final   String MethodLevelScript_ZipEntry  = "method-level.xml";
+    private static final   String ArgsLevelScript_ZipEntry    = "args-level.xml";
     private static final   String AddrPoolStoreName           = "addr-pool-";
     private static final   String SnapshotPath                = "/snapshot";
     private static final   String SnapshotIndex               = "address.index";
@@ -235,15 +234,14 @@ public class DiskCache implements Closeable {
     }
 
     private void storeConfig(OutputStream out) throws IOException {
+        // 锁内只取得地址本引用；压缩和磁盘写入不占用地址池的锁。
+        List<AddressBucket> buckets = this.pool.poolLock(pool -> new ArrayList<>(pool.addressPool.values()));
         try (ZipOutputStream zip = new ZipOutputStream(nonClosing(out))) {
-            this.pool.poolLock((EFunction<AddressPool, Object, IOException>) pool -> {
-                for (AddressBucket bucket : pool.addressPool.values()) {
-                    zip.putNextEntry(new ZipEntry(bucket.getServiceID() + ".zip"));
-                    saveToZip(bucket, zip);
-                    zip.closeEntry();
-                }
-                return null;
-            });
+            for (AddressBucket bucket : buckets) {
+                zip.putNextEntry(new ZipEntry(bucket.getServiceID() + ".zip"));
+                this.saveToZip(bucket, zip);
+                zip.closeEntry();
+            }
         }
     }
 
@@ -270,25 +268,32 @@ public class DiskCache implements Closeable {
 
     /** The caller owns out; finishing an inner ZIP must not close the outer archive. */
     protected boolean saveToZip(AddressBucket bucket, OutputStream out) throws IOException {
+        List<InterAddress> all;
+        Set<InterAddress> fixed;
+        String control;
+        RuleRef rules;
+        // 同一服务的地址与规则在锁内采样，之后不再访问可变地址本。
         synchronized (bucket) {
-            try (ZipOutputStream zip = new ZipOutputStream(nonClosing(out))) {
-                StringBuilder addresses = new StringBuilder();
-                Set<InterAddress> staticAddresses = new HashSet<>(bucket.getStaticAddresses());
-                for (InterAddress address : bucket.getAllAddresses()) {
-                    addresses.append(staticAddresses.contains(address) ? "S|" : "D|");
-                    addresses.append(address.toHostSchema()).append('\n');
-                }
+            all = bucket.getAllAddresses();
+            fixed = new HashSet<>(bucket.getStaticAddresses());
+            control = bucket.getFlowControlRef().flowControlScript;
+            rules = bucket.getRuleRef();
+        }
 
-                writeEntry(zip, addresses.toString(), AddressList_ZipEntry);
-                String control = bucket.getFlowControlRef().flowControlScript;
-                if (control != null) {
-                    writeEntry(zip, control, FlowControlRef_ZipEntry);
-                }
-                RuleRef rules = bucket.getRuleRef();
-                writeEntry(zip, rules.getServiceLevel().getScript(), ServiceLevelScript_ZipEntry);
-                writeEntry(zip, rules.getMethodLevel().getScript(), MethodLevelScript_ZipEntry);
-                writeEntry(zip, rules.getArgsLevel().getScript(), ArgsLevelScript_ZipEntry);
+        try (ZipOutputStream zip = new ZipOutputStream(nonClosing(out))) {
+            StringBuilder addresses = new StringBuilder();
+            for (InterAddress address : all) {
+                addresses.append(fixed.contains(address) ? "S|" : "D|");
+                addresses.append(address.toHostSchema()).append('\n');
             }
+
+            writeEntry(zip, addresses.toString(), AddressList_ZipEntry);
+            if (control != null) {
+                writeEntry(zip, control, FlowControlRef_ZipEntry);
+            }
+            writeEntry(zip, rules.getServiceLevel().getScript(), ServiceLevelScript_ZipEntry);
+            writeEntry(zip, rules.getMethodLevel().getScript(), MethodLevelScript_ZipEntry);
+            writeEntry(zip, rules.getArgsLevel().getScript(), ArgsLevelScript_ZipEntry);
         }
         return true;
     }

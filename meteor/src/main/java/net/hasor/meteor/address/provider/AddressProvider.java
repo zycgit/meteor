@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.address.provider;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.address.dsl.RouteContext;
 
 /**
  *
@@ -18,5 +19,5 @@ public interface AddressProvider {
     boolean isDistributed();
 
     /** 根据服务ID获取地址*/
-    InterAddress get(String serviceID, String methodName, Object[] args);
+    InterAddress get(RouteContext input);
 }

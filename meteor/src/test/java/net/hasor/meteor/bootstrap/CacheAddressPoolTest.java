@@ -17,9 +17,8 @@ import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.MetUpdater;
 import net.hasor.meteor.address.DiskCache;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.address.dsl.RouteContext;
 import net.hasor.meteor.address.provider.AddressProvider;
-import net.hasor.meteor.address.route.ArgsKey;
-import net.hasor.meteor.address.route.DefaultArgsKey;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -27,10 +26,9 @@ import static org.junit.Assert.*;
 
 public class CacheAddressPoolTest {
     @Rule
-    public  TemporaryFolder          temporary       = new TemporaryFolder();
-    private boolean                  diskCache;
-    private long                     refreshInterval = 60000;
-    private Class<? extends ArgsKey> argsKey         = DefaultArgsKey.class;
+    public  TemporaryFolder temporary       = new TemporaryFolder();
+    private boolean         diskCache;
+    private long            refreshInterval = 60000;
 
     @Test
     public void poolUpdaterAndProvidersShareAddressChangesBeforeStart() throws Exception {
@@ -41,13 +39,13 @@ public class CacheAddressPoolTest {
             InterAddress fixed = new InterAddress("rsf://127.0.0.1:2112/default");
             updater.appendAddress("service", Collections.singletonList(pooled));
             assertTrue(provider.isDistributed());
-            assertEquals(pooled, provider.get("service", "echo", new Object[0]));
+            assertEquals(pooled, provider.get(new RouteContext("service", "echo", new Object[0])));
             AddressProvider fixedProvider = pool.getProvider(fixed);
             assertFalse(fixedProvider.isDistributed());
-            assertEquals(fixed, fixedProvider.get("service", "echo", new Object[0]));
+            assertEquals(fixed, fixedProvider.get(new RouteContext("service", "echo", new Object[0])));
             pool.removeBucket("service");
-            assertNull(provider.get("service", "echo", new Object[0]));
-            assertEquals(fixed, fixedProvider.get("service", "echo", new Object[0]));
+            assertNull(provider.get(new RouteContext("service", "echo", new Object[0])));
+            assertEquals(fixed, fixedProvider.get(new RouteContext("service", "echo", new Object[0])));
         }
     }
 
@@ -159,45 +157,31 @@ public class CacheAddressPoolTest {
         this.diskCache = true;
         try (CacheAddressPool pool = this.pool()) {
             pool.appendAddress("service", Collections.emptyList());
-            assertNull(pool.getProvider().get("service", "echo", new Object[0]));
+            assertNull(pool.getProvider().get(new RouteContext("service", "echo", new Object[0])));
             ManualScheduler scheduler = new ManualScheduler();
             pool.start(scheduler);
             assertEquals(0, scheduler.tasks.size());
-            assertEquals(address, pool.getProvider().get("service", "echo", new Object[0]));
+            assertEquals(address, pool.getProvider().get(new RouteContext("service", "echo", new Object[0])));
         }
         this.diskCache = false;
         ManualScheduler scheduler = new ManualScheduler();
         try (CacheAddressPool pool = this.pool()) {
             pool.appendAddress("service", Collections.emptyList());
             pool.start(scheduler);
-            assertNull(pool.getProvider().get("service", "echo", new Object[0]));
+            assertNull(pool.getProvider().get(new RouteContext("service", "echo", new Object[0])));
             assertEquals(1, scheduler.tasks.size());
         }
     }
 
     @Test
-    public void configuredArgsKeyControlsArgumentRouting() throws Exception {
-        this.argsKey = RoutingArgsKey.class;
+    public void xmlRouteReadsActualArguments() throws Exception {
         try (CacheAddressPool pool = this.pool()) {
             InterAddress first = new InterAddress("rsf://127.0.0.1:2111/default");
             InterAddress second = new InterAddress("rsf://127.0.0.1:2112/default");
             pool.appendAddress("service", Arrays.asList(first, second));
-            assertTrue(pool.updateArgsRoute("service", "def evalAddress(id, addresses) { return [echo: [selected: ['127.0.0.1:2112']]] }"));
-            assertEquals(second, pool.getProvider().get("service", "echo", new Object[] { "selected" }));
-        }
-    }
-
-    @Test
-    public void invalidArgsKeyFailsBeforeResourcesAreStarted() {
-        this.argsKey = ArgsKey.class;
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, this::pool);
-        assertTrue(failure.getCause() instanceof NoSuchMethodException);
-    }
-
-    public static class RoutingArgsKey implements ArgsKey {
-        @Override
-        public String eval(String service, String method, Object[] args) {
-            return String.valueOf(args[0]);
+            String argsScript = "<route><filter name='selected' from='addresses' item='a' " + "test='a.port == args[0]'/><return value='selected'/></route>";
+            assertTrue(pool.updateArgsRoute("service", argsScript));
+            assertEquals(second, pool.getProvider().get(new RouteContext("service", "echo", new Object[] { 2112 })));
         }
     }
 
@@ -213,7 +197,6 @@ public class CacheAddressPoolTest {
         settings.setLocalDiskCache(this.diskCache);
         settings.setDiskCacheTimeInterval(3600000);
         settings.setDataHome(this.temporary.getRoot().toPath());
-        settings.setArgsKey(this.argsKey);
         return settings;
     }
 

@@ -53,9 +53,6 @@ class AnnoMetServiceValue implements MetService {
         if (StringUtils.isBlank(this.serviceVersion)) {
             this.serviceVersion = rsfSettings.getDefaultVersion();
         }
-        if (StringUtils.isBlank(this.serializeType)) {
-            this.serializeType = rsfSettings.getSerializeType();
-        }
         if (this.clientTimeout < 1) {
             this.clientTimeout = rsfSettings.getDefaultTimeout();
         }
