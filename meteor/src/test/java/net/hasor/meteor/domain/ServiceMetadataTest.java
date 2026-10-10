@@ -6,10 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.domain;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.meteor.MetBindInfo;
@@ -18,6 +15,23 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ServiceMetadataTest {
+    @Test
+    public void metadataKeysAreReadOnlySnapshotsThroughTheBindingWrapper() {
+        ServiceDomain<Runnable> domain = new ServiceDomain<>(Runnable.class);
+        MetBindInfo<Runnable> service = new MetBindInfoWrap<>(domain);
+        assertTrue(service.getMetaKeys().isEmpty());
+        domain.setMetaData(Map.of("first", 1, "second", 2));
+        Set<String> keys = service.getMetaKeys();
+        assertEquals(Set.of("first", "second"), keys);
+        assertThrows(UnsupportedOperationException.class, () -> keys.remove("first"));
+        assertEquals(1, domain.getMetaData("first"));
+
+        domain.removeMetaData("first");
+        domain.setMetaData("third", 3);
+        assertEquals(Set.of("first", "second"), keys);
+        assertEquals(Set.of("second", "third"), service.getMetaKeys());
+    }
+
     @Test
     public void singleAndBulkWritesShareLimitAndRejectedBatchChangesNothing() {
         MetBindInfo<Runnable> service = new MetBindInfoWrap<>(new ServiceDomain<>(Runnable.class));

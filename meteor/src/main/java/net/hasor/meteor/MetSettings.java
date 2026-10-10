@@ -19,6 +19,9 @@ import net.hasor.meteor.connector.ConnectorConfig;
  * @author 赵永春 (zyc@hasor.net)
  */
 public interface MetSettings {
+    /** 获取应用名称，默认 application。 */
+    String getApplicationName();
+
     /**获取本地数据目录。*/
     Path getDataHome();
 

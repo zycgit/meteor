@@ -8,11 +8,15 @@
 package net.hasor.meteor.domain;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import net.hasor.cobble.ClassUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
+import net.hasor.meteor.MetIgnore;
 
 /**
  *
@@ -99,6 +103,25 @@ public class MetRuntimeUtils {
         }
     }
 
+    /** 获取发布类型允许暴露的公开实例方法，包括继承的方法。 */
+    public static Method[] getServiceMethods(Class<?> serviceType) {
+        List<Method> methods = new ArrayList<>();
+        for (Method method : serviceType.getMethods()) {
+            if (isServiceMethod(method)) {
+                methods.add(method);
+            }
+        }
+        return methods.toArray(Method[]::new);
+    }
+
+    private static boolean isServiceMethod(Method method) {
+        int modifiers = method.getModifiers();
+        boolean instanceMethod = Modifier.isPublic(modifiers) && !Modifier.isStatic(modifiers);
+        boolean objectMethod = method.getDeclaringClass() == Object.class;
+        return instanceMethod && !objectMethod && !method.isAnnotationPresent(MetIgnore.class);
+    }
+
+    /** 查找可调用的服务方法，被忽略的方法与非服务方法不进入缓存。 */
     public static Method getServiceMethod(Class<?> serviceType, String methodName, Class<?>[] parameterTypes) {
         // 先取得服务类型对应的方法缓存。
         ConcurrentMap<String, Method> methodMap = methodCache.get(serviceType);
@@ -111,18 +134,21 @@ public class MetRuntimeUtils {
         }
 
         // 参数类型共同构成方法键，用于区分重载。
-        StringBuilder oriStr = new StringBuilder(methodName);
+        StringBuilder oriStr = new StringBuilder(methodName).append('(');
         if (parameterTypes != null) {
             for (Class<?> paramType : parameterTypes) {
-                oriStr.append(paramType.getName());
+                oriStr.append(paramType.getName()).append(';');
             }
         }
 
-        String finalStr = oriStr.toString();
+        String finalStr = oriStr.append(')').toString();
         Method method = methodMap.get(finalStr);
         if (method == null) {
             try {
                 Method newMethod = serviceType.getMethod(methodName, parameterTypes);
+                if (!isServiceMethod(newMethod)) {
+                    throw new MetException(ProtocolStatus.Forbidden, "Method is not published: " + newMethod);
+                }
                 method = methodMap.putIfAbsent(finalStr, newMethod);
                 if (method == null) {
                     method = newMethod;

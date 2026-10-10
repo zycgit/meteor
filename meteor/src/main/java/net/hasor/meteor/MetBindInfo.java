@@ -19,6 +19,9 @@ public interface MetBindInfo<T> {
     /** 服务元数据容量检查阈值，并发写入时允许超出。 */
     int MAX_METADATA_SIZE = 1000;
 
+    /** 返回当前可见元信息键的只读快照，不随后续修改变化。 */
+    Set<String> getMetaKeys();
+
     Object getMetaData(String key);
 
     /** 设置一个元数据值，null 表示删除，新增键按当前可见容量检查。 */

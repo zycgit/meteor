@@ -125,7 +125,7 @@ final class MetInvocationTask implements Runnable {
         Method targetMethod;
         try {
             String methodName = this.requestInfo.getTargetMethod();
-            targetMethod = bindInfo.getBindType().getMethod(methodName, pTypes);
+            targetMethod = MetRuntimeUtils.getServiceMethod(bindInfo.getBindType(), methodName, pTypes);
         } catch (Throwable e) {
             String errorMessage = "(" + e.getClass().getName() + ")" + e.getMessage();
             String errorInfo = "do request(" + requestID + ") failed -> lookup service method error : " + errorMessage;

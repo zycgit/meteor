@@ -169,6 +169,11 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
         this.bindProtocols.add(bindProtocol);
     }
 
+    @Override
+    public Set<String> getMetaKeys() {
+        return Set.copyOf(this.metadata.keySet());
+    }
+
     public Object getMetaData(String key) {
         return this.metadata.get(Objects.requireNonNull(key, "metadata key"));
     }
