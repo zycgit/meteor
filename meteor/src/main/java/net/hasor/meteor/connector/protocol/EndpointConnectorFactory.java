@@ -108,8 +108,8 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
             routes.put(mount.scheme(), route);
         }
 
-        Map<String, NetworkRoute<M>> prepared = Map.copyOf(transport.prepareRoutes(routes));
-        return new EndpointConnector<>(config, manager, transport, Map.copyOf(mounted), prepared);
+        Map<String, NetworkRoute<M>> prepared = Collections.unmodifiableMap(transport.prepareRoutes(routes));
+        return new EndpointConnector<>(config, manager, transport, mounted, prepared);
     }
 
     @SuppressWarnings("unchecked")

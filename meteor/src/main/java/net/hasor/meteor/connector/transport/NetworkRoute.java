@@ -14,8 +14,9 @@ public final class NetworkRoute<M> {
     private final Map<String, String>     options;
     private final Function<M, RouteMatch> probe;
 
+    /** 接收已完成配置的参数 Map；调用方不再修改，对外仅提供只读视图。 */
     public NetworkRoute(Map<String, String> options, Function<M, RouteMatch> probe) {
-        this.options = Map.copyOf(options);
+        this.options = options;
         this.probe = probe;
     }
 

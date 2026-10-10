@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.address.route;
 import net.hasor.cobble.StringUtils;
+
 /**
  * 将参数映射为一个Key.
  * @author 赵永春 (zyc@hasor.net)

@@ -20,7 +20,7 @@ public interface NetworkConnectorFactory<M> {
         return false;
     }
 
-    /** Normalize and validate routing options before any network resources are allocated. */
+    /** Normalize and validate routes before allocating resource. */
     default Map<String, NetworkRoute<M>> prepareRoutes(Map<String, NetworkRoute<M>> routes) {
         return routes;
     }

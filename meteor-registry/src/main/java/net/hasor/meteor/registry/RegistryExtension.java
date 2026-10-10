@@ -8,7 +8,7 @@
 package net.hasor.meteor.registry;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetContextEvent;
-import net.hasor.meteor.bootstrap.MetExtension;
+import net.hasor.meteor.MetExtension;
 import net.hasor.meteor.registry.admin.support.TargetAdminImpl;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.client.support.DefaultRegistryClient;

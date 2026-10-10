@@ -206,7 +206,7 @@ public class CacheAddressPoolTest {
     }
 
     private MetSettings settings() {
-        Configuration settings = new Configuration();
+        MetConfiguration settings = new MetConfiguration();
         settings.setUnitName("default");
         settings.setInvalidWaitTime(30000);
         settings.setRefreshCacheTime(this.refreshInterval);
