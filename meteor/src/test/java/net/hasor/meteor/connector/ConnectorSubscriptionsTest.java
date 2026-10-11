@@ -53,7 +53,11 @@ public class ConnectorSubscriptionsTest {
             manager.onRequest(source, 42, request);
             manager.onResponse(source, 42, response);
             manager.onFailure(source, 42, new ThrowPayload(failure));
-            assertEquals(Arrays.asList("request", "observer-REQUEST", "response", "observer-RESPONSE", "failure", "observer-THROW"), received);
+            List<String> expected = new ArrayList<>();
+            expected.addAll(Arrays.asList("request", "observer-REQUEST"));
+            expected.addAll(Arrays.asList("response", "observer-RESPONSE"));
+            expected.addAll(Arrays.asList("failure", "observer-THROW"));
+            assertEquals(expected, received);
         }
     }
 
@@ -108,14 +112,15 @@ public class ConnectorSubscriptionsTest {
         InterAddress localAddress = new InterAddress("rsf://127.0.0.1:1/default");
         Map<String, String> options = Collections.singletonMap("listenType", "memory");
         ProtocolConfig mount = new ProtocolConfig("closing", "rsf", "rsf", options);
-        ConnectorConfig config = new ConnectorConfig("closing", localAddress, options, Collections.singletonList(mount), true);
+        List<ProtocolConfig> configMounts = Collections.singletonList(mount);
+        ConnectorConfig config = new ConnectorConfig("closing", localAddress, options, configMounts, true);
         try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext(config))) {
             manager.init();
             List<Payload> received = new ArrayList<>();
             ResponsePayload response = new ResponsePayload();
             ThrowPayload failure = new ThrowPayload(new IOException("disconnected"));
             manager.subscribe((channel, id, payload) -> received.add(payload));
-            manager.prepare(config, (connectorConfig, connectorManager) -> new AbstractConnector(connectorConfig, connectorManager) {
+            TestConnectorManager.Creator factory = (cfg, owner) -> new AbstractConnector(cfg, owner) {
                 protected void initialize() {
                 }
 
@@ -132,8 +137,9 @@ public class ConnectorSubscriptionsTest {
                     this.manager.onFailure(new TestChannel(), 2, failure);
                     throw new IllegalStateException("cleanup failure");
                 }
-            });
-            manager.bind(manager.config("closing").withAddress(config.address()).name());
+            };
+            manager.prepare(config, factory);
+            manager.bind(config.name());
             manager.close();
             assertEquals(Arrays.asList(response, failure), received);
             manager.onResponse(new TestChannel(), 1, response);

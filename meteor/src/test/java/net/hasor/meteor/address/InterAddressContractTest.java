@@ -21,10 +21,14 @@ public class InterAddressContractTest {
         assertEquals("127.0.0.1", address.getHost());
         assertEquals(8000, address.getPort());
         assertEquals("127.0.0.1:8000", address.getHostPort());
+
+        // URI、Socket 和字符串三种形式保持同一个目标。
         assertEquals(address, new InterAddress(address.toURI()));
         assertEquals(8000, address.toSocketAddress().getPort());
         assertEquals("rsf://127.0.0.1:8000/zone", address.toString());
         assertEquals(address, new InterAddress("127.0.0.1", 8000, "zone"));
+
+        // 主机比较忽略协议与单元，完整地址比较仍保留这些区别。
         assertTrue(address.equalsHost("127.0.0.1:8000"));
         assertTrue(address.equalsHost(new InterAddress("http", "127.0.0.1", 8000, "other")));
         assertFalse(address.equalsHost((String) null));
@@ -61,6 +65,8 @@ public class InterAddressContractTest {
     @Test
     public void ipv6UriRoundTrip() throws Exception {
         InterAddress address = new InterAddress("rsf://[::1]:8000/zone");
+
+        // URI、Socket 和字符串三种形式保持同一个目标。
         assertEquals(address, new InterAddress(address.toURI()));
         assertEquals(8000, address.toSocketAddress().getPort());
     }

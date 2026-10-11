@@ -5,10 +5,31 @@ plugins {
 
 description = 'Meteor nacos registry adapter.'
 
+configurations {
+    nacosServer {
+        canBeConsumed = false
+        transitive = false
+    }
+}
+
 dependencies {
     api project(':meteor-registry')
     implementation "com.alibaba.nacos:nacos-client:${property('lib.nacos')}"
 
     // for test
     testImplementation "org.mockito:mockito-core:${property('lib.mockito')}"
+    nacosServer "com.alibaba.nacos:nacos-server:${property('lib.nacos')}@zip"
+}
+
+def prepareNacosServer = tasks.register('prepareNacosServer', Sync) {
+    from { zipTree(configurations.nacosServer.singleFile) }
+    include 'nacos/target/nacos-server.jar'
+    into layout.buildDirectory.dir('nacos-server')
+}
+
+tasks.named('test') {
+    dependsOn prepareNacosServer
+    def serverJar = layout.buildDirectory.file('nacos-server/nacos/target/nacos-server.jar')
+    inputs.file(serverJar)
+    systemProperty 'meteor.test.nacos.serverJar', serverJar.get().asFile.absolutePath
 }

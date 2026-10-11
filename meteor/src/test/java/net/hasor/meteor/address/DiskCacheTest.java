@@ -13,6 +13,8 @@ import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import net.hasor.cobble.concurrent.timer.Timeout;
@@ -144,6 +146,8 @@ public class DiskCacheTest {
         try (DiskCache cache = cache(source, home)) {
             cache.storeConfig();
         }
+
+        // 用新的地址池恢复，验证磁盘记录而不是原内存对象。
         AddressPool restored = new AddressPool();
         restored.appendAddress("s.one", Collections.emptyList());
         restored.appendAddress("s.two", Collections.emptyList());
@@ -167,6 +171,8 @@ public class DiskCacheTest {
         try (DiskCache cache = cache(source, home)) {
             cache.storeConfig();
         }
+
+        // 用新的地址池恢复，验证磁盘记录而不是原内存对象。
         AddressPool restored = new AddressPool();
         try (DiskCache cache = cache(restored, home)) {
             cache.restoreConfig();
@@ -180,6 +186,7 @@ public class DiskCacheTest {
         AddressPool pool = new AddressPool();
         pool.appendAddress("s", this.a);
         try (DiskCache cache = cache(pool, home)) {
+            // 缺失、空白索引和损坏归档都不覆盖当前有效地址。
             cache.restoreConfig();
             File snapshot = new File(home, "snapshot");
             assertTrue(snapshot.mkdirs());
@@ -244,12 +251,20 @@ public class DiskCacheTest {
 
     @Test
     public void closeCancelsOutstandingMaintenance() throws Exception {
-        DiskCache cache = cache(new AddressPool(), this.temporary.newFolder());
-        cache.close();
-        cache.close();
-        Field timerField = DiskCache.class.getDeclaredField("timer");
-        timerField.setAccessible(true);
-        assertTrue(((Timer) timerField.get(cache)).stop().isEmpty());
+        BlockingQueue<Boolean> refreshes = new LinkedBlockingQueue<>();
+        try (DiskCache cache = new DiskCache(new AddressPool(), this.temporary.newFolder(), 100, 3600000) {
+            @Override
+            protected void clearCacheData() {
+                refreshes.add(true);
+            }
+        }) {
+            // 先确认维护任务实际运行，再验证关闭后不再触发维护。
+            assertNotNull("Maintenance must start", refreshes.poll(2, TimeUnit.SECONDS));
+            cache.close();
+            cache.close();
+            refreshes.clear();
+            assertNull("Closed cache must stop maintenance", refreshes.poll(500, TimeUnit.MILLISECONDS));
+        }
     }
 
     @Test
@@ -290,6 +305,8 @@ public class DiskCacheTest {
             }
         }
         assertArrayEquals(index, Files.readAllBytes(new File(home, "snapshot/address.index").toPath()));
+
+        // 用新的地址池恢复，验证磁盘记录而不是原内存对象。
         AddressPool restored = new AddressPool();
         restored.appendAddress("s", Collections.emptyList());
         try (DiskCache cache = cache(restored, home)) {
@@ -307,7 +324,8 @@ public class DiskCacheTest {
         File obsolete = new File(snapshot, "addr-pool-20000101-000001-abc123.zip");
         assertTrue(indexed.createNewFile());
         assertTrue(obsolete.createNewFile());
-        Files.write(new File(snapshot, "address.index").toPath(), Collections.singletonList(indexed.getName()), StandardCharsets.UTF_8);
+        File index = new File(snapshot, "address.index");
+        Files.write(index.toPath(), Collections.singletonList(indexed.getName()), StandardCharsets.UTF_8);
         try (DiskCache cache = cache(new AddressPool(), home)) {
             cache.clearCacheData();
         }

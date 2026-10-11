@@ -42,6 +42,8 @@ public class JavaSerializeCoderTest {
                 }
             }
         };
+
+        // 使用业务类加载器恢复类型，而不是复用当前测试加载器中的类型。
         JavaSerializeCoder coder = new JavaSerializeCoder();
         byte[] bytes = coder.encode(new Model());
         coder.initCoder(isolated);

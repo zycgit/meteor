@@ -40,12 +40,16 @@ public class ServiceMetadataTest {
         service.setMetaData("k0", "updated");
         assertEquals("updated", service.getMetaData("k0"));
         assertThrows(IllegalArgumentException.class, () -> service.setMetaData("extra", 1));
+
+        // 超出容量的批次整体拒绝，不覆盖已经存在的值。
         Map<String, Object> rejected = new LinkedHashMap<>();
         rejected.put("k0", "should not change");
         rejected.put("extra", 1);
         assertThrows(IllegalArgumentException.class, () -> service.setMetaData(rejected));
         assertEquals("updated", service.getMetaData("k0"));
         assertNull(service.getMetaData("extra"));
+
+        // 删除释放容量，后续单项和批量写入都可以继续。
         service.removeMetaData("k1");
         service.setMetaData("extra", 1);
         assertEquals(1, service.getMetaData("extra"));
@@ -70,7 +74,9 @@ public class ServiceMetadataTest {
         invalid.put(null, 1);
         assertThrows(NullPointerException.class, () -> service.setMetaData(invalid));
         assertEquals(1, service.getMetaData("k1"));
-        assertThrows(IllegalArgumentException.class, () -> new ServiceDomain<>(Runnable.class).setMetaData(entries(1001)));
+        ServiceDomain<Runnable> empty = new ServiceDomain<>(Runnable.class);
+        Map<String, Object> oversized = entries(1001);
+        assertThrows(IllegalArgumentException.class, () -> empty.setMetaData(oversized));
     }
 
     @Test

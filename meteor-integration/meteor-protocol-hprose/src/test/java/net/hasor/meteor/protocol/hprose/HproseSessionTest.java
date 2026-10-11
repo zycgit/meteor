@@ -16,7 +16,9 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import net.hasor.cobble.concurrent.future.BasicFuture;
+import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
@@ -51,6 +53,8 @@ public class HproseSessionTest {
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
+
+            // 收到两条入站调用后，Accept 只作内部确认，不发送 HTTP 响应。
             HttpExchange first = call(protocol, "first");
             HttpExchange second = call(protocol, "second");
             session.receive(first);
@@ -88,6 +92,8 @@ public class HproseSessionTest {
             HttpExchange exchange = call(protocol, "expire");
             session.receive(exchange);
             RequestPayload request = (RequestPayload) received.get(0);
+
+            // RPC 层结束请求，会话立即回送错误，之后的迟到响应不得重复写入。
             request.complete(new TimeoutException("expired"));
             assertSame(exchange, network.writes.get(0));
             HttpResponse wire = exchange.response().get(5, TimeUnit.SECONDS);
@@ -111,6 +117,8 @@ public class HproseSessionTest {
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
             session.receive(call(protocol, "one"));
             session.receive(call(protocol, "two"));
+
+            // 排空时逐条结束尚未应答的 HTTP 交换。
             session.prepareDrain();
             assertEquals(2, network.writes.size());
             for (HttpExchange exchange : network.writes) {
@@ -135,6 +143,8 @@ public class HproseSessionTest {
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
             session.receive(call(protocol, "one"));
             session.receive(call(protocol, "two"));
+
+            // 通道已经关闭，只结束请求并保留原因，不再尝试发送错误帧。
             IOException failure = new IOException("closed");
             session.closed(failure);
             assertTrue(network.writes.isEmpty());
@@ -157,9 +167,13 @@ public class HproseSessionTest {
             session.send(first).get(5, TimeUnit.SECONDS);
             ByteArrayOutputStream body = new ByteArrayOutputStream();
             HproseUtils.parseResponse(20, reply(20, "answer"), body);
-            network.writes.get(0).respond(new HttpResponse(200, Collections.emptyMap(), body.toByteArray()));
-            assertEquals("answer", ((ResponsePayload) received.get(0)).getReturnData());
-            assertEquals(20, ((ResponsePayload) received.get(0)).getRequestID());
+
+            // HTTP 响应到达后，映射回原请求的 Payload 并结束其生命周期。
+            HttpResponse wire = new HttpResponse(200, Collections.emptyMap(), body.toByteArray());
+            network.writes.get(0).respond(wire);
+            ResponsePayload response = (ResponsePayload) received.get(0);
+            assertEquals("answer", response.getReturnData());
+            assertEquals(20, response.getRequestID());
             assertTrue(first.completion().isDone());
 
             // 下一次网络失败只能结束对应请求，原始原因通过 ThrowPayload 交付。
@@ -227,10 +241,14 @@ public class HproseSessionTest {
         }
     }
 
-    private static ProtocolSession<HttpExchange> session(MetContext runtime, MemoryNetwork network, List<Payload> received, boolean outbound) {
-        ProtocolContext context = new ProtocolContext(runtime, (action, delay) -> {
+    private static ProtocolSession<HttpExchange> session(MetContext runtime, MemoryNetwork network, //
+            List<Payload> received, boolean outbound) {
+        // 会话借用 RPC 截止时间；协议自行安排超时任务即为测试失败。
+        BiFunction<Runnable, Long, Cancellable> scheduler = (action, delay) -> {
             throw new AssertionError("Hprose must use RPC deadlines rather than schedule its own timeout");
-        }, new InterAddress("hprose", "127.0.0.1", 8080, "default"), outbound);
+        };
+        InterAddress address = new InterAddress("hprose", "127.0.0.1", 8080, "default");
+        ProtocolContext context = new ProtocolContext(runtime, scheduler, address, outbound);
         ProtocolConfig config = new ProtocolConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
         HproseProtocol factory = new HproseProtocol();
         BiConsumer<Long, Payload> messages = (id, payload) -> received.add(payload);

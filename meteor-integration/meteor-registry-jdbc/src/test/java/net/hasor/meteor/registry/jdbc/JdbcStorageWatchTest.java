@@ -8,6 +8,7 @@
 package net.hasor.meteor.registry.jdbc;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import net.hasor.cobble.concurrent.future.Cancellable;
@@ -37,7 +38,7 @@ public class JdbcStorageWatchTest {
     }
 
     private static void await(BooleanSupplier condition) throws Exception {
-        long deadline = System.nanoTime() + 10_000_000_000L;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }

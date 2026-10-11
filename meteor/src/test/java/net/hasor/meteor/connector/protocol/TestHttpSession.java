@@ -34,7 +34,11 @@ final class TestHttpSession implements ProtocolSession<HttpExchange> {
     private final BasicFuture<Void>                 ready   = new BasicFuture<>();
     private final Map<Long, TestHttpPendingRequest> pending = new HashMap<>();
 
-    public TestHttpSession(TestHttpCodec codec, ProtocolContext context, NetworkChannel<HttpExchange> connection, BiConsumer<Long, Payload> messages) {
+    public TestHttpSession( //
+            TestHttpCodec codec, //
+            ProtocolContext context, //
+            NetworkChannel<HttpExchange> connection, //
+            BiConsumer<Long, Payload> messages) {
         this.connection = connection;
         this.protocol = codec;
         this.outbound = context.outbound();

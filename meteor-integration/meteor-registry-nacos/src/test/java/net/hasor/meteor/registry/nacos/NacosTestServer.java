@@ -59,7 +59,8 @@ final class NacosTestServer implements AutoCloseable {
                 String pattern = entry.getKey();
                 String prefix = pattern.substring(0, pattern.length() - 1);
                 if (name.startsWith(prefix)) {
-                    FuzzyWatchChangeEvent event = new FuzzyWatchChangeEvent(name, "test", "", "ADD_SERVICE", "FUZZY_WATCH_RESOURCE_CHANGED");
+                    String eventType = "FUZZY_WATCH_RESOURCE_CHANGED";
+                    var event = new FuzzyWatchChangeEvent(name, "test", "", "ADD_SERVICE", eventType);
                     for (FuzzyWatchEventWatcher listener : entry.getValue()) {
                         listener.onEvent(event);
                     }
@@ -67,9 +68,9 @@ final class NacosTestServer implements AutoCloseable {
             }
         }
 
-        this.namingListeners.getOrDefault(name, Set.of()).forEach(listener -> {
+        for (EventListener listener : this.namingListeners.getOrDefault(name, Set.of())) {
             listener.onEvent(new NamingEvent(name, List.of()));
-        });
+        }
     }
 
     int listenerCount() {
@@ -81,8 +82,10 @@ final class NacosTestServer implements AutoCloseable {
 
     NacosTestServer() {
         this.sdk = mockStatic(NacosFactory.class);
-        this.sdk.when(() -> NacosFactory.createNamingService(any(Properties.class))).thenAnswer(call -> this.namingService());
-        this.sdk.when(() -> NacosFactory.createConfigService(any(Properties.class))).thenAnswer(call -> this.configService());
+        var namingFactory = this.sdk.when(() -> NacosFactory.createNamingService(any(Properties.class)));
+        namingFactory.thenAnswer(call -> this.namingService());
+        var configFactory = this.sdk.when(() -> NacosFactory.createConfigService(any(Properties.class)));
+        configFactory.thenAnswer(call -> this.configService());
     }
 
     NacosRegistryConfiguration configuration() {
@@ -105,7 +108,7 @@ final class NacosTestServer implements AutoCloseable {
         // 原生订阅与临时实例使用共享的服务端数据，各存储会话创建自己的 SDK 客户端。
         doAnswer(call -> {
             String name = call.getArgument(0);
-            Set<EventListener> listeners = this.namingListeners.computeIfAbsent(name, key -> ConcurrentHashMap.newKeySet());
+            var listeners = this.namingListeners.computeIfAbsent(name, key -> ConcurrentHashMap.newKeySet());
             listeners.add(call.getArgument(2));
             return null;
         }).when(naming).subscribe(anyString(), eq("test"), any(EventListener.class));
@@ -115,7 +118,7 @@ final class NacosTestServer implements AutoCloseable {
         }).when(naming).unsubscribe(anyString(), eq("test"), any(EventListener.class));
         doAnswer(call -> {
             String name = call.getArgument(0);
-            Set<FuzzyWatchEventWatcher> listeners = this.discoveryListeners.computeIfAbsent(name, key -> ConcurrentHashMap.newKeySet());
+            var listeners = this.discoveryListeners.computeIfAbsent(name, key -> ConcurrentHashMap.newKeySet());
             listeners.add(call.getArgument(2));
             return null;
         }).when(naming).fuzzyWatch(anyString(), eq("test"), any(FuzzyWatchEventWatcher.class));
@@ -125,21 +128,8 @@ final class NacosTestServer implements AutoCloseable {
         }).when(naming).cancelFuzzyWatch(anyString(), eq("test"), any(FuzzyWatchEventWatcher.class));
         doAnswer(call -> {
             String service = call.getArgument(0);
-            if (this.rejectPrimary && service.startsWith("meteor.v2.r.")) {
-                throw new IllegalStateException("write failed");
-            }
             Instance input = call.getArgument(2);
-            Instance copy = new Instance();
-            copy.setHealthy(true);
-            copy.setEnabled(true);
-            copy.setEphemeral(input.isEphemeral());
-            copy.setClusterName(input.getClusterName());
-            copy.setIp(input.getIp());
-            copy.setPort(input.getPort());
-            copy.setMetadata(new HashMap<>(input.getMetadata()));
-            boolean created = !this.nodes.containsKey(service);
-            this.nodes.computeIfAbsent(service, key -> new ConcurrentHashMap<>()).put(copy.getClusterName(), copy);
-            this.namingChanged(service, created);
+            this.registerInstance(service, input);
             return null;
         }).when(naming).registerInstance(anyString(), eq("test"), any(Instance.class));
         doAnswer(call -> {
@@ -168,6 +158,27 @@ final class NacosTestServer implements AutoCloseable {
         return naming;
     }
 
+    private void registerInstance(String service, Instance input) {
+        if (this.rejectPrimary && service.startsWith("meteor.v2.r.")) {
+            throw new IllegalStateException("write failed");
+        }
+
+        // SDK 不共享调用方可变对象，保存服务端接收到的实例副本。
+        Instance copy = new Instance();
+        copy.setHealthy(true);
+        copy.setEnabled(true);
+        copy.setEphemeral(input.isEphemeral());
+        copy.setClusterName(input.getClusterName());
+        copy.setIp(input.getIp());
+        copy.setPort(input.getPort());
+        copy.setMetadata(new HashMap<>(input.getMetadata()));
+
+        // 写入后先通知名称发现，再交付该名称上的内容变化。
+        boolean created = !this.nodes.containsKey(service);
+        this.nodes.computeIfAbsent(service, key -> new ConcurrentHashMap<>()).put(copy.getClusterName(), copy);
+        this.namingChanged(service, created);
+    }
+
     private ConfigService configService() throws Exception {
         ConfigService configs = mock(ConfigService.class);
         when(configs.getServerStatus()).thenAnswer(call -> this.available ? "UP" : "DOWN");
@@ -194,24 +205,31 @@ final class NacosTestServer implements AutoCloseable {
             return this.documents.get(call.<String>getArgument(0));
         });
         when(configs.publishConfigCas(anyString(), eq("test"), anyString(), anyString())).thenAnswer(call -> {
-            synchronized (this.documents) {
-                if (this.conflicts > 0) {
-                    this.conflicts--;
-                    return false;
-                }
-                String key = call.getArgument(0);
-                String old = this.documents.getOrDefault(key, "");
-                byte[] bytes = old.getBytes(StandardCharsets.UTF_8);
-                byte[] digest = MessageDigest.getInstance("MD5").digest(bytes);
-                String md5 = HexFormat.of().formatHex(digest);
-                if (!StringUtils.equals(md5, call.getArgument(3))) {
-                    return false;
-                }
-                this.documents.put(key, call.getArgument(2));
-                this.configChanged(key);
-                return true;
-            }
+            String key = call.getArgument(0);
+            String content = call.getArgument(2);
+            String expectedMd5 = call.getArgument(3);
+            return this.publishConfig(key, content, expectedMd5);
         });
         return configs;
+    }
+
+    private boolean publishConfig(String key, String content, String expectedMd5) throws Exception {
+        // 先模拟竞争失败，再按 Nacos 正文 MD5 执行原子比较更新。
+        synchronized (this.documents) {
+            if (this.conflicts > 0) {
+                this.conflicts--;
+                return false;
+            }
+            String old = this.documents.getOrDefault(key, "");
+            byte[] bytes = old.getBytes(StandardCharsets.UTF_8);
+            byte[] digest = MessageDigest.getInstance("MD5").digest(bytes);
+            String md5 = HexFormat.of().formatHex(digest);
+            if (!StringUtils.equals(md5, expectedMd5)) {
+                return false;
+            }
+            this.documents.put(key, content);
+            this.configChanged(key);
+            return true;
+        }
     }
 }

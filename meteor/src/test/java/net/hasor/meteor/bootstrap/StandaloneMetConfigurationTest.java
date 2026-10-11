@@ -32,7 +32,8 @@ public class StandaloneMetConfigurationTest {
             assertEquals("Java", endpoint.protocol("rsf").option("serializeType", null));
             assertTrue(context.getSerializeCoder("Java") instanceof JavaSerializeCoder);
             assertNull(context.getSerializeCoder("Hprose"));
-            assertNull(this.getClass().getClassLoader().getResource("net/hasor/meteor/protocol/hprose/HproseProtocol.class"));
+            String hproseClass = "net/hasor/meteor/protocol/hprose/HproseProtocol.class";
+            assertNull(this.getClass().getClassLoader().getResource(hproseClass));
             assertNull(context.bindAddress("rsf"));
             assertTrue(context.runProtocols().isEmpty());
             assertFalse(context.isOnline());
@@ -45,12 +46,15 @@ public class StandaloneMetConfigurationTest {
         serverConfig.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
         MetConfiguration clientConfig = new MetConfiguration();
         clientConfig.connector("tcp").protocol("rsf");
-        try (MetContext server = serverConfig.buildContext(); MetContext client = clientConfig.buildContext()) {
+        try (MetContext server = serverConfig.buildContext(); //
+             MetContext client = clientConfig.buildContext()) {
+            // 两个上下文分别发布与订阅，通过 TCP 验证默认序列化器。
             server.publisher().rsfService(Echo.class, value -> "remote:" + value).register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
             server.start();
             client.start();
-            assertEquals("remote:value", client.getRsfClient(server.bindAddress("rsf")).getRemote(service).echo("value"));
+            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            assertEquals("remote:value", remote.echo("value"));
             assertNull(client.bindAddress("rsf"));
         }
     }
@@ -115,8 +119,11 @@ public class StandaloneMetConfigurationTest {
 
     @Test
     public void editingRuntimeOptionsDoesNotMutateTheBuilderOrAnotherContext() throws Exception {
-        MetConfiguration source = new MetConfiguration().setRequestOption("trace", "initial").setResponseOption("tag", "initial");
-        try (MetContext first = source.buildContext(); MetContext second = source.buildContext()) {
+        MetConfiguration source = new MetConfiguration();
+        source.setRequestOption("trace", "initial");
+        source.setResponseOption("tag", "initial");
+        try (MetContext first = source.buildContext(); //
+             MetContext second = source.buildContext()) {
             first.getSettings().getRequestOptions().addOption("trace", "first");
             first.getSettings().getResponseOptions().removeOption("tag");
             assertEquals("initial", source.getRequestOptions().getOption("trace"));

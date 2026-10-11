@@ -93,7 +93,13 @@ public class MetContextEventTest {
             context.close();
             context.close();
 
-            List<MetContextEventType> expected = List.of(MetContextEventType.REGISTERED, MetContextEventType.STARTED, MetContextEventType.ONLINE, MetContextEventType.OFFLINE, MetContextEventType.REGISTERED, MetContextEventType.CLOSED);
+            List<MetContextEventType> expected = new ArrayList<>();
+            expected.add(MetContextEventType.REGISTERED);
+            expected.add(MetContextEventType.STARTED);
+            expected.add(MetContextEventType.ONLINE);
+            expected.add(MetContextEventType.OFFLINE);
+            expected.add(MetContextEventType.REGISTERED);
+            expected.add(MetContextEventType.CLOSED);
             assertEquals(expected, events.stream().map(MetContextEvent::getType).toList());
             for (MetContextEvent event : events) {
                 if (event.getType() != MetContextEventType.REGISTERED) {

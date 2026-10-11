@@ -11,6 +11,7 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -19,6 +20,7 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.transport.ChannelFactory;
 import net.hasor.meteor.connector.transport.ChannelListener;
 import net.hasor.meteor.connector.transport.SocketTransport;
 import net.hasor.neta.channel.NetChannel;
@@ -33,7 +35,8 @@ public class UdpConnectionTest {
 
     @Test(timeout = 10000)
     public void datagramsAndSeparateRepliesPreserveBoundaries() throws Exception {
-        try (DatagramSocket peer = new DatagramSocket(); Endpoint endpoint = new Endpoint("127.0.0.1", peer.getLocalPort(), 65507)) {
+        try (DatagramSocket peer = new DatagramSocket(); //
+             Endpoint endpoint = new Endpoint("127.0.0.1", peer.getLocalPort(), 65507)) {
             peer.setSoTimeout(2000);
             byte[] large = new byte[1200];
             Arrays.fill(large, (byte) 73);
@@ -58,7 +61,8 @@ public class UdpConnectionTest {
 
         // IPv6 回环直接走本地 lo，避免 WSL 对 IPv4 回环的虚拟网卡转发。
         InetSocketAddress local = new InetSocketAddress("::1", 0);
-        try (DatagramSocket peer = new DatagramSocket(local); Endpoint endpoint = new Endpoint("::1", peer.getLocalPort(), 65507)) {
+        try (DatagramSocket peer = new DatagramSocket(local); //
+             Endpoint endpoint = new Endpoint("::1", peer.getLocalPort(), 65507)) {
             peer.setSoTimeout(2000);
             for (int round = 0; round < 10; round++) {
                 // 双向校验大报文内容，每轮使用不同标记。
@@ -84,14 +88,15 @@ public class UdpConnectionTest {
 
     @Test(timeout = 10000)
     public void copiesAndCancelsQueuedDatagramsThenDrainsWithoutPeerReply() throws Exception {
-        try (DatagramSocket peer = new DatagramSocket(); Endpoint endpoint = new Endpoint("127.0.0.1", peer.getLocalPort(), 32)) {
+        try (DatagramSocket peer = new DatagramSocket(); //
+             Endpoint endpoint = new Endpoint("127.0.0.1", peer.getLocalPort(), 32)) {
             peer.setSoTimeout(2000);
             CountDownLatch entered = new CountDownLatch(1);
             CountDownLatch release = new CountDownLatch(1);
             endpoint.connection.execute(() -> {
                 entered.countDown();
                 try {
-                    release.await();
+                    assertTrue(release.await(5, TimeUnit.SECONDS));
                 } catch (InterruptedException error) {
                     Thread.currentThread().interrupt();
                 }
@@ -153,7 +158,8 @@ public class UdpConnectionTest {
             Map<String, String> options = Collections.singletonMap("listenType", "udp");
             String scheme = remote.getSchema();
             ProtocolConfig mount = new ProtocolConfig("raw-udp", scheme, scheme, options);
-            ConnectorConfig config = new ConnectorConfig("raw-udp", remote, options, Collections.singletonList(mount), true);
+            List<ProtocolConfig> configMounts = Collections.singletonList(mount);
+            ConnectorConfig config = new ConnectorConfig("raw-udp", remote, options, configMounts, true);
             UdpSoConfig socket = new UdpSoConfig();
             socket.setRcvPacketSize(65536);
             this.transport = new SocketTransport(config, getClass().getClassLoader(), socket);
@@ -162,7 +168,7 @@ public class UdpConnectionTest {
             try {
                 Future<NetChannel> connecting = this.transport.connect(remote, stack -> {
                     try {
-                        connection.set(UdpConnection.attach(stack, remote, this.transport.nextExecutor(), maximum, channel -> new ChannelListener<byte[]>() {
+                        ChannelFactory<byte[]> receiver = channel -> new ChannelListener<byte[]>() {
 
                             public Future<Void> ready() {
                                 return ready;
@@ -179,7 +185,10 @@ public class UdpConnectionTest {
                             public void closed(Throwable cause) {
                                 ready.failed(cause);
                             }
-                        }));
+                        };
+                        UdpConnection attached = UdpConnection.attach(
+                                stack, remote, this.transport.nextExecutor(), maximum, receiver);
+                        connection.set(attached);
                     } catch (Exception error) {
                         throw new IllegalStateException(error);
                     }

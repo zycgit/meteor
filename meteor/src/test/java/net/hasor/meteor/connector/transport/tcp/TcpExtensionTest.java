@@ -65,16 +65,21 @@ public class TcpExtensionTest {
         String protocolName = options.getOrDefault("protocol", address.getSchema());
         ProtocolConfig mount = new ProtocolConfig("mux", address.getSchema(), protocolName, options);
         ConnectorConfig config = new ConnectorConfig("mux", address, options, Collections.singletonList(mount), true);
-        try (SocketTransport server = new SocketTransport(config, this.getClass().getClassLoader(), SoConfig.TCP()); SocketTransport client = new SocketTransport(config, this.getClass().getClassLoader(), SoConfig.TCP())) {
+        try (SocketTransport server = new SocketTransport(config, this.getClass().getClassLoader(), SoConfig.TCP()); //
+             SocketTransport client = new SocketTransport(config, this.getClass().getClassLoader(), SoConfig.TCP())) {
             AtomicReference<MuxSession> responder = new AtomicReference<>();
             NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
             int port = ((InetSocketAddress) listen.getLocalAddr()).getPort();
             InterAddress remote = new InterAddress("mux", "127.0.0.1", port, "default");
             AtomicReference<MuxSession> requester = new AtomicReference<>();
-            client.connect(remote, stack -> this.attach(stack, remote, client, false, requester)).get(2, TimeUnit.SECONDS);
+            Future<NetChannel> connecting = client.connect(remote, stack -> {
+                this.attach(stack, remote, client, false, requester);
+            });
+            connecting.get(2, TimeUnit.SECONDS);
             MuxSession session = requester.get();
             session.ready().get(2, TimeUnit.SECONDS);
 
+            // 各流独立消耗 demand，没有配额的流不能被其他流的请求唤醒。
             Future<Integer> first = session.submit(1, 11);
             Future<Integer> second = session.submit(3, 33);
             session.request(3, 1);
@@ -84,6 +89,7 @@ public class TcpExtensionTest {
             session.request(1, 1);
             assertEquals(Integer.valueOf(11), first.get(2, TimeUnit.SECONDS));
 
+            // 取消一条流后，另一条流仍可写入和接收。
             Future<Integer> cancelled = session.submit(5, 55);
             session.cancel(5);
             Future<Integer> next = session.submit(7, 77);
@@ -97,7 +103,12 @@ public class TcpExtensionTest {
         }
     }
 
-    private void attach(ProtoBuildContext stack, InterAddress address, SocketTransport transport, boolean server, AtomicReference<MuxSession> session) {
+    private void attach( //
+            ProtoBuildContext stack, //
+            InterAddress address, //
+            SocketTransport transport, //
+            boolean server, //
+            AtomicReference<MuxSession> session) {
         try {
             TcpConnection.attach(stack, address, transport.nextExecutor(), 256, connection -> {
                 MuxSession created = new MuxSession(connection, server);
@@ -222,7 +233,13 @@ public class TcpExtensionTest {
     }
 
     private static final class XorDuplex implements ProtoDuplex<ByteBuf, ByteBuf, ByteBuf, ByteBuf> {
-        public ProtoStatus onMessage(ProtoContext context, boolean receiving, ProtoRcvQueue<ByteBuf> input, ProtoSndQueue<ByteBuf> decoded, ProtoRcvQueue<ByteBuf> output, ProtoSndQueue<ByteBuf> encoded) {
+        public ProtoStatus onMessage( //
+                ProtoContext context, //
+                boolean receiving, //
+                ProtoRcvQueue<ByteBuf> input, //
+                ProtoSndQueue<ByteBuf> decoded, //
+                ProtoRcvQueue<ByteBuf> output, //
+                ProtoSndQueue<ByteBuf> encoded) {
             ProtoRcvQueue<ByteBuf> source = receiving ? input : output;
             ProtoSndQueue<ByteBuf> target = receiving ? decoded : encoded;
             while (source.hasMore() && target.hasSlot()) {

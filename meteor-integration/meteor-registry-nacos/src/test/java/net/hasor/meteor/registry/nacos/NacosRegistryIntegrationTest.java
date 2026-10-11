@@ -23,85 +23,89 @@ import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
 import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
-import org.junit.Assume;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
 /**
- * Set METEOR_NACOS_SERVER to run against an isolated Nacos server.
+ * 验证独立 Java 单机 Nacos，以及可精确观察通知与故障的 SDK 模拟场景。
  */
 public class NacosRegistryIntegrationTest {
+    @Rule
+    public final TemporaryFolder temporary = new TemporaryFolder();
 
     @MetService(group = "nacos-integration")
     public interface Echo {
         String echo(String value);
     }
 
-    @Test
+    @Test(timeout = 180000)
     public void autoDiscoveryRpcCasAndUnregister() throws Exception {
-        // 真实服务测试只在明确配置独立 Nacos 环境时执行。
-        String address = System.getenv("METEOR_NACOS_SERVER");
-        Assume.assumeTrue(StringUtils.isNotBlank(address));
-        MetConfiguration provider = new MetConfiguration();
-        MetConfiguration consumer = new MetConfiguration();
+        // 测试自建独立 Nacos 进程和数据目录，结束时先关闭应用，再停止注册中心。
+        try (NacosStandaloneServer nacos = new NacosStandaloneServer(this.temporary.newFolder("nacos").toPath())) {
+            nacos.start();
+            MetConfiguration provider = new MetConfiguration();
+            MetConfiguration consumer = new MetConfiguration();
 
-        provider.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
-        consumer.connector("tcp").protocol("rsf");
+            provider.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+            consumer.connector("tcp").protocol("rsf");
 
-        NacosRegistryConfiguration registryConfig = new NacosRegistryConfiguration();
-        registryConfig.setAddress(address);
-        registryConfig.setGroup("METEOR_TEST_" + UUID.randomUUID());
-        registryConfig.setRefreshMillis(100);
-        provider.addExtension(registryConfig);
-        consumer.addExtension(registryConfig);
+            NacosRegistryConfiguration registryConfig = new NacosRegistryConfiguration();
+            registryConfig.setAddress(nacos.address());
+            registryConfig.setGroup("METEOR_TEST_" + UUID.randomUUID());
+            registryConfig.setRefreshMillis(100);
+            provider.addExtension(registryConfig);
+            consumer.addExtension(registryConfig);
 
-        // 独立存储会话仅用于验证 CAS 和应用关闭后的临时记录清理。
-        try (StorageAccess registry = registryConfig.openStorage()) {
-            String serviceId;
-            try (MetContext server = provider.buildContext(); //
-                 MetContext client = consumer.buildContext()) {
-                // 发布与订阅走正式扩展，客户端只配置出口，确保后续 RPC 经过网络。
-                var service = server.publisher().rsfService(Echo.class, value -> "nacos:" + value).register();
-                serviceId = service.getBindID();
-                client.publisher().rsfService(Echo.class).register();
-                server.start();
-                client.start();
+            // 独立存储会话仅用于验证 CAS 和应用关闭后的临时记录清理。
+            try (StorageAccess registry = registryConfig.openStorage()) {
+                String serviceId;
+                try (MetContext server = provider.buildContext(); //
+                     MetContext client = consumer.buildContext()) {
+                    // 发布与订阅走正式扩展，客户端只配置出口，确保后续 RPC 经过网络。
+                    var service = server.publisher().rsfService(Echo.class, value -> "nacos:" + value).register();
+                    serviceId = service.getBindID();
+                    client.publisher().rsfService(Echo.class).register();
+                    server.start();
+                    client.start();
 
-                await(() -> !client.getUpdater().queryAvailableAddresses(serviceId).isEmpty());
-                List<InterAddress> addresses = client.getUpdater().queryAvailableAddresses(serviceId);
-                assertFalse("Provider address was not discovered", addresses.isEmpty());
-                assertEquals("nacos:中文", client.getRsfClient().wrapper(Echo.class).echo("中文"));
-                EntityRef ref = new EntityRef(EntityType.SERVICE, serviceId);
-                assertNotNull(registry.getEntity(ref));
-                String rule = "def evalAddress(id, addresses) { addresses }";
+                    await(() -> !client.getUpdater().queryAvailableAddresses(serviceId).isEmpty());
+                    List<InterAddress> addresses = client.getUpdater().queryAvailableAddresses(serviceId);
+                    assertFalse("Provider address was not discovered", addresses.isEmpty());
+                    assertEquals("nacos:中文", client.getRsfClient().wrapper(Echo.class).echo("中文"));
+                    EntityRef ref = new EntityRef(EntityType.SERVICE, serviceId);
+                    assertNotNull(registry.getEntity(ref));
+                    String rule = "<route><return value='addresses'/></route>";
 
-                // 持久规则采用 CAS 更新，客户端通过存储订阅自动应用。
-                EntityRef serviceRef = RegistryGovernanceUtils.service(serviceId);
-                EntityRef ruleRef = RegistryGovernanceUtils.ruleRef(serviceRef, RuleTypeData.SERVICE_ROUTE);
-                EntityRecord initial = new EntityRecord(ruleRef);
-                EntRuleConfigurationData value = new EntRuleConfigurationData();
-                value.setRule(rule);
-                initial.setData(value);
-                EntityRecord saved = registry.saveEntity(initial);
-                assertNotEquals(initial.getRevision(), saved.getRevision());
-                assertThrows(ConcurrentModificationException.class, () -> registry.saveEntity(initial));
-                await(() -> {
-                    String appliedRule = client.getUpdater().serviceRoute(serviceId);
-                    return StringUtils.equals(rule, appliedRule);
-                });
-                assertEquals(rule, client.getUpdater().serviceRoute(serviceId));
+                    // 持久规则采用 CAS 更新，客户端通过存储订阅自动应用。
+                    EntityRef serviceRef = RegistryGovernanceUtils.service(serviceId);
+                    EntityRef ruleRef = RegistryGovernanceUtils.ruleRef(serviceRef, RuleTypeData.SERVICE_ROUTE);
+                    EntityRecord initial = new EntityRecord(ruleRef);
+                    EntRuleConfigurationData value = new EntRuleConfigurationData();
+                    value.setRule(rule);
+                    initial.setData(value);
+                    EntityRecord saved = registry.saveEntity(initial);
+                    assertNotEquals(initial.getRevision(), saved.getRevision());
+                    assertThrows(ConcurrentModificationException.class, () -> registry.saveEntity(initial));
+                    await(() -> {
+                        String appliedRule = client.getUpdater().serviceRoute(serviceId);
+                        return StringUtils.equals(rule, appliedRule);
+                    });
+                    assertEquals(rule, client.getUpdater().serviceRoute(serviceId));
+                }
+
+                // 应用退出后发布关系撤销，服务目录仍持久保留。
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                RelationQuery query = new RelationQuery();
+                query.setType(RelationType.PROVIDES);
+                query.setTarget(new EntityRef(EntityType.SERVICE, serviceId));
+                while (!registry.findRelations(query).records().isEmpty() && System.nanoTime() < deadline) {
+                    Thread.sleep(50);
+                }
+                assertTrue(registry.findRelations(query).records().isEmpty());
+                assertNotNull(registry.getEntity(new EntityRef(EntityType.SERVICE, serviceId)));
             }
-
-            // 应用退出后发布关系撤销，服务目录仍持久保留。
-            long deadline = System.nanoTime() + 10_000_000_000L;
-            RelationQuery query = new RelationQuery();
-            query.setType(RelationType.PROVIDES);
-            query.setTarget(new EntityRef(EntityType.SERVICE, serviceId));
-            while (!registry.findRelations(query).records().isEmpty() && System.nanoTime() < deadline) {
-                Thread.sleep(50);
-            }
-            assertTrue(registry.findRelations(query).records().isEmpty());
-            assertNotNull(registry.getEntity(new EntityRef(EntityType.SERVICE, serviceId)));
         }
     }
 

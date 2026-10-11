@@ -58,6 +58,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
                 for (int i = 0; i < calls.size(); i++) {
                     assertEquals("call-" + i, calls.get(i).getData(5, TimeUnit.SECONDS));
                 }
+
                 // 同步取值之外，再验证 Future 回调收到相同结果。
                 BasicFuture<Object> callback = new BasicFuture<>();
                 FutureCallback<Object> listener = new FutureCallback<>() {
@@ -91,11 +92,16 @@ public class ContextRpcTest extends BootstrapTestSupport {
             client.start();
 
             MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+
             // 业务异常和超时保留各自类型，不能都退化为超时。
             MetFuture failed = remote.asyncInvoke(service, "fail", new Class<?>[0], new Object[0]);
             assertTrue(assertFailure(failed) instanceof MetException);
-            MetFuture expired = remote.asyncInvoke(service, "slow", new Class<?>[] { int.class }, new Object[] { 1000 });
+            Class<?>[] slowTypes = { int.class };
+            Object[] slowArguments = { 1000 };
+            MetFuture expired = remote.asyncInvoke(service, "slow", slowTypes, slowArguments);
             assertTrue(assertFailure(expired) instanceof MetTimeoutException);
+
+            // 服务离线属于准入拒绝，仍能收到明确响应。
             server.offline();
             Class<?>[] types = { String.class };
             MetFuture denied = remote.asyncInvoke(service, "echo", types, new Object[] { "offline" });

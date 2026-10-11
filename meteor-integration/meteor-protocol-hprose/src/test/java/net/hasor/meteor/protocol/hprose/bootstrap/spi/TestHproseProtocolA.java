@@ -33,6 +33,10 @@ public class TestHproseProtocolA implements ProtocolFactory<HttpExchange> {
         return "hprosea";
     }
 
+    public String defaultSerializeType() {
+        return "Hprose";
+    }
+
     public String transport() {
         return "http";
     }
@@ -41,7 +45,8 @@ public class TestHproseProtocolA implements ProtocolFactory<HttpExchange> {
         return HttpExchange.class;
     }
 
-    public ProtocolSession<HttpExchange> create(ProtocolConfig config, ProtocolContext context, NetworkChannel<HttpExchange> channel, BiConsumer<Long, Payload> messages) {
+    public ProtocolSession<HttpExchange> create(ProtocolConfig config, ProtocolContext context, //
+            NetworkChannel<HttpExchange> channel, BiConsumer<Long, Payload> messages) {
         return new HproseProtocol().create(config, context, channel, messages);
     }
 }

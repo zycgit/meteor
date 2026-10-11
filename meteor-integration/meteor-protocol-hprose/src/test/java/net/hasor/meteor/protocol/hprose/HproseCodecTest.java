@@ -9,10 +9,7 @@ package net.hasor.meteor.protocol.hprose;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import hprose.io.HproseReader;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetIgnore;
@@ -61,6 +58,7 @@ public class HproseCodecTest {
             ProtocolConfig config = new ProtocolConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
             HproseCodec protocol = new HproseCodec(config, context);
 
+            // 相同报文重复进入解码器时，必须得到两个独立的调用标识。
             RequestPayload request = new RequestPayload();
             request.setServiceGroup("wire");
             request.setServiceName("Echo");
@@ -87,6 +85,21 @@ public class HproseCodecTest {
     }
 
     @Test
+    public void functionListOmitsServicesNotPublishedThroughHprose() throws Exception {
+        // 服务只向 RSF 暴露，Hprose 的函数发现也不能列出其方法。
+        MetConfiguration configuration = new MetConfiguration();
+        try (MetContext context = configuration.buildContext()) {
+            context.publisher().rsfService(Echo.class, value -> value).protocol("rsf").register();
+            ProtocolConfig mount = new ProtocolConfig("hprose", "hprose", Map.of());
+            HproseCodec codec = new HproseCodec(mount, context);
+            HttpRequest request = new HttpRequest("POST", "/hprose", Map.of(), new byte[] { 'z' });
+            byte[] body = codec.receive(request).immediate().body();
+            HproseReader reader = new HproseReader(new ByteArrayInputStream(body, 1, body.length - 1));
+            assertArrayEquals(new String[] { "*" }, reader.unserialize(String[].class));
+        }
+    }
+
+    @Test
     public void functionListAndPathMismatchAreLocalHttpResponses() throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
@@ -94,6 +107,7 @@ public class HproseCodecTest {
             ProtocolConfig config = new ProtocolConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
             HproseCodec protocol = new HproseCodec(config, context);
 
+            // 函数发现只列出允许发布的方法，忽略方法和静态方法都不可见。
             HttpRequest listRequest = new HttpRequest("POST", "/rpc", Collections.emptyMap(), new byte[] { 'z' });
             HproseInvocation functions = protocol.receive(listRequest);
             assertNull(functions.request());
@@ -153,7 +167,10 @@ public class HproseCodecTest {
             ResponsePayload decoded = protocol.decode(7, wire);
             assertEquals(ProtocolStatus.NotFound, decoded.getStatus());
             assertEquals("不存在🙂", decoded.getOption("message"));
-            ResponsePayload plain = protocol.decode(8, protocol.error(new IOException("plain error")));
+
+            // 非结构化错误仍通过协议错误帧返回，保留原始文本。
+            HttpResponse plainError = protocol.error(new IOException("plain error"));
+            ResponsePayload plain = protocol.decode(8, plainError);
             assertEquals(ProtocolStatus.InvokeError, plain.getStatus());
             assertEquals("plain error", plain.getOption("message"));
         }
@@ -169,7 +186,8 @@ public class HproseCodecTest {
 
             for (String status : Arrays.asList("404", "\"404\"")) {
                 String json = "{\"status\":" + status + ",\"message\":\"不存在🙂\",\"extra\":true}";
-                ResponsePayload decoded = protocol.decode(7, protocol.error(new IOException(json)));
+                HttpResponse wire = protocol.error(new IOException(json));
+                ResponsePayload decoded = protocol.decode(7, wire);
                 assertEquals(ProtocolStatus.NotFound, decoded.getStatus());
                 assertEquals("不存在🙂", decoded.getOption("message"));
             }
@@ -177,7 +195,8 @@ public class HproseCodecTest {
             // Hprose 错误报文即使携带成功状态，也不能转成成功调用。
             for (short status : new short[] { ProtocolStatus.OK, ProtocolStatus.Accept }) {
                 String json = "{\"status\":" + status + ",\"message\":\"still an error\"}";
-                ResponsePayload decoded = protocol.decode(8, protocol.error(new IOException(json)));
+                HttpResponse wire = protocol.error(new IOException(json));
+                ResponsePayload decoded = protocol.decode(8, wire);
                 assertEquals(ProtocolStatus.InvokeError, decoded.getStatus());
                 assertEquals("still an error", decoded.getOption("message"));
             }
@@ -192,9 +211,19 @@ public class HproseCodecTest {
             ProtocolConfig config = new ProtocolConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
             HproseCodec protocol = new HproseCodec(config, context);
 
-            List<String> errors = List.of("{", "[]", "null", "{\"status\":null}", "{\"status\":\"bad\"}", "{\"status\":99999}", "{\"status\":404} {\"status\":200}", "ordinary error 中文🙂");
+            // 结构缺失、状态非法和多个 JSON 正文都退回可读的错误文本。
+            List<String> errors = new ArrayList<>();
+            errors.add("{");
+            errors.add("[]");
+            errors.add("null");
+            errors.add("{\"status\":null}");
+            errors.add("{\"status\":\"bad\"}");
+            errors.add("{\"status\":99999}");
+            errors.add("{\"status\":404} {\"status\":200}");
+            errors.add("ordinary error 中文🙂");
             for (String error : errors) {
-                ResponsePayload decoded = protocol.decode(9, protocol.error(new IOException(error)));
+                HttpResponse wire = protocol.error(new IOException(error));
+                ResponsePayload decoded = protocol.decode(9, wire);
                 assertEquals(ProtocolStatus.InvokeError, decoded.getStatus());
                 assertEquals(error, decoded.getOption("message"));
             }
@@ -209,7 +238,11 @@ public class HproseCodecTest {
             ProtocolConfig config = new ProtocolConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
             HproseCodec protocol = new HproseCodec(config, context);
 
-            List<byte[]> invalid = List.of(new byte[0], new byte[] { 'R', 'n' }, new byte[] { 'R', 'n', 'z', 'x' }, new byte[] { '?' });
+            // 分开描述空报文、截断、尾部多余数据和未知标记。
+            byte[] truncated = { 'R', 'n' };
+            byte[] trailing = { 'R', 'n', 'z', 'x' };
+            byte[] unknown = { '?' };
+            List<byte[]> invalid = List.of(new byte[0], truncated, trailing, unknown);
             for (byte[] body : invalid) {
                 HttpResponse malformed = new HttpResponse(200, Collections.emptyMap(), body);
                 assertThrows(IOException.class, () -> protocol.decode(1, malformed));

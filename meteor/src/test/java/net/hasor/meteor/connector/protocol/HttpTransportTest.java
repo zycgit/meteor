@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.connector.protocol;
 import java.io.*;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -44,7 +45,6 @@ import static org.junit.Assert.*;
 /** Real sockets with connector/protocol modules only: no framework, RPC or filter implementation. */
 public class HttpTransportTest {
     private static final ReceivedListener RECEIVER  = new Inbox();
-    private final        MetContext       context   = runtimeContext();
     private volatile     boolean          timersStopped;
     private final        List<Endpoint>   endpoints = new ArrayList<>();
 
@@ -87,7 +87,7 @@ public class HttpTransportTest {
     }
 
     private Endpoint bind(Endpoint endpoint) throws Exception {
-        endpoint.bind(endpoint.config.address()).get(2, TimeUnit.SECONDS);
+        endpoint.bind().get(2, TimeUnit.SECONDS);
         return endpoint;
     }
 
@@ -114,11 +114,12 @@ public class HttpTransportTest {
     public void unifiedPayloadSendRejectsLocalFailuresWithoutDisruptingRoundTrip() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
         Inbox inbox = new Inbox();
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 requests.add(new ReceivedRequest(channel, id));
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         Endpoint client = endpoint(config("http", port()), inbox);
         MetChannel outgoing = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         assertNull(outgoing.getLocal());
@@ -172,7 +173,7 @@ public class HttpTransportTest {
         Endpoint endpoint = endpoint(config("http", port()), RECEIVER);
         MetListen first = endpoint.manager.bind(endpoint.config.name()).get(2, TimeUnit.SECONDS);
         assertEquals(endpoint.config.address(), first.getBindAddress());
-        assertSame(first, endpoint.manager.bind(endpoint.config.name()).get());
+        assertSame(first, endpoint.manager.bind(endpoint.config.name()).get(2, TimeUnit.SECONDS));
         assertEquals(1, endpoint.manager.find(endpoint.config.name()).getListenList().size());
         first.close();
         MetListen rebound = endpoint.manager.bind(endpoint.config.name()).get(2, TimeUnit.SECONDS);
@@ -194,13 +195,13 @@ public class HttpTransportTest {
         Endpoint connector = endpoint(config("http", port()), RECEIVER);
         assertNull(connector.connector);
         assertNull(connector.manager.find(connector.config.name()));
-        connector.bind(connector.config.address()).get();
+        connector.bind().get(2, TimeUnit.SECONDS);
         MetListen listen = connector.connector.getListenList().get(0);
         assertEquals("http", listen.getType());
         assertTrue(listen.isActive());
         assertEquals(connector.config.address(), listen.getBindAddress());
         assertEquals(listen.getBindAddress(), connector.connector.getBindAddress());
-        connector.bind(connector.config.address()).get();
+        connector.bind().get(2, TimeUnit.SECONDS);
         assertEquals(1, connector.connector.getListenList().size());
         assertSame(listen, connector.connector.getListenList().get(0));
         listen.close();
@@ -213,20 +214,22 @@ public class HttpTransportTest {
     @Test
     public void httpPipelinedRepliesStayOrderedAndKeepAliveAcceptsAnotherRequest() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
                 exchange.payload = request;
                 requests.add(exchange);
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         try (Socket socket = new Socket("127.0.0.1", server.connector.getBindAddress().getPort())) {
             socket.setSoTimeout(2000);
             OutputStream output = socket.getOutputStream();
             output.write(http("first"));
             output.write(http("second"));
             output.flush();
-            ReceivedRequest first = requests.poll(2, TimeUnit.SECONDS), second = requests.poll(2, TimeUnit.SECONDS);
+            ReceivedRequest first = requests.poll(2, TimeUnit.SECONDS);
+            ReceivedRequest second = requests.poll(2, TimeUnit.SECONDS);
             assertNotNull(first);
             assertNotNull(second);
             Future<MetChannel> secondWrite = second.channel.sendData(response(second, "second"));
@@ -249,13 +252,15 @@ public class HttpTransportTest {
     public void httpClientQueuesCallsAndReusesTheConnection() throws Exception {
         Set<String> peers = ConcurrentHashMap.newKeySet();
         Inbox received = new Inbox();
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
                 peers.add(exchange.channel.getRemote().getHostPort());
-                exchange.channel.sendData(response(exchange, (String) request.getParameterValues().get(0)));
+                String value = (String) request.getParameterValues().get(0);
+                exchange.channel.sendData(response(exchange, value));
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         // The local endpoint address is already occupied by the server: outgoing use must not bind it.
         Endpoint client = endpoint(config("http", server.connector.getBindAddress().getPort()), received);
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
@@ -274,14 +279,15 @@ public class HttpTransportTest {
     public void rpcCompletionReleasesWrittenHttpExchangeAndAllowsNextCall() throws Exception {
         Inbox received = new Inbox();
         AtomicInteger requests = new AtomicInteger();
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
                 if (requests.incrementAndGet() > 1) {
                     exchange.channel.sendData(response(exchange, "next"));
                 }
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         Endpoint client = bind(endpoint(config("http", port()), received));
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         RequestPayload first = request(1, "blocked");
@@ -289,8 +295,10 @@ public class HttpTransportTest {
         received.expect(1);
         Future<MetChannel> written = session.sendData(first);
         written.get(2, TimeUnit.SECONDS);
+
+        // 超时由 RPC 层通知协议，随后队列中的请求应能继续发送。
         first.complete(new TimeoutException("RPC timed out"));
-        assertSame(session, written.get());
+        assertSame(session, written.get(2, TimeUnit.SECONDS));
         try {
             received.expect(1).get(2, TimeUnit.SECONDS);
             fail();
@@ -307,13 +315,14 @@ public class HttpTransportTest {
         Inbox received = new Inbox();
         BlockingQueue<ReceivedRequest> arrivals = new LinkedBlockingQueue<>();
         List<String> values = new CopyOnWriteArrayList<>();
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
                 values.add((String) request.getParameterValues().get(0));
                 arrivals.add(exchange);
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         Endpoint client = bind(endpoint(config("http", port()), received));
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         received.expect(1);
@@ -338,12 +347,13 @@ public class HttpTransportTest {
     public void cancellingSendFutureRemovesQueuedRequestAndCloseFailsOtherPendingSends() throws Exception {
         Inbox received = new Inbox();
         BlockingQueue<ReceivedRequest> arrivals = new LinkedBlockingQueue<>();
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
                 arrivals.add(exchange);
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         Endpoint client = bind(endpoint(config("http", port()), received));
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         Future<MetChannel> firstWrite = session.sendData(request(1, "blocked"));
@@ -374,19 +384,20 @@ public class HttpTransportTest {
             assertTrue(expected.getCause() instanceof IllegalStateException);
         }
         assertTrue(arrivals.isEmpty());
-        assertSame(session, firstWrite.get());
+        assertSame(session, firstWrite.get(2, TimeUnit.SECONDS));
     }
 
     @Test
     public void queuedSendTimeoutAndConnectionFailureCompleteSendFuture() throws Exception {
         Inbox received = new Inbox();
         BlockingQueue<ReceivedRequest> arrivals = new LinkedBlockingQueue<>();
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
                 arrivals.add(exchange);
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         Endpoint client = bind(endpoint(config("http", port()), received));
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         session.sendData(request(1, "blocked")).get(2, TimeUnit.SECONDS);
@@ -414,7 +425,8 @@ public class HttpTransportTest {
             assertTrue(String.valueOf(expected.getCause()), expected.getCause() instanceof TimeoutException);
         }
         server.connector.close();
-        MetChannel missing = connect(client, new InterAddress("http", "127.0.0.1", port(), "default")).get();
+        InterAddress missingAddress = new InterAddress("http", "127.0.0.1", port(), "default");
+        MetChannel missing = connect(client, missingAddress).get(2, TimeUnit.SECONDS);
         try {
             missing.sendData(request(3, "unreachable")).get(2, TimeUnit.SECONDS);
             fail("Failed connection must fail the send future");
@@ -431,9 +443,10 @@ public class HttpTransportTest {
         InterAddress localAddress = new InterAddress("http://127.0.0.1:" + port() + "/default");
         String protocolName = options.getOrDefault("protocol", "http");
         ProtocolConfig mount = new ProtocolConfig("http", "http", protocolName, options);
-        ConnectorConfig config = new ConnectorConfig("http", localAddress, options, Collections.singletonList(mount), true);
+        List<ProtocolConfig> configMounts = Collections.singletonList(mount);
+        ConnectorConfig config = new ConnectorConfig("http", localAddress, options, configMounts, true);
         try (ConnectorManager manager = subscribedManager(runtimeContext(config), RECEIVER)) {
-            manager.bind("http").get();
+            manager.bind("http").get(2, TimeUnit.SECONDS);
             fail();
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains("requires transport tcp"));
@@ -443,19 +456,21 @@ public class HttpTransportTest {
     @Test
     public void rpcCompletionReleasesOrderedSlotAndRejectsLateReply() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
-        Endpoint server = bind(endpoint(config("http", port(), ExpiringProtocol.class), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
                 exchange.payload = request;
                 requests.add(exchange);
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port(), ExpiringProtocol.class), serverReceiver));
         try (Socket socket = new Socket("127.0.0.1", server.connector.getBindAddress().getPort())) {
             socket.setSoTimeout(2000);
             socket.getOutputStream().write(http("expire"));
             socket.getOutputStream().write(http("next"));
             socket.getOutputStream().flush();
-            ReceivedRequest expired = requests.poll(2, TimeUnit.SECONDS), next = requests.poll(2, TimeUnit.SECONDS);
+            ReceivedRequest expired = requests.poll(2, TimeUnit.SECONDS);
+            ReceivedRequest next = requests.poll(2, TimeUnit.SECONDS);
             assertNotNull(expired);
             assertNotNull(next);
             next.channel.sendData(response(next, "next"));
@@ -464,13 +479,17 @@ public class HttpTransportTest {
             assertEquals("next", readHttp(socket.getInputStream()));
             assertTrue(expired.channel.isActive());
             BasicFuture<Throwable> rejected = new BasicFuture<>();
-            expired.channel.sendData(response(expired, "late")).onCompleted(done -> rejected.failed(new AssertionError("Late response written"))).onFailed(done -> rejected.completed(done.getCause()));
+            Future<MetChannel> lateWrite = expired.channel.sendData(response(expired, "late"));
+            lateWrite.onCompleted(done -> rejected.failed(new AssertionError("Late response written")));
+            lateWrite.onFailed(done -> rejected.completed(done.getCause()));
             assertTrue(rejected.get(2, TimeUnit.SECONDS) instanceof IllegalStateException);
         }
     }
 
     private byte[] http(String body) {
-        return ("POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: " + body.length() + "\r\n\r\n" + body).getBytes(StandardCharsets.US_ASCII);
+        String headers = "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: " + body.length();
+        String message = headers + "\r\n\r\n" + body;
+        return message.getBytes(StandardCharsets.US_ASCII);
     }
 
     private String readHttp(InputStream input) throws IOException {
@@ -511,11 +530,12 @@ public class HttpTransportTest {
     @Test
     public void requestExchangeDoesNotScheduleConnectorTimers() throws Exception {
         Inbox received = new Inbox();
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 channel.sendData(response(new ReceivedRequest(channel, id), "reply"));
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         Endpoint client = bind(endpoint(config("http", port()), received));
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         this.timersStopped = true;
@@ -532,12 +552,16 @@ public class HttpTransportTest {
         Inbox incoming = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
-                exchange.channel.sendData(response(exchange, (String) request.getParameterValues().get(0)));
+                String value = (String) request.getParameterValues().get(0);
+                exchange.channel.sendData(response(exchange, value));
             }
         };
-        Endpoint server = endpoint(config("http", port()), incoming);
-        MetListen firstListen = server.bind(server.config.address()).get(2, TimeUnit.SECONDS);
-        MetListen secondListen = server.bind(config("http", port()).address()).get(2, TimeUnit.SECONDS);
+        // 同一接收者接入两个真实监听端点，分别验证连接和响应。
+        Endpoint firstServer = endpoint(config("http", port()), incoming);
+        MetListen firstListen = firstServer.bind().get(2, TimeUnit.SECONDS);
+        Endpoint secondServer = endpoint(config("http", port()), incoming);
+        MetListen secondListen = secondServer.bind().get(2, TimeUnit.SECONDS);
+        assertNotEquals(firstListen.getBindAddress(), secondListen.getBindAddress());
         Inbox received = new Inbox();
         Endpoint client = endpoint(config("http", port()), received);
         MetChannel first = connect(client, firstListen.getBindAddress()).get(2, TimeUnit.SECONDS);
@@ -554,13 +578,15 @@ public class HttpTransportTest {
     @Test
     public void acceptedHttpChannelsSeparateIdenticalRequestIdsAndRejectDuplicateReplies() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
-        Endpoint server = bind(endpoint(config("http", port(), SameIdProtocol.class), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 assertEquals(request.getRequestID(), id);
                 requests.add(new ReceivedRequest(channel, id));
             }
-        }));
-        try (Socket a = new Socket("127.0.0.1", server.connector.getBindAddress().getPort()); Socket b = new Socket("127.0.0.1", server.connector.getBindAddress().getPort())) {
+        };
+        Endpoint server = bind(endpoint(config("http", port(), SameIdProtocol.class), serverReceiver));
+        try (Socket a = new Socket("127.0.0.1", server.connector.getBindAddress().getPort()); //
+             Socket b = new Socket("127.0.0.1", server.connector.getBindAddress().getPort())) {
             a.setSoTimeout(2000);
             b.setSoTimeout(2000);
             a.getOutputStream().write(http("a"));
@@ -591,11 +617,12 @@ public class HttpTransportTest {
     @Test
     public void httpAcknowledgementsAndEncodingFailuresKeepOrderedResponses() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
-        Endpoint server = bind(endpoint(config("http", port(), AcknowledgementProtocol.class), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 requests.add(new ReceivedRequest(channel, id));
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port(), AcknowledgementProtocol.class), serverReceiver));
         try (Socket socket = new Socket("127.0.0.1", server.connector.getBindAddress().getPort())) {
             socket.setSoTimeout(2000);
             for (String value : Arrays.asList("normal", "message", "broken")) {
@@ -630,11 +657,12 @@ public class HttpTransportTest {
     @Test
     public void channelClosureFailsQueuedHttpResponse() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 requests.add(new ReceivedRequest(channel, id));
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         try (Socket socket = new Socket("127.0.0.1", server.connector.getBindAddress().getPort())) {
             socket.setSoTimeout(2000);
             socket.getOutputStream().write(http("blocked"));
@@ -658,13 +686,14 @@ public class HttpTransportTest {
     @Test(timeout = 10000)
     public void managerCloseReleasesUnansweredSlotsAndDrainsSubmittedHttpResponse() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
-        Endpoint server = endpoint(config("http", port(), DrainProtocol.class), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 requests.add(new ReceivedRequest(channel, id));
             }
-        });
+        };
+        Endpoint server = endpoint(config("http", port(), DrainProtocol.class), serverReceiver);
         ConnectorManager manager = server.manager;
-        server.bind(server.config.address()).get(2, TimeUnit.SECONDS);
+        server.bind().get(2, TimeUnit.SECONDS);
         ExecutorService lifecycle = Executors.newSingleThreadExecutor();
         try (Socket socket = new Socket("127.0.0.1", server.connector.getBindAddress().getPort())) {
             socket.setSoTimeout(3000);
@@ -700,15 +729,19 @@ public class HttpTransportTest {
 
     @Test(timeout = 10000)
     public void netaDecodesFragmentedChunkedRequestsAndReusesConnection() throws Exception {
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 String value = String.valueOf(request.getParameterValues().get(0));
                 channel.sendData(response(new ReceivedRequest(channel, id), value));
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         try (Socket socket = new Socket("127.0.0.1", server.connector.getBindAddress().getPort())) {
             socket.setSoTimeout(3000);
-            byte[] request = ("POST / HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n" + "3\r\nhel\r\n2\r\nlo\r\n0\r\nX-Trailer: yes\r\n\r\n").getBytes(StandardCharsets.US_ASCII);
+            // 将头和分块正文拆成每次三字节的片段，验证增量解码。
+            String headers = "POST / HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n";
+            String chunks = "3\r\nhel\r\n2\r\nlo\r\n0\r\nX-Trailer: yes\r\n\r\n";
+            byte[] request = (headers + chunks).getBytes(StandardCharsets.US_ASCII);
             for (int offset = 0; offset < request.length; offset += 3) {
                 socket.getOutputStream().write(request, offset, Math.min(3, request.length - offset));
             }
@@ -739,7 +772,9 @@ public class HttpTransportTest {
                     }
                 }
                 new DataInputStream(input).readFully(new byte[length]);
-                byte[] response = ("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n" + "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n").getBytes(StandardCharsets.US_ASCII);
+                String headers = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n";
+                String chunks = "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n";
+                byte[] response = (headers + chunks).getBytes(StandardCharsets.US_ASCII);
                 for (byte value : response) {
                     peer.getOutputStream().write(value);
                 }
@@ -754,7 +789,8 @@ public class HttpTransportTest {
         Inbox inbox = new Inbox();
         Endpoint client = endpoint(config("http", port()), inbox);
         try (ServerSocket listener = new ServerSocket(0)) {
-            MetChannel channel = connect(client, new InterAddress("http", "127.0.0.1", listener.getLocalPort(), "default")).get(2, TimeUnit.SECONDS);
+            InterAddress target = new InterAddress("http", "127.0.0.1", listener.getLocalPort(), "default");
+            MetChannel channel = connect(client, target).get(2, TimeUnit.SECONDS);
             RequestPayload request = request(1, "no response");
             request.setClientTimeout(30000);
             Future<MetChannel> sent = channel.sendData(request);
@@ -778,11 +814,12 @@ public class HttpTransportTest {
     @Test(timeout = 10000)
     public void drainWritesQueuedRequestWithoutWaitingForPreviousResponse() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
-        Endpoint server = bind(endpoint(config("http", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 requests.add(new ReceivedRequest(channel, id));
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("http", port()), serverReceiver));
         Endpoint client = endpoint(config("http", port()), new Inbox());
         MetChannel channel = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         channel.sendData(request(1, "unanswered")).get(2, TimeUnit.SECONDS);
@@ -799,7 +836,8 @@ public class HttpTransportTest {
         Endpoint client = endpoint(config("http", port()), new Inbox());
         try (ServerSocket listener = new ServerSocket(0)) {
             listener.setSoTimeout(200);
-            MetChannel channel = connect(client, new InterAddress("http", "127.0.0.1", listener.getLocalPort(), "default")).get(2, TimeUnit.SECONDS);
+            InterAddress target = new InterAddress("http", "127.0.0.1", listener.getLocalPort(), "default");
+            MetChannel channel = connect(client, target).get(2, TimeUnit.SECONDS);
             assertSame(channel, channel.drainAndClose().get(2, TimeUnit.SECONDS));
             try (Socket unexpected = listener.accept()) {
                 fail("An unused HTTP channel must not open a physical connection");
@@ -818,7 +856,6 @@ public class HttpTransportTest {
         }
 
         public void onRequest(MetChannel channel, long id, RequestPayload request) {
-            ReceivedRequest exchange = new ReceivedRequest(channel, id);
             throw new AssertionError("Unexpected request");
         }
 
@@ -863,12 +900,17 @@ public class HttpTransportTest {
 
         private final AtomicLong requestIds = new AtomicLong();
 
-        public ProtocolSession<HttpExchange> create(ProtocolConfig config, ProtocolContext context, NetworkChannel<HttpExchange> connection, BiConsumer<Long, Payload> messages) {
+        public ProtocolSession<HttpExchange> create( //
+                ProtocolConfig config, //
+                ProtocolContext context, //
+                NetworkChannel<HttpExchange> connection, //
+                BiConsumer<Long, Payload> messages) {
             return new TestHttpSession(this, context, connection, messages);
         }
 
         public TestHttpInvocation receive(HttpRequest request) {
-            RequestPayload decoded = request(this.requestIds.incrementAndGet(), new String(request.body(), StandardCharsets.UTF_8));
+            String requestBody = new String(request.body(), StandardCharsets.UTF_8);
+            RequestPayload decoded = request(this.requestIds.incrementAndGet(), requestBody);
             return TestHttpInvocation.dispatch(decoded, response -> {
                 byte[] body = String.valueOf(response.getReturnData()).getBytes(StandardCharsets.UTF_8);
                 return new HttpResponse(200, Collections.emptyMap(), body);
@@ -876,7 +918,9 @@ public class HttpTransportTest {
         }
 
         public HttpRequest encode(InterAddress target, RequestPayload request) {
-            return new HttpRequest("POST", "/", Collections.emptyMap(), String.valueOf(request.getParameterValues().get(0)).getBytes(StandardCharsets.UTF_8));
+            String value = String.valueOf(request.getParameterValues().get(0));
+            byte[] body = value.getBytes(StandardCharsets.UTF_8);
+            return new HttpRequest("POST", "/", Collections.emptyMap(), body);
         }
 
         public ResponsePayload decode(long id, HttpResponse response) {
@@ -894,7 +938,7 @@ public class HttpTransportTest {
 
     private static MetContext runtimeContext(ConnectorConfig... configs) {
         ClassLoader loader = HttpTransportTest.class.getClassLoader();
-        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
+        InvocationHandler settingsHandler = (proxy, method, args) -> {
             if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                 return Arrays.asList(configs);
             }
@@ -902,8 +946,9 @@ public class HttpTransportTest {
                 return 3000;
             }
             throw new UnsupportedOperationException(method.getName());
-        });
-        return (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
+        };
+        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, settingsHandler);
+        InvocationHandler contextHandler = (proxy, method, args) -> {
             switch (method.getName()) {
                 case "getClassLoader":
                     return loader;
@@ -914,7 +959,8 @@ public class HttpTransportTest {
                 default:
                     throw new UnsupportedOperationException(method.getName());
             }
-        });
+        };
+        return (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, contextHandler);
     }
 
     private static ConnectorManager subscribedManager(MetContext context, ReceivedListener receiver) {
@@ -970,7 +1016,7 @@ public class HttpTransportTest {
             subscribe(this.manager, listener);
         }
 
-        private Future<MetListen> bind(InterAddress address) {
+        private Future<MetListen> bind() {
             Future<MetListen> result = this.manager.bind(this.config.name());
             this.connector = this.manager.find(this.config.name());
             return result;

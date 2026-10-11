@@ -9,11 +9,13 @@ package net.hasor.meteor.connector.protocol.rsf;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.ObjectUtils;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
@@ -96,7 +98,9 @@ public class RsfProtocolTest {
             assertArrayEquals(fixture, original.toByteArray());
             WireBuffer encoded = new WireBuffer();
             wire.encode(compact, encoded);
-            assertEquals(fixture.length - legacy.readPool(legacy.getReturnData()).length - 4, encoded.readableBytes());
+            int duplicatedReturnBytes = legacy.readPool(legacy.getReturnData()).length + 4;
+            int expectedLength = fixture.length - duplicatedReturnBytes;
+            assertEquals(expectedLength, encoded.readableBytes());
             ResponsePayload decoded = this.codec.readResponsePayload(new WireBuffer(encoded.toByteArray()));
             assertEquals(response.getRequestID(), decoded.getRequestID());
             assertEquals(response.getStatus(), decoded.getStatus());
@@ -125,7 +129,7 @@ public class RsfProtocolTest {
         }
         assertTrue(session.ready().isDone());
         assertTrue(this.context.cancelled);
-        session.send((RequestPayload) this.codec.decode(fixture("request-v1.bin"))).get();
+        session.send(this.codec.decode(fixture("request-v1.bin"))).get(2, TimeUnit.SECONDS);
         ByteArrayOutputStream joined = new ByteArrayOutputStream();
         joined.write(fixture("request-v1.bin"));
         joined.write(fixture("response-v1.bin"));
@@ -318,7 +322,7 @@ public class RsfProtocolTest {
         session.receive(this.fixture("handshake-v1.bin"));
         RequestPayload first = (RequestPayload) this.codec.decode(this.fixture("request-v1.bin"));
         first.setRequestID(101);
-        session.send(first).get();
+        session.send(first).get(2, TimeUnit.SECONDS);
         RequestPayload second = (RequestPayload) this.codec.decode(this.fixture("request-v1.bin"));
         second.setRequestID(102);
         int written = connection.writes.size();
@@ -326,8 +330,10 @@ public class RsfProtocolTest {
         assertEquals(written, connection.writes.size());
         assertEquals(1, messages.size());
         assertTrue(messages.get(0) instanceof ThrowPayload);
+
+        // RPC 完成后释放协议容量，下一请求不必等待迟到响应。
         first.complete(new TimeoutException("RPC expired"));
-        session.send(second).get();
+        session.send(second).get(2, TimeUnit.SECONDS);
         assertEquals(written + 1, connection.writes.size());
         second.complete(null);
         session.closed(null);
@@ -353,7 +359,7 @@ public class RsfProtocolTest {
         assertEquals(written, connection.writes.size());
         assertEquals(1, messages.size());
         RequestPayload valid = (RequestPayload) this.codec.decode(this.fixture("request-v1.bin"));
-        session.send(valid).get();
+        session.send(valid).get(2, TimeUnit.SECONDS);
         assertEquals(written + 1, connection.writes.size());
         valid.complete(null);
         session.closed(null);
@@ -393,7 +399,9 @@ public class RsfProtocolTest {
         response.setSerializeType("Java");
         response.setReturnType(String.class.getName());
         response.setReturnData("recovered");
-        assertEquals("recovered", ((ResponsePayload) this.codec.decode(this.codec.encode(response))).getReturnData());
+        byte[] encoded = this.codec.encode(response);
+        ResponsePayload recovered = (ResponsePayload) this.codec.decode(encoded);
+        assertEquals("recovered", recovered.getReturnData());
     }
 
     private byte[] encode(RequestPayload request) throws Exception {
@@ -407,8 +415,13 @@ public class RsfProtocolTest {
         }
     }
 
-    private RsfSession session(Connection connection, List<OptionInfo> messages, Map<String, String> options) throws Exception {
-        return new RsfSession(config(options), new ProtocolContext(this.manager.context(), this.manager::schedule, new InterAddress("rsf", "127.0.0.1", 2181, "default"), false), connection, (id, payload) -> messages.add(payload));
+    private RsfSession session( //
+            Connection connection, //
+            List<OptionInfo> messages, //
+            Map<String, String> options) throws Exception {
+        InterAddress address = new InterAddress("rsf", "127.0.0.1", 2181, "default");
+        ProtocolContext context = new ProtocolContext(this.manager.context(), this.manager::schedule, address, false);
+        return new RsfSession(config(options), context, connection, (id, payload) -> messages.add(payload));
     }
 
     @Test
@@ -425,7 +438,8 @@ public class RsfProtocolTest {
     }
 
     private byte[] fixture(String name) throws IOException {
-        try (InputStream input = getClass().getResourceAsStream("/rsf-v1-wire-fixtures/" + name); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+        try (InputStream input = getClass().getResourceAsStream("/rsf-v1-wire-fixtures/" + name); //
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[1024];
             int count;
             while ((count = input.read(buffer)) != -1) {
@@ -478,7 +492,7 @@ public class RsfProtocolTest {
 
     private static MetContext runtimeContext() {
         ClassLoader loader = RsfProtocolTest.class.getClassLoader();
-        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
+        InvocationHandler settingsHandler = (proxy, method, args) -> {
             if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                 return Collections.emptySet();
             }
@@ -486,8 +500,9 @@ public class RsfProtocolTest {
                 return 6000;
             }
             throw new UnsupportedOperationException(method.getName());
-        });
-        return (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
+        };
+        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, settingsHandler);
+        InvocationHandler contextHandler = (proxy, method, args) -> {
             switch (method.getName()) {
                 case "getClassLoader":
                     return loader;
@@ -498,7 +513,8 @@ public class RsfProtocolTest {
                 default:
                     throw new UnsupportedOperationException(method.getName());
             }
-        });
+        };
+        return (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, contextHandler);
     }
 
     private static final class Context {

@@ -18,7 +18,6 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.SendLimitPolicy;
-import net.hasor.meteor.address.route.DefaultArgsKey;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.serialize.coder.JsonSerializeCoder;
@@ -30,33 +29,9 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         String echo(String value);
     }
 
-    public static class CustomArgsKey extends DefaultArgsKey {
-    }
-
-    @Test
-    public void argsKeyClassIsPreservedWithoutReloadingThroughContextClassLoader() throws Exception {
-        MetConfiguration configuration = new MetConfiguration().setArgsKey(CustomArgsKey.class);
-        ClassLoader loader = new ClassLoader(this.getClass().getClassLoader()) {
-            @Override
-            public Class<?> loadClass(String name) throws ClassNotFoundException {
-                if (StringUtils.equals(name, CustomArgsKey.class.getName())) {
-                    throw new ClassNotFoundException("The configured Class must be used directly");
-                }
-                return super.loadClass(name);
-            }
-        };
-        try (MetContext first = configuration.buildContext(loader)) {
-            assertSame(CustomArgsKey.class, first.getSettings().getArgsKeyClass());
-            configuration.setArgsKey(DefaultArgsKey.class);
-            try (MetContext second = configuration.buildContext(loader)) {
-                assertSame(DefaultArgsKey.class, second.getSettings().getArgsKeyClass());
-                assertSame(CustomArgsKey.class, first.getSettings().getArgsKeyClass());
-            }
-        }
-    }
-
     @Test
     public void typedConfigurationDrivesServiceDefaultsAndComponentConstruction() throws Exception {
+        // 先配置服务、网络和请求额度，再补充调度与地址缓存参数。
         MetConfiguration settings = new MetConfiguration();
         settings.setBindAddress("127.0.0.1");
         settings.setUnitName("zone_a");
@@ -65,7 +40,6 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         settings.setDefaultGroup("Example");
         settings.setDefaultVersion("2.0");
         settings.setDefaultTimeout(1234);
-        settings.setSerializeType("jSoN");
         settings.setRequestTimeout(2345);
         settings.setMaximumRequest(17);
         settings.setSendLimitPolicy(SendLimitPolicy.WaitSecond);
@@ -80,7 +54,6 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         settings.setRefreshCacheTime(800);
         settings.setInvalidWaitTime(45000);
         settings.setDiskCacheTimeInterval(7200000);
-        settings.setArgsKey(DefaultArgsKey.class);
         settings.setResponseOption("server.tag", "first");
         settings.setResponseOption("server.tag", "second");
         settings.setRequestOption("client.tag", "configured");
@@ -92,9 +65,7 @@ public class MetConfigurationTest extends BootstrapTestSupport {
             assertFalse(context.isOnline());
             assertNull(context.bindAddress("rsf"));
             assertSame(loader, context.getClassLoader());
-            assertEquals("jSoN", context.getSettings().getSerializeType());
             assertTrue(context.getSerializeCoder("jSoN") instanceof JsonSerializeCoder);
-            assertSame(DefaultArgsKey.class, context.getSettings().getArgsKeyClass());
             assertEquals("second", context.getSettings().getResponseOptions().getOption("server.tag"));
             assertEquals("configured", context.getSettings().getRequestOptions().getOption("client.tag"));
             assertEquals(Paths.get("custom-rsf-data"), context.getSettings().getDataHome());
@@ -107,20 +78,19 @@ public class MetConfigurationTest extends BootstrapTestSupport {
             assertEquals("Example", service.getBindGroup());
             assertEquals("2.0", service.getBindVersion());
             assertEquals(1234, service.getClientTimeout());
-            assertEquals("jSoN", service.getSerializeType());
+            assertNull(service.getSerializeType());
             assertEquals("local", context.getRsfClient().getRemote(service).echo("local"));
         }
     }
 
     @Test
     public void serializeTypeSelectsSpiCoderAndCanBeOverriddenPerService() throws Exception {
-        MetConfiguration configuration = new MetConfiguration().setSerializeType("Java");
-        configuration.setSerializeType("jSoN");
-        assertEquals("jSoN", configuration.getSerializeType());
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("tcp").protocol("rsf").option("serializeType", "jSoN");
         try (MetContext context = configuration.buildContext()) {
             MetBindInfo<Echo> service = context.publisher().rsfService(Echo.class, value -> value).register();
-            assertEquals("jSoN", service.getSerializeType());
-            assertEquals(JsonSerializeCoder.class, context.getSerializeCoder(service.getSerializeType()).getClass());
+            assertNull(service.getSerializeType());
+            assertEquals(JsonSerializeCoder.class, context.getSerializeCoder("jSoN").getClass());
             assertSame(context.getSerializeCoder("Json"), context.getSerializeCoder("jSoN"));
             var overrideBuilder = context.publisher().rsfService(Echo.class, value -> value);
             overrideBuilder.name("override");
@@ -136,19 +106,19 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         configuration.setDefaultGroup("First");
         configuration.setConnectTimeout(1000);
         configuration.setResponseOption("tag", "first");
-        configuration.setSerializeType("Json");
         MetConfiguration.ConnectorSettings tcp = configuration.connector("tcp");
         tcp.bind("127.0.0.1", 23001);
         tcp.option("custom.nested", "first");
-        tcp.protocol("rsf");
+        MetConfiguration.ProtocolSettings protocol = tcp.protocol("rsf").option("serializeType", "Json");
         try (MetContext first = configuration.buildContext()) {
             Object runtimeSettings = first.getSettings();
             assertFalse(runtimeSettings instanceof Settings);
+
             // 修改源配置不影响已创建的上下文，只作用于下一次构建。
             configuration.setDefaultGroup("Second");
             configuration.setConnectTimeout(2000);
             configuration.setResponseOption("tag", "second");
-            configuration.setSerializeType("Java");
+            protocol.option("serializeType", "Java");
             tcp.bind("127.0.0.1", 23002).option("custom.nested", "second");
             try (MetContext second = configuration.buildContext()) {
                 assertNotSame(first.getSettings(), second.getSettings());
@@ -156,10 +126,10 @@ public class MetConfigurationTest extends BootstrapTestSupport {
                 assertEquals("Second", second.getSettings().getDefaultGroup());
                 assertEquals("first", first.getSettings().getResponseOptions().getOption("tag"));
                 assertEquals("second", second.getSettings().getResponseOptions().getOption("tag"));
-                assertEquals("Json", first.getSettings().getSerializeType());
-                assertEquals("Java", second.getSettings().getSerializeType());
                 ConnectorConfig firstConnector = first.getSettings().getConnectorConfigs().iterator().next();
                 ConnectorConfig secondConnector = second.getSettings().getConnectorConfigs().iterator().next();
+                assertEquals("Json", firstConnector.protocol("rsf").option("serializeType", null));
+                assertEquals("Java", secondConnector.protocol("rsf").option("serializeType", null));
                 assertEquals(23001, firstConnector.address().getPort());
                 assertEquals(23002, secondConnector.address().getPort());
                 assertEquals(1000, firstConnector.connectTimeout());
@@ -168,6 +138,8 @@ public class MetConfigurationTest extends BootstrapTestSupport {
                 assertEquals("second", secondConnector.option("custom.nested", null));
                 assertNull(first.bindAddress("rsf"));
                 assertNull(second.bindAddress("rsf"));
+
+                // 上下文构建后继续添加接入点或请求头，不得污染已有快照。
                 configuration.connector("http").protocol("hprose");
                 configuration.getRequestOptions().addOption("later", "edited");
                 assertEquals(1, first.getSettings().getConnectorConfigs().size());
@@ -213,7 +185,6 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         MetSettings settings = new MetConfiguration();
         assertEquals("default", settings.getDefaultGroup());
         assertEquals("1.0.0", settings.getDefaultVersion());
-        assertEquals("Java", settings.getSerializeType());
         assertEquals(6000, settings.getDefaultTimeout());
         assertEquals(200, settings.getMaximumRequest());
         assertEquals(Paths.get("meteor-data"), settings.getDataHome());
@@ -296,7 +267,7 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         MetConfiguration.ConnectorSettings http = conflictingPaths.connector("http");
         http.protocol("hprosea").contextPath("/same/");
         http.protocol("hproseb").contextPath("/same");
-        IllegalArgumentException conflict = assertThrows(IllegalArgumentException.class, conflictingPaths::buildContext);
+        var conflict = assertThrows(IllegalArgumentException.class, conflictingPaths::buildContext);
         assertTrue(conflict.getMessage().contains("Duplicate HTTP mount"));
     }
 
@@ -317,9 +288,9 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         MetConfiguration source = new MetConfiguration();
         source.connector("tcp").protocol("rsf");
         try (MetContext context = source.buildContext()) {
-
             context.start();
-            assertFalse(context.getSettings().getConnectorConfigs().iterator().next().bindEnabled());
+            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            assertFalse(endpoint.bindEnabled());
             assertNull(context.getSettings().getBindAddressSet("rsf"));
             assertNull(context.bindAddress("rsf"));
             assertTrue(context.runProtocols().isEmpty());
@@ -361,14 +332,15 @@ public class MetConfigurationTest extends BootstrapTestSupport {
                 return super.getResources(name);
             }
         };
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> config.buildContext(loader));
+        var failure = assertThrows(IllegalArgumentException.class, () -> config.buildContext(loader));
         assertTrue(failure.getMessage().contains("Unknown protocol"));
     }
 
     private void invokeWithoutListener(String transport, String protocol) throws Exception {
-        MetConfiguration serverConfig = new MetConfiguration().setSerializeType("Java");
+        // 服务端监听、客户端仅配置出口，二者使用相同协议路径。
+        MetConfiguration serverConfig = new MetConfiguration();
         serverConfig.connector(transport).bind("127.0.0.1", 0).protocol(protocol).contextPath("/echo");
-        MetConfiguration clientConfig = new MetConfiguration().setSerializeType("Java");
+        MetConfiguration clientConfig = new MetConfiguration();
         clientConfig.connector(transport).protocol(protocol).contextPath("/echo");
         try (MetContext server = serverConfig.buildContext(); //
              MetContext client = clientConfig.buildContext()) {
@@ -376,6 +348,8 @@ public class MetConfigurationTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
             server.start();
             client.start();
+
+            // 指定服务端地址完成远程调用，客户端仍不创建任何监听。
             Echo remote = client.getRsfClient(server.bindAddress(protocol)).getRemote(service);
             assertEquals("remote:value", remote.echo("value"));
             assertNull(client.bindAddress(protocol));

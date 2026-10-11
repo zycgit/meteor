@@ -45,6 +45,8 @@ public class AddressPoolTest {
         AddressPool pool = new AddressPool();
         pool.appendAddress("s", this.a);
         assertEquals(this.a, pool.nextAddress("s", "get", null));
+
+        // 动态地址失效后停止选址，再次上报后恢复。
         pool.invalidAddress(this.a);
         assertNull(pool.nextAddress("s", "get", null));
         assertEquals(Collections.singletonList(this.a), pool.queryInvalidAddresses("s"));
@@ -125,7 +127,8 @@ public class AddressPoolTest {
         AddressPool pool = new AddressPool();
         pool.appendAddress("s", this.a);
         pool.allServiceAddressToSnapshot().get("s_UNIT").clear();
-        assertEquals("A caller-owned snapshot must not empty the live routing cache", this.a, pool.nextAddress("s", "get", null));
+        InterAddress selected = pool.nextAddress("s", "get", null);
+        assertEquals("Clearing a snapshot must preserve live routing", this.a, selected);
     }
 
     @Test

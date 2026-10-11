@@ -6,10 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector;
-import net.hasor.cobble.StringUtils;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import org.junit.Test;
@@ -18,7 +18,7 @@ import static org.junit.Assert.*;
 /** One endpoint owns one pending bind and one active listener. */
 public class MetListenTest {
     private EndpointFixture.Endpoint endpoint(EndpointFixture fixture) throws Exception {
-        fixture.manager.connect(EndpointFixture.address("tcp")).get();
+        fixture.manager.connect(EndpointFixture.address("tcp")).get(5, TimeUnit.SECONDS);
         EndpointFixture.Endpoint endpoint = fixture.endpoints.get("tcp");
         endpoint.binding = new BasicFuture<>();
         return endpoint;
@@ -33,7 +33,7 @@ public class MetListenTest {
             assertFalse(first.isDone());
             EndpointFixture.Listen listen = new EndpointFixture.Listen(endpoint, fixture.manager);
             endpoint.binding.completed(listen);
-            assertSame(listen, first.get());
+            assertSame(listen, first.get(5, TimeUnit.SECONDS));
             assertSame(first, endpoint.bind());
             assertEquals(1, endpoint.binds);
             assertSame(listen, endpoint.getListenList().get(0));
@@ -55,7 +55,7 @@ public class MetListenTest {
             assertFalse(retry.isDone());
             EndpointFixture.Listen listen = new EndpointFixture.Listen(endpoint, fixture.manager);
             endpoint.binding.completed(listen);
-            assertSame(listen, retry.get());
+            assertSame(listen, retry.get(5, TimeUnit.SECONDS));
         }
     }
 
@@ -68,7 +68,7 @@ public class MetListenTest {
             endpoint.binding.failed(failure);
             assertSame(failure, result.getCause());
             endpoint.binding = null;
-            assertTrue(endpoint.bind().get().isActive());
+            assertTrue(endpoint.bind().get(5, TimeUnit.SECONDS).isActive());
             assertEquals(1, endpoint.starts);
         }
     }
@@ -82,7 +82,7 @@ public class MetListenTest {
             assertTrue(pending.isCancelled());
             assertTrue(endpoint.getListenList().isEmpty());
             endpoint.binding = null;
-            assertTrue(endpoint.bind().get().isActive());
+            assertTrue(endpoint.bind().get(5, TimeUnit.SECONDS).isActive());
             assertEquals(1, endpoint.starts);
         }
     }
@@ -96,7 +96,7 @@ public class MetListenTest {
             assertTrue(pending.getCause() instanceof IllegalStateException);
             assertTrue(endpoint.getListenList().isEmpty());
             endpoint.binding = null;
-            assertTrue(endpoint.bind().get().isActive());
+            assertTrue(endpoint.bind().get(5, TimeUnit.SECONDS).isActive());
         }
     }
 
@@ -112,7 +112,7 @@ public class MetListenTest {
             assertFalse(rejected.isActive());
             assertTrue(endpoint.getListenList().isEmpty());
             assertNotNull(ConnectorConnectionsTest.failure(fixture.manager.bind("tcp")));
-            assertTrue(endpoint.connect(EndpointFixture.address("tcp")).get().isActive());
+            assertTrue(endpoint.connect(EndpointFixture.address("tcp")).get(5, TimeUnit.SECONDS).isActive());
         }
     }
 
@@ -178,9 +178,9 @@ public class MetListenTest {
     @Test
     public void closedListenerCanBeBoundAgainButOnlyAtConfiguredAddress() throws Exception {
         try (EndpointFixture fixture = new EndpointFixture("tcp")) {
-            MetListen first = fixture.manager.bind("tcp").get();
+            MetListen first = fixture.manager.bind("tcp").get(5, TimeUnit.SECONDS);
             first.close();
-            MetListen second = fixture.manager.bind("tcp").get();
+            MetListen second = fixture.manager.bind("tcp").get(5, TimeUnit.SECONDS);
             assertNotSame(first, second);
             assertEquals(first.getBindAddress(), second.getBindAddress());
             assertEquals(1, fixture.endpoints.get("tcp").getListenList().size());

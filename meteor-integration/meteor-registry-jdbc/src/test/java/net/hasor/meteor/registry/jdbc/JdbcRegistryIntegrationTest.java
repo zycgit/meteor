@@ -63,16 +63,25 @@ public class JdbcRegistryIntegrationTest {
                 EntityRecord input = new EntityRecord(ref);
                 SQLException read = assertThrows(SQLException.class, () -> storage.getEntity(ref));
                 SQLException write = assertThrows(SQLException.class, () -> storage.saveEntity(input));
-                IllegalStateException manage = assertThrows(IllegalStateException.class, () -> service.putMeta("owner", "after"));
-                ExecutionException push = assertThrows(ExecutionException.class, () -> client.pushSync().get(5, TimeUnit.SECONDS));
-                ExecutionException pull = assertThrows(ExecutionException.class, () -> client.pullSync().get(5, TimeUnit.SECONDS));
+                var manage = assertThrows(IllegalStateException.class, () -> service.putMeta("owner", "after"));
+                ExecutionException push = assertThrows(ExecutionException.class, () -> {
+                    var result = client.pushSync();
+                    result.get(5, TimeUnit.SECONDS);
+                });
+                ExecutionException pull = assertThrows(ExecutionException.class, () -> {
+                    var result = client.pullSync();
+                    result.get(5, TimeUnit.SECONDS);
+                });
+
+                // 不同入口的包装可以不同，但根因必须仍是缺表错误。
                 for (Exception failure : List.of(read, write, manage, push, pull)) {
                     Throwable cause = failure;
                     while (cause.getCause() != null) {
                         cause = cause.getCause();
                     }
                     assertTrue(cause instanceof SQLException);
-                    assertTrue(cause.getMessage().toLowerCase(Locale.ROOT).contains("meteor_records"));
+                    String message = cause.getMessage().toLowerCase(Locale.ROOT);
+                    assertTrue(message.contains("meteor_records"));
                 }
             } finally {
                 jdbc.executeUpdate("ALTER TABLE hidden_records RENAME TO meteor_records");
@@ -127,7 +136,6 @@ public class JdbcRegistryIntegrationTest {
             }
             assertEquals("h2", server.getServiceInfo(service).getMetaData("store"));
             assertEquals(1, admin.providers(null).length);
-
         }
     }
 
@@ -200,7 +208,7 @@ public class JdbcRegistryIntegrationTest {
                     SQLException stored = assertThrows(SQLException.class, () -> storage.saveEntity(input));
                     assertSame(failure, stored.getCause());
                     attempts.set(0);
-                    IllegalStateException managed = assertThrows(IllegalStateException.class, () -> service.putMeta("owner", "value"));
+                    var managed = assertThrows(IllegalStateException.class, () -> service.putMeta("owner", "value"));
                     assertSame(failure, managed.getCause().getCause());
                     assertEquals(1, attempts.get());
                     assertNull(storage.getEntity(input.getRef()));

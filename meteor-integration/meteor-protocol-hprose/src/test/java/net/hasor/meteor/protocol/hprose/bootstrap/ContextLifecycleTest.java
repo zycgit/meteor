@@ -16,7 +16,6 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
-import net.hasor.meteor.address.route.ArgsKey;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolStatus;
@@ -109,7 +108,7 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
             assertFalse(server.isOnline());
             Class<?>[] types = { String.class };
             MetFuture denied = caller.asyncInvoke(service, "echo", types, new Object[] { "offline" });
-            ExecutionException rejected = assertThrows(ExecutionException.class, () -> denied.getData(5, TimeUnit.SECONDS));
+            var rejected = assertThrows(ExecutionException.class, () -> denied.getData(5, TimeUnit.SECONDS));
             Throwable failure = rejected.getCause();
             assertEquals(ProtocolStatus.Forbidden, ((MetException) failure).getStatus());
 
@@ -151,21 +150,15 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
         // 构建后未启动也可以关闭，关闭后不可重新启动。
         MetConfiguration contextConfiguration = this.configuration();
         try (MetContext context = contextConfiguration.buildContext()) {
-
             context.close();
             context.close();
             assertThrows(IllegalStateException.class, context::start);
-            MetConfiguration config = this.configuration();
-            config.setQueueMaxSize(0);
-            assertThrows(IllegalArgumentException.class, () -> config.buildContext());
         }
+
+        // 调度配置非法时构建失败，由测试收尾检查确认没有遗留框架线程。
+        MetConfiguration invalid = this.configuration();
+        invalid.setQueueMaxSize(0);
+        assertThrows(IllegalArgumentException.class, invalid::buildContext);
     }
 
-    @Test
-    public void invalidArgsKeyFailsDuringConstruction() throws Exception {
-        // 路由参数键必须是可构建的具体实现。
-        MetConfiguration invalidRoute = this.configuration();
-        invalidRoute.setArgsKey(ArgsKey.class);
-        assertThrows(IllegalArgumentException.class, () -> invalidRoute.buildContext());
-    }
 }

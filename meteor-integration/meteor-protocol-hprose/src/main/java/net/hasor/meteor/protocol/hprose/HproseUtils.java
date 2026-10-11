@@ -21,6 +21,7 @@ import hprose.io.HproseWriter;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
@@ -42,7 +43,7 @@ public final class HproseUtils implements HproseConstants {
     }
 
     /** 返回已发布服务的 Hprose 方法别名。 */
-    public static String[] doFunction(MetContext context) {
+    public static String[] doFunction(MetContext context, ProtocolConfig protocol) {
         Set<String> allMethod = new LinkedHashSet<>();
         allMethod.add("*");
 
@@ -54,6 +55,9 @@ public final class HproseUtils implements HproseConstants {
                 continue;
             }
 
+            if (!protocol.accepts(serviceInfo.getBindProtocols())) {
+                continue;
+            }
             String aliasName = serviceInfo.getAliasName(HPROSE);
             if (StringUtils.isBlank(aliasName)) {
                 continue;

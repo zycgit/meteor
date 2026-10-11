@@ -89,7 +89,9 @@ public class MetInvocationTest {
                     RequestPayload request = host.request();
                     request.setClientTimeout(clientTimeout);
                     assertEquals("value", host.assertStatus(ProtocolStatus.OK, request).getReturnData());
-                    int expected = Math.min(serviceTimeout > 0 ? serviceTimeout : 5000, clientTimeout > 0 ? clientTimeout : 5000);
+                    int serviceLimit = serviceTimeout > 0 ? serviceTimeout : 5000;
+                    int clientLimit = clientTimeout > 0 ? clientTimeout : 5000;
+                    int expected = Math.min(serviceLimit, clientLimit);
                     assertEquals(expected, observed.get());
                 }
             }
@@ -104,7 +106,8 @@ public class MetInvocationTest {
             host.coders = name -> {
                 throw new IllegalStateException("coder failure");
             };
-            assertTrue(host.assertStatus(ProtocolStatus.SerializeError, host.request()).getOption("message").contains("coder failure"));
+            ResponsePayload failure = host.assertStatus(ProtocolStatus.SerializeError, host.request());
+            assertTrue(failure.getOption("message").contains("coder failure"));
             assertEquals(0, host.invocations.get());
         }
     }
@@ -216,12 +219,14 @@ public class MetInvocationTest {
             host.filters = new MetFilter[] { (request, response, chain) -> {
                 throw new IllegalStateException("filter failure");
             } };
-            assertTrue(host.assertStatus(ProtocolStatus.InvokeError, host.request()).getOption("message").contains("filter failure"));
+            ResponsePayload filterFailure = host.assertStatus(ProtocolStatus.InvokeError, host.request());
+            assertTrue(filterFailure.getOption("message").contains("filter failure"));
             host.filters = new MetFilter[0];
             host.provider = () -> {
                 throw new IllegalStateException("provider failure");
             };
-            assertTrue(host.assertStatus(ProtocolStatus.InvokeError, host.request()).getOption("message").contains("provider failure"));
+            ResponsePayload providerFailure = host.assertStatus(ProtocolStatus.InvokeError, host.request());
+            assertTrue(providerFailure.getOption("message").contains("provider failure"));
         }
     }
 
@@ -274,6 +279,8 @@ public class MetInvocationTest {
             try {
                 host.dispatch(1);
                 assertTrue(entered.await(2, TimeUnit.SECONDS));
+
+                // 一个执行中、一个排队，第三个应立即被拒绝。
                 host.dispatch(2);
                 host.dispatch(3);
                 assertEquals(ProtocolStatus.Accept, host.take().getStatus());
@@ -299,7 +306,9 @@ public class MetInvocationTest {
             host.filters = new MetFilter[] { (request, response, chain) -> {
                 entered.countDown();
                 try {
-                    new CountDownLatch(1).await();
+                    // 等待关闭中断；即使关闭逻辑失效，也不能永久占用工作线程。
+                    new CountDownLatch(1).await(5, TimeUnit.SECONDS);
+                    fail("Dispatcher close must interrupt the running task");
                 } catch (InterruptedException expected) {
                     interrupted.countDown();
                     Thread.currentThread().interrupt();
@@ -308,6 +317,8 @@ public class MetInvocationTest {
             host.dispatch(1);
             assertTrue(entered.await(2, TimeUnit.SECONDS));
             host.dispatch(2);
+
+            // 关闭打断执行中的任务，排队任务不得继续调用服务。
             host.dispatcher.close();
             assertTrue(interrupted.await(2, TimeUnit.SECONDS));
             assertEquals(0, host.invocations.get());
@@ -409,7 +420,12 @@ public class MetInvocationTest {
 
         @SuppressWarnings("unchecked")
         private Supplier<MetFilter>[] suppliers() {
-            return Arrays.stream(this.filters).map(filter -> (Supplier<MetFilter>) () -> filter).toArray(Supplier[]::new);
+            Supplier<MetFilter>[] suppliers = new Supplier[this.filters.length];
+            for (int i = 0; i < this.filters.length; i++) {
+                MetFilter filter = this.filters[i];
+                suppliers[i] = () -> filter;
+            }
+            return suppliers;
         }
 
         private RequestPayload request() {

@@ -6,14 +6,15 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.ObjectUtils;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
@@ -29,7 +30,7 @@ public class ConnectorResourcesTest {
 
     static MetContext sharedContext(ClassLoader loader, ConnectorConfig... configs) {
         JavaSerializeCoder coder = new JavaSerializeCoder();
-        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
+        InvocationHandler settingsHandler = (proxy, method, args) -> {
             if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                 return Arrays.asList(configs);
             }
@@ -37,8 +38,9 @@ public class ConnectorResourcesTest {
                 return 3000;
             }
             throw new AssertionError("Unexpected setting: " + method);
-        });
-        return (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
+        };
+        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, settingsHandler);
+        InvocationHandler contextHandler = (proxy, method, args) -> {
             switch (method.getName()) {
                 case "getClassLoader":
                     return loader;
@@ -53,7 +55,8 @@ public class ConnectorResourcesTest {
                 default:
                     throw new AssertionError("Unexpected context access: " + method);
             }
-        });
+        };
+        return (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, contextHandler);
     }
 
     @Test

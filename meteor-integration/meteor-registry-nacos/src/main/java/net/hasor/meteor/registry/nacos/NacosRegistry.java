@@ -34,39 +34,49 @@ final class NacosRegistry extends RecordStorageAccess {
     private final        ConfigService                configs;
     private final        String                       group;
     private final        long                         timeout;
-    private final        Map<String, StorageDocument> owned         = new HashMap<>();
+    private final        Map<String, StorageDocument> owned         = new ConcurrentHashMap<>();
     private final        Set<NacosStorageWatch>       subscriptions = ConcurrentHashMap.newKeySet();
     private              ScheduledExecutorService     watchExecutor;
 
     @Override
-    public synchronized Cancellable watchEntities(EntityQuery query, Runnable listener) {
-        this.requireOpen();
-        if (query == null || query.getType() == null) {
-            throw new IllegalArgumentException("Entity type is required");
-        }
+    public Cancellable watchEntities(EntityQuery query, Runnable listener) {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+            if (query == null || query.getType() == null) {
+                throw new IllegalArgumentException("Entity type is required");
+            }
 
-        EntityQuery selection = query.copy();
-        return this.watch(List.of("e." + selection.getType().name()), () -> {
-            return this.readVersions(selection);
-        }, listener);
+            EntityQuery selection = query.copy();
+            return this.watch(List.of("e." + selection.getType().name()), () -> {
+                return this.readVersions(selection);
+            }, listener);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
+        }
     }
 
     @Override
-    public synchronized Cancellable watchRelations(RelationQuery query, Runnable listener) {
-        this.requireOpen();
-        boolean scoped = query != null && (query.getType() != null || query.getSource() != null || query.getTarget() != null);
-        if (!scoped) {
-            throw new IllegalArgumentException("Specify relation type or endpoint");
-        }
-
-        RelationQuery selection = query.copy();
-        List<String> families = new ArrayList<>();
-        for (RelationType type : RelationType.values()) {
-            if (selection.getType() == null || selection.getType() == type) {
-                families.add("r." + type.name());
+    public Cancellable watchRelations(RelationQuery query, Runnable listener) {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+            boolean scoped = query != null && (query.getType() != null || query.getSource() != null || query.getTarget() != null);
+            if (!scoped) {
+                throw new IllegalArgumentException("Specify relation type or endpoint");
             }
+
+            RelationQuery selection = query.copy();
+            List<String> families = new ArrayList<>();
+            for (RelationType type : RelationType.values()) {
+                if (selection.getType() == null || selection.getType() == type) {
+                    families.add("r." + type.name());
+                }
+            }
+            return this.watch(families, () -> this.readVersions(selection), listener);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
         }
-        return this.watch(families, () -> this.readVersions(selection), listener);
     }
 
     private Map<String, String> readVersions(EntityQuery query) throws Exception {
@@ -104,7 +114,7 @@ final class NacosRegistry extends RecordStorageAccess {
         return versions;
     }
 
-    private Cancellable watch(List<String> families, Callable<Map<String, String>> snapshot, Runnable listener) {
+    private synchronized Cancellable watch(List<String> families, Callable<Map<String, String>> snapshot, Runnable listener) {
         if (this.watchExecutor == null) {
             ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, task -> {
                 Thread thread = new Thread(task, "Meteor-nacos-watch-" + this.tempSessionId);
@@ -155,7 +165,8 @@ final class NacosRegistry extends RecordStorageAccess {
     }
 
     private static String cluster(StorageDocument record) {
-        return "M" + StorageKeyUtils.hash(record.getKey(), record.getSessionId());
+        // SHA-256 的 64 位十六进制结果恰好满足 Nacos cluster 名称的长度限制。
+        return StorageKeyUtils.hash(record.getKey(), record.getSessionId());
     }
 
     private static String md5(String value) throws Exception {

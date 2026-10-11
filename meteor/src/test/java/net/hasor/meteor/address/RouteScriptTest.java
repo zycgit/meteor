@@ -19,7 +19,12 @@ public class RouteScriptTest {
     private final        InterAddress first  = new InterAddress("rsf", "127.0.0.1", 2181, "east");
     private final        InterAddress second = new InterAddress("rsf", "127.0.0.1", 2182, "west");
     private static final String       ALL    = "<route><return value='addresses'/></route>";
-    private static final String       PORT   = "<route><filter name='selected' from='addresses' item='a' " + "test='a.port == args[0]'/><return value='selected'/></route>";
+    private static final String       PORT   = """
+            <route>
+                <filter name="selected" from="addresses" item="a" test="a.port == args[0]"/>
+                <return value="selected"/>
+            </route>
+            """;
 
     private AddressPool pool() {
         AddressPool pool = new AddressPool();
@@ -60,7 +65,13 @@ public class RouteScriptTest {
     public void levelsFilterInOrderAndClearingOneDoesNotClearOthers() {
         AddressPool pool = this.pool();
         pool.updateServiceRoute("s", ALL);
-        pool.updateMethodRoute("s", "<route><if test=\"utils.equals(method.name, 'blocked')\">" + "<return value='{}'/></if><return value='addresses'/></route>");
+        String methodRule = """
+                <route>
+                    <if test="utils.equals(method.name, 'blocked')"><return value="{}"/></if>
+                    <return value="addresses"/>
+                </route>
+                """;
+        pool.updateMethodRoute("s", methodRule);
         pool.updateArgsRoute("s", PORT);
         assertNull(pool.nextAddress("s", "blocked", new Object[] { 2181 }));
         assertNull(pool.nextAddress("s", "blocked", null));
@@ -84,7 +95,12 @@ public class RouteScriptTest {
     @Test
     public void environmentAndMetadataAreReadOnEverySelection() {
         AddressPool pool = this.pool();
-        String xml = "<route><filter name='selected' from='addresses' item='a' " + "test='a.port == service.meta[env.key]'/><return value='selected'/></route>";
+        String xml = """
+                <route>
+                    <filter name="selected" from="addresses" item="a" test="a.port == service.meta[env.key]"/>
+                    <return value="selected"/>
+                </route>
+                """;
         pool.updateServiceRoute("s", xml);
         RouteContext input = new RouteContext("s", "query", null);
         input.getEnv().put("key", "port");
@@ -98,7 +114,14 @@ public class RouteScriptTest {
     public void slowEvaluationDoesNotHoldAddressPoolLockOrOverwriteNewSnapshot() throws Exception {
         AddressPool pool = this.pool();
         BlockingInput argument = new BlockingInput();
-        pool.updateArgsRoute("s", "<route><bind name='port' value='args[0].port'/>" + "<filter name='selected' from='addresses' item='a' test='a.port == port'/>" + "<return value='selected'/></route>");
+        String rule = """
+                <route>
+                    <bind name="port" value="args[0].port"/>
+                    <filter name="selected" from="addresses" item="a" test="a.port == port"/>
+                    <return value="selected"/>
+                </route>
+                """;
+        pool.updateArgsRoute("s", rule);
         var executor = Executors.newSingleThreadExecutor();
         try {
             var selecting = executor.submit(() -> pool.nextAddress("s", "query", new Object[] { argument }));

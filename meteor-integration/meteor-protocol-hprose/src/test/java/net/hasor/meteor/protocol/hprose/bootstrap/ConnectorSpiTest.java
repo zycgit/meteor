@@ -165,6 +165,10 @@ public class ConnectorSpiTest {
             return "custom-wire";
         }
 
+        public String defaultSerializeType() {
+            return "Java";
+        }
+
         public String transport() {
             return "custom";
         }
@@ -173,7 +177,8 @@ public class ConnectorSpiTest {
             return byte[].class;
         }
 
-        public ProtocolSession<byte[]> create(ProtocolConfig config, ProtocolContext context, NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
+        public ProtocolSession<byte[]> create(ProtocolConfig config, ProtocolContext context, //
+                NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
             throw new AssertionError("Binding must not open a protocol session");
         }
     }

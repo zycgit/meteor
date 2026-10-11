@@ -60,10 +60,14 @@ public class ExtensionLifecycleTest {
             Recording extension = context.getExtension(Recording.class);
             assertEquals(List.of("create"), extension.calls);
             assertNull(context.bindAddress("rsf"));
+
+            // 构建不监听；首次 start 完成生命周期，重复 start 不重复调用扩展。
             context.publisher().rsfService(Echo.class, value -> value).register();
             context.start();
             context.start();
             assertEquals(List.of("create", "beforeStart", "afterStart"), extension.calls);
+
+            // 运行期变化独立发出事件，不重新创建扩展。
             context.offline();
             context.online();
             context.publisher().rsfService(Echo.class).name("late").register();
@@ -74,6 +78,7 @@ public class ExtensionLifecycleTest {
                     MetContextEventType.OFFLINE,//
                     MetContextEventType.ONLINE,//
                     MetContextEventType.REGISTERED);
+            // 重复关闭只释放一次扩展，并发送一次关闭事件。
             assertEquals(expected, types);
             context.close();
             context.close();
@@ -87,7 +92,8 @@ public class ExtensionLifecycleTest {
     public void reusableConfigurationCreatesIndependentRuntimeObjects() throws Exception {
         MetConfiguration config = configuration(false);
         config.addExtension(Recording::new);
-        try (MetContext first = config.buildContext(); MetContext second = config.buildContext()) {
+        try (MetContext first = config.buildContext(); //
+             MetContext second = config.buildContext()) {
             Recording one = first.getExtension(Recording.class);
             Recording two = second.getExtension(Recording.class);
             assertNotSame(one, two);

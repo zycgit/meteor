@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.connector.protocol.rsf;
 import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.ConnectException;
 import java.net.ServerSocket;
@@ -36,7 +37,6 @@ import static org.junit.Assert.*;
 /** Real sockets with connector/protocol modules only: no framework, RPC or filter implementation. */
 public class TcpTransportTest {
     private static final ReceivedListener RECEIVER  = new Inbox();
-    private final        MetContext       context   = runtimeContext();
     private volatile     boolean          timersStopped;
     private final        List<Endpoint>   endpoints = new ArrayList<>();
 
@@ -74,7 +74,7 @@ public class TcpTransportTest {
     }
 
     private Endpoint bind(Endpoint endpoint) throws Exception {
-        endpoint.bind(endpoint.config.address()).get(2, TimeUnit.SECONDS);
+        endpoint.bind().get(2, TimeUnit.SECONDS);
         return endpoint;
     }
 
@@ -100,13 +100,14 @@ public class TcpTransportTest {
     @Test(timeout = 10000)
     public void shutdownGatesListenersThenWritesAndDoesNotWaitForRpcReply() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
-        Endpoint server = endpoint(config("rsf", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 requests.add(new ReceivedRequest(channel, id));
             }
-        });
+        };
+        Endpoint server = endpoint(config("rsf", port()), serverReceiver);
         ConnectorManager manager = server.manager;
-        server.bind(server.config.address()).get(2, TimeUnit.SECONDS);
+        server.bind().get(2, TimeUnit.SECONDS);
         Inbox inbox = new Inbox();
         Endpoint client = endpoint(config("rsf", port()), inbox);
         MetChannel outgoing = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
@@ -150,11 +151,12 @@ public class TcpTransportTest {
     public void unifiedPayloadSendRejectsLocalFailuresWithoutDisruptingRoundTrip() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
         Inbox inbox = new Inbox();
-        Endpoint server = bind(endpoint(config("rsf", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 requests.add(new ReceivedRequest(channel, id));
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("rsf", port()), serverReceiver));
         Endpoint client = endpoint(config("rsf", port()), inbox);
         MetChannel outgoing = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         assertNotNull(outgoing.getLocal());
@@ -202,7 +204,7 @@ public class TcpTransportTest {
         Endpoint endpoint = endpoint(config("rsf", port()), RECEIVER);
         MetListen first = endpoint.manager.bind(endpoint.config.name()).get(2, TimeUnit.SECONDS);
         assertEquals(endpoint.config.address(), first.getBindAddress());
-        assertSame(first, endpoint.manager.bind(endpoint.config.name()).get());
+        assertSame(first, endpoint.manager.bind(endpoint.config.name()).get(2, TimeUnit.SECONDS));
         assertEquals(1, endpoint.manager.find(endpoint.config.name()).getListenList().size());
         first.close();
         MetListen rebound = endpoint.manager.bind(endpoint.config.name()).get(2, TimeUnit.SECONDS);
@@ -224,13 +226,13 @@ public class TcpTransportTest {
         Endpoint connector = endpoint(config("rsf", port()), RECEIVER);
         assertNull(connector.connector);
         assertNull(connector.manager.find(connector.config.name()));
-        connector.bind(connector.config.address()).get();
+        connector.bind().get(2, TimeUnit.SECONDS);
         MetListen listen = connector.connector.getListenList().get(0);
         assertEquals("tcp", listen.getType());
         assertTrue(listen.isActive());
         assertEquals(connector.config.address(), listen.getBindAddress());
         assertEquals(listen.getBindAddress(), connector.connector.getBindAddress());
-        connector.bind(connector.config.address()).get();
+        connector.bind().get(2, TimeUnit.SECONDS);
         assertEquals(1, connector.connector.getListenList().size());
         assertSame(listen, connector.connector.getListenList().get(0));
         listen.close();
@@ -244,12 +246,13 @@ public class TcpTransportTest {
     public void tcpConcurrentRepliesKeepRequestIdentity() throws Exception {
         Inbox received = new Inbox();
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
-        Endpoint server = bind(endpoint(config("rsf", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
                 requests.add(exchange);
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("rsf", port()), serverReceiver));
         // The local endpoint address is already occupied by the server: outgoing use must not bind it.
         Endpoint client = endpoint(config("rsf", server.connector.getBindAddress().getPort()), received);
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
@@ -263,6 +266,8 @@ public class TcpTransportTest {
             assertNotNull(exchange);
             exchanges.add(exchange);
         }
+
+        // 逆序回复，验证客户端按请求 ID 匹配而非按收到的顺序匹配。
         Collections.reverse(exchanges);
         for (ReceivedRequest exchange : exchanges) {
             exchange.channel.sendData(response(exchange, "value-" + exchange.id)).get(2, TimeUnit.SECONDS);
@@ -277,12 +282,13 @@ public class TcpTransportTest {
         Inbox received = new Inbox();
         CountDownLatch arrived = new CountDownLatch(1);
         ConnectorConfig endpoint = config("rsf", port());
-        Endpoint server = bind(endpoint(endpoint, new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
                 arrived.countDown();
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(endpoint, serverReceiver));
         Endpoint client = bind(endpoint(config("rsf", port()), received));
         MetChannel first = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         received.expect(1);
@@ -299,19 +305,23 @@ public class TcpTransportTest {
             fail();
         } catch (ExecutionException expected) {
         }
-        assertSame(first, written.get()); // A later response failure does not change a successful send.
+        assertSame(first, written.get(2, TimeUnit.SECONDS)); // A later response failure does not change a successful send.
         try {
             first.sendData(request(3, "closed")).get(2, TimeUnit.SECONDS);
             fail("Closed session send must fail through its future");
         } catch (ExecutionException expected) {
-            assertTrue(expected.getCause() instanceof IOException || expected.getCause() instanceof IllegalStateException);
+            Throwable cause = expected.getCause();
+            boolean disconnected = cause instanceof IOException;
+            boolean closed = cause instanceof IllegalStateException;
+            assertTrue(disconnected || closed);
         }
-        Endpoint replacement = bind(endpoint(endpoint, new Inbox() {
+        Inbox replacementReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
                 exchange.channel.sendData(response(exchange, "reconnected"));
             }
-        }));
+        };
+        Endpoint replacement = bind(endpoint(endpoint, replacementReceiver));
         MetChannel second = connect(client, replacement.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         assertNotSame(first, second);
         received.expect(2);
@@ -336,9 +346,11 @@ public class TcpTransportTest {
             InterAddress localAddress = config("rsf", port()).address();
             String protocolName = options.getOrDefault("protocol", "rsf");
             ProtocolConfig mount = new ProtocolConfig("rsf", "rsf", protocolName, options);
-            ConnectorConfig shortHandshake = new ConnectorConfig("rsf", localAddress, options, Collections.singletonList(mount), true);
+            List<ProtocolConfig> shortHandshakeMounts = Collections.singletonList(mount);
+            ConnectorConfig shortHandshake = new ConnectorConfig("rsf", localAddress, options, shortHandshakeMounts, true);
             Endpoint client = bind(endpoint(shortHandshake, new Inbox()));
-            Future<MetChannel> connection = connect(client, new InterAddress("rsf://127.0.0.1:" + silentPeer.getLocalPort() + "/default"));
+            InterAddress target = new InterAddress("rsf", "127.0.0.1", silentPeer.getLocalPort(), "default");
+            Future<MetChannel> connection = connect(client, target);
             try (Socket accepted = silentPeer.accept()) {
                 assertFalse(connection.isDone());
                 try {
@@ -356,7 +368,8 @@ public class TcpTransportTest {
         try (ServerSocket peer = new ServerSocket(0)) {
             peer.setSoTimeout(2000);
             Endpoint client = endpoint(config("rsf", 1), new Inbox());
-            Future<MetChannel> connecting = connect(client, new InterAddress("rsf", "127.0.0.1", peer.getLocalPort(), "default"));
+            InterAddress target = new InterAddress("rsf", "127.0.0.1", peer.getLocalPort(), "default");
+            Future<MetChannel> connecting = connect(client, target);
             try (Socket accepted = peer.accept()) {
                 accepted.setSoTimeout(2000);
                 assertTrue(accepted.getInputStream().read() >= 0);
@@ -374,11 +387,12 @@ public class TcpTransportTest {
     @Test
     public void requestExchangeDoesNotScheduleConnectorTimers() throws Exception {
         Inbox received = new Inbox();
-        Endpoint server = bind(endpoint(config("rsf", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 channel.sendData(response(new ReceivedRequest(channel, id), "reply"));
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("rsf", port()), serverReceiver));
         Endpoint client = bind(endpoint(config("rsf", port()), received));
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         this.timersStopped = true;
@@ -395,12 +409,16 @@ public class TcpTransportTest {
         Inbox incoming = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest exchange = new ReceivedRequest(channel, id);
-                exchange.channel.sendData(response(exchange, (String) request.getParameterValues().get(0)));
+                String value = (String) request.getParameterValues().get(0);
+                exchange.channel.sendData(response(exchange, value));
             }
         };
-        Endpoint server = endpoint(config("rsf", port()), incoming);
-        MetListen firstListen = server.bind(server.config.address()).get(2, TimeUnit.SECONDS);
-        MetListen secondListen = server.bind(config("rsf", port()).address()).get(2, TimeUnit.SECONDS);
+        // 同一接收者接入两个真实监听端点，分别验证连接和响应。
+        Endpoint firstServer = endpoint(config("rsf", port()), incoming);
+        MetListen firstListen = firstServer.bind().get(2, TimeUnit.SECONDS);
+        Endpoint secondServer = endpoint(config("rsf", port()), incoming);
+        MetListen secondListen = secondServer.bind().get(2, TimeUnit.SECONDS);
+        assertNotEquals(firstListen.getBindAddress(), secondListen.getBindAddress());
         Inbox received = new Inbox();
         Endpoint client = endpoint(config("rsf", port()), received);
         MetChannel first = connect(client, firstListen.getBindAddress()).get(2, TimeUnit.SECONDS);
@@ -417,13 +435,15 @@ public class TcpTransportTest {
     @Test
     public void sourceChannelsSeparateIdenticalIdsFromDifferentClients() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
-        Endpoint server = bind(endpoint(config("rsf", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 assertEquals(request.getRequestID(), id);
                 requests.add(new ReceivedRequest(channel, id));
             }
-        }));
-        Inbox firstInbox = new Inbox(), secondInbox = new Inbox();
+        };
+        Endpoint server = bind(endpoint(config("rsf", port()), serverReceiver));
+        Inbox firstInbox = new Inbox();
+        Inbox secondInbox = new Inbox();
         Endpoint firstClient = endpoint(config("rsf", port()), firstInbox);
         Endpoint secondClient = endpoint(config("rsf", port()), secondInbox);
         MetChannel firstClientChannel = connect(firstClient, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
@@ -489,13 +509,14 @@ public class TcpTransportTest {
     public void intermediateReplyAndConcurrentFinalRepliesKeepOnlyOneFinalResponse() throws Exception {
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
         Inbox received = new Inbox();
-        Endpoint server = bind(endpoint(config("rsf", port()), new Inbox() {
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest received = new ReceivedRequest(channel, id);
                 received.payload = request;
                 requests.add(received);
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config("rsf", port()), serverReceiver));
         Endpoint client = endpoint(config("rsf", port()), received);
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         session.sendData(request(7, "call")).get(2, TimeUnit.SECONDS);
@@ -545,14 +566,16 @@ public class TcpTransportTest {
         InterAddress localAddress = config("rsf", port()).address();
         String protocolName = options.getOrDefault("protocol", "rsf");
         ProtocolConfig mount = new ProtocolConfig("server", "rsf", protocolName, options);
-        ConnectorConfig serverConfig = new ConnectorConfig("server", localAddress, options, Collections.singletonList(mount), true);
-        Endpoint server = bind(endpoint(serverConfig, new Inbox() {
+        List<ProtocolConfig> serverConfigMounts = Collections.singletonList(mount);
+        ConnectorConfig serverConfig = new ConnectorConfig("server", localAddress, options, serverConfigMounts, true);
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest received = new ReceivedRequest(channel, id);
                 received.payload = request;
                 requests.add(received);
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(serverConfig, serverReceiver));
         Endpoint client = endpoint(config("rsf", port()), received);
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         RequestPayload message = request(1, "message");
@@ -591,14 +614,16 @@ public class TcpTransportTest {
         InterAddress localAddress = config("rsf", port()).address();
         String protocolName = options.getOrDefault("protocol", "rsf");
         ProtocolConfig mount = new ProtocolConfig("server", "rsf", protocolName, options);
-        ConnectorConfig config = new ConnectorConfig("server", localAddress, options, Collections.singletonList(mount), true);
-        Endpoint server = bind(endpoint(config, new Inbox() {
+        List<ProtocolConfig> configMounts = Collections.singletonList(mount);
+        ConnectorConfig config = new ConnectorConfig("server", localAddress, options, configMounts, true);
+        Inbox serverReceiver = new Inbox() {
             public void onRequest(MetChannel channel, long id, RequestPayload request) {
                 ReceivedRequest received = new ReceivedRequest(channel, id);
                 received.payload = request;
                 requests.add(received);
             }
-        }));
+        };
+        Endpoint server = bind(endpoint(config, serverReceiver));
         Endpoint client = endpoint(config("rsf", port()), received);
         MetChannel session = connect(client, server.connector.getBindAddress()).get(2, TimeUnit.SECONDS);
         RequestPayload firstRequest = request(1, "expire");
@@ -609,6 +634,8 @@ public class TcpTransportTest {
         first.payload.complete(new TimeoutException("RPC timed out"));
         firstRequest.complete(new TimeoutException("RPC timed out"));
         assertReplyRejected(first.channel, response(first, "late"));
+
+        // 回收超时请求的容量，再验证旧回调不会影响复用的请求 ID。
         RequestPayload nextRequest = request(2, "next");
         nextRequest.setClientTimeout(31337);
         session.sendData(nextRequest).get(2, TimeUnit.SECONDS);
@@ -643,7 +670,6 @@ public class TcpTransportTest {
         }
 
         public void onRequest(MetChannel channel, long id, RequestPayload request) {
-            ReceivedRequest exchange = new ReceivedRequest(channel, id);
             throw new AssertionError("Unexpected request");
         }
 
@@ -661,7 +687,7 @@ public class TcpTransportTest {
 
     private static MetContext runtimeContext(ConnectorConfig... configs) {
         ClassLoader loader = TcpTransportTest.class.getClassLoader();
-        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
+        InvocationHandler settingsHandler = (proxy, method, args) -> {
             if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                 return Arrays.asList(configs);
             }
@@ -669,8 +695,9 @@ public class TcpTransportTest {
                 return 3000;
             }
             throw new UnsupportedOperationException(method.getName());
-        });
-        return (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
+        };
+        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, settingsHandler);
+        InvocationHandler contextHandler = (proxy, method, args) -> {
             switch (method.getName()) {
                 case "getClassLoader":
                     return loader;
@@ -681,7 +708,8 @@ public class TcpTransportTest {
                 default:
                     throw new UnsupportedOperationException(method.getName());
             }
-        });
+        };
+        return (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, contextHandler);
     }
 
     private static void subscribe(ConnectorManager manager, ReceivedListener receiver) {
@@ -725,7 +753,7 @@ public class TcpTransportTest {
             subscribe(this.manager, listener);
         }
 
-        private Future<MetListen> bind(InterAddress address) {
+        private Future<MetListen> bind() {
             Future<MetListen> result = this.manager.bind(this.config.name());
             this.connector = this.manager.find(this.config.name());
             return result;

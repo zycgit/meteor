@@ -25,7 +25,8 @@ public class ConnectorConnectionsTest {
     @Test
     public void connectorOwnsIncomingAndOutgoingChannels() throws Exception {
         try (EndpointFixture fixture = new EndpointFixture("tcp")) {
-            EndpointFixture.Channel outgoing = (EndpointFixture.Channel) fixture.manager.connect(EndpointFixture.address("tcp")).get();
+            Future<MetChannel> connecting = fixture.manager.connect(EndpointFixture.address("tcp"));
+            EndpointFixture.Channel outgoing = (EndpointFixture.Channel) connecting.get(5, TimeUnit.SECONDS);
             EndpointFixture.Endpoint owner = fixture.endpoints.get("tcp");
             EndpointFixture.Channel incoming = owner.channel();
             assertNotEquals(outgoing.getChannelId(), incoming.getChannelId());
@@ -39,29 +40,34 @@ public class ConnectorConnectionsTest {
     @Test
     public void closingListenerLeavesChannelsUsable() throws Exception {
         try (EndpointFixture fixture = new EndpointFixture("tcp")) {
-            fixture.manager.bind("tcp").get();
-            MetChannel channel = fixture.manager.connect(EndpointFixture.address("tcp")).get();
+            fixture.manager.bind("tcp").get(5, TimeUnit.SECONDS);
+            MetChannel channel = fixture.manager.connect(EndpointFixture.address("tcp")).get(5, TimeUnit.SECONDS);
             EndpointFixture.Endpoint owner = fixture.endpoints.get("tcp");
             owner.closeBind();
             assertTrue(channel.isActive());
             assertFalse(owner.listen.isActive());
             assertNotNull(failure(fixture.manager.bind("tcp")));
-            assertTrue(fixture.manager.connect(EndpointFixture.address("tcp")).get().isActive());
+            assertTrue(fixture.manager.connect(EndpointFixture.address("tcp")).get(5, TimeUnit.SECONDS).isActive());
         }
     }
 
     @Test
     public void connectorCloseWaitsForSubmittedWrites() throws Exception {
         try (EndpointFixture fixture = new EndpointFixture("tcp")) {
-            EndpointFixture.Channel channel = (EndpointFixture.Channel) fixture.manager.connect(EndpointFixture.address("tcp")).get();
+            Future<MetChannel> connecting = fixture.manager.connect(EndpointFixture.address("tcp"));
+            EndpointFixture.Channel channel = (EndpointFixture.Channel) connecting.get(5, TimeUnit.SECONDS);
             channel.pending = true;
             Thread close = new Thread(fixture.manager::close);
             close.start();
-            assertTrue(channel.drainStarted.await(2, TimeUnit.SECONDS));
-            assertFalse(fixture.endpoints.get("tcp").destroyed);
-            assertNotNull(channel.sendData(null).getCause());
-            channel.finish();
-            close.join(2000);
+            try {
+                assertTrue(channel.drainStarted.await(2, TimeUnit.SECONDS));
+                assertFalse(fixture.endpoints.get("tcp").destroyed);
+                assertNotNull(channel.sendData(null).getCause());
+            } finally {
+                // 即使断言失败也放行关闭线程，避免测试结束后遗留阻塞任务。
+                channel.finish();
+                close.join(2000);
+            }
             assertFalse(close.isAlive());
             assertTrue(fixture.endpoints.get("tcp").destroyed);
         }
@@ -70,7 +76,8 @@ public class ConnectorConnectionsTest {
     @Test
     public void drainFailureHardClosesTheChannelAndStillClosesItsPeers() throws Exception {
         try (EndpointFixture fixture = new EndpointFixture("tcp")) {
-            EndpointFixture.Channel healthy = (EndpointFixture.Channel) fixture.manager.connect(EndpointFixture.address("tcp")).get();
+            Future<MetChannel> connecting = fixture.manager.connect(EndpointFixture.address("tcp"));
+            EndpointFixture.Channel healthy = (EndpointFixture.Channel) connecting.get(5, TimeUnit.SECONDS);
             EndpointFixture.Endpoint owner = fixture.endpoints.get("tcp");
             EndpointFixture.Channel broken = new EndpointFixture.Channel(owner, fixture.manager.nextConnectionId()) {
                 @Override

@@ -50,7 +50,7 @@ public class ZookeeperRegistryIntegrationTest {
 
                 // 应用下线通过存储订阅撤下地址，无需手动 pull。
                 server.offline();
-                long deadline = System.nanoTime() + 10_000_000_000L;
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
                 while (!client.getUpdater().queryAvailableAddresses(id).isEmpty() && System.nanoTime() < deadline) {
                     Thread.sleep(20);
                 }
@@ -58,11 +58,12 @@ public class ZookeeperRegistryIntegrationTest {
 
                 // 应用重新上线后恢复地址与真实远程调用。
                 server.online();
-                deadline = System.nanoTime() + 10_000_000_000L;
+                deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
                 while (client.getUpdater().queryAvailableAddresses(id).isEmpty() && System.nanoTime() < deadline) {
                     Thread.sleep(20);
                 }
-                assertFalse("Provider did not return online", client.getUpdater().queryAvailableAddresses(id).isEmpty());
+                var restoredAddresses = client.getUpdater().queryAvailableAddresses(id);
+                assertFalse("Provider did not return online", restoredAddresses.isEmpty());
                 assertEquals("zk:back", client.getRsfClient().wrapper(Echo.class).echo("back"));
             }
         }

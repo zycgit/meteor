@@ -149,9 +149,10 @@ public class CacheAddressPoolTest {
     @Test
     public void diskCacheRestoresBeforeStartReturnsAndOwnsItsMaintenance() throws Exception {
         InterAddress address = new InterAddress("rsf://127.0.0.1:2111/default");
-        CacheAddressPool seed = this.pool();
-        seed.appendAddress("service", address);
-        try (DiskCache cache = new DiskCache(seed, this.temporary.getRoot(), 60000, 3600000)) {
+        // 先生成磁盘快照，再用独立地址池验证启动恢复。
+        try (CacheAddressPool seed = this.pool(); //
+             DiskCache cache = new DiskCache(seed, this.temporary.getRoot(), 60000, 3600000)) {
+            seed.appendAddress("service", address);
             cache.storeConfig();
         }
         this.diskCache = true;
@@ -179,7 +180,12 @@ public class CacheAddressPoolTest {
             InterAddress first = new InterAddress("rsf://127.0.0.1:2111/default");
             InterAddress second = new InterAddress("rsf://127.0.0.1:2112/default");
             pool.appendAddress("service", Arrays.asList(first, second));
-            String argsScript = "<route><filter name='selected' from='addresses' item='a' " + "test='a.port == args[0]'/><return value='selected'/></route>";
+            String argsScript = """
+                    <route>
+                        <filter name="selected" from="addresses" item="a" test="a.port == args[0]"/>
+                        <return value="selected"/>
+                    </route>
+                    """;
             assertTrue(pool.updateArgsRoute("service", argsScript));
             assertEquals(second, pool.getProvider().get(new RouteContext("service", "echo", new Object[] { 2112 })));
         }
@@ -228,19 +234,4 @@ public class CacheAddressPoolTest {
         }
     }
 
-    private interface ThrowingAction {
-        void run() throws Throwable;
-    }
-
-    private static <T extends Throwable> T assertThrows(Class<T> type, ThrowingAction action) {
-        try {
-            action.run();
-        } catch (Throwable failure) {
-            if (!type.isInstance(failure)) {
-                throw new AssertionError("Expected " + type.getName(), failure);
-            }
-            return type.cast(failure);
-        }
-        throw new AssertionError("Expected " + type.getName());
-    }
 }

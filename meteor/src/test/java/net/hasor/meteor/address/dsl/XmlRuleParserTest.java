@@ -90,13 +90,22 @@ public class XmlRuleParserTest {
             RouteRule invalid = new XmlRuleParser().parse("<route><return value=\"" + value + "\"/></route>");
             assertThrows(IllegalArgumentException.class, () -> invalid.evaluate(input, addresses));
         }
-        RouteRule missing = new XmlRuleParser().parse("<route><if test='false'><return value='addresses'/></if></route>");
+        String noReturn = "<route><if test='false'><return value='addresses'/></if></route>";
+        RouteRule missing = new XmlRuleParser().parse(noReturn);
         assertThrows(IllegalArgumentException.class, () -> missing.evaluate(input, addresses));
     }
 
     @Test
     public void invalidStructureAndExpressionsFailDuringUpdate() {
-        List<String> invalid = List.of("<route/>", "<route><unknown/></route>", "<route><return value='('/></route>", "<route><bind name='env' value='1'/><return value='addresses'/></route>", "<route><return values='addresses'/></route>", "<route><return value='addresses'><bind name='x' value='1'/></return></route>", "<route>text<return value='addresses'/></route>", "<!DOCTYPE route [<!ENTITY x SYSTEM 'file:///etc/hostname'>]><route>&x;</route>");
+        List<String> invalid = new ArrayList<>();
+        invalid.add("<route/>");
+        invalid.add("<route><unknown/></route>");
+        invalid.add("<route><return value='('/></route>");
+        invalid.add("<route><bind name='env' value='1'/><return value='addresses'/></route>");
+        invalid.add("<route><return values='addresses'/></route>");
+        invalid.add("<route><return value='addresses'><bind name='x' value='1'/></return></route>");
+        invalid.add("<route>text<return value='addresses'/></route>");
+        invalid.add("<!DOCTYPE route [<!ENTITY x SYSTEM 'file:///etc/hostname'>]><route>&x;</route>");
         for (String xml : invalid) {
             assertThrows(xml, IllegalArgumentException.class, () -> new XmlRuleParser().parse(xml));
         }
@@ -104,7 +113,13 @@ public class XmlRuleParserTest {
 
     @Test
     public void expressionsCannotWriteInputsConstructObjectsOrInvokeStaticCode() {
-        for (String expression : List.of("args[0] = 2", "new java.util.ArrayList()", "@java.lang.System@getProperty('user.home')", "#root", "(1, 2)")) {
+        List<String> forbidden = new ArrayList<>();
+        forbidden.add("args[0] = 2");
+        forbidden.add("new java.util.ArrayList()");
+        forbidden.add("@java.lang.System@getProperty('user.home')");
+        forbidden.add("#root");
+        forbidden.add("(1, 2)");
+        for (String expression : forbidden) {
             String xml = "<route><return value=\"" + expression + "\"/></route>";
             assertThrows(IllegalArgumentException.class, () -> new XmlRuleParser().parse(xml));
         }
@@ -120,7 +135,10 @@ public class XmlRuleParserTest {
     @Test
     public void conditionsAndFilterSourcesHaveExplicitTypes() {
         RouteContext input = new RouteContext("s", "query", null);
-        List<String> invalid = List.of("<if test='1'><return value='addresses'/></if>", "<filter name='x' from='1' item='a' test='true'/>", "<filter name='x' from='addresses' item='a' test='1'/>");
+        List<String> invalid = new ArrayList<>();
+        invalid.add("<if test='1'><return value='addresses'/></if>");
+        invalid.add("<filter name='x' from='1' item='a' test='true'/>");
+        invalid.add("<filter name='x' from='addresses' item='a' test='1'/>");
         for (String step : invalid) {
             RouteRule rule = new XmlRuleParser().parse("<route>" + step + "<return value='addresses'/></route>");
             assertThrows(IllegalArgumentException.class, () -> rule.evaluate(input, List.of(this.east)));

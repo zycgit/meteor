@@ -116,7 +116,7 @@ public class SerializeFactoryTest {
             @Override
             public Enumeration<URL> getResources(String name) throws IOException {
                 if (StringUtils.equals(name, "META-INF/services/" + SerializeCoder.class.getName())) {
-                    return Collections.enumeration(Collections.<URL>emptyList());
+                    return Collections.enumeration(Collections.emptyList());
                 }
                 return super.getResources(name);
             }
@@ -188,7 +188,12 @@ public class SerializeFactoryTest {
 
     @Test
     public void invalidSpiProvidersRetainServiceLoaderFailure() throws Exception {
-        for (String className : new String[] { "missing.Coder", SerializeFactoryTest.class.getName(), NoDefaultConstructor.class.getName(), BrokenConstructor.class.getName() }) {
+        String[] providers = { "missing.Coder", // 实现类不存在
+                SerializeFactoryTest.class.getName(), // 未实现序列化接口
+                NoDefaultConstructor.class.getName(), // 缺少 SPI 构造方法
+                BrokenConstructor.class.getName() // 构造过程失败
+        };
+        for (String className : providers) {
             try (URLClassLoader loader = this.spiLoader(className)) {
                 try {
                     SerializeFactory.createFactory(loader);

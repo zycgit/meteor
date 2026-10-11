@@ -68,7 +68,8 @@ public class HproseRequestTest {
             request.addParameter(String.class.getName(), "echo_echo");
 
             // 方法名与参数内容相同也不能让参数引用已经重置的方法名表。
-            ByteArrayInputStream input = new ByteArrayInputStream(HproseUtils.encodeRequest(context, request));
+            byte[] encoded = HproseUtils.encodeRequest(context, request);
+            ByteArrayInputStream input = new ByteArrayInputStream(encoded);
             assertEquals('C', input.read());
             RequestPayload decoded = HproseUtils.doCall(context, input, "/rpc", "origin");
             assertEquals("echo_echo", decoded.getParameterValues().get(0));
@@ -82,6 +83,7 @@ public class HproseRequestTest {
         MetConfiguration configuration = new MetConfiguration();
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class).register();
+
             // 分别覆盖无方法名、批量调用、引用回传和结束符后的多余数据。
             List<String> invalid = new ArrayList<>();
             invalid.add("s4\"echo\"z");
@@ -90,7 +92,7 @@ public class HproseRequestTest {
             invalid.add("s9\"echo_echo\"a1{n}zx");
             for (String frame : invalid) {
                 ByteArrayInputStream input = new ByteArrayInputStream(frame.getBytes(StandardCharsets.UTF_8));
-                MetException failure = assertThrows(MetException.class, () -> HproseUtils.doCall(context, input, "/rpc", null));
+                var failure = assertThrows(MetException.class, () -> HproseUtils.doCall(context, input, "/rpc", null));
                 assertEquals(ProtocolStatus.ProtocolError, failure.getStatus());
             }
 

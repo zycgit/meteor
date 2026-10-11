@@ -29,6 +29,92 @@ public class JdbcStorageTest {
     public TemporaryFolder directory = new TemporaryFolder();
 
     @Test
+    public void slowWriteAllowsReadsButCloseWaitsForSessionCleanup() throws Exception {
+        // 在首次写入前阻塞驱动，观察查询与关闭是否受在途写入影响。
+        CountDownLatch writing = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService workers = Executors.newFixedThreadPool(3);
+        String url = createDatabase();
+        try (JdbcDriverProbe probe = new JdbcDriverProbe(url); //
+             StorageAccess store = configuration(probe.url()).openStorage(); //
+             StorageAccess observer = configuration(url).openStorage()) {
+            EntityRef durable = new EntityRef(EntityType.SERVICE, "existing");
+            store.saveEntity(new EntityRecord(durable));
+            probe.beforeExecute(sql -> {
+                if (sql.startsWith("INSERT INTO meteor_records")) {
+                    writing.countDown();
+                    assertTrue(release.await(10, TimeUnit.SECONDS));
+                }
+            });
+            EntityRef temporary = new EntityRef(EntityType.INSTANCE, "pending");
+            EntityRecord input = new EntityRecord(temporary);
+            input.setLifecycle(RecordLifecycle.EPHEMERAL);
+            Future<EntityRecord> pending = workers.submit(() -> store.saveEntity(input));
+            Future<?> closing;
+            try {
+                assertTrue(writing.await(5, TimeUnit.SECONDS));
+
+                // 同一存储会话的慢写入不阻塞独立查询。
+                EntityRecord found = workers.submit(() -> store.getEntity(durable)).get(5, TimeUnit.SECONDS);
+                assertEquals(durable, found.getRef());
+
+                // 关闭必须等在途写入结束，才能完整清理本会话的临时数据。
+                CountDownLatch closeStarted = new CountDownLatch(1);
+                closing = workers.submit(() -> {
+                    closeStarted.countDown();
+                    store.close();
+                    return null;
+                });
+                assertTrue(closeStarted.await(5, TimeUnit.SECONDS));
+                assertThrows(TimeoutException.class, () -> closing.get(150, TimeUnit.MILLISECONDS));
+            } finally {
+                release.countDown();
+            }
+            pending.get(5, TimeUnit.SECONDS);
+            closing.get(5, TimeUnit.SECONDS);
+            assertNull(observer.getEntity(temporary));
+            assertNotNull(observer.getEntity(durable));
+            assertThrows(IllegalStateException.class, () -> store.getEntity(durable));
+        } finally {
+            release.countDown();
+            workers.shutdownNow();
+        }
+    }
+
+    @Test
+    public void sameSessionStillUsesCasForConcurrentCreates() throws Exception {
+        try (JdbcDriverProbe probe = new JdbcDriverProbe(createDatabase()); //
+             StorageAccess store = configuration(probe.url()).openStorage()) {
+            // 同一会话内的两个请求都读到不存在，再由数据库唯一键裁决。
+            CyclicBarrier inserting = new CyclicBarrier(2);
+            probe.beforeExecute(sql -> {
+                if (sql.startsWith("INSERT INTO meteor_records")) {
+                    inserting.await(5, TimeUnit.SECONDS);
+                }
+            });
+            ExecutorService workers = Executors.newFixedThreadPool(2);
+            try {
+                Callable<Boolean> create = () -> {
+                    try {
+                        store.saveEntity(new EntityRecord(EntityType.SERVICE, "concurrent"));
+                        return true;
+                    } catch (ConcurrentModificationException conflict) {
+                        return false;
+                    }
+                };
+                Future<Boolean> first = workers.submit(create);
+                Future<Boolean> second = workers.submit(create);
+                boolean firstCreated = first.get(10, TimeUnit.SECONDS);
+                boolean secondCreated = second.get(10, TimeUnit.SECONDS);
+                assertNotEquals(firstCreated, secondCreated);
+                assertNotNull(store.getEntity(new EntityRef(EntityType.SERVICE, "concurrent")));
+            } finally {
+                workers.shutdownNow();
+            }
+        }
+    }
+
+    @Test
     public void parentAndSectionQueriesKeepRulesAndRuntimeIsolated() throws Exception {
         // 同名服务分别放入不同实例及配置、运行区域，查询必须保持层级隔离。
         try (StorageAccess store = configuration(createDatabase()).openStorage()) {
@@ -37,27 +123,35 @@ public class JdbcStorageTest {
             EntityRef localA = new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.CONFIGURATION);
             EntityRef localB = new EntityRef(EntityType.SERVICE, "echo", b, EntitySection.CONFIGURATION);
             EntityRef runtime = new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.RUNTIME);
-            EntityRef ruleA = new EntityRef(EntityType.RULE, "FLOW_CONTROL", localA, EntitySection.CONFIGURATION);
-            EntityRef ruleB = new EntityRef(EntityType.RULE, "FLOW_CONTROL", localB, EntitySection.CONFIGURATION);
+            EntityRef ruleA = new EntityRef(EntityType.RULE, "SERVICE_ROUTE", localA, EntitySection.CONFIGURATION);
+            EntityRef ruleB = new EntityRef(EntityType.RULE, "SERVICE_ROUTE", localB, EntitySection.CONFIGURATION);
             store.saveEntity(new EntityRecord(localA));
             store.saveEntity(new EntityRecord(localB));
             store.saveEntity(new EntityRecord(runtime));
-            store.saveEntity(new EntityRecord(ruleA));
+            EntRuleConfigurationData body = new EntRuleConfigurationData();
+            body.setRule("<route><return value='addresses'/></route>");
+            EntityRecord rule = new EntityRecord(ruleA);
+            rule.setData(body);
+            store.saveEntity(rule);
+            EntRuleConfigurationData loaded = (EntRuleConfigurationData) store.getEntity(ruleA).getData();
+            assertEquals(body.getRule(), loaded.getRule());
             store.saveEntity(new EntityRecord(ruleB));
 
             // 从实例定位服务，再切换运行区域或子规则，不越过父级范围。
             EntityQuery query = new EntityQuery();
             query.setType(EntityType.SERVICE);
             query.setParent(a);
-            assertEquals(localA, store.findEntities(query).records().get(0).getRef());
-            assertEquals(1, store.findEntities(query).records().size());
+            var services = store.findEntities(query).records();
+            assertEquals(1, services.size());
+            assertEquals(localA, services.get(0).getRef());
             query.setSection(EntitySection.RUNTIME);
             assertEquals(runtime, store.findEntities(query).records().get(0).getRef());
             query.setType(EntityType.RULE);
             query.setSection(EntitySection.CONFIGURATION);
             query.setParent(localA);
-            assertEquals(1, store.findEntities(query).records().size());
-            assertEquals(ruleA, store.findEntities(query).records().get(0).getRef());
+            var rules = store.findEntities(query).records();
+            assertEquals(1, rules.size());
+            assertEquals(ruleA, rules.get(0).getRef());
             query.setParent(localB);
             assertEquals(ruleB, store.findEntities(query).records().get(0).getRef());
         }
@@ -278,7 +372,9 @@ public class JdbcStorageTest {
                 };
                 Future<Boolean> one = workers.submit(a);
                 Future<Boolean> two = workers.submit(b);
-                assertNotEquals(one.get(5, TimeUnit.SECONDS), two.get(5, TimeUnit.SECONDS));
+                boolean firstCommitted = one.get(5, TimeUnit.SECONDS);
+                boolean secondCommitted = two.get(5, TimeUnit.SECONDS);
+                assertNotEquals(firstCommitted, secondCommitted);
             } finally {
                 workers.shutdownNow();
             }
@@ -297,7 +393,10 @@ public class JdbcStorageTest {
             catalogData.setName(content);
             serviceRecord.setData(catalogData);
             EntityRecord saved = storage.saveEntity(serviceRecord);
-            assertEquals(content, ((EntServiceCatalogData) storage.getEntity(ref).getData()).getName());
+            EntServiceCatalogData loaded = (EntServiceCatalogData) storage.getEntity(ref).getData();
+            assertEquals(content, loaded.getName());
+
+            // 长标识同样参与关系索引，清空正文不影响记录身份。
             EntityRef source = new EntityRef(EntityType.INSTANCE, "实例".repeat(2000));
             storage.saveRelation(new RelationRecord(RelationType.PROVIDES, source, ref));
             RelationQuery longIdQuery = new RelationQuery();
@@ -380,7 +479,7 @@ public class JdbcStorageTest {
                     });
 
                     EntityRecord input = new EntityRecord(EntityType.SERVICE, "duplicate");
-                    ConcurrentModificationException conflict = assertThrows(ConcurrentModificationException.class, () -> storage.saveEntity(input));
+                    var conflict = assertThrows(ConcurrentModificationException.class, () -> storage.saveEntity(input));
                     assertSame(reported, conflict.getCause().getCause());
                     assertNull(storage.getEntity(input.getRef()));
                 }
@@ -422,6 +521,7 @@ public class JdbcStorageTest {
             assertTrue(expiresAt >= before + leaseMillis);
             assertTrue(expiresAt <= System.currentTimeMillis() + leaseMillis);
 
+            // 人工使租约过期，再次写入应按同一时间口径续租。
             jdbc.executeUpdate("UPDATE meteor_sessions SET expires_at=0");
             before = System.currentTimeMillis();
             storage.saveEntity(new EntityRecord(EntityType.SERVICE, "renew"));

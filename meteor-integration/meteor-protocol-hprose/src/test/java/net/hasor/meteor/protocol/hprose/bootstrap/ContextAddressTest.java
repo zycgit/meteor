@@ -41,7 +41,7 @@ public class ContextAddressTest extends BootstrapTestSupport {
     }
 
     @Test
-    public void liveRpcUsesAddressComponentScriptsAndConfiguredArgsKey() throws Exception {
+    public void liveRpcUsesXmlRoutingAndActualArguments() throws Exception {
         // 两个服务端返回不同标记，观察服务路由与参数路由的实际选择。
         MetConfiguration firstConfiguration = this.configuration();
         MetConfiguration secondConfiguration = this.configuration();
@@ -63,23 +63,37 @@ public class ContextAddressTest extends BootstrapTestSupport {
             first.start();
             second.start();
             MetConfiguration config = this.configuration();
-            config.setArgsKey(RoutingArgsKey.class);
             try (MetContext client = config.buildContext()) {
                 MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
                 String id = service.getBindID();
                 List<InterAddress> providers = List.of(first.bindAddress("rsf"), second.bindAddress("rsf"));
                 client.getUpdater().appendAddress(id, providers);
-                String selector = "addresses.find { it.endsWith(':" + second.bindAddress("rsf").getPort() + "') }";
-                String serviceRule = "def evalAddress(id, addresses) { return [" + selector + "] }";
+                int secondPort = second.bindAddress("rsf").getPort();
+                String serviceRule = """
+                        <route>
+                            <filter name="selected" from="addresses" item="a" test="a.port == %d"/>
+                            <return value="selected"/>
+                        </route>
+                        """.formatted(secondPort);
                 assertTrue(client.getUpdater().updateServiceRoute(id, serviceRule));
                 client.start();
 
                 Echo remote = client.getRsfClient().getRemote(service);
                 assertEquals("second", remote.echo("any"));
 
-                // 特定参数改走第一个实例，其他参数仍遵守服务路由。
-                selector = "addresses.find { it.endsWith(':" + first.bindAddress("rsf").getPort() + "') }";
-                String argsRule = "def evalAddress(id, addresses) { return [echo: [special: [" + selector + "]]] }";
+                // 撤下服务路由后改用参数路由：特殊参数选第一个实例，其他参数选第二个。
+                client.getUpdater().updateServiceRoute(id, null);
+                int firstPort = first.bindAddress("rsf").getPort();
+                String argsRule = """
+                        <route>
+                            <bind name="port" value="%d"/>
+                            <if test="utils.equals(args[0], 'special')">
+                                <bind name="port" value="%d"/>
+                            </if>
+                            <filter name="selected" from="addresses" item="a" test="a.port == port"/>
+                            <return value="selected"/>
+                        </route>
+                        """.formatted(secondPort, firstPort);
                 assertTrue(client.getUpdater().updateArgsRoute(id, argsRule));
                 assertEquals("first", remote.echo("special"));
                 assertEquals("second", remote.echo("other"));
@@ -120,57 +134,60 @@ public class ContextAddressTest extends BootstrapTestSupport {
 
             server.start();
             File home = this.temporary.newFolder();
+            List<InterAddress> addresses = Collections.singletonList(server.bindAddress("rsf"));
             MetConfiguration seedConfiguration = this.configuration();
             try (MetContext seed = seedConfiguration.buildContext()) {
                 MetBindInfo<Echo> seedService = seed.publisher().rsfService(Echo.class).register();
-                List<InterAddress> addresses = Collections.singletonList(server.bindAddress("rsf"));
                 seed.getUpdater().appendAddress(seedService.getBindID(), addresses);
                 try (DiskCache cache = new DiskCache((AddressPool) seed.getUpdater(), home, 60000, 3600000)) {
                     cache.storeConfig();
                 }
-                seed.close();
-                MetConfiguration config = this.configuration();
-                config.setDataHome(home.toPath());
-                config.setLocalDiskCache(true);
-                try (MetContext client = config.buildContext()) {
-                    MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
-                    client.start();
-                    List<InterAddress> restored = client.getUpdater().queryAllAddresses(service.getBindID());
-                    assertEquals(addresses, restored);
-                    assertEquals("restored", client.getRsfClient().getRemote(service).echo("restored"));
-                }
+            }
+
+            // 原上下文完全退出后，再从磁盘恢复地址并调用仍在线的服务端。
+            MetConfiguration config = this.configuration();
+            config.setDataHome(home.toPath());
+            config.setLocalDiskCache(true);
+            try (MetContext client = config.buildContext()) {
+                MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
+                client.start();
+                List<InterAddress> restored = client.getUpdater().queryAllAddresses(service.getBindID());
+                assertEquals(addresses, restored);
+                assertEquals("restored", client.getRsfClient().getRemote(service).echo("restored"));
             }
         }
     }
 
     @Test
     public void disabledDiskCacheDoesNotReadOrCreateSnapshots() throws Exception {
-        // 禁用缓存时不创建文件，也不读取已有的快照。
+        // 禁用缓存的上下文启动和关闭后，目录中不应生成快照。
         File home = this.temporary.newFolder();
         MetConfiguration config = this.configuration();
         config.setDataHome(home.toPath());
+        String serviceId;
         try (MetContext runtime = config.buildContext()) {
             MetBindInfo<Echo> service = runtime.publisher().rsfService(Echo.class).register();
-
+            serviceId = service.getBindID();
             runtime.start();
-
             runtime.close();
-            assertTrue(runtime.getUpdater().queryAllAddresses(service.getBindID()).isEmpty());
+            assertTrue(runtime.getUpdater().queryAllAddresses(serviceId).isEmpty());
             assertEquals(0, home.list().length);
+        }
 
-            CacheAddressPool seed = new CacheAddressPool(runtime.getSettings());
-            seed.appendAddress(service.getBindID(), new InterAddress("rsf://127.0.0.1:2211/default"));
-            try (DiskCache cache = new DiskCache(seed, home, 60000, 3600000)) {
-                cache.storeConfig();
-            }
-            assertTrue(new File(home, "snapshot/address.index").isFile());
-            config = this.configuration();
-            config.setDataHome(home.toPath());
-            try (MetContext restarted = config.buildContext()) {
-                restarted.publisher().rsfService(Echo.class).register();
-                restarted.start();
-                assertTrue(restarted.getUpdater().queryAllAddresses(service.getBindID()).isEmpty());
-            }
+        // 独立创建一份有效快照，随后验证禁用缓存时也不会读取它。
+        try (CacheAddressPool seed = new CacheAddressPool(config); //
+             DiskCache cache = new DiskCache(seed, home, 60000, 3600000)) {
+            seed.appendAddress(serviceId, new InterAddress("rsf://127.0.0.1:2211/default"));
+            cache.storeConfig();
+        }
+        assertTrue(new File(home, "snapshot/address.index").isFile());
+
+        MetConfiguration restartConfig = this.configuration();
+        restartConfig.setDataHome(home.toPath());
+        try (MetContext restarted = restartConfig.buildContext()) {
+            restarted.publisher().rsfService(Echo.class).register();
+            restarted.start();
+            assertTrue(restarted.getUpdater().queryAllAddresses(serviceId).isEmpty());
         }
     }
 
@@ -185,6 +202,7 @@ public class ContextAddressTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
             InterAddress address = new InterAddress("rsf://127.0.0.1:2111/default");
             client.getUpdater().appendAddress(service.getBindID(), Collections.singletonList(address));
+
             // 通过地址本公开能力缩短重试周期，随后只观察维护任务自动恢复。
             String serviceId = service.getBindID();
             CacheAddressPool pool = (CacheAddressPool) client.getUpdater();

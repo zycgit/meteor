@@ -10,6 +10,8 @@ import java.io.InputStream;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.ServiceConfigurationError;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
@@ -98,7 +100,11 @@ public class ContextIsolationTest extends BootstrapTestSupport {
     @Test
     public void invalidSpiCoderIsReportedAsAnRsfSerializationError() throws Exception {
         // 分别验证类缺失、类型不符、初始化失败及构造方法不符合 SPI 要求。
-        String[] invalidProviders = { "missing.Coder", ContextIsolationTest.class.getName(), FailingCoder.class.getName(), NoDefaultConstructorCoder.class.getName() };
+        List<String> invalidProviders = new ArrayList<>();
+        invalidProviders.add("missing.Coder");
+        invalidProviders.add(ContextIsolationTest.class.getName());
+        invalidProviders.add(FailingCoder.class.getName());
+        invalidProviders.add(NoDefaultConstructorCoder.class.getName());
         for (String coderClass : invalidProviders) {
             MetConfiguration settings = new MetConfiguration();
             try (URLClassLoader loader = this.spiLoader(coderClass)) {
@@ -123,14 +129,15 @@ public class ContextIsolationTest extends BootstrapTestSupport {
     @Test
     public void protocolAdaptersUseTheirOwnRuntimeSpiCoders() throws Exception {
         for (String tag : new String[] { "first-", "second-" }) {
-            MetConfiguration settings = new MetConfiguration().setSerializeType("Tagged");
+            MetConfiguration settings = new MetConfiguration();
             Class<? extends SerializeCoder> coderClass = TaggedCoder.class;
             if (StringUtils.equals(tag, "second-")) {
                 coderClass = SecondTaggedCoder.class;
             }
             try (URLClassLoader loader = this.spiLoader(coderClass.getName()); //
                  MetContext runtime = settings.buildContext(loader)) {
-                assertSame(loader, ((TaggedCoder) runtime.getSerializeCoder("Tagged")).initializedLoader);
+                TaggedCoder coder = (TaggedCoder) runtime.getSerializeCoder("Tagged");
+                assertSame(loader, coder.initializedLoader);
                 assertSame(runtime.getSerializeCoder("Tagged"), runtime.getSerializeCoder("tagged"));
                 assertNull(runtime.getSerializeCoder("unknown"));
 
@@ -197,6 +204,7 @@ public class ContextIsolationTest extends BootstrapTestSupport {
         try (InputStream input = this.getClass().getResourceAsStream("/" + name.replace('.', '/') + ".class")) {
             bytes = input.readAllBytes();
         }
+
         // 同名类由另一个加载器重新定义，类型缓存不能跨加载器复用。
         ClassLoader isolated = new ClassLoader(this.getClass().getClassLoader()) {
             @Override
@@ -224,8 +232,10 @@ public class ContextIsolationTest extends BootstrapTestSupport {
 
     @Test
     public void spiCodersAreDiscoveredPerContextAndUsedForRemoteCalls() throws Exception {
-        MetConfiguration serverSettings = this.configuration().setSerializeType("spi");
-        MetConfiguration clientSettings = this.configuration().setSerializeType("sPi");
+        MetConfiguration serverSettings = new MetConfiguration();
+        MetConfiguration clientSettings = new MetConfiguration();
+        serverSettings.connector("tcp").bind("127.0.0.1", 0).protocol("rsf").option("serializeType", "spi");
+        clientSettings.connector("tcp").protocol("rsf").option("serializeType", "sPi");
         try (URLClassLoader serverLoader = this.spiLoader(SpiCoder.class.getName()); //
              URLClassLoader clientLoader = this.spiLoader(SpiCoder.class.getName()); //
              MetContext server = serverSettings.buildContext(serverLoader); //
@@ -243,7 +253,7 @@ public class ContextIsolationTest extends BootstrapTestSupport {
             // 用真实网络调用确认客户端和服务端使用各自的 SPI 编解码器。
             server.publisher().rsfService(Echo.class, new EchoService()).register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
-            assertEquals("sPi", service.getSerializeType());
+            assertNull(service.getSerializeType());
 
             server.start();
             client.start();

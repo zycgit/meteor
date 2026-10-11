@@ -52,7 +52,10 @@ public class AddressConcurrencyTest {
                 assertTrue(writing.await(5, TimeUnit.SECONDS));
 
                 // 文件输出未完成，同一服务仍能更新和读取地址。
-                workers.submit(() -> bucket.newAddress(List.of(this.second), AddressTypeEnum.Dynamic)).get(5, TimeUnit.SECONDS);
+                Future<?> changing = workers.submit(() -> {
+                    bucket.newAddress(List.of(this.second), AddressTypeEnum.Dynamic);
+                });
+                changing.get(5, TimeUnit.SECONDS);
                 assertEquals(List.of(this.first, this.second), bucket.getAllAddresses());
             } finally {
                 release.countDown();

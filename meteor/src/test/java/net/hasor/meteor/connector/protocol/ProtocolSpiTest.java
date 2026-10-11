@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.connector.protocol;
 import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -53,7 +54,8 @@ public class ProtocolSpiTest {
         ClassLoader loader = this.loader(new Class<?>[] { CustomTransport.class }, new Class<?>[] { CustomProtocol.class });
         ConnectorConfig config = config("CUSTOM-PROTOCOL");
         ProtocolConfig mount = config.protocol("custom");
-        try (ConnectorManager manager = this.manager(loader, config); ServerSocket server = new ServerSocket(0)) {
+        try (ConnectorManager manager = this.manager(loader, config); //
+             ServerSocket server = new ServerSocket(0)) {
             // 准备配置不创建网络资源，后续连接和监听使用同一个配置对象。
             manager.init();
             assertEquals(0, CustomTransport.created.get());
@@ -61,7 +63,8 @@ public class ProtocolSpiTest {
             assertSame(mount, config.protocol("custom"));
             assertEquals("ready", mount.option("preparation", null));
             assertEquals("Java", mount.option("serializeType", null));
-            MetChannel channel = manager.connect(new InterAddress("custom", "127.0.0.1", server.getLocalPort(), "test")).get(3, TimeUnit.SECONDS);
+            InterAddress target = new InterAddress("custom", "127.0.0.1", server.getLocalPort(), "test");
+            MetChannel channel = manager.connect(target).get(3, TimeUnit.SECONDS);
             assertSame(mount, CustomProtocol.configurations.poll(3, TimeUnit.SECONDS));
             server.setSoTimeout(3000);
             try (Socket peer = server.accept()) {
@@ -127,7 +130,10 @@ public class ProtocolSpiTest {
         this.assertPreparationFailure(loader, config("custom-protocol"), "Unknown transport: custom");
     }
 
-    private void assertPreparationFailure(ClassLoader loader, ConnectorConfig config, String expected) throws Exception {
+    private void assertPreparationFailure( //
+            ClassLoader loader, //
+            ConnectorConfig config, //
+            String expected) throws Exception {
         try (ConnectorManager manager = this.manager(loader, config)) {
             fail("Invalid configuration must fail before creating network resources");
         } catch (IllegalArgumentException | IllegalStateException failure) {
@@ -143,17 +149,20 @@ public class ProtocolSpiTest {
         }
         InterAddress localAddress = new InterAddress("custom", "127.0.0.1", port, "test");
         ProtocolConfig mount = new ProtocolConfig("custom", protocol, Collections.emptyMap());
-        return new ConnectorConfig("test", localAddress, Map.of("listenType", "custom", "workerThread", "1"), Collections.singletonList(mount), true);
+        Map<String, String> options = Map.of("listenType", "custom", "workerThread", "1");
+        List<ProtocolConfig> mounts = Collections.singletonList(mount);
+        return new ConnectorConfig("test", localAddress, options, mounts, true);
     }
 
     private ConnectorManager manager(ClassLoader loader, ConnectorConfig config) {
-        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
+        InvocationHandler settingsHandler = (proxy, method, args) -> {
             if (StringUtils.equals(method.getName(), "getConnectorConfigs")) {
                 return Collections.singletonList(config);
             }
             throw new UnsupportedOperationException(method.getName());
-        });
-        MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
+        };
+        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, settingsHandler);
+        InvocationHandler contextHandler = (proxy, method, args) -> {
             if (StringUtils.equals(method.getName(), "getSettings")) {
                 return settings;
             }
@@ -161,7 +170,8 @@ public class ProtocolSpiTest {
                 return loader;
             }
             throw new UnsupportedOperationException(method.getName());
-        });
+        };
+        MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, contextHandler);
         EndpointConnectorFactory factory = new EndpointConnectorFactory();
         factory.listenTypes(loader);
         factory.prepare(config);
@@ -227,7 +237,11 @@ public class ProtocolSpiTest {
     public static class CustomProtocol extends SocketLifecycleTest.RawProtocol {
         private static final BlockingQueue<ProtocolConfig> configurations = new LinkedBlockingQueue<>();
 
-        public ProtocolSession<byte[]> create(ProtocolConfig config, ProtocolContext context, NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
+        public ProtocolSession<byte[]> create( //
+                ProtocolConfig config, //
+                ProtocolContext context, //
+                NetworkChannel<byte[]> connection, //
+                BiConsumer<Long, Payload> messages) {
             configurations.add(config);
             return super.create(config, context, connection, messages);
         }

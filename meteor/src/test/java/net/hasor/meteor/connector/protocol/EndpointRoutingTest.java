@@ -9,6 +9,7 @@ package net.hasor.meteor.connector.protocol;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.InputStream;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -41,7 +42,8 @@ import static org.junit.Assert.*;
 public class EndpointRoutingTest {
     @Test(timeout = 15000)
     public void httpPartitionsSharePortAndConnectionWithoutMixingReplies() throws Exception {
-        try (Runtime endpoint = new Runtime("http", HttpA.class, HttpB.class); Socket socket = endpoint.socket()) {
+        try (Runtime endpoint = new Runtime("http", HttpA.class, HttpB.class); //
+             Socket socket = endpoint.socket()) {
             sendHttp(socket, "/a", "first");
             sendHttp(socket, "/b", "second");
             Delivery a = endpoint.take();
@@ -70,7 +72,8 @@ public class EndpointRoutingTest {
 
     @Test(timeout = 10000)
     public void unknownHttpRouteReturns404AndKeepAliveRemainsUsable() throws Exception {
-        try (Runtime endpoint = new Runtime("http", HttpA.class, HttpB.class); Socket socket = endpoint.socket()) {
+        try (Runtime endpoint = new Runtime("http", HttpA.class, HttpB.class); //
+             Socket socket = endpoint.socket()) {
             sendHttp(socket, "/absent", "bad");
             assertEquals("", readHttp(socket, 404));
             sendHttp(socket, "/a?query=1", "good");
@@ -82,7 +85,8 @@ public class EndpointRoutingTest {
 
     @Test(timeout = 10000)
     public void closingSharedEndpointDrainsSubmittedResponseAcrossPartitions() throws Exception {
-        try (Runtime endpoint = new Runtime("http", HttpA.class, HttpB.class); Socket socket = endpoint.socket()) {
+        try (Runtime endpoint = new Runtime("http", HttpA.class, HttpB.class); //
+             Socket socket = endpoint.socket()) {
             sendHttp(socket, "/a", "unanswered");
             sendHttp(socket, "/b", "submitted");
             endpoint.take();
@@ -105,10 +109,12 @@ public class EndpointRoutingTest {
 
     @Test(timeout = 10000)
     public void outboundSchemesSelectProtocolWithoutBindingLocally() throws Exception {
-        try (Runtime server = new Runtime("http", HttpA.class, HttpB.class); Runtime client = new Runtime("http", HttpA.class, HttpB.class)) {
-            int port = server.manager.bind("shared").get().getBindAddress().getPort();
+        try (Runtime server = new Runtime("http", HttpA.class, HttpB.class); //
+             Runtime client = new Runtime("http", HttpA.class, HttpB.class)) {
+            int port = server.manager.bind("shared").get(3, TimeUnit.SECONDS).getBindAddress().getPort();
             for (String scheme : Arrays.asList("a", "b")) {
-                MetChannel channel = client.manager.connect(new InterAddress(scheme, "127.0.0.1", port, "test")).get();
+                InterAddress target = new InterAddress(scheme, "127.0.0.1", port, "test");
+                MetChannel channel = client.manager.connect(target).get(3, TimeUnit.SECONDS);
                 assertEquals(scheme, channel.getRemote().getSchema());
                 assertTrue(client.manager.find("shared").getListenList().isEmpty());
                 RequestPayload request = new RequestPayload();
@@ -119,14 +125,17 @@ public class EndpointRoutingTest {
                 incoming.channel.sendData(response(incoming.id, "outbound")).get(3, TimeUnit.SECONDS);
                 Delivery answer = client.take();
                 assertEquals(33, answer.id);
-                assertEquals(scheme.toUpperCase(Locale.ROOT) + ":outbound", ((ResponsePayload) answer.payload).getReturnData());
+                String expected = scheme.toUpperCase(Locale.ROOT) + ":outbound";
+                ResponsePayload response = (ResponsePayload) answer.payload;
+                assertEquals(expected, response.getReturnData());
             }
         }
     }
 
     @Test(timeout = 10000)
     public void tcpSelectsFragmentedPrefixAndKeepsSelectedProtocol() throws Exception {
-        try (Runtime endpoint = new Runtime("tcp", WireA.class, WireB.class); Socket socket = endpoint.socket()) {
+        try (Runtime endpoint = new Runtime("tcp", WireA.class, WireB.class); //
+             Socket socket = endpoint.socket()) {
             socket.getOutputStream().write('B');
             socket.getOutputStream().flush();
             assertNull(endpoint.messages.poll(100, TimeUnit.MILLISECONDS));
@@ -142,7 +151,8 @@ public class EndpointRoutingTest {
 
     @Test(timeout = 10000)
     public void tcpRejectsUnknownPrefixWithoutDeliveringRpcMessages() throws Exception {
-        try (Runtime endpoint = new Runtime("tcp", WireA.class, WireB.class); Socket socket = endpoint.socket()) {
+        try (Runtime endpoint = new Runtime("tcp", WireA.class, WireB.class); //
+             Socket socket = endpoint.socket()) {
             socket.getOutputStream().write("XX\n".getBytes(StandardCharsets.UTF_8));
             assertEquals(-1, socket.getInputStream().read());
             assertTrue(endpoint.messages.isEmpty());
@@ -151,26 +161,30 @@ public class EndpointRoutingTest {
 
     @Test(timeout = 10000)
     public void udpPartitionsCompleteDatagramsAndClosingOneViewKeepsPeerUsable() throws Exception {
-        try (Runtime endpoint = new Runtime("udp", WireA.class, WireB.class); DatagramSocket peer = new DatagramSocket()) {
-            int port = endpoint.manager.bind("shared").get().getBindAddress().getPort();
-            peer.setSoTimeout(3000);
-            sendDatagram(peer, port, "AAone\n");
-            Delivery a = endpoint.take();
-            sendDatagram(peer, port, "BBtwo\n");
-            Delivery b = endpoint.take();
-            assertNotSame(a.channel, b.channel);
-            a.channel.close().get(3, TimeUnit.SECONDS);
-            assertTrue(b.channel.isActive());
-            b.channel.sendData(response(b.id, "reply")).get(3, TimeUnit.SECONDS);
-            DatagramPacket response = new DatagramPacket(new byte[1024], 1024);
-            peer.receive(response);
-            assertEquals("BBreply\n", new String(response.getData(), 0, response.getLength(), StandardCharsets.UTF_8));
+        try (Runtime endpoint = new Runtime("udp", WireA.class, WireB.class)) {
+            int port = endpoint.manager.bind("shared").get(3, TimeUnit.SECONDS).getBindAddress().getPort();
+            // 先绑定服务端，再分配客户端端口，避免客户端抢占已选择的端口。
+            try (DatagramSocket peer = new DatagramSocket()) {
+                peer.setSoTimeout(3000);
+                sendDatagram(peer, port, "AAone\n");
+                Delivery a = endpoint.take();
+                sendDatagram(peer, port, "BBtwo\n");
+                Delivery b = endpoint.take();
+                assertNotSame(a.channel, b.channel);
+                a.channel.close().get(3, TimeUnit.SECONDS);
+                assertTrue(b.channel.isActive());
+                b.channel.sendData(response(b.id, "reply")).get(3, TimeUnit.SECONDS);
+                DatagramPacket response = new DatagramPacket(new byte[1024], 1024);
+                peer.receive(response);
+                assertEquals("BBreply\n", new String(response.getData(), 0, response.getLength(), StandardCharsets.UTF_8));
+            }
         }
     }
 
     @Test(timeout = 10000)
     public void ambiguousTcpProtocolIsRejected() throws Exception {
-        try (Runtime endpoint = new Runtime("tcp", WireA.class, WireA.class); Socket socket = endpoint.socket()) {
+        try (Runtime endpoint = new Runtime("tcp", WireA.class, WireA.class); //
+             Socket socket = endpoint.socket()) {
             socket.getOutputStream().write("AA\n".getBytes(StandardCharsets.UTF_8));
             assertEquals(-1, socket.getInputStream().read());
             assertTrue(endpoint.messages.isEmpty());
@@ -179,7 +193,8 @@ public class EndpointRoutingTest {
 
     @Test(timeout = 10000)
     public void incompleteProtocolProbeCannotBufferBeyondLimit() throws Exception {
-        try (Runtime endpoint = new Runtime("tcp", IncompleteProbe.class, IncompleteProbe.class); Socket socket = endpoint.socket()) {
+        try (Runtime endpoint = new Runtime("tcp", IncompleteProbe.class, IncompleteProbe.class); //
+             Socket socket = endpoint.socket()) {
             socket.getOutputStream().write(new byte[256]);
             assertEquals(-1, socket.getInputStream().read());
             assertTrue(endpoint.messages.isEmpty());
@@ -188,9 +203,11 @@ public class EndpointRoutingTest {
 
     @Test(timeout = 10000)
     public void outgoingTcpPreselectsTargetProtocolBeforeFirstWrite() throws Exception {
-        try (Runtime server = new Runtime("tcp", WireA.class, WireB.class); Runtime client = new Runtime("tcp", WireA.class, WireB.class)) {
-            int port = server.manager.bind("shared").get().getBindAddress().getPort();
-            MetChannel channel = client.manager.connect(new InterAddress("b", "127.0.0.1", port, "test")).get(3, TimeUnit.SECONDS);
+        try (Runtime server = new Runtime("tcp", WireA.class, WireB.class); //
+             Runtime client = new Runtime("tcp", WireA.class, WireB.class)) {
+            int port = server.manager.bind("shared").get(3, TimeUnit.SECONDS).getBindAddress().getPort();
+            InterAddress target = new InterAddress("b", "127.0.0.1", port, "test");
+            MetChannel channel = client.manager.connect(target).get(3, TimeUnit.SECONDS);
             assertTrue(client.manager.find("shared").getListenList().isEmpty());
             channel.sendData(response(1, "first write")).get(3, TimeUnit.SECONDS);
             assertEquals("b", server.take().channel.getRemote().getSchema());
@@ -218,7 +235,9 @@ public class EndpointRoutingTest {
 
     private static void sendHttp(Socket socket, String path, String value) throws Exception {
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-        socket.getOutputStream().write(("POST " + path + " HTTP/1.1\r\nHost: localhost\r\nContent-Length: " + bytes.length + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+        String requestLine = "POST " + path + " HTTP/1.1\r\n";
+        String headers = "Host: localhost\r\nContent-Length: " + bytes.length + "\r\n\r\n";
+        socket.getOutputStream().write((requestLine + headers).getBytes(StandardCharsets.US_ASCII));
         socket.getOutputStream().write(bytes);
         socket.getOutputStream().flush();
     }
@@ -265,16 +284,25 @@ public class EndpointRoutingTest {
             String secondProtocol = prefix + b.getSimpleName().toLowerCase(Locale.ROOT);
             ProtocolConfig first = new ProtocolConfig("a", firstProtocol, Collections.singletonMap("contextPath", "/a///"));
             ProtocolConfig second = new ProtocolConfig("b", secondProtocol, Collections.singletonMap("contextPath", "/b///"));
-            InterAddress address = new InterAddress(transport, "127.0.0.1", port(), "test");
-            ConnectorConfig config = new ConnectorConfig("shared", address, options, Arrays.asList(first, second), true);
+            // TCP/HTTP 绑定时分配端口；当前 UDP 需要先选取实际可用的 UDP 端口。
+            int port = 0;
+            if (StringUtils.equals(transport, "udp")) {
+                try (DatagramSocket available = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"))) {
+                    port = available.getLocalPort();
+                }
+            }
+            InterAddress address = InterAddress.forBinding(transport, "127.0.0.1", port, "test");
+            List<ProtocolConfig> configMounts = Arrays.asList(first, second);
+            ConnectorConfig config = new ConnectorConfig("shared", address, options, configMounts, true);
             ClassLoader loader = this.getClass().getClassLoader();
-            MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
+            InvocationHandler settingsHandler = (proxy, method, args) -> {
                 if (StringUtils.equals(method.getName(), "getConnectorConfigs")) {
                     return Collections.singleton(config);
                 }
                 throw new UnsupportedOperationException(method.getName());
-            });
-            MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
+            };
+            MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, settingsHandler);
+            InvocationHandler contextHandler = (proxy, method, args) -> {
                 if (StringUtils.equals(method.getName(), "getSettings")) {
                     return settings;
                 }
@@ -282,19 +310,14 @@ public class EndpointRoutingTest {
                     return loader;
                 }
                 throw new UnsupportedOperationException(method.getName());
-            });
+            };
+            MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, contextHandler);
             EndpointConnectorFactory factory = new EndpointConnectorFactory();
             factory.listenTypes(loader);
             factory.prepare(config);
             this.manager = new ConnectorManager(context, factory);
             this.manager.init();
             this.manager.subscribe((channel, id, payload) -> this.messages.add(new Delivery(channel, id, payload)));
-        }
-
-        private static int port() throws Exception {
-            try (ServerSocket socket = new ServerSocket(0)) {
-                return socket.getLocalPort();
-            }
         }
 
         Socket socket() throws Exception {
@@ -349,7 +372,11 @@ public class EndpointRoutingTest {
             return "A";
         }
 
-        public ProtocolSession<HttpExchange> create(ProtocolConfig config, ProtocolContext context, NetworkChannel<HttpExchange> connection, BiConsumer<Long, Payload> messages) {
+        public ProtocolSession<HttpExchange> create( //
+                ProtocolConfig config, //
+                ProtocolContext context, //
+                NetworkChannel<HttpExchange> connection, //
+                BiConsumer<Long, Payload> messages) {
             HttpA adapter = this instanceof HttpB ? new HttpB() : new HttpA();
             adapter.path = config.option("contextPath", "/");
             return new TestHttpSession(adapter, context, connection, messages);
@@ -358,7 +385,11 @@ public class EndpointRoutingTest {
         public TestHttpInvocation receive(HttpRequest request) {
             RequestPayload payload = new RequestPayload();
             payload.setRequestID(++this.ids);
-            return TestHttpInvocation.dispatch(payload, response -> new HttpResponse(200, Collections.emptyMap(), (this.marker() + ":" + response.getReturnData()).getBytes(StandardCharsets.UTF_8)));
+            return TestHttpInvocation.dispatch(payload, response -> {
+                String value = this.marker() + ":" + response.getReturnData();
+                byte[] body = value.getBytes(StandardCharsets.UTF_8);
+                return new HttpResponse(200, Collections.emptyMap(), body);
+            });
         }
 
         public HttpRequest encode(InterAddress target, RequestPayload request) {
@@ -410,10 +441,16 @@ public class EndpointRoutingTest {
             if (prefix.length < 2) {
                 return RouteMatch.NEED_MORE;
             }
-            return StringUtils.equals(this.marker(), new String(prefix, 0, 2, StandardCharsets.US_ASCII)) ? RouteMatch.MATCH : RouteMatch.REJECT;
+            String receivedMarker = new String(prefix, 0, 2, StandardCharsets.US_ASCII);
+            boolean matches = StringUtils.equals(this.marker(), receivedMarker);
+            return matches ? RouteMatch.MATCH : RouteMatch.REJECT;
         }
 
-        public ProtocolSession<byte[]> create(ProtocolConfig config, ProtocolContext context, NetworkChannel<byte[]> network, BiConsumer<Long, Payload> messages) {
+        public ProtocolSession<byte[]> create( //
+                ProtocolConfig config, //
+                ProtocolContext context, //
+                NetworkChannel<byte[]> network, //
+                BiConsumer<Long, Payload> messages) {
             return new WireSession(this.marker(), network, messages);
         }
     }
@@ -471,7 +508,9 @@ public class EndpointRoutingTest {
         }
 
         public Future<Void> send(Payload payload) {
-            return this.network.write((this.marker + ((ResponsePayload) payload).getReturnData() + "\n").getBytes(StandardCharsets.UTF_8));
+            ResponsePayload response = (ResponsePayload) payload;
+            String message = this.marker + response.getReturnData() + "\n";
+            return this.network.write(message.getBytes(StandardCharsets.UTF_8));
         }
 
         public void prepareDrain() {

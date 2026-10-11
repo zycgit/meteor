@@ -30,11 +30,23 @@ public class FlowControlTest {
     private final InterAddress remote = new InterAddress("127.0.0.2", 8000, "remote");
 
     public static String unit(boolean enabled, double threshold, String exclusions) {
-        return "<flowControl type='unit' enable='" + enabled + "'><threshold>" + threshold + "</threshold><exclusions>" + exclusions + "</exclusions></flowControl>";
+        return """
+                <flowControl type="unit" enable="%s">
+                    <threshold>%s</threshold>
+                    <exclusions>%s</exclusions>
+                </flowControl>
+                """.formatted(enabled, threshold, exclusions);
     }
 
     private static String speed(String action, boolean enabled, int rate, int peak, int window) {
-        return "<flowControl type='speed' enable='" + enabled + "'><action>" + action + "</action><rate>" + rate + "</rate><peak>" + peak + "</peak><timeWindow>" + window + "</timeWindow></flowControl>";
+        return """
+                <flowControl type="speed" enable="%s">
+                    <action>%s</action>
+                    <rate>%s</rate>
+                    <peak>%s</peak>
+                    <timeWindow>%s</timeWindow>
+                </flowControl>
+                """.formatted(enabled, action, rate, peak, window);
     }
 
     @Test
@@ -45,20 +57,25 @@ public class FlowControlTest {
         assertFalse(rule.isLocalUnit(0, 0));
         assertNull(rule.siftUnitAddress("local", Collections.emptyList()));
         assertNull(rule.siftUnitAddress("local", null));
-        assertEquals(Collections.singletonList(this.local), rule.siftUnitAddress("LOCAL", Arrays.asList(this.local, this.remote)));
+        List<InterAddress> candidates = Arrays.asList(this.local, this.remote);
+        List<InterAddress> selected = rule.siftUnitAddress("LOCAL", candidates);
+        assertEquals(Collections.singletonList(this.local), selected);
     }
 
     @Test
     public void unitRuleAllowsAnEmptyExclusionList() {
         UnitFlowControl rule = (UnitFlowControl) new RuleParser().ruleSettings(unit(true, 0.5, ""));
         assertNotNull("No excluded providers is a valid unit configuration", rule);
-        assertEquals(Collections.singletonList(this.local), rule.siftUnitAddress("local", Arrays.asList(this.local, this.remote)));
+        List<InterAddress> candidates = Arrays.asList(this.local, this.remote);
+        List<InterAddress> selected = rule.siftUnitAddress("local", candidates);
+        assertEquals(Collections.singletonList(this.local), selected);
     }
 
     @Test
     public void excludedProviderIsIncludedAcrossUnits() {
         UnitFlowControl rule = (UnitFlowControl) new RuleParser().ruleSettings(unit(true, 0.5, "127.0.0.2"));
-        assertEquals(Arrays.asList(this.local, this.remote), rule.siftUnitAddress("local", Arrays.asList(this.local, this.remote)));
+        List<InterAddress> candidates = Arrays.asList(this.local, this.remote);
+        assertEquals(candidates, rule.siftUnitAddress("local", candidates));
     }
 
     @Test
@@ -76,8 +93,8 @@ public class FlowControlTest {
     public void disabledUnitRuleKeepsAllProviders() {
         AddressPool pool = new AddressPool("local", 30000);
         pool.appendAddress("s", Arrays.asList(this.local, this.remote));
-        String flowScript2 = "<controlSet>" + unit(false, 0.5, "192.0.2.*") + "</controlSet>";
-        pool.updateFlowControl("s", flowScript2);
+        String disabledRule = "<controlSet>" + unit(false, 0.5, "192.0.2.*") + "</controlSet>";
+        pool.updateFlowControl("s", disabledRule);
         assertEquals(Arrays.asList(this.local, this.remote), pool.queryLocalUnitAddresses("s"));
     }
 
@@ -115,11 +132,12 @@ public class FlowControlTest {
         AddressPool pool = new AddressPool("local", 30000);
         pool.appendAddress("one", Arrays.asList(this.local, this.remote));
         pool.appendAddress("two", Arrays.asList(this.local, this.remote));
-        String flowScript3 = "<controlSet>" + unit(true, 0.5, "192.0.2.*") + "</controlSet>";
-        pool.updateFlowControl("one", flowScript3);
-        String flowScript4 = "<controlSet>" + unit(false, 0.5, "192.0.2.*") + "</controlSet>";
-        pool.updateFlowControl("two", flowScript4);
-        assertEquals("Rule state must be isolated per service", Collections.singletonList(this.local), pool.queryLocalUnitAddresses("one"));
+        String enabledRule = "<controlSet>" + unit(true, 0.5, "192.0.2.*") + "</controlSet>";
+        pool.updateFlowControl("one", enabledRule);
+        String disabledRule = "<controlSet>" + unit(false, 0.5, "192.0.2.*") + "</controlSet>";
+        pool.updateFlowControl("two", disabledRule);
+        List<InterAddress> selected = pool.queryLocalUnitAddresses("one");
+        assertEquals("Rules must be isolated per service", Collections.singletonList(this.local), selected);
     }
 
     @Test
@@ -257,7 +275,13 @@ public class FlowControlTest {
 
     @Test
     public void compoundConfigurationAppliesAllRuleTypes() {
-        String xml = "<controlSet>" + unit(true, 0.5, "192.0.2.*") + "<flowControl type='random' enable='true'></flowControl>" + speed("service", true, 1, 60, 60000) + "</controlSet>";
+        String xml = """
+                <controlSet>
+                    %s
+                    <flowControl type="random" enable="true"/>
+                    %s
+                </controlSet>
+                """.formatted(unit(true, 0.5, "192.0.2.*"), speed("service", true, 1, 60, 60000));
         AddressPool pool = new AddressPool("local", 30000);
         pool.appendAddress("s", List.of());
         assertTrue(pool.updateFlowControl("s", xml));
@@ -276,8 +300,8 @@ public class FlowControlTest {
     public void emptyControlSetRestoresDefaultRules() {
         AddressPool pool = new AddressPool("local", 30000);
         pool.appendAddress("s", Arrays.asList(this.local, this.remote));
-        String flowScript5 = "<controlSet>" + unit(true, 0.5, "") + "</controlSet>";
-        assertTrue(pool.updateFlowControl("s", flowScript5));
+        String unitRule = "<controlSet>" + unit(true, 0.5, "") + "</controlSet>";
+        assertTrue(pool.updateFlowControl("s", unitRule));
         assertEquals(Collections.singletonList(this.local), pool.queryLocalUnitAddresses("s"));
         assertTrue(pool.updateFlowControl("s", "<controlSet/>"));
         assertEquals(Arrays.asList(this.local, this.remote), pool.queryLocalUnitAddresses("s"));
@@ -290,8 +314,8 @@ public class FlowControlTest {
         pool.appendAddress("s", Arrays.asList(this.local, this.remote));
         String original = "<controlSet>" + unit(true, 0.5, "") + "</controlSet>";
         assertTrue(pool.updateFlowControl("s", original));
-        String flowScript6 = "<controlSet>" + unit(false, 0.5, "") + speed("service", true, 0, 1, 1) + "</controlSet>";
-        assertFalse(pool.updateFlowControl("s", flowScript6));
+        String invalidRules = "<controlSet>" + unit(false, 0.5, "") + speed("service", true, 0, 1, 1) + "</controlSet>";
+        assertFalse(pool.updateFlowControl("s", invalidRules));
         assertEquals(original, pool.flowControl("s"));
         assertEquals(Collections.singletonList(this.local), pool.queryLocalUnitAddresses("s"));
     }
@@ -303,8 +327,12 @@ public class FlowControlTest {
         String valid = "<controlSet>" + unit(true, 0.5, "192.0.2.*") + "</controlSet>";
         pool.updateFlowControl("s", valid);
         // An out-of-range threshold must fail without altering the previous rule.
-        String flowScript7 = "<controlSet><flowControl type='unit' enable='true'>" + "<threshold>2.0</threshold></flowControl></controlSet>";
-        pool.updateFlowControl("s", flowScript7);
+        String invalid = """
+                <controlSet>
+                    <flowControl type="unit" enable="true"><threshold>2.0</threshold></flowControl>
+                </controlSet>
+                """;
+        pool.updateFlowControl("s", invalid);
         assertEquals(Collections.singletonList(this.local), pool.queryLocalUnitAddresses("s"));
         assertEquals(valid, pool.flowControl("s"));
     }

@@ -39,7 +39,8 @@ public class MetCallerTest {
 
     @Test
     public void clientWithoutListenerCallsServerThroughConnectorSubscription() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "normal")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
             server.bind();
             MetClient remote = client.client(server.address);
             assertEquals("hello", remote.getRemote(client.service).echo("hello"));
@@ -54,9 +55,13 @@ public class MetCallerTest {
 
     @Test
     public void coreInvokesAndDispatchesWithoutClientFacadeCalls() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "normal")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
             server.bind();
-            MetRequestObject request = client.rpc.createRequest(new InstanceAddressProvider(server.address), client.service, "echo", new Class<?>[] { String.class }, new Object[] { "core" });
+            Class<?>[] parameterTypes = { String.class };
+            InstanceAddressProvider target = new InstanceAddressProvider(server.address);
+            Object[] arguments = { "core" };
+            MetRequestObject request = client.rpc.createRequest(target, client.service, "echo", parameterTypes, arguments);
             MetFuture call = client.rpc.invoke(request);
             assertEquals("core", call.getData(2, TimeUnit.SECONDS));
             assertEquals(1, client.localFilters.get());
@@ -64,7 +69,7 @@ public class MetCallerTest {
             assertNull(client.rpc.getRequest(request.getRequestID()));
 
             MemoryChannel channel = client.connector().outgoing;
-            channel.peer.sendData(request(client, 42, "reverse")).get();
+            channel.peer.sendData(request(client, 42, "reverse")).get(2, TimeUnit.SECONDS);
             assertEquals("reverse", finalResponse(channel).getReturnData());
             assertEquals(1, client.remoteFilters.get());
             assertTrue(client.connector().getListenList().isEmpty());
@@ -73,11 +78,12 @@ public class MetCallerTest {
 
     @Test
     public void clientFacadeCallbacksDelegateToTheSharedCore() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "normal")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
             server.bind();
             MetClient facade = client.client(server.address);
             BasicFuture<Object> data = new BasicFuture<>();
-            facade.callbackInvoke(client.service, "echo", new Class<?>[] { String.class }, new Object[] { "data" }, new FutureCallback<Object>() {
+            FutureCallback<Object> dataCallback = new FutureCallback<Object>() {
                 public void completed(Object result) {
                     data.completed(result);
                 }
@@ -85,11 +91,13 @@ public class MetCallerTest {
                 public void failed(Throwable failure) {
                     data.failed(failure);
                 }
-            });
+            };
+            Class<?>[] parameterTypes = { String.class };
+            facade.callbackInvoke(client.service, "echo", parameterTypes, new Object[] { "data" }, dataCallback);
             assertEquals("data", data.get(2, TimeUnit.SECONDS));
 
             BasicFuture<MetResponse> response = new BasicFuture<>();
-            facade.callbackRequest(client.service, "echo", new Class<?>[] { String.class }, new Object[] { "response" }, new FutureCallback<MetResponse>() {
+            FutureCallback<MetResponse> responseCallback = new FutureCallback<MetResponse>() {
                 public void completed(MetResponse result) {
                     response.completed(result);
                 }
@@ -97,7 +105,8 @@ public class MetCallerTest {
                 public void failed(Throwable failure) {
                     response.failed(failure);
                 }
-            });
+            };
+            facade.callbackRequest(client.service, "echo", parameterTypes, new Object[] { "response" }, responseCallback);
             MetResponse result = response.get(2, TimeUnit.SECONDS);
             assertEquals("response", result.getData());
             assertEquals(ProtocolStatus.OK, result.getStatus());
@@ -109,10 +118,11 @@ public class MetCallerTest {
 
     @Test
     public void facadeReceivesResponsesAndFailuresCompletedBeforeCallbackRegistration() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "instant")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "instant")) {
             server.bind();
             BasicFuture<Object> result = new BasicFuture<>();
-            client.client(server.address).callbackInvoke(client.service, "echo", new Class<?>[] { String.class }, new Object[] { "value" }, new FutureCallback<Object>() {
+            FutureCallback<Object> successCallback = new FutureCallback<Object>() {
                 public void completed(Object value) {
                     result.completed(value);
                 }
@@ -120,10 +130,14 @@ public class MetCallerTest {
                 public void failed(Throwable failure) {
                     result.failed(failure);
                 }
-            });
+            };
+            Class<?>[] parameterTypes = { String.class };
+            MetClient available = client.client(server.address);
+            Object[] arguments = { "value" };
+            available.callbackInvoke(client.service, "echo", parameterTypes, arguments, successCallback);
             assertEquals("reply", result.get(2, TimeUnit.SECONDS));
             BasicFuture<Throwable> error = new BasicFuture<>();
-            client.client(new InterAddress("memory://missing:1/default")).callbackRequest(client.service, "echo", new Class<?>[] { String.class }, new Object[] { "value" }, new FutureCallback<MetResponse>() {
+            FutureCallback<MetResponse> failureCallback = new FutureCallback<MetResponse>() {
                 public void completed(MetResponse value) {
                     fail("Expected connection failure");
                 }
@@ -131,7 +145,10 @@ public class MetCallerTest {
                 public void failed(Throwable failure) {
                     error.completed(failure);
                 }
-            });
+            };
+            InterAddress missingAddress = new InterAddress("memory://missing:1/default");
+            MetClient missing = client.client(missingAddress);
+            missing.callbackRequest(client.service, "echo", parameterTypes, arguments, failureCallback);
             assertTrue(error.get(2, TimeUnit.SECONDS) instanceof IOException);
             assertEquals(2, client.cancelledTimers.get());
         }
@@ -139,11 +156,12 @@ public class MetCallerTest {
 
     @Test
     public void facadeCancellationUsesCancellationCallbackOrFailureFallback() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "hold")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "hold")) {
             server.bind();
             MetClient facade = client.client(server.address);
             AtomicInteger cancelled = new AtomicInteger();
-            facade.callbackRequest(client.service, "echo", new Class<?>[] { String.class }, new Object[] { "value" }, new CancelFutureCallback<MetResponse>() {
+            CancelFutureCallback<MetResponse> cancellationCallback = new CancelFutureCallback<MetResponse>() {
                 public void completed(MetResponse response) {
                     fail("Expected cancellation");
                 }
@@ -155,14 +173,16 @@ public class MetCallerTest {
                 public void cancelled() {
                     cancelled.incrementAndGet();
                 }
-            });
+            };
+            Class<?>[] parameterTypes = { String.class };
+            facade.callbackRequest(client.service, "echo", parameterTypes, new Object[] { "value" }, cancellationCallback);
             RequestPayload first = client.connector().outgoing.sent.remove();
             MetFuture pending = client.rpc.getRequest(first.getRequestID());
             assertTrue(pending.cancel());
             assertFalse(pending.cancel());
             assertEquals(1, cancelled.get());
             BasicFuture<Throwable> failed = new BasicFuture<>();
-            facade.callbackRequest(client.service, "echo", new Class<?>[] { String.class }, new Object[] { "value" }, new FutureCallback<MetResponse>() {
+            FutureCallback<MetResponse> failureCallback = new FutureCallback<MetResponse>() {
                 public void completed(MetResponse response) {
                     fail("Expected cancellation failure");
                 }
@@ -170,7 +190,8 @@ public class MetCallerTest {
                 public void failed(Throwable failure) {
                     failed.completed(failure);
                 }
-            });
+            };
+            facade.callbackRequest(client.service, "echo", parameterTypes, new Object[] { "value" }, failureCallback);
             RequestPayload second = client.connector().outgoing.sent.remove();
             assertTrue(client.rpc.getRequest(second.getRequestID()).cancel());
             assertTrue(failed.get(2, TimeUnit.SECONDS) instanceof CancellationException);
@@ -181,10 +202,11 @@ public class MetCallerTest {
     @Test
     public void facadeCallbackExceptionsDoNotDependOnResponseTiming() throws Exception {
         for (String mode : Arrays.asList("instant", "hold")) {
-            try (Host server = new Host(10000, "normal"); Host client = new Host(10000, mode)) {
+            try (Host server = new Host(10000, "normal"); //
+                 Host client = new Host(10000, mode)) {
                 server.bind();
                 AtomicInteger callbacks = new AtomicInteger();
-                client.client(server.address).callbackRequest(client.service, "echo", new Class<?>[] { String.class }, new Object[] { "value" }, new FutureCallback<MetResponse>() {
+                FutureCallback<MetResponse> callback = new FutureCallback<MetResponse>() {
                     public void completed(MetResponse response) {
                         callbacks.incrementAndGet();
                         throw new IllegalArgumentException("callback failed");
@@ -193,7 +215,10 @@ public class MetCallerTest {
                     public void failed(Throwable failure) {
                         fail("Expected response");
                     }
-                });
+                };
+                Class<?>[] parameterTypes = { String.class };
+                MetClient facade = client.client(server.address);
+                facade.callbackRequest(client.service, "echo", parameterTypes, new Object[] { "value" }, callback);
                 MemoryChannel channel = client.connector().outgoing;
                 RequestPayload request = channel.sent.remove();
                 if (StringUtils.equals("hold", mode)) {
@@ -214,7 +239,8 @@ public class MetCallerTest {
 
     @Test
     public void unifiedRequestsPreserveDirectionAddressesAndIdsThroughInvocation() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "normal")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
             server.bind();
             MetFuture call = client.invoke(server.address);
             assertEquals("hello", call.getData(2, TimeUnit.SECONDS));
@@ -241,7 +267,8 @@ public class MetCallerTest {
             local.getParameterObject()[0] = "changed";
             remote.getParameterTypes()[0] = Object.class;
             assertArrayEquals(new Object[] { "hello" }, local.getParameterObject());
-            assertArrayEquals(new Class<?>[] { String.class }, remote.getParameterTypes());
+            Class<?>[] parameterTypes = { String.class };
+            assertArrayEquals(parameterTypes, remote.getParameterTypes());
             local.addOption("local-only", "first");
             assertNull(remote.getOption("local-only"));
             local.setAttribute("attribute", "local");
@@ -257,15 +284,16 @@ public class MetCallerTest {
 
     @Test
     public void inboundRequestKeepsPayloadOptionsAndClampsTimeout() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "normal")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
             server.bind();
-            MemoryChannel channel = (MemoryChannel) client.manager.connect(server.address).get();
+            MemoryChannel channel = (MemoryChannel) client.manager.connect(server.address).get(2, TimeUnit.SECONDS);
             RequestPayload payload = request(server, 42, "metadata");
             payload.setFlags(MetFlags.P2PFlag.addTag((short) 0));
             payload.setSerializeType("wire-coder");
             payload.setClientTimeout(20000);
             payload.addOption("trace", "incoming");
-            channel.sendData(payload).get();
+            channel.sendData(payload).get(2, TimeUnit.SECONDS);
             assertEquals("metadata", finalResponse(channel.peer).getReturnData());
             MetRequest remote = server.requests.poll(2, TimeUnit.SECONDS);
             assertNotNull(remote);
@@ -286,7 +314,7 @@ public class MetCallerTest {
 
             RequestPayload shorter = request(server, 43, "shorter");
             shorter.setClientTimeout(5000);
-            channel.sendData(shorter).get();
+            channel.sendData(shorter).get(2, TimeUnit.SECONDS);
             finalResponse(channel.peer);
             assertEquals(5000, server.requests.poll(2, TimeUnit.SECONDS).getTimeout());
         }
@@ -294,12 +322,13 @@ public class MetCallerTest {
 
     @Test
     public void inboundMessageTypeComesFromPayloadInsteadOfService() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "normal")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
             server.bind();
-            MemoryChannel channel = (MemoryChannel) client.manager.connect(server.address).get();
+            MemoryChannel channel = (MemoryChannel) client.manager.connect(server.address).get(2, TimeUnit.SECONDS);
             RequestPayload payload = request(server, 44, "message");
             payload.setMessage(true);
-            channel.sendData(payload).get();
+            channel.sendData(payload).get(2, TimeUnit.SECONDS);
             MetRequest remote = server.requests.poll(2, TimeUnit.SECONDS);
             assertNotNull(remote);
             assertFalse(server.service.isMessage());
@@ -310,11 +339,12 @@ public class MetCallerTest {
 
     @Test
     public void callerWithoutListenerHandlesRequestsOnAnEstablishedChannel() throws Exception {
-        try (Host listener = new Host(10000, "normal"); Host peer = new Host(10000, "normal")) {
+        try (Host listener = new Host(10000, "normal"); //
+             Host peer = new Host(10000, "normal")) {
             listener.bind();
-            MemoryChannel outgoing = (MemoryChannel) peer.manager.connect(listener.address).get();
+            MemoryChannel outgoing = (MemoryChannel) peer.manager.connect(listener.address).get(2, TimeUnit.SECONDS);
             assertTrue(peer.connector().getListenList().isEmpty());
-            outgoing.peer.sendData(request(peer, 42, "reverse")).get();
+            outgoing.peer.sendData(request(peer, 42, "reverse")).get(2, TimeUnit.SECONDS);
             ResponsePayload reply = finalResponse(outgoing);
             assertEquals(42, reply.getRequestID());
             assertEquals("reverse", reply.getReturnData());
@@ -325,7 +355,8 @@ public class MetCallerTest {
 
     @Test
     public void responseDuringSendIsMatchedBeforeWriteFutureCompletes() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "instant")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "instant")) {
             server.bind();
             assertEquals("reply", client.invoke(server.address).getData(2, TimeUnit.SECONDS));
             assertEquals("reply", client.invoke(server.address).getData(2, TimeUnit.SECONDS));
@@ -335,14 +366,17 @@ public class MetCallerTest {
 
     @Test
     public void writeSuccessAndWrongSourceCannotCompleteTheCall() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "hold")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "hold")) {
             server.bind();
             MetFuture call = client.invoke(server.address);
             MemoryChannel source = client.connector().outgoing;
             RequestPayload request = source.sent.poll(2, TimeUnit.SECONDS);
             assertNotNull(request);
             assertFalse(call.isDone());
-            MetChannel other = client.manager.connect(server.address).get();
+
+            // 相同 ID 的其他通道消息不得结束当前调用。
+            MetChannel other = client.manager.connect(server.address).get(2, TimeUnit.SECONDS);
             client.manager.onResponse(other, request.getRequestID(), response(request, ProtocolStatus.OK));
             client.manager.onFailure(other, request.getRequestID(), new ThrowPayload(new IOException("wrong source")));
             assertFalse(call.isDone());
@@ -358,7 +392,8 @@ public class MetCallerTest {
 
     @Test
     public void correctSourceFailurePreservesCauseAndReleasesCapacity() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "hold")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "hold")) {
             server.bind();
             MetFuture first = client.invoke(server.address);
             MemoryChannel source = client.connector().outgoing;
@@ -374,7 +409,8 @@ public class MetCallerTest {
 
     @Test
     public void messagesCannotCompleteRequestBeforeItsChannelIsAttached() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "delayed")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "delayed")) {
             server.bind();
             MetFuture call = client.invoke(server.address);
             long requestId = call.getRequest().getRequestID();
@@ -388,6 +424,8 @@ public class MetCallerTest {
             client.manager.onResponse(connector.outgoing, requestId, response);
             client.manager.onFailure(connector.outgoing, requestId, new ThrowPayload(new IOException("not attached")));
             assertFalse(call.isDone());
+
+            // 连接真正交付后才接受响应。
             connector.connecting.completed(connector.outgoing);
             assertEquals("hello", call.getData(2, TimeUnit.SECONDS));
             assertEquals(1, client.cancelledTimers.get());
@@ -396,7 +434,8 @@ public class MetCallerTest {
 
     @Test
     public void expiredOrCancelledCallIsNotSentWhenConnectionArrivesLate() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(100, "delayed")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(100, "delayed")) {
             server.bind();
             MetFuture expired = client.invoke(server.address);
             assertTrue(failure(expired) instanceof MetTimeoutException);
@@ -415,7 +454,8 @@ public class MetCallerTest {
 
     @Test
     public void timeoutCompletesProtocolLifecycleAfterRequestWasSent() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(200, "hold")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(200, "hold")) {
             server.bind();
             MetFuture call = client.invoke(server.address);
             RequestPayload payload = client.connector().outgoing.sent.poll(2, TimeUnit.SECONDS);
@@ -430,7 +470,8 @@ public class MetCallerTest {
 
     @Test
     public void cancelledCallDoesNotCloseItsChannel() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "hold")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "hold")) {
             server.bind();
             MetFuture call = client.invoke(server.address);
             MemoryChannel channel = client.connector().outgoing;
@@ -450,9 +491,11 @@ public class MetCallerTest {
 
     @Test
     public void connectAndWriteFailuresReleaseRequestCapacity() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "fail-write")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "fail-write")) {
             server.bind();
-            assertTrue(failure(client.invoke(new InterAddress("memory", "missing", 1, "default"))) instanceof IOException);
+            InterAddress missing = new InterAddress("memory", "missing", 1, "default");
+            assertTrue(failure(client.invoke(missing)) instanceof IOException);
             assertTrue(failure(client.invoke(server.address)) instanceof IOException);
             assertTrue(failure(client.invoke(server.address)) instanceof IOException);
             assertEquals(3, client.cancelledTimers.get());
@@ -471,7 +514,8 @@ public class MetCallerTest {
 
     @Test
     public void closeStopsListenersThenDrainsWritesBeforeFailingPendingCalls() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "hold")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "hold")) {
             server.bind();
             MetListen listen = client.bind();
             MetClient remote = client.client(server.address);
@@ -486,7 +530,9 @@ public class MetCallerTest {
                 assertFalse(listen.isActive());
                 assertFalse(closing.isDone());
                 assertFalse(pending.isDone());
-                assertTrue(failure(remote.asyncInvoke(client.service, "echo", new Class<?>[] { String.class }, new Object[] { "late" })) instanceof IllegalStateException);
+                Class<?>[] parameterTypes = { String.class };
+                MetFuture late = remote.asyncInvoke(client.service, "echo", parameterTypes, new Object[] { "late" });
+                assertTrue(failure(late) instanceof IllegalStateException);
             } finally {
                 channel.close();
                 channel.drainGate.completed(channel);
@@ -501,7 +547,8 @@ public class MetCallerTest {
 
     @Test
     public void inboundRequestsAreIndependentOfOutboundCapacity() throws Exception {
-        try (Host server = new Host(10000, "hold"); Host peer = new Host(10000, "normal")) {
+        try (Host server = new Host(10000, "hold"); //
+             Host peer = new Host(10000, "normal")) {
             server.bind();
             peer.bind();
             MetFuture outbound = server.invoke(peer.address);
@@ -516,12 +563,14 @@ public class MetCallerTest {
 
     @Test
     public void sameInboundRequestIdRepliesOnItsOwnChannel() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host first = new Host(10000, "normal"); Host second = new Host(10000, "normal")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host first = new Host(10000, "normal"); //
+             Host second = new Host(10000, "normal")) {
             server.bind();
-            MemoryChannel firstChannel = (MemoryChannel) first.manager.connect(server.address).get();
-            MemoryChannel secondChannel = (MemoryChannel) second.manager.connect(server.address).get();
-            firstChannel.sendData(request(server, 42, "first")).get();
-            secondChannel.sendData(request(server, 42, "second")).get();
+            MemoryChannel firstChannel = (MemoryChannel) first.manager.connect(server.address).get(2, TimeUnit.SECONDS);
+            MemoryChannel secondChannel = (MemoryChannel) second.manager.connect(server.address).get(2, TimeUnit.SECONDS);
+            firstChannel.sendData(request(server, 42, "first")).get(2, TimeUnit.SECONDS);
+            secondChannel.sendData(request(server, 42, "second")).get(2, TimeUnit.SECONDS);
             ResponsePayload firstReply = finalResponse(firstChannel.peer);
             ResponsePayload secondReply = finalResponse(secondChannel.peer);
             assertEquals(42, firstReply.getRequestID());
@@ -534,11 +583,12 @@ public class MetCallerTest {
 
     @Test
     public void mismatchedInboundRequestIdDoesNotInvokeService() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "normal")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
             server.bind();
-            MemoryChannel channel = (MemoryChannel) client.manager.connect(server.address).get();
+            MemoryChannel channel = (MemoryChannel) client.manager.connect(server.address).get(2, TimeUnit.SECONDS);
             server.manager.onRequest(channel.peer, 43, request(server, 42, "invalid"));
-            channel.sendData(request(server, 44, "valid")).get();
+            channel.sendData(request(server, 44, "valid")).get(2, TimeUnit.SECONDS);
             ResponsePayload response = finalResponse(channel.peer);
             assertEquals(44, response.getRequestID());
             assertEquals("valid", response.getReturnData());
@@ -548,7 +598,8 @@ public class MetCallerTest {
 
     @Test
     public void responseStillCompletesDuringCloseDrain() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "hold")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "hold")) {
             server.bind();
             MetFuture pending = client.invoke(server.address);
             MemoryChannel channel = client.connector().outgoing;
@@ -568,7 +619,7 @@ public class MetCallerTest {
                 channel.drainGate.completed(channel);
                 closing.get(3, TimeUnit.SECONDS);
             }
-            assertEquals("reply", pending.getData());
+            assertEquals("reply", pending.getData(2, TimeUnit.SECONDS));
             assertEquals(1, client.cancelledTimers.get());
         }
     }
@@ -614,7 +665,8 @@ public class MetCallerTest {
 
     @Test
     public void cancelledConnectFailsRpcAndCancelsItsTimeout() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "delayed")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "delayed")) {
             server.bind();
             MetFuture call = client.invoke(server.address);
             client.connector().connecting.cancel();
@@ -628,7 +680,8 @@ public class MetCallerTest {
 
     @Test
     public void cancelledOrFailedAsyncWriteReleasesCapacityWithoutClosingChannel() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "async-write")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "async-write")) {
             server.bind();
             MetFuture cancelled = client.invoke(server.address);
             MemoryChannel first = client.connector().outgoing;
@@ -648,7 +701,8 @@ public class MetCallerTest {
 
     @Test
     public void synchronousChannelExceptionBecomesRpcFailure() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "throw-write")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "throw-write")) {
             server.bind();
             assertTrue(failure(client.invoke(server.address)) instanceof IllegalStateException);
             assertTrue(failure(client.invoke(server.address)) instanceof IllegalStateException);
@@ -658,7 +712,8 @@ public class MetCallerTest {
 
     @Test
     public void closedCallerRejectsLocalAndInboundRequestsBeforeFilters() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "hold")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "hold")) {
             server.bind();
             MetFuture active = client.invoke(server.address);
             MemoryChannel channel = client.connector().outgoing;
@@ -668,7 +723,10 @@ public class MetCallerTest {
             assertTrue(client.rpc.isClosed());
             assertFalse(client.manager.isInitialized());
             assertTrue(failure(active) instanceof IllegalStateException);
-            MetRequestObject rejected = client.rpc.createRequest(new InstanceAddressProvider(server.address), client.service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
+            Class<?>[] parameterTypes = { String.class };
+            InstanceAddressProvider target = new InstanceAddressProvider(server.address);
+            Object[] arguments = { "rejected" };
+            MetRequestObject rejected = client.rpc.createRequest(target, client.service, "echo", parameterTypes, arguments);
             assertTrue(failure(client.rpc.invoke(rejected)) instanceof IllegalStateException);
             client.manager.onRequest(channel, request.getRequestID(), request);
             assertEquals(1, client.localFilters.get());
@@ -680,11 +738,14 @@ public class MetCallerTest {
 
     @Test
     public void connectionCompletingAfterCloseCannotSendTheRequest() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "delayed")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "delayed")) {
             server.bind();
             MetFuture call = client.invoke(server.address);
             MemoryConnector connector = client.connector();
             client.rpc.close();
+
+            // 连接真正交付后才接受响应。
             connector.connecting.completed(connector.outgoing);
             assertTrue(failure(call) instanceof IllegalStateException);
             assertTrue(connector.outgoing.sent.isEmpty());
@@ -693,12 +754,13 @@ public class MetCallerTest {
 
     @Test
     public void subscriptionFailureDoesNotCloseTheProvidedManager() throws Exception {
-        try (Host host = new Host(10000, "normal"); ConnectorManager manager = new ConnectorManager(host.manager.context(), new MetCallerTest.MemoryFactory()) {
-            @Override
-            public void subscribe(ConnectorSubscriber subscriber) {
-                throw new IllegalStateException("subscription failed");
-            }
-        }) {
+        try (Host host = new Host(10000, "normal"); //
+             ConnectorManager manager = new ConnectorManager(host.manager.context(), new MetCallerTest.MemoryFactory()) {
+                 @Override
+                 public void subscribe(ConnectorSubscriber subscriber) {
+                     throw new IllegalStateException("subscription failed");
+                 }
+             }) {
             manager.init();
             try {
                 new MetCaller(manager, id -> new Supplier[0]);
@@ -729,11 +791,13 @@ public class MetCallerTest {
                     return host.address;
                 }
             };
-            MetRequestObject first = host.rpc.createRequest(provider, host.service, "echo", new Class<?>[] { String.class }, arguments);
-            MetRequestObject second = host.rpc.createRequest(provider, host.service, "echo", new Class<?>[] { String.class }, arguments);
+            Class<?>[] parameterTypes = { String.class };
+            MetRequestObject first = host.rpc.createRequest(provider, host.service, "echo", parameterTypes, arguments);
+            MetRequestObject second = host.rpc.createRequest(provider, host.service, "echo", parameterTypes, arguments);
             assertNotEquals(first.getRequestID(), second.getRequestID());
             assertFalse(first.isP2PCalls());
-            MetRequestObject fixed = host.rpc.createRequest(new InstanceAddressProvider(host.address), host.service, "echo", new Class<?>[] { String.class }, arguments);
+            InstanceAddressProvider fixedTarget = new InstanceAddressProvider(host.address);
+            MetRequestObject fixed = host.rpc.createRequest(fixedTarget, host.service, "echo", parameterTypes, arguments);
             assertTrue(fixed.isP2PCalls());
             assertEquals(host.address, first.getTargetAddress());
             assertNull(host.connector());
@@ -769,7 +833,8 @@ public class MetCallerTest {
 
     @Test
     public void invokePreservesOverridesAndRemovalsWithoutReloadingDefaults() throws Exception {
-        try (Host server = new Host(10000, "normal"); Host client = new Host(10000, "normal")) {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
             server.bind();
             client.requestOptions.addOption("override", "default");
             client.requestOptions.addOption("remove", "default");
@@ -927,7 +992,9 @@ public class MetCallerTest {
         }
 
         private MetFuture invoke(InterAddress target) {
-            return this.client(target).asyncInvoke(this.service, "echo", new Class<?>[] { String.class }, new Object[] { "hello" });
+            MetClient client = this.client(target);
+            Class<?>[] types = { String.class };
+            return client.asyncInvoke(this.service, "echo", types, new Object[] { "hello" });
         }
 
         @Override
@@ -991,7 +1058,8 @@ public class MetCallerTest {
                 return this.connecting;
             }
             this.outgoing = new MemoryChannel(this, this.manager.nextConnectionId(), target, listener);
-            MemoryChannel incoming = new MemoryChannel(server, server.manager.nextConnectionId(), this.localAddress(), server.manager);
+            long incomingId = server.manager.nextConnectionId();
+            MemoryChannel incoming = new MemoryChannel(server, incomingId, this.localAddress(), server.manager);
             this.outgoing.peer = incoming;
             incoming.peer = this.outgoing;
             this.fireChannelConnected(this.outgoing);

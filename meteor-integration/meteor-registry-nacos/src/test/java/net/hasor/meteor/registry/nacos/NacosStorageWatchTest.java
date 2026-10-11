@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.registry.nacos;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import net.hasor.cobble.concurrent.future.Cancellable;
@@ -73,6 +74,7 @@ public class NacosStorageWatchTest {
 
     @Test
     public void nativeNamingNotificationsCoverNewNamesUpdatesExpiryAndRecovery() throws Exception {
+        // 对尚未发布的关系建立订阅，分别观察首次注册和正文更新。
         try (NacosTestServer server = new NacosTestServer()) {
             NacosRegistryConfiguration configuration = server.configuration();
             try (StorageAccess writer = configuration.openStorage(); //
@@ -152,7 +154,7 @@ public class NacosStorageWatchTest {
     }
 
     private static void await(BooleanSupplier condition) throws Exception {
-        long deadline = System.nanoTime() + 10_000_000_000L;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }

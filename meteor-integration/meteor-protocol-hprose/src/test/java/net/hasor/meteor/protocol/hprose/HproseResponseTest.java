@@ -21,6 +21,7 @@ public class HproseResponseTest {
         out.write('E');
         new HproseWriter(out).writeString("远端失败");
         out.write('z');
+
         // 协议错误帧必须保留远端原因，不得被当作 null 返回值。
         ByteArrayInputStream input = new ByteArrayInputStream(out.toByteArray());
         IOException failure = assertThrows(IOException.class, () -> HproseUtils.decodeResponse(input));

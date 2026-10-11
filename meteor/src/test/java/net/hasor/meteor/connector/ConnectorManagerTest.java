@@ -10,10 +10,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import net.hasor.meteor.MetContext;
+import net.hasor.meteor.address.InterAddress;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -23,10 +26,12 @@ public class ConnectorManagerTest {
         try (EndpointFixture fixture = new EndpointFixture("a", "b")) {
             assertEquals(0, fixture.created);
             assertEquals(2, fixture.manager.configurations().size());
-            fixture.manager.bind("a").get();
+            fixture.manager.bind("a").get(5, TimeUnit.SECONDS);
             assertEquals(1, fixture.created);
             assertNull(fixture.manager.find("b"));
-            assertSame(fixture.manager.bind("a").get(), fixture.manager.bind("a").get());
+            MetListen first = fixture.manager.bind("a").get(5, TimeUnit.SECONDS);
+            MetListen reused = fixture.manager.bind("a").get(5, TimeUnit.SECONDS);
+            assertSame(first, reused);
             assertEquals(1, fixture.endpoints.get("a").starts);
         }
     }
@@ -38,9 +43,9 @@ public class ConnectorManagerTest {
             try {
                 List<Future<MetListen>> calls = new ArrayList<>();
                 for (int i = 0; i < 32; i++) {
-                    calls.add(pool.submit(() -> fixture.manager.bind("a").get()));
+                    calls.add(pool.submit(() -> fixture.manager.bind("a").get(5, TimeUnit.SECONDS)));
                 }
-                MetListen first = calls.get(0).get();
+                MetListen first = calls.get(0).get(5, TimeUnit.SECONDS);
                 for (Future<MetListen> call : calls) {
                     assertSame(first, call.get(2, TimeUnit.SECONDS));
                 }
@@ -53,7 +58,8 @@ public class ConnectorManagerTest {
 
     @Test
     public void operationsRequireInitAndCannotCreateUnconfiguredEndpoints() throws Exception {
-        ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(), new TestConnectorManager.MemoryFactory());
+        MetContext managerContext = ConnectorResourcesTest.sharedContext();
+        ConnectorManager manager = new ConnectorManager(managerContext, new TestConnectorManager.MemoryFactory());
         assertNotNull(ConnectorConnectionsTest.failure(manager.bind("missing")));
         assertNotNull(ConnectorConnectionsTest.failure(manager.connect(EndpointFixture.address("a"))));
         try {
@@ -71,12 +77,15 @@ public class ConnectorManagerTest {
     public void mountedSchemesSelectTheSameEndpoint() throws Exception {
         ProtocolConfig firstProtocol = new ProtocolConfig("one", "", Collections.emptyMap());
         ProtocolConfig secondProtocol = new ProtocolConfig("two", "", Collections.emptyMap());
-        ConnectorConfig config = new ConnectorConfig("shared", EndpointFixture.address("memory"), Collections.singletonMap("listenType", "memory"), Arrays.asList(firstProtocol, secondProtocol), true);
+        InterAddress configAddress = EndpointFixture.address("memory");
+        List<ProtocolConfig> configMounts = Arrays.asList(firstProtocol, secondProtocol);
+        Map<String, String> configOptions = Collections.singletonMap("listenType", "memory");
+        ConnectorConfig config = new ConnectorConfig("shared", configAddress, configOptions, configMounts, true);
         try (TestConnectorManager manager = new TestConnectorManager(ConnectorResourcesTest.sharedContext(config))) {
             manager.prepare(config, (cfg, mgr) -> new EndpointFixture.Endpoint(cfg, mgr, new ArrayList<>()));
             manager.init();
-            MetChannel first = manager.connect(EndpointFixture.address("ONE")).get();
-            MetChannel second = manager.connect(EndpointFixture.address("two")).get();
+            MetChannel first = manager.connect(EndpointFixture.address("ONE")).get(5, TimeUnit.SECONDS);
+            MetChannel second = manager.connect(EndpointFixture.address("two")).get(5, TimeUnit.SECONDS);
             assertSame(first.getConnector(), second.getConnector());
             assertSame(manager.find("one"), manager.find("two"));
         }

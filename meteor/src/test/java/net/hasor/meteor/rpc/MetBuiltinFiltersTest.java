@@ -6,7 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.rpc;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -75,12 +79,19 @@ public class MetBuiltinFiltersTest {
 
     @Test
     public void localPreferenceFallsThroughForAbsentServicesAndRemoteOrP2PRequests() throws Throwable {
-        MetRequestObject[] requests = { request(1, true, true, null), request(2, true, true, () -> null), request(3, false, true, () -> {
+        // 分别构造缺少提供者、空实例、远程调用和点对点调用。
+        List<MetRequestObject> requests = new ArrayList<>();
+        requests.add(request(1, true, true, null));
+        requests.add(request(2, true, true, () -> null));
+        requests.add(request(3, false, true, () -> {
             throw new AssertionError("Remote request must bypass local preference");
-        }), request(4, true, true, () -> {
+        }));
+        MetRequestObject pointToPoint = request(4, true, true, () -> {
             throw new AssertionError("P2P request must bypass local preference");
-        }) };
-        requests[3].setFlags(MetFlags.P2PFlag.addTag((short) 0));
+        });
+        pointToPoint.setFlags(MetFlags.P2PFlag.addTag((short) 0));
+        requests.add(pointToPoint);
+
         AtomicInteger calls = new AtomicInteger();
         for (MetRequestObject request : requests) {
             MetResponseObject response = new MetResponseObject(request);
@@ -183,6 +194,8 @@ public class MetBuiltinFiltersTest {
                 }).get(2, TimeUnit.SECONDS);
                 assertContext(outer, outerResponse);
             });
+
+            // 复用同一工作线程时不能遗留上一次调用的上下文。
             worker.submit(() -> assertContext(null, null)).get(2, TimeUnit.SECONDS);
             assertContext(null, null);
         } finally {
@@ -190,9 +203,13 @@ public class MetBuiltinFiltersTest {
         }
     }
 
-    private static MetRequestObject request(long id, boolean local, boolean online, Supplier<Echo> service) throws Exception {
+    private static MetRequestObject request( //
+            long id, //
+            boolean local, //
+            boolean online, //
+            Supplier<Echo> service) throws Exception {
         ServiceDomain<Echo> bindInfo = new ServiceDomain<>(Echo.class);
-        MetContext context = (MetContext) Proxy.newProxyInstance(Echo.class.getClassLoader(), new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
+        InvocationHandler handler = (proxy, method, args) -> {
             switch (method.getName()) {
                 case "getServiceProvider":
                     return service;
@@ -201,8 +218,11 @@ public class MetBuiltinFiltersTest {
                 default:
                     throw new AssertionError("Unexpected context access: " + method);
             }
-        });
-        return new MetRequestObject(id, local, context, bindInfo, Echo.class.getMethod("echo", String.class), new Object[] { "value" });
+        };
+        ClassLoader loader = Echo.class.getClassLoader();
+        MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, handler);
+        Method method = Echo.class.getMethod("echo", String.class);
+        return new MetRequestObject(id, local, context, bindInfo, method, new Object[] { "value" });
     }
 
     private static void assertContext(MetRequest request, MetResponse response) {

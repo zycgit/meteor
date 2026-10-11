@@ -31,7 +31,7 @@ public class ZookeeperStorageWatchTest {
     }
 
     private static void await(BooleanSupplier condition) throws Exception {
-        long deadline = System.nanoTime() + 10_000_000_000L;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }
@@ -40,6 +40,7 @@ public class ZookeeperStorageWatchTest {
 
     @Test
     public void missingDirectoryCreationUpdatesDeletionFilteringAndCancellation() throws Exception {
+        // 尚无目标目录时建立订阅，并确认查询条件已被订阅捕获。
         try (TestingServer server = new TestingServer(); //
              StorageAccess writer = this.configuration(server.getConnectString()).openStorage(); //
              StorageAccess reader = this.configuration(server.getConnectString()).openStorage()) {
@@ -70,7 +71,9 @@ public class ZookeeperStorageWatchTest {
             // 取消监听后保留观察窗口，确认后续变更不会继续通知。
             assertTrue(watch.cancel());
             assertFalse(watch.cancel());
-            writer.deleteEntity(writer.getEntity(new EntityRef(EntityType.SERVICE, "echo")));
+            EntityRef echo = new EntityRef(EntityType.SERVICE, "echo");
+            EntityRecord current = writer.getEntity(echo);
+            writer.deleteEntity(current);
             Thread.sleep(200);
             assertEquals(5, events.get());
             reader.close();
@@ -122,9 +125,12 @@ public class ZookeeperStorageWatchTest {
     @Test
     public void reconnectWithUnchangedDataAndCallbackFailureRetry() throws Exception {
         // 故障注入需要精确控制 SDK 会话，重连后即使数据未变也要重新通知。
-        ExponentialBackoffRetry retry = new ExponentialBackoffRetry(50, 3);
+        CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory.builder();
+        builder.retryPolicy(new ExponentialBackoffRetry(50, 3));
+        builder.sessionTimeoutMs(10000);
+        builder.connectionTimeoutMs(2000);
         try (TestingServer server = new TestingServer(); //
-             CuratorFramework client = CuratorFrameworkFactory.newClient(server.getConnectString(), 10000, 2000, retry)) {
+             CuratorFramework client = builder.connectString(server.getConnectString()).build()) {
             client.start();
             assertTrue("ZooKeeper session did not connect", client.blockUntilConnected(5, TimeUnit.SECONDS));
             try (StorageAccess reader = new ZookeeperRegistry(client, "/reconnect")) {

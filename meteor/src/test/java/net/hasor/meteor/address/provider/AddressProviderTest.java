@@ -31,7 +31,12 @@ public class AddressProviderTest {
         pool.appendAddress("service", Arrays.asList(first, second));
         AddressProvider provider = new PoolAddressProvider(pool);
         assertTrue(provider.isDistributed());
-        String serviceScript = "<route><filter name='selected' from='addresses' item='a' test='a.port == 2182'/><return value='selected'/></route>";
+        String serviceScript = """
+                <route>
+                    <filter name="selected" from="addresses" item="a" test="a.port == 2182"/>
+                    <return value="selected"/>
+                </route>
+                """;
         assertTrue(pool.updateServiceRoute("service", serviceScript));
         assertEquals(second, provider.get(new RouteContext("service", "echo", new Object[] { "value" })));
         assertTrue(pool.updateServiceRoute("service", ""));

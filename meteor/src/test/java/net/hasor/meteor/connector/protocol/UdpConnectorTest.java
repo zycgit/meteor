@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.connector.protocol;
 import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -39,7 +40,8 @@ import static org.junit.Assert.*;
 public class UdpConnectorTest {
     @Test(timeout = 10000)
     public void peersExchangeMessagesInBothDirections() throws Exception {
-        try (Host server = new Host(); Host client = new Host()) {
+        try (Host server = new Host(); //
+             Host client = new Host()) {
             MetListen listen = server.bind();
             MetChannel first = client.manager.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
             MetChannel second = client.manager.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
@@ -55,6 +57,8 @@ public class UdpConnectorTest {
             assertEquals("one", ((ResponsePayload) client.take().payload).getReturnData());
             b.channel.sendData(response(1, "two")).get(2, TimeUnit.SECONDS);
             assertEquals("two", ((ResponsePayload) client.take().payload).getReturnData());
+
+            // 已接收的 UDP 会话也能反向发起请求。
             a.channel.sendData(request(2, "reverse")).get(2, TimeUnit.SECONDS);
             Delivery reverse = client.take();
             assertSame(first, reverse.channel);
@@ -65,7 +69,8 @@ public class UdpConnectorTest {
 
     @Test(timeout = 10000)
     public void closeBindRejectsNewPeersButExistingPeerStillWorks() throws Exception {
-        try (Host server = new Host(); Host client = new Host()) {
+        try (Host server = new Host(); //
+             Host client = new Host()) {
             MetListen listen = server.bind();
             MetChannel outgoing = client.manager.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
             outgoing.sendData(request(1, "establish")).get(2, TimeUnit.SECONDS);
@@ -86,7 +91,8 @@ public class UdpConnectorTest {
 
     @Test(timeout = 10000)
     public void closingOneAcceptedPeerDoesNotCloseSharedSocket() throws Exception {
-        try (Host server = new Host(); Host client = new Host()) {
+        try (Host server = new Host(); //
+             Host client = new Host()) {
             MetListen listen = server.bind();
             MetChannel first = client.manager.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
             MetChannel second = client.manager.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
@@ -106,7 +112,9 @@ public class UdpConnectorTest {
 
     @Test(timeout = 10000)
     public void jvmPeerObservesIndependentDatagramsAndMalformedPeerIsIsolated() throws Exception {
-        try (Host server = new Host(); DatagramSocket good = new DatagramSocket(); DatagramSocket bad = new DatagramSocket()) {
+        try (Host server = new Host(); //
+             DatagramSocket good = new DatagramSocket(); //
+             DatagramSocket bad = new DatagramSocket()) {
             MetListen listen = server.bind();
             InetSocketAddress target = new InetSocketAddress("127.0.0.1", listen.getBindAddress().getPort());
             send(good, target, packet(1, 1, "short"));
@@ -129,7 +137,8 @@ public class UdpConnectorTest {
 
     @Test(timeout = 10000)
     public void inboundLimitRejectsWholeDatagramWithoutTruncatingIt() throws Exception {
-        try (Host server = new Host(16, TestProtocol.class); DatagramSocket peer = new DatagramSocket()) {
+        try (Host server = new Host(16, TestProtocol.class); //
+             DatagramSocket peer = new DatagramSocket()) {
             MetListen listen = server.bind();
             InetSocketAddress target = new InetSocketAddress("127.0.0.1", listen.getBindAddress().getPort());
             send(peer, target, packet(1, 1, "ok"));
@@ -147,7 +156,8 @@ public class UdpConnectorTest {
 
     @Test(timeout = 10000)
     public void managerCloseDrainsSubmittedRepliesAndReleasesPort() throws Exception {
-        try (Host server = new Host(); DatagramSocket peer = new DatagramSocket()) {
+        try (Host server = new Host(); //
+             DatagramSocket peer = new DatagramSocket()) {
             MetListen listen = server.bind();
             int port = listen.getBindAddress().getPort();
             send(peer, new InetSocketAddress("127.0.0.1", port), packet(1, 1, "hello"));
@@ -243,13 +253,14 @@ public class UdpConnectorTest {
             ProtocolConfig mount = new ProtocolConfig("udp", "udp", protocolName, options);
             this.config = new ConnectorConfig("udp", localAddress, options, Collections.singletonList(mount), true);
             ClassLoader loader = getClass().getClassLoader();
-            MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
+            InvocationHandler settingsHandler = (proxy, method, args) -> {
                 if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                     return Collections.singletonList(this.config);
                 }
                 throw new AssertionError(method);
-            });
-            MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
+            };
+            MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, settingsHandler);
+            InvocationHandler contextHandler = (proxy, method, args) -> {
                 if (StringUtils.equals("getSettings", method.getName())) {
                     return settings;
                 }
@@ -257,7 +268,8 @@ public class UdpConnectorTest {
                     return loader;
                 }
                 throw new AssertionError(method);
-            });
+            };
+            MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, contextHandler);
             EndpointConnectorFactory factory = new EndpointConnectorFactory();
             factory.listenTypes(loader);
             factory.prepare(this.config);
@@ -308,7 +320,11 @@ public class UdpConnectorTest {
             return this.getClass().getSimpleName().toLowerCase(Locale.ROOT);
         }
 
-        public ProtocolSession<byte[]> create(ProtocolConfig config, ProtocolContext manager, NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
+        public ProtocolSession<byte[]> create( //
+                ProtocolConfig config, //
+                ProtocolContext manager, //
+                NetworkChannel<byte[]> connection, //
+                BiConsumer<Long, Payload> messages) {
             return new ProtocolSession<byte[]>() {
                 private final BasicFuture<Void> ready = new BasicFuture<>();
 

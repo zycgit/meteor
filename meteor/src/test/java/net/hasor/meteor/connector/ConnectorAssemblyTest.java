@@ -14,6 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.domain.MetException;
 import org.junit.Before;
@@ -46,7 +47,8 @@ public class ConnectorAssemblyTest {
         BlockingFactory.entered = new CountDownLatch(1);
         BlockingFactory.release = new CountDownLatch(1);
         ConnectorConfig config = this.config("outgoing");
-        ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(config), new BlockingFactory());
+        MetContext managerContext = ConnectorResourcesTest.sharedContext(config);
+        ConnectorManager manager = new ConnectorManager(managerContext, new BlockingFactory());
         ExecutorService workers = Executors.newFixedThreadPool(2);
         BasicFuture<Void> initialized = new BasicFuture<>();
         try {
@@ -115,8 +117,10 @@ public class ConnectorAssemblyTest {
         InterAddress localAddress = new InterAddress("memory://localhost:1/default");
         String protocolName = options.getOrDefault("protocol", "memory");
         ProtocolConfig mount = new ProtocolConfig("outgoing", "memory", protocolName, options);
-        ConnectorConfig config = new ConnectorConfig("outgoing", localAddress, options, Collections.singletonList(mount), true);
-        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(config), new CountingFactory())) {
+        List<ProtocolConfig> configMounts = Collections.singletonList(mount);
+        ConnectorConfig config = new ConnectorConfig("outgoing", localAddress, options, configMounts, true);
+        MetContext managerContext = ConnectorResourcesTest.sharedContext(config);
+        try (ConnectorManager manager = new ConnectorManager(managerContext, new CountingFactory())) {
             manager.init();
             assertEquals(0, CountingFactory.created);
             assertTrue(manager.protocols().isEmpty());
@@ -150,8 +154,11 @@ public class ConnectorAssemblyTest {
         ConnectorConfig first = config("first");
         Map<String, String> secondOptions = Collections.singletonMap("listenType", "custom");
         ProtocolConfig secondProtocol = new ProtocolConfig("second", "MEMORY", "MEMORY", secondOptions);
-        ConnectorConfig second = new ConnectorConfig("second", new InterAddress("MEMORY://localhost:2/default"), secondOptions, Collections.singletonList(secondProtocol), true);
-        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(first, second), new CountingFactory())) {
+        InterAddress secondAddress = new InterAddress("MEMORY://localhost:2/default");
+        List<ProtocolConfig> secondMounts = Collections.singletonList(secondProtocol);
+        ConnectorConfig second = new ConnectorConfig("second", secondAddress, secondOptions, secondMounts, true);
+        MetContext managerContext = ConnectorResourcesTest.sharedContext(first, second);
+        try (ConnectorManager manager = new ConnectorManager(managerContext, new CountingFactory())) {
             try {
                 manager.init();
                 fail("Duplicate schemes must not silently select a connector");
@@ -167,8 +174,11 @@ public class ConnectorAssemblyTest {
     public void unknownSchemeAndMissingFactoryFailWithoutOpeningConnections() throws Exception {
         Map<String, String> configOptions = Collections.singletonMap("listenType", "unknown");
         ProtocolConfig configProtocol = new ProtocolConfig("missing", "memory", "memory", configOptions);
-        ConnectorConfig config = new ConnectorConfig("missing", config("missing").address(), configOptions, Collections.singletonList(configProtocol), true);
-        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(config), new CountingFactory())) {
+        InterAddress configAddress = config("missing").address();
+        List<ProtocolConfig> configMounts = Collections.singletonList(configProtocol);
+        ConnectorConfig config = new ConnectorConfig("missing", configAddress, configOptions, configMounts, true);
+        MetContext managerContext = ConnectorResourcesTest.sharedContext(config);
+        try (ConnectorManager manager = new ConnectorManager(managerContext, new CountingFactory())) {
             try {
                 manager.init();
                 fail("Missing configured transport must fail initialization");
@@ -183,20 +193,25 @@ public class ConnectorAssemblyTest {
     public void preparesSuppliedFactoryAtInitAndLazilyCreatesConfiguredEndpoints() throws Exception {
         Map<String, String> firstOptions = Collections.singletonMap("listenType", "CUSTOM");
         ProtocolConfig firstProtocol = new ProtocolConfig("first", "memory", "memory", firstOptions);
-        ConnectorConfig first = new ConnectorConfig("first", config("first").address(), firstOptions, Collections.singletonList(firstProtocol), true);
+        InterAddress firstAddress = config("first").address();
+        List<ProtocolConfig> firstMounts = Collections.singletonList(firstProtocol);
+        ConnectorConfig first = new ConnectorConfig("first", firstAddress, firstOptions, firstMounts, true);
         Map<String, String> secondOptions = Collections.singletonMap("listenType", "custom");
         ProtocolConfig secondProtocol = new ProtocolConfig("second", "other", "other", secondOptions);
-        ConnectorConfig second = new ConnectorConfig("second", new InterAddress("other", "localhost", 2, "default"), secondOptions, Collections.singletonList(secondProtocol), true);
-        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(first, second), new CountingFactory())) {
+        InterAddress secondAddress = new InterAddress("other", "localhost", 2, "default");
+        List<ProtocolConfig> secondMounts = Collections.singletonList(secondProtocol);
+        ConnectorConfig second = new ConnectorConfig("second", secondAddress, secondOptions, secondMounts, true);
+        MetContext managerContext = ConnectorResourcesTest.sharedContext(first, second);
+        try (ConnectorManager manager = new ConnectorManager(managerContext, new CountingFactory())) {
             manager.init();
             manager.init();
             assertEquals(1, CountingFactory.constructed);
             assertEquals(0, CountingFactory.created);
             assertTrue(manager.protocols().isEmpty());
-            MetListen listen = manager.bind(first.name()).get();
+            MetListen listen = manager.bind(first.name()).get(5, TimeUnit.SECONDS);
             assertSame(first, manager.find("first").config());
-            assertSame(listen, manager.bind(first.name()).get());
-            manager.bind(second.name()).get();
+            assertSame(listen, manager.bind(first.name()).get(5, TimeUnit.SECONDS));
+            manager.bind(second.name()).get(5, TimeUnit.SECONDS);
             assertEquals(2, CountingFactory.created);
             assertEquals(2, CountingFactory.initialized);
             manager.close();
@@ -205,7 +220,7 @@ public class ConnectorAssemblyTest {
             manager.init();
             assertEquals(1, CountingFactory.constructed);
             assertEquals(2, CountingFactory.created);
-            manager.bind(first.name()).get();
+            manager.bind(first.name()).get(5, TimeUnit.SECONDS);
             assertEquals(3, CountingFactory.created);
         }
     }
@@ -217,7 +232,9 @@ public class ConnectorAssemblyTest {
             ConnectorConfig config = config("missing");
             Map<String, String> options = Collections.singletonMap("listenType", "unknown");
             ProtocolConfig protocol = new ProtocolConfig(config.name(), "memory", "memory", options);
-            ConnectorConfig missing = new ConnectorConfig(config.name(), config.address(), options, Collections.singletonList(protocol), true);
+            InterAddress missingAddress = config.address();
+            List<ProtocolConfig> missingMounts = Collections.singletonList(protocol);
+            ConnectorConfig missing = new ConnectorConfig(config.name(), missingAddress, options, missingMounts, true);
             Future<MetListen> bound = manager.bind(missing.name());
             assertTrue(bound.getCause() instanceof IllegalArgumentException);
             assertTrue(bound.getCause().getMessage().contains("Unknown endpoint"));
@@ -268,8 +285,12 @@ public class ConnectorAssemblyTest {
     public void duplicateEndpointNamesFailBeforeCreatingAnyConnector() {
         ConnectorConfig first = this.config("duplicate");
         ProtocolConfig mount = new ProtocolConfig("other", "other", Collections.emptyMap());
-        ConnectorConfig second = new ConnectorConfig(first.name(), first.address(), first.options(), Collections.singletonList(mount), true);
-        try (ConnectorManager manager = new ConnectorManager(ConnectorResourcesTest.sharedContext(first, second), new CountingFactory())) {
+        InterAddress secondAddress = first.address();
+        List<ProtocolConfig> secondMounts = Collections.singletonList(mount);
+        Map<String, String> secondOptions = first.options();
+        ConnectorConfig second = new ConnectorConfig(first.name(), secondAddress, secondOptions, secondMounts, true);
+        MetContext managerContext = ConnectorResourcesTest.sharedContext(first, second);
+        try (ConnectorManager manager = new ConnectorManager(managerContext, new CountingFactory())) {
             try {
                 manager.init();
                 fail("Duplicate endpoint names must be rejected");
@@ -315,7 +336,7 @@ public class ConnectorAssemblyTest {
             assertArrayEquals(new Throwable[] { cleanup }, initialization.getSuppressed());
             assertEquals(Collections.singletonList("cleanup"), events);
             assertNull(manager.find(config.name()));
-            assertTrue(manager.bind(config.name()).get().isActive());
+            assertTrue(manager.bind(config.name()).get(5, TimeUnit.SECONDS).isActive());
             assertEquals(1, CountingFactory.created);
         }
     }

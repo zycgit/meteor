@@ -22,8 +22,8 @@ import net.hasor.meteor.connector.transport.http.HttpConnector;
 import net.hasor.meteor.connector.transport.http.HttpExchange;
 import net.hasor.meteor.connector.transport.http.HttpRequest;
 import net.hasor.meteor.connector.transport.http.HttpResponse;
-import net.hasor.meteor.connector.transport.tcp.TcpConnector;
-import net.hasor.meteor.connector.transport.udp.UdpConnector;
+import net.hasor.meteor.connector.transport.tcp.TcpConnectorFactory;
+import net.hasor.meteor.connector.transport.udp.UdpConnectorFactory;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -62,7 +62,14 @@ public class NetworkConnectorTest {
     private void byteRoundTrip(boolean udp) throws Exception {
         ConnectorConfig config = this.config(udp ? "udp" : "tcp");
         ClassLoader loader = this.getClass().getClassLoader();
-        try (NetworkConnector<byte[]> server = udp ? new UdpConnector(config, loader) : new TcpConnector(config, loader); NetworkConnector<byte[]> client = udp ? new UdpConnector(config, loader) : new TcpConnector(config, loader)) {
+        NetworkConnectorFactory<byte[]> factory;
+        if (udp) {
+            factory = new UdpConnectorFactory();
+        } else {
+            factory = new TcpConnectorFactory();
+        }
+        try (NetworkConnector<byte[]> server = factory.create(config, loader); //
+             NetworkConnector<byte[]> client = factory.create(config, loader)) {
             BasicFuture<NetworkChannel<byte[]>> connected = new BasicFuture<>();
             BlockingQueue<byte[]> received = new LinkedBlockingQueue<>();
             NetworkListen listen = server.bind(config.address(), channel -> new ChannelListener<byte[]>() {
@@ -108,7 +115,8 @@ public class NetworkConnectorTest {
     public void httpCarriesCompleteMessagesWithoutRsf() throws Exception {
         ConnectorConfig config = this.config("http");
         ClassLoader loader = this.getClass().getClassLoader();
-        try (HttpConnector server = new HttpConnector(config, loader); HttpConnector client = new HttpConnector(config, loader)) {
+        try (HttpConnector server = new HttpConnector(config, loader); //
+             HttpConnector client = new HttpConnector(config, loader)) {
             BlockingQueue<HttpRequest> requests = new LinkedBlockingQueue<>();
             NetworkListen listen = server.bind(config.address(), channel -> new ChannelListener<HttpExchange>() {
 
@@ -117,7 +125,9 @@ public class NetworkConnectorTest {
 
                 public void receive(HttpExchange exchange) {
                     requests.add(exchange.request());
-                    exchange.respond(new HttpResponse(201, Collections.singletonMap("X-Reply", "received"), exchange.request().body()));
+                    Map<String, String> headers = Collections.singletonMap("X-Reply", "received");
+                    HttpResponse response = new HttpResponse(201, headers, exchange.request().body());
+                    exchange.respond(response);
                     channel.write(exchange);
                 }
 
@@ -140,13 +150,20 @@ public class NetworkConnectorTest {
                 }
             }).get(2, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(2, TimeUnit.SECONDS);
-            HttpExchange first = new HttpExchange(new HttpRequest("POST", "/plain/first", Collections.singletonMap("X-Test", "one"), "hello".getBytes(StandardCharsets.UTF_8)));
-            HttpExchange second = new HttpExchange(new HttpRequest("POST", "/plain/second", Collections.emptyMap(), new byte[] { 8, 9 }));
+            // 同一个连接连续发送两条独立 HTTP 消息，响应分别归属自己的交换对象。
+            Map<String, String> headers = Collections.singletonMap("X-Test", "one");
+            byte[] text = "hello".getBytes(StandardCharsets.UTF_8);
+            HttpRequest firstRequest = new HttpRequest("POST", "/plain/first", headers, text);
+            HttpExchange first = new HttpExchange(firstRequest);
+            byte[] bytes = { 8, 9 };
+            HttpRequest secondRequest = new HttpRequest("POST", "/plain/second", Collections.emptyMap(), bytes);
+            HttpExchange second = new HttpExchange(secondRequest);
             channel.write(first).get(2, TimeUnit.SECONDS);
             channel.write(second).get(2, TimeUnit.SECONDS);
-            assertEquals(201, first.response().get(2, TimeUnit.SECONDS).status());
-            assertEquals("received", first.response().get().headers().get("x-reply"));
-            assertArrayEquals(first.request().body(), first.response().get().body());
+            HttpResponse firstResponse = first.response().get(2, TimeUnit.SECONDS);
+            assertEquals(201, firstResponse.status());
+            assertEquals("received", firstResponse.headers().get("x-reply"));
+            assertArrayEquals(first.request().body(), firstResponse.body());
             assertArrayEquals(second.request().body(), second.response().get(2, TimeUnit.SECONDS).body());
             assertEquals("one", requests.poll(2, TimeUnit.SECONDS).headers().get("x-test"));
             assertEquals("/plain/second", requests.poll(2, TimeUnit.SECONDS).uri());
@@ -174,12 +191,12 @@ public class NetworkConnectorTest {
                     closed.completed(null);
                 }
             }).get(2, TimeUnit.SECONDS);
-            assertTrue(connected.get().isOpen());
+            assertTrue(connected.get(2, TimeUnit.SECONDS).isOpen());
         } finally {
             client.close();
         }
         closed.get(2, TimeUnit.SECONDS);
-        assertFalse(connected.get().isOpen());
+        assertFalse(connected.get(2, TimeUnit.SECONDS).isOpen());
     }
 
     private ConnectorConfig config(String type) throws Exception {

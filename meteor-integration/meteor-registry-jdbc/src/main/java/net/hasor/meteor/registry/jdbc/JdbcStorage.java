@@ -32,26 +32,36 @@ final class JdbcStorage extends RecordStorageAccess {
     private              ScheduledExecutorService watches;
 
     @Override
-    public synchronized Cancellable watchEntities(EntityQuery query, Runnable listener) {
-        this.requireOpen();
-        if (query == null || query.getType() == null) {
-            throw new IllegalArgumentException("Entity type is required");
-        }
+    public Cancellable watchEntities(EntityQuery query, Runnable listener) {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+            if (query == null || query.getType() == null) {
+                throw new IllegalArgumentException("Entity type is required");
+            }
 
-        EntityQuery selection = query.copy();
-        return this.watch(() -> this.readVersions(selection), listener);
+            EntityQuery selection = query.copy();
+            return this.watch(() -> this.readVersions(selection), listener);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
+        }
     }
 
     @Override
-    public synchronized Cancellable watchRelations(RelationQuery query, Runnable listener) {
-        this.requireOpen();
-        boolean scoped = query != null && (query.getType() != null || query.getSource() != null || query.getTarget() != null);
-        if (!scoped) {
-            throw new IllegalArgumentException("Specify relation type or endpoint");
-        }
+    public Cancellable watchRelations(RelationQuery query, Runnable listener) {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+            boolean scoped = query != null && (query.getType() != null || query.getSource() != null || query.getTarget() != null);
+            if (!scoped) {
+                throw new IllegalArgumentException("Specify relation type or endpoint");
+            }
 
-        RelationQuery selection = query.copy();
-        return this.watch(() -> this.readVersions(selection), listener);
+            RelationQuery selection = query.copy();
+            return this.watch(() -> this.readVersions(selection), listener);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
+        }
     }
 
     private Map<String, String> readVersions(EntityQuery query) throws Exception {
@@ -89,7 +99,7 @@ final class JdbcStorage extends RecordStorageAccess {
         return versions;
     }
 
-    private Cancellable watch(Callable<Map<String, String>> snapshot, Runnable listener) {
+    private synchronized Cancellable watch(Callable<Map<String, String>> snapshot, Runnable listener) {
         Objects.requireNonNull(listener, "listener");
         if (this.watches == null) {
             ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, task -> {
@@ -123,19 +133,24 @@ final class JdbcStorage extends RecordStorageAccess {
         this.heartbeat.scheduleWithFixedDelay(this::heartbeat, renewalInterval, renewalInterval, TimeUnit.MILLISECONDS);
     }
 
-    private synchronized void heartbeat() {
-        if (this.heartbeat.isShutdown()) {
-            return;
-        }
-
+    private void heartbeat() {
+        this.lifecycleLock.readLock().lock();
         try {
-            this.renew();
-        } catch (Exception failure) {
-            LOGGER.warn("Cannot renew JDBC registry session", failure);
+            if (this.heartbeat.isShutdown()) {
+                return;
+            }
+
+            try {
+                this.renew();
+            } catch (Exception failure) {
+                LOGGER.warn("Cannot renew JDBC registry session", failure);
+            }
+        } finally {
+            this.lifecycleLock.readLock().unlock();
         }
     }
 
-    private void renew() throws Exception {
+    private synchronized void renew() throws Exception {
         this.transaction(jdbc -> {
             long now = System.currentTimeMillis();
             // 先清理已过期会话的临时记录，再续约当前会话。

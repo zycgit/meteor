@@ -125,6 +125,7 @@ public class MetIgnoreTest {
             assertForbidden(proxy::inheritedHidden);
             assertEquals(0, target.hiddenCalls.get());
 
+            // 注解只约束 RPC 暴露，不改变直接 Java 调用。
             assertEquals("hidden", target.hidden());
             assertEquals("2", target.echo(2));
             assertEquals("hidden default", target.inheritedHidden());
@@ -139,10 +140,12 @@ public class MetIgnoreTest {
         MetConfiguration clientConfig = new MetConfiguration();
         clientConfig.connector("tcp").protocol("rsf");
         Service target = new Service();
-        try (MetContext server = serverConfig.buildContext(); MetContext client = clientConfig.buildContext()) {
+        try (MetContext server = serverConfig.buildContext(); //
+             MetContext client = clientConfig.buildContext()) {
             server.publisher().rsfService(Published.class, target).name("SelectiveService").register();
-            MetBindInfo<RemoteView> service = client.publisher().rsfService(RemoteView.class)
-                    .name("SelectiveService").register();
+            var serviceBuilder = client.publisher().rsfService(RemoteView.class);
+            serviceBuilder.name("SelectiveService");
+            MetBindInfo<RemoteView> service = serviceBuilder.register();
             server.start();
             client.start();
             RemoteView remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);

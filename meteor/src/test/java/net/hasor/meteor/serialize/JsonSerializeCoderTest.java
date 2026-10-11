@@ -61,6 +61,8 @@ public class JsonSerializeCoderTest {
         byte[] json = "{\"@type\":\"not.a.real.Class\",\"name\":\"safe\",\"count\":2}".getBytes(StandardCharsets.UTF_8);
         Payload value = (Payload) this.coder.decode(json, Payload.class);
         assertEquals("safe", value.getName());
+
+        // 无目标 DTO 时仍按普通 JSON 对象读取，类型提示只是普通字段。
         Object generic = this.coder.decode(json, Object.class);
         assertTrue(generic instanceof Map);
         assertEquals("not.a.real.Class", ((Map<?, ?>) generic).get("@type"));

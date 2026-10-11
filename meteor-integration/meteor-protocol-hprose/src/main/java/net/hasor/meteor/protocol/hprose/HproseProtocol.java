@@ -32,6 +32,11 @@ public final class HproseProtocol implements ProtocolFactory<HttpExchange> {
         return "hprose";
     }
 
+    @Override
+    public String defaultSerializeType() {
+        return "Hprose";
+    }
+
     public String transport() {
         return "http";
     }

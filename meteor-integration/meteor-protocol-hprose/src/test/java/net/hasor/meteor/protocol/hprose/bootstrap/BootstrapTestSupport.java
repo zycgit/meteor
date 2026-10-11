@@ -21,7 +21,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import net.hasor.meteor.MetFuture;
-import net.hasor.meteor.address.route.ArgsKey;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.serialize.SerializeCoder;
 import org.junit.After;
@@ -52,7 +51,7 @@ public abstract class BootstrapTestSupport {
     }
 
     protected final MetConfiguration configuration(int port) {
-        MetConfiguration configuration = new MetConfiguration().setSerializeType("Java");
+        MetConfiguration configuration = new MetConfiguration();
         configuration.connector("tcp").bind("127.0.0.1", port).protocol("rsf");
         return configuration;
     }
@@ -137,9 +136,4 @@ public abstract class BootstrapTestSupport {
         void accept(String value) throws InterruptedException;
     }
 
-    public static class RoutingArgsKey implements ArgsKey {
-        public String eval(String service, String method, Object[] args) {
-            return String.valueOf(args[0]);
-        }
-    }
 }

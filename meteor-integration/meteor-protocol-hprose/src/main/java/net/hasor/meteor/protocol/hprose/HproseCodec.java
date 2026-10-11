@@ -29,14 +29,16 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
 
 /** HTTP/Hprose request and response mapping. */
 final class HproseCodec {
-    private final String     path;
-    private final MetContext context;
+    private final String         path;
+    private final MetContext     context;
     // Hprose carries no request ID; these IDs correlate inbound HTTP requests with their replies.
-    private final AtomicLong incomingIds = new AtomicLong();
+    private final ProtocolConfig protocol;
+    private final AtomicLong     incomingIds = new AtomicLong();
 
     public HproseCodec(ProtocolConfig config, MetContext context) {
         this.path = config.option("contextPath", "/hprose").replaceAll("/+$", "");
         this.context = context;
+        this.protocol = config;
     }
 
     public HproseInvocation receive(HttpRequest request) throws Exception {
@@ -50,7 +52,7 @@ final class HproseCodec {
         if (tag == 'z') {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             output.write('F');
-            new HproseWriter(output).writeArray(HproseUtils.doFunction(this.context));
+            new HproseWriter(output).writeArray(HproseUtils.doFunction(this.context, this.protocol));
             output.write('z');
             return HproseInvocation.respond(new HttpResponse(200, headers, output.toByteArray()));
         }

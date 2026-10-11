@@ -20,6 +20,7 @@ public class OptionInfoTest {
         assertEquals("value", options.getOption(null));
         assertTrue(Arrays.asList(options.getOptionKeys()).contains("nullable"));
 
+        // 复制保留键存在性，后续修改只影响副本。
         options.addOption(null, null);
         OptionInfo copy = new OptionInfo();
         copy.addOptionMap(options);

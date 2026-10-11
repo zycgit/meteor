@@ -94,12 +94,14 @@ public class ContextHttpTest extends BootstrapTestSupport {
             client.start();
 
             MetClient caller = client.getRsfClient(server.bindAddress("hprose").toHostSchema());
+
             // 默认别名与自定义别名分别定位到预期服务。
             assertEquals("default alias", caller.getRemote(defaults).echo("default alias"));
             Echo remote = caller.getRemote(service);
             assertEquals("HTTP双端", remote.echo("HTTP双端"));
             assertEquals(7, remote.add(3, 4));
             assertNull(remote.echo(null));
+
             // 业务失败由远端错误响应返回，不能成为成功的 null。
             Exception failure = assertThrows(Exception.class, remote::fail);
             Throwable cause = failure;
@@ -193,7 +195,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
             try {
                 MetFuture call = remote.asyncInvoke(service, "slow", new Class<?>[] { int.class }, new Object[] { 1 });
                 assertTrue(entered.await(3, TimeUnit.SECONDS));
-                ExecutionException failure = assertThrows(ExecutionException.class, () -> call.getData(3, TimeUnit.SECONDS));
+                var failure = assertThrows(ExecutionException.class, () -> call.getData(3, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof MetException);
                 assertFalse(failure.getCause() instanceof MetTimeoutException);
                 release.countDown();
@@ -205,6 +207,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
     }
 
     private String invokeHttp(int port, String path, String value) throws Exception {
+        // 构造 Hprose 调用帧，方法名与参数使用独立引用表。
         ByteArrayOutputStream request = new ByteArrayOutputStream();
         request.write('C');
         HproseWriter writer = new HproseWriter(request);
@@ -212,7 +215,10 @@ public class ContextHttpTest extends BootstrapTestSupport {
         writer.reset();
         writer.writeArray(new Object[] { value });
         request.write('z');
-        HttpURLConnection connection = (HttpURLConnection) new URL("http://127.0.0.1:" + port + path).openConnection();
+
+        // 使用有界 HTTP 连接发送原始报文，不经过框架客户端编码。
+        URL endpoint = new URL("http://127.0.0.1:" + port + path);
+        HttpURLConnection connection = (HttpURLConnection) endpoint.openConnection();
         connection.setConnectTimeout(3000);
         connection.setReadTimeout(5000);
         connection.setRequestMethod("POST");
@@ -221,6 +227,8 @@ public class ContextHttpTest extends BootstrapTestSupport {
             try (OutputStream out = connection.getOutputStream()) {
                 out.write(request.toByteArray());
             }
+
+            // 独立解码响应，确认返回值与终止标记，而不仅是 HTTP 成功状态。
             assertEquals(200, connection.getResponseCode());
             try (InputStream in = connection.getInputStream()) {
                 assertEquals('R', in.read());

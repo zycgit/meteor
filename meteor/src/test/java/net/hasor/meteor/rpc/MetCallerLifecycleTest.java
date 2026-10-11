@@ -105,6 +105,8 @@ public class MetCallerLifecycleTest {
         try (Host host = new Host(2)) {
             MetRequestObject request = host.request(host.peer, new Object[] { "value" });
             MetFuture original = host.send(request);
+
+            // 重复提交不能摘除仍在等待响应的原始请求。
             MetFuture duplicate = host.send(request);
             assertTrue(duplicate.getCause() instanceof IllegalStateException);
             assertSame(original, host.caller.getRequest(request.getRequestID()));
@@ -137,10 +139,14 @@ public class MetCallerLifecycleTest {
     @Test
     public void messageAcceptReturnsReceiptForRsfResultMethod() throws Exception {
         try (Host host = new Host(1)) {
-            MetRequestObject request = new MetRequestObject(1000000L, true, host.caller.getContext(), host.service, Echo.class.getMethod("notify", String.class), new Object[] { "value" });
+            MetContext context = host.caller.getContext();
+            Method method = Echo.class.getMethod("notify", String.class);
+            MetRequestObject request = new MetRequestObject(1000000L, true, context, host.service, method, new Object[] { "value" });
             host.configureRequest(request, host.peer);
             request.setMessage(true);
             MetFuture future = host.send(request);
+
+            // 中间确认不释放请求名额，只有最终响应可以释放。
             host.respond(future, ProtocolStatus.Accept);
             MetResult result = (MetResult) future.getData();
             assertTrue(result.isSuccess());
@@ -220,7 +226,7 @@ public class MetCallerLifecycleTest {
             List<Future<MetFuture>> calls = new ArrayList<>();
             for (int i = 0; i < 24; i++) {
                 calls.add(executor.submit(() -> {
-                    start.await();
+                    assertTrue(start.await(3, TimeUnit.SECONDS));
                     return host.invoke();
                 }));
             }
@@ -248,6 +254,8 @@ public class MetCallerLifecycleTest {
             AtomicInteger completions = new AtomicInteger();
             future.onCompleted(done -> completions.incrementAndGet());
             host.callbacks.remove().completed(host.channel);
+
+            // 中间确认不释放请求名额，只有最终响应可以释放。
             host.respond(future, ProtocolStatus.Accept);
             assertFalse(future.isDone());
             assertRejected(host.invoke());
@@ -403,23 +411,25 @@ public class MetCallerLifecycleTest {
                 CountDownLatch start = new CountDownLatch(1);
                 List<Callable<Void>> actions = new ArrayList<>();
                 actions.add(() -> {
-                    start.await();
+                    assertTrue(start.await(3, TimeUnit.SECONDS));
                     future.cancel();
                     return null;
                 });
                 actions.add(() -> {
-                    start.await();
+                    assertTrue(start.await(3, TimeUnit.SECONDS));
                     timer.run();
                     return null;
                 });
                 actions.add(() -> {
-                    start.await();
+                    assertTrue(start.await(3, TimeUnit.SECONDS));
                     host.respond(future, ProtocolStatus.OK);
                     return null;
                 });
                 actions.add(() -> {
-                    start.await();
-                    host.manager.onFailure(host.channel, future.getRequest().getRequestID(), new ThrowPayload(new IllegalStateException("send failed")));
+                    assertTrue(start.await(3, TimeUnit.SECONDS));
+                    long requestId = future.getRequest().getRequestID();
+                    ThrowPayload failure = new ThrowPayload(new IllegalStateException("send failed"));
+                    host.manager.onFailure(host.channel, requestId, failure);
                     return null;
                 });
                 List<Future<Void>> results = new ArrayList<>();
@@ -454,6 +464,8 @@ public class MetCallerLifecycleTest {
             host.rejectTimer = true;
             assertFailure(host.invoke(), RejectedExecutionException.class);
             host.rejectTimer = false;
+
+            // 定时器拒绝之后再验证立即超时，两种失败都不允许发送。
             host.immediateTimeout = true;
             assertFailure(host.invoke(), MetTimeoutException.class);
             host.immediateTimeout = false;
@@ -619,7 +631,8 @@ public class MetCallerLifecycleTest {
     }
 
     private static void assertRejected(MetFuture future) throws Exception {
-        assertEquals(ProtocolStatus.SendLimitPolicy, ((MetException) assertFailure(future, MetException.class)).getStatus());
+        MetException failure = (MetException) assertFailure(future, MetException.class);
+        assertEquals(ProtocolStatus.SendLimitPolicy, failure.getStatus());
     }
 
     private static Throwable assertFailure(MetFuture future, Class<? extends Throwable> type) throws Exception {
@@ -646,7 +659,10 @@ public class MetCallerLifecycleTest {
         final                MetCaller                              caller;
         volatile             SendLimitPolicy                        policy       = SendLimitPolicy.Reject;
         volatile             MetFilter                              filter;
-        boolean rejectTimer, immediateTimeout, failSend, noFilters;
+        boolean rejectTimer;
+        boolean immediateTimeout;
+        boolean failSend;
+        boolean noFilters;
         RuntimeException requestOptionFailure;
         Cancellable      timerCancellation = () -> true;
 
@@ -738,12 +754,17 @@ public class MetCallerLifecycleTest {
         }
 
         MetRequestObject request(InterAddress target, Object[] arguments) {
-            MetRequestObject request = new MetRequestObject(REQUEST_IDS.incrementAndGet(), true, this.caller.getContext(), this.service, this.method, arguments);
+            long requestId = REQUEST_IDS.incrementAndGet();
+            MetContext context = this.caller.getContext();
+            MetRequestObject request = new MetRequestObject(requestId, true, context, this.service, this.method, arguments);
             return this.configureRequest(request, target);
         }
 
         MetRequestObject blockedRequest(CountDownLatch mapping, CountDownLatch resume) {
-            MetRequestObject request = new MetRequestObject(REQUEST_IDS.incrementAndGet(), true, this.caller.getContext(), this.service, this.method, new Object[] { "value" }) {
+            long requestId = REQUEST_IDS.incrementAndGet();
+            MetContext context = this.caller.getContext();
+            Object[] arguments = { "value" };
+            MetRequestObject request = new MetRequestObject(requestId, true, context, this.service, this.method, arguments) {
                 @Override
                 public Object[] getParameterObject() {
                     mapping.countDown();

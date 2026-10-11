@@ -26,7 +26,11 @@ import static org.junit.Assert.*;
 public class SerializeCoderTest {
     @Parameterized.Parameters(name = "{0}")
     public static Collection<Object[]> coders() {
-        return Arrays.asList(new Object[][] { { "Java", new JavaSerializeCoder() }, { "Json", new JsonSerializeCoder() }, { "Hessian", new HessianSerializeCoder() } });
+        List<Object[]> coders = new ArrayList<>();
+        coders.add(new Object[] { "Java", new JavaSerializeCoder() });
+        coders.add(new Object[] { "Json", new JsonSerializeCoder() });
+        coders.add(new Object[] { "Hessian", new HessianSerializeCoder() });
+        return coders;
     }
 
     private final String         name;
@@ -64,9 +68,13 @@ public class SerializeCoderTest {
 
     @Test
     public void primitiveAndObjectArrays() throws Exception {
-        assertArrayEquals(new byte[] { 0, -1, 42 }, (byte[]) roundTrip(new byte[] { 0, -1, 42 }, byte[].class));
-        assertArrayEquals(new int[] { 1, -2, 3 }, (int[]) roundTrip(new int[] { 1, -2, 3 }, int[].class));
-        assertArrayEquals(new String[] { "中文", null, "" }, (String[]) roundTrip(new String[] { "中文", null, "" }, String[].class));
+        // 基础数组保留每个元素，字符串数组还保留 null 与空串。
+        byte[] bytes = { 0, -1, 42 };
+        assertArrayEquals(bytes, (byte[]) this.roundTrip(bytes, byte[].class));
+        int[] integers = { 1, -2, 3 };
+        assertArrayEquals(integers, (int[]) this.roundTrip(integers, int[].class));
+        String[] strings = { "中文", null, "" };
+        assertArrayEquals(strings, (String[]) this.roundTrip(strings, String[].class));
     }
 
     @Test
@@ -109,7 +117,7 @@ public class SerializeCoderTest {
 
     @Test
     public void independentMessagesDoNotShareReferences() throws Exception {
-        String first = new String("repeated value");
+        String first = "repeated value";
         byte[] encoded = this.coder.encode(first);
         assertArrayEquals(encoded, this.coder.encode(first));
         assertEquals(first, this.coder.decode(encoded, String.class));

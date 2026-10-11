@@ -36,27 +36,35 @@ public class ZookeeperStorageTest {
             EntityRef localA = new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.CONFIGURATION);
             EntityRef localB = new EntityRef(EntityType.SERVICE, "echo", b, EntitySection.CONFIGURATION);
             EntityRef runtime = new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.RUNTIME);
-            EntityRef ruleA = new EntityRef(EntityType.RULE, "FLOW_CONTROL", localA, EntitySection.CONFIGURATION);
-            EntityRef ruleB = new EntityRef(EntityType.RULE, "FLOW_CONTROL", localB, EntitySection.CONFIGURATION);
+            EntityRef ruleA = new EntityRef(EntityType.RULE, "SERVICE_ROUTE", localA, EntitySection.CONFIGURATION);
+            EntityRef ruleB = new EntityRef(EntityType.RULE, "SERVICE_ROUTE", localB, EntitySection.CONFIGURATION);
             store.saveEntity(new EntityRecord(localA));
             store.saveEntity(new EntityRecord(localB));
             store.saveEntity(new EntityRecord(runtime));
-            store.saveEntity(new EntityRecord(ruleA));
+            EntRuleConfigurationData body = new EntRuleConfigurationData();
+            body.setRule("<route><return value='addresses'/></route>");
+            EntityRecord rule = new EntityRecord(ruleA);
+            rule.setData(body);
+            store.saveEntity(rule);
+            EntRuleConfigurationData loaded = (EntRuleConfigurationData) store.getEntity(ruleA).getData();
+            assertEquals(body.getRule(), loaded.getRule());
             store.saveEntity(new EntityRecord(ruleB));
 
             // 查询仅选定父级和区域，不混入同名服务的其他规则。
             EntityQuery query = new EntityQuery();
             query.setType(EntityType.SERVICE);
             query.setParent(a);
-            assertEquals(localA, store.findEntities(query).records().get(0).getRef());
-            assertEquals(1, store.findEntities(query).records().size());
+            var services = store.findEntities(query).records();
+            assertEquals(1, services.size());
+            assertEquals(localA, services.get(0).getRef());
             query.setSection(EntitySection.RUNTIME);
             assertEquals(runtime, store.findEntities(query).records().get(0).getRef());
             query.setType(EntityType.RULE);
             query.setSection(EntitySection.CONFIGURATION);
             query.setParent(localA);
-            assertEquals(1, store.findEntities(query).records().size());
-            assertEquals(ruleA, store.findEntities(query).records().get(0).getRef());
+            var rules = store.findEntities(query).records();
+            assertEquals(1, rules.size());
+            assertEquals(ruleA, rules.get(0).getRef());
             query.setParent(localB);
             assertEquals(ruleB, store.findEntities(query).records().get(0).getRef());
         }
@@ -115,7 +123,7 @@ public class ZookeeperStorageTest {
 
                 // 退出仅清理当前会话的临时数据，服务实体及版本保持不变。
                 first.close();
-                long deadline = System.nanoTime() + 10_000_000_000L;
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
                 while (second.getEntity(source) != null && System.nanoTime() < deadline) {
                     Thread.sleep(10);
                 }
@@ -131,9 +139,12 @@ public class ZookeeperStorageTest {
     @Test
     public void missingIndexAndExpiredSessionCanBeRebuiltByRegistration() throws Exception {
         // 精确注入索引丢失和 SDK 会话过期，验证再次注册可修复记录。
-        ExponentialBackoffRetry retry = new ExponentialBackoffRetry(50, 3);
+        CuratorFrameworkFactory.Builder builder = CuratorFrameworkFactory.builder();
+        builder.retryPolicy(new ExponentialBackoffRetry(50, 3));
+        builder.sessionTimeoutMs(1000);
+        builder.connectionTimeoutMs(5000);
         try (TestingServer server = new TestingServer(); //
-             CuratorFramework client = CuratorFrameworkFactory.newClient(server.getConnectString(), 1000, 5000, retry)) {
+             CuratorFramework client = builder.connectString(server.getConnectString()).build()) {
             client.start();
             assertTrue("ZooKeeper session did not connect", client.blockUntilConnected(5, TimeUnit.SECONDS));
             ZookeeperRegistryConfiguration configuration = this.configuration(server.getConnectString());
@@ -165,7 +176,7 @@ public class ZookeeperStorageTest {
                 // 精确使 SDK 会话过期，等待服务端删除临时节点后再注册。
                 KillSession.kill(client.getZookeeperClient().getZooKeeper());
                 assertTrue("ZooKeeper session did not connect", client.blockUntilConnected(5, TimeUnit.SECONDS));
-                long deadline = System.nanoTime() + 10_000_000_000L;
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
                 while (System.nanoTime() < deadline) {
                     RelationRecord remaining = observer.getRelation(RelationType.PROVIDES, source, target);
                     if (remaining == null) {

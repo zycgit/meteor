@@ -60,9 +60,13 @@ public class BucketTest {
         bucket.invalidAddress(this.a, -1);
         bucket.refreshAddress();
         assertTrue(bucket.getAvailableAddresses().contains(this.a));
+
+        // 重试再次失败后立即移出可用集合。
         bucket.invalidAddress(this.a, 60000);
         bucket.refreshAddress();
         assertFalse(bucket.getAvailableAddresses().contains(this.a));
+
+        // 新的动态上报清除失效状态。
         bucket.newAddress(Collections.singletonList(this.a), AddressTypeEnum.Dynamic);
         assertFalse(bucket.getInvalidAddresses().contains(this.a));
         assertTrue(bucket.getAvailableAddresses().contains(this.a));
@@ -75,7 +79,8 @@ public class BucketTest {
         bucket.refreshAddress();
         assertTrue(bucket.getAvailableAddresses().contains(this.a));
         bucket.invalidAddress(this.a, 60000);
-        assertFalse("Direct bucket API must update availability after a failed retry", bucket.getAvailableAddresses().contains(this.a));
+        boolean available = bucket.getAvailableAddresses().contains(this.a);
+        assertFalse("A failed retry must immediately remove the address", available);
     }
 
     @Test

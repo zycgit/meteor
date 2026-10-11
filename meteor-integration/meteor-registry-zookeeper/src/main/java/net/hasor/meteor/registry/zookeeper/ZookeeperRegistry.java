@@ -45,29 +45,39 @@ final class ZookeeperRegistry extends RecordStorageAccess {
     };
 
     @Override
-    public synchronized Cancellable watchEntities(EntityQuery query, Runnable listener) {
-        this.requireOpen();
-        if (query == null || query.getType() == null) {
-            throw new IllegalArgumentException("Entity type is required");
-        }
+    public Cancellable watchEntities(EntityQuery query, Runnable listener) {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+            if (query == null || query.getType() == null) {
+                throw new IllegalArgumentException("Entity type is required");
+            }
 
-        EntityQuery selection = query.copy();
-        return this.watch(() -> this.readVersions(selection), listener);
+            EntityQuery selection = query.copy();
+            return this.watch(() -> this.readVersions(selection), listener);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
+        }
     }
 
     @Override
-    public synchronized Cancellable watchRelations(RelationQuery query, Runnable listener) {
-        this.requireOpen();
+    public Cancellable watchRelations(RelationQuery query, Runnable listener) {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
 
-        boolean scoped = query != null &&//
-                (query.getType() != null || query.getSource() != null || query.getTarget() != null);
-        if (!scoped) {
-            throw new IllegalArgumentException("Specify relation type or endpoint");
+            boolean scoped = query != null &&//
+                    (query.getType() != null || query.getSource() != null || query.getTarget() != null);
+            if (!scoped) {
+                throw new IllegalArgumentException("Specify relation type or endpoint");
+            }
+
+            RelationQuery selection = query.copy();
+            // 关系正文和起终点索引的修复都会影响查询结果。
+            return this.watch(() -> this.readVersions(selection), listener);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
         }
-
-        RelationQuery selection = query.copy();
-        // 关系正文和起终点索引的修复都会影响查询结果。
-        return this.watch(() -> this.readVersions(selection), listener);
     }
 
     private Map<String, String> readVersions(EntityQuery query) throws Exception {
@@ -105,7 +115,7 @@ final class ZookeeperRegistry extends RecordStorageAccess {
         return versions;
     }
 
-    private Cancellable watch(Callable<Map<String, String>> snapshot, Runnable listener) {
+    private synchronized Cancellable watch(Callable<Map<String, String>> snapshot, Runnable listener) {
         if (this.watchExecutor == null) {
             ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, task -> {
                 Thread thread = new Thread(task, "Meteor-zookeeper-watch-" + this.tempSessionId);

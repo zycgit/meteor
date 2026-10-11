@@ -16,10 +16,10 @@ import net.hasor.meteor.*;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.DiskCache;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.address.dsl.XmlRuleParser;
 import net.hasor.meteor.address.provider.AddressProvider;
 import net.hasor.meteor.address.provider.InstanceAddressProvider;
 import net.hasor.meteor.address.provider.PoolAddressProvider;
-import net.hasor.meteor.address.route.GroovyRuleScriptEngine;
 import net.hasor.meteor.bootstrap.MetContextImpl;
 import net.hasor.meteor.container.MetContainer;
 import net.hasor.meteor.domain.MetRequestObject;
@@ -47,10 +47,21 @@ public class BootstrapBoundaryTest {
     public void frameworkClassesHaveASingleOwner() throws Exception {
         // 插件仅提供协议能力；基础契约、容器、地址本和调用链仍来自同一个框架组件。
         List<Class<?>> types = new ArrayList<>();
-        types.addAll(List.of(SerializeCoder.class, SerializeFactory.class, JavaSerializeCoder.class, JsonSerializeCoder.class, HessianSerializeCoder.class));
-        types.addAll(List.of(AddressPool.class, DiskCache.class, InterAddress.class, AddressProvider.class, InstanceAddressProvider.class, PoolAddressProvider.class, GroovyRuleScriptEngine.class));
-        types.addAll(List.of(MetContext.class, MetRequest.class, RequestPayload.class, MetRequestObject.class, MetResponseObject.class, ServiceDomain.class, MetCaller.class, MetClientImpl.class));
-        types.addAll(List.of(LocalPref.class, OnlineMetFilter.class, LocalWarpFilter.class, MetRequestLocal.class, MetResponseLocal.class, MetContainer.class));
+        // 序列化契约与内置实现。
+        types.addAll(List.of(SerializeCoder.class, SerializeFactory.class));
+        types.addAll(List.of(JavaSerializeCoder.class, JsonSerializeCoder.class, HessianSerializeCoder.class));
+
+        // 地址存储、提供者与 XML 规则解析。
+        types.addAll(List.of(AddressPool.class, DiskCache.class, InterAddress.class, XmlRuleParser.class));
+        types.addAll(List.of(AddressProvider.class, InstanceAddressProvider.class, PoolAddressProvider.class));
+
+        // 调用契约、调度实现及容器。
+        types.addAll(List.of(MetContext.class, MetRequest.class, RequestPayload.class));
+        types.addAll(List.of(MetRequestObject.class, MetResponseObject.class, ServiceDomain.class));
+        types.addAll(List.of(MetCaller.class, MetClientImpl.class, MetContainer.class));
+        types.addAll(List.of(LocalPref.class, OnlineMetFilter.class, LocalWarpFilter.class));
+        types.addAll(List.of(MetRequestLocal.class, MetResponseLocal.class));
+
         ClassLoader loader = this.getClass().getClassLoader();
         URL framework = MetContextImpl.class.getProtectionDomain().getCodeSource().getLocation();
         for (Class<?> type : types) {
@@ -65,7 +76,11 @@ public class BootstrapBoundaryTest {
     @Test
     public void runtimeClasspathContainsNoHasorContainerOrLegacyUtilities() throws Exception {
         // 插件引入后仍不应带回旧容器、工具包或控制台依赖。
-        List<String> legacyTypes = List.of("net.hasor.core.AppContext", "net.hasor.core.Hasor", "net.hasor.utils.StringUtils", "net.hasor.tconsole.TelCommand");
+        List<String> legacyTypes = new ArrayList<>();
+        legacyTypes.add("net.hasor.core.AppContext");
+        legacyTypes.add("net.hasor.core.Hasor");
+        legacyTypes.add("net.hasor.utils.StringUtils");
+        legacyTypes.add("net.hasor.tconsole.TelCommand");
         for (String name : legacyTypes) {
             assertThrows("Unexpected dependency: " + name, ClassNotFoundException.class, () -> Class.forName(name));
         }
@@ -74,7 +89,11 @@ public class BootstrapBoundaryTest {
 
     @Test
     public void originalWireTypeDescriptorsResolvePrimitivesAndArrays() throws Exception {
-        List<Class<?>> types = List.of(int.class, boolean.class, byte.class, short.class, long.class, float.class, double.class, char.class, String.class, int[].class, String[][].class);
+        // 基本类型、普通引用和数组分别覆盖类名及线协议描述符两种入口。
+        List<Class<?>> types = new ArrayList<>();
+        types.addAll(List.of(int.class, boolean.class, byte.class, short.class));
+        types.addAll(List.of(long.class, float.class, double.class, char.class));
+        types.addAll(List.of(String.class, int[].class, String[][].class));
         for (Class<?> type : types) {
             String descriptor = MetRuntimeUtils.toAsmType(type);
             assertSame(type, MetRuntimeUtils.getType(descriptor, this.getClass().getClassLoader()));

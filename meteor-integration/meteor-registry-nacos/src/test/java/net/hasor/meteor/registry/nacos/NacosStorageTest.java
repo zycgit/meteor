@@ -25,27 +25,35 @@ public class NacosStorageTest {
                 EntityRef localA = new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.CONFIGURATION);
                 EntityRef localB = new EntityRef(EntityType.SERVICE, "echo", b, EntitySection.CONFIGURATION);
                 EntityRef runtime = new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.RUNTIME);
-                EntityRef ruleA = new EntityRef(EntityType.RULE, "FLOW_CONTROL", localA, EntitySection.CONFIGURATION);
-                EntityRef ruleB = new EntityRef(EntityType.RULE, "FLOW_CONTROL", localB, EntitySection.CONFIGURATION);
+                EntityRef ruleA = new EntityRef(EntityType.RULE, "SERVICE_ROUTE", localA, EntitySection.CONFIGURATION);
+                EntityRef ruleB = new EntityRef(EntityType.RULE, "SERVICE_ROUTE", localB, EntitySection.CONFIGURATION);
                 store.saveEntity(new EntityRecord(localA));
                 store.saveEntity(new EntityRecord(localB));
                 store.saveEntity(new EntityRecord(runtime));
-                store.saveEntity(new EntityRecord(ruleA));
+                EntRuleConfigurationData body = new EntRuleConfigurationData();
+                body.setRule("<route><return value='addresses'/></route>");
+                EntityRecord rule = new EntityRecord(ruleA);
+                rule.setData(body);
+                store.saveEntity(rule);
+                EntRuleConfigurationData loaded = (EntRuleConfigurationData) store.getEntity(ruleA).getData();
+                assertEquals(body.getRule(), loaded.getRule());
                 store.saveEntity(new EntityRecord(ruleB));
 
                 // 查询父级和区域组合，排除同名但不属于该范围的记录。
                 EntityQuery query = new EntityQuery();
                 query.setType(EntityType.SERVICE);
                 query.setParent(a);
-                assertEquals(localA, store.findEntities(query).records().get(0).getRef());
-                assertEquals(1, store.findEntities(query).records().size());
+                var services = store.findEntities(query).records();
+                assertEquals(1, services.size());
+                assertEquals(localA, services.get(0).getRef());
                 query.setSection(EntitySection.RUNTIME);
                 assertEquals(runtime, store.findEntities(query).records().get(0).getRef());
                 query.setType(EntityType.RULE);
                 query.setSection(EntitySection.CONFIGURATION);
                 query.setParent(localA);
-                assertEquals(1, store.findEntities(query).records().size());
-                assertEquals(ruleA, store.findEntities(query).records().get(0).getRef());
+                var rules = store.findEntities(query).records();
+                assertEquals(1, rules.size());
+                assertEquals(ruleA, rules.get(0).getRef());
                 query.setParent(localB);
                 assertEquals(ruleB, store.findEntities(query).records().get(0).getRef());
             }
@@ -89,6 +97,7 @@ public class NacosStorageTest {
                         continue;
                     }
                     for (var node : entry.getValue().values()) {
+                        assertTrue("Nacos cluster name exceeds 64 characters", node.getClusterName().length() <= 64);
                         if (node.getMetadata().containsKey("record")) {
                             bodies++;
                         }
@@ -187,6 +196,7 @@ public class NacosStorageTest {
                 EntityRecord unhealthyInstance = new EntityRecord(ref.type(), ref.id());
                 unhealthyInstance.setLifecycle(RecordLifecycle.EPHEMERAL);
                 first.saveEntity(unhealthyInstance);
+
                 // 模拟 Nacos 健康检查剔除实例，记录正文仍存在但不能参与发现。
                 for (var nodes : server.nodes.values()) {
                     for (var node : nodes.values()) {
@@ -197,6 +207,7 @@ public class NacosStorageTest {
                 EntityQuery unhealthyInstances = new EntityQuery();
                 unhealthyInstances.setType(ref.type());
                 assertTrue(first.findEntities(unhealthyInstances).records().isEmpty());
+
                 // 关闭幂等，关闭后的会话拒绝读取。
                 first.close();
                 first.close();
@@ -239,14 +250,13 @@ public class NacosStorageTest {
                 EntityRecord persistent = storage.saveEntity(new EntityRecord(EntityType.SERVICE, "persistent"));
                 EntityRecord temporary = new EntityRecord(EntityType.INSTANCE, "temporary");
                 temporary.setLifecycle(RecordLifecycle.EPHEMERAL);
-                temporary = storage.saveEntity(temporary);
+                EntityRecord savedTemporary = storage.saveEntity(temporary);
 
                 // 两种生命周期使用不同的 Nacos 服务，身份检查仍必须一致。
                 persistent.setLifecycle(RecordLifecycle.EPHEMERAL);
-                temporary.setLifecycle(RecordLifecycle.PERSISTENT);
-                EntityRecord converted = temporary;
+                savedTemporary.setLifecycle(RecordLifecycle.PERSISTENT);
                 assertThrows(IllegalArgumentException.class, () -> storage.saveEntity(persistent));
-                assertThrows(IllegalArgumentException.class, () -> storage.saveEntity(converted));
+                assertThrows(IllegalArgumentException.class, () -> storage.saveEntity(savedTemporary));
             }
         }
     }

@@ -82,11 +82,10 @@ public class RpcModuleTest {
         try (Host host = new Host(true)) {
             for (int timeout : new int[] { 0, -1 }) {
                 host.service.setClientTimeout(timeout);
-                assertEquals("default timeout", host.client.syncInvoke(//
-                        host.service, //
-                        "echo", //
-                        new Class<?>[] { String.class }, //
-                        new Object[] { "default timeout" }));
+                Class<?>[] types = { String.class };
+                Object[] arguments = { "default timeout" };
+                Object result = host.client.syncInvoke(host.service, "echo", types, arguments);
+                assertEquals("default timeout", result);
             }
         }
     }
@@ -105,6 +104,8 @@ public class RpcModuleTest {
             assertTrue(host.targets.isEmpty());
             assertArrayEquals(new Class<?>[] { Echo.class }, first.getClass().getInterfaces());
 
+
+            // 与 Object 方法不同，接口声明的同名业务方法仍需走 RPC。
             assertEquals("business target", first.getTarget());
             assertEquals("new value", first.setTarget("new value"));
             assertEquals("overloaded", first.toString("overloaded"));
@@ -197,13 +198,14 @@ public class RpcModuleTest {
     public void callbackDataAndResponsePreserveResultsAndFailures() throws Exception {
         try (Host host = new Host(true)) {
             Callback<Object> data = new Callback<>();
-            host.client.callbackInvoke(host.service, "echo", new Class<?>[] { String.class }, new Object[] { "data" }, data);
+            Class<?>[] parameterTypes = { String.class };
+            host.client.callbackInvoke(host.service, "echo", parameterTypes, new Object[] { "data" }, data);
             assertEquals("data", data.result.get(2, TimeUnit.SECONDS));
             Callback<MetResponse> response = new Callback<>();
-            host.client.callbackRequest(host.service, "echo", new Class<?>[] { String.class }, new Object[] { null }, response);
+            host.client.callbackRequest(host.service, "echo", parameterTypes, new Object[] { null }, response);
             assertNull(response.result.get(2, TimeUnit.SECONDS).getData());
             Callback<Object> failed = new Callback<>();
-            host.client.callbackInvoke(host.service, "fail", new Class<?>[] { String.class }, new Object[] { "bad" }, failed);
+            host.client.callbackInvoke(host.service, "fail", parameterTypes, new Object[] { "bad" }, failed);
             try {
                 failed.result.get(2, TimeUnit.SECONDS);
                 fail("Business failure must reach callback");
@@ -220,13 +222,14 @@ public class RpcModuleTest {
     public void callbackCancellationUsesTheSameSemanticsForDataAndResponse() throws Exception {
         try (Host host = new Host(false)) {
             Callback<Object> data = new Callback<>();
-            host.client.callbackInvoke(host.service, "echo", new Class<?>[] { String.class }, new Object[] { "data" }, data);
+            Class<?>[] parameterTypes = { String.class };
+            host.client.callbackInvoke(host.service, "echo", parameterTypes, new Object[] { "data" }, data);
             RequestPayload request = host.sent.poll(2, TimeUnit.SECONDS);
             assertNotNull(request);
             host.caller.getRequest(request.getRequestID()).cancel();
             assertTrue(data.result.isCancelled());
             Callback<MetResponse> response = new Callback<>();
-            host.client.callbackRequest(host.service, "echo", new Class<?>[] { String.class }, new Object[] { "response" }, response);
+            host.client.callbackRequest(host.service, "echo", parameterTypes, new Object[] { "response" }, response);
             request = host.sent.poll(2, TimeUnit.SECONDS);
             assertNotNull(request);
             host.caller.getRequest(request.getRequestID()).cancel();
@@ -239,8 +242,9 @@ public class RpcModuleTest {
     @Test
     public void nullCallbacksStillSubmitCallsAndClosedCallerRejectsExistingClients() throws Exception {
         try (Host host = new Host(false)) {
-            host.client.callbackInvoke(host.service, "echo", new Class<?>[] { String.class }, new Object[] { "data" }, null);
-            host.client.callbackRequest(host.service, "echo", new Class<?>[] { String.class }, new Object[] { "response" }, null);
+            Class<?>[] parameterTypes = { String.class };
+            host.client.callbackInvoke(host.service, "echo", parameterTypes, new Object[] { "data" }, null);
+            host.client.callbackRequest(host.service, "echo", parameterTypes, new Object[] { "response" }, null);
             assertEquals(2, host.sent.size());
             host.caller.close();
             MetFuture rejected = host.invoke();
@@ -278,7 +282,8 @@ public class RpcModuleTest {
             assertEquals(2, host.localFilters.get());
             assertEquals(2, host.remoteFilters.get());
             try {
-                host.client.syncInvoke(host.service, "fail", new Class<?>[] { String.class }, new Object[] { "failure" });
+                Class<?>[] parameterTypes = { String.class };
+                host.client.syncInvoke(host.service, "fail", parameterTypes, new Object[] { "failure" });
                 fail("Service failure must reach the client");
             } catch (ExecutionException expected) {
                 assertTrue(expected.getCause() instanceof MetException);
@@ -411,7 +416,8 @@ public class RpcModuleTest {
         }
 
         MetFuture invoke() {
-            return this.client.asyncInvoke(this.service, "echo", new Class<?>[] { String.class }, new Object[] { "value" });
+            Class<?>[] types = { String.class };
+            return this.client.asyncInvoke(this.service, "echo", types, new Object[] { "value" });
         }
 
         public void close() {

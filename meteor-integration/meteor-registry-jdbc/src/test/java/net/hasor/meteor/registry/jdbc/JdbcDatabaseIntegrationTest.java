@@ -6,61 +6,34 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.jdbc;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.DriverManager;
-import java.util.*;
+import java.util.ConcurrentModificationException;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.*;
 import net.hasor.dbvisitor.jdbc.core.JdbcTemplate;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
+import org.h2.jdbcx.JdbcDataSource;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static net.hasor.meteor.registry.jdbc.JdbcTestSupport.driverDataSource;
+import static net.hasor.meteor.registry.jdbc.JdbcTestSupport.initialize;
 import static org.junit.Assert.*;
-import static org.junit.Assume.assumeTrue;
 
-/** 可选真实数据库验证；仅使用专用空数据库，测试创建并删除两张存储表。 */
-@RunWith(Parameterized.class)
+/** 使用 H2 验证建表、租约和多会话存储契约，不依赖外部数据库。 */
 public class JdbcDatabaseIntegrationTest {
-    @Parameterized.Parameters(name = "{0}")
-    public static Collection<Object[]> databases() {
-        return Arrays.asList(new Object[][] { { "mysql" }, { "postgresql" }, { "oracle" }, { "sqlserver" } });
-    }
-
-    private final String database;
-
-    public JdbcDatabaseIntegrationTest(String database) {
-        this.database = database;
-    }
-
     @Test
     public void schemaLeaseRecordsAndConcurrentWrites() throws Exception {
-        // 仅在明确配置的专用数据库执行建表、租约和并发写入验证。
-        String prefix = "METEOR_JDBC_" + this.database.toUpperCase(Locale.ROOT) + "_";
-        String url = System.getenv(prefix + "URL");
-        assumeTrue("Set " + prefix + "URL for a dedicated empty test database", url != null);
-        String user = System.getenv().getOrDefault(prefix + "USER", "");
-        String password = System.getenv().getOrDefault(prefix + "PASSWORD", "");
+        // 应用创建 H2 数据源并执行正式建表脚本，保留连接以维持内存库生命周期。
+        JdbcDataSource dataSource = new JdbcDataSource();
+        dataSource.setURL("jdbc:h2:mem:" + UUID.randomUUID());
         JdbcRegistryConfiguration configuration = new JdbcRegistryConfiguration();
-        configuration.setDataSource(driverDataSource(url, user, password));
+        configuration.setDataSource(dataSource);
         configuration.setGroup(UUID.randomUUID().toString());
-        try (Connection connection = DriverManager.getConnection(url, user, password)) {
+
+        try (Connection connection = dataSource.getConnection()) {
+            initialize(connection);
             JdbcTemplate jdbc = new JdbcTemplate(connection);
-            String schemaPath = "/META-INF/meteor/schema/" + this.database + ".sql";
-            InputStream schema = Objects.requireNonNull(this.getClass().getResourceAsStream(schemaPath));
-            try (InputStreamReader script = new InputStreamReader(schema, StandardCharsets.UTF_8)) {
-                jdbc.loadSplitSQL(";", script);
-            }
-            try {
-                this.exercise(configuration, jdbc);
-            } finally {
-                jdbc.execute("DROP TABLE meteor_records");
-                jdbc.execute("DROP TABLE meteor_sessions");
-            }
+            this.exercise(configuration, jdbc);
         }
     }
 
@@ -76,8 +49,11 @@ public class JdbcDatabaseIntegrationTest {
             List<Long> leases = jdbc.queryForList("SELECT expires_at FROM meteor_sessions", (rs, row) -> rs.getLong(1));
             long after = System.currentTimeMillis();
             assertEquals(2, leases.size());
+            long earliestExpiry = before + 15000;
+            long latestExpiry = after + 15000;
             for (long expiresAt : leases) {
-                assertTrue(expiresAt >= before + 15000 && expiresAt <= after + 15000);
+                assertTrue(expiresAt >= earliestExpiry);
+                assertTrue(expiresAt <= latestExpiry);
             }
 
             // 长 Unicode 正文和标识可持久化，旧版本不能更新或删除。
@@ -87,7 +63,8 @@ public class JdbcDatabaseIntegrationTest {
             serviceRecord.setData(serviceData);
             EntityRecord original = first.saveEntity(serviceRecord);
             EntityRecord stale = second.getEntity(service);
-            assertEquals(body, ((EntServiceCatalogData) stale.getData()).getName());
+            EntServiceCatalogData storedData = (EntServiceCatalogData) stale.getData();
+            assertEquals(body, storedData.getName());
             original.setData(null);
             first.saveEntity(original);
             assertThrows(ConcurrentModificationException.class, () -> second.saveEntity(stale));
@@ -115,7 +92,8 @@ public class JdbcDatabaseIntegrationTest {
             nextPageQuery.setLimit(1);
             nextPageQuery.setCursor(page.nextCursor());
             assertEquals(1, second.findRelations(nextPageQuery).records().size());
-            assertThrows(IllegalStateException.class, () -> second.deleteEntity(first.getEntity(instance)));
+            EntityRecord ownedInstance = first.getEntity(instance);
+            assertThrows(IllegalStateException.class, () -> second.deleteEntity(ownedInstance));
 
             // 租约过期后可由新会话认领，原会话退出不能误删新归属。
             jdbc.executeUpdate("UPDATE meteor_sessions SET expires_at=0");
@@ -145,7 +123,9 @@ public class JdbcDatabaseIntegrationTest {
             Callable<Boolean> createSecond = () -> this.create(second, barrier);
             Future<Boolean> one = workers.submit(createFirst);
             Future<Boolean> two = workers.submit(createSecond);
-            assertNotEquals(one.get(10, TimeUnit.SECONDS), two.get(10, TimeUnit.SECONDS));
+            boolean firstCreated = one.get(10, TimeUnit.SECONDS);
+            boolean secondCreated = two.get(10, TimeUnit.SECONDS);
+            assertNotEquals(firstCreated, secondCreated);
         } finally {
             workers.shutdownNow();
         }

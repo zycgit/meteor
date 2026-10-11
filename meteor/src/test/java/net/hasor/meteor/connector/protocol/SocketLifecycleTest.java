@@ -7,13 +7,11 @@
  */
 package net.hasor.meteor.connector.protocol;
 import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -37,7 +35,8 @@ public class SocketLifecycleTest {
 
     @Test(timeout = 15000)
     public void cancelledSendStillDrainsItsPhysicalWrite() throws Exception {
-        try (ServerSocket listener = new ServerSocket(0); ConnectorManager manager = this.manager(listener.getLocalPort())) {
+        try (ServerSocket listener = new ServerSocket(0); //
+             ConnectorManager manager = this.manager(listener.getLocalPort())) {
             MetChannel channel = manager.connect(this.address(listener.getLocalPort())).get(3, TimeUnit.SECONDS);
             try (Socket peer = listener.accept()) {
                 peer.setSoTimeout(5000);
@@ -46,6 +45,8 @@ public class SocketLifecycleTest {
                 assertEquals(37, peer.getInputStream().read());
                 assertFalse(sent.isDone());
                 assertTrue(sent.cancel());
+
+                // 取消等待不取消已提交写入；排空必须等待这些字节发送完毕。
                 Future<MetChannel> closed = channel.drainAndClose();
                 assertFalse(closed.isDone());
                 this.assertRejected(channel);
@@ -65,7 +66,8 @@ public class SocketLifecycleTest {
 
     @Test(timeout = 10000)
     public void hardCloseInterruptsWriteWithoutWaitingForPeerToRead() throws Exception {
-        try (ServerSocket listener = new ServerSocket(0); ConnectorManager manager = this.manager(listener.getLocalPort())) {
+        try (ServerSocket listener = new ServerSocket(0); //
+             ConnectorManager manager = this.manager(listener.getLocalPort())) {
             MetChannel channel = manager.connect(this.address(listener.getLocalPort())).get(3, TimeUnit.SECONDS);
             try (Socket peer = listener.accept()) {
                 peer.setSoTimeout(3000);
@@ -88,7 +90,8 @@ public class SocketLifecycleTest {
 
     @Test(timeout = 10000)
     public void closeBindLeavesExistingConnectionsUsable() throws Exception {
-        try (ConnectorManager server = this.manager(0); ConnectorManager client = this.manager(0)) {
+        try (ConnectorManager server = this.manager(0); //
+             ConnectorManager client = this.manager(0)) {
             ConnectorConfig config = server.configurations().iterator().next();
             MetListen listen = server.bind(config.name()).get(3, TimeUnit.SECONDS);
             MetChannel channel = client.connect(listen.getBindAddress()).get(3, TimeUnit.SECONDS);
@@ -139,9 +142,11 @@ public class SocketLifecycleTest {
         options.put("protocol", "rawprotocol");
         String protocolName = options.getOrDefault("protocol", "raw");
         ProtocolConfig mount = new ProtocolConfig("raw", "raw", protocolName, options);
-        ConnectorConfig config = new ConnectorConfig("raw", this.address(port), options, Collections.singletonList(mount), true);
+        InterAddress configAddress = this.address(port);
+        List<ProtocolConfig> configMounts = Collections.singletonList(mount);
+        ConnectorConfig config = new ConnectorConfig("raw", configAddress, options, configMounts, true);
         ClassLoader loader = this.getClass().getClassLoader();
-        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, (proxy, method, args) -> {
+        InvocationHandler settingsHandler = (proxy, method, args) -> {
             if (StringUtils.equals("getConnectorConfigs", method.getName())) {
                 return Collections.singletonList(config);
             }
@@ -149,8 +154,9 @@ public class SocketLifecycleTest {
                 return 10000;
             }
             throw new AssertionError(method);
-        });
-        MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, (proxy, method, args) -> {
+        };
+        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, new Class<?>[] { MetSettings.class }, settingsHandler);
+        InvocationHandler contextHandler = (proxy, method, args) -> {
             if (StringUtils.equals("getSettings", method.getName())) {
                 return settings;
             }
@@ -158,7 +164,8 @@ public class SocketLifecycleTest {
                 return loader;
             }
             throw new AssertionError(method);
-        });
+        };
+        MetContext context = (MetContext) Proxy.newProxyInstance(loader, new Class<?>[] { MetContext.class }, contextHandler);
         EndpointConnectorFactory factory = new EndpointConnectorFactory();
         factory.listenTypes(loader);
         factory.prepare(config);
@@ -194,7 +201,11 @@ public class SocketLifecycleTest {
             return this.getClass().getSimpleName().toLowerCase(Locale.ROOT);
         }
 
-        public ProtocolSession<byte[]> create(ProtocolConfig config, ProtocolContext manager, NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
+        public ProtocolSession<byte[]> create( //
+                ProtocolConfig config, //
+                ProtocolContext manager, //
+                NetworkChannel<byte[]> connection, //
+                BiConsumer<Long, Payload> messages) {
             return new ProtocolSession<byte[]>() {
                 private final BasicFuture<Void> ready = new BasicFuture<>();
 
