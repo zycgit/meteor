@@ -7,7 +7,7 @@
  */
 package net.hasor.meteor.registry.shared.storage.domain;
 
-/** RULE/CONFIGURATION 正文：规则脚本与启停开关；停用保留正文，记录缺失表示继承。 */
+/** RULE/CONFIGURATION 正文：XML 规则正文与启停开关；停用保留正文，记录缺失表示继承。 */
 public final class EntRuleConfigurationData extends EntData {
     private String  rule    = null;
     private boolean enabled = true;

@@ -20,7 +20,7 @@ final class RegistryImpl implements RegistryAdmin {
     private final    AdminFactory            admins;
     private final    RegistryTokenProvider   tokenProvider;
     private final    Callable<StorageAccess> storageOpener;
-    private          StorageAccess           storage;
+    private volatile StorageAccess           storage;
     private volatile boolean                 closed;
 
     public RegistryImpl(Callable<StorageAccess> storageOpener, RegistryInfo info, RegistryTokenProvider tokenProvider) {
@@ -45,12 +45,21 @@ final class RegistryImpl implements RegistryAdmin {
         }
     }
 
-    synchronized StorageAccess openStorage() throws Exception {
+    StorageAccess openStorage() throws Exception {
         this.requireOpen();
-        if (this.storage == null) {
-            this.storage = this.storageOpener.call();
+        StorageAccess ready = this.storage;
+        if (ready != null) {
+            return ready;
         }
-        return this.storage;
+
+        // 只有首次打开会话与关闭互斥，正常管理调用直接复用已就绪的会话。
+        synchronized (this) {
+            this.requireOpen();
+            if (this.storage == null) {
+                this.storage = this.storageOpener.call();
+            }
+            return this.storage;
+        }
     }
 
     private void requireManagementToken() {

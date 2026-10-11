@@ -10,7 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.address.AddressPool;
+import net.hasor.meteor.address.dsl.FlowRuleParser;
+import net.hasor.meteor.address.dsl.XmlRuleParser;
 import net.hasor.meteor.registry.shared.rpc.ConfigurationData;
 import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.rpc.ValidationData;
@@ -29,36 +30,21 @@ public final class RegistryGovernanceUtils {
         List<String> errors = new ArrayList<>();
         if (type == null) {
             errors.add("Rule type is required");
-        } else {
-            check(errors, rule, type);
+        } else if (StringUtils.isNotBlank(rule)) {
+            try {
+                if (type == RuleTypeData.FLOW_CONTROL) {
+                    new FlowRuleParser().parse(rule);
+                } else {
+                    new XmlRuleParser().parse(rule);
+                }
+            } catch (IllegalArgumentException failure) {
+                errors.add("Invalid " + type + ": " + failure.getMessage());
+            }
         }
 
         ValidationData result = new ValidationData();
         result.setErrors(errors.toArray(String[]::new));
         return result;
-    }
-
-    private static void check(List<String> errors, String rule, RuleTypeData kind) {
-        if (StringUtils.isBlank(rule)) {
-            return;
-        }
-
-        try {
-            AddressPool pool = new AddressPool();
-            pool.appendAddress("validation", List.of());
-            boolean accepted = switch (kind) {
-                case SERVICE_ROUTE -> pool.updateServiceRoute("validation", rule);
-                case METHOD_ROUTE -> pool.updateMethodRoute("validation", rule);
-                case ARGS_ROUTE -> pool.updateArgsRoute("validation", rule);
-                case FLOW_CONTROL -> pool.updateFlowControl("validation", rule);
-            };
-
-            if (!accepted) {
-                errors.add("Invalid " + kind);
-            }
-        } catch (Exception failure) {
-            errors.add("Invalid " + kind + ": " + failure.getMessage());
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////

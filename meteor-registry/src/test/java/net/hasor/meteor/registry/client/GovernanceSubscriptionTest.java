@@ -23,8 +23,8 @@ import net.hasor.meteor.registry.admin.MetRuleType;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.DecoratedRegistryConfiguration;
-import net.hasor.meteor.registry.shared.RegistryTestUtils.Echo;
 import net.hasor.meteor.registry.shared.RegistryTestUtils;
+import net.hasor.meteor.registry.shared.RegistryTestUtils.Echo;
 import net.hasor.meteor.registry.shared.StorageProbe;
 import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
@@ -46,8 +46,7 @@ public class GovernanceSubscriptionTest {
         registry.setManagementToken("secret");
         registry.setRefreshMillis(600000);
         MetConfiguration application = new MetConfiguration();
-        application.setSerializeType("Json");
-        application.connector("tcp").protocol("rsf");
+        application.connector("tcp").protocol("rsf").option("serializeType", "Json");
         application.addExtension(registry);
 
         // 管理端使用同一配置；独立存储会话仅用于检查记录版本。
@@ -96,8 +95,7 @@ public class GovernanceSubscriptionTest {
         registryConfig.setManagementToken("secret");
         registryConfig.setRefreshMillis(600000);
         MetConfiguration application = new MetConfiguration();
-        application.setSerializeType("Json");
-        application.connector("tcp").protocol("rsf");
+        application.connector("tcp").protocol("rsf").option("serializeType", "Json");
         application.addExtension(registryConfig);
 
         MetConfiguration adminConfiguration = new MetConfiguration().addExtension(registryConfig);
@@ -153,8 +151,7 @@ public class GovernanceSubscriptionTest {
         registryConfig.setManagementToken("secret");
         registryConfig.setRefreshMillis(600000);
         MetConfiguration application = new MetConfiguration();
-        application.setSerializeType("Json");
-        application.connector("tcp").protocol("rsf");
+        application.connector("tcp").protocol("rsf").option("serializeType", "Json");
         application.addExtension(registryConfig);
 
         try (MetContext context = application.buildContext(); //
@@ -166,10 +163,10 @@ public class GovernanceSubscriptionTest {
             context.start();
             String id = context.getInstanceID();
             String serviceId = service.getBindID();
-            String global = "def evalAddress(id, addresses) { addresses }";
-            String serviceRule = "def evalAddress(id, addresses) { [] }";
-            String instanceRule = "def evalAddress(id, addresses) { return addresses }";
-            String localRule = "def evalAddress(id, addresses) { return [] }";
+            String global = "<route><return value='addresses'/></route>";
+            String serviceRule = "<route><return value='{}'/></route>";
+            String instanceRule = "<route><!-- override --><return value='addresses'/></route>";
+            String localRule = "<route><!-- override --><return value='{}'/></route>";
             MetClusterAdmin all = admin.getClusterAdmin();
             MetServiceAdmin svc = admin.getServiceAdmin(service.getBindID());
             MetInstanceAdmin instance = admin.getInstanceAdmin(id);
@@ -246,8 +243,7 @@ public class GovernanceSubscriptionTest {
         registryConfig.setManagementToken("secret");
         registryConfig.setRefreshMillis(600000);
         MetConfiguration application = new MetConfiguration();
-        application.setSerializeType("Json");
-        application.connector("tcp").protocol("rsf");
+        application.connector("tcp").protocol("rsf").option("serializeType", "Json");
         application.addExtension(registryConfig);
 
         try (MetContext context = application.buildContext(); //

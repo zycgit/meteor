@@ -36,10 +36,10 @@ public interface MetServiceAdmin {
     /** 删除规则正文；Default 保留开关并重新继承，Target 清空应用当前规则。 */
     void resetRule(MetRuleType type);
 
-    /** 校验指定类型的规则，不保存配置。 */
+    /** 使用 XML 验证规则，不修改当前配置。 */
     MetValidationResult validateRule(MetRuleType type, String rule);
 
-    /** 更新指定规则正文；Default 保留存储开关，Target 直接应用；null 删除，空字符串清除规则。 */
+    /** 更新 XML 规则正文，null 删除，空字符串清除规则。 */
     void updateRule(MetRuleType type, String rule);
 
     /** Default 查询存储策略开关，未设置时为启用；Target 判断应用当前是否配置了非空规则正文。 */

@@ -8,6 +8,7 @@
 package net.hasor.meteor.registry.shared.storage;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import net.hasor.cobble.ObjectUtils;
 import net.hasor.cobble.StringUtils;
@@ -18,8 +19,10 @@ import net.hasor.meteor.registry.shared.utils.RegistryJson;
  * 统一校验、身份和分页语义；原子读写与会话清理由具体存储完成。
  */
 public abstract class RecordStorageAccess implements StorageAccess {
-    protected final String  tempSessionId = UUID.randomUUID().toString();
-    private         boolean closed;
+    // 存取共享生命周期锁；关闭独占它，防止清理会话后又写入临时记录。
+    protected final ReentrantReadWriteLock lifecycleLock = new ReentrantReadWriteLock(true);
+    protected final String                 tempSessionId = UUID.randomUUID().toString();
+    private         boolean                closed;
 
     protected abstract StorageDocument readDocument(String key) throws Exception;
 
@@ -36,126 +39,166 @@ public abstract class RecordStorageAccess implements StorageAccess {
     protected abstract void closeStorage() throws Exception;
 
     @Override
-    public synchronized EntityRecord getEntity(EntityRef ref) throws Exception {
-        this.requireOpen();
+    public EntityRecord getEntity(EntityRef ref) throws Exception {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
 
-        StorageDocument value = this.readDocument(StorageKeyUtils.entity(ref));
-        return value == null ? null : copy(value).getEntity();
-    }
-
-    @Override
-    public synchronized RelationRecord getRelation(RelationType type, EntityRef source, EntityRef target) throws Exception {
-        this.requireOpen();
-
-        StorageDocument value = this.readRelationDocument(type, source, target);
-        return value == null ? null : copy(value).getRelation();
-    }
-
-    @Override
-    public synchronized EntityRecord saveEntity(EntityRecord record) throws Exception {
-        this.requireOpen();
-
-        StorageDocument value = new StorageDocument();
-        value.setEntity(record);
-        this.validate(value);
-        return copy(this.writeDocument(copy(value))).getEntity();
-    }
-
-    @Override
-    public synchronized RelationRecord saveRelation(RelationRecord record) throws Exception {
-        this.requireOpen();
-
-        StorageDocument value = new StorageDocument();
-        value.setRelation(record);
-        this.validate(value);
-        return copy(this.writeDocument(copy(value))).getRelation();
-    }
-
-    @Override
-    public synchronized boolean deleteEntity(EntityRecord record) throws Exception {
-        this.requireOpen();
-
-        StorageDocument value = new StorageDocument();
-        value.setEntity(record);
-        this.validate(value);
-        return this.removeDocument(value);
-    }
-
-    @Override
-    public synchronized boolean deleteRelation(RelationRecord record) throws Exception {
-        this.requireOpen();
-
-        StorageDocument value = new StorageDocument();
-        value.setRelation(record);
-        this.validate(value);
-        return this.removeDocument(value);
-    }
-
-    @Override
-    public synchronized RecordPage<EntityRecord> findEntities(EntityQuery query) throws Exception {
-        this.requireOpen();
-
-        if (query == null || query.getType() == null) {
-            throw new IllegalArgumentException("Entity type is required");
+            StorageDocument value = this.readDocument(StorageKeyUtils.entity(ref));
+            return value == null ? null : copy(value).getEntity();
+        } finally {
+            this.lifecycleLock.readLock().unlock();
         }
+    }
 
-        List<StorageDocument> values;
-        if (query.getIds() != null) {
-            values = new ArrayList<>();
-            for (String id : query.getIds()) {
-                StorageDocument value = this.readDocument(StorageKeyUtils.entity(new EntityRef(query.getType(), id, query.getParent(), query.getSection())));
-                if (value != null) {
-                    values.add(value);
-                }
+    @Override
+    public RelationRecord getRelation(RelationType type, EntityRef source, EntityRef target) throws Exception {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+
+            StorageDocument value = this.readRelationDocument(type, source, target);
+            return value == null ? null : copy(value).getRelation();
+        } finally {
+            this.lifecycleLock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public EntityRecord saveEntity(EntityRecord record) throws Exception {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+
+            StorageDocument value = new StorageDocument();
+            value.setEntity(record);
+            this.validate(value);
+            return copy(this.writeDocument(copy(value))).getEntity();
+        } finally {
+            this.lifecycleLock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public RelationRecord saveRelation(RelationRecord record) throws Exception {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+
+            StorageDocument value = new StorageDocument();
+            value.setRelation(record);
+            this.validate(value);
+            return copy(this.writeDocument(copy(value))).getRelation();
+        } finally {
+            this.lifecycleLock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public boolean deleteEntity(EntityRecord record) throws Exception {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+
+            StorageDocument value = new StorageDocument();
+            value.setEntity(record);
+            this.validate(value);
+            return this.removeDocument(value);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public boolean deleteRelation(RelationRecord record) throws Exception {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+
+            StorageDocument value = new StorageDocument();
+            value.setRelation(record);
+            this.validate(value);
+            return this.removeDocument(value);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public RecordPage<EntityRecord> findEntities(EntityQuery query) throws Exception {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+
+            if (query == null || query.getType() == null) {
+                throw new IllegalArgumentException("Entity type is required");
             }
-        } else {
-            values = this.queryDocuments("e", query.getType().name(), query.getParent(), null);
+
+            List<StorageDocument> values;
+            if (query.getIds() != null) {
+                values = new ArrayList<>();
+                for (String id : query.getIds()) {
+                    StorageDocument value = this.readDocument(StorageKeyUtils.entity(new EntityRef(query.getType(), id, query.getParent(), query.getSection())));
+                    if (value != null) {
+                        values.add(value);
+                    }
+                }
+            } else {
+                values = this.queryDocuments("e", query.getType().name(), query.getParent(), null);
+            }
+
+            values.removeIf(value -> {
+                return !ObjectUtils.equals(query.getParent(), value.getEntity().getRef().parent()) ||//
+                        query.getSection() != value.getEntity().getRef().section();
+            });
+
+            String ids;
+            if (query.getIds() == null) {
+                ids = "*";
+            } else {
+                ids = RegistryJson.write(new TreeSet<>(query.getIds()));
+            }
+
+            String scope = StorageKeyUtils.hash(query.getType().name(), ids, RegistryJson.write(query.getParent()), query.getSection().name());
+            return page(values, query.getLimit(), query.getCursor(), scope, StorageDocument::getEntity);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
         }
-
-        values.removeIf(value -> {
-            return !ObjectUtils.equals(query.getParent(), value.getEntity().getRef().parent()) ||//
-                    query.getSection() != value.getEntity().getRef().section();
-        });
-
-        String ids;
-        if (query.getIds() == null) {
-            ids = "*";
-        } else {
-            ids = RegistryJson.write(new TreeSet<>(query.getIds()));
-        }
-
-        String scope = StorageKeyUtils.hash(query.getType().name(), ids, RegistryJson.write(query.getParent()), query.getSection().name());
-        return page(values, query.getLimit(), query.getCursor(), scope, StorageDocument::getEntity);
     }
 
     @Override
-    public synchronized RecordPage<RelationRecord> findRelations(RelationQuery query) throws Exception {
-        this.requireOpen();
+    public RecordPage<RelationRecord> findRelations(RelationQuery query) throws Exception {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
 
-        boolean scoped = query != null && (query.getType() != null || query.getSource() != null || query.getTarget() != null);
-        if (!scoped) {
-            throw new IllegalArgumentException("Specify relation type or endpoint");
+            boolean scoped = query != null && (query.getType() != null || query.getSource() != null || query.getTarget() != null);
+            if (!scoped) {
+                throw new IllegalArgumentException("Specify relation type or endpoint");
+            }
+
+            String type = null;
+            if (query.getType() != null) {
+                type = query.getType().name();
+            }
+
+            List<StorageDocument> values = this.queryDocuments("r", type, query.getSource(), query.getTarget());
+            values.removeIf(value -> {
+                RelationRecord relation = value.getRelation();
+                boolean wrongType = query.getType() != null && relation.getType() != query.getType();
+                boolean wrongSource = query.getSource() != null && !query.getSource().equals(relation.getSource());
+                boolean wrongTarget = query.getTarget() != null && !query.getTarget().equals(relation.getTarget());
+                return wrongType || wrongSource || wrongTarget;
+            });
+
+            String scopeType = String.valueOf(query.getType());
+            String source = RegistryJson.write(query.getSource());
+            String target = RegistryJson.write(query.getTarget());
+            String scope = StorageKeyUtils.hash(scopeType, source, target);
+            return page(values, query.getLimit(), query.getCursor(), scope, StorageDocument::getRelation);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
         }
-
-        String type = null;
-        if (query.getType() != null) {
-            type = query.getType().name();
-        }
-
-        List<StorageDocument> values = this.queryDocuments("r", type, query.getSource(), query.getTarget());
-        values.removeIf(value -> {
-            RelationRecord relation = value.getRelation();
-            boolean wrongType = query.getType() != null && relation.getType() != query.getType();
-            boolean wrongSource = query.getSource() != null && !query.getSource().equals(relation.getSource());
-            boolean wrongTarget = query.getTarget() != null && !query.getTarget().equals(relation.getTarget());
-            return wrongType || wrongSource || wrongTarget;
-        });
-
-        String scopeType = String.valueOf(query.getType());
-        String source = RegistryJson.write(query.getSource());
-        String target = RegistryJson.write(query.getTarget());
-        String scope = StorageKeyUtils.hash(scopeType, source, target);
-        return page(values, query.getLimit(), query.getCursor(), scope, StorageDocument::getRelation);
     }
 
     private static <T> RecordPage<T> page(List<StorageDocument> values, int limit, String cursor, String scope, Function<StorageDocument, T> mapper) {
@@ -249,10 +292,15 @@ public abstract class RecordStorageAccess implements StorageAccess {
     }
 
     @Override
-    public synchronized void close() throws Exception {
-        if (!this.closed) {
-            this.closed = true;
-            this.closeStorage();
+    public void close() throws Exception {
+        this.lifecycleLock.writeLock().lock();
+        try {
+            if (!this.closed) {
+                this.closed = true;
+                this.closeStorage();
+            }
+        } finally {
+            this.lifecycleLock.writeLock().unlock();
         }
     }
 }

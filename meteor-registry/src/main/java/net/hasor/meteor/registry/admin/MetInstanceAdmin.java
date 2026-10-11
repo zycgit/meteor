@@ -13,7 +13,7 @@ public interface MetInstanceAdmin {
     /** 读取实例规则；Target 读取现有业务服务的共同值，不一致时抛异常。 */
     String fetchRule(MetRuleType type);
 
-    /** 更新实例规则；Target 仅应用到当前业务服务，不保存规则模板。 */
+    /** 更新 XML 规则正文，null 删除，空字符串清除规则。 */
     void updateRule(MetRuleType type, String rule);
 
     /** 清除实例规则正文；Default 保留存储开关，Target 清空当前业务服务的规则。 */

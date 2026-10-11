@@ -40,10 +40,10 @@ public interface MetClusterAdmin {
     /** 删除全局默认规则正文，保留策略开关及其他范围；没有其他规则时清空应用规则。 */
     void resetRule(MetRuleType type);
 
-    /** 校验指定类型的规则，不保存配置。 */
+    /** 使用 XML 验证规则，不修改当前配置。 */
     MetValidationResult validateRule(MetRuleType type, String rule);
 
-    /** 只更新全局默认规则正文，null 删除正文，空字符串清除规则，保留独立启停开关。 */
+    /** 更新 XML 规则正文，null 删除，空字符串清除规则。 */
     void updateRule(MetRuleType type, String rule);
 
     /** 查询当前范围的策略开关，未设置时为启用；不表示应用已经完成同步。 */

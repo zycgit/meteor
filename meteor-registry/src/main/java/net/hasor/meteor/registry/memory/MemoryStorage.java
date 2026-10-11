@@ -28,30 +28,40 @@ final class MemoryStorage extends RecordStorageAccess {
     }
 
     @Override
-    public synchronized Cancellable watchEntities(EntityQuery query, Runnable listener) {
-        this.requireOpen();
-        if (query == null || query.getType() == null) {
-            throw new IllegalArgumentException("Entity type is required");
-        } else {
-            EntityQuery selection = query.copy();
-            return this.watch(() -> this.readVersions(selection), listener);
+    public Cancellable watchEntities(EntityQuery query, Runnable listener) {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+            if (query == null || query.getType() == null) {
+                throw new IllegalArgumentException("Entity type is required");
+            } else {
+                EntityQuery selection = query.copy();
+                return this.watch(() -> this.readVersions(selection), listener);
+            }
+        } finally {
+            this.lifecycleLock.readLock().unlock();
         }
     }
 
     @Override
-    public synchronized Cancellable watchRelations(RelationQuery query, Runnable listener) {
-        this.requireOpen();
-        if (query == null) {
-            throw new IllegalArgumentException("Specify relation type or endpoint");
-        }
+    public Cancellable watchRelations(RelationQuery query, Runnable listener) {
+        this.lifecycleLock.readLock().lock();
+        try {
+            this.requireOpen();
+            if (query == null) {
+                throw new IllegalArgumentException("Specify relation type or endpoint");
+            }
 
-        boolean scoped = query.getType() != null || query.getSource() != null || query.getTarget() != null;
-        if (!scoped) {
-            throw new IllegalArgumentException("Specify relation type or endpoint");
-        }
+            boolean scoped = query.getType() != null || query.getSource() != null || query.getTarget() != null;
+            if (!scoped) {
+                throw new IllegalArgumentException("Specify relation type or endpoint");
+            }
 
-        RelationQuery selection = query.copy();
-        return this.watch(() -> this.readVersions(selection), listener);
+            RelationQuery selection = query.copy();
+            return this.watch(() -> this.readVersions(selection), listener);
+        } finally {
+            this.lifecycleLock.readLock().unlock();
+        }
     }
 
     private Map<String, String> readVersions(EntityQuery query) throws Exception {
@@ -89,7 +99,7 @@ final class MemoryStorage extends RecordStorageAccess {
         return versions;
     }
 
-    private Cancellable watch(Callable<Map<String, String>> snapshot, Runnable listener) {
+    private synchronized Cancellable watch(Callable<Map<String, String>> snapshot, Runnable listener) {
         Objects.requireNonNull(listener, "listener");
         if (this.watches == null) {
             ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, task -> {

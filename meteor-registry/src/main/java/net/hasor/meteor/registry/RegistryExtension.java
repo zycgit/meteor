@@ -7,7 +7,6 @@
  */
 package net.hasor.meteor.registry;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetContextEvent;
 import net.hasor.meteor.MetExtension;
 import net.hasor.meteor.registry.admin.support.TargetAdminImpl;
 import net.hasor.meteor.registry.client.RegistryClient;
@@ -50,13 +49,6 @@ final class RegistryExtension implements MetExtension {
     public void afterStart() throws Exception {
         if (this.client != null) {
             this.client.afterStart();
-        }
-    }
-
-    @Override
-    public void onEvent(MetContextEvent event) {
-        if (this.client != null) {
-            this.client.onEvent(event);
         }
     }
 

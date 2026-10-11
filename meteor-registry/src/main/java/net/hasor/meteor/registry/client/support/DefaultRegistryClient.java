@@ -59,6 +59,9 @@ public final class DefaultRegistryClient implements RegistryClient, AutoCloseabl
         });
         this.worker.setRemoveOnCancelPolicy(true);
 
+        // 与普通订阅者使用同一事件入口；回调只投递任务，不在容器线程访问存储。
+        this.watches.add(this.context.subscribe(this::onContextEvent));
+
         // 监听开启前先应用治理；此时不能登记尚未就绪的地址。
         String instanceId = this.context.getInstanceID();
         this.watches.addAll(this.registrationService.watchInstance(instanceId, this::requestRefresh));
@@ -74,8 +77,13 @@ public final class DefaultRegistryClient implements RegistryClient, AutoCloseabl
         this.running = true;
     }
 
-    public void onEvent(MetContextEvent event) {
-        this.requestRefresh();
+    private void onContextEvent(MetContextEvent event) {
+        switch (event.getType()) {
+            case REGISTERED, REMOVED, ONLINE, OFFLINE -> this.requestRefresh();
+            default -> {
+                // 首次发布和资源释放仍由扩展生命周期负责。
+            }
+        }
     }
 
     private void requestRefresh() {
@@ -154,7 +162,8 @@ public final class DefaultRegistryClient implements RegistryClient, AutoCloseabl
         }
     }
 
-    private synchronized Future<Void> submitSync(boolean pull, String serviceId) {
+    private Future<Void> submitSync(boolean pull, String serviceId) {
+        // 投递不获取同步任务的锁，存储 I/O 不能阻塞异步 API 的返回。
         BasicFuture<Void> result = new BasicFuture<>();
         try {
             if (!this.running) {

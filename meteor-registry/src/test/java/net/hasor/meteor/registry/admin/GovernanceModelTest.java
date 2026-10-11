@@ -10,11 +10,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -67,7 +63,8 @@ public class GovernanceModelTest {
             String otherRevision = storage.getEntity(other).getRevision();
 
             // 更新规则只创建所属规则记录，不改写服务及全局对象。
-            first.updateRule(MetRuleType.SERVICE_ROUTE, "def evalAddress(id, addresses) { addresses }");
+            String ruleScript = "<route><return value='addresses'/></route>";
+            first.updateRule(MetRuleType.SERVICE_ROUTE, ruleScript);
             EntityRef ref = RegistryGovernanceUtils.ruleRef(owner, RuleTypeData.SERVICE_ROUTE);
             assertEquals(owner, storage.getEntity(ref).getRef().parent());
             assertEquals(firstRevision, storage.getEntity(owner).getRevision());
@@ -132,8 +129,7 @@ public class GovernanceModelTest {
         // 模拟存储操作报表不存在，关闭仍然允许执行。
         SQLException original = new SQLException("Table meteor_records does not exist", "42S02");
         DecoratedRegistryConfiguration failing = new DecoratedRegistryConfiguration(this.storageConfiguration, storage -> {
-            return (StorageAccess) Proxy.newProxyInstance(StorageAccess.class.getClassLoader(),
-                    new Class<?>[] { StorageAccess.class }, (proxy, method, args) -> {
+            return (StorageAccess) Proxy.newProxyInstance(StorageAccess.class.getClassLoader(), new Class<?>[] { StorageAccess.class }, (proxy, method, args) -> {
                 if (StringUtils.equals(method.getName(), "close")) {
                     storage.close();
                     return null;
@@ -153,8 +149,7 @@ public class GovernanceModelTest {
             MetServiceAdmin service = admin.getServiceAdmin("echo");
             assertSame(original, assertThrows(IllegalStateException.class, service::info).getCause());
             assertSame(original, assertThrows(IllegalStateException.class, service::enable).getCause());
-            IllegalStateException failure = assertThrows(IllegalStateException.class,
-                    () -> service.fetchRule(MetRuleType.SERVICE_ROUTE));
+            IllegalStateException failure = assertThrows(IllegalStateException.class, () -> service.fetchRule(MetRuleType.SERVICE_ROUTE));
             assertSame(original, failure.getCause());
 
             // 状态查询将同一故障转为可展示的错误信息。
@@ -218,8 +213,7 @@ public class GovernanceModelTest {
                         throw failure.getCause();
                     }
                 };
-                return (StorageAccess) Proxy.newProxyInstance(StorageAccess.class.getClassLoader(),
-                        new Class<?>[] { StorageAccess.class }, failRuleWrite);
+                return (StorageAccess) Proxy.newProxyInstance(StorageAccess.class.getClassLoader(), new Class<?>[] { StorageAccess.class }, failRuleWrite);
             });
 
             // 通过扩展创建管理端，并建立未受故障影响的服务记录。

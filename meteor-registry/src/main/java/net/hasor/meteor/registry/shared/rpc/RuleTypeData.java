@@ -15,6 +15,6 @@ public enum RuleTypeData {
     METHOD_ROUTE,
     /** 参数级地址路由脚本。 */
     ARGS_ROUTE,
-    /** 流控 XML 配置。 */
+    /** 流控规则，使用 controlSet XML 配置。 */
     FLOW_CONTROL
 }

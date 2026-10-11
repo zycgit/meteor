@@ -46,15 +46,13 @@ public class TargetAdminTest {
         registryConfiguration.setManagementToken("secret");
         registryConfiguration.setRefreshMillis(600000);
         MetConfiguration serverConfiguration = new MetConfiguration();
-        serverConfiguration.setSerializeType("Json");
-        serverConfiguration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        serverConfiguration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf").option("serializeType", "Json");
         serverConfiguration.addExtension(registryConfiguration);
 
         // 调用方使用离线注册中心扩展，只通过 RPC 管理目标。
         MetConfiguration callerConfiguration = new MetConfiguration();
         callerConfiguration.addExtension(new RegistryConfiguration().setOnline(false));
-        callerConfiguration.setSerializeType("Json");
-        callerConfiguration.connector("tcp").protocol("rsf");
+        callerConfiguration.connector("tcp").protocol("rsf").option("serializeType", "Json");
 
         try (MetContext first = serverConfiguration.setApplicationName("orders").buildContext(); //
              MetContext second = serverConfiguration.setApplicationName("inventory").buildContext(); //
@@ -144,8 +142,7 @@ public class TargetAdminTest {
         registryConfiguration.setManagementToken("secret");
         registryConfiguration.setRefreshMillis(600000);
         MetConfiguration serverConfiguration = new MetConfiguration();
-        serverConfiguration.setSerializeType("Json");
-        serverConfiguration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        serverConfiguration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf").option("serializeType", "Json");
         serverConfiguration.addExtension(registryConfiguration);
 
         // 提供者监听所有网卡，但公告使用明确的发布主机。
@@ -195,19 +192,17 @@ public class TargetAdminTest {
         registryConfiguration.setManagementToken("secret");
         registryConfiguration.setRefreshMillis(600000);
         MetConfiguration serverConfiguration = new MetConfiguration();
-        serverConfiguration.setSerializeType("Json");
-        serverConfiguration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        serverConfiguration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf").option("serializeType", "Json");
         serverConfiguration.addExtension(registryConfiguration);
 
         // 调用方只启用直连管理，目标规则在用例中逐步修改。
         MetConfiguration callerConfiguration = new MetConfiguration();
         callerConfiguration.addExtension(new RegistryConfiguration().setOnline(false));
-        callerConfiguration.setSerializeType("Json");
-        callerConfiguration.connector("tcp").protocol("rsf");
+        callerConfiguration.connector("tcp").protocol("rsf").option("serializeType", "Json");
 
-        String baseline = "def evalAddress(id, addresses) { addresses }";
-        String instanceRule = "def evalAddress(id, addresses) { return addresses }";
-        String serviceRule = "def evalAddress(id, addresses) { [] }";
+        String baseline = "<route><return value='addresses'/></route>";
+        String instanceRule = "<route><!-- override --><return value='addresses'/></route>";
+        String serviceRule = "<route><return value='{}'/></route>";
 
         try (MetContext target = serverConfiguration.buildContext(); //
              MetContext caller = callerConfiguration.buildContext()) {
@@ -252,8 +247,8 @@ public class TargetAdminTest {
             assertRuleSwitchUnsupported(() -> service.enableRule(MetRuleType.SERVICE_ROUTE));
             assertTrue(service.isRule(MetRuleType.SERVICE_ROUTE));
 
-            // 内置流控也有当前规则正文，因此属于已配置。
-            assertTrue(service.isRule(MetRuleType.FLOW_CONTROL));
+            // 默认流控不代表配置过脚本，也没有隐含的引擎名称。
+            assertFalse(service.isRule(MetRuleType.FLOW_CONTROL));
             assertEquals(serviceRule, service.fetchRule(MetRuleType.SERVICE_ROUTE));
             service.resetRule(MetRuleType.SERVICE_ROUTE);
             assertNull(target.getUpdater().serviceRoute(id));
@@ -318,15 +313,13 @@ public class TargetAdminTest {
         registryConfiguration.setManagementToken("secret");
         registryConfiguration.setRefreshMillis(600000);
         MetConfiguration serverConfiguration = new MetConfiguration();
-        serverConfiguration.setSerializeType("Json");
-        serverConfiguration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        serverConfiguration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf").option("serializeType", "Json");
         serverConfiguration.addExtension(registryConfiguration);
 
         // 调用方使用离线扩展，管理操作全部直连目标。
         MetConfiguration callerConfiguration = new MetConfiguration();
         callerConfiguration.addExtension(new RegistryConfiguration().setOnline(false));
-        callerConfiguration.setSerializeType("Json");
-        callerConfiguration.connector("tcp").protocol("rsf");
+        callerConfiguration.connector("tcp").protocol("rsf").option("serializeType", "Json");
 
         RegistryConfiguration bootstrap = registryConfiguration.setManagementToken("secret");
 
@@ -399,12 +392,10 @@ public class TargetAdminTest {
         RegistryConfiguration serverExtension = new RegistryConfiguration().setOnline(false);
         serverExtension.setPublishHost("127.0.0.1");
         MetConfiguration server = new MetConfiguration().addExtension(serverExtension);
-        server.setSerializeType("Json");
-        server.connector("tcp").bind("0.0.0.0", 0).protocol("rsf");
+        server.connector("tcp").bind("0.0.0.0", 0).protocol("rsf").option("serializeType", "Json");
         MetConfiguration client = new MetConfiguration();
         client.addExtension(new RegistryConfiguration().setOnline(false));
-        client.setSerializeType("Json");
-        client.connector("tcp").protocol("rsf");
+        client.connector("tcp").protocol("rsf").option("serializeType", "Json");
 
         try (MetContext target = server.buildContext(); //
              MetContext caller = client.buildContext()) {

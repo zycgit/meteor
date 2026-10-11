@@ -55,7 +55,9 @@ final class GovernanceStore {
             throw new IllegalArgumentException(String.join("; ", validation.getErrors()));
         }
         EntityRef ref = RegistryGovernanceUtils.ruleRef(owner, ruleType(type));
-        this.update(ref, EntRuleConfigurationData.class, data -> data.setRule(rule));
+        this.update(ref, EntRuleConfigurationData.class, data -> {
+            data.setRule(rule);
+        });
     }
 
     public boolean isRuleEnabled(EntityRef owner, MetRuleType type) {
