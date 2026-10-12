@@ -116,15 +116,16 @@ public class JdbcStorageTest {
 
     @Test
     public void parentAndSectionQueriesKeepRulesAndRuntimeIsolated() throws Exception {
-        // 同名服务分别放入不同实例及配置、运行区域，查询必须保持层级隔离。
+        // 同名服务配置归属不同实例；实例配置与运行登记也必须分区隔离。
         try (StorageAccess store = configuration(createDatabase()).openStorage()) {
             EntityRef a = new EntityRef(EntityType.INSTANCE, "a");
             EntityRef b = new EntityRef(EntityType.INSTANCE, "b");
             EntityRef localA = new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.CONFIGURATION);
             EntityRef localB = new EntityRef(EntityType.SERVICE, "echo", b, EntitySection.CONFIGURATION);
-            EntityRef runtime = new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.RUNTIME);
+            EntityRef runtime = new EntityRef(EntityType.INSTANCE, "a", null, EntitySection.RUNTIME);
             EntityRef ruleA = new EntityRef(EntityType.RULE, "SERVICE_ROUTE", localA, EntitySection.CONFIGURATION);
             EntityRef ruleB = new EntityRef(EntityType.RULE, "SERVICE_ROUTE", localB, EntitySection.CONFIGURATION);
+            store.saveEntity(new EntityRecord(a));
             store.saveEntity(new EntityRecord(localA));
             store.saveEntity(new EntityRecord(localB));
             store.saveEntity(new EntityRecord(runtime));
@@ -144,6 +145,9 @@ public class JdbcStorageTest {
             var services = store.findEntities(query).records();
             assertEquals(1, services.size());
             assertEquals(localA, services.get(0).getRef());
+            query.setType(EntityType.INSTANCE);
+            query.setParent(null);
+            assertEquals(a, store.findEntities(query).records().get(0).getRef());
             query.setSection(EntitySection.RUNTIME);
             assertEquals(runtime, store.findEntities(query).records().get(0).getRef());
             query.setType(EntityType.RULE);
