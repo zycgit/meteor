@@ -1,0 +1,9 @@
+syntax = "proto3";
+package example;
+import "message.proto";
+
+service Echo {
+  rpc echo (Message) returns (Message);
+  rpc fail (Message) returns (Message);
+  rpc slow (Message) returns (Message);
+}

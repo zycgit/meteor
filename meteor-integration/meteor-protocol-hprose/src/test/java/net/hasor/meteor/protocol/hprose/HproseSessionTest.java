@@ -169,7 +169,7 @@ public class HproseSessionTest {
             HproseUtils.parseResponse(20, reply(20, "answer"), body);
 
             // HTTP 响应到达后，映射回原请求的 Payload 并结束其生命周期。
-            HttpResponse wire = new HttpResponse(200, Collections.emptyMap(), body.toByteArray());
+            HttpResponse wire = HttpResponse.newBuffered(200, Collections.emptyMap(), body.toByteArray(), Map.of());
             network.writes.get(0).respond(wire);
             ResponsePayload response = (ResponsePayload) received.get(0);
             assertEquals("answer", response.getReturnData());
@@ -200,7 +200,7 @@ public class HproseSessionTest {
             RequestPayload next = outgoing(51, "next");
             session.send(request).get(5, TimeUnit.SECONDS);
             session.send(next).get(5, TimeUnit.SECONDS);
-            network.writes.get(0).respond(new HttpResponse(200, Map.of(), new byte[] { '?' }));
+            network.writes.get(0).respond(HttpResponse.newBuffered(200, Map.of(), new byte[] { '?' }, Map.of()));
             assertEquals(1, received.size());
             ThrowPayload failed = (ThrowPayload) received.get(0);
             assertTrue(failed.getThrowable() instanceof IOException);
@@ -208,7 +208,7 @@ public class HproseSessionTest {
             assertFalse(next.completion().isDone());
 
             // 另一条在途请求不受影响，仍能接收完整响应。
-            network.writes.get(1).respond(new HttpResponse(200, Map.of(), new byte[] { 'R', 'n', 'z' }));
+            network.writes.get(1).respond(HttpResponse.newBuffered(200, Map.of(), new byte[] { 'R', 'n', 'z' }, Map.of()));
             ResponsePayload response = (ResponsePayload) received.get(1);
             assertEquals(51, response.getRequestID());
             assertEquals(ProtocolStatus.OK, response.getStatus());

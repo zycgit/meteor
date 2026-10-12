@@ -92,7 +92,7 @@ public class HproseCodecTest {
             context.publisher().rsfService(Echo.class, value -> value).protocol("rsf").register();
             ProtocolConfig mount = new ProtocolConfig("hprose", "hprose", Map.of());
             HproseCodec codec = new HproseCodec(mount, context);
-            HttpRequest request = new HttpRequest("POST", "/hprose", Map.of(), new byte[] { 'z' });
+            HttpRequest request = HttpRequest.newBuffered("POST", "/hprose", Map.of(), new byte[] { 'z' }, 1);
             byte[] body = codec.receive(request).immediate().body();
             HproseReader reader = new HproseReader(new ByteArrayInputStream(body, 1, body.length - 1));
             assertArrayEquals(new String[] { "*" }, reader.unserialize(String[].class));
@@ -108,7 +108,8 @@ public class HproseCodecTest {
             HproseCodec protocol = new HproseCodec(config, context);
 
             // 函数发现只列出允许发布的方法，忽略方法和静态方法都不可见。
-            HttpRequest listRequest = new HttpRequest("POST", "/rpc", Collections.emptyMap(), new byte[] { 'z' });
+            byte[] discoveryBody = { 'z' };
+            HttpRequest listRequest = HttpRequest.newBuffered("POST", "/rpc", Collections.emptyMap(), discoveryBody, 1);
             HproseInvocation functions = protocol.receive(listRequest);
             assertNull(functions.request());
             assertEquals('F', functions.immediate().body()[0]);
@@ -122,7 +123,7 @@ public class HproseCodecTest {
             assertFalse(names.contains("echo_helper"));
 
             // 相近前缀不能被当作当前挂载路径。
-            HttpRequest otherPath = new HttpRequest("POST", "/rpc-other", Collections.emptyMap(), new byte[] { 'z' });
+            HttpRequest otherPath = HttpRequest.newBuffered("POST", "/rpc-other", Collections.emptyMap(), discoveryBody, 1);
             HproseInvocation unmatched = protocol.receive(otherPath);
             assertEquals(404, unmatched.immediate().status());
         }
@@ -163,7 +164,7 @@ public class HproseCodecTest {
             error.addOption("message", "不存在🙂");
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             HproseUtils.parseResponse(7, error, bytes);
-            HttpResponse wire = new HttpResponse(200, Collections.emptyMap(), bytes.toByteArray());
+            HttpResponse wire = HttpResponse.newBuffered(200, Collections.emptyMap(), bytes.toByteArray(), Map.of());
             ResponsePayload decoded = protocol.decode(7, wire);
             assertEquals(ProtocolStatus.NotFound, decoded.getStatus());
             assertEquals("不存在🙂", decoded.getOption("message"));
@@ -244,12 +245,13 @@ public class HproseCodecTest {
             byte[] unknown = { '?' };
             List<byte[]> invalid = List.of(new byte[0], truncated, trailing, unknown);
             for (byte[] body : invalid) {
-                HttpResponse malformed = new HttpResponse(200, Collections.emptyMap(), body);
+                HttpResponse malformed = HttpResponse.newBuffered(200, Collections.emptyMap(), body, Map.of());
                 assertThrows(IOException.class, () -> protocol.decode(1, malformed));
             }
 
             // 有完整终止符的 null 才是成功响应。
-            HttpResponse emptyValue = new HttpResponse(200, Collections.emptyMap(), new byte[] { 'R', 'n', 'z' });
+            byte[] nullBody = { 'R', 'n', 'z' };
+            HttpResponse emptyValue = HttpResponse.newBuffered(200, Collections.emptyMap(), nullBody, Map.of());
             assertNull(protocol.decode(1, emptyValue).getReturnData());
         }
     }
@@ -262,7 +264,8 @@ public class HproseCodecTest {
             HproseCodec protocol = new HproseCodec(config, context);
 
             // 网关错误正文不必是 Hprose，HTTP 状态及追踪头仍应反馈调用方。
-            HttpResponse gateway = new HttpResponse(503, Map.of("trace-id", "gateway"), new byte[] { '?' });
+            Map<String, String> gatewayHeaders = Map.of("trace-id", "gateway");
+            HttpResponse gateway = HttpResponse.newBuffered(503, gatewayHeaders, new byte[] { '?' }, Map.of());
             ResponsePayload response = protocol.decode(42, gateway);
             assertEquals(42, response.getRequestID());
             assertEquals(503, response.getStatus());
@@ -285,7 +288,7 @@ public class HproseCodecTest {
             byte[] truncated = Arrays.copyOf(body, body.length - 1);
             byte[] trailing = Arrays.copyOf(body, body.length + 1);
             for (byte[] malformed : List.of(truncated, trailing)) {
-                HttpResponse response = new HttpResponse(200, Collections.emptyMap(), malformed);
+                HttpResponse response = HttpResponse.newBuffered(200, Collections.emptyMap(), malformed, Map.of());
                 assertThrows(IOException.class, () -> protocol.decode(1, response));
             }
             assertEquals("remote failure", protocol.decode(1, valid).getOption("message"));

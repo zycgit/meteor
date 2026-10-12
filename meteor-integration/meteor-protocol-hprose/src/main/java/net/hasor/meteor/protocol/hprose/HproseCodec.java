@@ -44,7 +44,7 @@ final class HproseCodec {
     public HproseInvocation receive(HttpRequest request) throws Exception {
         String uri = request.uri().split("\\?", 2)[0];
         if (!StringUtils.equals(uri, this.path) && !uri.startsWith(this.path + "/")) {
-            return HproseInvocation.respond(new HttpResponse(404, Collections.emptyMap(), new byte[0]));
+            return HproseInvocation.respond(HttpResponse.newBuffered(404, Collections.emptyMap(), new byte[0], Map.of()));
         }
         ByteArrayInputStream input = new ByteArrayInputStream(request.body());
         int tag = input.read();
@@ -54,7 +54,7 @@ final class HproseCodec {
             output.write('F');
             new HproseWriter(output).writeArray(HproseUtils.doFunction(this.context, this.protocol));
             output.write('z');
-            return HproseInvocation.respond(new HttpResponse(200, headers, output.toByteArray()));
+            return HproseInvocation.respond(HttpResponse.newBuffered(200, headers, output.toByteArray(), Map.of()));
         }
         if (tag != 'C') {
             throw new IOException("Invalid Hprose call tag: " + tag);
@@ -66,7 +66,7 @@ final class HproseCodec {
         return HproseInvocation.dispatch(call, response -> {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             HproseUtils.parseResponse(response.getRequestID(), response, output);
-            return new HttpResponse(200, headers, output.toByteArray());
+            return HttpResponse.newBuffered(200, headers, output.toByteArray(), Map.of());
         });
     }
 
@@ -80,7 +80,7 @@ final class HproseCodec {
             headers.put(key, request.getOption(key));
         }
         headers.put("Content-Type", "application/hprose");
-        return new HttpRequest("POST", uri, headers, HproseUtils.encodeRequest(this.context, request));
+        return HttpRequest.newBuffered("POST", uri, headers, HproseUtils.encodeRequest(this.context, request), 1);
     }
 
     public ResponsePayload decode(long requestId, HttpResponse response) throws Exception {
@@ -132,7 +132,7 @@ final class HproseCodec {
             output.write('E');
             new HproseWriter(output).writeString(String.valueOf(error.getMessage()));
             output.write('z');
-            return new HttpResponse(200, this.headers(null), output.toByteArray());
+            return HttpResponse.newBuffered(200, this.headers(null), output.toByteArray(), Map.of());
         } catch (IOException failure) {
             throw new IllegalStateException(failure);
         }

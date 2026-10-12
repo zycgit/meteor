@@ -1,0 +1,10 @@
+syntax = "proto3";
+package example;
+import "message.proto";
+service Messages {
+  rpc list (Message) returns (stream Message);
+  rpc collect (stream Message) returns (Message);
+  rpc exchange (stream Message) returns (stream Message);
+  rpc never (Message) returns (stream Message);
+  rpc broken (Message) returns (stream Message);
+}

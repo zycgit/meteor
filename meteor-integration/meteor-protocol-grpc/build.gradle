@@ -1,0 +1,22 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+description = 'gRPC protocol adapter for ordinary Meteor Java services'
+
+dependencies {
+    api project(':meteor')
+    implementation 'com.squareup.wire:wire-schema-jvm:4.9.11'
+    implementation 'com.google.protobuf:protobuf-java-util:3.25.9'
+    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+
+    testImplementation 'io.grpc:grpc-netty-shaded:1.84.1'
+    testImplementation 'io.grpc:grpc-stub:1.84.1'
+    testImplementation project(':meteor-protocol-hprose')
+}
+
+// 同端口互通测试包含 Hprose bean 反序列化。
+tasks.named('test') {
+    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+}
