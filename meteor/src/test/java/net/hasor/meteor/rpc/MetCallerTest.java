@@ -38,6 +38,36 @@ public class MetCallerTest {
     }
 
     @Test
+    public void remoteFailurePreservesTheMessageAndFallsBackToStatus() throws Exception {
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "hold")) {
+            server.bind();
+            for (String message : new String[] { "schema does not match the service", null }) {
+                // 通过连接器订阅返回失败，不能绕过私有响应入口。
+                MetFuture call = client.invoke(server.address);
+                MemoryChannel channel = client.connector().outgoing;
+                RequestPayload sent = channel.sent.poll(2, TimeUnit.SECONDS);
+                assertNotNull(sent);
+                ResponsePayload response = new ResponsePayload();
+                response.setRequestID(sent.getRequestID());
+                response.setStatus(ProtocolStatus.InvokeError);
+                if (message != null) {
+                    response.addOption("message", message);
+                }
+                channel.peer.sendData(response).get(2, TimeUnit.SECONDS);
+
+                Throwable error = failure(call);
+                assertTrue(error instanceof MetException);
+                if (message != null) {
+                    assertTrue(error.getMessage().contains(message));
+                } else {
+                    assertTrue(error.getMessage().contains(String.valueOf(ProtocolStatus.InvokeError)));
+                }
+            }
+        }
+    }
+
+    @Test
     public void clientWithoutListenerCallsServerThroughConnectorSubscription() throws Exception {
         try (Host server = new Host(10000, "normal"); //
              Host client = new Host(10000, "normal")) {

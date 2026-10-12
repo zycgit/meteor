@@ -79,6 +79,13 @@ final class HttpClientChannel extends HttpNetworkChannel {
     }
 
     private void enqueue(HttpExchange request, BasicFuture<Void> sent) {
+        if (request.request().version() != 1) {
+            IOException failure = new IOException("This request requires HTTP/2; configure connector httpVersion=2");
+            sent.failed(failure);
+            request.complete(failure);
+            return;
+        }
+
         if (request.completion().isDone()) {
             Throwable failure = request.completion().getCause();
             if (failure == null) {
@@ -108,6 +115,7 @@ final class HttpClientChannel extends HttpNetworkChannel {
 
                 this.finishCall(call, failure);
             }));
+
             if (!request.completion().isDone()) {
                 this.next();
             }
@@ -178,6 +186,7 @@ final class HttpClientChannel extends HttpNetworkChannel {
             out.removeHeader("Transfer-Encoding");
             out.setHeader("Content-Length", String.valueOf(request.body().length));
             out.setHeader("Connection", "keep-alive");
+
             this.writeSocket(this.channel, out).onFinal(done -> this.executor.execute(() -> {
                 Throwable failure = done.isCancelled() ? new CancellationException("HTTP write cancelled") : done.getCause();
                 this.completeWrite(call.sent(), null, failure);
@@ -244,6 +253,7 @@ final class HttpClientChannel extends HttpNetworkChannel {
                         old = this.connecting.getResult();
                         this.connecting.cancel();
                     }
+
                     this.channel = null;
                     this.finishClose(old);
                 }

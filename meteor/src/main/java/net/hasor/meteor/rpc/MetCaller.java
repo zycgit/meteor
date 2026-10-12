@@ -10,7 +10,9 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
@@ -470,14 +472,33 @@ public final class MetCaller implements AutoCloseable {
             return;
         }
 
-        MetFuture future = this.takeResponse(channel, requestId, response.getStatus() == ProtocolStatus.Accept);
+        if (response.completion() != null && response.getStatus() == ProtocolStatus.OK) {
+            PendingRequest pending = this.rsfResponse.get(requestId);
+            if (pending == null || pending.channel != channel || pending.future.isDone()) {
+                response.completion().cancel();
+                return;
+            }
+
+            // 交付响应 Publisher，保留截止时间与配额，直到消息流真正结束。
+            this.putResponse(pending.future, response);
+            response.completion().onFinal(done -> {
+                Throwable failure = done.getCause();
+                if (done.isCancelled()) {
+                    failure = new CancellationException("RPC stream cancelled");
+                }
+                this.removeRsfFuture(pending, failure);
+            });
+            return;
+        }
+
+        MetFuture future = this.takeResponse(channel, requestId, response.getStatus() == ProtocolStatus.Accept, null);
         if (future != null) {
             this.putResponse(future, response);
         }
     }
 
     private void onFailure(MetChannel channel, long requestId, Throwable failure) {
-        MetFuture future = this.takeResponse(channel, requestId, false);
+        MetFuture future = this.takeResponse(channel, requestId, false, failure);
         if (future != null) {
             invLogger.error("response(" + requestId + ") -> errorFailed, " + failure.getMessage(), failure);
             future.failed(failure);
@@ -485,7 +506,7 @@ public final class MetCaller implements AutoCloseable {
     }
 
     /** Match the source, then remove that exact entry; ordinary ACKs keep the request pending. */
-    private MetFuture takeResponse(MetChannel channel, long requestId, boolean acknowledgement) {
+    private MetFuture takeResponse(MetChannel channel, long requestId, boolean acknowledgement, Throwable cause) {
         PendingRequest pending = this.rsfResponse.get(requestId);
         if (pending == null || channel == null || pending.channel != channel) {
             return null;
@@ -493,7 +514,7 @@ public final class MetCaller implements AutoCloseable {
         if (acknowledgement && !pending.future.getRequest().isMessage()) {
             return null;
         }
-        return this.removeRsfFuture(pending, null);
+        return this.removeRsfFuture(pending, cause);
     }
 
     /** Complete a matched request that has already released its permit and timer. */
@@ -501,10 +522,11 @@ public final class MetCaller implements AutoCloseable {
         MetRequest request = future.getRequest();
         short successStatus = request.isMessage() ? ProtocolStatus.Accept : ProtocolStatus.OK;
         if (info.getStatus() != successStatus) {
-            String errorInfo = "status.";
-            if (request.isMessage()) {
-                errorInfo = "errorCode = " + info.getStatus() + ", errorMessage=" + info.getOption("message");
+            String errorInfo = info.getOption("message");
+            if (StringUtils.isBlank(errorInfo)) {
+                errorInfo = "RPC failed, status = " + info.getStatus();
             }
+
             invLogger.error("response(" + request.getRequestID() + ") -> statusFailed, bindID =" + request.getBindInfo().getBindID() + ", status =" + info.getStatus() + ".");
             future.failed(new MetException(info.getStatus(), errorInfo));
             return;
@@ -571,5 +593,24 @@ public final class MetCaller implements AutoCloseable {
                 this.timer.cancel();
             }
         }
+    }
+
+    //
+    // 流数据源与消费
+    //
+
+    /** 首次需求到达时创建迭代器，每次订阅独立创建；可关闭的迭代器在结束、失败或取消时关闭。 */
+    public static <T> Flow.Publisher<T> fromIterator(Supplier<? extends Iterator<? extends T>> source) {
+        return MetStreamUtils.fromIterator(source);
+    }
+
+    /** 将可迭代数据源适配成按需求交付的消息流。 */
+    public static <T> Flow.Publisher<T> fromIterable(Iterable<? extends T> source) {
+        return MetStreamUtils.fromIterable(source);
+    }
+
+    /** 同步处理完一条后再申请下一条；取消返回的 Future 会取消订阅。 */
+    public static <T> Future<Void> consume(Flow.Publisher<T> source, Consumer<? super T> consumer) {
+        return MetStreamUtils.consume(source, consumer);
     }
 }

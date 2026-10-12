@@ -9,8 +9,10 @@ package net.hasor.meteor.connector.transport.http;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
@@ -46,7 +48,7 @@ abstract class HttpNetworkChannel implements NetworkChannel<HttpExchange> {
             if (routed.routes().containsKey(route)) {
                 routed.receive(route, exchange);
             } else {
-                exchange.respond(new HttpResponse(404, Collections.emptyMap(), new byte[0]));
+                exchange.respond(HttpResponse.newBuffered(404, Collections.emptyMap(), new byte[0], Map.of()));
                 this.write(exchange);
             }
         } else {
@@ -55,7 +57,41 @@ abstract class HttpNetworkChannel implements NetworkChannel<HttpExchange> {
     }
 
     protected final void received(HttpExchange exchange) throws Exception {
-        this.receiver.receive(exchange);
+        if (!(this.receiver instanceof RoutedReceiver<HttpExchange> routed)) {
+            this.receiver.receive(exchange);
+            return;
+        }
+
+        String selected = selectRoute(routed.routes(), exchange.request().uri());
+        this.received(selected, exchange);
+    }
+
+    protected final boolean streamBody(String uri) {
+        if (this.receiver instanceof RoutedReceiver<HttpExchange> routed) {
+            String route = selectRoute(routed.routes(), uri);
+            NetworkRoute<HttpExchange> selected = routed.routes().get(route);
+            if (selected != null) {
+                return Boolean.parseBoolean(selected.options().get("streamBody"));
+            }
+        }
+        return Boolean.parseBoolean(this.config.option("streamBody", "false"));
+    }
+
+    protected static String selectRoute(Map<String, NetworkRoute<HttpExchange>> routes, String uri) {
+        String path = uri.split("\\?", 2)[0];
+        String selected = "";
+        int length = -1;
+        for (Map.Entry<String, NetworkRoute<HttpExchange>> route : routes.entrySet()) {
+            String mount = route.getValue().options().get("contextPath");
+            String prefix = mount.endsWith("/") ? mount : mount + "/";
+            boolean matches = StringUtils.equals(path, mount) || path.startsWith(prefix);
+            if (matches && mount.length() > length) {
+                selected = route.getKey();
+                length = mount.length();
+            }
+        }
+
+        return selected;
     }
 
     protected final void manageChannel() {
@@ -110,7 +146,13 @@ abstract class HttpNetworkChannel implements NetworkChannel<HttpExchange> {
         }
 
         try {
-            return socket.sendData(message).onFinal(done -> this.writeFinished());
+            Future<?> writing;
+            if (message instanceof Object[] batch) {
+                writing = socket.sendData(batch);
+            } else {
+                writing = socket.sendData(message);
+            }
+            return writing.onFinal(done -> this.writeFinished());
         } catch (Throwable error) {
             this.writeFinished();
             throw error;

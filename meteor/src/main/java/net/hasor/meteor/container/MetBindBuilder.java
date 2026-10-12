@@ -148,6 +148,12 @@ final class MetBindBuilder implements MetPublisher {
         }
 
         @Override
+        public ConfigurationBuilder<T> bindResource(Object bindResource) {
+            this.serviceDefine.getDomain().setBindResource(bindResource);
+            return this;
+        }
+
+        @Override
         public ConfigurationBuilder<T> protocol(String protocol, String... protocolArrays) {
             if (StringUtils.isNotBlank(protocol)) {
                 this.serviceDefine.getDomain().addBindProtocol(protocol);

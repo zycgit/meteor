@@ -19,7 +19,6 @@ import net.hasor.meteor.connector.MetChannel;
 import net.hasor.meteor.domain.*;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
-import net.hasor.meteor.serialize.SerializeCoder;
 
 /**
  * 负责处理远程Request对象的请求调用，同时也负责将产生的Response对象写回客户端。
@@ -81,17 +80,7 @@ final class MetInvocationTask implements Runnable {
         Object[] pObjects;
         Class<?>[] pTypes;
         try {
-            //1.确定序列化器
-            SerializeCoder coder = this.dispatcher.getContext().getSerializeCoder(serializeType);
-            if (coder == null) {
-                String errorInfo = "do request(" + requestID + ") failed -> serializeType(" + serializeType + ") is undefined.";
-                this.logger.error(errorInfo);
-                ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.SerializeForbidden, errorInfo);
-                this.sendResponse(info);
-                return;
-            }
-
-            //2.参数数量校验
+            // 协议已经完成解码，执行层只检查参数数量与 Java 类型。
             List<String> pTypeList = this.requestInfo.getParameterTypes();
             List<Object> pObjectList = this.requestInfo.getParameterValues();
             if (pTypeList.size() != pObjectList.size()) {
@@ -102,7 +91,7 @@ final class MetInvocationTask implements Runnable {
                 return;
             }
 
-            //3.反序列化
+            // 解析方法签名，参数值保持协议交付的 Java 对象。
             pTypes = new Class<?>[pTypeList.size()];
             pObjects = new Object[pObjectList.size()];
             for (int i = 0; i < pTypeList.size(); i++) {
@@ -179,29 +168,18 @@ final class MetInvocationTask implements Runnable {
 
         String serializeType = this.requestInfo.getSerializeType();
         long requestID = rsfResponse.getRequestID();
-        ResponsePayload info = null;
+        ResponsePayload info;
         try {
-
-            //1.确定序列化器
-            SerializeCoder coder = this.dispatcher.getContext().getSerializeCoder(serializeType);
-
-            //2.Response对象
-            if (coder == null) {
-                String errorInfo = "do request(" + requestID + ") failed -> serializeType(" + serializeType + ") is undefined.";
-                this.logger.error(errorInfo);
-                info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.SerializeForbidden, errorInfo);
-            } else {
-                info = MetPayloadBuilder.buildResponsePayload(rsfResponse);
-            }
+            // 交付返回对象，具体编码由收到请求的协议会话完成。
+            info = MetPayloadBuilder.buildResponsePayload(rsfResponse);
         } catch (Throwable e) {
-            info = null;
             String errorMessage = "(" + e.getClass().getName() + ")" + e.getMessage();
             String errorInfo = "do request(" + requestID + ") failed -> serializeType(" + serializeType + ") ,serialize error: " + errorMessage;
             this.logger.error(errorInfo, e);
             info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.SerializeError, errorInfo);
-        } finally {
-            this.sendResponse(info);
         }
+
+        this.sendResponse(info);
     }
 
     private void sendResponse(ResponsePayload info) {

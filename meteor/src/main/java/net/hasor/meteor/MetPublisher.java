@@ -152,6 +152,9 @@ public interface MetPublisher {
          */
         ConfigurationBuilder<T> serialize(String serializeType);
 
+        /** 绑定协议扩展使用的本地资源；null 表示不绑定，框架不解析或传输该对象。 */
+        ConfigurationBuilder<T> bindResource(Object bindResource);
+
         /**
          * 选择服务暴露的协议名称或 scheme，忽略大小写；未设置时覆盖所有已配置协议接入点。
          * @param protocol 使用的协议

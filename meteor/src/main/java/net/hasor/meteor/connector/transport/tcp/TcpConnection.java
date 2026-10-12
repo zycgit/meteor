@@ -41,32 +41,31 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
      * Called by the endpoint assembler after transport stages have been added.
      */
     public static TcpConnection attach(ProtoBuildContext stack, InterAddress remote, Executor executor, int maxProbeSize, ChannelFactory<byte[]> factory) throws Exception {
+        // 将底层连接包装为字节通道，并创建对应的上层接收器。
         NetChannel socket = (NetChannel) stack.getChannel();
         TcpConnection connection = new TcpConnection(socket, remote, executor);
         ChannelListener<byte[]> receiver = factory.create(connection);
-        // 生命周期通知在连接的串行执行器中执行。
-        Runnable connected = () -> {
-            connection.execute(() -> {
-                try {
-                    receiver.connected();
-                } catch (Throwable failure) {
-                    connection.fail(failure);
-                }
-            });
-        };
 
-        Runnable closed = () -> {
-            connection.execute(() -> {
-                try {
-                    receiver.closed(connection.failure());
-                } finally {
-                    connection.terminated();
-                }
-            });
-        };
+        // 生命周期通知与消息收发共用连接的串行执行器，保持处理顺序。
+        Runnable connected = () -> connection.execute(() -> {
+            try {
+                receiver.connected();
+            } catch (Throwable failure) {
+                connection.fail(failure);
+            }
+        });
+
+        // 上层关闭通知处理结束后，再完成通道的关闭 Future。
+        Runnable closed = () -> connection.execute(() -> {
+            try {
+                receiver.closed(connection.failure());
+            } finally {
+                connection.terminated();
+            }
+        });
         stack.addLastDecoder("lifecycle", new ConnectionEvents(connected, closed, connection::fail));
 
-        // 根据协议路由挂载消息处理分支。
+        // 每个协议分支将底层缓冲区转换为携带路由信息的字节消息。
         Function<String, ProtoInitializer> branch = route -> {
             return ctx -> {
                 ctx.addLastDecoder("messages", new TcpInboundHandler(route));
@@ -79,34 +78,54 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
             branch.apply("").config(stack);
         }
 
+        // 必须放在解码分支之后，将输入关闭标记排在已解码消息后面。
+        // 提前挂载会让关闭标记进入只接收 ByteBuf 的路由或解码器。
+        stack.addLastDecoder("input-close", new InputCloseHandler());
+
         // 网络事件只负责投递，业务收包仍在串行执行器中处理。
-        socket.subscribe(event -> event.isInbound() || !event.isSuccess(), SubscribeMode.SYNC, event -> {
+        socket.subscribe(event -> {
+            return event.isInbound() || !event.isSuccess();
+        }, SubscribeMode.SYNC, event -> {
+            // 网络失败也投递到串行执行器，交由连接统一记录原因并关闭。
             if (!event.isSuccess()) {
                 connection.execute(() -> connection.fail(event.getError()));
                 return;
             }
 
+            // 输入关闭标记排在数据后面，先交付最后收到的数据，再处理关闭。
+            if (event.getData() instanceof SoInputCloseEvent) {
+                connection.execute(() -> {
+                    connection.fail(new IOException("TCP peer closed its input"));
+                });
+                return;
+            }
+
+            // 暂停读取，等待上层消费当前消息，避免消息持续堆积。
             InboundMessage<byte[]> message = (InboundMessage<byte[]>) event.getData();
             ReadPause pause = socket.pauseRead();
-
-            connection.execute(() -> {
-                try {
-                    if (receiver instanceof RoutedReceiver) {
-                        ((RoutedReceiver<byte[]>) receiver).receive(message.route(), message.message());
-                    } else {
-                        receiver.receive(message.message());
-                    }
-                } catch (Throwable failure) {
-                    connection.fail(failure);
-                } finally {
-                    socket.resumeRead(pause);
-                }
-            });
+            connection.execute(() -> connection.receive(receiver, message, pause));
         });
         return connection;
     }
 
+    private void receive(ChannelListener<byte[]> receiver, InboundMessage<byte[]> message, ReadPause pause) {
+        // 使用管线已经选定的路由交付消息；普通接收器只接收字节内容。
+        try {
+            if (receiver instanceof RoutedReceiver) {
+                ((RoutedReceiver<byte[]>) receiver).receive(message.route(), message.message());
+            } else {
+                receiver.receive(message.message());
+            }
+        } catch (Throwable failure) {
+            this.fail(failure);
+        } finally {
+            // 消费成功或失败都释放本次读取暂停。
+            this.socket.resumeRead(pause);
+        }
+    }
+
     private static void configureRouting(ProtoBuildContext context, Function<String, ProtoInitializer> branch, RoutedReceiver<byte[]> receiver, int limit) {
+        // 已指定路由或只有一个协议时，直接挂载分支，无需探测报文。
         String initial = receiver.initialRoute();
         if (initial == null && receiver.routes().size() == 1) {
             initial = receiver.routes().keySet().iterator().next();
@@ -117,6 +136,7 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
             return;
         }
 
+        // 多协议共用连接入口时，根据初始字节选择分支，后续数据沿用该路由。
         ProtoHelper.typed(ByteBuf.class, Object.class).nextRouteAsStatic("route", (ProtoRoutingDataSelector<ByteBuf, Object>) (ctx, input, output) -> {
             return ByteRoutingUtils.select(input.peekMessage(-1), receiver.routes(), limit, false);
         }, routes -> {
@@ -154,6 +174,7 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
 
     @Override
     public Future<Void> write(byte[] bytes) {
+        // 受理写入与排空标记互斥，保证开始排空后不再接收新写入。
         BasicFuture<Void> result = new BasicFuture<>();
         synchronized (this) {
             if (this.draining || !this.isOpen()) {
@@ -163,10 +184,12 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
             this.writes++;
         }
 
+        // 复制调用方数据，避免排队等待期间被修改；实际发送交给串行执行器。
         byte[] owned = bytes.clone();
         try {
             this.execute(() -> this.write(owned, result));
         } catch (Throwable error) {
+            // 投递失败也要结束本次写入计数，避免排空一直等待。
             result.failed(error);
             this.writeFinished();
         }
@@ -174,11 +197,13 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
     }
 
     private void write(byte[] bytes, BasicFuture<Void> result) {
+        // 排队期间已取消的写入不再发送，但仍需归还已受理的写入计数。
         if (result.isCancelled()) {
             this.writeFinished();
             return;
         }
 
+        // 以底层发送完成为准通知调用方，并在成功、失败或取消后结束写入计数。
         try {
             this.socket.sendData(ByteBuf.wrap(bytes)).onFinal(done -> {
                 Throwable error = done.getCause();
@@ -204,11 +229,13 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
             this.writes--;
         }
 
+        // 最后一个已受理写入结束后，可能满足排空关闭条件。
         this.checkDrain();
     }
 
     @Override
     public Future<Void> drainAndClose() {
+        // 先停止受理新写入，再等待已受理写入结束；没有待写数据时直接推进关闭。
         synchronized (this) {
             this.draining = true;
         }
@@ -218,13 +245,14 @@ public final class TcpConnection implements NetworkChannel<byte[]> {
     }
 
     private void checkDrain() {
+        // 只有进入排空且所有已受理写入均已结束，才允许关闭底层连接。
         synchronized (this) {
             if (!this.draining || this.writes != 0 || this.closed.isDone()) {
                 return;
             }
         }
 
-        // Write completion may run inside Neta's pipeline. Drain closes on the receiver executor.
+        // 写入完成回调可能运行在 Neta 管线内，关闭操作转交串行执行器，避免重入。
         this.execute(this::close);
     }
 

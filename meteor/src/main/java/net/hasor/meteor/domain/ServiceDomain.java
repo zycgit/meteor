@@ -29,6 +29,7 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
     private       boolean             isSharedThreadPool = true;      // 是否共享调用线程池(提供者)
     private       int                 clientTimeout      = 6000;      // 调用超时（毫秒）
     private       String              serializeType      = null;      // 传输序列化类型
+    private       Object              bindResource       = null;      // 协议扩展使用的本地绑定资源
     private       MetServiceType      serviceType        = null;      // 服务类型（提供者 or 消费者）
     private       Set<String>         bindProtocols      = null;      // 服务特殊置顶的协议类型
     private final Map<String, Object> metadata           = new ConcurrentHashMap<>();
@@ -38,6 +39,15 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
         this.asMessage = bindType.isAnnotationPresent(MetMessage.class);
         this.aliasNameMap = new HashMap<>();
         this.bindProtocols = new HashSet<>();
+    }
+
+    @Override
+    public Object getBindResource() {
+        return this.bindResource;
+    }
+
+    public void setBindResource(Object bindResource) {
+        this.bindResource = bindResource;
     }
 
     public String getBindID() {

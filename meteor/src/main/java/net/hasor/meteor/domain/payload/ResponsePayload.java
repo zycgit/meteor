@@ -6,18 +6,21 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.domain.payload;
+import net.hasor.cobble.concurrent.future.Future;
+
 /**
  * RSF Response 的化身,是封装 Response 的数据对象。
  * @version : 2014年10月25日
  * @author 赵永春 (zyc@hasor.net)
  */
 public class ResponsePayload extends Payload {
-    private long   requestID     = 0;    //请求ID
-    private long   receiveTime   = 0;    //数据包到达时间
-    private short  status        = 0;    //响应状态
-    private String serializeType = null; //序列化类型
-    private String returnType    = null; //返回数据类型
-    private Object returnData    = null; //返回数据
+    private long         requestID     = 0;    //请求ID
+    private long         receiveTime   = 0;    //数据包到达时间
+    private short        status        = 0;    //响应状态
+    private String       serializeType = null; //序列化类型
+    private String       returnType    = null; //返回数据类型
+    private Object       returnData    = null; //返回数据
+    private Future<Void> completion;    //流返回值的实际结束信号；普通响应为空
 
     public ResponsePayload() {
         super(Type.RESPONSE);
@@ -86,5 +89,14 @@ public class ResponsePayload extends Payload {
     /**设置返回值数据*/
     public void setReturnData(Object returnData) {
         this.returnData = returnData;
+    }
+
+    /** 流句柄可先返回，调用的超时、配额和关闭仍等待这个信号。 */
+    public Future<Void> completion() {
+        return this.completion;
+    }
+
+    public void completion(Future<Void> completion) {
+        this.completion = completion;
     }
 }

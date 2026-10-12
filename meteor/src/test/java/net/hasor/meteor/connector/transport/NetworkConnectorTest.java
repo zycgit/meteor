@@ -126,7 +126,7 @@ public class NetworkConnectorTest {
                 public void receive(HttpExchange exchange) {
                     requests.add(exchange.request());
                     Map<String, String> headers = Collections.singletonMap("X-Reply", "received");
-                    HttpResponse response = new HttpResponse(201, headers, exchange.request().body());
+                    HttpResponse response = HttpResponse.newBuffered(201, headers, exchange.request().body(), Map.of());
                     exchange.respond(response);
                     channel.write(exchange);
                 }
@@ -153,10 +153,10 @@ public class NetworkConnectorTest {
             // 同一个连接连续发送两条独立 HTTP 消息，响应分别归属自己的交换对象。
             Map<String, String> headers = Collections.singletonMap("X-Test", "one");
             byte[] text = "hello".getBytes(StandardCharsets.UTF_8);
-            HttpRequest firstRequest = new HttpRequest("POST", "/plain/first", headers, text);
+            HttpRequest firstRequest = HttpRequest.newBuffered("POST", "/plain/first", headers, text, 1);
             HttpExchange first = new HttpExchange(firstRequest);
             byte[] bytes = { 8, 9 };
-            HttpRequest secondRequest = new HttpRequest("POST", "/plain/second", Collections.emptyMap(), bytes);
+            HttpRequest secondRequest = HttpRequest.newBuffered("POST", "/plain/second", Collections.emptyMap(), bytes, 1);
             HttpExchange second = new HttpExchange(secondRequest);
             channel.write(first).get(2, TimeUnit.SECONDS);
             channel.write(second).get(2, TimeUnit.SECONDS);

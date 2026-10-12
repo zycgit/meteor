@@ -262,7 +262,7 @@ public class MetContainer {
 
         synchronized (this) {
             if (this.serviceMap.containsKey(serviceID)) {
-                String serviceType = this.serviceMap.get(serviceID).getDomain().getServiceType().name();
+                MetServiceType serviceType = this.serviceMap.get(serviceID).getDomain().getServiceType();
                 String logMessage = "a " + serviceType + " of the same name already exists , serviceID -> " + serviceID;
                 this.logger.error(logMessage);
                 throw new IllegalStateException(logMessage);

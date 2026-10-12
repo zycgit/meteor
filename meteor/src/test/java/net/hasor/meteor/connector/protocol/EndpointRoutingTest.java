@@ -11,7 +11,10 @@ import java.io.DataInputStream;
 import java.io.InputStream;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
-import java.net.*;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
@@ -388,12 +391,12 @@ public class EndpointRoutingTest {
             return TestHttpInvocation.dispatch(payload, response -> {
                 String value = this.marker() + ":" + response.getReturnData();
                 byte[] body = value.getBytes(StandardCharsets.UTF_8);
-                return new HttpResponse(200, Collections.emptyMap(), body);
+                return HttpResponse.newBuffered(200, Collections.emptyMap(), body, Map.of());
             });
         }
 
         public HttpRequest encode(InterAddress target, RequestPayload request) {
-            return new HttpRequest("POST", this.path, Collections.emptyMap(), new byte[0]);
+            return HttpRequest.newBuffered("POST", this.path, Collections.emptyMap(), new byte[0], 1);
         }
 
         public ResponsePayload decode(long id, HttpResponse response) {
@@ -401,7 +404,8 @@ public class EndpointRoutingTest {
         }
 
         public HttpResponse error(Throwable error) {
-            return new HttpResponse(503, Collections.emptyMap(), "closing".getBytes(StandardCharsets.UTF_8));
+            byte[] body = "closing".getBytes(StandardCharsets.UTF_8);
+            return HttpResponse.newBuffered(503, Collections.emptyMap(), body, Map.of());
         }
     }
 

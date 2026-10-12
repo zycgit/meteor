@@ -913,14 +913,14 @@ public class HttpTransportTest {
             RequestPayload decoded = request(this.requestIds.incrementAndGet(), requestBody);
             return TestHttpInvocation.dispatch(decoded, response -> {
                 byte[] body = String.valueOf(response.getReturnData()).getBytes(StandardCharsets.UTF_8);
-                return new HttpResponse(200, Collections.emptyMap(), body);
+                return HttpResponse.newBuffered(200, Collections.emptyMap(), body, Map.of());
             });
         }
 
         public HttpRequest encode(InterAddress target, RequestPayload request) {
             String value = String.valueOf(request.getParameterValues().get(0));
             byte[] body = value.getBytes(StandardCharsets.UTF_8);
-            return new HttpRequest("POST", "/", Collections.emptyMap(), body);
+            return HttpRequest.newBuffered("POST", "/", Collections.emptyMap(), body, 1);
         }
 
         public ResponsePayload decode(long id, HttpResponse response) {
@@ -932,7 +932,8 @@ public class HttpTransportTest {
         }
 
         public HttpResponse error(Throwable failure) {
-            return new HttpResponse(500, Collections.emptyMap(), failure.toString().getBytes(StandardCharsets.UTF_8));
+            byte[] body = failure.toString().getBytes(StandardCharsets.UTF_8);
+            return HttpResponse.newBuffered(500, Collections.emptyMap(), body, Map.of());
         }
     }
 

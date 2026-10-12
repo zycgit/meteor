@@ -5,17 +5,23 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.bootstrap;
+package net.hasor.meteor.scenario;
 import java.util.List;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetUpdater;
+import net.hasor.meteor.bootstrap.MetConfiguration;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-public class XmlRoutingTest {
+/** 动态修改路由元数据和 XML，让下一次 RPC 选择不同实例。 */
+public class RoutingScenarioTest {
     public interface Echo {
         String echo(String value);
+
+        default String maintenance() {
+            return "maintenance";
+        }
     }
 
     @Test
@@ -72,6 +78,34 @@ public class XmlRoutingTest {
                 assertEquals("west", remote.echo("ordinary"));
                 assertTrue(updater.updateServiceRoute(id, "<route><return value='args[9]'/></route>"));
                 assertThrows(IllegalArgumentException.class, () -> remote.echo("ordinary"));
+
+                // 三层规则依次筛选：服务层放行，方法层限制方法，参数层决定目标单元。
+                service.setMetaData("west", westPort);
+                assertTrue(updater.updateServiceRoute(id, "<route><return value='addresses'/></route>"));
+                String methodRule = """
+                        <route>
+                            <filter name="selected" from="addresses" item="a"
+                                    test="utils.equals(method.name, 'echo')"/>
+                            <return value="selected"/>
+                        </route>
+                        """;
+                String argumentRule = """
+                        <route>
+                            <filter name="selected" from="addresses" item="a"
+                                    test="a.port == service.meta[args[0]]"/>
+                            <return value="selected"/>
+                        </route>
+                        """;
+                assertTrue(updater.updateMethodRoute(id, methodRule));
+                assertTrue(updater.updateArgsRoute(id, argumentRule));
+                assertEquals("east", remote.echo("east"));
+                assertEquals("west", remote.echo("west"));
+                assertThrows(Exception.class, remote::maintenance);
+
+                // 清除方法和参数规则后，同一代理又能调用原先被过滤的方法。
+                assertTrue(updater.updateMethodRoute(id, ""));
+                assertTrue(updater.updateArgsRoute(id, ""));
+                assertEquals("maintenance", remote.maintenance());
             }
         }
     }

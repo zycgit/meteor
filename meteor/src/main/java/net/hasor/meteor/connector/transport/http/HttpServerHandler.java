@@ -38,7 +38,7 @@ final class HttpServerHandler implements ProtoHandler<FullHttpRequest, Object> {
                 String method = request.method().name();
                 Map<String, String> requestHeaders = headers(request);
                 byte[] content = body(request.content());
-                HttpRequest copy = new HttpRequest(method, request.uri(), requestHeaders, content);
+                HttpRequest copy = HttpRequest.newBuffered(method, request.uri(), requestHeaders, content, 1);
                 dst.offerMessage(new HttpInbound(this.route, copy, keepAlive(request.protocolVersion(), request)));
             } finally {
                 request.release();

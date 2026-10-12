@@ -28,6 +28,11 @@ public class MetBindInfoWrap<T> implements MetBindInfo<T> {
     }
 
     @Override
+    public Object getBindResource() {
+        return this.target.getBindResource();
+    }
+
+    @Override
     public Set<String> getMetaKeys() {
         return this.target.getMetaKeys();
     }

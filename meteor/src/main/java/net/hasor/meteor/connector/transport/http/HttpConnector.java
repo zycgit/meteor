@@ -11,20 +11,25 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.transport.*;
+import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.channel.routing.PartitionKey;
+import net.hasor.neta.channel.routing.ProtoRoutingControl;
+import net.hasor.neta.channel.routing.ProtoRoutingDataSelector;
 import net.hasor.neta.channel.transport.tcp.TcpSoConfig;
 import net.hasor.neta.codec.http.*;
+import net.hasor.neta.codec.http.routing.*;
+import net.hasor.neta.codec.ssl.SslContext;
 
 /**
- * Complete HTTP messages over serial HTTP/1 exchanges. No application protocol is selected here.
+ * HTTP/1 and HTTP/2 complete messages, routed by context path on the same listener.
  */
 public final class HttpConnector extends SocketConnector<HttpExchange> {
     private final    Set<HttpClientChannel> clients = ConcurrentHashMap.newKeySet();
@@ -41,17 +46,69 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
     }
 
     protected void initialize(ProtoBuildContext stack, InterAddress target, ChannelFactory<HttpExchange> factory, boolean accepted) throws Exception {
+        if (!accepted) {
+            this.initializeHttp2(stack, target, factory, false, null);
+            return;
+        }
+
+        // 同一监听端口接收 HTTP/1 和 HTTP/2，之后仍按 contextPath 选择协议挂载。
+        HttpAggregatorRoute cleartext = new HttpAggregatorRoute();
+        HttpAggregatorOverTlsRoute tls = new HttpAggregatorOverTlsRoute();
+        ProtoRoutingDataSelector<ByteBuf, ByteBuf> selector = (context, source, targetQueue) -> {
+            // TLS 必须遵循 ALPN，不能被解密后的 preface 或 Upgrade 请求覆盖。
+            if (context.context(SslContext.class) != null) {
+                return tls.route(context, source, targetQueue);
+            } else {
+                return cleartext.route(context, source, targetQueue);
+            }
+        };
+
+        ProtoHelper.standard().nextDecoder("http-probe", new HttpRouteDecoder()).nextRouteAsStatic("http-version", selector, routing -> {
+            routing.branchByInitializer(HttpRouteKey.BRANCH_H1, branch -> {
+                this.initializeHttp1(branch, factory);
+            });
+            routing.branchByInitializer(HttpRouteKey.BRANCH_H2, branch -> {
+                this.initializeHttp2(branch, target, factory, true, routing.control());
+            });
+            routing.branchByInitializer(HttpRouteKey.BRANCH_H2C, branch -> {
+                branch.addLast("http", new HttpServerDuplex());
+                branch.addLast("upgrade", new H2CUpgradeServerDuplex(routing.control()));
+            });
+        }).config(stack);
+    }
+
+    private void initializeHttp2(ProtoBuildContext stack, InterAddress target, ChannelFactory<HttpExchange> factory, boolean accepted, ProtoRoutingControl routing) {
+        NetChannel socket = (NetChannel) stack.getChannel();
+        Executor executor = this.transport.nextExecutor();
+        Http2Channel channel = new Http2Channel(this.config, this.transport, socket, target, executor, accepted);
+        try {
+            channel.initialize(stack, factory, routing);
+        } catch (Exception failure) {
+            throw new IllegalStateException("Cannot initialize HTTP/2 channel", failure);
+        }
+    }
+
+    private void initializeHttp1(ProtoBuildContext stack, ChannelFactory<HttpExchange> factory) {
         NetChannel socket = (NetChannel) stack.getChannel();
         Executor executor = this.transport.nextExecutor();
         HttpServerChannel channel = new HttpServerChannel(this.config, this.transport, socket, executor);
-        ChannelListener<HttpExchange> receiver = factory.create(channel);
+        ChannelListener<HttpExchange> receiver;
+        try {
+            receiver = factory.create(channel);
+        } catch (Exception failure) {
+            throw new IllegalStateException("Cannot initialize HTTP channel", failure);
+        }
         channel.receiver(receiver);
         stack.addLast("http", new HttpServerDuplex());
 
         int maxFrameSize = this.config.integer("maxFrameSize", 16 * 1024 * 1024);
         HttpRequestAggregator aggregate = new HttpRequestAggregator(maxFrameSize);
         stack.addLastDecoder("aggregate", aggregate);
-        ConnectionEvents lifecycle = new ConnectionEvents(channel::connected, channel::terminated, failure -> {
+        AtomicBoolean selected = new AtomicBoolean();
+        ConnectionEvents lifecycle = new ConnectionEvents(() -> {
+            selected.set(true);
+            channel.connected();
+        }, channel::terminated, failure -> {
             channel.close();
         });
         stack.addFirstDecoder("lifecycle", lifecycle);
@@ -68,9 +125,15 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
             branch.apply("").config(stack);
         }
 
-        stack.getChannel().subscribe(event -> event.isInbound() || !event.isSuccess(), SubscribeMode.SYNC, event -> {
+        stack.addLastDecoder("input-close", new InputCloseHandler());
+        stack.getChannel().subscribe(event -> selected.get() && (event.isInbound() || !event.isSuccess()), SubscribeMode.SYNC, event -> {
             if (!event.isSuccess()) {
                 channel.execute(channel::close);
+                return;
+            }
+
+            if (event.getData() instanceof SoInputCloseEvent) {
+                channel.execute(channel::inputClosed);
                 return;
             }
 
@@ -86,20 +149,7 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
                 return null;
             }
 
-            String path = request.uri().split("\\?", 2)[0];
-            String selected = "";
-            int length = -1;
-            for (Map.Entry<String, NetworkRoute<HttpExchange>> route : routes.entrySet()) {
-                String mount = route.getValue().options().get("contextPath");
-                String prefix = mount.endsWith("/") ? mount : mount + "/";
-                boolean matchesPath = StringUtils.equals(path, mount) || path.startsWith(prefix);
-                boolean moreSpecific = mount.length() > length;
-                if (matchesPath && moreSpecific) {
-                    selected = route.getKey();
-                    length = mount.length();
-                }
-            }
-
+            String selected = HttpNetworkChannel.selectRoute(routes, request.uri());
             return PartitionKey.newKey(selected);
         }, p -> p.byInitializer(ctx -> {
             branch.apply(PartitionKey.findKey(ctx).getKey()).config(ctx);
@@ -107,6 +157,10 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
     }
 
     public Future<Void> connect(InterAddress target, ChannelFactory<HttpExchange> factory) {
+        if (this.config.integer("httpVersion", 1) == 2) {
+            return super.connect(target, factory);
+        }
+
         BasicFuture<Void> result = new BasicFuture<>();
         try {
             Executor executor = this.transport.nextExecutor();
@@ -160,10 +214,19 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
 
         NetChannel socket = (NetChannel) stack.getChannel();
         stack.addLastDecoder("messages", new HttpClientHandler(channel, socket));
+        stack.addLastDecoder("input-close", new InputCloseHandler());
         socket.subscribe(event -> event.isInbound() || !event.isSuccess(), SubscribeMode.SYNC, event -> {
             if (!event.isSuccess()) {
                 channel.dispatch(() -> {
                     channel.failed(socket, event.getError());
+                    socket.closeNow();
+                });
+                return;
+            }
+
+            if (event.getData() instanceof SoInputCloseEvent) {
+                channel.dispatch(() -> {
+                    channel.failed(socket, new IOException("HTTP peer closed before response"));
                     socket.closeNow();
                 });
                 return;

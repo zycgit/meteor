@@ -28,6 +28,7 @@ import net.hasor.neta.codec.http.HttpVersion;
  * Owns incoming HTTP request routes and preserves HTTP/1 response order.
  */
 class HttpServerChannel extends HttpNetworkChannel {
+    private       boolean                      inputClosed;
     private final NetChannel                   channel;
     private final InterAddress                 remote;
     private final Deque<HttpReply>             replies = new ArrayDeque<>();
@@ -72,6 +73,13 @@ class HttpServerChannel extends HttpNetworkChannel {
                 this.forgetChannel();
             }
         });
+    }
+
+    protected void inputClosed() {
+        this.inputClosed = true;
+        if (this.replies.isEmpty()) {
+            this.drainAndClose();
+        }
     }
 
     @Override
@@ -141,7 +149,7 @@ class HttpServerChannel extends HttpNetworkChannel {
     }
 
     private static HttpResponse unavailable() {
-        return new HttpResponse(503, Collections.emptyMap(), new byte[0]);
+        return HttpResponse.newBuffered(503, Collections.emptyMap(), new byte[0], Map.of());
     }
 
     private void drain() {
@@ -158,15 +166,28 @@ class HttpServerChannel extends HttpNetworkChannel {
             ByteBuf body = ByteBuf.wrap(response.body());
             FullHttpResponse out = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, body);
             response.headers().forEach(out::setHeader);
-            out.removeHeader("Transfer-Encoding");
-            out.setHeader("Content-Length", String.valueOf(response.body().length));
+            if (response.trailers().isEmpty()) {
+                out.removeHeader("Transfer-Encoding");
+                out.setHeader("Content-Length", String.valueOf(response.body().length));
+            } else {
+                out.removeHeader("Content-Length");
+                out.setHeader("Transfer-Encoding", "chunked");
+                response.trailers().forEach(out.trailingHeaders()::setHeader);
+            }
             out.setHeader("Connection", slot.keepAlive() ? "keep-alive" : "close");
+
             this.writeSocket(this.channel, out).onFinal(done -> {
                 Throwable failure = done.isCancelled() ? new CancellationException("HTTP write cancelled") : done.getCause();
                 this.completeWrite(slot.sent(), null, failure);
                 slot.exchange().complete(failure);
                 if (failure != null || !slot.keepAlive()) {
                     this.channel.closeNow();
+                } else {
+                    this.execute(() -> {
+                        if (this.inputClosed && this.replies.isEmpty()) {
+                            this.drainAndClose();
+                        }
+                    });
                 }
             });
 

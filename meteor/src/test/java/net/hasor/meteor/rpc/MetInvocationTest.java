@@ -99,16 +99,18 @@ public class MetInvocationTest {
     }
 
     @Test
-    public void unsupportedAndBrokenSerializerLookupsHaveDistinctStatuses() throws Exception {
+    public void protocolDecodedArgumentsDoNotRequireAGlobalSerializer() throws Exception {
         try (Host host = new Host()) {
-            host.coders = name -> null;
-            host.assertStatus(ProtocolStatus.SerializeForbidden, host.request());
+            // 协议交付 Java 对象，执行器不应查询或调用全局序列化器。
             host.coders = name -> {
-                throw new IllegalStateException("coder failure");
+                throw new AssertionError("RPC must not resolve the protocol serializer");
             };
-            ResponsePayload failure = host.assertStatus(ProtocolStatus.SerializeError, host.request());
-            assertTrue(failure.getOption("message").contains("coder failure"));
-            assertEquals(0, host.invocations.get());
+            RequestPayload request = host.request();
+            request.setSerializeType("ProtocolOwned");
+            ResponsePayload response = host.assertStatus(ProtocolStatus.OK, request);
+            assertEquals("value", response.getReturnData());
+            assertEquals("ProtocolOwned", response.getSerializeType());
+            assertEquals(1, host.invocations.get());
         }
     }
 
@@ -227,24 +229,6 @@ public class MetInvocationTest {
             };
             ResponsePayload providerFailure = host.assertStatus(ProtocolStatus.InvokeError, host.request());
             assertTrue(providerFailure.getOption("message").contains("provider failure"));
-        }
-    }
-
-    @Test
-    public void responseCoderUnavailableOrThrowingProducesSerializationFailure() throws Exception {
-        try (Host host = new Host()) {
-            AtomicInteger lookups = new AtomicInteger();
-            host.coders = name -> lookups.incrementAndGet() == 1 ? new JavaSerializeCoder() : null;
-            host.assertStatus(ProtocolStatus.SerializeForbidden, host.request());
-            lookups.set(0);
-            host.coders = name -> {
-                if (lookups.incrementAndGet() == 1) {
-                    return new JavaSerializeCoder();
-                }
-                throw new IllegalStateException("response coder failure");
-            };
-            host.assertStatus(ProtocolStatus.SerializeError, host.request());
-            assertEquals(2, host.invocations.get());
         }
     }
 

@@ -53,6 +53,31 @@ public class MetContainerTest {
     }
 
     @Test
+    public void bindResourcesRemainLocalAcrossPublicationAndSubscription() {
+        // 提供者绑定资源通过正式发布入口传入，查询包装后仍是同一个对象。
+        Object bindResource = new Object();
+        MetBindInfo<Echo> provider = this.publisher.rsfService(Echo.class, value -> value).bindResource(bindResource).register();
+        assertSame(bindResource, provider.getBindResource());
+        assertSame(bindResource, this.container.getRsfBindInfo(provider.getBindID()).getBindResource());
+        assertTrue(provider.getMetaKeys().isEmpty());
+
+        // 治理元数据修改不会替换本地绑定资源。
+        provider.setMetaData("revision", 2);
+        assertSame(bindResource, provider.getBindResource());
+        assertEquals(Set.of("revision"), provider.getMetaKeys());
+        assertTrue(this.container.recoverService(provider.getBindID()));
+
+        // 消费者独立装配自己的绑定资源；重新注册不继承旧绑定资源。
+        Object clientBindResource = new Object();
+        MetBindInfo<Echo> consumer = this.publisher.rsfService(Echo.class).bindResource(clientBindResource).register();
+        assertSame(clientBindResource, consumer.getBindResource());
+        assertTrue(consumer.getMetaKeys().isEmpty());
+        assertTrue(this.container.recoverService(consumer.getBindID()));
+        MetBindInfo<Echo> unbound = this.publisher.rsfService(Echo.class).bindResource(bindResource).bindResource(null).register();
+        assertNull(unbound.getBindResource());
+    }
+
+    @Test
     public void registrationBecomesVisibleAfterAddressesAreReady() throws Exception {
         CountDownLatch preparing = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);

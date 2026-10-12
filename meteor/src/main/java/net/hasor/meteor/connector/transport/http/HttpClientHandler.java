@@ -31,10 +31,12 @@ final class HttpClientHandler implements ProtoHandler<FullHttpResponse, Object> 
                 if (response.isBad()) {
                     throw new IOException("Malformed HTTP response: " + response.badReason());
                 }
+
                 int status = response.status().code();
                 Map<String, String> responseHeaders = headers(response);
                 byte[] content = body(response.content());
-                HttpResponse copy = new HttpResponse(status, responseHeaders, content);
+                Map<String, String> trailers = response.hasTrailingHeaders() ? headers(response.trailingHeaders()) : Map.of();
+                HttpResponse copy = HttpResponse.newBuffered(status, responseHeaders, content, trailers);
                 boolean keep = keepAlive(response.protocolVersion(), response);
                 dst.offerMessage(new HttpInboundResponse(copy, keep));
             } finally {

@@ -74,6 +74,9 @@ public interface MetBindInfo<T> {
     /** @return 服务显式指定的序列化器；null 表示由调用所用的协议接入点决定。 */
     String getSerializeType();
 
+    /** 服务绑定的本地资源，由协议扩展解释；未绑定时返回 null，不参与治理元数据同步。 */
+    Object getBindResource();
+
     /** 服务的执行线程池是否为共享线程池。 */
     boolean isSharedThreadPool();
 }
