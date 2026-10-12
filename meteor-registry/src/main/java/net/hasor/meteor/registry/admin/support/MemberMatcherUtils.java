@@ -8,15 +8,15 @@
 package net.hasor.meteor.registry.admin.support;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.registry.admin.MetEndpointFilter;
-import net.hasor.meteor.registry.shared.rpc.ServiceEndpointData;
-import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
+import net.hasor.meteor.registry.admin.MetServiceEndpoint;
+import net.hasor.meteor.registry.admin.MetServiceMember;
 
 /** 管理查询的成员筛选，所有端点条件必须命中同一挂载。 */
 final class MemberMatcherUtils {
     private MemberMatcherUtils() {
     }
 
-    public static boolean matches(ServiceMemberData member, MetEndpointFilter filter) {
+    public static boolean matches(MetServiceMember member, MetEndpointFilter filter) {
         if (filter == null) {
             return true;
         }
@@ -33,7 +33,7 @@ final class MemberMatcherUtils {
         }
 
         // 所有条件必须匹配同一个协议挂载，返回时仍保留成员的完整端点列表。
-        for (ServiceEndpointData endpoint : member.getEndpoints()) {
+        for (MetServiceEndpoint endpoint : member.getEndpoints()) {
             boolean connector = matches(filter.getConnectorName(), endpoint.getConnectorName(), false);
             boolean transport = matches(filter.getTransport(), endpoint.getTransport(), true);
             boolean protocol = matches(filter.getProtocol(), endpoint.getProtocol(), true);

@@ -12,7 +12,7 @@ import java.util.TreeSet;
 public final class MetServiceMember {
     private MetServiceEndpoint[] endpoints = new MetServiceEndpoint[0];
     private MetInstanceInfo      instance  = null;
-    private MetServiceDetail     service   = null;
+    private MetServiceInfo       service   = null;
     private boolean              enabled   = true;
 
     /** 获取当前服务使用的发布或订阅端点，包含尚未发布的端点。 */
@@ -44,11 +44,11 @@ public final class MetServiceMember {
         this.instance = instance;
     }
 
-    public MetServiceDetail getService() {
+    public MetServiceInfo getService() {
         return this.service;
     }
 
-    public void setService(MetServiceDetail service) {
+    public void setService(MetServiceInfo service) {
         this.service = service;
     }
 

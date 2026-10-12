@@ -7,12 +7,9 @@
  */
 package net.hasor.meteor.registry.client.support;
 import java.util.*;
-import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Cancellable;
-import net.hasor.meteor.registry.shared.rpc.AddressData;
+import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.rpc.ConfigurationData;
-import net.hasor.meteor.registry.shared.rpc.ServiceInfoData;
-import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
 import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
@@ -29,12 +26,9 @@ final class RegistrationService {
     ////////////////////////////////////////////////////////////////////////////////////////
     // 登记实例、服务及发布订阅关系
     private void saveInstance(RegistrationSnapshot record) throws Exception {
-        this.ensureOwner(RegistryGovernanceUtils.instance(record.getInstance().getInstanceId()));
-        EntInstanceRuntimeData runtime = RegistryJson.copy(record.getInstance(), EntInstanceRuntimeData.class);
-        runtime.setManagementAddresses(record.getInstance().getManagementAddress());
-        runtime.setSettings(record.getSettings());
-        EntityRef ref = RegistryGovernanceUtils.runtime(RegistryGovernanceUtils.instance(record.getInstance().getInstanceId()));
-        this.saveRuntime(ref, runtime);
+        EntityRef instance = RegistryGovernanceUtils.instance(record.getInstanceId());
+        this.ensureOwner(instance);
+        this.saveRuntime(RegistryGovernanceUtils.runtime(instance), record.getInstance());
     }
 
     private void ensureOwner(EntityRef ref) throws Exception {
@@ -63,8 +57,9 @@ final class RegistrationService {
     }
 
     /** 登记信息不能覆盖管理配置；目录不会因实例退出而删除。 */
-    private void ensureService(ServiceInfoData service) throws Exception {
-        EntityRef ref = RegistryGovernanceUtils.service(service.getServiceId());
+    private void ensureService(ServiceRegistration registration) throws Exception {
+        EntityRef ref = RegistryGovernanceUtils.service(registration.getServiceId());
+        EntServiceCatalogData service = registration.getService();
         for (int attempt = 0; attempt < 8; attempt++) {
             EntityRecord previous = this.storage.getEntity(ref);
             EntServiceCatalogData data;
@@ -76,6 +71,7 @@ final class RegistrationService {
             data.setGroup(service.getGroup());
             data.setName(service.getName());
             data.setVersion(service.getVersion());
+            data.setType(service.getType());
 
             EntityRecord next = new EntityRecord(ref);
             next.setData(data);
@@ -95,31 +91,21 @@ final class RegistrationService {
         }
     }
 
-    /** 登记快照；指定服务时仅更新该服务的运行记录和关系，保留实例及其他服务。 */
+    /** 登记服务目录和关系；指定服务时保留实例登记及其他服务。 */
     public void publish(RegistrationSnapshot record, String serviceId) throws Exception {
-        String instanceId = record.getInstance().getInstanceId();
-        EntityRef instance = RegistryGovernanceUtils.instance(instanceId);
+        EntityRef instance = RegistryGovernanceUtils.instance(record.getInstanceId());
         Set<String> current = new HashSet<>();
-        for (ServiceMemberData member : record.getServices()) {
-            String id = member.getService().getServiceId();
-            this.ensureService(member.getService());
-
+        for (ServiceRegistration member : record.getServices()) {
+            String id = member.getServiceId();
+            this.ensureService(member);
             current.add(id);
-            EntInstanceServiceRuntimeData runtime = new EntInstanceServiceRuntimeData();
-            runtime.setService(RegistryJson.copy(member.getService(), EntServiceDeclarationData.class));
-            runtime.setEnabled(member.isEnabled());
-            AddressData addresses = record.getAddressBooks().getOrDefault(id, new AddressData());
-            runtime.setAddressBook(RegistryJson.copy(addresses, EntAddressBookData.class));
-            this.saveRuntime(RegistryGovernanceUtils.runtime(RegistryGovernanceUtils.localService(instanceId, id)), runtime);
 
-            RelationType role = StringUtils.equals("Provider", member.getService().getRole()) ? RelationType.PROVIDES : RelationType.CONSUMES;
             EntityRef service = RegistryGovernanceUtils.service(id);
-            RefServiceRelationData binding = new RefServiceRelationData();
-            binding.setEndpoints(RegistryJson.copy(member.getEndpoints(), RefProtocolMountData[].class));
-            binding.setAddresses(member.getAddresses());
+            boolean provider = member.getRole() == MetServiceType.Provider;
+            RelationType role = provider ? RelationType.PROVIDES : RelationType.CONSUMES;
             RelationRecord relation = new RelationRecord(role, service, instance);
             relation.setLifecycle(RecordLifecycle.EPHEMERAL);
-            relation.setData(binding);
+            relation.setData(member.getRelation());
             RelationRecord previous = this.storage.getRelation(role, service, instance);
 
             if (previous == null || !RegistryJson.sameData(previous.getData(), relation.getData())) {
@@ -133,26 +119,15 @@ final class RegistrationService {
             }
         }
 
-        // 撤销只删除运行声明和发现关系，保留目录及实例服务规则。
-        EntityQuery query = new EntityQuery();
-        query.setType(EntityType.SERVICE);
-        query.setParent(instance);
-        query.setSection(EntitySection.RUNTIME);
+        // 实例服务列表直接来自关系；移除服务仅删除其关系，保留服务目录和治理。
+        RelationQuery query = new RelationQuery();
+        query.setTarget(instance);
         if (serviceId != null) {
-            query.setIds(Set.of(serviceId));
+            query.setSource(RegistryGovernanceUtils.service(serviceId));
         }
-
-        for (EntityRecord previous : RegistryGovernanceUtils.entities(this.storage, query)) {
-            if (current.contains(previous.getId())) {
-                continue;
-            }
-
-            this.storage.deleteEntity(previous);
-            for (RelationType type : RelationType.values()) {
-                RelationRecord relation = this.storage.getRelation(type, RegistryGovernanceUtils.service(previous.getId()), instance);
-                if (relation != null) {
-                    this.storage.deleteRelation(relation);
-                }
+        for (RelationRecord previous : RegistryGovernanceUtils.relations(this.storage, query)) {
+            if (!current.contains(previous.getSource().id())) {
+                this.storage.deleteRelation(previous);
             }
         }
 

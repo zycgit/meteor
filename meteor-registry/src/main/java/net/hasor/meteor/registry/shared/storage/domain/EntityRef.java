@@ -35,9 +35,9 @@ public record EntityRef(EntityType type, String id, EntityRef parent, EntitySect
         if ((type == EntityType.GLOBAL || type == EntityType.INSTANCE) && parent != null) {
             throw new IllegalArgumentException("Global and instance objects cannot have a parent");
         }
-        boolean runtimeObject = type == EntityType.INSTANCE || serviceChild;
+        boolean runtimeObject = type == EntityType.INSTANCE;
         if (section == EntitySection.RUNTIME && !runtimeObject) {
-            throw new IllegalArgumentException("Runtime data belongs to an instance or its service");
+            throw new IllegalArgumentException("Runtime data belongs to an instance");
         }
 
         this.type = type;

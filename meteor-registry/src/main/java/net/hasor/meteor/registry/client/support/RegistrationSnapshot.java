@@ -6,49 +6,33 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.client.support;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import net.hasor.meteor.registry.shared.rpc.AddressData;
-import net.hasor.meteor.registry.shared.rpc.InstanceData;
-import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
+import java.util.ArrayList;
+import java.util.List;
+import net.hasor.meteor.registry.shared.storage.domain.EntInstanceRuntimeData;
 
-/** 一次本地采集结果；发布时拆为实例、实例服务和发现关系的独立记录。 */
+/** 一次登记采集；单服务推送不携带实例快照，不采集运行配置和地址本。 */
 final class RegistrationSnapshot {
-    private InstanceData             instance     = null;
-    private ServiceMemberData[]      services     = new ServiceMemberData[0];
-    private Map<String, Object>      settings     = new LinkedHashMap<>();
-    private Map<String, AddressData> addressBooks = new LinkedHashMap<>();
+    private       String                    instanceId;
+    private       EntInstanceRuntimeData    instance;
+    private final List<ServiceRegistration> services = new ArrayList<>();
 
-    public InstanceData getInstance() {
+    public String getInstanceId() {
+        return this.instanceId;
+    }
+
+    public void setInstanceId(String instanceId) {
+        this.instanceId = instanceId;
+    }
+
+    public EntInstanceRuntimeData getInstance() {
         return this.instance;
     }
 
-    public void setInstance(InstanceData instance) {
+    public void setInstance(EntInstanceRuntimeData instance) {
         this.instance = instance;
     }
 
-    public ServiceMemberData[] getServices() {
+    public List<ServiceRegistration> getServices() {
         return this.services;
     }
-
-    public void setServices(ServiceMemberData[] services) {
-        this.services = services;
-    }
-
-    public Map<String, Object> getSettings() {
-        return this.settings;
-    }
-
-    public void setSettings(Map<String, Object> settings) {
-        this.settings = settings;
-    }
-
-    public Map<String, AddressData> getAddressBooks() {
-        return this.addressBooks;
-    }
-
-    public void setAddressBooks(Map<String, AddressData> addressBooks) {
-        this.addressBooks = addressBooks;
-    }
-
 }

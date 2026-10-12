@@ -21,8 +21,7 @@ public final class EntityRecord {
             @JsonSubTypes.Type(value = EntServiceConfigurationData.class, name = "serviceConfiguration"),   //
             @JsonSubTypes.Type(value = EntInstanceConfigurationData.class, name = "instanceConfiguration"), //
             @JsonSubTypes.Type(value = EntRuleConfigurationData.class, name = "ruleConfiguration"),         //
-            @JsonSubTypes.Type(value = EntInstanceRuntimeData.class, name = "instanceRuntime"),             //
-            @JsonSubTypes.Type(value = EntInstanceServiceRuntimeData.class, name = "instanceServiceRuntime")//
+            @JsonSubTypes.Type(value = EntInstanceRuntimeData.class, name = "instanceRuntime")             //
     })
     private       EntData         data;
 

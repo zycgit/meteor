@@ -8,6 +8,7 @@
 package net.hasor.meteor.registry.admin;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.rpc.InstanceData;
@@ -42,7 +43,7 @@ public class EndpointFilterTest {
             ServiceEndpointData http = endpoint("http-1", "http", "hprose", "/api");
             http.setListenAddress("hprose://0.0.0.0:8080/default");
             http.setPublishedAddress("hprose://example.com:8080/default");
-            store(backend, "Provider", new ServiceEndpointData[] { tcp, http });
+            store(backend, MetServiceType.Provider, new ServiceEndpointData[] { tcp, http });
             MetServiceAdmin api = admin.getServiceAdmin("echo");
 
             // 传输与协议条件必须命中同一个挂载，结果保留完整成员。
@@ -74,7 +75,7 @@ public class EndpointFilterTest {
             assertEquals(0, api.consumers(null).length);
 
             // 订阅者使用相同筛选规则，返回的端点信息与存储隔离。
-            store(backend, "Consumer", new ServiceEndpointData[] { tcp, http });
+            store(backend, MetServiceType.Consumer, new ServiceEndpointData[] { tcp, http });
             filter.setAddress(http.getConfiguredAddress());
             assertEquals(1, api.consumers(filter).length);
             MetServiceMember detached = api.consumers(filter)[0];
@@ -91,7 +92,7 @@ public class EndpointFilterTest {
         try (StorageAccess backend = this.storageConfiguration.openStorage(); //
              MetContext adminContext = adminConfiguration.buildContext()) {
             RegistryAdmin admin = adminContext.getExtension(RegistryAdmin.class);
-            store(backend, "Provider", new ServiceEndpointData[0]);
+            store(backend, MetServiceType.Provider, new ServiceEndpointData[0]);
             MetServiceAdmin api = admin.getServiceAdmin("echo");
 
             // 只有实例条件或空白传输条件时，仍能查询到成员。
@@ -122,7 +123,7 @@ public class EndpointFilterTest {
         return result;
     }
 
-    private static void store(StorageAccess backend, String role, ServiceEndpointData[] endpoints) throws Exception {
+    private static void store(StorageAccess backend, MetServiceType role, ServiceEndpointData[] endpoints) throws Exception {
         InstanceData instance = new InstanceData();
         instance.setInstanceId("one");
         ServiceData service = new ServiceData();

@@ -6,18 +6,19 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.client.support;
-import java.lang.reflect.Method;
 import java.util.*;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.*;
+import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
+import net.hasor.meteor.MetPublisher;
+import net.hasor.meteor.MetUpdater;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.rpc.*;
-import net.hasor.meteor.registry.shared.storage.domain.EntInstanceConfigurationData;
+import net.hasor.meteor.registry.shared.storage.domain.*;
 import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
@@ -70,35 +71,54 @@ public final class ManagementRPCImpl implements ManagementRPC {
         return ids;
     }
 
-    /** 直接应用实例配置；不恢复历史选项，显式 null 值删除选项。 */
+    /** 直接应用实例阻断治理，不修改应用运行选项。 */
     public Exception applyInstance(EntInstanceConfigurationData configuration) {
         try {
-            this.applySettings(configuration);
+            this.governance.setBlock(Boolean.TRUE.equals(configuration.getBlock()));
             return null;
         } catch (Exception failure) {
             return failure;
         }
     }
 
-    /** 采集完整注册快照；指定服务时只携带实例 ID 和该服务的信息、地址本。 */
+    /** 只采集服务登记和协议端点；运行配置、方法详情及地址本留在应用进程中。 */
     public RegistrationSnapshot snapshot(String serviceId) throws Exception {
         RegistrationSnapshot record = new RegistrationSnapshot();
-        record.setServices(this.members(serviceId));
+        record.setInstanceId(this.context.getInstanceID());
         if (serviceId == null) {
-            record.setInstance(this.instance());
-            record.setSettings(this.settings());
-        } else {
-            InstanceData instance = new InstanceData();
-            instance.setInstanceId(this.context.getInstanceID());
-            record.setInstance(instance);
+            InstanceData instance = this.instance();
+            EntInstanceRuntimeData registration = RegistryJson.copy(instance, EntInstanceRuntimeData.class);
+            registration.setManagementAddresses(instance.getManagementAddress());
+            record.setInstance(registration);
         }
 
-        for (ServiceMemberData member : record.getServices()) {
+        List<MetBindInfo<?>> services;
+        if (serviceId == null) {
+            services = this.bindings();
+        } else {
+            services = List.of(this.requireService(serviceId));
+        }
+        for (MetBindInfo<?> service : services) {
+            // 服务目录只保存稳定身份，不复制调用参数和完整方法签名。
+            String id = service.getBindID();
+            EntServiceCatalogData catalog = new EntServiceCatalogData();
+            catalog.setGroup(service.getBindGroup());
+            catalog.setName(service.getBindName());
+            catalog.setVersion(service.getBindVersion());
+            catalog.setType(service.getBindType().getName());
+
+            MetServiceType role = service.getServiceType();
+            boolean provider = role == MetServiceType.Provider;
+            RefServiceRelationData relation = new RefServiceRelationData();
+            relation.setEnabled(this.governance.isServiceEnabled(id));
+            RefProtocolMountData[] endpoints = RegistryJson.copy(this.endpoints(service), RefProtocolMountData[].class);
+            relation.setEndpoints(endpoints);
+
+            // 已禁用、阻断或离线的提供者保留关系，但不向发现方提供地址。
+            boolean available = this.context.isOnline() && !this.governance.isBlock() && relation.isEnabled();
             Set<String> published = new TreeSet<>();
-            boolean provider = StringUtils.equals("Provider", member.getService().getRole());
-            boolean publish = this.context.isOnline() && !this.governance.isBlock() && member.isEnabled() && provider;
-            if (publish) {
-                for (ServiceEndpointData endpoint : member.getEndpoints()) {
+            if (provider && available) {
+                for (RefProtocolMountData endpoint : endpoints) {
                     if (endpoint.getListenAddress() != null) {
                         InterAddress listen = new InterAddress(endpoint.getListenAddress());
                         String address = this.toPublishAddress(listen).toString();
@@ -107,9 +127,9 @@ public final class ManagementRPCImpl implements ManagementRPC {
                     }
                 }
             }
-            member.setAddresses(published.toArray(String[]::new));
-            String id = member.getService().getServiceId();
-            record.getAddressBooks().put(id, this.addresses(id));
+
+            relation.setAddresses(published.toArray(String[]::new));
+            record.getServices().add(new ServiceRegistration(id, catalog, role, relation));
         }
         return record;
     }
@@ -151,17 +171,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
     ////////////////////////////////////////////////////////////////////////////////////////
     // 直连管理：查询本地运行信息，修改只保存在当前进程。
     @Override
-    public AddressData addresses(String serviceId) {
-        this.requireService(serviceId);
-        MetUpdater updater = this.context.getUpdater();
-        AddressData result = new AddressData();
-        result.setAvailable(strings(updater.queryAvailableAddresses(serviceId)));
-        result.setInvalid(strings(updater.queryInvalidAddresses(serviceId)));
-        result.setLocalUnit(strings(updater.queryLocalUnitAddresses(serviceId)));
-        return result;
-    }
-
-    @Override
     public InstanceData instance() {
         InstanceData result = new InstanceData();
         result.setInstanceId(this.context.getInstanceID());
@@ -183,72 +192,12 @@ public final class ManagementRPCImpl implements ManagementRPC {
     }
 
     @Override
-    public Map<String, Object> settings() {
-        MetSettings settings = this.context.getSettings();
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("applicationName", this.context.getApplicationName());
-        result.put("defaultTimeout", settings.getDefaultTimeout());
-        result.put("defaultGroup", settings.getDefaultGroup());
-        result.put("defaultVersion", settings.getDefaultVersion());
-        result.put("queueMaxSize", settings.getQueueMaxSize());
-        result.put("queueMinPoolSize", settings.getQueueMinPoolSize());
-        result.put("queueMaxPoolSize", settings.getQueueMaxPoolSize());
-        result.put("queueKeepAliveTime", settings.getQueueKeepAliveTime());
-        result.put("requestTimeout", settings.getRequestTimeout());
-        result.put("maximumRequest", settings.getMaximumRequest());
-        result.put("connectTimeout", settings.getConnectTimeout());
-        result.put("bindAddress", settings.getBindAddress());
-        result.put("defaultProtocol", settings.getDefaultProtocol());
-        result.put("unitName", settings.getUnitName());
-        result.put("invalidWaitTime", settings.getInvalidWaitTime());
-        result.put("refreshCacheTime", settings.getRefreshCacheTime());
-        result.put("diskCacheTimeInterval", settings.getDiskCacheTimeInterval());
-        result.put("localDiskCache", settings.isLocalDiskCache());
-        result.put("automaticOnline", settings.isAutomaticOnline());
-        result.put("dataHome", settings.getDataHome() == null ? null : settings.getDataHome().toString());
-        result.put("sendLimitPolicy", settings.getSendLimitPolicy().name());
-        result.put("protocols", new ArrayList<>(settings.getProtocols()));
-        result.put("requestOptions", options(settings.getRequestOptions()));
-        result.put("responseOptions", options(settings.getResponseOptions()));
-
-        Map<String, String> bindings = new LinkedHashMap<>();
-        for (String protocol : settings.getProtocols()) {
-            InterAddress address = settings.getBindAddressSet(protocol);
-            bindings.put(protocol, address == null ? null : address.toString());
-        }
-        result.put("bindAddressSet", bindings);
-
-        List<Map<String, Object>> connectors = new ArrayList<>();
-        for (ConnectorConfig connector : settings.getConnectorConfigs()) {
-            Map<String, Object> endpoint = new LinkedHashMap<>();
-            endpoint.put("name", connector.name());
-            endpoint.put("listenType", connector.listenType());
-            endpoint.put("bindEnabled", connector.bindEnabled());
-            endpoint.put("address", connector.address().toString());
-            endpoint.put("options", new LinkedHashMap<>(connector.options()));
-            List<Map<String, Object>> protocols = new ArrayList<>();
-            for (ProtocolConfig protocol : connector.protocols()) {
-                Map<String, Object> mount = new LinkedHashMap<>();
-                mount.put("name", protocol.name());
-                mount.put("scheme", protocol.scheme());
-                mount.put("protocol", protocol.protocol());
-                mount.put("options", new LinkedHashMap<>(protocol.options()));
-                protocols.add(mount);
-            }
-            endpoint.put("protocols", protocols);
-            connectors.add(endpoint);
-        }
-        result.put("connectorConfigs", connectors);
-        return result;
-    }
-
-    @Override
-    public ServiceInfoData[] services() {
-        List<ServiceInfoData> services = new ArrayList<>();
+    public ServiceData[] services() {
+        List<ServiceData> services = new ArrayList<>();
         for (MetBindInfo<?> service : this.bindings()) {
-            services.add(RegistryJson.copy(this.serviceSnapshot(service), ServiceInfoData.class));
+            services.add(this.serviceSnapshot(service, this.endpoints(service)));
         }
-        return services.toArray(ServiceInfoData[]::new);
+        return services.toArray(ServiceData[]::new);
     }
 
     @Override
@@ -277,25 +226,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
     @Override
     public void setBlock(boolean block) {
         this.governance.setBlock(block);
-    }
-
-    @Override
-    public void setRequestOption(String name, String value) {
-        this.setOption(true, name, value);
-    }
-
-    @Override
-    public void setResponseOption(String name, String value) {
-        this.setOption(false, name, value);
-    }
-
-    private void setOption(boolean request, String name, String value) {
-        if (StringUtils.isBlank(name)) {
-            throw new IllegalArgumentException("Option name must not be blank");
-        }
-        MetSettings settings = this.context.getSettings();
-        MetOptionSet options = request ? settings.getRequestOptions() : settings.getResponseOptions();
-        setOption(options, name, value);
     }
 
     @Override
@@ -350,6 +280,19 @@ public final class ManagementRPCImpl implements ManagementRPC {
     }
 
     @Override
+    public Map<String, Object> fetchServiceMeta(String serviceId) {
+        MetBindInfo<?> service = this.requireService(serviceId);
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        for (String key : service.getMetaKeys()) {
+            Object current = service.getMetaData(key);
+            if (current != null) {
+                metadata.put(key, current);
+            }
+        }
+        return RegistryJson.copy(metadata, Map.class);
+    }
+
+    @Override
     public void putServiceMeta(String serviceId, Map<String, Object> values) {
         if (values == null || values.size() > MetBindInfo.MAX_METADATA_SIZE) {
             throw new IllegalArgumentException("Metadata must not exceed " + MetBindInfo.MAX_METADATA_SIZE + " entries");
@@ -384,57 +327,14 @@ public final class ManagementRPCImpl implements ManagementRPC {
 
     ////////////////////////////////////////////////////////////////////////////////////////
     // 通过现有 API 应用配置；值只存于应用，不建立本地覆盖层。
-    private void applySettings(EntInstanceConfigurationData data) {
-        Map<String, String> requests = data.getRequestOptions() == null ? Map.of() : data.getRequestOptions();
-        Map<String, String> responses = data.getResponseOptions() == null ? Map.of() : data.getResponseOptions();
-
-        for (String key : requests.keySet()) {
-            if (StringUtils.isBlank(key)) {
-                throw new IllegalArgumentException("Request option name is required");
-            }
-        }
-        for (String key : responses.keySet()) {
-            if (StringUtils.isBlank(key)) {
-                throw new IllegalArgumentException("Response option name is required");
-            }
-        }
-
-        applyOptions(this.context.getSettings().getRequestOptions(), requests);
-        applyOptions(this.context.getSettings().getResponseOptions(), responses);
-        this.governance.setBlock(Boolean.TRUE.equals(data.getBlock()));
-    }
-
-    private static void applyOptions(MetOptionSet options, Map<String, String> desired) {
-        for (Map.Entry<String, String> entry : desired.entrySet()) {
-            setOption(options, entry.getKey(), entry.getValue());
-        }
-    }
-
-    private static void setOption(MetOptionSet options, String key, String value) {
-        if (value == null) {
-            options.removeOption(key);
-        } else {
-            options.addOption(key, value);
-        }
-    }
-
     private ConfigurationData effectiveConfiguration(String id) {
-        MetBindInfo<?> service = this.requireService(id);
         ConfigurationData result = new ConfigurationData();
         result.setEnabled(this.governance.isServiceEnabled(id));
         for (RuleTypeData type : RuleTypeData.values()) {
             setRule(result, type, this.readRule(id, type));
         }
 
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        for (String key : service.getMetaKeys()) {
-            Object current = service.getMetaData(key);
-            if (current != null) {
-                metadata.put(key, current);
-            }
-        }
-
-        result.setMetadata(metadata);
+        result.setMetadata(this.fetchServiceMeta(id));
         return result;
     }
 
@@ -625,24 +525,17 @@ public final class ManagementRPCImpl implements ManagementRPC {
         }
 
         for (MetBindInfo<?> service : services) {
+            ServiceEndpointData[] endpoints = this.endpoints(service);
             ServiceMemberData member = new ServiceMemberData();
             member.setInstance(this.instance());
-            member.setService(this.serviceSnapshot(service));
-            member.setEndpoints(this.endpoints(service));
+            member.setService(this.serviceSnapshot(service, endpoints));
+            member.setEndpoints(endpoints);
             member.setEnabled(this.governance.isServiceEnabled(service.getBindID()));
             member.setEffectiveConfiguration(this.effectiveConfiguration(service.getBindID()));
             result.add(member);
         }
 
         return RegistryJson.copy(result, ServiceMemberData[].class);
-    }
-
-    private static String[] strings(List<InterAddress> values) {
-        if (values == null) {
-            return new String[0];
-        }
-
-        return values.stream().map(InterAddress::toString).toArray(String[]::new);
     }
 
     private MetBindInfo<?> requireService(String id) {
@@ -654,43 +547,25 @@ public final class ManagementRPCImpl implements ManagementRPC {
         return service;
     }
 
-    private ServiceData serviceSnapshot(MetBindInfo<?> service) {
+    private ServiceData serviceSnapshot(MetBindInfo<?> service, ServiceEndpointData[] endpoints) {
         ServiceData result = new ServiceData();
         result.setServiceId(service.getBindID());
         result.setGroup(service.getBindGroup());
         result.setName(service.getBindName());
         result.setVersion(service.getBindVersion());
         result.setType(service.getBindType().getName());
-        result.setRole(service.getServiceType().name());
+        result.setRole(service.getServiceType());
         if (service.getServiceType() == MetServiceType.Provider) {
             result.setProviderCount(1);
         } else {
             result.setConsumerCount(1);
         }
 
-        if (service.getBindProtocols() != null) {
-            result.setProtocols(service.getBindProtocols().stream().sorted().toArray(String[]::new));
+        Set<String> protocols = new TreeSet<>();
+        for (ServiceEndpointData endpoint : endpoints) {
+            protocols.add(endpoint.getProtocolName());
         }
-        for (String alias : service.getAliasTypes()) {
-            result.getAliases().put(alias, service.getAliasName(alias));
-        }
-
-        // 与 RPC 调用使用相同的方法范围，不上报被忽略的方法。
-        List<String> methods = new ArrayList<>();
-        for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
-            StringJoiner parameters = new StringJoiner(", ");
-            for (Class<?> parameter : method.getParameterTypes()) {
-                parameters.add(parameter.getTypeName());
-            }
-            String signature = method.getReturnType().getTypeName() + " " + method.getName() + "(" + parameters + ")";
-            methods.add(signature);
-        }
-
-        result.setMethods(methods.stream().sorted().toArray(String[]::new));
-        result.setTimeout(service.getClientTimeout());
-        result.setSerializeType(service.getSerializeType());
-        result.setMessage(service.isMessage());
-        result.setSharedThreadPool(service.isSharedThreadPool());
+        result.setProtocols(protocols.toArray(String[]::new));
         return result;
     }
 
@@ -736,11 +611,4 @@ public final class ManagementRPCImpl implements ManagementRPC {
         return address;
     }
 
-    private static Map<String, String> options(MetOptionSet options) {
-        Map<String, String> result = new LinkedHashMap<>();
-        for (String key : options.getOptionKeys()) {
-            result.put(key, options.getOption(key));
-        }
-        return result;
-    }
 }

@@ -16,12 +16,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.MetClient;
-import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetIgnore;
+import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.*;
 import net.hasor.meteor.MetPublisher.ConfigurationBuilder;
-import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
@@ -32,26 +29,15 @@ import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.TargetAdmin;
-import net.hasor.meteor.registry.admin.AddressInfo;
-import net.hasor.meteor.registry.admin.MetInstanceAdmin;
-import net.hasor.meteor.registry.admin.MetInstanceInfo;
-import net.hasor.meteor.registry.admin.MetServiceAdmin;
-import net.hasor.meteor.registry.admin.MetServiceEndpoint;
-import net.hasor.meteor.registry.admin.MetServiceMember;
+import net.hasor.meteor.registry.admin.*;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.DecoratedRegistryConfiguration;
 import net.hasor.meteor.registry.shared.StorageProbe;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
+import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
-import net.hasor.meteor.registry.shared.storage.domain.EntInstanceConfigurationData;
-import net.hasor.meteor.registry.shared.storage.domain.EntInstanceRuntimeData;
-import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
-import net.hasor.meteor.registry.shared.storage.domain.EntityRef;
-import net.hasor.meteor.registry.shared.storage.domain.RecordLifecycle;
-import net.hasor.meteor.registry.shared.storage.domain.RefServiceRelationData;
-import net.hasor.meteor.registry.shared.storage.domain.RelationRecord;
-import net.hasor.meteor.registry.shared.storage.domain.RelationType;
+import net.hasor.meteor.registry.shared.storage.domain.*;
 import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -135,8 +121,7 @@ public class ManagementPublicationTest {
                     throw failure.getCause();
                 }
             };
-            MetContext observed = (MetContext) Proxy.newProxyInstance(this.getClass().getClassLoader(),
-                    new Class<?>[] { MetContext.class }, counter);
+            MetContext observed = (MetContext) Proxy.newProxyInstance(this.getClass().getClassLoader(), new Class<?>[] { MetContext.class }, counter);
             return registry.create(observed);
         });
 
@@ -208,8 +193,7 @@ public class ManagementPublicationTest {
                     throw failure.getCause();
                 }
             };
-            MetSettings settings = (MetSettings) Proxy.newProxyInstance(this.getClass().getClassLoader(),
-                    new Class<?>[] { MetSettings.class }, settingsView);
+            MetSettings settings = (MetSettings) Proxy.newProxyInstance(this.getClass().getClassLoader(), new Class<?>[] { MetSettings.class }, settingsView);
             InvocationHandler contextView = (proxy, method, args) -> {
                 if (StringUtils.equals(method.getName(), "getSettings")) {
                     return settings;
@@ -229,8 +213,7 @@ public class ManagementPublicationTest {
                     throw failure.getCause();
                 }
             };
-            MetContext observed = (MetContext) Proxy.newProxyInstance(this.getClass().getClassLoader(),
-                    new Class<?>[] { MetContext.class }, contextView);
+            MetContext observed = (MetContext) Proxy.newProxyInstance(this.getClass().getClassLoader(), new Class<?>[] { MetContext.class }, contextView);
             return registry.create(observed);
         });
 
@@ -246,16 +229,14 @@ public class ManagementPublicationTest {
             context.start();
             context.getExtension(RegistryClient.class).pushSync().get(5, TimeUnit.SECONDS);
 
-            // 上报后检查管理地址、监听地址及方法发布范围。
+            // 上报后检查管理地址、监听地址及协议支持范围。
             RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
             MetInstanceInfo instance = admin.getInstanceAdmin(context.getInstanceID()).instance();
-            Map<String, String> expected = Map.of("hprose", "hprose://127.0.0.1:8080/default",
-                    "soap", "soap://127.0.0.1:8080/default");
+            Map<String, String> expected = Map.of("hprose", "hprose://127.0.0.1:8080/default", "soap", "soap://127.0.0.1:8080/default");
             assertEquals(expected, instance.getManagementAddress());
             assertEquals("hprose://0.0.0.0:8080/default", instance.getListenAddresses().get("hprose"));
-            String[] methods = { "java.lang.String echo(java.lang.String)" };
-            assertArrayEquals(methods, member(admin, provider).getService().getMethods());
-            assertArrayEquals(methods, admin.getServiceAdmin(provider).detail().getMethods());
+            assertEquals(Echo.class.getName(), admin.getServiceAdmin(provider).info().getType());
+            assertArrayEquals(new String[] { "hprose" }, admin.getServiceAdmin(provider).info().getProtocols());
 
             // 提供者仅公告所选协议的监听端点。
             MetServiceEndpoint[] published = member(admin, provider).getEndpoints();
@@ -280,8 +261,7 @@ public class ManagementPublicationTest {
         // 准备具有实际监听端口的应用，并暂停自动治理通知。
         StorageProbe probe = new StorageProbe();
         probe.setNotifications(false);
-        RegistryConfiguration registry = new DecoratedRegistryConfiguration(
-                new MemoryRegistryConfiguration(), probe::observe);
+        RegistryConfiguration registry = new DecoratedRegistryConfiguration(new MemoryRegistryConfiguration(), probe::observe);
         registry.setManagementToken("secret");
         registry.setRefreshMillis(600000);
         MetConfiguration application = new MetConfiguration().setApplicationName("orders");
@@ -299,7 +279,6 @@ public class ManagementPublicationTest {
             context.start();
             MetInstanceAdmin instance = admin.getInstanceAdmin(context.getInstanceID());
             assertEquals("orders", instance.instance().getApplicationName());
-            assertEquals("orders", instance.settings().get("applicationName"));
             MetServiceMember published = member(admin, id);
             String address = context.bindAddress("rsf").toString();
             assertArrayEquals(new String[] { address }, published.getAddresses());
@@ -329,7 +308,7 @@ public class ManagementPublicationTest {
     }
 
     @Test
-    public void discoveryFiltersProtocolsAndInvalidStoredSettingsFailThePull() throws Exception {
+    public void discoveryFiltersProtocolsAndInvalidStoredRulesFailThePull() throws Exception {
         // 准备暂停通知的客户端，以及用于模拟外部公告的存储会话。
         MemoryRegistryConfiguration storageConfiguration = new MemoryRegistryConfiguration();
         StorageProbe probe = new StorageProbe();
@@ -354,38 +333,37 @@ public class ManagementPublicationTest {
             String supported = "rsf://127.0.0.1:2181/default";
             publishAddresses(storage, id, supported, supported, "hprose://127.0.0.1:8080/default");
             client.pullSync(id).get(5, TimeUnit.SECONDS);
-            AddressInfo snapshot = instance.getAddressInfo(id);
-            assertArrayEquals(new String[] { supported }, snapshot.getAvailable());
+            List<InterAddress> snapshot = context.getUpdater().queryAvailableAddresses(id);
+            assertEquals(List.of(new InterAddress(supported)), snapshot);
             publishAddresses(storage, id);
             client.pullSync(id).get(5, TimeUnit.SECONDS);
-            assertEquals(0, instance.getAddressInfo(id).getAvailable().length);
-            assertArrayEquals(new String[] { supported }, snapshot.getAvailable());
+            assertTrue(context.getUpdater().queryAvailableAddresses(id).isEmpty());
+            assertEquals(List.of(new InterAddress(supported)), snapshot);
 
-            // 先应用一份有效实例选项作为故障前的状态。
-            instance.setRequestOption("owner", "managed");
-            client.pullSync().get(5, TimeUnit.SECONDS);
-            assertEquals("managed", context.getSettings().getRequestOptions().getOption("owner"));
+            // 注册中心不保存地址本；实例服务仅存在发现关系。
+            EntityQuery query = new EntityQuery();
+            query.setType(EntityType.SERVICE);
+            query.setSection(EntitySection.RUNTIME);
+            query.setParent(RegistryGovernanceUtils.instance(context.getInstanceID()));
+            assertTrue(storage.findEntities(query).records().isEmpty());
 
-            // 故障注入模拟外部写入的坏记录，通过公开拉取 Future 感知应用失败。
-            EntityRecord record = storage.getEntity(RegistryGovernanceUtils.instance(context.getInstanceID()));
-            EntInstanceConfigurationData settings = (EntInstanceConfigurationData) record.getData();
-            settings.setRequestOptions(Map.of("", "invalid"));
+            // 外部写入无效治理规则时，拉取 Future 保留原始失败。
+            EntityRef serviceRef = RegistryGovernanceUtils.service(id);
+            EntityRef ruleRef = RegistryGovernanceUtils.ruleRef(serviceRef, RuleTypeData.SERVICE_ROUTE);
+            EntityRecord record = new EntityRecord(ruleRef);
+            EntRuleConfigurationData rule = new EntRuleConfigurationData();
+            rule.setRule("<route><unknown/></route>");
+            record.setData(rule);
             storage.saveEntity(record);
-            assertThrows(ExecutionException.class, () -> client.pullSync().get(5, TimeUnit.SECONDS));
-            assertEquals("managed", context.getSettings().getRequestOptions().getOption("owner"));
+            Future<Void> pulling = client.pullSync();
+            ExecutionException failure = assertThrows(ExecutionException.class, () -> pulling.get(5, TimeUnit.SECONDS));
+            assertTrue(failure.getCause() instanceof IllegalArgumentException);
 
-            // 修复坏记录后拉取恢复，未指定的选项保留当前值。
-            record = storage.getEntity(record.getRef());
-            settings = (EntInstanceConfigurationData) record.getData();
-            settings.setRequestOptions(Map.of());
-            storage.saveEntity(record);
+            // 修复规则后重新拉取成功，应用本地默认选项保持原值。
+            context.getSettings().getRequestOptions().addOption("owner", "local");
+            storage.deleteEntity(storage.getEntity(ruleRef));
             client.pullSync().get(5, TimeUnit.SECONDS);
-            assertEquals("managed", context.getSettings().getRequestOptions().getOption("owner"));
-
-            // 显式删除标记才会移除应用选项。
-            instance.removeRequestOption("owner");
-            client.pullSync().get(5, TimeUnit.SECONDS);
-            assertNull(context.getSettings().getRequestOptions().getOption("owner"));
+            assertEquals("local", context.getSettings().getRequestOptions().getOption("owner"));
         }
     }
 

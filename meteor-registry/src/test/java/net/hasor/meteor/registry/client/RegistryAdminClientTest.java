@@ -12,7 +12,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.ObjectUtils;
-import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
@@ -30,6 +29,7 @@ import net.hasor.meteor.registry.shared.RegistryTestUtils;
 import net.hasor.meteor.registry.shared.RegistryTestUtils.Echo;
 import net.hasor.meteor.registry.shared.StorageProbe;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
+import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
 import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
@@ -66,7 +66,6 @@ public class RegistryAdminClientTest {
             String instanceId = context.getInstanceID();
             admin.getServiceAdmin(provider.getBindID()).putMeta("marker", "managed");
             admin.getServiceAdmin(consumer.getBindID()).putMeta("marker", "managed");
-            admin.getInstanceAdmin(instanceId).setRequestOption("marker", "managed");
             client.pullSync().get(10, TimeUnit.SECONDS);
 
             // 推送只上报当前本地状态，不把本地偏差重新改回注册中心的期望值。
@@ -81,34 +80,41 @@ public class RegistryAdminClientTest {
             EntityRef instance = new EntityRef(EntityType.INSTANCE, instanceId);
             EntData content = storage.getEntity(RegistryGovernanceUtils.runtime(instance)).getData();
             EntInstanceRuntimeData record = RegistryJson.copy(content, EntInstanceRuntimeData.class);
-            assertEquals("local", ((Map<?, ?>) record.getSettings().get("requestOptions")).get("marker"));
+            assertEquals(context.getApplicationName(), record.getApplicationName());
             Map<?, ?> instanceBody = RegistryJson.copy(content, Map.class);
             assertFalse(instanceBody.containsKey("instance"));
             assertFalse(instanceBody.containsKey("services"));
             assertFalse(instanceBody.containsKey("addressBooks"));
             assertFalse(instanceBody.containsKey("instanceId"));
+            assertFalse(instanceBody.containsKey("settings"));
             EntityRef provided = new EntityRef(EntityType.SERVICE, provider.getBindID());
             EntityRef consumed = new EntityRef(EntityType.SERVICE, consumer.getBindID());
             assertNotNull(storage.getRelation(RelationType.PROVIDES, provided, instance));
             assertNotNull(storage.getRelation(RelationType.CONSUMES, consumed, instance));
 
             // 存储正文只保留各自记录的数据，不携带 RPC 聚合字段和重复身份。
-            EntityRef local = RegistryGovernanceUtils.localService(instanceId, provider.getBindID());
-            EntityRecord serviceRecord = storage.getEntity(RegistryGovernanceUtils.runtime(local));
-            Map<?, ?> serviceBody = RegistryJson.copy(serviceRecord.getData(), Map.class);
-            assertEquals(Set.of("service", "enabled", "addressBook"), serviceBody.keySet());
-            Map<?, ?> declaration = (Map<?, ?>) serviceBody.get("service");
-            assertFalse(declaration.containsKey("serviceId"));
-            assertFalse(declaration.containsKey("providerCount"));
-            assertFalse(declaration.containsKey("consumerCount"));
+            EntityQuery runtimeServices = new EntityQuery();
+            runtimeServices.setType(EntityType.SERVICE);
+            runtimeServices.setParent(instance);
+            runtimeServices.setSection(EntitySection.RUNTIME);
+            assertTrue(storage.findEntities(runtimeServices).records().isEmpty());
+            RelationQuery memberships = new RelationQuery();
+            memberships.setTarget(instance);
+            assertEquals(2, storage.findRelations(memberships).records().size());
+            RelationRecord registration = storage.getRelation(RelationType.PROVIDES, provided, instance);
+            Map<?, ?> registrationBody = RegistryJson.copy(registration.getData(), Map.class);
+            assertEquals(Set.of("enabled", "endpoints", "addresses"), registrationBody.keySet());
             EntData catalogContent = storage.getEntity(provided).getData();
             Map<?, ?> catalog = RegistryJson.copy(catalogContent, Map.class);
             assertFalse(catalog.containsKey("serviceId"));
+            assertFalse(catalog.containsKey("methods"));
+            assertFalse(catalog.containsKey("timeout"));
+            assertFalse(catalog.containsKey("serializeType"));
             assertEquals(provider.getBindName(), catalog.get("name"));
 
             // 管理查询从存储记录还原完整服务身份及成员信息。
             MetServiceAdmin serviceAdmin = admin.getServiceAdmin(provider.getBindID());
-            assertEquals(provider.getBindID(), serviceAdmin.detail().getServiceId());
+            assertEquals(provider.getBindID(), serviceAdmin.info().getServiceId());
             MetServiceMember member = serviceAdmin.providers(null)[0];
             assertEquals(instanceId, member.getInstance().getInstanceId());
             assertEquals(provider.getBindID(), member.getService().getServiceId());
@@ -121,7 +127,7 @@ public class RegistryAdminClientTest {
             client.pullSync().get(10, TimeUnit.SECONDS);
             assertEquals("managed", provider.getMetaData("marker"));
             assertEquals("managed", consumer.getMetaData("marker"));
-            assertEquals("managed", context.getSettings().getRequestOptions().getOption("marker"));
+            assertEquals("local", context.getSettings().getRequestOptions().getOption("marker"));
             assertNull(context.bindAddress("rsf"));
         }
     }
@@ -153,15 +159,15 @@ public class RegistryAdminClientTest {
             String instanceId = context.getInstanceID();
             admin.getServiceAdmin(first.getBindID()).putMeta("marker", "managed");
             admin.getServiceAdmin(other.getBindID()).putMeta("marker", "managed");
-            admin.getInstanceAdmin(instanceId).setRequestOption("marker", "managed");
             client.pullSync().get(10, TimeUnit.SECONDS);
 
             // 保存实例及另一个服务的记录版本，用于检查单服务操作的边界。
             EntityRef identity = RegistryGovernanceUtils.runtime(RegistryGovernanceUtils.instance(instanceId));
             String instanceRevision = storage.getEntity(identity).getRevision();
-            EntityRef otherLocal = RegistryGovernanceUtils.localService(instanceId, other.getBindID());
-            EntityRef otherRuntime = RegistryGovernanceUtils.runtime(otherLocal);
-            String otherRevision = storage.getEntity(otherRuntime).getRevision();
+            EntityRef instance = RegistryGovernanceUtils.instance(instanceId);
+            EntityRef otherService = RegistryGovernanceUtils.service(other.getBindID());
+            RelationRecord otherRegistration = storage.getRelation(RelationType.CONSUMES, otherService, instance);
+            String otherRevision = otherRegistration.getRevision();
 
             // 单服务推送不回写实例记录，也不删除另一个服务的成员关系。
             first.setMetaData("marker", "local");
@@ -169,14 +175,10 @@ public class RegistryAdminClientTest {
             context.getSettings().getRequestOptions().addOption("marker", "local");
             client.pushSync(first.getBindID()).get(10, TimeUnit.SECONDS);
             assertEquals("local", first.getMetaData("marker"));
-            EntityRef instance = new EntityRef(EntityType.INSTANCE, instanceId);
-            EntityRef otherService = new EntityRef(EntityType.SERVICE, other.getBindID());
-            assertNotNull(storage.getRelation(RelationType.CONSUMES, otherService, instance));
-            EntityRecord runtimeRecord = storage.getEntity(identity);
-            EntInstanceRuntimeData saved = (EntInstanceRuntimeData) runtimeRecord.getData();
-            assertEquals("managed", ((Map<?, ?>) saved.getSettings().get("requestOptions")).get("marker"));
+            RelationRecord afterPush = storage.getRelation(RelationType.CONSUMES, otherService, instance);
+            assertNotNull(afterPush);
             assertEquals(instanceRevision, storage.getEntity(identity).getRevision());
-            assertEquals(otherRevision, storage.getEntity(otherRuntime).getRevision());
+            assertEquals(otherRevision, afterPush.getRevision());
 
             // 单服务拉取只修复选中的服务，另一个服务和实例设置保留本地值。
             client.pullSync(first.getBindID()).get(10, TimeUnit.SECONDS);
@@ -184,7 +186,8 @@ public class RegistryAdminClientTest {
             assertEquals("local", other.getMetaData("marker"));
             assertEquals("local", context.getSettings().getRequestOptions().getOption("marker"));
             assertEquals(instanceRevision, storage.getEntity(identity).getRevision());
-            assertEquals(otherRevision, storage.getEntity(otherRuntime).getRevision());
+            RelationRecord afterPull = storage.getRelation(RelationType.CONSUMES, otherService, instance);
+            assertEquals(otherRevision, afterPull.getRevision());
             client.pullSync(other.getBindID()).get(10, TimeUnit.SECONDS);
             assertEquals("managed", other.getMetaData("marker"));
 
@@ -343,16 +346,8 @@ public class RegistryAdminClientTest {
             service.removeMeta("owner");
             RegistryTestUtils.await(() -> binding.getMetaData("owner") == null);
 
-            // 实例请求、响应选项同样由订阅更新。
-            instance.setRequestOption("baseline", "managed");
-            instance.setResponseOption("result", "yes");
-            RegistryTestUtils.await(() -> {
-                String requestOption = server.getSettings().getRequestOptions().getOption("baseline");
-                String responseOption = server.getSettings().getResponseOptions().getOption("result");
-                boolean requestApplied = StringUtils.equals("managed", requestOption);
-                boolean responseApplied = StringUtils.equals("yes", responseOption);
-                return requestApplied && responseApplied;
-            });
+            // 注册中心治理不覆盖应用本地配置。
+            assertEquals("local", server.getSettings().getRequestOptions().getOption("baseline"));
 
             // 阻断实例的入站业务 RPC，本地调用仍可执行。
             instance.block();
@@ -367,29 +362,26 @@ public class RegistryAdminClientTest {
             assertEquals(ProtocolStatus.Forbidden, ((MetException) rejected).getStatus());
             assertEquals("local", server.getRsfClient().wrapper(Echo.class).echo("local"));
 
-            // 删除实例配置解除阻断；未提供的选项保持当前值，不恢复历史基线。
+            // 删除实例配置解除阻断；应用运行选项不受注册中心影响。
             EntityRef ref = new EntityRef(EntityType.INSTANCE, server.getInstanceID());
             storage.deleteEntity(storage.getEntity(ref));
             RegistryTestUtils.await(() -> !instance.instance().isBlock());
-            assertEquals("managed", server.getSettings().getRequestOptions().getOption("baseline"));
-            assertEquals("yes", server.getSettings().getResponseOptions().getOption("result"));
-            instance.removeResponseOption("result");
-            RegistryTestUtils.await(() -> server.getSettings().getResponseOptions().getOption("result") == null);
+            assertEquals("local", server.getSettings().getRequestOptions().getOption("baseline"));
             MetInstanceAdmin callerAdmin = manager.getInstanceAdmin(caller.getInstanceID());
 
-            // 等待提供者应用启停配置、消费者完成选址刷新并上报，再进入下一步。
+            // 等待提供者应用启停配置、消费者更新本地地址本，再进入下一步。
             service.disable();
             RegistryTestUtils.await(() -> {
                 MetServiceMember[] providers = service.providers(null);
                 boolean disabled = providers.length == 1 && !providers[0].isEnabled();
-                boolean empty = callerAdmin.getAddressInfo(id).getAvailable().length == 0;
+                boolean empty = caller.getUpdater().queryAvailableAddresses(id).size() == 0;
                 return disabled && empty;
             });
             service.enable();
             RegistryTestUtils.await(() -> {
                 MetServiceMember[] providers = service.providers(null);
                 boolean enabled = providers.length == 1 && providers[0].isEnabled();
-                boolean available = callerAdmin.getAddressInfo(id).getAvailable().length > 0;
+                boolean available = caller.getUpdater().queryAvailableAddresses(id).size() > 0;
                 return enabled && available;
             });
             assertEquals("back", caller.getRsfClient().wrapper(Echo.class).echo("back"));
@@ -407,15 +399,19 @@ public class RegistryAdminClientTest {
             RegistryTestUtils.await(() -> !callerAdmin.instance().isBlock());
 
             // 无效存储配置通过主动拉取报错，保留应用已有有效配置。
-            EntityRecord invalid = storage.getEntity(ref);
-            EntInstanceConfigurationData invalidData = new EntInstanceConfigurationData();
-            invalidData.setRequestOptions(Map.of("", "invalid"));
+            EntityRef serviceRef = RegistryGovernanceUtils.service(id);
+            EntityRef routeRef = RegistryGovernanceUtils.ruleRef(serviceRef, RuleTypeData.SERVICE_ROUTE);
+            EntityRecord invalid = new EntityRecord(routeRef);
+            EntRuleConfigurationData invalidData = new EntRuleConfigurationData();
+            invalidData.setRule("<route><unknown/></route>");
             invalid.setData(invalidData);
             storage.saveEntity(invalid);
             Future<Void> invalidPull = provider.pullSync();
             ExecutionException failure = assertThrows(ExecutionException.class, () -> invalidPull.get(5, TimeUnit.SECONDS));
             assertTrue(failure.getCause() instanceof IllegalArgumentException);
-            assertEquals("managed", server.getSettings().getRequestOptions().getOption("baseline"));
+            assertEquals("local", server.getSettings().getRequestOptions().getOption("baseline"));
+
+            storage.deleteEntity(storage.getEntity(routeRef));
 
             // 存储正文解析失败也必须通过主动拉取的 Future 传播，保留本地有效配置。
             probe.setReadFailure(() -> new IOException("Malformed stored record"));
@@ -426,7 +422,7 @@ public class RegistryAdminClientTest {
             assertTrue(parseFailure.getCause() instanceof IOException);
             assertEquals("Malformed stored record", parseFailure.getCause().getMessage());
             probe.setReadFailure(null);
-            assertEquals("managed", server.getSettings().getRequestOptions().getOption("baseline"));
+            assertEquals("local", server.getSettings().getRequestOptions().getOption("baseline"));
             storage.deleteEntity(storage.getEntity(ref));
             provider.pullSync().get(5, TimeUnit.SECONDS);
 

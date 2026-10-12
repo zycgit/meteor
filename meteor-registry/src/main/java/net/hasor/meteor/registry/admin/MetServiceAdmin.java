@@ -14,11 +14,8 @@ public interface MetServiceAdmin {
     // 服务信息与关联实例
     //
 
-    /** 获取当前范围的服务标识及提供者、消费者数量。 */
+    /** 获取当前范围的服务基本信息、角色、协议及提供者和消费者数量。 */
     MetServiceInfo info();
-
-    /** 获取当前范围的服务声明和方法列表，服务级优先选提供者，实例级使用目标实例声明。 */
-    MetServiceDetail detail();
 
     /** 在当前范围内按端点条件查询提供者，null 表示不额外筛选，保留完整端点信息。 */
     MetServiceMember[] providers(MetEndpointFilter filter);
@@ -67,6 +64,9 @@ public interface MetServiceAdmin {
     //
     // 元数据按键管理
     //
+
+    /** 获取元数据；Default 仅返回当前范围保存的值，Target 返回应用当前值，修改返回值不会写回。 */
+    Map<String, Object> fetchMeta();
 
     /** 设置当前范围的单个元数据覆盖值，保留其他键，合并后最多 1000 条。 */
     void putMeta(String key, Object value);

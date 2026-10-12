@@ -9,8 +9,17 @@ package net.hasor.meteor.registry.shared.storage.domain;
 
 /** PROVIDES/CONSUMES 关系正文：协议端点与可发现的发布地址。 */
 public final class RefServiceRelationData extends RefData {
+    private boolean                enabled   = true; // 实例上报的服务启用状态
     private RefProtocolMountData[] endpoints = new RefProtocolMountData[0];
     private String[]               addresses = new String[0];
+
+    public boolean isEnabled() {
+        return this.enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
 
     public RefProtocolMountData[] getEndpoints() {
         return this.endpoints;

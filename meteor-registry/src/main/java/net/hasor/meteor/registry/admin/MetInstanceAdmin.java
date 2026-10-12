@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.admin;
-import java.util.Map;
 
 /** 管理一个实例；Default 读写存储配置，Target 通过 RPC 查询和修改实例的运行状态。 */
 public interface MetInstanceAdmin {
@@ -29,14 +28,11 @@ public interface MetInstanceAdmin {
     void disableRule(MetRuleType type);
 
     //
-    // 实例状态与配置
+    // 实例状态
     //
 
     /** 获取目标实例的标识、阻断状态和监听地址等信息。 */
     MetInstanceInfo instance();
-
-    /** 获取实例配置快照；Default 读取最近上报，Target 读取当前配置。 */
-    Map<String, Object> settings();
 
     /** 查询阻断状态；Default 优先返回期望配置，Target 返回当前状态。 */
     boolean isBlock();
@@ -48,31 +44,12 @@ public interface MetInstanceAdmin {
     void block();
 
     //
-    // 实例内的服务和地址本诊断
+    // 实例关联的服务
     //
 
-    /** 查询目标实例声明的业务服务摘要，提供者和消费者数量仅统计该实例。 */
+    /** 查询目标实例声明的业务服务信息，角色、协议和成员数量仅统计该实例。 */
     MetServiceInfo[] getServiceList();
 
-    /** 查询目标实例中指定业务服务的摘要，未声明该服务时抛异常。 */
+    /** 查询目标实例中指定业务服务的信息，未声明该服务时抛异常。 */
     MetServiceInfo getServiceById(String serviceId);
-
-    /** 查询可用、失效及本单元地址；Default 读取最近上报，Target 读取当前地址本。 */
-    AddressInfo getAddressInfo(String serviceId);
-
-    //
-    // 实例级请求与响应默认选项
-    //
-
-    /** 设置目标实例后续调用使用的默认请求选项。 */
-    void setRequestOption(String name, String value);
-
-    /** 删除目标实例指定的默认请求选项。 */
-    void removeRequestOption(String name);
-
-    /** 设置目标实例后续响应使用的默认响应选项。 */
-    void setResponseOption(String name, String value);
-
-    /** 删除目标实例指定的默认响应选项。 */
-    void removeResponseOption(String name);
 }

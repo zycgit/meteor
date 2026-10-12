@@ -83,13 +83,23 @@ public class TargetAdminTest {
             assertEquals(first.getInstanceID(), instance.instance().getInstanceId());
             assertEquals("orders", instance.instance().getApplicationName());
             assertEquals(Map.of("rsf", address.toString()), instance.instance().getManagementAddress());
-            assertEquals("orders", instance.settings().get("applicationName"));
             assertEquals("inventory", other.providers(null)[0].getInstance().getApplicationName());
             assertEquals(1, instance.getServiceList().length);
-            assertEquals(id, instance.getServiceById(id).getServiceId());
-            assertEquals(id, service.info().getServiceId());
-            assertTrue(service.detail().getMethods()[0].contains("echo"));
-            assertNotNull(instance.getAddressInfo(id));
+            MetServiceInfo info = service.info();
+            assertEquals(id, info.getServiceId());
+            assertEquals(Echo.class.getName(), info.getType());
+            assertEquals(MetServiceType.Provider, info.getRole());
+            assertArrayEquals(new String[] { "rsf" }, info.getProtocols());
+            MetServiceInfo found = instance.getServiceById(id);
+            assertEquals(info.getServiceId(), found.getServiceId());
+            assertEquals(info.getType(), found.getType());
+            assertEquals(info.getRole(), found.getRole());
+            assertArrayEquals(info.getProtocols(), found.getProtocols());
+            MetServiceInfo listed = instance.getServiceList()[0];
+            assertEquals(info.getServiceId(), listed.getServiceId());
+            assertEquals(info.getType(), listed.getType());
+            assertEquals(info.getRole(), listed.getRole());
+            assertArrayEquals(info.getProtocols(), listed.getProtocols());
             assertEquals(1, service.providers(null).length);
             assertEquals(0, service.consumers(null).length);
 
@@ -126,6 +136,7 @@ public class TargetAdminTest {
             first.close();
             assertThrows(Throwable.class, instance::instance);
             assertThrows(Throwable.class, service::info);
+            assertThrows(Throwable.class, service::fetchMeta);
             assertTrue(caller.isOnline());
             assertFalse(first.isOnline());
             assertEquals(id, other.info().getServiceId());
@@ -166,6 +177,11 @@ public class TargetAdminTest {
             MetServiceAdmin service = targets.getServiceAdminByAddress(remote, id);
             assertEquals(consumer.getInstanceID(), instance.instance().getInstanceId());
             assertEquals(1, service.info().getConsumerCount());
+            assertEquals(MetServiceType.Consumer, service.info().getRole());
+            MetServiceInfo consumerInfo = instance.getServiceList()[0];
+            assertEquals(Echo.class.getName(), consumerInfo.getType());
+            assertEquals(MetServiceType.Consumer, consumerInfo.getRole());
+            assertArrayEquals(new String[] { "rsf" }, consumerInfo.getProtocols());
             assertEquals(0, service.providers(null).length);
             assertEquals(1, service.consumers(null).length);
 
@@ -173,7 +189,7 @@ public class TargetAdminTest {
             InterAddress bound = provider.bindAddress("rsf");
             InterAddress local = new InterAddress("rsf", "127.0.0.1", bound.getPort(), bound.getFormUnit());
             MetServiceAdmin localService = targets.getServiceAdminByAddress(local, id);
-            assertEquals(id, localService.detail().getServiceId());
+            assertEquals(id, localService.info().getServiceId());
             MetServiceMember member = localService.providers(null)[0];
             assertEquals(Map.of("rsf", local.toString()), member.getInstance().getManagementAddress());
             assertEquals(provider.bindAddress("rsf").toString(), member.getEndpoints()[0].getListenAddress());
@@ -183,7 +199,7 @@ public class TargetAdminTest {
     }
 
     @Test
-    public void rulesMetadataAndOptionsChangeOnlyTheTargetRuntime() throws Exception {
+    public void rulesAndMetadataChangeOnlyTheTargetRuntime() throws Exception {
         // 准备目标应用的注册中心扩展，禁止后台治理覆盖直连操作。
         MemoryRegistryConfiguration storageConfiguration = new MemoryRegistryConfiguration();
         StorageProbe probe = new StorageProbe();
@@ -209,7 +225,6 @@ public class TargetAdminTest {
             // 发布带初始规则的服务，启动双方并完成一次初始拉取。
             ConfigurationBuilder<Echo> serviceBuilder = target.publisher().rsfService(Echo.class, value -> value);
             MetBindInfo<Echo> binding = serviceBuilder.updateServiceRoute(baseline).register();
-            target.getSettings().getRequestOptions().addOption("request", "base");
             target.start();
             RegistryClient client = target.getExtension(RegistryClient.class);
             caller.start();
@@ -219,17 +234,6 @@ public class TargetAdminTest {
             String id = binding.getBindID();
             MetInstanceAdmin instance = targets.getInstanceAdminByAddress(address);
             MetServiceAdmin service = targets.getServiceAdminByAddress(address, id);
-
-            // 直连增删请求、响应选项，应用当前设置即时反映修改。
-            instance.setRequestOption("request", "direct");
-            instance.setResponseOption("response", "direct");
-            assertEquals("direct", target.getSettings().getRequestOptions().getOption("request"));
-            Map<?, ?> requests = (Map<?, ?>) instance.settings().get("requestOptions");
-            assertEquals("direct", requests.get("request"));
-            instance.removeRequestOption("request");
-            instance.removeResponseOption("response");
-            assertNull(target.getSettings().getRequestOptions().getOption("request"));
-            assertNull(target.getSettings().getResponseOptions().getOption("response"));
 
             // 实例规则写入当前服务；需要存储保留正文的启停操作不受支持。
             instance.updateRule(MetRuleType.SERVICE_ROUTE, instanceRule);
@@ -263,15 +267,32 @@ public class TargetAdminTest {
             assertFalse(service.validateRule(MetRuleType.FLOW_CONTROL, "<invalid/>").isValid());
             assertThrows(Throwable.class, () -> service.updateRule(MetRuleType.FLOW_CONTROL, "<invalid/>"));
 
-            // 元信息支持单键、批量写入及多键删除。
+            // 查询实时读取应用元信息，包含应用自行设置的值。
+            assertTrue(service.fetchMeta().isEmpty());
             binding.setMetaData("owner", "base");
+            binding.setMetaData("application", Map.of("region", "east"));
+            Map<String, Object> fetched = service.fetchMeta();
+            assertEquals("base", fetched.get("owner"));
+            assertEquals(Map.of("region", "east"), fetched.get("application"));
+            ((Map<?, ?>) fetched.get("application")).clear();
+            fetched.clear();
+            assertEquals(Map.of("region", "east"), service.fetchMeta().get("application"));
+
+            // 元信息支持单键、批量写入及多键删除，查询随应用变化。
             service.putMeta("owner", "direct");
             service.putMeta(Map.of("zone", "local", "limit", 12));
             assertEquals("direct", binding.getMetaData("owner"));
             assertEquals(12, binding.getMetaData("limit"));
+            assertEquals("direct", service.fetchMeta().get("owner"));
+            assertEquals(12, service.fetchMeta().get("limit"));
             service.removeMeta("owner", "zone");
             assertNull(binding.getMetaData("owner"));
             assertNull(binding.getMetaData("zone"));
+            assertFalse(service.fetchMeta().containsKey("owner"));
+            binding.setMetaData("limit", 18);
+            assertEquals(18, service.fetchMeta().get("limit"));
+            MetServiceAdmin missing = targets.getServiceAdminByAddress(address, "missing");
+            assertThrows(Throwable.class, missing::fetchMeta);
 
             // 超限元信息和无效目标参数明确报错，不留下部分写入。
             Map<String, Object> overflow = new LinkedHashMap<>();
@@ -342,23 +363,20 @@ public class TargetAdminTest {
 
                 // 先写入并拉取注册中心配置，作为直连修改前的基准。
                 stored.putMeta("owner", "registry");
-                admin.getInstanceAdmin(target.getInstanceID()).setRequestOption("scope", "registry");
+                admin.getInstanceAdmin(target.getInstanceID()).unblock();
                 client.pullSync().get(5, TimeUnit.SECONDS);
 
                 // 直连修改只作用于目标当前状态。
                 MetServiceAdmin direct = targets.getServiceAdminByAddress(target.bindAddress("rsf"), id);
                 MetInstanceAdmin instance = targets.getInstanceAdminByAddress(target.bindAddress("rsf"));
                 direct.putMeta("owner", "direct");
-                instance.setRequestOption("scope", "direct");
                 instance.block();
                 assertEquals("direct", binding.getMetaData("owner"));
-                assertEquals("direct", target.getSettings().getRequestOptions().getOption("scope"));
                 assertTrue(instance.isBlock());
 
                 // 再次拉取恢复注册中心配置，存储未被直连操作污染。
                 client.pullSync().get(5, TimeUnit.SECONDS);
                 assertEquals("registry", binding.getMetaData("owner"));
-                assertEquals("registry", target.getSettings().getRequestOptions().getOption("scope"));
                 assertFalse(instance.isBlock());
                 EntData content = storage.getEntity(RegistryGovernanceUtils.service(id)).getData();
                 EntServiceConfigurationData data = RegistryJson.copy(content, EntServiceConfigurationData.class);
@@ -426,8 +444,6 @@ public class TargetAdminTest {
             assertEquals(1, instance.getServiceList().length);
             service.putMeta("owner", "direct");
             assertEquals("direct", target.getServiceInfo(Echo.class).getMetaData("owner"));
-            instance.setRequestOption("trace", "enabled");
-            assertEquals("enabled", target.getSettings().getRequestOptions().getOption("trace"));
 
             // 阻断业务后管理 RPC 仍可解除阻断，调用方无需开启监听。
             instance.block();

@@ -19,12 +19,12 @@ import net.hasor.meteor.registry.shared.storage.domain.*;
 
 /** 仅在故障、生命周期和手动拉取场景中装饰真实内存存储，不实现另一套存储。 */
 public final class StorageProbe {
-    private final AtomicInteger opened = new AtomicInteger();
-    private final AtomicInteger closed = new AtomicInteger();
-    private final List<StorageAccess> sessions = new ArrayList<>();
-    private volatile boolean unavailable;
+    private final    AtomicInteger       opened        = new AtomicInteger();
+    private final    AtomicInteger       closed        = new AtomicInteger();
+    private final    List<StorageAccess> sessions      = new ArrayList<>();
+    private volatile boolean             unavailable;
     private volatile Supplier<Exception> readFailure;
-    private boolean notifications = true;
+    private          boolean             notifications = true;
 
     public StorageAccess observe(StorageAccess storage) {
         // 跟踪正式存储会话，关闭时只累计一次。
@@ -32,8 +32,7 @@ public final class StorageProbe {
         synchronized (this.sessions) {
             this.sessions.add(storage);
         }
-        return (StorageAccess) Proxy.newProxyInstance(StorageAccess.class.getClassLoader(),
-                new Class<?>[] { StorageAccess.class }, (proxy, method, args) -> {
+        return (StorageAccess) Proxy.newProxyInstance(StorageAccess.class.getClassLoader(), new Class<?>[] { StorageAccess.class }, (proxy, method, args) -> {
             String name = method.getName();
             if (StringUtils.equals(name, "close")) {
                 synchronized (this.sessions) {
@@ -98,19 +97,12 @@ public final class StorageProbe {
                         continue;
                     }
 
-                    // 再删除其成员关系与实例内服务运行记录。
+                    // 再删除该实例的成员关系。
                     EntityRef identity = new EntityRef(EntityType.INSTANCE, instance.getId());
                     RelationQuery relations = new RelationQuery();
                     relations.setTarget(identity);
                     for (RelationRecord relation : session.findRelations(relations).records()) {
                         session.deleteRelation(relation);
-                    }
-                    EntityQuery services = new EntityQuery();
-                    services.setType(EntityType.SERVICE);
-                    services.setParent(identity);
-                    services.setSection(EntitySection.RUNTIME);
-                    for (EntityRecord service : session.findEntities(services).records()) {
-                        session.deleteEntity(service);
                     }
                 }
             }

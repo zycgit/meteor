@@ -8,9 +8,13 @@
 package net.hasor.meteor.registry.admin.support;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.registry.admin.*;
+import java.util.Set;
+import java.util.TreeSet;
+import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.registry.admin.MetInstanceAdmin;
+import net.hasor.meteor.registry.admin.MetInstanceInfo;
+import net.hasor.meteor.registry.admin.MetRuleType;
+import net.hasor.meteor.registry.admin.MetServiceInfo;
 import net.hasor.meteor.registry.shared.storage.domain.*;
 import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
@@ -28,7 +32,7 @@ final class DefaultInstanceAdmin implements MetInstanceAdmin {
         this.snapshot();
     }
 
-    // 实例状态与当前运行配置
+    // 实例登记与阻断状态
 
     private EntInstanceRuntimeData snapshot() {
         return call(() -> {
@@ -48,11 +52,6 @@ final class DefaultInstanceAdmin implements MetInstanceAdmin {
         result.setInstanceId(this.instance.id());
         result.setManagementAddress(snapshot.getManagementAddresses());
         return result;
-    }
-
-    @Override
-    public Map<String, Object> settings() {
-        return this.snapshot().getSettings();
     }
 
     @Override
@@ -80,101 +79,55 @@ final class DefaultInstanceAdmin implements MetInstanceAdmin {
         this.governance.update(this.instance, EntInstanceConfigurationData.class, data -> data.setBlock(false));
     }
 
-    // 当前实例声明的服务和地址本
+    // 从发布、订阅关系读取当前实例的服务，不再另存服务运行快照。
 
     @Override
     public MetServiceInfo[] getServiceList() {
-        this.snapshot();
-        return call(() -> {
-            EntityQuery query = new EntityQuery();
-            query.setType(EntityType.SERVICE);
-            query.setParent(this.instance);
-            query.setSection(EntitySection.RUNTIME);
-            List<MetServiceInfo> result = new ArrayList<>();
-            for (EntityRecord record : RegistryGovernanceUtils.entities(this.governance.storage(), query)) {
-                EntInstanceServiceRuntimeData runtime = (EntInstanceServiceRuntimeData) record.getData();
-                result.add(serviceInfo(record.getId(), runtime.getService()));
-            }
-            return result.toArray(MetServiceInfo[]::new);
-        });
+        return this.services(null);
     }
 
     @Override
     public MetServiceInfo getServiceById(String serviceId) {
+        RegistryGovernanceUtils.service(serviceId);
+        MetServiceInfo[] services = this.services(serviceId);
+        if (services.length == 0) {
+            throw new IllegalArgumentException("Service is not active on instance: " + serviceId);
+        }
+        return services[0];
+    }
+
+    private MetServiceInfo[] services(String serviceId) {
         this.snapshot();
-        return serviceInfo(serviceId, this.serviceRuntime(serviceId).getService());
-    }
-
-    @Override
-    public AddressInfo getAddressInfo(String serviceId) {
-        return RegistryJson.copy(this.serviceRuntime(serviceId).getAddressBook(), AddressInfo.class);
-    }
-
-    private EntInstanceServiceRuntimeData serviceRuntime(String serviceId) {
         return call(() -> {
-            EntityRef local = RegistryGovernanceUtils.localService(this.instance.id(), serviceId);
-            EntityRecord record = this.governance.storage().getEntity(RegistryGovernanceUtils.runtime(local));
-            if (record == null) {
-                throw new IllegalArgumentException("Service is not active on instance: " + serviceId);
+            RelationQuery query = new RelationQuery();
+            query.setTarget(this.instance);
+            if (serviceId != null) {
+                query.setSource(RegistryGovernanceUtils.service(serviceId));
             }
-            return (EntInstanceServiceRuntimeData) record.getData();
+
+            List<MetServiceInfo> result = new ArrayList<>();
+            for (RelationRecord relation : RegistryGovernanceUtils.relations(this.governance.storage(), query)) {
+                EntityRecord catalog = this.governance.storage().getEntity(relation.getSource());
+                MetServiceInfo info = new MetServiceInfo();
+                if (catalog != null && catalog.getData() != null) {
+                    info = RegistryJson.copy(catalog.getData(), MetServiceInfo.class);
+                }
+
+                info.setServiceId(relation.getSource().id());
+                boolean provider = relation.getType() == RelationType.PROVIDES;
+                info.setRole(provider ? MetServiceType.Provider : MetServiceType.Consumer);
+                info.setProviderCount(provider ? 1 : 0);
+                info.setConsumerCount(provider ? 0 : 1);
+                RefServiceRelationData registration = (RefServiceRelationData) relation.getData();
+                Set<String> protocols = new TreeSet<>();
+                for (RefProtocolMountData endpoint : registration.getEndpoints()) {
+                    protocols.add(endpoint.getProtocolName());
+                }
+                info.setProtocols(protocols.toArray(String[]::new));
+                result.add(info);
+            }
+            return result.toArray(MetServiceInfo[]::new);
         });
-    }
-
-    private static MetServiceInfo serviceInfo(String serviceId, EntServiceDeclarationData declaration) {
-        MetServiceInfo result = RegistryJson.copy(declaration, MetServiceInfo.class);
-        result.setServiceId(serviceId);
-        boolean provider = StringUtils.equals("Provider", declaration.getRole());
-        result.setProviderCount(provider ? 1 : 0);
-        result.setConsumerCount(provider ? 0 : 1);
-        return result;
-    }
-
-    // 实例级请求和响应选项
-
-    @Override
-    public void setRequestOption(String name, String value) {
-        requireOption(name, value);
-        this.governance.update(this.instance, EntInstanceConfigurationData.class, data -> {
-            data.getRequestOptions().put(name, value);
-        });
-    }
-
-    @Override
-    public void removeRequestOption(String name) {
-        requireName(name);
-        this.governance.update(this.instance, EntInstanceConfigurationData.class, data -> {
-            data.getRequestOptions().put(name, null);
-        });
-    }
-
-    @Override
-    public void setResponseOption(String name, String value) {
-        requireOption(name, value);
-        this.governance.update(this.instance, EntInstanceConfigurationData.class, data -> {
-            data.getResponseOptions().put(name, value);
-        });
-    }
-
-    @Override
-    public void removeResponseOption(String name) {
-        requireName(name);
-        this.governance.update(this.instance, EntInstanceConfigurationData.class, data -> {
-            data.getResponseOptions().put(name, null);
-        });
-    }
-
-    private static void requireOption(String name, String value) {
-        requireName(name);
-        if (value == null) {
-            throw new IllegalArgumentException("Option value is required");
-        }
-    }
-
-    private static void requireName(String name) {
-        if (StringUtils.isBlank(name)) {
-            throw new IllegalArgumentException("Option name must not be blank");
-        }
     }
 
     // 实例规则

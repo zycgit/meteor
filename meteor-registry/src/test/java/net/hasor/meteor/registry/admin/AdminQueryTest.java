@@ -9,19 +9,21 @@ package net.hasor.meteor.registry.admin;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.DecoratedRegistryConfiguration;
 import net.hasor.meteor.registry.shared.rpc.InstanceData;
 import net.hasor.meteor.registry.shared.rpc.ServiceData;
+import net.hasor.meteor.registry.shared.rpc.ServiceEndpointData;
 import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
-import net.hasor.meteor.registry.shared.storage.domain.EntAddressBookData;
 import net.hasor.meteor.registry.shared.storage.domain.EntData;
 import net.hasor.meteor.registry.shared.storage.domain.EntInstanceConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.EntityRef;
@@ -50,24 +52,40 @@ public class AdminQueryTest {
             RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
 
             // 登记两类成员，为服务保存持久治理信息。
-            snapshot("z-provider", "Provider").save(provider);
-            snapshot("a-consumer", "Consumer").save(consumer);
+            snapshot("z-provider", MetServiceType.Provider, "rsf").save(provider);
+            snapshot("a-consumer", MetServiceType.Consumer, "hprose").save(consumer);
             MetServiceAdmin service = admin.getServiceAdmin("echo");
             service.putMeta("owner", "team");
 
-            // 服务级查询汇总所有成员，详情优先采用提供者声明。
-            assertEquals(1, service.info().getProviderCount());
-            assertEquals(1, service.info().getConsumerCount());
-            assertEquals("Provider", service.detail().getRole());
-            assertArrayEquals(new String[] { "Provider method" }, service.detail().getMethods());
+            // 服务级查询汇总目录和所有成员，有提供者时显示提供者角色。
+            MetServiceInfo info = service.info();
+            assertEquals(1, info.getProviderCount());
+            assertEquals(1, info.getConsumerCount());
+            assertEquals("example.Echo", info.getType());
+            assertEquals(MetServiceType.Provider, info.getRole());
+            assertArrayEquals(new String[] { "hprose", "rsf" }, info.getProtocols());
+
+            // 集群列表保留相同的服务信息，协议按当前成员汇总。
+            MetServiceInfo listed = admin.getClusterAdmin().services("echo")[0];
+            assertEquals(info.getType(), listed.getType());
+            assertEquals(info.getRole(), listed.getRole());
+            assertEquals(info.getProviderCount(), listed.getProviderCount());
+            assertEquals(info.getConsumerCount(), listed.getConsumerCount());
+            assertArrayEquals(info.getProtocols(), listed.getProtocols());
 
             // 实例级查询只返回指定实例的声明和成员关系。
             MetServiceAdmin scoped = admin.getServiceAdmin("echo", "a-consumer");
-            assertEquals(0, scoped.info().getProviderCount());
-            assertEquals(1, scoped.info().getConsumerCount());
-            assertEquals("Consumer", scoped.detail().getRole());
+            MetServiceInfo local = scoped.info();
+            assertEquals(0, local.getProviderCount());
+            assertEquals(1, local.getConsumerCount());
+            assertEquals(MetServiceType.Consumer, local.getRole());
+            assertArrayEquals(new String[] { "hprose" }, local.getProtocols());
             assertEquals(0, scoped.providers(null).length);
             assertEquals(1, scoped.consumers(null).length);
+            MetServiceInfo consumerInfo = admin.getInstanceAdmin("a-consumer").getServiceList()[0];
+            assertEquals(local.getType(), consumerInfo.getType());
+            assertEquals(local.getRole(), consumerInfo.getRole());
+            assertArrayEquals(local.getProtocols(), consumerInfo.getProtocols());
 
             // 实例内禁用不影响服务整体或其他实例，空实例标识被拒绝。
             scoped.disable();
@@ -77,69 +95,68 @@ public class AdminQueryTest {
             assertThrows(IllegalArgumentException.class, () -> admin.getServiceAdmin("echo", null));
             assertThrows(IllegalArgumentException.class, () -> admin.getServiceAdmin("echo", " "));
 
-            // 返回详情与内部记录隔离，修改结果不能污染后续查询。
-            MetServiceDetail detached = service.detail();
-            detached.getMethods()[0] = "modified";
-            assertEquals("Provider method", service.detail().getMethods()[0]);
+            // 返回信息与内部记录隔离，修改结果不能污染后续查询。
+            MetServiceInfo detached = service.info();
+            detached.getProtocols()[0] = "modified";
+            assertEquals("hprose", service.info().getProtocols()[0]);
 
-            // 提供者退出后采用订阅者详情；全部成员退出后保留服务目录。
+            // 提供者退出后只剩订阅关系；全部成员退出后保留服务目录。
             provider.close();
-            assertEquals("Consumer", service.detail().getRole());
+            assertEquals(MetServiceType.Consumer, service.info().getRole());
             assertEquals(0, service.info().getProviderCount());
+            MetServiceInfo remaining = admin.getClusterAdmin().services("echo")[0];
+            assertEquals(MetServiceType.Consumer, remaining.getRole());
+            assertArrayEquals(new String[] { "hprose" }, remaining.getProtocols());
             consumer.close();
-            assertEquals(0, service.info().getConsumerCount());
-            assertEquals("echo", service.info().getServiceId());
-            assertEquals(1, admin.getClusterAdmin().services("echo").length);
-            assertThrows(IllegalArgumentException.class, service::detail);
+            MetServiceInfo inactive = service.info();
+            assertEquals(0, inactive.getConsumerCount());
+            assertEquals("echo", inactive.getServiceId());
+            assertEquals("Echo", inactive.getName());
+            assertEquals("example.Echo", inactive.getType());
+            assertEquals(0, inactive.getProtocols().length);
+            assertNull(inactive.getRole());
+            MetServiceInfo[] directory = admin.getClusterAdmin().services("echo");
+            assertEquals(1, directory.length);
+            assertEquals(inactive.getType(), directory[0].getType());
+            assertEquals(0, directory[0].getProtocols().length);
+            assertNull(directory[0].getRole());
         }
     }
 
     @Test
-    public void instanceQueriesAndDesiredSettingsStaySeparateFromReportedState() throws Exception {
-        // 准备实例的上报状态、地址本与管理扩展。
+    public void instanceQueriesAndDesiredBlockStaySeparateFromReportedState() throws Exception {
+        // 准备实例登记与管理扩展。
         MetConfiguration adminConfiguration = new MetConfiguration().addExtension(this.configuration);
 
         try (MetContext adminContext = adminConfiguration.buildContext(); //
              StorageAccess storage = this.configuration.openStorage()) {
             RegistryAdmin admin = adminContext.getExtension(RegistryAdmin.class);
 
-            // 写入当前上报状态，包含一个服务与可用地址。
-            RegistryRecordFixture snapshot = snapshot("one", "Provider");
-            snapshot.getInstance().getSettings().put("reported", "original");
-            EntAddressBookData addresses = new EntAddressBookData();
-            addresses.setAvailable(new String[] { "rsf://127.0.0.1:8000/default" });
-            snapshot.getService("echo").setAddressBook(addresses);
-            snapshot.save(storage);
+            // 仅登记实例、服务目录和关系即可查询本机服务。
+            snapshot("one", MetServiceType.Provider, "rsf").save(storage);
             MetInstanceAdmin instance = admin.getInstanceAdmin("one");
-
-            // 查询服务与地址快照，验证返回数据不能反向修改存储。
             assertEquals(1, instance.getServiceList().length);
-            assertEquals(MetServiceInfo.class, instance.getServiceById("echo").getClass());
-            assertEquals(1, instance.getServiceById("echo").getProviderCount());
-            assertArrayEquals(addresses.getAvailable(), instance.getAddressInfo("echo").getAvailable());
+            MetServiceInfo service = instance.getServiceById("echo");
+            assertEquals(1, service.getProviderCount());
+            assertEquals("example.Echo", service.getType());
+            assertEquals(MetServiceType.Provider, service.getRole());
+            assertArrayEquals(new String[] { "rsf" }, service.getProtocols());
             assertThrows(IllegalArgumentException.class, () -> instance.getServiceById("missing"));
-            instance.settings().put("reported", "changed");
-            assertEquals("original", instance.settings().get("reported"));
 
-            // 修改期望配置，已上报的实例状态仍保持原值。
+            // 查询结果与持久记录隔离，治理期望值也不会冒充已上报状态。
+            instance.instance().setApplicationName("changed");
+            assertEquals("orders", instance.instance().getApplicationName());
             instance.block();
-            instance.setRequestOption("trace", "on");
-            instance.setResponseOption("result", "managed");
-            instance.removeRequestOption("trace");
             assertTrue(instance.isBlock());
             assertFalse(instance.instance().isBlock());
-            assertEquals("original", instance.settings().get("reported"));
 
-            // 检查持久配置独立保存，并保留选项删除标记。
+            // 实例配置仅承载阻断治理，不再保存请求、响应默认选项。
             EntityRef owner = RegistryGovernanceUtils.instance("one");
             EntData content = storage.getEntity(owner).getData();
-            EntInstanceConfigurationData expected = RegistryJson.copy(content, EntInstanceConfigurationData.class);
-            Set<String> configurationFields = Set.of("block", "requestOptions", "responseOptions");
+            EntInstanceConfigurationData expected = (EntInstanceConfigurationData) content;
             Map<?, ?> storedFields = RegistryJson.copy(content, Map.class);
-            assertEquals(configurationFields, storedFields.keySet());
-            assertTrue(expected.getRequestOptions().containsKey("trace"));
-            assertNull(expected.getRequestOptions().get("trace"));
-            assertEquals("managed", expected.getResponseOptions().get("result"));
+            assertEquals(Set.of("block"), storedFields.keySet());
+            assertEquals(Boolean.TRUE, expected.getBlock());
 
             // 实例目录支持按应用名筛选。
             assertEquals(1, admin.getClusterAdmin().instances("orders").length);
@@ -148,10 +165,61 @@ public class AdminQueryTest {
     }
 
     @Test
+    public void metadataQueriesKeepGlobalServiceAndInstanceValuesSeparate() throws Exception {
+        // 通过正式扩展创建管理端，并登记一个实例服务关系。
+        MetConfiguration config = new MetConfiguration().addExtension(this.configuration);
+        try (MetContext context = config.buildContext(); //
+             StorageAccess storage = this.configuration.openStorage()) {
+            RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
+            snapshot("one", MetServiceType.Provider, "rsf").save(storage);
+            MetClusterAdmin cluster = admin.getClusterAdmin();
+            MetServiceAdmin service = admin.getServiceAdmin("echo");
+            MetServiceAdmin scoped = admin.getServiceAdmin("echo", "one");
+
+            // 尚未配置时返回空 Map，读取不创建全局或实例服务配置。
+            assertTrue(cluster.fetchMeta().isEmpty());
+            assertTrue(service.fetchMeta().isEmpty());
+            assertTrue(scoped.fetchMeta().isEmpty());
+            assertNull(storage.getEntity(RegistryGovernanceUtils.GLOBAL));
+            assertNull(storage.getEntity(RegistryGovernanceUtils.localService("one", "echo")));
+            MetServiceAdmin missing = admin.getServiceAdmin("missing");
+            assertTrue(missing.fetchMeta().isEmpty());
+            assertNull(storage.getEntity(RegistryGovernanceUtils.service("missing")));
+
+            // 各范围只返回自己保存的值，不把全局继承值带入服务编辑。
+            cluster.putMeta(Map.of("owner", "global", "globalOnly", true));
+            assertTrue(service.fetchMeta().isEmpty());
+            service.putMeta(Map.of("owner", "service", "weight", 10));
+            assertTrue(scoped.fetchMeta().isEmpty());
+            scoped.putMeta("owner", "instance");
+            assertEquals(Map.of("owner", "global", "globalOnly", true), cluster.fetchMeta());
+            assertEquals(Map.of("owner", "service", "weight", 10), service.fetchMeta());
+            assertEquals(Map.of("owner", "instance"), scoped.fetchMeta());
+
+            // 对象、数组和布尔值保持 JSON 类型，返回的嵌套对象也与存储隔离。
+            Map<String, Object> structured = Map.of("zones", List.of("east", "west"), "active", true);
+            service.putMeta("structured", structured);
+            Map<String, Object> fetched = service.fetchMeta();
+            assertEquals(structured, fetched.get("structured"));
+            ((Map<?, ?>) fetched.get("structured")).clear();
+            fetched.clear();
+            assertEquals(structured, service.fetchMeta().get("structured"));
+
+            // 更新和删除后立即读到本级存储结果，其他范围不受影响。
+            scoped.removeMeta("owner");
+            service.putMeta("weight", 20);
+            service.removeMeta("structured");
+            assertTrue(scoped.fetchMeta().isEmpty());
+            assertEquals(Map.of("owner", "service", "weight", 20), service.fetchMeta());
+            assertEquals("global", cluster.fetchMeta().get("owner"));
+        }
+    }
+
+    @Test
     public void queryingOneServiceDoesNotScanOtherServicesOrInstances() throws Exception {
         // 准备服务成员，并给管理会话安装禁止全库扫描的观察器。
         try (StorageAccess storage = this.configuration.openStorage()) {
-            snapshot("one", "Provider").save(storage);
+            snapshot("one", MetServiceType.Provider, "rsf").save(storage);
             DecoratedRegistryConfiguration observed = new DecoratedRegistryConfiguration(this.configuration, delegate -> {
                 InvocationHandler scopeCheck = (proxy, method, arguments) -> {
                     if (StringUtils.equals(method.getName(), "findEntities")) {
@@ -173,17 +241,17 @@ public class AdminQueryTest {
             try (MetContext adminContext = adminConfiguration.buildContext()) {
                 RegistryAdmin admin = adminContext.getExtension(RegistryAdmin.class);
 
-                // 查询单个服务的概要、详情及成员，不触发实体目录扫描。
+                // 查询单个服务的信息及成员，不触发实体目录扫描。
                 MetServiceAdmin service = admin.getServiceAdmin("echo");
                 assertEquals(1, service.info().getProviderCount());
-                assertEquals("Provider", service.detail().getRole());
+                assertEquals(MetServiceType.Provider, service.info().getRole());
                 assertEquals(1, service.providers(null).length);
                 assertEquals(0, service.consumers(null).length);
             }
         }
     }
 
-    private static RegistryRecordFixture snapshot(String instanceId, String role) {
+    private static RegistryRecordFixture snapshot(String instanceId, MetServiceType role, String protocol) {
         InstanceData instance = new InstanceData();
         instance.setInstanceId(instanceId);
         instance.setApplicationName("orders");
@@ -193,10 +261,14 @@ public class AdminQueryTest {
         declaration.setName("Echo");
         declaration.setVersion("1.0");
         declaration.setRole(role);
-        declaration.setMethods(new String[] { role + " method" });
+        declaration.setType("example.Echo");
         ServiceMemberData member = new ServiceMemberData();
         member.setInstance(instance);
         member.setService(declaration);
+        ServiceEndpointData endpoint = new ServiceEndpointData();
+        endpoint.setProtocolName(protocol);
+        endpoint.setProtocol(protocol);
+        member.setEndpoints(new ServiceEndpointData[] { endpoint });
         return new RegistryRecordFixture(instance, member);
     }
 }

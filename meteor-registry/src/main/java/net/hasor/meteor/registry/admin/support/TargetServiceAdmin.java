@@ -9,10 +9,10 @@ package net.hasor.meteor.registry.admin.support;
 import java.util.Collections;
 import java.util.Map;
 import net.hasor.cobble.StringUtils;
+import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.admin.*;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
-import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
 /** 通过管理 RPC 操作目标实例中的一个服务，不查询注册中心成员。 */
@@ -33,27 +33,22 @@ final class TargetServiceAdmin implements MetServiceAdmin {
     }
 
     @Override
-    public MetServiceDetail detail() {
-        return RegistryJson.copy(this.rpc.service(this.serviceId).getService(), MetServiceDetail.class);
-    }
-
-    @Override
     public MetServiceMember[] providers(MetEndpointFilter filter) {
-        return this.members("Provider", filter);
+        return this.members(MetServiceType.Provider, filter);
     }
 
     @Override
     public MetServiceMember[] consumers(MetEndpointFilter filter) {
-        return this.members("Consumer", filter);
+        return this.members(MetServiceType.Consumer, filter);
     }
 
-    private MetServiceMember[] members(String role, MetEndpointFilter filter) {
-        ServiceMemberData member = this.rpc.service(this.serviceId);
-        boolean matchedRole = StringUtils.equals(role, member.getService().getRole());
+    private MetServiceMember[] members(MetServiceType role, MetEndpointFilter filter) {
+        MetServiceMember member = RegistryJson.copy(this.rpc.service(this.serviceId), MetServiceMember.class);
+        boolean matchedRole = role == member.getService().getRole();
         if (!matchedRole || !MemberMatcherUtils.matches(member, filter)) {
             return new MetServiceMember[0];
         }
-        return new MetServiceMember[] { RegistryJson.copy(member, MetServiceMember.class) };
+        return new MetServiceMember[] { member };
     }
 
     // 规则
@@ -109,6 +104,11 @@ final class TargetServiceAdmin implements MetServiceAdmin {
     @Override
     public void disable() {
         this.rpc.setServiceEnabled(this.serviceId, false);
+    }
+
+    @Override
+    public Map<String, Object> fetchMeta() {
+        return this.rpc.fetchServiceMeta(this.serviceId);
     }
 
     @Override

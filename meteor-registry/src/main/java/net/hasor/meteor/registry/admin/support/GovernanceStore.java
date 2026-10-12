@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.registry.admin.support;
 import java.util.ConcurrentModificationException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
@@ -78,6 +79,23 @@ final class GovernanceStore {
     }
 
     // 所属对象的元信息和配置
+
+    public Map<String, Object> fetchMeta(EntityRef owner) {
+        return call(() -> {
+            EntityRecord record = this.storage().getEntity(owner);
+            if (record == null || record.getData() == null) {
+                return new LinkedHashMap<>();
+            }
+
+            Map<String, Object> metadata;
+            if (owner.type() == EntityType.GLOBAL) {
+                metadata = ((EntGlobalConfigurationData) record.getData()).getMetadata();
+            } else {
+                metadata = ((EntServiceConfigurationData) record.getData()).getMetadata();
+            }
+            return RegistryJson.copy(metadata, Map.class);
+        });
+    }
 
     public void putMeta(EntityRef owner, Map<String, Object> values) {
         validateMetadata(values);

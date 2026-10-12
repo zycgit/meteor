@@ -74,20 +74,11 @@ public class StorageRecordTest {
     @Test
     public void documentsRestoreEveryEntityBodyType() throws Exception {
         // 准备所有实体正文及其对应的实体身份。
-        EntData[] bodies = {
-                new EntGlobalConfigurationData(), new EntServiceCatalogData(), new EntServiceConfigurationData(),
-                new EntInstanceConfigurationData(), new EntRuleConfigurationData(), new EntInstanceRuntimeData(),
-                new EntInstanceServiceRuntimeData()
-        };
+        EntData[] bodies = { new EntGlobalConfigurationData(), new EntServiceCatalogData(), new EntServiceConfigurationData(), new EntInstanceConfigurationData(), new EntRuleConfigurationData(), new EntInstanceRuntimeData() };
         EntityRef instance = new EntityRef(EntityType.INSTANCE, "one");
         EntityRef service = new EntityRef(EntityType.SERVICE, "echo");
         EntityRef localService = new EntityRef(EntityType.SERVICE, "echo", instance, EntitySection.CONFIGURATION);
-        EntityRef[] identities = {
-                new EntityRef(EntityType.GLOBAL, "default"), service, localService, instance,
-                new EntityRef(EntityType.RULE, "SERVICE_ROUTE", service, EntitySection.CONFIGURATION),
-                new EntityRef(EntityType.INSTANCE, "one", null, EntitySection.RUNTIME),
-                new EntityRef(EntityType.SERVICE, "echo", instance, EntitySection.RUNTIME)
-        };
+        EntityRef[] identities = { new EntityRef(EntityType.GLOBAL, "default"), service, localService, instance, new EntityRef(EntityType.RULE, "SERVICE_ROUTE", service, EntitySection.CONFIGURATION), new EntityRef(EntityType.INSTANCE, "one", null, EntitySection.RUNTIME) };
 
         // 逐个序列化文档并还原，确认正文类型与身份一致。
         for (int index = 0; index < bodies.length; index++) {
@@ -144,15 +135,15 @@ public class StorageRecordTest {
             EntityRef ref = new EntityRef(EntityType.INSTANCE, "one", null, EntitySection.RUNTIME);
             EntityRecord entity = new EntityRecord(ref);
             EntInstanceRuntimeData first = new EntInstanceRuntimeData();
-            first.getSettings().put("a", 1);
-            first.getSettings().put("b", 2);
+            first.getManagementAddresses().put("tcp", "rsf://localhost:2181");
+            first.getManagementAddresses().put("http", "hprose://localhost:8080");
             entity.setData(first);
             EntityRecord saved = store.saveEntity(entity);
 
             // 不同对象、不同 Map 插入顺序仍是同一份正文。
             EntInstanceRuntimeData second = new EntInstanceRuntimeData();
-            second.getSettings().put("b", 2);
-            second.getSettings().put("a", 1);
+            second.getManagementAddresses().put("http", "hprose://localhost:8080");
+            second.getManagementAddresses().put("tcp", "rsf://localhost:2181");
             entity.setData(second);
             assertEquals(saved.getRevision(), store.saveEntity(entity).getRevision());
 
@@ -183,7 +174,7 @@ public class StorageRecordTest {
             EntityRef b = new EntityRef(EntityType.INSTANCE, "b");
             EntityRef localA = new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.CONFIGURATION);
             EntityRef localB = new EntityRef(EntityType.SERVICE, "echo", b, EntitySection.CONFIGURATION);
-            EntityRef runtime = new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.RUNTIME);
+            EntityRef runtime = new EntityRef(EntityType.INSTANCE, "a", null, EntitySection.RUNTIME);
             EntityRef ruleA = new EntityRef(EntityType.RULE, "FLOW_CONTROL", localA, EntitySection.CONFIGURATION);
             EntityRef ruleB = new EntityRef(EntityType.RULE, "FLOW_CONTROL", localB, EntitySection.CONFIGURATION);
             store.saveEntity(new EntityRecord(localA));
@@ -199,6 +190,12 @@ public class StorageRecordTest {
             assertEquals(localA, store.findEntities(query).records().get(0).getRef());
             assertEquals(1, store.findEntities(query).records().size());
             query.setSection(EntitySection.RUNTIME);
+            assertTrue(store.findEntities(query).records().isEmpty());
+            assertThrows(IllegalArgumentException.class, () -> {
+                new EntityRef(EntityType.SERVICE, "echo", a, EntitySection.RUNTIME);
+            });
+            query.setType(EntityType.INSTANCE);
+            query.setParent(null);
             assertEquals(runtime, store.findEntities(query).records().get(0).getRef());
 
             // 规则查询按所属服务隔离，不混入另一实例的规则。

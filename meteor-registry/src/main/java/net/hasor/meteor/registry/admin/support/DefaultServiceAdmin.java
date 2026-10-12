@@ -8,8 +8,9 @@
 package net.hasor.meteor.registry.admin.support;
 import java.util.*;
 import net.hasor.cobble.StringUtils;
+import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.admin.*;
-import net.hasor.meteor.registry.shared.rpc.*;
+import net.hasor.meteor.registry.shared.rpc.ValidationData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
 import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
@@ -33,129 +34,106 @@ final class DefaultServiceAdmin implements MetServiceAdmin {
 
     @Override
     public MetServiceInfo info() {
-        if (this.instanceId != null) {
-            return RegistryJson.copy(this.detailData(), MetServiceInfo.class);
-        }
-
         return call(() -> {
-            EntityRef ref = RegistryGovernanceUtils.service(this.serviceId);
-            EntityRecord record = this.governance.storage().getEntity(ref);
-            ServiceMemberData[] members = this.members(null, null);
-            if (record == null && members.length == 0) {
+            EntityRecord catalog = this.governance.storage().getEntity(RegistryGovernanceUtils.service(this.serviceId));
+            if (catalog == null) {
                 throw new IllegalArgumentException("Unknown service: " + this.serviceId);
             }
 
-            // 目录提供持久身份，数量来自当前服务的发布和订阅关系。
-            MetServiceInfo result = new MetServiceInfo();
-            if (record != null && record.getData() != null) {
-                result = RegistryJson.copy(record.getData(), MetServiceInfo.class);
+            MetServiceMember[] members = this.members(null, null);
+            if (this.instanceId != null && members.length == 0) {
+                throw new IllegalArgumentException("Service is not active on instance: " + this.serviceId);
             }
-            result.setServiceId(this.serviceId);
+
+            MetServiceInfo info = new MetServiceInfo();
+            if (catalog.getData() != null) {
+                info = RegistryJson.copy(catalog.getData(), MetServiceInfo.class);
+            }
+            info.setServiceId(this.serviceId);
+
             int providers = 0;
-            for (ServiceMemberData member : members) {
-                ServiceData service = member.getService();
-                result.setGroup(service.getGroup());
-                result.setName(service.getName());
-                result.setVersion(service.getVersion());
-                if (StringUtils.equals("Provider", service.getRole())) {
-                    providers++;
+            Set<String> protocols = new TreeSet<>();
+            for (MetServiceMember member : members) {
+                providers += member.getService().getProviderCount();
+                for (MetServiceEndpoint endpoint : member.getEndpoints()) {
+                    protocols.add(endpoint.getProtocolName());
                 }
             }
 
-            result.setProviderCount(providers);
-            result.setConsumerCount(members.length - providers);
-            return result;
-        });
-    }
-
-    @Override
-    public MetServiceDetail detail() {
-        return RegistryJson.copy(this.detailData(), MetServiceDetail.class);
-    }
-
-    private ServiceData detailData() {
-        ServiceMemberData[] members = this.members(null, null);
-        Comparator<ServiceMemberData> order = Comparator.comparing(member -> {
-            return !StringUtils.equals("Provider", member.getService().getRole());
-        });
-        order = order.thenComparing(member -> member.getInstance().getInstanceId());
-
-        // 优先选择提供者声明；同角色按实例 ID 确定顺序。
-        ServiceMemberData selected = null;
-        int providers = 0;
-        for (ServiceMemberData member : members) {
-            if (selected == null || order.compare(member, selected) < 0) {
-                selected = member;
+            info.setProviderCount(providers);
+            info.setConsumerCount(members.length - providers);
+            info.setProtocols(protocols.toArray(String[]::new));
+            if (providers > 0) {
+                info.setRole(MetServiceType.Provider);
+            } else if (members.length > 0) {
+                info.setRole(MetServiceType.Consumer);
             }
-            if (StringUtils.equals("Provider", member.getService().getRole())) {
-                providers++;
-            }
-        }
 
-        if (selected == null) {
-            throw new IllegalArgumentException("Unknown live service: " + this.serviceId);
-        }
-        ServiceData detail = selected.getService();
-        detail.setProviderCount(providers);
-        detail.setConsumerCount(members.length - providers);
-        return detail;
+            return info;
+        });
     }
 
     @Override
     public MetServiceMember[] providers(MetEndpointFilter filter) {
-        return RegistryJson.copy(this.members(RelationType.PROVIDES, filter), MetServiceMember[].class);
+        return this.members(RelationType.PROVIDES, filter);
     }
 
     @Override
     public MetServiceMember[] consumers(MetEndpointFilter filter) {
-        return RegistryJson.copy(this.members(RelationType.CONSUMES, filter), MetServiceMember[].class);
+        return this.members(RelationType.CONSUMES, filter);
     }
 
-    private ServiceMemberData[] members(RelationType role, MetEndpointFilter filter) {
+    private MetServiceMember[] members(RelationType role, MetEndpointFilter filter) {
         return call(() -> {
             RelationQuery query = new RelationQuery();
             query.setSource(RegistryGovernanceUtils.service(this.serviceId));
             query.setType(role);
             if (this.instanceId != null) {
                 query.setTarget(RegistryGovernanceUtils.instance(this.instanceId));
+            } else if (filter != null && StringUtils.isNotBlank(filter.getInstanceId())) {
+                query.setTarget(RegistryGovernanceUtils.instance(filter.getInstanceId()));
             }
 
             StorageAccess storage = this.governance.storage();
-            List<ServiceMemberData> result = new ArrayList<>();
+            EntityRecord catalog = storage.getEntity(query.getSource());
+            List<MetServiceMember> result = new ArrayList<>();
             for (RelationRecord relation : RegistryGovernanceUtils.relations(storage, query)) {
-                EntityRef instanceRef = RegistryGovernanceUtils.runtime(relation.getTarget());
-                EntityRecord instance = storage.getEntity(instanceRef);
+                EntityRecord instance = storage.getEntity(RegistryGovernanceUtils.runtime(relation.getTarget()));
                 if (instance == null) {
                     continue;
                 }
-                EntityRef local = RegistryGovernanceUtils.localService(instance.getId(), this.serviceId);
-                EntityRecord child = storage.getEntity(RegistryGovernanceUtils.runtime(local));
-                if (child == null) {
-                    continue;
-                }
 
-                EntInstanceServiceRuntimeData runtime = (EntInstanceServiceRuntimeData) child.getData();
+                // 关系自身已包含端点和启用状态，不再依赖另一条实例服务记录。
+                RefServiceRelationData registration = (RefServiceRelationData) relation.getData();
                 EntInstanceRuntimeData snapshot = (EntInstanceRuntimeData) instance.getData();
-                ServiceMemberData member = new ServiceMemberData();
-                ServiceData declaration = RegistryJson.copy(runtime.getService(), ServiceData.class);
-                declaration.setServiceId(child.getId());
+                MetServiceMember member = new MetServiceMember();
+                MetInstanceInfo instanceInfo = RegistryJson.copy(snapshot, MetInstanceInfo.class);
+                instanceInfo.setInstanceId(instance.getId());
+                instanceInfo.setManagementAddress(snapshot.getManagementAddresses());
+                member.setInstance(instanceInfo);
+                member.setEnabled(registration.isEnabled());
+                member.setEndpoints(RegistryJson.copy(registration.getEndpoints(), MetServiceEndpoint[].class));
+
+                MetServiceInfo declaration = new MetServiceInfo();
+                if (catalog != null && catalog.getData() != null) {
+                    declaration = RegistryJson.copy(catalog.getData(), MetServiceInfo.class);
+                }
+                declaration.setServiceId(this.serviceId);
                 boolean provider = relation.getType() == RelationType.PROVIDES;
+                declaration.setRole(provider ? MetServiceType.Provider : MetServiceType.Consumer);
                 declaration.setProviderCount(provider ? 1 : 0);
                 declaration.setConsumerCount(provider ? 0 : 1);
+                Set<String> protocols = new TreeSet<>();
+                for (MetServiceEndpoint endpoint : member.getEndpoints()) {
+                    protocols.add(endpoint.getProtocolName());
+                }
+                declaration.setProtocols(protocols.toArray(String[]::new));
                 member.setService(declaration);
-                member.setEnabled(runtime.isEnabled());
-                InstanceData instanceData = RegistryJson.copy(snapshot, InstanceData.class);
-                instanceData.setInstanceId(instance.getId());
-                instanceData.setManagementAddress(snapshot.getManagementAddresses());
-                member.setInstance(instanceData);
-                RefServiceRelationData discovery = (RefServiceRelationData) relation.getData();
-                member.setEndpoints(RegistryJson.copy(discovery.getEndpoints(), ServiceEndpointData[].class));
-                member.setAddresses(discovery.getAddresses());
                 if (MemberMatcherUtils.matches(member, filter)) {
                     result.add(member);
                 }
             }
-            return result.toArray(ServiceMemberData[]::new);
+            return result.toArray(MetServiceMember[]::new);
         });
     }
 
@@ -170,8 +148,14 @@ final class DefaultServiceAdmin implements MetServiceAdmin {
             EntityRef local = RegistryGovernanceUtils.localService(this.instanceId, this.serviceId);
             StorageAccess storage = this.governance.storage();
             EntityRecord configured = storage.getEntity(local);
-            if (configured == null && storage.getEntity(RegistryGovernanceUtils.runtime(local)) == null) {
-                throw new IllegalArgumentException("Service is not declared by instance: " + this.instanceId);
+            if (configured == null) {
+                RelationQuery query = new RelationQuery();
+                query.setSource(RegistryGovernanceUtils.service(this.serviceId));
+                query.setTarget(RegistryGovernanceUtils.instance(this.instanceId));
+                query.setLimit(1);
+                if (storage.findRelations(query).records().isEmpty()) {
+                    throw new IllegalArgumentException("Service is not declared by instance: " + this.instanceId);
+                }
             }
             return local;
         });
@@ -252,6 +236,11 @@ final class DefaultServiceAdmin implements MetServiceAdmin {
         } else {
             this.governance.update(owner, EntServiceConfigurationData.class, data -> data.setEnabled(enabled));
         }
+    }
+
+    @Override
+    public Map<String, Object> fetchMeta() {
+        return this.governance.fetchMeta(this.configurationOwner());
     }
 
     @Override

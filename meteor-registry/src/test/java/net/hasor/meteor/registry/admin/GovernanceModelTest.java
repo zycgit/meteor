@@ -149,6 +149,9 @@ public class GovernanceModelTest {
             MetServiceAdmin service = admin.getServiceAdmin("echo");
             assertSame(original, assertThrows(IllegalStateException.class, service::info).getCause());
             assertSame(original, assertThrows(IllegalStateException.class, service::enable).getCause());
+            assertSame(original, assertThrows(IllegalStateException.class, service::fetchMeta).getCause());
+            MetClusterAdmin cluster = admin.getClusterAdmin();
+            assertSame(original, assertThrows(IllegalStateException.class, cluster::fetchMeta).getCause());
             IllegalStateException failure = assertThrows(IllegalStateException.class, () -> service.fetchRule(MetRuleType.SERVICE_ROUTE));
             assertSame(original, failure.getCause());
 

@@ -6,8 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.admin.support;
-import java.util.Map;
-import net.hasor.meteor.registry.admin.*;
+import net.hasor.meteor.registry.admin.MetInstanceAdmin;
+import net.hasor.meteor.registry.admin.MetInstanceInfo;
+import net.hasor.meteor.registry.admin.MetRuleType;
+import net.hasor.meteor.registry.admin.MetServiceInfo;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
@@ -28,11 +30,6 @@ final class TargetInstanceAdmin implements MetInstanceAdmin {
     }
 
     @Override
-    public Map<String, Object> settings() {
-        return this.rpc.settings();
-    }
-
-    @Override
     public MetServiceInfo[] getServiceList() {
         return RegistryJson.copy(this.rpc.services(), MetServiceInfo[].class);
     }
@@ -42,12 +39,7 @@ final class TargetInstanceAdmin implements MetInstanceAdmin {
         return RegistryJson.copy(this.rpc.service(serviceId).getService(), MetServiceInfo.class);
     }
 
-    @Override
-    public AddressInfo getAddressInfo(String serviceId) {
-        return RegistryJson.copy(this.rpc.addresses(serviceId), AddressInfo.class);
-    }
-
-    // 网络业务调用与默认选项
+    // 网络业务调用阻断
 
     @Override
     public boolean isBlock() {
@@ -62,34 +54,6 @@ final class TargetInstanceAdmin implements MetInstanceAdmin {
     @Override
     public void unblock() {
         this.rpc.setBlock(false);
-    }
-
-    @Override
-    public void setRequestOption(String name, String value) {
-        requireValue(value);
-        this.rpc.setRequestOption(name, value);
-    }
-
-    @Override
-    public void removeRequestOption(String name) {
-        this.rpc.setRequestOption(name, null);
-    }
-
-    @Override
-    public void setResponseOption(String name, String value) {
-        requireValue(value);
-        this.rpc.setResponseOption(name, value);
-    }
-
-    @Override
-    public void removeResponseOption(String name) {
-        this.rpc.setResponseOption(name, null);
-    }
-
-    private static void requireValue(String value) {
-        if (value == null) {
-            throw new IllegalArgumentException("Option value is required");
-        }
     }
 
     // 实例规则

@@ -17,31 +17,19 @@ public interface ManagementRPC {
     /** 读取当前实例信息。 */
     InstanceData instance();
 
-    /** 读取当前运行配置。 */
-    Map<String, Object> settings();
+    /** 读取本实例声明的业务服务信息。 */
+    ServiceData[] services();
 
-    /** 读取本实例声明的业务服务摘要。 */
-    ServiceInfoData[] services();
-
-    /** 读取指定业务服务的声明和端点，摘要由管理门面提取。 */
+    /** 读取指定业务服务的信息和端点。 */
     ServiceMemberData service(String serviceId);
 
-    /** 读取指定服务的本地地址本。 */
-    AddressData addresses(String serviceId);
-
-    // 实例阻断与默认选项
+    // 实例阻断
 
     /** 查询本实例的网络业务调用阻断状态。 */
     boolean isBlock();
 
     /** 设置网络业务调用阻断状态，管理调用不受影响。 */
     void setBlock(boolean block);
-
-    /** 更新请求默认选项，null 删除该选项。 */
-    void setRequestOption(String name, String value);
-
-    /** 更新响应默认选项，null 删除该选项。 */
-    void setResponseOption(String name, String value);
 
     // 实例规则
 
@@ -69,6 +57,9 @@ public interface ManagementRPC {
     void updateServiceRule(String serviceId, RuleTypeData type, String rule);
 
     // 服务元数据
+
+    /** 读取指定服务当前的全部元数据，包含应用自行设置的值。 */
+    Map<String, Object> fetchServiceMeta(String serviceId);
 
     /** 合并指定服务的元数据。 */
     void putServiceMeta(String serviceId, Map<String, Object> values);

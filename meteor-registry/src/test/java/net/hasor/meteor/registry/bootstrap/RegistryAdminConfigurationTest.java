@@ -7,7 +7,6 @@
  */
 package net.hasor.meteor.registry.bootstrap;
 import java.util.concurrent.TimeUnit;
-import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
@@ -18,8 +17,8 @@ import net.hasor.meteor.registry.admin.MetServiceInfo;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.DecoratedRegistryConfiguration;
-import net.hasor.meteor.registry.shared.RegistryTestUtils.Echo;
 import net.hasor.meteor.registry.shared.RegistryTestUtils;
+import net.hasor.meteor.registry.shared.RegistryTestUtils.Echo;
 import net.hasor.meteor.registry.shared.StorageProbe;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
@@ -34,8 +33,7 @@ public class RegistryAdminConfigurationTest {
     public void validatesManagementConfigurationBeforeOpeningStorage() throws Exception {
         // 准备带存储观察器的注册中心配置。
         StorageProbe probe = new StorageProbe();
-        RegistryConfiguration registry = new DecoratedRegistryConfiguration(
-                new MemoryRegistryConfiguration(), probe::observe);
+        RegistryConfiguration registry = new DecoratedRegistryConfiguration(new MemoryRegistryConfiguration(), probe::observe);
 
         // 固定凭据为空时直接拒绝配置。
         assertThrows(IllegalArgumentException.class, () -> registry.setManagementToken(null));
@@ -156,15 +154,15 @@ public class RegistryAdminConfigurationTest {
         try (MetContext context = application.buildContext()) {
             context.start();
 
-            // 通过另一上下文下发选项，等待应用订阅生效。
+            // 通过另一上下文下发阻断治理，等待应用订阅生效。
             MetConfiguration adminConfiguration = new MetConfiguration().addExtension(bootstrap);
 
             try (MetContext adminContext = adminConfiguration.buildContext()) {
                 RegistryAdmin admin = adminContext.getExtension(RegistryAdmin.class);
                 assertEquals(1, admin.getClusterAdmin().instances("订单").length);
-                admin.getInstanceAdmin(context.getInstanceID()).setRequestOption("trace", "managed");
+                admin.getInstanceAdmin(context.getInstanceID()).block();
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-                while (!StringUtils.equals("managed", context.getSettings().getRequestOptions().getOption("trace"))) {
+                while (!admin.getInstanceAdmin(context.getInstanceID()).instance().isBlock()) {
                     assertTrue("Client did not apply storage change", System.nanoTime() < deadline);
                     Thread.sleep(10);
                 }

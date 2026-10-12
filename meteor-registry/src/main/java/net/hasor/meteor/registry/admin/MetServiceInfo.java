@@ -6,14 +6,19 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.admin;
+import net.hasor.meteor.domain.MetServiceType;
 
+/** 服务基本声明及当前范围内的成员数量、角色和协议支持。 */
 public class MetServiceInfo {
-    private String serviceId     = null;
-    private String group         = null;
-    private String name          = null;
-    private String version       = null;
-    private int    providerCount = 0;
-    private int    consumerCount = 0;
+    private String         serviceId     = null;
+    private String         group         = null;
+    private String         name          = null;
+    private String         version       = null;
+    private String         type          = null;
+    private MetServiceType role          = null;
+    private String[]       protocols     = new String[0];
+    private int            providerCount = 0;
+    private int            consumerCount = 0;
 
     public String getServiceId() {
         return this.serviceId;
@@ -45,6 +50,30 @@ public class MetServiceInfo {
 
     public void setVersion(String version) {
         this.version = version;
+    }
+
+    public String getType() {
+        return this.type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public MetServiceType getRole() {
+        return this.role;
+    }
+
+    public void setRole(MetServiceType role) {
+        this.role = role;
+    }
+
+    public String[] getProtocols() {
+        return this.protocols;
+    }
+
+    public void setProtocols(String[] protocols) {
+        this.protocols = protocols;
     }
 
     public int getProviderCount() {

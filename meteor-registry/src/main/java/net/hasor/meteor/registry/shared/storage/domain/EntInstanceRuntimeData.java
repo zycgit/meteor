@@ -16,7 +16,6 @@ public final class EntInstanceRuntimeData extends EntData {
     private String              unitName            = null; // 所属单元
     private Map<String, String> listenAddresses     = new LinkedHashMap<>(); // 协议名称 -> 监听地址
     private Map<String, String> managementAddresses = new LinkedHashMap<>(); // 协议名称 -> 管理 RPC 地址
-    private Map<String, Object> settings            = new LinkedHashMap<>(); // 已上报的应用配置
 
     public String getApplicationName() {
         return this.applicationName;
@@ -58,11 +57,4 @@ public final class EntInstanceRuntimeData extends EntData {
         this.managementAddresses = managementAddresses;
     }
 
-    public Map<String, Object> getSettings() {
-        return this.settings;
-    }
-
-    public void setSettings(Map<String, Object> settings) {
-        this.settings = settings;
-    }
 }

@@ -9,6 +9,7 @@ package net.hasor.meteor.registry.admin.support;
 import java.util.*;
 import net.hasor.cobble.ExceptionUtils;
 import net.hasor.cobble.StringUtils;
+import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.admin.*;
 import net.hasor.meteor.registry.shared.rpc.ValidationData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
@@ -78,41 +79,49 @@ final class DefaultClusterAdmin implements MetClusterAdmin {
                 }
             }
 
-            // 根据当前实例声明补充服务身份与发布、订阅数量。
+            // 读取在线实例，按两类关系统计，不扫描实例下的服务记录。
             EntityQuery instances = new EntityQuery();
             instances.setType(EntityType.INSTANCE);
             instances.setSection(EntitySection.RUNTIME);
+            Set<String> online = new HashSet<>();
             for (EntityRecord instance : RegistryGovernanceUtils.entities(storage, instances)) {
-                EntityQuery currentServices = new EntityQuery();
-                currentServices.setType(EntityType.SERVICE);
-                currentServices.setParent(RegistryGovernanceUtils.instance(instance.getId()));
-                currentServices.setSection(EntitySection.RUNTIME);
-                for (EntityRecord record : RegistryGovernanceUtils.entities(storage, currentServices)) {
-                    EntInstanceServiceRuntimeData runtime = (EntInstanceServiceRuntimeData) record.getData();
-                    EntServiceDeclarationData declaration = runtime.getService();
-                    String id = record.getId();
-                    if (StringUtils.isNotBlank(filter) && !id.contains(filter)) {
+                online.add(instance.getId());
+            }
+
+            Map<String, Set<String>> protocols = new HashMap<>();
+            for (RelationType role : RelationType.values()) {
+                RelationQuery relations = new RelationQuery();
+                relations.setType(role);
+                for (RelationRecord relation : RegistryGovernanceUtils.relations(storage, relations)) {
+                    if (!online.contains(relation.getTarget().id())) {
+                        continue;
+                    }
+                    MetServiceInfo info = services.get(relation.getSource().id());
+                    if (info == null) {
                         continue;
                     }
 
-                    MetServiceInfo info = services.get(id);
-                    if (info == null) {
-                        info = new MetServiceInfo();
-                        info.setServiceId(id);
-                        services.put(id, info);
-                    }
-
-                    info.setGroup(declaration.getGroup());
-                    info.setName(declaration.getName());
-                    info.setVersion(declaration.getVersion());
-                    if (StringUtils.equals("Provider", declaration.getRole())) {
+                    if (role == RelationType.PROVIDES) {
                         info.setProviderCount(info.getProviderCount() + 1);
+                        info.setRole(MetServiceType.Provider);
                     } else {
                         info.setConsumerCount(info.getConsumerCount() + 1);
+                        if (info.getRole() == null) {
+                            info.setRole(MetServiceType.Consumer);
+                        }
+                    }
+
+                    RefServiceRelationData registration = (RefServiceRelationData) relation.getData();
+                    Set<String> supported = protocols.computeIfAbsent(info.getServiceId(), id -> new TreeSet<>());
+                    for (RefProtocolMountData endpoint : registration.getEndpoints()) {
+                        supported.add(endpoint.getProtocolName());
                     }
                 }
             }
 
+            for (Map.Entry<String, Set<String>> entry : protocols.entrySet()) {
+                services.get(entry.getKey()).setProtocols(entry.getValue().toArray(String[]::new));
+            }
             return services.values().toArray(MetServiceInfo[]::new);
         });
     }
@@ -176,6 +185,11 @@ final class DefaultClusterAdmin implements MetClusterAdmin {
     @Override
     public void disableRule(MetRuleType type) {
         this.governance.setRuleEnabled(RegistryGovernanceUtils.GLOBAL, type, false);
+    }
+
+    @Override
+    public Map<String, Object> fetchMeta() {
+        return this.governance.fetchMeta(RegistryGovernanceUtils.GLOBAL);
     }
 
     @Override

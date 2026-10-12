@@ -59,6 +59,9 @@ public interface MetClusterAdmin {
     // 全局默认元数据
     //
 
+    /** 获取全局保存的元数据，无配置时返回空 Map，修改返回值不会写入存储。 */
+    Map<String, Object> fetchMeta();
+
     /** 设置单个全局默认元数据值，保留其他键，合并后最多 1000 条。 */
     void putMeta(String key, Object value);
 

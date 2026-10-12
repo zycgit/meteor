@@ -9,9 +9,18 @@ package net.hasor.meteor.registry.shared.storage.domain;
 
 /** 根 SERVICE/CONFIGURATION 正文：持久服务目录及治理配置；服务 ID 由 EntityRef 提供。 */
 public final class EntServiceCatalogData extends EntServiceConfigurationData {
+    private String type    = null; // 服务接口类型
     private String group   = null;
     private String name    = null;
     private String version = null;
+
+    public String getType() {
+        return this.type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
 
     public String getGroup() {
         return this.group;

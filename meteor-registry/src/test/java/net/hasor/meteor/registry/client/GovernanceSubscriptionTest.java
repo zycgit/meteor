@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.client;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.ObjectUtils;
@@ -105,13 +104,13 @@ public class GovernanceSubscriptionTest {
              StorageAccess storage = storageConfiguration.openStorage()) {
             RegistryAdmin admin = adminContext.getExtension(RegistryAdmin.class);
 
-            // 启动服务后分别写入实例选项和实例内服务规则。
+            // 启动服务后分别写入实例阻断与实例内服务规则。
             MetBindInfo<Echo> service = context.publisher().rsfService(Echo.class).register();
             context.start();
             RegistryClient client = context.getExtension(RegistryClient.class);
             String instanceId = context.getInstanceID();
             MetInstanceAdmin instance = admin.getInstanceAdmin(instanceId);
-            instance.setRequestOption("request", "managed");
+            instance.block();
             MetServiceAdmin local = admin.getServiceAdmin(service.getBindID(), instanceId);
             local.updateRule(MetRuleType.FLOW_CONTROL, "<controlSet/>");
             client.pullSync().get(5, TimeUnit.SECONDS);
@@ -125,7 +124,9 @@ public class GovernanceSubscriptionTest {
 
             // 关闭应用，运行记录和成员关系退出，配置及规则仍保留。
             context.close();
-            assertNull(storage.getEntity(RegistryGovernanceUtils.runtime(child)));
+            EntityRef instanceRef = RegistryGovernanceUtils.instance(instanceId);
+            EntityRef instanceRegistration = RegistryGovernanceUtils.runtime(instanceRef);
+            assertNull(storage.getEntity(instanceRegistration));
             assertNotNull(storage.getEntity(RegistryGovernanceUtils.service(service.getBindID())));
             assertNotNull(storage.getEntity(rule.getRef()));
             assertNotNull(storage.getEntity(RegistryGovernanceUtils.instance(instanceId)));
@@ -250,30 +251,30 @@ public class GovernanceSubscriptionTest {
              StorageAccess storage = storageConfiguration.openStorage()) {
             RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
 
-            // 启动两个服务，并准备全局元信息和实例选项变更。
+            // 启动两个服务，并准备全局元信息和实例阻断变更。
             MetBindInfo<Echo> first = context.publisher().rsfService(Echo.class).register();
             MetBindInfo<Other> other = context.publisher().rsfService(Other.class).register();
             context.start();
             RegistryClient client = context.getExtension(RegistryClient.class);
             admin.getClusterAdmin().putMeta("global", "new");
-            admin.getInstanceAdmin(context.getInstanceID()).setRequestOption("scope", "new");
+            admin.getInstanceAdmin(context.getInstanceID()).block();
 
             // 只拉取第一个服务，不应用另一个服务或实例设置。
             client.pullSync(first.getBindID()).get(5, TimeUnit.SECONDS);
             assertEquals("new", first.getMetaData("global"));
             assertNull(other.getMetaData("global"));
-            assertNull(context.getSettings().getRequestOptions().getOption("scope"));
+            assertFalse(admin.getInstanceAdmin(context.getInstanceID()).instance().isBlock());
             EntityRef instance = RegistryGovernanceUtils.instance(context.getInstanceID());
             EntityRef identity = RegistryGovernanceUtils.runtime(instance);
             EntInstanceRuntimeData partial = ((EntInstanceRuntimeData) storage.getEntity(identity).getData());
-            assertFalse(((Map<?, ?>) partial.getSettings().get("requestOptions")).containsKey("scope"));
+            assertFalse(partial.isBlock());
 
             // 全量拉取才应用其余服务和实例设置，并更新上报快照。
             client.pullSync().get(5, TimeUnit.SECONDS);
             assertEquals("new", other.getMetaData("global"));
-            assertEquals("new", context.getSettings().getRequestOptions().getOption("scope"));
+            assertTrue(admin.getInstanceAdmin(context.getInstanceID()).instance().isBlock());
             EntInstanceRuntimeData all = ((EntInstanceRuntimeData) storage.getEntity(identity).getData());
-            assertEquals("new", ((Map<?, ?>) all.getSettings().get("requestOptions")).get("scope"));
+            assertTrue(all.isBlock());
 
             // 存储模型只使用约定的实体和关系类型。
             Set<EntityType> entityTypes = Set.of(EntityType.GLOBAL, EntityType.INSTANCE, EntityType.SERVICE, EntityType.RULE);
