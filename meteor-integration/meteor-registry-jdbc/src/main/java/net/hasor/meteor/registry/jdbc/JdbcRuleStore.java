@@ -14,7 +14,7 @@ import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
 import net.hasor.meteor.registry.shared.storage.domain.RuleKind;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
-/** 同一事务内更新 XML 正文及业务详情的开关，临时规则跟随应用登记会话。 */
+/** 同一事务内更新 XML 正文及业务详情的开关，实例规则随实例登记失效。 */
 final class JdbcRuleStore {
     private final String   instance;
     private final String   service;
@@ -208,15 +208,13 @@ final class JdbcRuleStore {
     private String onlyLive(String sql, List<Object> args) {
         if (this.temporary) {
             if (StringUtils.equals(this.service, "global")) {
-                sql += " AND d.runtime_body IS NOT NULL";
+                sql += " AND d.runtime_body IS NOT NULL AND d.expires_at>?";
             } else {
                 sql += " AND EXISTS (SELECT 1 FROM meteor_instances current_instance" //
                         + " WHERE current_instance.instance_id=d.instance_id" //
                         + " AND current_instance.session_id=d.session_id" //
-                        + " AND current_instance.runtime_body IS NOT NULL)";
+                        + " AND current_instance.runtime_body IS NOT NULL AND current_instance.expires_at>?)";
             }
-            sql += " AND EXISTS (SELECT 1 FROM meteor_sessions lease" //
-                    + " WHERE lease.session_id=d.session_id AND lease.expires_at>?)";
             args.add(System.currentTimeMillis());
         }
         return sql;

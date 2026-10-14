@@ -292,7 +292,8 @@ public class JdbcRuleStorageTest {
             List<String> rows = jdbc.queryForList(sql, String.class);
             assertTrue(rows.isEmpty());
             String offlineSql = "SELECT session_id FROM meteor_instances WHERE body IS NOT NULL" //
-                    + " AND runtime_body IS NULL AND runtime_revision IS NULL AND rule_controls IS NULL";
+                    + " AND runtime_body IS NULL AND runtime_revision IS NULL" //
+                    + " AND rule_controls IS NULL AND expires_at IS NULL";
             assertEquals(List.of(owner), jdbc.queryForList(offlineSql, String.class));
         }
     }
@@ -318,7 +319,7 @@ public class JdbcRuleStorageTest {
 
     @Test
     public void expiredApplicationLeaseHidesTemporaryRules() throws Exception {
-        // 模拟失联仅过期应用登记所属租约，管理会话仍在线。
+        // 模拟失联仅过期应用实例租约，管理端仍可操作。
         String url = createDatabase();
         JdbcRegistryConfiguration configuration = configuration(url);
         try (StorageAccess application = configuration.openStorage(); //
@@ -326,14 +327,49 @@ public class JdbcRuleStorageTest {
              Connection connection = DriverManager.getConnection(url, "", "")) {
             application.registerInstance(instance());
             manager.saveRule("one", null, RuleKind.SERVICE_ROUTE, rule("<route/>", false));
-            String sql = "UPDATE meteor_sessions SET expires_at=0" //
-                    + " WHERE session_id IN (SELECT session_id FROM meteor_instances WHERE runtime_body IS NOT NULL)";
+            String sql = "UPDATE meteor_instances SET expires_at=0 WHERE runtime_body IS NOT NULL";
             new JdbcTemplate(connection).executeUpdate(sql);
 
             // 租约过期即停止读取临时治理，不等待物理清理。
             assertNull(manager.getRule("one", null, RuleKind.SERVICE_ROUTE));
             assertThrows(IllegalStateException.class, //
                     () -> manager.saveRule("one", null, RuleKind.SERVICE_ROUTE, rule(null, false)));
+        }
+    }
+
+    @Test
+    public void expiringOneInstanceDoesNotHideOtherInstanceRulesInTheSameSession() throws Exception {
+        // 同一存储会话登记两个实例，各自持有实例和实例服务规则。
+        String url = createDatabase();
+        JdbcRegistryConfiguration configuration = configuration(url);
+        try (StorageAccess application = configuration.openStorage(); //
+             StorageAccess manager = configuration.openStorage(); //
+             Connection connection = DriverManager.getConnection(url, "", "")) {
+            application.registerInstance(instance("one", "orders", "east"));
+            application.registerService("one", service());
+            application.registerInstance(instance("two", "orders", "west"));
+            application.registerService("two", service());
+            manager.saveRule("one", null, RuleKind.SERVICE_ROUTE, rule("<first/>", false));
+            manager.saveRule("one", "echo", RuleKind.SERVICE_ROUTE, rule("<first-service/>", false));
+            manager.saveRule("two", null, RuleKind.SERVICE_ROUTE, rule("<second/>", false));
+            manager.saveRule("two", "echo", RuleKind.SERVICE_ROUTE, rule("<second-service/>", false));
+
+            // 只让第一个实例失联，同会话的第二个实例租约保持有效。
+            String sql = "UPDATE meteor_instances SET expires_at=0 WHERE unit_name='east'";
+            new JdbcTemplate(connection).executeUpdate(sql);
+            assertNull(manager.getRule("one", null, RuleKind.SERVICE_ROUTE));
+            assertNull(manager.getRule("one", "echo", RuleKind.SERVICE_ROUTE));
+            assertThrows(IllegalStateException.class, //
+                    () -> manager.saveRule("one", "echo", RuleKind.SERVICE_ROUTE, rule(null, true)));
+
+            // 第二个实例的规则仍可读取和更新，不受第一个实例的租约影响。
+            EntRuleConfigurationData instanceRule = manager.getRule("two", null, RuleKind.SERVICE_ROUTE).getData();
+            assertEquals("<second/>", instanceRule.getRule());
+            EntityRecord<EntRuleConfigurationData> memberRule = manager.getRule("two", "echo", RuleKind.SERVICE_ROUTE);
+            assertEquals("<second-service/>", memberRule.getData().getRule());
+            memberRule.getData().setEnabled(true);
+            manager.saveRule("two", "echo", RuleKind.SERVICE_ROUTE, memberRule);
+            assertTrue(manager.getRule("two", "echo", RuleKind.SERVICE_ROUTE).getData().isEnabled());
         }
     }
 

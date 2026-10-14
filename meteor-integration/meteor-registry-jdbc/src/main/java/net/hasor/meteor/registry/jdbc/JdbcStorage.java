@@ -53,51 +53,45 @@ final class JdbcStorage implements StorageAccess {
     JdbcStorage(DataSource dataSource, long leaseMillis) throws Exception {
         this.dataSource = dataSource;
         this.leaseMillis = leaseMillis;
+        // 打开存储时检查数据库可用性，尚未登记实例时不写入任何租约。
         this.transaction(jdbc -> {
-            jdbc.executeUpdate("INSERT INTO meteor_sessions(session_id,expires_at) VALUES (?,?)", new Object[] { this.sessionId, System.currentTimeMillis() + leaseMillis });
+            jdbc.queryForList("SELECT instance_id FROM meteor_instances WHERE 1=0", String.class);
             return null;
         });
+
         this.scheduler = Executors.newSingleThreadScheduledExecutor(task -> {
             Thread thread = new Thread(task, "Meteor-jdbc-session");
             thread.setDaemon(true);
             return thread;
         });
+
         this.scheduler.scheduleWithFixedDelay(this::heartbeat, leaseMillis / 3, leaseMillis / 3, TimeUnit.MILLISECONDS);
     }
 
     private void heartbeat() {
-        try {
-            this.transaction(jdbc -> {
-                long now = System.currentTimeMillis();
-                int changed = jdbc.executeUpdate("UPDATE meteor_sessions SET expires_at=? WHERE session_id=? AND expires_at>?", new Object[] { now + this.leaseMillis, this.sessionId, now });
-                if (changed != 1) {
-                    throw new IllegalStateException("JDBC registry lease expired; a full instance registration is required");
+        for (String instanceId : this.registeredInstances) {
+            try {
+                this.transaction(jdbc -> {
+                    // 先取得当前实例行锁，再判断有效期，避免锁等待跨过到期时间后重新激活实例。
+                    String lock = "UPDATE meteor_instances SET expires_at=expires_at" //
+                            + " WHERE instance_id=? AND session_id=? AND runtime_body IS NOT NULL";
+                    if (jdbc.executeUpdate(lock, new Object[] { instanceId, this.sessionId }) == 0) {
+                        return null;
+                    }
+
+                    long now = System.currentTimeMillis();
+                    String sql = "UPDATE meteor_instances SET expires_at=? WHERE instance_id=? AND expires_at>?";
+                    Object[] args = { now + this.leaseMillis, instanceId, now };
+                    jdbc.executeUpdate(sql, args);
+                    return null;
+                });
+            } catch (Exception failure) {
+                if (this.closed) {
+                    return;
                 }
-                return null;
-            });
-        } catch (Exception failure) {
-            if (!this.closed) {
-                LOGGER.warn("Cannot renew JDBC registry session", failure);
+                LOGGER.warn("Cannot renew JDBC registry instance leases", failure);
             }
         }
-    }
-
-    private void recoverLease(JdbcTemplate jdbc) throws Exception {
-        // 锁住会话再恢复；清理失效登记，续租只激活本次重新上报的实例。
-        Object[] session = { this.sessionId };
-        jdbc.executeUpdate("UPDATE meteor_sessions SET expires_at=expires_at WHERE session_id=?", session);
-        String select = "SELECT expires_at FROM meteor_sessions WHERE session_id=?";
-        List<Long> expiry = jdbc.queryForList(select, session, Long.class);
-        if (expiry.isEmpty()) {
-            throw new IllegalStateException("JDBC registry session is missing");
-        }
-        long now = System.currentTimeMillis();
-        if (expiry.get(0) > now) {
-            return;
-        }
-        this.clearSession(jdbc);
-        Object[] args = { now + this.leaseMillis, this.sessionId };
-        jdbc.executeUpdate("UPDATE meteor_sessions SET expires_at=? WHERE session_id=?", args);
     }
 
     private String lockOwner(JdbcTemplate jdbc, String instanceId, EntInstanceRuntimeData instance) throws Exception {
@@ -133,14 +127,6 @@ final class JdbcStorage implements StorageAccess {
         throw new ConcurrentModificationException("Instance ownership changed repeatedly");
     }
 
-    private void requireLease(JdbcTemplate jdbc) throws Exception {
-        jdbc.executeUpdate("UPDATE meteor_sessions SET expires_at=expires_at WHERE session_id=?", new Object[] { this.sessionId });
-        List<String> live = jdbc.queryForList("SELECT session_id FROM meteor_sessions WHERE session_id=? AND expires_at>?", new Object[] { this.sessionId, System.currentTimeMillis() }, String.class);
-        if (live.isEmpty()) {
-            throw new IllegalStateException("JDBC registry session has expired");
-        }
-    }
-
     private static String key(String id) {
         if (StringUtils.isBlank(id)) {
             throw new IllegalArgumentException("Registry identity must not be blank");
@@ -157,17 +143,13 @@ final class JdbcStorage implements StorageAccess {
         return id == null ? "global" : key(id);
     }
 
-    private static String live(String alias) {
-        return " EXISTS (SELECT 1 FROM meteor_sessions lease WHERE lease.session_id=" + alias + ".session_id AND lease.expires_at>?)";
-    }
-
     private static String memberFrom() {
         return " FROM meteor_instance_services r JOIN meteor_instances i" //
                 + " ON i.instance_id=r.instance_id AND i.session_id=r.session_id";
     }
 
     private static String liveMember() {
-        return "i.runtime_body IS NOT NULL AND" + live("r");
+        return "i.runtime_body IS NOT NULL AND i.expires_at>?";
     }
 
     private static <T> T body(JdbcTemplate jdbc, String sql, Object[] args, Class<T> type) throws Exception {
@@ -278,8 +260,7 @@ final class JdbcStorage implements StorageAccess {
     @Override
     public InstanceStatus getInstance(String instanceId) throws Exception {
         return this.transaction(jdbc -> {
-            String sql = "SELECT i.body,i.runtime_body,lease.expires_at FROM meteor_instances i" //
-                    + " LEFT JOIN meteor_sessions lease ON lease.session_id=i.session_id WHERE i.instance_id=?";
+            String sql = "SELECT body,runtime_body,expires_at FROM meteor_instances WHERE instance_id=?";
             long now = System.currentTimeMillis();
             List<InstanceStatus> result = jdbc.queryForList(sql, new Object[] { key(instanceId) }, //
                     (rs, row) -> instanceStatus(rs, 1, now));
@@ -305,8 +286,7 @@ final class JdbcStorage implements StorageAccess {
     public RecordPage<InstanceStatus> instances(String applicationName, DirectoryQuery query) throws Exception {
         return this.transaction(jdbc -> {
             List<Object> args = new ArrayList<>();
-            String sql = "SELECT r.instance_id,r.body,r.runtime_body,lease.expires_at FROM meteor_instances r" //
-                    + " LEFT JOIN meteor_sessions lease ON lease.session_id=r.session_id WHERE 1=1";
+            String sql = "SELECT r.instance_id,r.body,r.runtime_body,r.expires_at FROM meteor_instances r WHERE 1=1";
             if (applicationName != null) {
                 sql += " AND r.application_id=?";
                 args.add(key(applicationName));
@@ -430,58 +410,76 @@ final class JdbcStorage implements StorageAccess {
     public void registerInstance(EntInstanceRuntimeData instance) throws Exception {
         String id = key(instance.getInstanceId());
         String app = key(instance.getApplicationName());
-        this.transaction(jdbc -> {
-            this.recoverLease(jdbc);
-            String owner = this.lockOwner(jdbc, id, instance);
-            if (this.registeredInstances.contains(id) && !StringUtils.equals(owner, this.sessionId)) {
-                throw new IllegalStateException("Instance was replaced by another registration session");
-            }
-            // 接管实例时清理旧会话的运行数据；档案仍保留在同一行中。
-            if (!StringUtils.equals(owner, this.sessionId)) {
-                this.deleteCurrent(jdbc, id, owner);
-            }
+        // 提交数据库登记并记入本地集合后才允许关闭，避免首次登记被遗漏清理。
+        this.lifecycle.readLock().lock();
+        try {
+            this.requireOpen();
+            this.inTransaction(jdbc -> {
+                String owner = this.lockOwner(jdbc, id, instance);
+                if (this.registeredInstances.contains(id) && !StringUtils.equals(owner, this.sessionId)) {
+                    throw new IllegalStateException("Instance was replaced by another registration session");
+                }
 
-            // 更新应用和实例档案，运行字段独立记录版本，供成员订阅识别变更。
-            EntApplicationCatalogData application = new EntApplicationCatalogData();
-            application.setApplicationName(instance.getApplicationName());
-            Object[] applicationValues = { instance.getApplicationName() };
-            this.put(jdbc, "meteor_applications", "application_id", new Object[] { app }, //
-                    "search_text", applicationValues, application);
-            String searchable = instance.getInstanceId() + " " + instance.getIpAddress() + " " + instance.getProcessId();
-            Object[] instanceValues = { app, instance.getUnitName(), searchable };
-            EntInstanceCatalogData archive = RegistryJson.copy(instance, EntInstanceCatalogData.class);
-            this.put(jdbc, "meteor_instances", "instance_id", new Object[] { id }, //
-                    "application_id,unit_name,search_text", instanceValues, archive);
+                // 更新应用和实例档案，运行字段独立记录版本，供成员订阅识别变更。
+                EntApplicationCatalogData application = new EntApplicationCatalogData();
+                application.setApplicationName(instance.getApplicationName());
+                Object[] applicationValues = { instance.getApplicationName() };
+                this.put(jdbc, "meteor_applications", "application_id", new Object[] { app }, //
+                        "search_text", applicationValues, application);
+                String searchable = instance.getInstanceId() + " " + instance.getIpAddress() + " " + instance.getProcessId();
+                Object[] instanceValues = { app, instance.getUnitName(), searchable };
+                EntInstanceCatalogData archive = RegistryJson.copy(instance, EntInstanceCatalogData.class);
+                this.put(jdbc, "meteor_instances", "instance_id", new Object[] { id }, //
+                        "application_id,unit_name,search_text", instanceValues, archive);
 
-            this.saveRuntime(jdbc, id, instance);
-            return null;
-        });
-        this.registeredInstances.add(id);
+                this.saveRuntime(jdbc, id, owner, instance);
+                return null;
+            });
+            this.registeredInstances.add(id);
+        } finally {
+            this.lifecycle.readLock().unlock();
+        }
     }
 
-    private void saveRuntime(JdbcTemplate jdbc, String instanceId, EntInstanceRuntimeData instance) throws Exception {
+    private void saveRuntime(JdbcTemplate jdbc, String instanceId, String owner, EntInstanceRuntimeData instance) throws Exception {
+        // 实例行已经锁定；过期或换主只清理当前实例，其他实例的租约独立生效。
+        long now = System.currentTimeMillis();
+        String select = "SELECT runtime_body FROM meteor_instances WHERE instance_id=? AND expires_at>?";
+        List<String> rows = jdbc.queryForList(select, new Object[] { instanceId, now }, String.class);
+        String previous = rows.isEmpty() ? null : rows.get(0);
+        boolean sameSession = StringUtils.equals(owner, this.sessionId);
+        if (!sameSession || previous == null) {
+            this.deleteCurrent(jdbc, instanceId, owner);
+        }
+
+        // 相同内容只续租，不更改运行版本，避免无变化的上报触发成员通知。
         String content = RegistryJson.write(instance);
-        String select = "SELECT session_id,runtime_body FROM meteor_instances WHERE instance_id=?";
-        List<String[]> rows = jdbc.queryForList(select, new Object[] { instanceId }, //
-                (rs, row) -> new String[] { rs.getString(1), rs.getString(2) });
-        String[] previous = rows.get(0);
-        boolean sameSession = StringUtils.equals(previous[0], this.sessionId);
-        if (sameSession && StringUtils.equals(previous[1], content)) {
+        long expiresAt = now + this.leaseMillis;
+        if (sameSession && StringUtils.equals(previous, content)) {
+            String update = "UPDATE meteor_instances SET expires_at=? WHERE instance_id=?";
+            jdbc.executeUpdate(update, new Object[] { expiresAt, instanceId });
             return;
         }
-        String update = "UPDATE meteor_instances SET session_id=?,runtime_body=?,runtime_revision=? WHERE instance_id=?";
-        Object[] args = { this.sessionId, content, UUID.randomUUID().toString(), instanceId };
+        String update = "UPDATE meteor_instances SET session_id=?,runtime_body=?,runtime_revision=?,expires_at=?" //
+                + " WHERE instance_id=?";
+        Object[] args = { this.sessionId, content, UUID.randomUUID().toString(), expiresAt, instanceId };
         jdbc.executeUpdate(update, args);
     }
 
     private void lockInstance(JdbcTemplate jdbc, String instanceId) throws Exception {
-        this.requireLease(jdbc);
         String id = key(instanceId);
         String sql = "UPDATE meteor_instances SET revision=revision" //
                 + " WHERE instance_id=? AND session_id=? AND runtime_body IS NOT NULL";
         int locked = jdbc.executeUpdate(sql, new Object[] { id, this.sessionId });
         if (locked != 1) {
-            throw new IllegalStateException("Instance is not registered by this session: " + instanceId);
+            throw new IllegalStateException("Instance registration is missing or replaced: " + instanceId);
+        }
+
+        // 锁等待期间也可能到期，服务登记只能使用取锁后仍有效的实例。
+        String select = "SELECT instance_id FROM meteor_instances WHERE instance_id=? AND expires_at>?";
+        Object[] args = { id, System.currentTimeMillis() };
+        if (jdbc.queryForList(select, args, String.class).isEmpty()) {
+            throw new IllegalStateException("Instance registration has expired: " + instanceId);
         }
     }
 
@@ -526,7 +524,8 @@ final class JdbcStorage implements StorageAccess {
     }
 
     private void deleteCurrent(JdbcTemplate jdbc, String instanceId, String owner) throws Exception {
-        String sql = "UPDATE meteor_instances SET runtime_body=NULL,runtime_revision=NULL,rule_controls=NULL" //
+        String sql = "UPDATE meteor_instances" //
+                + " SET runtime_body=NULL,runtime_revision=NULL,rule_controls=NULL,expires_at=NULL" //
                 + " WHERE instance_id=? AND session_id=?";
         Object[] args = { instanceId, owner };
         jdbc.executeUpdate(sql, args);
@@ -537,7 +536,8 @@ final class JdbcStorage implements StorageAccess {
 
     private void clearSession(JdbcTemplate jdbc) throws Exception {
         // 先锁实例，再清关系；保留档案与最近会话，防止迟到的旧进程重新取得登记权。
-        String sql = "UPDATE meteor_instances SET runtime_body=NULL,runtime_revision=NULL,rule_controls=NULL" //
+        String sql = "UPDATE meteor_instances" //
+                + " SET runtime_body=NULL,runtime_revision=NULL,rule_controls=NULL,expires_at=NULL" //
                 + " WHERE session_id=?";
         jdbc.executeUpdate(sql, new Object[] { this.sessionId });
         for (String table : List.of("meteor_member_protocols", "meteor_instance_services", "meteor_governance")) {
@@ -914,11 +914,12 @@ final class JdbcStorage implements StorageAccess {
             }
             this.closed = true;
             this.scheduler.shutdownNow();
-            this.inTransaction(jdbc -> {
-                this.clearSession(jdbc);
-                jdbc.executeUpdate("DELETE FROM meteor_sessions WHERE session_id=?", new Object[] { this.sessionId });
-                return null;
-            });
+            if (!this.registeredInstances.isEmpty()) {
+                this.inTransaction(jdbc -> {
+                    this.clearSession(jdbc);
+                    return null;
+                });
+            }
         } finally {
             this.lifecycle.writeLock().unlock();
         }

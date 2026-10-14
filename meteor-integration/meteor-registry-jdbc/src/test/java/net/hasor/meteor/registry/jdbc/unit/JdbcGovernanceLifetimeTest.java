@@ -48,7 +48,8 @@ public class JdbcGovernanceLifetimeTest {
             assertNull(observer.getConfiguration("one", null));
             assertNull(observer.getMetadata("one", null));
             String offlineSql = "SELECT session_id FROM meteor_instances" //
-                    + " WHERE runtime_body IS NULL AND runtime_revision IS NULL AND rule_controls IS NULL";
+                    + " WHERE runtime_body IS NULL AND runtime_revision IS NULL" //
+                    + " AND rule_controls IS NULL AND expires_at IS NULL";
             assertEquals(List.of(owner), jdbc.queryForList(offlineSql, String.class));
             assertEquals(List.of(archive), jdbc.queryForList("SELECT body FROM meteor_instances", String.class));
             String temporarySql = "SELECT body FROM meteor_governance WHERE session_id=?";
@@ -77,7 +78,7 @@ public class JdbcGovernanceLifetimeTest {
 
     @Test
     public void expiredRegistrationHidesInstanceMetadata() throws Exception {
-        // 仅过期应用会话，保留管理端观察和操作能力。
+        // 仅过期应用实例租约，保留管理端观察和操作能力。
         String url = createDatabase();
         JdbcRegistryConfiguration configuration = configuration(url);
         try (StorageAccess application = configuration.openStorage(); //
@@ -85,8 +86,7 @@ public class JdbcGovernanceLifetimeTest {
              Connection connection = DriverManager.getConnection(url, "", "")) {
             application.registerInstance(instance());
             manager.saveMetadata("one", null, metadata());
-            String sql = "UPDATE meteor_sessions SET expires_at=0" //
-                    + " WHERE session_id IN (SELECT session_id FROM meteor_instances WHERE runtime_body IS NOT NULL)";
+            String sql = "UPDATE meteor_instances SET expires_at=0 WHERE runtime_body IS NOT NULL";
             new JdbcTemplate(connection).executeUpdate(sql);
 
             // 失联后元信息不可见，也不允许管理员代应用恢复登记。

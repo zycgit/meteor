@@ -30,49 +30,28 @@ implementation project(':meteor-registry-jdbc')
 
 ```java
 JdbcRegistryConfiguration registry = new JdbcRegistryConfiguration();
-registry.
-
-setDataSource(applicationDataSource);
-registry.
-
-setManagementToken(System.getenv("METEOR_MANAGEMENT_TOKEN"));
-        registry.
-
-setLeaseMillis(15000);
+registry.setDataSource(applicationDataSource);
+registry.setManagementToken(System.getenv("METEOR_MANAGEMENT_TOKEN"));
+registry.setLeaseMillis(15000);
 
 MetConfiguration configuration = new MetConfiguration();
-configuration.
+configuration.setApplicationName("orders-server");
+configuration.addExtension(registry);
+configuration.connector("tcp") //
+        .bind("0.0.0.0", 2181) //
+        .protocol("rsf");
 
-setApplicationName("orders-server");
-configuration.
+try (MetContext context = configuration.buildContext()) {
+    context.start();
 
-addExtension(registry);
-configuration.
+    MetBindInfo<EchoService> service = context.publisher() //
+            .rsfService(EchoService.class, value -> "echo:" + value) //
+            .register();
 
-connector("tcp").
+    RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
+    admin.getServiceAdmin(service.getBindID()).putMeta("team", "orders");
 
-bind("0.0.0.0",2181).
-
-protocol("rsf");
-
-try(
-MetContext context = configuration.buildContext()){
-        context.
-
-start();
-
-MetBindInfo<EchoService> service = context.publisher() //
-        .rsfService(EchoService.class, value -> "echo:" + value) //
-        .register();
-
-RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
-    admin.
-
-getServiceAdmin(service.getBindID()).
-
-putMeta("team","orders");
-
-// 在此保持应用运行，退出时关闭上下文。
+    // 在此保持应用运行，退出时关闭上下文。
 }
 ```
 
@@ -81,7 +60,7 @@ putMeta("team","orders");
 | 配置                                | 默认值       | 说明                               |
 |-------------------------------------|--------------|------------------------------------|
 | `dataSource`                        | 必填         | 已配置数据库地址和认证信息的数据源 |
-| `leaseMillis`                       | `15000`      | 登记会话租期，单位毫秒，最小 `300` |
+| `leaseMillis`                       | `15000`      | 实例租期，单位毫秒，最小 `300`     |
 | `refreshMillis`                     | `1000`       | 应用注册信息核对间隔，单位毫秒     |
 | `publishHost`                       | 实际监听地址 | 对外发布的主机地址                 |
 | `managementToken` / `tokenProvider` | 空           | Meteor 管理入口凭据                |
@@ -95,14 +74,13 @@ putMeta("team","orders");
 | 表                         | 主键                                     | 内容与生命周期                                                     |
 |----------------------------|------------------------------------------|--------------------------------------------------------------------|
 | `meteor_applications`      | `application_id`                         | 应用档案，持久                                                     |
-| `meteor_instances`         | `instance_id`                            | 实例档案、所属应用及单元，最近登记会话、当前运行详情及实例规则开关 |
+| `meteor_instances`         | `instance_id`                            | 实例档案、所属应用及单元、登记归属、到期时间、运行详情及规则开关 |
 | `meteor_services`          | `service_id`                             | 服务定义及服务规则开关，持久                                       |
 | `meteor_instance_services` | `instance_id, service_id`                | 实例发布或订阅的服务详情、成员角色及交叉范围规则开关，租约内可见   |
 | `meteor_member_protocols`  | `service_id, instance_id, protocol_name` | 成员协议名称，供服务协议汇总，租约内可见                           |
 | `meteor_governance`        | `instance_id, service_id, item_name`     | 各范围的状态、元信息和规则正文                                     |
-| `meteor_sessions`          | `session_id`                             | 登记会话及到期时间 `expires_at`，时间单位为 UTC 毫秒               |
 
-以上七张均为普通数据库表。ID 主键列使用业务 ID 的 SHA-256 十六进制值；原始 ID、应用名和服务定义保存在 JSON 正文中，搜索列保留可读原值。
+以上六张均为普通数据库表。ID 主键列使用业务 ID 的 SHA-256 十六进制值；原始 ID、应用名和服务定义保存在 JSON 正文中，搜索列保留可读原值。
 
 | 数据             | 保存位置                                                            |
 |------------------|---------------------------------------------------------------------|
@@ -110,14 +88,15 @@ putMeta("team","orders");
 | 实例档案         | `meteor_instances.body` / `revision`                                |
 | 实例运行详情     | `meteor_instances.runtime_body` / `runtime_revision`                |
 | 最近实例登记会话 | `meteor_instances.session_id`，离线后保留                           |
+| 实例到期时间     | `meteor_instances.expires_at`，UTC 毫秒；未登记或正常离线为 `NULL` |
 | 服务定义         | `meteor_services.body` / `revision`                                 |
 | 实例服务详情     | `meteor_instance_services.body` / `revision`                        |
 | 成员角色         | `meteor_instance_services.member_role`，取 `Provider` 或 `Consumer` |
 | 协议名称         | `meteor_member_protocols.protocol_name`                             |
 
-实例服务关系通过 `instance_id` 关联实例，通过 `service_id` 关联服务定义。关系与实例属于同一登记会话、实例运行详情非空且租约有效时，成员处于在线状态。
+实例服务关系通过 `instance_id` 关联实例，通过 `service_id` 关联服务定义。关系与实例属于同一登记会话、实例运行详情非空且 `expires_at` 晚于当前时间时，成员处于在线状态。
 
-租约失效后，查询立即过滤实例运行信息、成员关系和实例治理数据，数据库不会自动删除行。正常关闭、恢复登记或接管时清空实例的 `runtime_body`、`runtime_revision` 和 `rule_controls`，并删除对应会话的关系、协议及临时治理行。实例档案与最近登记会话保留；长期遗留数据可按运维策略清理。
+心跳更新实例的 `expires_at`。到期后，实例运行信息、成员关系和实例治理数据不可见。正常关闭时清空实例运行字段和 `expires_at`，保留实例档案及最近登记归属。
 
 ### 治理正文
 

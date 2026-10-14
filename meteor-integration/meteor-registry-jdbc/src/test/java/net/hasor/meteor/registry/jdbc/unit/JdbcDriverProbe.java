@@ -85,8 +85,10 @@ final class JdbcDriverProbe implements AutoCloseable {
     private PreparedStatement observe(PreparedStatement statement, String sql) {
         Class<?>[] interfaces = { PreparedStatement.class };
         InvocationHandler handler = (proxy, method, arguments) -> {
-            // 并发协调或故障发生在真实更新之前，不代替 SQL 执行结果。
-            if (StringUtils.equals("executeUpdate", method.getName())) {
+            // 并发协调或故障发生在真实语句执行之前，不代替 SQL 执行结果。
+            boolean query = StringUtils.equals("executeQuery", method.getName());
+            boolean update = StringUtils.equals("executeUpdate", method.getName());
+            if (query || update) {
                 this.beforeExecute.execute(sql);
             }
             return invoke(statement, method, arguments);

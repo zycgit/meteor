@@ -11,7 +11,7 @@ import javax.sql.DataSource;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 
-/** JDBC 注册中心配置，直接创建独立存储会话。 */
+/** JDBC 注册中心配置，使用应用提供的数据源。 */
 public final class JdbcRegistryConfiguration extends RegistryConfiguration {
     private DataSource dataSource;
     private long       leaseMillis = 15000;
@@ -22,7 +22,7 @@ public final class JdbcRegistryConfiguration extends RegistryConfiguration {
         return this;
     }
 
-    /** 设置临时记录租约，单位毫秒，默认 15000，至少 300。 */
+    /** 设置实例租约，单位毫秒，默认 15000，至少 300。 */
     public JdbcRegistryConfiguration setLeaseMillis(long value) {
         this.leaseMillis = value;
         return this;

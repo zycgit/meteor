@@ -1,13 +1,6 @@
 -- Registry schema. Run this script against a new empty database.
 -- expires_at stores UTC epoch milliseconds.
 
-CREATE TABLE meteor_sessions
-(
-    session_id VARCHAR(36) NOT NULL,
-    expires_at BIGINT      NOT NULL,
-    PRIMARY KEY (session_id)
-);
-
 CREATE TABLE meteor_applications
 (
     application_id VARCHAR(64) NOT NULL,
@@ -27,6 +20,7 @@ CREATE TABLE meteor_instances
     body             TEXT        NOT NULL,
     -- Keep the latest registration session after runtime departure.
     session_id       VARCHAR(36) NOT NULL,
+    expires_at       BIGINT      NULL,
     runtime_revision VARCHAR(36) NULL,
     runtime_body     TEXT NULL,
     rule_controls    TEXT NULL,
@@ -86,13 +80,11 @@ VALUES ('global', 'global', 'state', '00000000-0000-0000-0000-000000000000', NUL
 
 CREATE INDEX met_governance_session ON meteor_governance (session_id);
 
-CREATE INDEX met_sessions_expiry ON meteor_sessions (expires_at);
-
 CREATE INDEX met_instances_application ON meteor_instances (application_id, instance_id);
 
 CREATE INDEX met_instances_unit ON meteor_instances (application_id, unit_name, instance_id);
 
-CREATE INDEX met_instances_session ON meteor_instances (session_id);
+CREATE INDEX met_instances_session ON meteor_instances (session_id, expires_at);
 
 CREATE INDEX met_iservices_session ON meteor_instance_services (session_id);
 

@@ -11,6 +11,8 @@ import java.sql.SQLException;
 import java.sql.SQLTimeoutException;
 import java.util.ConcurrentModificationException;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import net.hasor.dbvisitor.jdbc.core.JdbcTemplate;
 import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
@@ -19,6 +21,7 @@ import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
 import org.h2.jdbcx.JdbcConnectionPool;
 import org.junit.Test;
 import static net.hasor.meteor.registry.jdbc.scenario.example.JdbcTestSupport.*;
+import static net.hasor.meteor.registry.jdbc.unit.JdbcStorageData.instance;
 import static org.junit.Assert.*;
 
 public class JdbcRegistryConfigurationTest {
@@ -37,6 +40,32 @@ public class JdbcRegistryConfigurationTest {
         configuration.setDataSource(driverDataSource("jdbc:missing-driver:test", "", ""));
         configuration.setLeaseMillis(299);
         assertThrows(IllegalArgumentException.class, configuration::openStorage);
+    }
+
+    @Test
+    public void managementStorageDoesNotCreateLeaseOrRunHeartbeatSql() throws Exception {
+        // 管理端仅查询存储，观察完整生命周期是否产生租约写入。
+        try (JdbcDriverProbe probe = new JdbcDriverProbe(createDatabase())) {
+            JdbcRegistryConfiguration configuration = configuration(probe.url());
+            configuration.setLeaseMillis(600);
+            CountDownLatch write = new CountDownLatch(1);
+            probe.beforeExecute(sql -> {
+                if (!sql.startsWith("SELECT")) {
+                    write.countDown();
+                }
+            });
+
+            try (StorageAccess manager = configuration.openStorage()) {
+                assertNull(manager.getService("echo"));
+                probe.beforeExecute(sql -> write.countDown());
+
+                // 正常只读操作结束后，跨过多个周期也不应出现后台查询或更新。
+                assertFalse("Management storage must not run heartbeat SQL", write.await(800, TimeUnit.MILLISECONDS));
+            }
+
+            // 纯管理端关闭也不需要清理实例或租约。
+            assertEquals(1, write.getCount());
+        }
     }
 
     @Test
@@ -262,7 +291,7 @@ public class JdbcRegistryConfigurationTest {
 
     @Test
     public void failedCloseReturnsBorrowedConnectionWithoutClosingDataSource() throws Exception {
-        // 用单连接池启动会话，隐藏租约表以模拟关闭时的 SQL 错误。
+        // 用单连接池登记实例，隐藏实例表以模拟关闭时的 SQL 错误。
         JdbcConnectionPool pool = JdbcConnectionPool.create(createDatabase(), "", "");
         pool.setMaxConnections(1);
         pool.setLoginTimeout(1);
@@ -270,8 +299,9 @@ public class JdbcRegistryConfigurationTest {
         configuration.setDataSource(pool);
         try {
             try (StorageAccess storage = configuration.openStorage()) {
+                storage.registerInstance(instance());
                 try (Connection connection = pool.getConnection()) {
-                    new JdbcTemplate(connection).execute("ALTER TABLE meteor_sessions RENAME TO hidden_sessions");
+                    new JdbcTemplate(connection).execute("ALTER TABLE meteor_instances RENAME TO hidden_instances");
                 }
 
                 // 关闭失败仍归还连接，并在退出测试会话前恢复表结构。
@@ -280,7 +310,7 @@ public class JdbcRegistryConfigurationTest {
                     assertEquals(0, pool.getActiveConnections());
                 } finally {
                     try (Connection connection = pool.getConnection()) {
-                        new JdbcTemplate(connection).execute("ALTER TABLE hidden_sessions RENAME TO meteor_sessions");
+                        new JdbcTemplate(connection).execute("ALTER TABLE hidden_instances RENAME TO meteor_instances");
                     }
                 }
             }
