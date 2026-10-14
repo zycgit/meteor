@@ -6,27 +6,22 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.transport.http;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 /** HTTP 头及完整或增量正文；流式正文由消费方负责关闭。 */
 public final class HttpResponse {
-    private final int                 status;
-    private final Map<String, String> headers;
-    private final byte[]              body;
-    private final Map<String, String> trailers;
-    private final HttpBody            stream;
+    private final int                       status;
+    private final Map<String, List<String>> headers;
+    private final byte[]                    body;
+    private final Map<String, List<String>> trailers;
+    private final HttpBody                  stream;
 
-    private HttpResponse(int status, Map<String, String> headers, byte[] body, Map<String, String> trailers, HttpBody stream) {
+    private HttpResponse(int status, Map<String, List<String>> headers, byte[] body, Map<String, List<String>> trailers, HttpBody stream) {
         this.status = status;
-        Map<String, String> headersCopy = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        headersCopy.putAll(headers);
-        this.headers = Collections.unmodifiableMap(headersCopy);
+        this.headers = HttpMessages.copy(headers);
         this.body = body.clone();
-        Map<String, String> trailersCopy = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        trailersCopy.putAll(trailers);
-        this.trailers = Collections.unmodifiableMap(trailersCopy);
+        this.trailers = HttpMessages.copy(trailers);
         this.stream = stream;
     }
 
@@ -34,8 +29,14 @@ public final class HttpResponse {
         return this.status;
     }
 
-    public Map<String, String> headers() {
+    /** 字段名忽略大小写，同名值按原顺序保留，不按逗号拆分或拼接。 */
+    public Map<String, List<String>> headers() {
         return this.headers;
+    }
+
+    /** 返回首个字段值；需要全部值时使用 headers()。 */
+    public String header(String name) {
+        return HttpMessages.first(this.headers, name);
     }
 
     public byte[] body() {
@@ -45,7 +46,8 @@ public final class HttpResponse {
         return this.body;
     }
 
-    public Map<String, String> trailers() {
+    /** 已知尾部字段；接收增量正文时，在 EOF 后从 stream().trailers() 读取。 */
+    public Map<String, List<String>> trailers() {
         return this.trailers;
     }
 
@@ -54,12 +56,12 @@ public final class HttpResponse {
     }
 
     /** 创建正文已完整缓冲的响应，无尾部字段时传入空 trailers。 */
-    public static HttpResponse newBuffered(int status, Map<String, String> headers, byte[] body, Map<String, String> trailers) {
+    public static HttpResponse newBuffered(int status, Map<String, List<String>> headers, byte[] body, Map<String, List<String>> trailers) {
         return new HttpResponse(status, headers, body, trailers, null);
     }
 
     /** 创建正文按需消费的响应，后续尾部字段由 stream 交付。 */
-    public static HttpResponse newStreaming(int status, Map<String, String> headers, HttpBody stream, Map<String, String> trailers) {
+    public static HttpResponse newStreaming(int status, Map<String, List<String>> headers, HttpBody stream, Map<String, List<String>> trailers) {
         return new HttpResponse(status, headers, new byte[0], trailers, stream);
     }
 }

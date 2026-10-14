@@ -10,10 +10,10 @@ import net.hasor.meteor.connector.AbstractMetListen;
 import net.hasor.meteor.connector.ReceivedListener;
 import net.hasor.meteor.connector.transport.NetworkListen;
 
-public final class ProtocolListen extends AbstractMetListen {
+final class ProtocolListen extends AbstractMetListen {
     private final NetworkListen listen;
 
-    public ProtocolListen(String type, NetworkListen listen, ReceivedListener receiver) {
+    ProtocolListen(String type, NetworkListen listen, ReceivedListener receiver) {
         super(type, listen.getAddress(), receiver);
         this.listen = listen;
     }

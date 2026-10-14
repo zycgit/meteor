@@ -7,12 +7,10 @@
  */
 package net.hasor.meteor.connector.transport.http;
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
@@ -20,11 +18,12 @@ import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.*;
-import net.hasor.neta.channel.routing.PartitionKey;
 import net.hasor.neta.channel.routing.ProtoRoutingControl;
 import net.hasor.neta.channel.routing.ProtoRoutingDataSelector;
 import net.hasor.neta.channel.transport.tcp.TcpSoConfig;
-import net.hasor.neta.codec.http.*;
+import net.hasor.neta.codec.http.HttpClientDuplex;
+import net.hasor.neta.codec.http.HttpResponseAggregator;
+import net.hasor.neta.codec.http.HttpServerDuplex;
 import net.hasor.neta.codec.http.routing.*;
 import net.hasor.neta.codec.ssl.SslContext;
 
@@ -101,8 +100,13 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
         channel.receiver(receiver);
         stack.addLast("http", new HttpServerDuplex());
 
+        stack.addLastDecoder("incremental", new Http1BodyHandler(channel, socket, () -> false, message -> {
+            HttpInbound request = (HttpInbound) message;
+            channel.received(request.request(), request.keepAlive());
+        }));
+
         int maxFrameSize = this.config.integer("maxFrameSize", 16 * 1024 * 1024);
-        HttpRequestAggregator aggregate = new HttpRequestAggregator(maxFrameSize);
+        Http1RequestAggregator aggregate = new Http1RequestAggregator(maxFrameSize);
         stack.addLastDecoder("aggregate", aggregate);
         AtomicBoolean selected = new AtomicBoolean();
         ConnectionEvents lifecycle = new ConnectionEvents(() -> {
@@ -113,17 +117,7 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
         });
         stack.addFirstDecoder("lifecycle", lifecycle);
 
-        Function<String, ProtoInitializer> branch = route -> {
-            return ctx -> {
-                ctx.addLastDecoder("messages", new HttpServerHandler(route));
-            };
-        };
-
-        if (receiver instanceof RoutedReceiver) {
-            this.configureRouting(stack, branch, (RoutedReceiver<HttpExchange>) receiver);
-        } else {
-            branch.apply("").config(stack);
-        }
+        stack.addLastDecoder("messages", new HttpServerHandler(null, null, null));
 
         stack.addLastDecoder("input-close", new InputCloseHandler());
         stack.getChannel().subscribe(event -> selected.get() && (event.isInbound() || !event.isSuccess()), SubscribeMode.SYNC, event -> {
@@ -138,22 +132,8 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
             }
 
             HttpInbound request = (HttpInbound) event.getData();
-            channel.received(request.request(), request.keepAlive(), request.route());
+            channel.received(request.request(), request.keepAlive());
         });
-    }
-
-    private void configureRouting(ProtoBuildContext context, Function<String, ProtoInitializer> branch, RoutedReceiver<HttpExchange> receiver) {
-        Map<String, NetworkRoute<HttpExchange>> routes = receiver.routes();
-        ProtoHelper.typed(FullHttpRequest.class, Object.class).nextPartition("route", (ctx, kind, message) -> {
-            if (!ctx.isRcv() || !(message instanceof FullHttpRequest request)) {
-                return null;
-            }
-
-            String selected = HttpNetworkChannel.selectRoute(routes, request.uri());
-            return PartitionKey.newKey(selected);
-        }, p -> p.byInitializer(ctx -> {
-            branch.apply(PartitionKey.findKey(ctx).getKey()).config(ctx);
-        })).build().config(context);
     }
 
     public Future<Void> connect(InterAddress target, ChannelFactory<HttpExchange> factory) {
@@ -208,16 +188,20 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
 
     private void initializeClient(ProtoBuildContext stack, HttpClientChannel channel) {
         stack.addLast("http", new HttpClientDuplex());
+        NetChannel socket = (NetChannel) stack.getChannel();
+        stack.addLastDecoder("incremental", new Http1BodyHandler(channel, socket, channel::streamResponse, message -> {
+            HttpInboundResponse response = (HttpInboundResponse) message;
+            channel.execute(() -> channel.receive(socket, response.response(), response.keepAlive()));
+        }));
+
         int maxFrameSize = this.config.integer("maxFrameSize", 16 * 1024 * 1024);
         HttpResponseAggregator aggregate = new HttpResponseAggregator(maxFrameSize);
         stack.addLastDecoder("aggregate", aggregate);
-
-        NetChannel socket = (NetChannel) stack.getChannel();
         stack.addLastDecoder("messages", new HttpClientHandler(channel, socket));
         stack.addLastDecoder("input-close", new InputCloseHandler());
         socket.subscribe(event -> event.isInbound() || !event.isSuccess(), SubscribeMode.SYNC, event -> {
             if (!event.isSuccess()) {
-                channel.dispatch(() -> {
+                channel.execute(() -> {
                     channel.failed(socket, event.getError());
                     socket.closeNow();
                 });
@@ -225,7 +209,7 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
             }
 
             if (event.getData() instanceof SoInputCloseEvent) {
-                channel.dispatch(() -> {
+                channel.execute(() -> {
                     channel.failed(socket, new IOException("HTTP peer closed before response"));
                     socket.closeNow();
                 });
@@ -234,7 +218,7 @@ public final class HttpConnector extends SocketConnector<HttpExchange> {
 
             HttpInboundResponse response = (HttpInboundResponse) event.getData();
             ReadPause pause = socket.pauseRead();
-            channel.dispatch(() -> {
+            channel.execute(() -> {
                 try {
                     channel.receive(socket, response.response(), response.keepAlive());
                 } finally {

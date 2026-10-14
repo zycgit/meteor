@@ -14,24 +14,24 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 
 /** A protocol view of a physical connection. Shared views never close their siblings. */
-public final class SessionConnection<M> implements NetworkChannel<M> {
+final class SessionConnection<M> implements NetworkChannel<M> {
     private final NetworkChannel<M>   network;
     private final String              scheme;
     private final boolean             shared;
     private final BasicFuture<Void>   closed = new BasicFuture<>();
     private       Consumer<Throwable> closing;
 
-    public SessionConnection(NetworkChannel<M> network, String scheme, boolean shared) {
+    SessionConnection(NetworkChannel<M> network, String scheme, boolean shared) {
         this.network = network;
         this.scheme = scheme;
         this.shared = shared;
     }
 
-    public void onClose(Consumer<Throwable> closing) {
+    void onClose(Consumer<Throwable> closing) {
         this.closing = closing;
     }
 
-    public void terminated(Throwable cause) {
+    void terminated(Throwable cause) {
         if (this.closed.completed(null) && this.closing != null) {
             this.closing.accept(cause);
         }

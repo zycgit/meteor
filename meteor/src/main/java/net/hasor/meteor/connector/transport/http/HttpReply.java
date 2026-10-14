@@ -17,9 +17,18 @@ final class HttpReply {
     private       HttpResponse      response;
     private       BasicFuture<Void> sent;
 
-    public HttpReply(boolean keepAlive, HttpExchange exchange) {
+    private boolean continuePending;
+
+    public HttpReply(boolean keepAlive, HttpExchange exchange, boolean continuePending) {
         this.keepAlive = keepAlive;
         this.exchange = exchange;
+        this.continuePending = continuePending;
+    }
+
+    boolean takeContinue() {
+        boolean pending = this.continuePending;
+        this.continuePending = false;
+        return pending;
     }
 
     public boolean keepAlive() {

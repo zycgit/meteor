@@ -10,25 +10,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
-import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 
 /** 有界的增量 HTTP 正文；读写可阻塞，必须在业务线程执行，不能进入网络回调。 */
 public final class HttpBody extends InputStream {
-    private final int                 capacity;
-    private final ArrayDeque<Chunk>   chunks     = new ArrayDeque<>();
-    private final BasicFuture<Void>   completion = new BasicFuture<>();
-    private       int                 buffered;
-    private       Chunk               reading;
-    private       int                 offset;
-    private       boolean             ended;
-    private       IOException         failure;
-    private       Map<String, String> trailers   = Map.of();
-    private       Runnable            readable   = () -> {
+    private final int                       capacity;
+    private final ArrayDeque<Chunk>         chunks     = new ArrayDeque<>();
+    private final BasicFuture<Void>         completion = new BasicFuture<>();
+    private       int                       buffered;
+    private       Chunk                     reading;
+    private       int                       offset;
+    private       boolean                   ended;
+    private       IOException               failure;
+    private       Map<String, List<String>> trailers   = Map.of();
+    private       Runnable                  readable   = () -> {
     };
 
     public HttpBody(int capacity) {
@@ -42,12 +39,12 @@ public final class HttpBody extends InputStream {
         return this.completion;
     }
 
-    public synchronized Map<String, String> trailers() {
+    public synchronized Map<String, List<String>> trailers() {
         return this.trailers;
     }
 
     /** 正文发送完毕后结束此方向，尾部字段与正文一起按序发送。 */
-    public void finish(Map<String, String> trailers) {
+    public void finish(Map<String, List<String>> trailers) {
         Runnable notify;
         synchronized (this) {
             if (this.ended || this.failure != null) {
@@ -55,7 +52,7 @@ public final class HttpBody extends InputStream {
             }
 
             this.ended = true;
-            this.trailers = Map.copyOf(trailers);
+            this.trailers = HttpMessages.copy(trailers);
             this.notifyAll();
             notify = this.readable;
         }
@@ -222,6 +219,15 @@ public final class HttpBody extends InputStream {
         return this.ended && this.buffered == 0;
     }
 
+    synchronized boolean inputEnded() {
+        return this.ended;
+    }
+
+    synchronized int writableBytes() throws IOException {
+        this.checkFailure();
+        return this.capacity - this.buffered;
+    }
+
     synchronized void consumed(Chunk chunk) {
         this.buffered -= chunk.bytes.length;
         chunk.release.run();
@@ -232,13 +238,6 @@ public final class HttpBody extends InputStream {
         this.completion.completed(null);
     }
 
-    static final class Chunk {
-        final byte[]   bytes;
-        final Runnable release;
-
-        Chunk(byte[] bytes, Runnable release) {
-            this.bytes = bytes;
-            this.release = release;
-        }
+    record Chunk(byte[] bytes, Runnable release) {
     }
 }

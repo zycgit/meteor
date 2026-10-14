@@ -12,6 +12,7 @@ import java.util.Set;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.transport.NetworkConnector;
 import net.hasor.meteor.connector.transport.NetworkConnectorFactory;
+import net.hasor.meteor.utils.ContextPathUtils;
 
 public final class HttpConnectorFactory implements NetworkConnectorFactory<HttpExchange> {
     public void configRoutes(Map<String, Map<String, String>> routes) {
@@ -19,18 +20,14 @@ public final class HttpConnectorFactory implements NetworkConnectorFactory<HttpE
         for (Map.Entry<String, Map<String, String>> route : routes.entrySet()) {
             Map<String, String> options = route.getValue();
             String defaultPath = routes.size() == 1 ? "/" : "/" + route.getKey();
-            String path = options.getOrDefault("contextPath", defaultPath);
-            if (!path.startsWith("/")) {
-                throw new IllegalArgumentException("Invalid HTTP mount: " + path);
-            }
-
-            path = path.replaceAll("/+$", "");
-            path = path.isEmpty() ? "/" : path;
-            if (!paths.add(path)) {
-                throw new IllegalArgumentException("Duplicate HTTP mount: " + path);
-            }
-
+            String path = ContextPathUtils.normalize(options.getOrDefault("contextPath", defaultPath));
             options.put("contextPath", path);
+
+            for (String mount : ContextPathUtils.contextPaths(options)) {
+                if (!paths.add(mount)) {
+                    throw new IllegalArgumentException("Duplicate HTTP directory mount: " + mount);
+                }
+            }
         }
     }
 

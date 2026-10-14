@@ -20,19 +20,25 @@ import net.hasor.meteor.connector.transport.*;
 /**
  * Bridges an application protocol to the framework, without depending on the network engine.
  */
-public final class EndpointConnector<M> extends AbstractConnector {
+final class EndpointConnector<M> extends AbstractConnector {
     private       NetworkConnector<M>             network;
     private final Set<NetworkChannel<M>>          connections = ConcurrentHashMap.newKeySet();
     private final NetworkConnectorFactory<M>      transport;
     private final Map<String, ProtocolFactory<M>> protocols;
     private final Map<String, NetworkRoute<M>>    routes;
+    private final ContextRoutes                   contexts;
 
-    public EndpointConnector(ConnectorConfig config, ConnectorManager manager,//
-            NetworkConnectorFactory<M> transport, Map<String, ProtocolFactory<M>> protocols, Map<String, NetworkRoute<M>> routes) {
+    EndpointConnector(ConnectorConfig config, ConnectorManager manager,//
+            NetworkConnectorFactory<M> transport, Map<String, ProtocolFactory<M>> protocols, Map<String, NetworkRoute<M>> routes, ContextRoutes contexts) {
         super(config, manager);
         this.transport = transport;
         this.protocols = protocols;
         this.routes = routes;
+        this.contexts = contexts;
+    }
+
+    ContextRoutes contextRoutes() {
+        return this.contexts;
     }
 
     protected void initialize() {

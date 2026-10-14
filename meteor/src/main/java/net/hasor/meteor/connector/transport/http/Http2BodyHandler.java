@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.transport.http;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -22,8 +23,8 @@ final class Http2BodyHandler implements ProtoHandler<HttpObject, HttpObject> {
     private final BiConsumer<Long, HttpResponse> responses;
     private final BiConsumer<Long, Throwable>    failures;
     private final HttpBody                       body     = new HttpBody(65535);
-    private final Map<String, String>            headers  = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    private final Map<String, String>            trailers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    private final Map<String, List<String>>      headers  = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    private final Map<String, List<String>>      trailers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private       String                         method;
     private       String                         uri;
     private       int                            status;
@@ -52,11 +53,11 @@ final class Http2BodyHandler implements ProtoHandler<HttpObject, HttpObject> {
                 }
 
                 if (message instanceof HttpHeaders fields) {
-                    Map<String, String> destination = this.headers;
+                    Map<String, List<String>> destination = this.headers;
                     if (message instanceof TrailerHttpHeaders) {
                         destination = this.trailers;
                     }
-                    destination.putAll(HttpMessages.headers(fields));
+                    HttpMessages.append(destination, fields);
                 }
 
                 // 在完整头部到达时发布交换，不等待正文结束。

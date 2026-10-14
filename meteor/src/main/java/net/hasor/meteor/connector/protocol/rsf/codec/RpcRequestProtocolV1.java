@@ -13,12 +13,12 @@ import java.io.IOException;
  * @version : 2014年10月25日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class RpcRequestProtocolV1 implements Protocol<RequestBlock> {
+class RpcRequestProtocolV1 {
 
     /**
      * encode Message to byte & write to network framework
      */
-    public void encode(RequestBlock reqMsg, WireBuffer buf) throws IOException {
+    void encode(RequestBlock reqMsg, WireBuffer buf) throws IOException {
         //* --------------------------------------------------------bytes =13
         //* byte[1]  version                              RSF版本
         buf.writeByte(reqMsg.getHead());
@@ -44,7 +44,7 @@ public class RpcRequestProtocolV1 implements Protocol<RequestBlock> {
     }
 
     private WireBuffer encodeRequest(RequestBlock reqMsg) {
-        WireBuffer bodyBuf = new WireBuffer();
+        WireBuffer bodyBuf = WireBuffer.output();
         //* --------------------------------------------------------bytes =14
         //* byte[2]  servicesName-(attr-index)            远程服务名
         bodyBuf.writeShort(reqMsg.getServiceName());
@@ -93,7 +93,7 @@ public class RpcRequestProtocolV1 implements Protocol<RequestBlock> {
     /**
      * decode stream to object
      */
-    public RequestBlock decode(WireBuffer buf) throws IOException {
+    RequestBlock decode(WireBuffer buf) throws IOException {
         //* --------------------------------------------------------bytes =13
         //* byte[1]  version                              RSF版本(0xC1)
         byte rsfHead = buf.readByte();

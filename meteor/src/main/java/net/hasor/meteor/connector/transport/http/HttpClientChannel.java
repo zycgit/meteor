@@ -20,10 +20,7 @@ import net.hasor.meteor.connector.transport.SocketTransport;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.NetChannel;
 import net.hasor.neta.channel.ProtoBuildContext;
-import net.hasor.neta.codec.http.DefaultFullHttpRequest;
-import net.hasor.neta.codec.http.FullHttpRequest;
-import net.hasor.neta.codec.http.HttpMethod;
-import net.hasor.neta.codec.http.HttpVersion;
+import net.hasor.neta.codec.http.*;
 
 /**
  * Serial HTTP/1 exchanges over a reusable, lazily connected socket.
@@ -35,7 +32,7 @@ final class HttpClientChannel extends HttpNetworkChannel {
     private volatile boolean                                          closed;
     private volatile NetChannel                                       channel;
     private          boolean                                          draining;
-    private          HttpCall                                         active;
+    private volatile HttpCall                                         active;
     private          Future<NetChannel>                               connecting;
 
     public HttpClientChannel(ConnectorConfig config, SocketTransport transport, InterAddress remote, Executor loop, BiConsumer<ProtoBuildContext, HttpClientChannel> pipeline) {
@@ -59,12 +56,12 @@ final class HttpClientChannel extends HttpNetworkChannel {
 
     public Future<Void> write(HttpExchange request) {
         BasicFuture<Void> sent = new BasicFuture<>();
+        sent.onFailed(done -> request.complete(done.getCause()));
         sent.onCancel(ignored -> request.complete(new CancellationException("HTTP request cancelled")));
 
         if (this.closed) {
             IOException failure = new IOException("HTTP session closed");
             sent.failed(failure);
-            request.complete(failure);
             return sent;
         }
 
@@ -82,7 +79,6 @@ final class HttpClientChannel extends HttpNetworkChannel {
         if (request.request().version() != 1) {
             IOException failure = new IOException("This request requires HTTP/2; configure connector httpVersion=2");
             sent.failed(failure);
-            request.complete(failure);
             return;
         }
 
@@ -99,7 +95,6 @@ final class HttpClientChannel extends HttpNetworkChannel {
         if (this.closed || pendingCount >= this.config.integer("maxPendingRequests", 1024)) {
             IOException failure = new IOException("HTTP session closed or request queue full");
             sent.failed(failure);
-            request.complete(failure);
             return;
         }
 
@@ -172,38 +167,77 @@ final class HttpClientChannel extends HttpNetworkChannel {
     private void writeNext() {
         HttpCall call = this.queue.removeFirst();
         this.active = call;
+        call.sent().onFinal(done -> this.execute(() -> this.written(call, done)));
+
         try {
             HttpRequest request = call.request().request();
+            HttpMethod method = HttpMethod.valueOf(request.method());
+            if (request.stream() != null) {
+                this.writeBody(call, method);
+                return;
+            }
             if (request.body().length > this.config.integer("maxFrameSize", 16 * 1024 * 1024)) {
                 throw new IOException("HTTP request too large");
             }
 
-            HttpMethod method = HttpMethod.valueOf(request.method());
             ByteBuf body = ByteBuf.wrap(request.body());
             FullHttpRequest out = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, request.uri(), body);
-            request.headers().forEach(out::setHeader);
+            HttpMessages.write(request.headers(), out);
             out.setHeader("Host", this.getRemote().getHostPort());
-            out.removeHeader("Transfer-Encoding");
-            out.setHeader("Content-Length", String.valueOf(request.body().length));
-            out.setHeader("Connection", "keep-alive");
+            if (request.trailers().isEmpty()) {
+                out.removeHeader("Transfer-Encoding");
+                out.setHeader("Content-Length", String.valueOf(request.body().length));
+            } else {
+                out.removeHeader("Content-Length");
+                out.setHeader("Transfer-Encoding", "chunked");
+                HttpMessages.write(request.trailers(), out.trailingHeaders());
+            }
 
-            this.writeSocket(this.channel, out).onFinal(done -> this.executor.execute(() -> {
-                Throwable failure = done.isCancelled() ? new CancellationException("HTTP write cancelled") : done.getCause();
-                this.completeWrite(call.sent(), null, failure);
-                if (failure != null && this.active == call) {
-                    this.active = null;
-                    this.failCall(call, failure);
-                    this.discardChannel();
-                    this.next();
-                } else if (this.draining && this.active == call) {
-                    this.finishCall(call, new IOException("HTTP connector closing"));
-                }
-            }));
+            out.setHeader("Connection", "keep-alive");
+            this.writeSocket(this.channel, out).onFinal(done -> {
+                this.completeWrite(call.sent(), null, writeFailure(done));
+            });
         } catch (Exception failure) {
-            this.active = null;
-            this.failCall(call, failure);
-            this.next();
+            call.sent().failed(failure);
         }
+    }
+
+    private void writeBody(HttpCall call, HttpMethod method) {
+        HttpRequest request = call.request().request();
+        HttpBody body = request.stream();
+        DefaultHttpRequest start = new DefaultHttpRequest(HttpVersion.HTTP_1_1, method, request.uri());
+        LastHttpHeaders headers = new DefaultLastHttpHeaders();
+        HttpMessages.write(request.headers(), headers);
+        headers.setHeader("Host", this.getRemote().getHostPort());
+        headers.setHeader("Connection", "keep-alive");
+        headers.removeHeader("Content-Length");
+        headers.setHeader("Transfer-Encoding", "chunked");
+
+        NetChannel socket = this.channel;
+        HttpBodyWriter writer = new HttpBodyWriter(0, body, request.trailers(), this::execute, message -> this.writeSocket(socket, message), call.sent());
+        this.writeSocket(socket, new Object[] { start, headers }).onFinal(done -> this.execute(() -> {
+            Throwable failure = writeFailure(done);
+            if (failure == null) {
+                writer.start();
+            } else {
+                this.failCall(call, failure);
+            }
+        }));
+    }
+
+    private void written(HttpCall call, Future<?> done) {
+        Throwable failure = writeFailure(done);
+        if (failure != null) {
+            this.finishCall(call, failure);
+        } else if (this.draining && this.active == call) {
+            this.finishCall(call, new IOException("HTTP connector closing"));
+        } else {
+            this.finishResponse(call);
+        }
+    }
+
+    private static Throwable writeFailure(Future<?> done) {
+        return done.isCancelled() ? new CancellationException("HTTP write cancelled") : done.getCause();
     }
 
     private void finishCall(HttpCall call, Throwable cause) {
@@ -281,6 +315,15 @@ final class HttpClientChannel extends HttpNetworkChannel {
         }
     }
 
+    boolean streamResponse() {
+        HttpCall call = this.active;
+        if (call == null) {
+            return false;
+        }
+        HttpRequest request = call.request().request();
+        return request.stream() != null || this.streamResponseBody();
+    }
+
     void receive(NetChannel socket, HttpResponse response, boolean keepAlive) {
         if (socket != this.channel || this.active == null) {
             socket.closeNow();
@@ -291,36 +334,59 @@ final class HttpClientChannel extends HttpNetworkChannel {
         }
 
         HttpCall call = this.active;
-        this.active = null;
+        call.response(response, keepAlive);
+        if (response.stream() != null) {
+            response.stream().completion().onFinal(done -> this.execute(() -> {
+                if (!done.isCancelled() && done.getCause() == null) {
+                    this.finishResponse(call);
+                } else {
+                    this.finishCall(call, done.getCause());
+                }
+            }));
+        }
+        call.request().respond(response);
+        this.finishResponse(call);
+    }
 
-        try {
-            call.request().respond(response);
-            call.request().complete(null);
-        } catch (Exception failure) {
-            this.failCall(call, failure);
+    private void finishResponse(HttpCall call) {
+        boolean written = call.sent().isDone() && !call.sent().isCancelled() && call.sent().getCause() == null;
+        if (this.active != call || call.response() == null || !written) {
+            return;
+        }
+        HttpBody body = call.response().stream();
+        if (body != null && (!body.completion().isDone() || body.completion().getCause() != null)) {
+            return;
         }
 
-        if (!keepAlive) {
+        // 完整消费响应且上传写完之后，才允许下一个请求复用这条 HTTP/1 连接。
+        this.active = null;
+        call.request().complete(null);
+        if (!call.keepAlive()) {
             this.discardChannel();
         }
-
         this.next();
     }
 
     void failed(NetChannel socket, Throwable failure) {
-        if (socket == this.channel) {
-            this.channel = null;
-            if (this.active != null) {
-                HttpCall call = this.active;
-                this.active = null;
-                this.failCall(call, failure);
-            }
-            this.next();
+        if (socket != this.channel) {
+            return;
         }
-    }
-
-    void dispatch(Runnable action) {
-        this.executor.execute(action);
+        this.channel = null;
+        HttpCall call = this.active;
+        if (call != null) {
+            HttpResponse response = call.response();
+            HttpBody body = response == null ? null : response.stream();
+            boolean received = response != null && (body == null || body.inputEnded());
+            boolean written = call.sent().isDone() && !call.sent().isCancelled() && call.sent().getCause() == null;
+            if (received && written) {
+                // EOF 之后，已经完整接收的正文仍可由应用读完。
+                this.finishResponse(call);
+                return;
+            }
+            this.active = null;
+            this.failCall(call, failure);
+        }
+        this.next();
     }
 
     private void failCall(HttpCall call, Throwable error) {

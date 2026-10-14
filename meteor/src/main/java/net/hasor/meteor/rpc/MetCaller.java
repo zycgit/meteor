@@ -61,14 +61,8 @@ public final class MetCaller implements AutoCloseable {
         }
     }
 
-    public MetContext getContext() {
+    MetContext getContext() {
         return this.context;
-    }
-
-    /** 获取正在进行中的调用请求。 */
-    public MetFuture getRequest(long requestID) {
-        PendingRequest pending = this.rsfResponse.get(requestID);
-        return pending == null ? null : pending.future;
     }
 
     //
@@ -118,10 +112,6 @@ public final class MetCaller implements AutoCloseable {
         }
     }
 
-    public boolean isClosed() {
-        return this.closed;
-    }
-
     //
     // for request
     //
@@ -154,7 +144,7 @@ public final class MetCaller implements AutoCloseable {
         request.setFlags(flags);
         request.setSerializeType(bindInfo.getSerializeType());
         request.setMessage(bindInfo.isMessage());
-        request.setTimeout(bindInfo.getClientTimeout());
+        request.setTimeout(this.timeout(bindInfo.getClientTimeout()));
 
         // 创建时复制默认选项，后续由调用方覆盖或删除。
         request.addOptionMap(this.context.getSettings().getRequestOptions());
@@ -166,7 +156,7 @@ public final class MetCaller implements AutoCloseable {
         MetBindInfo<?> bindInfo = rsfRequest.getBindInfo();
         String serviceID = bindInfo.getBindID();
         MetFuture rsfFuture = this.createFuture(rsfRequest);
-        if (this.isClosed()) {
+        if (this.closed) {
             rsfFuture.failed(new IllegalStateException("RSF runtime closed"));
             return rsfFuture;
         }
@@ -238,7 +228,7 @@ public final class MetCaller implements AutoCloseable {
 
     /** Reserve capacity before mapping; a registered entry owns its permit and timer. */
     private RequestPayload prepareRequest(MetFuture future, Callable<RequestPayload> mapping) throws Exception {
-        if (this.isClosed()) {
+        if (this.closed) {
             throw new IllegalStateException("RSF runtime closed");
         }
         if (!this.acquireRequestPermit(future)) {
@@ -265,7 +255,7 @@ public final class MetCaller implements AutoCloseable {
     }
 
     private synchronized void registerRequest(MetFuture future, RequestPayload payload) {
-        if (this.isClosed()) {
+        if (this.closed) {
             throw new IllegalStateException("RSF runtime closed");
         }
         if (future.isDone()) {
@@ -273,7 +263,7 @@ public final class MetCaller implements AutoCloseable {
         }
 
         long requestId = future.getRequest().getRequestID();
-        PendingRequest pending = new PendingRequest(future, payload, this.timeout(future));
+        PendingRequest pending = new PendingRequest(future, payload, this.timeout(future.getRequest().getTimeout()));
         if (this.rsfResponse.putIfAbsent(requestId, pending) != null) {
             throw new IllegalStateException("Request is already pending");
         }
@@ -283,7 +273,7 @@ public final class MetCaller implements AutoCloseable {
         long requestId = future.getRequest().getRequestID();
         Cancellable timer = this.connectors.schedule(() -> {
             this.putResponse(requestId, new MetTimeoutException("request(" + requestId + ") -> timeout for client."));
-        }, this.timeout(future));
+        }, this.timeout(future.getRequest().getTimeout()));
 
         synchronized (this) {
             PendingRequest pending = this.rsfResponse.get(requestId);
@@ -321,7 +311,7 @@ public final class MetCaller implements AutoCloseable {
     private Future<?> sendRequest(InterAddress address, RequestPayload request) {
         BasicFuture<MetChannel> sent = new BasicFuture<>();
 
-        if (this.isClosed()) {
+        if (this.closed) {
             sent.failed(new IllegalStateException("RPC is closed"));
         } else {
             this.connectors.connect(address).onFinal(connected -> {
@@ -415,8 +405,10 @@ public final class MetCaller implements AutoCloseable {
         }
     }
 
-    private int timeout(MetFuture future) {
-        int timeout = future.getRequest().getTimeout();
+    private int timeout(int timeout) {
+        if (timeout <= 0) {
+            timeout = this.context.getSettings().getRequestTimeout();
+        }
         return timeout > 0 ? timeout : this.context.getSettings().getDefaultTimeout();
     }
 
@@ -427,7 +419,7 @@ public final class MetCaller implements AutoCloseable {
     /** Receive decoded messages only through the connector subscription. */
     private void onMessage(MetChannel channel, long requestId, Payload payload) {
         // Responses and failures remain deliverable while connector writes drain.
-        if (payload.getType() == Payload.Type.REQUEST && this.isClosed()) {
+        if (payload.getType() == Payload.Type.REQUEST && this.closed) {
             ((RequestPayload) payload).complete(new IllegalStateException("RPC is closed"));
             return;
         }
@@ -541,7 +533,7 @@ public final class MetCaller implements AutoCloseable {
             }
         }
         MetResponseObject response = new MetResponseObject(request);
-        response.addOptionMap(info);
+        response.setOptions(info);
         response.sendData(result);
         invLogger.info("response(" + request.getRequestID() + ") -> successful, bindID =" + request.getBindInfo().getBindID() + ".");
         future.completed(response);

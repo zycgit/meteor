@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.domain.warp;
 import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetOptionParser;
 import net.hasor.meteor.MetResponse;
 
 /**
@@ -45,6 +46,16 @@ public abstract class AbstractMetResponseWarp implements MetResponse {
     @Override
     public void addOption(String key, String value) {
         this.getRsfResponse().addOption(key, value);
+    }
+
+    @Override
+    public <T> T getOption(String key, MetOptionParser<T> parser) {
+        return parser.parse(this.getOption(key));
+    }
+
+    @Override
+    public <T> void addOption(String key, T value, MetOptionParser<T> parser) {
+        this.addOption(key, parser.format(value));
     }
 
     @Override

@@ -8,16 +8,19 @@
 package net.hasor.meteor.connector.transport;
 import java.util.Map;
 import java.util.function.Function;
+import net.hasor.meteor.connector.ContextPaths;
 
 /** Route options and a non-consuming message probe, independent of application payloads. */
 public final class NetworkRoute<M> {
     private final Map<String, String>     options;
     private final Function<M, RouteMatch> probe;
+    private final ContextPaths            contexts;
 
-    /** 接收已完成配置的参数 Map；调用方不再修改，对外仅提供只读视图。 */
-    public NetworkRoute(Map<String, String> options, Function<M, RouteMatch> probe) {
+    /** 接收已完成配置且不再修改的参数，共享协议已编译的挂载表，不重复解析配置。 */
+    public NetworkRoute(Map<String, String> options, ContextPaths contexts, Function<M, RouteMatch> probe) {
         this.options = options;
         this.probe = probe;
+        this.contexts = contexts;
     }
 
     public Map<String, String> options() {
@@ -26,5 +29,9 @@ public final class NetworkRoute<M> {
 
     public RouteMatch match(M message) {
         return this.probe.apply(message);
+    }
+
+    public ContextPaths contexts() {
+        return this.contexts;
     }
 }

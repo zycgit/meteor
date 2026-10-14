@@ -22,7 +22,10 @@ import net.hasor.meteor.serialize.SerializeCoder;
  * @version : 2014年11月4日
  * @author 赵永春(zyc @ hasor.net)
  */
-public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
+public final class CodecAdapterForV1 {
+    private static final byte RSF_InvokerRequest = (byte) 0x91;
+    private static final byte RSF_MessageRequest = (byte) 0xa1;
+    private static final byte RSF_Response       = (byte) 0xb1;
 
     private final MetContext  context;
     private final ClassLoader classLoader;
@@ -35,13 +38,13 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
     public byte[] encode(Payload message) throws IOException {
         PoolBlock block = null;
         try {
-            WireBuffer output = new WireBuffer();
+            WireBuffer output = WireBuffer.output();
             if (message instanceof RequestPayload request) {
                 block = this.buildRequestBlock(request);
-                this.writeRequestBlock((RequestBlock) block, output);
+                this.requestProtocol.encode((RequestBlock) block, output);
             } else if (message instanceof ResponsePayload response) {
                 block = this.buildResponseBlock(response);
-                this.writeResponseBlock((ResponseBlock) block, output);
+                this.responseProtocol.encode((ResponseBlock) block, output);
             } else {
                 throw new IOException("Unsupported RSF message");
             }
@@ -55,7 +58,7 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
 
     public Payload decode(byte[] frame) throws Exception {
         try {
-            WireBuffer input = new WireBuffer(frame);
+            WireBuffer input = WireBuffer.input(frame);
             if (frame[0] == RSF_InvokerRequest || frame[0] == RSF_MessageRequest) {
                 RequestPayload request = this.readRequestPayload(input);
                 request.setReceiveTime(System.currentTimeMillis());
@@ -75,8 +78,7 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
         }
     }
 
-    @Override
-    public RequestBlock buildRequestBlock(RequestPayload info) throws IOException {
+    private RequestBlock buildRequestBlock(RequestPayload info) throws IOException {
         RequestBlock block = new RequestBlock();
         if (info.isMessage()) {
             block.setHead(RSF_MessageRequest);
@@ -130,8 +132,7 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
         return block;
     }
 
-    @Override
-    public ResponseBlock buildResponseBlock(ResponsePayload info) throws IOException {
+    private ResponseBlock buildResponseBlock(ResponsePayload info) throws IOException {
         ResponseBlock block = new ResponseBlock();
 
         //1.基本信息
@@ -169,16 +170,10 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
         return block.pushData(WireStrings.fromCache(value));
     }
 
-    private final Protocol<RequestBlock>  requestProtocol  = new RpcRequestProtocolV1();
-    private final Protocol<ResponseBlock> responseProtocol = new RpcResponseProtocolV1();
+    private final RpcRequestProtocolV1  requestProtocol  = new RpcRequestProtocolV1();
+    private final RpcResponseProtocolV1 responseProtocol = new RpcResponseProtocolV1();
 
-    @Override
-    public void writeRequestBlock(RequestBlock block, WireBuffer out) throws IOException {
-        this.requestProtocol.encode(block, out);
-    }
-
-    @Override
-    public RequestPayload readRequestPayload(WireBuffer frame) throws Throwable {
+    private RequestPayload readRequestPayload(WireBuffer frame) throws Throwable {
         RequestBlock rsfBlock = this.requestProtocol.decode(frame);
         RequestPayload info = new RequestPayload();
         try {
@@ -245,13 +240,7 @@ public class CodecAdapterForV1 implements CodecAdapter, ProtocolConstants {
         return info;
     }
 
-    @Override
-    public void writeResponseBlock(ResponseBlock block, WireBuffer out) throws IOException {
-        this.responseProtocol.encode(block, out);
-    }
-
-    @Override
-    public ResponsePayload readResponsePayload(WireBuffer frame) throws Throwable {
+    private ResponsePayload readResponsePayload(WireBuffer frame) throws Throwable {
         ResponseBlock rsfBlock = this.responseProtocol.decode(frame);
         ResponsePayload info = new ResponsePayload();
         try {

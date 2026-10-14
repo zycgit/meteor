@@ -30,7 +30,7 @@ import net.hasor.meteor.domain.ProtocolStatus;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class MetContainer {
-    protected            Logger                                     logger       = LoggerFactory.getLogger(this.getClass());
+    private final static Logger                                     logger       = LoggerFactory.getLogger(MetContainer.class);
     private final static Supplier[]                                 EMPTY_FILTER = new Supplier[0];
     private final        Map<String, ServiceDefine<?>>              serviceMap   = new ConcurrentHashMap<>();
     private final        Map<String, ConcurrentMap<String, String>> aliasNameMap = new ConcurrentHashMap<>();
@@ -46,7 +46,7 @@ public class MetContainer {
         this.addressPool = addressPool;
     }
 
-    /** 监听服务提供者、订阅者的注册与移除；变更完成后同步通知，取消不打断正在执行的回调。 */
+    /** 同步监听服务登记与移除；REGISTERED 异常撤销本次登记，取消不打断正在执行的回调。 */
     public Cancellable subscribe(MetContextListener listener) {
         Objects.requireNonNull(listener, "listener");
         MetContextListener subscription = listener::onEvent;
@@ -59,7 +59,10 @@ public class MetContainer {
             try {
                 listener.onEvent(event);
             } catch (RuntimeException failure) {
-                this.logger.warn("Meteor container event callback failed: " + event.getType(), failure);
+                if (event.getType() == MetContextEventType.REGISTERED) {
+                    throw failure;
+                }
+                logger.warn("Meteor container event callback failed: " + event.getType(), failure);
             }
         }
     }
@@ -264,7 +267,7 @@ public class MetContainer {
             if (this.serviceMap.containsKey(serviceID)) {
                 MetServiceType serviceType = this.serviceMap.get(serviceID).getDomain().getServiceType();
                 String logMessage = "a " + serviceType + " of the same name already exists , serviceID -> " + serviceID;
-                this.logger.error(logMessage);
+                logger.error(logMessage);
                 throw new IllegalStateException(logMessage);
             }
 
@@ -288,8 +291,20 @@ public class MetContainer {
             this.serviceMap.put(serviceID, serviceDefine);
         }
 
-        this.logger.info("service published, id= " + serviceID);
-        this.notifyEvent(new MetContextEvent(MetContextEventType.REGISTERED, serviceDefine.getDomain()));
+        // 登记事件处理失败时撤销本次服务，错误交回发布者。
+        try {
+            this.notifyEvent(new MetContextEvent(MetContextEventType.REGISTERED, serviceDefine.getDomain()));
+        } catch (RuntimeException | Error failure) {
+            try {
+                this.recoverService(serviceID, serviceDefine);
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != failure) {
+                    failure.addSuppressed(cleanup);
+                }
+            }
+            throw failure;
+        }
+        logger.info("service published, id= " + serviceID);
     }
 
     /**
@@ -297,10 +312,17 @@ public class MetContainer {
      * @param serviceID 服务定义。
      */
     public boolean recoverService(String serviceID) {
+        return this.recoverService(serviceID, null);
+    }
+
+    private boolean recoverService(String serviceID, ServiceDefine<?> expected) {
         ServiceDefine<?> service;
         synchronized (this) {
             service = this.serviceMap.get(serviceID);
             if (service == null) {
+                return false;
+            }
+            if (expected != null && service != expected) {
                 return false;
             }
 

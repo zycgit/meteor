@@ -19,6 +19,7 @@ public final class HttpExchange {
 
     public HttpExchange(HttpRequest request) {
         this.request = request;
+        this.trackBody(request.stream());
     }
 
     public HttpRequest request() {
@@ -30,7 +31,12 @@ public final class HttpExchange {
     }
 
     public boolean respond(HttpResponse response) {
-        return this.response.completed(response);
+        if (!this.response.completed(response)) {
+            return false;
+        } else {
+            this.trackBody(response.stream());
+            return true;
+        }
     }
 
     public Future<Void> completion() {
@@ -43,6 +49,14 @@ public final class HttpExchange {
         } else {
             this.completion.failed(cause);
             this.response.failed(cause);
+        }
+    }
+
+    private void trackBody(HttpBody body) {
+        if (body != null) {
+            // 即使尚未入队或尚未建立物理连接，失败也必须释放正文的生产者/消费者。
+            this.completion.onFailed(done -> body.fail(done.getCause()));
+            body.completion().onFailed(done -> this.complete(done.getCause()));
         }
     }
 }

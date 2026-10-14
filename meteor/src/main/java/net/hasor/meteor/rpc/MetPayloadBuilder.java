@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.rpc;
-import java.io.IOException;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetRequest;
@@ -21,8 +20,11 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
  * @author 赵永春 (zyc@hasor.net)
  */
 final class MetPayloadBuilder {
+    private MetPayloadBuilder() {
+    }
+
     /**将{@link MetRequest},转换为{@link RequestPayload}。*/
-    public static RequestPayload buildRequestPayload(MetRequest rsfRequest) throws IOException {
+    static RequestPayload buildRequestPayload(MetRequest rsfRequest) {
         RequestPayload info = new RequestPayload();
         MetBindInfo<?> rsfBindInfo = rsfRequest.getBindInfo();
         String serializeType = rsfRequest.getSerializeType();
@@ -52,7 +54,7 @@ final class MetPayloadBuilder {
         return info;
     }
 
-    public static ResponsePayload buildResponseStatus(long requestID, short status, String errorInfo) {
+    static ResponsePayload buildResponseStatus(long requestID, short status, String errorInfo) {
         ResponsePayload info = new ResponsePayload();
         info.setRequestID(requestID);
         info.setStatus(status);
@@ -63,7 +65,7 @@ final class MetPayloadBuilder {
     }
 
     /**将{@link MetResponse},转换为{@link ResponsePayload}。*/
-    public static ResponsePayload buildResponsePayload(MetResponse rsfResponse) throws IOException {
+    static ResponsePayload buildResponsePayload(MetResponse rsfResponse) {
         ResponsePayload info = new ResponsePayload();
         String serializeType = rsfResponse.getSerializeType();
         info.setRequestID(rsfResponse.getRequestID());
@@ -71,7 +73,7 @@ final class MetPayloadBuilder {
         info.setSerializeType(serializeType);
         info.setReturnType(rsfResponse.getReturnType().getName());
         info.setReturnData(rsfResponse.getData());
-        info.addOptionMap(rsfResponse);
+        info.setOptions(rsfResponse);
         return info;
     }
 }

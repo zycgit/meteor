@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.rpc;
-import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
 import net.hasor.cobble.logging.Logger;
@@ -28,17 +27,17 @@ final class MetDispatcher implements AutoCloseable {
     private final        MetFilterProvider     filters;
     private final        MetDispatcherExecutor dispatcherExecutor;
 
-    public MetDispatcher(MetContext context, MetFilterProvider filters) {
+    MetDispatcher(MetContext context, MetFilterProvider filters) {
         this.context = context;
         this.filters = filters;
-        this.dispatcherExecutor = new MetDispatcherExecutor(context.getSettings(), context.getClassLoader());
+        this.dispatcherExecutor = new MetDispatcherExecutor(context);
     }
 
-    public MetContext getContext() {
+    MetContext getContext() {
         return this.context;
     }
 
-    public Supplier<MetFilter>[] getFilterProviders(String serviceId) {
+    Supplier<MetFilter>[] getFilterProviders(String serviceId) {
         return this.filters.getFilterProviders(serviceId);
     }
 
@@ -53,7 +52,7 @@ final class MetDispatcher implements AutoCloseable {
      * @param requestId 请求标识。
      * @param info 请求消息。
      */
-    public void onRequest(MetChannel channel, long requestId, RequestPayload info) {
+    void onRequest(MetChannel channel, long requestId, RequestPayload info) {
         if (requestId != info.getRequestID()) {
             logger.warn("Request ID mismatch: envelope=" + requestId + ", payload=" + info.getRequestID());
             info.complete(new IllegalArgumentException("Request ID mismatch"));
@@ -77,8 +76,7 @@ final class MetDispatcher implements AutoCloseable {
         String serviceUniqueName = "[" + info.getServiceGroup() + "]" + info.getServiceName() + "-" + info.getServiceVersion();
         try {
             logger.info("request(" + info.getRequestID() + ") -> received, bindID =" + serviceUniqueName + ", targetMethod =" + info.getTargetMethod() + ", remoteAddress =" + target + ".");
-            Executor executor = this.dispatcherExecutor.getExecute(serviceUniqueName);
-            executor.execute(new MetInvocationTask(channel, this, info));//放入业务线程准备执行
+            this.dispatcherExecutor.execute(service, new MetInvocationTask(channel, this, info));//放入业务线程准备执行
             ResponsePayload resp = MetPayloadBuilder.buildResponseStatus(info.getRequestID(), ProtocolStatus.Accept, null);
 
             channel.sendData(resp).onFinal(done -> {

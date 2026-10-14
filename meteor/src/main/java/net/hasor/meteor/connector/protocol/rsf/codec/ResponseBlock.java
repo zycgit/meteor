@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.protocol.rsf.codec;
+import net.hasor.cobble.ArrayUtils;
 
 /**
  * RSF 1.0 Response 二进制传输协议
@@ -35,7 +36,7 @@ package net.hasor.meteor.connector.protocol.rsf.codec;
  * @version : 2014年10月25日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class ResponseBlock extends PoolBlock {
+class ResponseBlock extends PoolBlock {
     private byte  rsfHead       = 0;  // byte[1]  RSF头
     private long  requestID     = 0;  // byte[8]  请求ID
     private short status        = 0;  // byte[2]  响应状态
@@ -47,91 +48,91 @@ public class ResponseBlock extends PoolBlock {
     /**
      * 获取协议版本。
      */
-    public byte getHead() {
+    byte getHead() {
         return this.rsfHead;
     }
 
     /**
      * 设置协议版本。
      */
-    public void setHead(byte rsfHead) {
+    void setHead(byte rsfHead) {
         this.rsfHead = rsfHead;
     }
 
     /**
      * 获取请求ID。
      */
-    public long getRequestID() {
+    long getRequestID() {
         return this.requestID;
     }
 
     /**
      * 设置请求ID。
      */
-    public void setRequestID(long requestID) {
+    void setRequestID(long requestID) {
         this.requestID = requestID;
     }
 
     /**
      * 获取响应状态
      */
-    public short getStatus() {
+    short getStatus() {
         return this.status;
     }
 
     /**
      * 设置响应状态
      */
-    public void setStatus(short status) {
+    void setStatus(short status) {
         this.status = status;
     }
 
     /**
      * 获取序列化类型
      */
-    public short getSerializeType() {
+    short getSerializeType() {
         return this.serializeType;
     }
 
     /**
      * 设置序列化类型
      */
-    public void setSerializeType(short serializeType) {
+    void setSerializeType(short serializeType) {
         this.serializeType = serializeType;
     }
 
     /**
      * 获取返回值类型
      */
-    public short getReturnType() {
+    short getReturnType() {
         return this.returnType;
     }
 
     /**
      * 设置返回值类型
      */
-    public void setReturnType(short returnType) {
+    void setReturnType(short returnType) {
         this.returnType = returnType;
     }
 
     /**
      * 获取返回值数据
      */
-    public short getReturnData() {
+    short getReturnData() {
         return this.returnData;
     }
 
     /**
      * 设置返回值数据
      */
-    public void setReturnData(short returnData) {
+    void setReturnData(short returnData) {
         this.returnData = returnData;
     }
 
     /**
      * 添加选项。
      */
-    public void addOption(short paramType, short paramData) {
+    void addOption(short paramType, short paramData) {
         int pType = paramType << 16;
         int pData = paramData;
         int mergeData = (pType | pData);
@@ -141,14 +142,14 @@ public class ResponseBlock extends PoolBlock {
     /**
      * 添加选项。
      */
-    public void addOption(int mergeData) {
+    void addOption(int mergeData) {
         this.optionMap = ArrayUtils.add(this.optionMap, mergeData);
     }
 
     /**
      * 获取Option。
      */
-    public int[] getOptions() {
+    int[] getOptions() {
         return this.optionMap;
     }
 }

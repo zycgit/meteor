@@ -12,6 +12,8 @@ class HttpCall {
     private final HttpExchange      request;
     private final BasicFuture<Void> sent;
     private       boolean           failed;
+    private       HttpResponse      response;
+    private       boolean           keepAlive;
 
     public HttpCall(HttpExchange request, BasicFuture<Void> sent) {
         this.request = request;
@@ -24,6 +26,19 @@ class HttpCall {
 
     public BasicFuture<Void> sent() {
         return this.sent;
+    }
+
+    void response(HttpResponse response, boolean keepAlive) {
+        this.response = response;
+        this.keepAlive = keepAlive;
+    }
+
+    HttpResponse response() {
+        return this.response;
+    }
+
+    boolean keepAlive() {
+        return this.keepAlive;
     }
 
     public boolean markFailed() {

@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.address;
-import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.address.route.random.RandomFlowControl;
 import net.hasor.meteor.address.route.speed.SpeedFlowControl;
 import net.hasor.meteor.address.route.unit.UnitFlowControl;
@@ -19,23 +18,6 @@ public class FlowControlRef {
     public SpeedFlowControl  speedFlowControl;
 
     private FlowControlRef() {
-    }
-
-    public static FlowControlRef newRef(FlowControlRef ref) {
-        FlowControlRef newRef = defaultRef();
-        if (!StringUtils.isBlank(ref.flowControlScript)) {
-            newRef.flowControlScript = ref.flowControlScript;
-        }
-        if (ref.unitFlowControl != null) {
-            newRef.unitFlowControl = ref.unitFlowControl;
-        }
-        if (ref.randomFlowControl != null) {
-            newRef.randomFlowControl = ref.randomFlowControl;
-        }
-        if (ref.speedFlowControl != null) {
-            newRef.speedFlowControl = ref.speedFlowControl;
-        }
-        return newRef;
     }
 
     public static FlowControlRef defaultRef() {

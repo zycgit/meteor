@@ -14,13 +14,22 @@ import net.hasor.cobble.concurrent.future.Future;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class ResponsePayload extends Payload {
-    private long         requestID     = 0;    //请求ID
-    private long         receiveTime   = 0;    //数据包到达时间
-    private short        status        = 0;    //响应状态
-    private String       serializeType = null; //序列化类型
-    private String       returnType    = null; //返回数据类型
-    private Object       returnData    = null; //返回数据
-    private Future<Void> completion;    //流返回值的实际结束信号；普通响应为空
+    private           long         requestID     = 0;    //请求ID
+    private           long         receiveTime   = 0;    //数据包到达时间
+    private           short        status        = 0;    //响应状态
+    private           String       serializeType = null; //序列化类型
+    private           String       returnType    = null; //返回数据类型
+    private           Object       returnData    = null; //返回数据
+    private           Future<Void> completion;    //流返回值的实际结束信号；普通响应为空
+    private transient Throwable    failure; //本地执行失败，交给协议转换；不直接编码异常对象
+
+    public Throwable getFailure() {
+        return this.failure;
+    }
+
+    public void setFailure(Throwable failure) {
+        this.failure = failure;
+    }
 
     public ResponsePayload() {
         super(Type.RESPONSE);

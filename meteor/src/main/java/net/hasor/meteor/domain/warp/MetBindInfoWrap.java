@@ -9,6 +9,7 @@ package net.hasor.meteor.domain.warp;
 import java.util.Map;
 import java.util.Set;
 import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.domain.ContextPath;
 import net.hasor.meteor.domain.MetServiceType;
 
 /**
@@ -85,6 +86,11 @@ public class MetBindInfoWrap<T> implements MetBindInfo<T> {
     @Override
     public Set<String> getBindProtocols() {
         return this.target.getBindProtocols();
+    }
+
+    @Override
+    public Map<String, ContextPath> getBindContextPaths() {
+        return this.target.getBindContextPaths();
     }
 
     @Override

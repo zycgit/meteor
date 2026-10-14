@@ -9,12 +9,18 @@ package net.hasor.meteor.container;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.RouteTypeEnum;
+import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ContextPath;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.ServiceDomain;
 
@@ -96,6 +102,7 @@ final class MetBindBuilder implements MetPublisher {
             if (group.contains("/")) {
                 throw new IllegalStateException(group + " contain '/'");
             }
+
             this.serviceDefine.getDomain().setBindGroup(group);
             return this;
         }
@@ -106,6 +113,7 @@ final class MetBindBuilder implements MetPublisher {
             if (name.contains("/")) {
                 throw new IllegalStateException(name + " contain '/'");
             }
+
             this.serviceDefine.getDomain().setBindName(name);
             return this;
         }
@@ -124,6 +132,7 @@ final class MetBindBuilder implements MetPublisher {
             if (version.contains("/")) {
                 throw new IllegalStateException(version + " contain '/'");
             }
+
             this.serviceDefine.getDomain().setBindVersion(version);
             return this;
         }
@@ -133,6 +142,7 @@ final class MetBindBuilder implements MetPublisher {
             if (clientTimeout < 1) {
                 throw new IllegalStateException("clientTimeout must be greater than 0");
             }
+
             this.serviceDefine.getDomain().setClientTimeout(clientTimeout);
             return this;
         }
@@ -143,6 +153,7 @@ final class MetBindBuilder implements MetPublisher {
             if (serializeType.contains("/")) {
                 throw new IllegalStateException(serializeType + " contain '/'");
             }
+
             this.serviceDefine.getDomain().setSerializeType(serializeType);
             return this;
         }
@@ -158,12 +169,56 @@ final class MetBindBuilder implements MetPublisher {
             if (StringUtils.isNotBlank(protocol)) {
                 this.serviceDefine.getDomain().addBindProtocol(protocol);
             }
+
             for (String prot : protocolArrays) {
                 if (StringUtils.isNotBlank(prot)) {
                     this.serviceDefine.getDomain().addBindProtocol(prot);
                 }
             }
             return this;
+        }
+
+        @Override
+        public ConfigurationBuilder<T> contextPathByPrefix(String protocol, String defaultContextPath, String... additionalContextPaths) {
+            Objects.requireNonNull(additionalContextPaths, "additionalPaths");
+            List<String> paths = new ArrayList<>(additionalContextPaths.length + 1);
+            paths.add(defaultContextPath);
+            Collections.addAll(paths, additionalContextPaths);
+            String scheme = this.pathProtocol(protocol);
+            ContextPath context = new ContextPath(paths, false);
+            this.serviceDefine.getDomain().setBindContextPaths(scheme, context);
+            return this;
+        }
+
+        @Override
+        public ConfigurationBuilder<T> contextPathByExact(String protocol, String path, String... additionalPaths) {
+            Objects.requireNonNull(additionalPaths, "additionalPaths");
+            List<String> paths = new ArrayList<>(additionalPaths.length + 1);
+            paths.add(path);
+            Collections.addAll(paths, additionalPaths);
+            String scheme = this.pathProtocol(protocol);
+            ContextPath context = new ContextPath(paths, true);
+            this.serviceDefine.getDomain().setBindContextPaths(scheme, context);
+            return this;
+        }
+
+        /** 协议名与 scheme 先归一，再替换路径，避免两种名称保留不同的匹配模式。 */
+        private String pathProtocol(String selection) {
+            if (StringUtils.isBlank(selection)) {
+                throw new IllegalArgumentException("Path protocol must not be blank");
+            }
+
+            String name = selection.trim();
+            for (ConnectorConfig endpoint : MetBindBuilder.this.getSettings().getConnectorConfigs()) {
+                for (ProtocolConfig protocol : endpoint.protocols()) {
+                    boolean matchesName = StringUtils.equalsIgnoreCase(name, protocol.name());
+                    boolean matchesScheme = StringUtils.equalsIgnoreCase(name, protocol.scheme());
+                    if (matchesName || matchesScheme) {
+                        return protocol.scheme();
+                    }
+                }
+            }
+            throw new IllegalArgumentException("Path selected for unknown protocol: " + selection);
         }
 
         public ConfigurationBuilder<T> bindFilter(String filterID, MetFilter instance) {
@@ -225,6 +280,7 @@ final class MetBindBuilder implements MetPublisher {
             if (InterAddress.checkFormat(rsfURI)) {
                 this.bindAddress(new InterAddress(rsfURI));
             }
+
             for (URI bindItem : array) {
                 if (!InterAddress.checkFormat(bindItem)) {
                     throw new IllegalStateException(bindItem + " check fail.");

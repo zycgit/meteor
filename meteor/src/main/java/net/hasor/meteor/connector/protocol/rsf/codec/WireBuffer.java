@@ -11,31 +11,35 @@ import java.util.Arrays;
 /**
  * Bounded, heap-owned big-endian wire buffer. No pooled/network buffer escapes the transport.
  */
-public final class WireBuffer {
+final class WireBuffer {
     private static final int    LIMIT = 0xFFFFFF + 13;
     private              byte[] data;
     private              int    reader;
     private              int    writer;
 
-    public WireBuffer() {
-        this.data = new byte[128];
+    private WireBuffer(byte[] data, int writer) {
+        this.data = data;
+        this.writer = writer;
     }
 
-    public WireBuffer(byte[] bytes) {
-        this.data = bytes.clone();
-        this.writer = bytes.length;
+    static WireBuffer output() {
+        return new WireBuffer(new byte[128], 0);
     }
 
-    public int readableBytes() {
+    static WireBuffer input(byte[] bytes) {
+        return new WireBuffer(bytes.clone(), bytes.length);
+    }
+
+    int readableBytes() {
         return this.writer - this.reader;
     }
 
-    public byte[] toByteArray() {
+    byte[] toByteArray() {
         return Arrays.copyOfRange(this.data, this.reader, this.writer);
     }
 
     private void require(int count) {
-        if (this.data == null || count < 0 || count > readableBytes()) {
+        if (this.data == null || count < 0 || count > this.readableBytes()) {
             throw new IllegalArgumentException("Truncated RSF frame");
         }
     }
@@ -56,59 +60,59 @@ public final class WireBuffer {
         }
     }
 
-    public WireBuffer writeByte(int value) {
-        reserve(1);
+    WireBuffer writeByte(int value) {
+        this.reserve(1);
         this.data[this.writer++] = (byte) value;
         return this;
     }
 
-    public WireBuffer writeShort(int value) {
-        return writeNumber(value, 2);
+    WireBuffer writeShort(int value) {
+        return this.writeNumber(value, 2);
     }
 
-    public WireBuffer writeMedium(int value) {
-        return writeNumber(value, 3);
+    WireBuffer writeMedium(int value) {
+        return this.writeNumber(value, 3);
     }
 
-    public WireBuffer writeInt(int value) {
-        return writeNumber(value, 4);
+    WireBuffer writeInt(int value) {
+        return this.writeNumber(value, 4);
     }
 
-    public WireBuffer writeLong(long value) {
-        return writeNumber(value, 8);
+    WireBuffer writeLong(long value) {
+        return this.writeNumber(value, 8);
     }
 
     private WireBuffer writeNumber(long value, int size) {
-        reserve(size);
+        this.reserve(size);
         for (int i = size - 1; i >= 0; i--) {
             this.data[this.writer++] = (byte) (value >>> (i * 8));
         }
         return this;
     }
 
-    public byte readByte() {
-        require(1);
+    byte readByte() {
+        this.require(1);
         return this.data[this.reader++];
     }
 
-    public int readUnsignedByte() {
-        return readByte() & 255;
+    int readUnsignedByte() {
+        return this.readByte() & 255;
     }
 
-    public short readShort() {
-        return (short) readNumber(2);
+    short readShort() {
+        return (short) this.readNumber(2);
     }
 
-    public int readInt() {
-        return (int) readNumber(4);
+    int readInt() {
+        return (int) this.readNumber(4);
     }
 
-    public long readLong() {
-        return readNumber(8);
+    long readLong() {
+        return this.readNumber(8);
     }
 
     private long readNumber(int size) {
-        require(size);
+        this.require(size);
         long value = 0;
         for (int i = 0; i < size; i++) {
             value = (value << 8) | (this.data[this.reader++] & 255);
@@ -116,24 +120,24 @@ public final class WireBuffer {
         return value;
     }
 
-    public WireBuffer skipBytes(int size) {
-        require(size);
+    WireBuffer skipBytes(int size) {
+        this.require(size);
         this.reader += size;
         return this;
     }
 
-    public WireBuffer writeBytes(byte[] bytes) {
-        reserve(bytes.length);
+    WireBuffer writeBytes(byte[] bytes) {
+        this.reserve(bytes.length);
         System.arraycopy(bytes, 0, this.data, this.writer, bytes.length);
         this.writer += bytes.length;
         return this;
     }
 
-    public WireBuffer writeBytes(WireBuffer source) {
-        return writeBytes(source.toByteArray());
+    WireBuffer writeBytes(WireBuffer source) {
+        return this.writeBytes(source.toByteArray());
     }
 
-    public void release() {
+    void release() {
         this.data = null;
         this.reader = this.writer = 0;
     }

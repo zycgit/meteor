@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import net.hasor.cobble.concurrent.future.BasicFuture;
+import net.hasor.meteor.connector.ContextRoutes;
 import net.hasor.meteor.connector.MetChannel;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ReceivedListener;
@@ -48,6 +49,10 @@ final class ProtocolRouter<M> implements RoutedReceiver<M> {
 
     public Map<String, NetworkRoute<M>> routes() {
         return this.routes;
+    }
+
+    public ContextRoutes contextRoutes() {
+        return this.owner.contextRoutes();
     }
 
     public String initialRoute() {

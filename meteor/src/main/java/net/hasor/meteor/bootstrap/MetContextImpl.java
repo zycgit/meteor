@@ -68,12 +68,21 @@ public final class MetContextImpl implements MetContext {
         this.serializeFactory = this.createSerializeFactory();
         this.addresses = new CacheAddressPool(this.settings);
         this.rsfContainer = new MetContainer(this.addresses, this.settings);
-        this.rsfContainer.subscribe(this::notifyEvent);
         this.publisher = new Publisher(this.rsfContainer.createPublisher());
     }
 
     /** 构建入口在返回上下文前完成初始化；监听仍由 start() 开启。 */
     void init(EndpointConnectorFactory connectorFactory, List<MetExtensionFactory> extensionFactory) {
+        // 服务登记先检查协议并更新入站路由，再通知应用及其它扩展。
+        this.rsfContainer.subscribe(event -> {
+            if (event.getType() == MetContextEventType.REGISTERED) {
+                connectorFactory.registerService(this, event.getServiceInfo());
+            } else if (event.getType() == MetContextEventType.REMOVED) {
+                connectorFactory.removeService(event.getServiceInfo());
+            }
+            this.notifyEvent(event);
+        });
+
         this.installFilters();
 
         // 连接事件交给 RPC 层，连接失败同时反馈给地址池。

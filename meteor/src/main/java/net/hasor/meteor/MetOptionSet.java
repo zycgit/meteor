@@ -18,8 +18,14 @@ public interface MetOptionSet {
     /**获取选项数据*/
     String getOption(String key);
 
+    /** 使用指定解析器读取选项。 */
+    <T> T getOption(String key, MetOptionParser<T> parser);
+
     /**设置选项数据*/
     void addOption(String key, String value);
+
+    /** 使用指定解析器写入选项，底层仍保存字符串。 */
+    <T> void addOption(String key, T value, MetOptionParser<T> parser);
 
     /**删除选项数据*/
     void removeOption(String key);

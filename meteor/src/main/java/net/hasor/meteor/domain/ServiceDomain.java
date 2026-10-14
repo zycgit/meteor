@@ -18,21 +18,22 @@ import net.hasor.meteor.MetMessage;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class ServiceDomain<T> implements MetBindInfo<T> {
-    private       String              bindID             = null;      // 服务ID
-    private       String              bindName           = null;      // 服务名
-    private       String              bindGroup          = "default"; // 服务分组
-    private       String              bindVersion        = "1.0.0";   // 服务版本
-    private       Map<String, String> aliasNameMap       = null;      // 别名
-    private       Class<T>            bindType           = null;      // 服务类型
-    private       boolean             asMessage          = false;     // 是否为消息接口
-    private       boolean             asShadow           = false;     // 是否为消息接口
-    private       boolean             isSharedThreadPool = true;      // 是否共享调用线程池(提供者)
-    private       int                 clientTimeout      = 6000;      // 调用超时（毫秒）
-    private       String              serializeType      = null;      // 传输序列化类型
-    private       Object              bindResource       = null;      // 协议扩展使用的本地绑定资源
-    private       MetServiceType      serviceType        = null;      // 服务类型（提供者 or 消费者）
-    private       Set<String>         bindProtocols      = null;      // 服务特殊置顶的协议类型
-    private final Map<String, Object> metadata           = new ConcurrentHashMap<>();
+    private          String                   bindID             = null;      // 服务ID
+    private          String                   bindName           = null;      // 服务名
+    private          String                   bindGroup          = "default"; // 服务分组
+    private          String                   bindVersion        = "1.0.0";   // 服务版本
+    private          Map<String, String>      aliasNameMap       = null;      // 别名
+    private          Class<T>                 bindType           = null;      // 服务类型
+    private          boolean                  asMessage          = false;     // 是否为消息接口
+    private          boolean                  asShadow           = false;     // 是否为消息接口
+    private          boolean                  isSharedThreadPool = true;      // 是否共享调用线程池(提供者)
+    private          int                      clientTimeout      = 6000;      // 调用超时（毫秒）
+    private          String                   serializeType      = null;      // 传输序列化类型
+    private          Object                   bindResource       = null;      // 协议扩展使用的本地绑定资源
+    private          MetServiceType           serviceType        = null;      // 服务类型（提供者 or 消费者）
+    private          Set<String>              bindProtocols      = null;      // 服务特殊置顶的协议类型
+    private final    Map<String, Object>      metadata           = new ConcurrentHashMap<>();
+    private volatile Map<String, ContextPath> bindContextPaths   = Map.of();
 
     public ServiceDomain(Class<T> bindType) {
         this.bindType = bindType;
@@ -177,6 +178,26 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
             return;
         }
         this.bindProtocols.add(bindProtocol);
+    }
+
+    @Override
+    public Map<String, ContextPath> getBindContextPaths() {
+        return this.bindContextPaths;
+    }
+
+    /** 替换一个协议的路径及匹配方式；只读快照不随后续声明变化。 */
+    public void setBindContextPaths(String protocol, ContextPath context) {
+        if (StringUtils.isBlank(protocol)) {
+            throw new IllegalArgumentException("Path protocol must not be blank");
+        }
+        Objects.requireNonNull(context, "context");
+
+        // 替换项移到末尾，协议名和 scheme 的声明保持后一次优先。
+        Map<String, ContextPath> selected = new LinkedHashMap<>(this.bindContextPaths);
+        String key = protocol.trim().toLowerCase(Locale.ROOT);
+        selected.remove(key);
+        selected.put(key, context);
+        this.bindContextPaths = Collections.unmodifiableMap(selected);
     }
 
     @Override

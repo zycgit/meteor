@@ -17,11 +17,6 @@ public class SerializeFactory {
     private final Map<String, SerializeCoder> coderMap = new ConcurrentSkipListMap<>(String.CASE_INSENSITIVE_ORDER);
     private final ClassLoader                 classLoader;
 
-    /** Creates an empty registry using the context class loader. */
-    public SerializeFactory() {
-        this(defaultClassLoader());
-    }
-
     /** Creates an empty registry using the supplied business class loader. */
     public SerializeFactory(ClassLoader classLoader) {
         this.classLoader = Objects.requireNonNull(classLoader, "classLoader");

@@ -11,15 +11,15 @@ import java.nio.charset.StandardCharsets;
 /**
  * RSF string fields use UTF-8 consistently across hosts.
  */
-public final class WireStrings {
+final class WireStrings {
     private WireStrings() {
     }
 
-    public static byte[] fromCache(String text) {
+    static byte[] fromCache(String text) {
         return text == null ? null : text.getBytes(StandardCharsets.UTF_8);
     }
 
-    public static String fromCache(byte[] bytes) {
+    static String fromCache(byte[] bytes) {
         return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
     }
 }

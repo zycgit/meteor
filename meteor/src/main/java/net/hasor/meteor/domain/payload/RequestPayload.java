@@ -159,15 +159,6 @@ public class RequestPayload extends Payload {
         this.paramValues.add(paramValue);
     }
 
-    /**添加请求参数。*/
-    public void updateParameter(int index, String paramType, Object paramValue) {
-        if (index < 0 || index > this.paramTypes.size()) {
-            throw new IndexOutOfBoundsException("index out of range 0~" + this.paramTypes.size());
-        }
-        this.paramTypes.set(index, paramType);
-        this.paramValues.set(index, paramValue);
-    }
-
     /**获取请求参数类型列表。*/
     public List<String> getParameterTypes() {
         return this.paramTypes;

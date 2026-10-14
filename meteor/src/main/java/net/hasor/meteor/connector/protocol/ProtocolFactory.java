@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.connector.protocol;
 import java.util.function.BiConsumer;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.RouteMatch;
@@ -25,6 +26,9 @@ public interface ProtocolFactory<M> {
     String defaultSerializeType();
 
     Class<M> messageType();
+
+    /** 服务发布时校验匹配当前挂载的声明，检查失败将撤销本次登记。 */
+    void validateService(ProtocolConfig config, MetBindInfo<?> service);
 
     /** Inspect data without consuming it when the transport needs content-based routing. */
     RouteMatch probe(ProtocolConfig config, M message);

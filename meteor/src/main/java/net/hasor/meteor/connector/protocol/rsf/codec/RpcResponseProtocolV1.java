@@ -13,12 +13,12 @@ import java.io.IOException;
  * @version : 2014年11月4日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class RpcResponseProtocolV1 implements Protocol<ResponseBlock> {
+class RpcResponseProtocolV1 {
 
     /**
      * encode Message to byte & write to network framework
      */
-    public void encode(ResponseBlock resMsg, WireBuffer buf) throws IOException {
+    void encode(ResponseBlock resMsg, WireBuffer buf) throws IOException {
         //
         //* --------------------------------------------------------bytes =13
         //* byte[1]  version                              RSF版本(0x81)
@@ -45,7 +45,7 @@ public class RpcResponseProtocolV1 implements Protocol<ResponseBlock> {
     }
 
     private WireBuffer encodeResponse(ResponseBlock resMsg) {
-        WireBuffer bodyBuf = new WireBuffer();
+        WireBuffer bodyBuf = WireBuffer.output();
         //
         //* --------------------------------------------------------bytes =8
         //* byte[2]  status                               响应状态
@@ -77,7 +77,7 @@ public class RpcResponseProtocolV1 implements Protocol<ResponseBlock> {
     /**
      * decode stream to object
      */
-    public ResponseBlock decode(WireBuffer buf) throws IOException {
+    ResponseBlock decode(WireBuffer buf) throws IOException {
         //* --------------------------------------------------------bytes =13
         //* byte[1]  version                              RSF版本
         byte version = buf.readByte();

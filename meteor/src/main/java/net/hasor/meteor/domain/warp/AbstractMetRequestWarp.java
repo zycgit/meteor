@@ -10,6 +10,7 @@ import java.lang.reflect.Method;
 import java.util.Enumeration;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.MetOptionParser;
 import net.hasor.meteor.MetRequest;
 import net.hasor.meteor.address.InterAddress;
 
@@ -59,6 +60,16 @@ public abstract class AbstractMetRequestWarp implements MetRequest {
     @Override
     public void addOption(String key, String value) {
         getRsfRequest().addOption(key, value);
+    }
+
+    @Override
+    public <T> T getOption(String key, MetOptionParser<T> parser) {
+        return parser.parse(this.getOption(key));
+    }
+
+    @Override
+    public <T> void addOption(String key, T value, MetOptionParser<T> parser) {
+        this.addOption(key, parser.format(value));
     }
 
     @Override

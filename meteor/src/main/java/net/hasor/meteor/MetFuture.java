@@ -10,7 +10,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import net.hasor.cobble.concurrent.future.BasicFuture;
-import net.hasor.cobble.concurrent.future.FutureCallback;
 
 /**
  * RSF Future
@@ -21,11 +20,6 @@ public class MetFuture extends BasicFuture<MetResponse> {
     private MetRequest rsfRequest = null;
 
     public MetFuture(MetRequest rsfRequest) {
-        this.rsfRequest = rsfRequest;
-    }
-
-    public MetFuture(MetRequest rsfRequest, FutureCallback<MetResponse> listener) {
-        super(listener);
         this.rsfRequest = rsfRequest;
     }
 

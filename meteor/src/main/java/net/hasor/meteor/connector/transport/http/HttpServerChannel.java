@@ -19,16 +19,14 @@ import net.hasor.meteor.connector.transport.SocketTransport;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.NetChannel;
 import net.hasor.neta.channel.ReadPause;
-import net.hasor.neta.codec.http.DefaultFullHttpResponse;
-import net.hasor.neta.codec.http.FullHttpResponse;
-import net.hasor.neta.codec.http.HttpStatus;
-import net.hasor.neta.codec.http.HttpVersion;
+import net.hasor.neta.codec.http.*;
 
 /**
  * Owns incoming HTTP request routes and preserves HTTP/1 response order.
  */
 class HttpServerChannel extends HttpNetworkChannel {
     private       boolean                      inputClosed;
+    private       HttpReply                    writing;
     private final NetChannel                   channel;
     private final InterAddress                 remote;
     private final Deque<HttpReply>             replies = new ArrayDeque<>();
@@ -54,11 +52,11 @@ class HttpServerChannel extends HttpNetworkChannel {
         });
     }
 
-    protected void received(HttpRequest request, boolean keepAlive, String route) {
+    void received(HttpRequest request, boolean keepAlive) {
         ReadPause pause = this.channel.pauseRead();
         this.executor.execute(() -> {
             try {
-                this.receive(request, keepAlive, route);
+                this.receive(request, keepAlive);
             } finally {
                 this.channel.resumeRead(pause);
             }
@@ -77,7 +75,7 @@ class HttpServerChannel extends HttpNetworkChannel {
 
     protected void inputClosed() {
         this.inputClosed = true;
-        if (this.replies.isEmpty()) {
+        if (this.replies.isEmpty() && this.writing == null) {
             this.drainAndClose();
         }
     }
@@ -103,14 +101,15 @@ class HttpServerChannel extends HttpNetworkChannel {
         return this.closeFuture();
     }
 
-    protected void receive(HttpRequest request, boolean keepAlive, String route) {
+    private void receive(HttpRequest request, boolean keepAlive) {
         if (this.channel.isClose() || this.replies.size() >= this.config.integer("maxPendingRequests", 1024)) {
             this.channel.closeNow();
             return;
         }
 
         HttpExchange exchange = new HttpExchange(request);
-        HttpReply slot = new HttpReply(keepAlive, exchange);
+        int expectation = HttpMessages.expectation(request);
+        HttpReply slot = new HttpReply(keepAlive && expectation != 417, exchange, expectation == 100);
         this.replies.addLast(slot);
         this.pending.put(exchange, slot);
 
@@ -120,8 +119,21 @@ class HttpServerChannel extends HttpNetworkChannel {
             }
         }));
 
+        if (expectation == 417) {
+            this.pending.remove(exchange);
+            this.finish(slot, HttpResponse.newBuffered(417, Map.of(), new byte[0], Map.of()), null);
+            return;
+        }
+
         try {
-            this.received(route, exchange);
+            this.drain();
+            if (request.stream() != null) {
+                request.stream().completion().onFailed(done -> {
+                    this.execute(this::close);
+                });
+            }
+
+            this.received(exchange);
         } catch (Exception failure) {
             exchange.complete(failure);
         }
@@ -153,48 +165,117 @@ class HttpServerChannel extends HttpNetworkChannel {
     }
 
     private void drain() {
-        while (!this.replies.isEmpty() && this.replies.peekFirst().response() != null) {
-            HttpReply slot = this.replies.removeFirst();
+        if (this.writing != null || this.replies.isEmpty()) {
+            return;
+        }
+
+        HttpReply first = this.replies.peekFirst();
+        if (first.takeContinue()) {
+            this.writeContinue(first);
+            return;
+        }
+        if (first.response() == null) {
+            return;
+        }
+
+        // 一个响应包含头部、所有正文块和 trailers；完成后才轮到后续响应。
+        HttpReply slot = this.replies.removeFirst();
+        this.writing = slot;
+        BasicFuture<Void> sent = new BasicFuture<>();
+        sent.onFinal(done -> this.execute(() -> this.written(slot, done)));
+        try {
             HttpResponse response = slot.response();
-            if (response.body().length > this.config.integer("maxFrameSize", 16 * 1024 * 1024)) {
-                this.completeWrite(slot.sent(), null, new IOException("HTTP response too large"));
-                this.channel.closeNow();
+            if (response.stream() != null) {
+                this.writeBody(slot, sent);
                 return;
+            }
+            if (response.body().length > this.config.integer("maxFrameSize", 16 * 1024 * 1024)) {
+                throw new IOException("HTTP response too large");
             }
 
             HttpStatus status = HttpStatus.valueOf(response.status());
             ByteBuf body = ByteBuf.wrap(response.body());
             FullHttpResponse out = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, body);
-            response.headers().forEach(out::setHeader);
+            HttpMessages.write(response.headers(), out);
             if (response.trailers().isEmpty()) {
                 out.removeHeader("Transfer-Encoding");
                 out.setHeader("Content-Length", String.valueOf(response.body().length));
             } else {
                 out.removeHeader("Content-Length");
                 out.setHeader("Transfer-Encoding", "chunked");
-                response.trailers().forEach(out.trailingHeaders()::setHeader);
+                HttpMessages.write(response.trailers(), out.trailingHeaders());
             }
             out.setHeader("Connection", slot.keepAlive() ? "keep-alive" : "close");
+            this.writeSocket(this.channel, out).onFinal(done -> this.completeWrite(sent, null, writeFailure(done)));
+        } catch (Exception failure) {
+            sent.failed(failure);
+        }
+    }
 
-            this.writeSocket(this.channel, out).onFinal(done -> {
-                Throwable failure = done.isCancelled() ? new CancellationException("HTTP write cancelled") : done.getCause();
-                this.completeWrite(slot.sent(), null, failure);
-                slot.exchange().complete(failure);
-                if (failure != null || !slot.keepAlive()) {
-                    this.channel.closeNow();
-                } else {
-                    this.execute(() -> {
-                        if (this.inputClosed && this.replies.isEmpty()) {
-                            this.drainAndClose();
-                        }
-                    });
-                }
-            });
-
-            if (!slot.keepAlive()) {
-                this.cancel();
-                return;
+    private void writeContinue(HttpReply slot) {
+        // 100 Continue 同样遵守 HTTP/1 响应顺序，不能越过前一个请求的正文。
+        this.writing = slot;
+        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpStatus.CONTINUE, ByteBuf.EMPTY);
+        this.writeSocket(this.channel, response).onFinal(done -> this.execute(() -> {
+            this.writing = null;
+            Throwable failure = writeFailure(done);
+            if (failure != null) {
+                this.failReply(slot, failure);
+                this.close();
+            } else {
+                this.drain();
             }
+        }));
+    }
+
+    private void writeBody(HttpReply slot, BasicFuture<Void> sent) {
+        HttpResponse response = slot.response();
+        HttpBody body = response.stream();
+        HttpStatus status = HttpStatus.valueOf(response.status());
+        DefaultHttpResponse start = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
+        LastHttpHeaders headers = new DefaultLastHttpHeaders();
+        HttpMessages.write(response.headers(), headers);
+        headers.removeHeader("Content-Length");
+        headers.setHeader("Transfer-Encoding", "chunked");
+        headers.setHeader("Connection", slot.keepAlive() ? "keep-alive" : "close");
+
+        if (slot.sent() != null) {
+            slot.sent().onCancel(done -> body.fail(new CancellationException("HTTP response cancelled")));
+        }
+        HttpBodyWriter writer = new HttpBodyWriter(0, body, response.trailers(), this::execute, message -> this.writeSocket(this.channel, message), sent);
+        this.writeSocket(this.channel, new Object[] { start, headers }).onFinal(done -> this.execute(() -> {
+            Throwable failure = writeFailure(done);
+            if (failure == null) {
+                writer.start();
+            } else {
+                body.fail(failure);
+                sent.failed(failure);
+            }
+        }));
+    }
+
+    private static Throwable writeFailure(Future<?> done) {
+        return done.isCancelled() ? new CancellationException("HTTP write cancelled") : done.getCause();
+    }
+
+    private void written(HttpReply slot, Future<?> done) {
+        this.writing = null;
+        Throwable failure = writeFailure(done);
+        this.completeWrite(slot.sent(), null, failure);
+        slot.exchange().complete(failure);
+
+        // 提前结束响应而未消费请求体时，关闭此 HTTP/1 连接，避免剩余正文阻塞后续请求。
+        HttpBody request = slot.exchange().request().stream();
+        boolean unread = request != null && !request.completion().isDone();
+        if (unread) {
+            request.fail(new IOException("HTTP response ended before request body was consumed"));
+        }
+        if (failure != null || !slot.keepAlive() || unread) {
+            this.channel.closeNow();
+        } else if (this.inputClosed && this.replies.isEmpty()) {
+            this.drainAndClose();
+        } else {
+            this.drain();
         }
     }
 
@@ -210,16 +291,20 @@ class HttpServerChannel extends HttpNetworkChannel {
     }
 
     private void cancel() {
-        for (HttpReply slot : this.pending.values()) {
-            slot.exchange().complete(new IOException("HTTP connection closed"));
+        IOException failure = new IOException("HTTP connection closed");
+        if (this.writing != null) {
+            this.failReply(this.writing, failure);
         }
-
-        this.pending.clear();
         for (HttpReply slot : this.replies) {
-            this.completeWrite(slot.sent(), null, new IOException("HTTP connection closed"));
+            this.failReply(slot, failure);
         }
-
+        this.pending.clear();
         this.replies.clear();
+    }
+
+    private void failReply(HttpReply slot, Throwable failure) {
+        slot.exchange().complete(failure);
+        this.completeWrite(slot.sent(), null, failure);
     }
 
     private void finish(HttpReply slot, HttpResponse response, BasicFuture<Void> sent) {

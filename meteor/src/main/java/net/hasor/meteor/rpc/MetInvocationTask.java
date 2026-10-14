@@ -124,6 +124,7 @@ final class MetInvocationTask implements Runnable {
             return;
         }
 
+        MetResponseObject rsfResponse = null;
         try {
             MetRequestObject rsfRequest = new MetRequestObject(requestID, false, this.dispatcher.getContext(), bindInfo, targetMethod, pObjects);
             rsfRequest.setPeerAddress(this.target);
@@ -133,7 +134,7 @@ final class MetInvocationTask implements Runnable {
             rsfRequest.setTimeout(timeout);
             rsfRequest.setReceiveTime(this.requestInfo.getReceiveTime());
             rsfRequest.setOptions(this.requestInfo);
-            MetResponseObject rsfResponse = new MetResponseObject(rsfRequest);
+            rsfResponse = new MetResponseObject(rsfRequest);
             rsfResponse.addOptionMap(this.dispatcher.getContext().getSettings().getResponseOptions());//填充响应的默认附加选项。
 
             String serviceID = bindInfo.getBindID();
@@ -146,8 +147,19 @@ final class MetInvocationTask implements Runnable {
             String msgLog = "do request(" + requestID + ") failed -> service " + bindInfo.getBindID() + ", error :" + errorMessage;
             this.logger.error(msgLog, e);
             ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.InvokeError, msgLog);
+            info.setFailure(e);
+            if (rsfResponse != null) {
+                info.addOptionMap(rsfResponse);
+            }
             this.sendResponse(info);
         }
+    }
+
+    /** 服务移除后，尚未执行的请求必须收到失败回执；消息调用已经通过 Accept 完成。 */
+    void reject(short status, String message) {
+        long requestId = this.requestInfo.getRequestID();
+        ResponsePayload response = MetPayloadBuilder.buildResponseStatus(requestId, status, message);
+        this.sendResponse(response);
     }
 
     private int validateTimeout(int timeout, MetBindInfo<?> bindInfo) {

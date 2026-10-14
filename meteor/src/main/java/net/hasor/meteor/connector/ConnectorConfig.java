@@ -51,11 +51,6 @@ public final class ConnectorConfig {
         return this.address;
     }
 
-    /** Copies this configuration for another operation address, keeping its name and options. */
-    public ConnectorConfig withAddress(InterAddress address) {
-        return new ConnectorConfig(this.name, address, this.options, this.protocols.values(), this.bindEnabled);
-    }
-
     /** Whether this endpoint has an explicitly configured listener. */
     public boolean bindEnabled() {
         return this.bindEnabled;

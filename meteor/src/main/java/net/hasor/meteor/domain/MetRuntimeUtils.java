@@ -24,8 +24,11 @@ import net.hasor.meteor.MetIgnore;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class MetRuntimeUtils {
-    protected static     Logger                                                 logger      = LoggerFactory.getLogger(MetRuntimeUtils.class);
+    private static final Logger                                                 logger      = LoggerFactory.getLogger(MetRuntimeUtils.class);
     private static final ConcurrentMap<Class<?>, ConcurrentMap<String, Method>> methodCache = new ConcurrentHashMap<>();
+
+    private MetRuntimeUtils() {
+    }
 
     /**使用指定的ClassLoader将一个asm类型转化为Class对象。*/
     public static Class<?> toJavaType(final String tType, final ClassLoader loader) throws ClassNotFoundException {

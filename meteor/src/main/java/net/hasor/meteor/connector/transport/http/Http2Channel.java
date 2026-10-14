@@ -7,18 +7,19 @@
  */
 package net.hasor.meteor.connector.transport.http;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.ContextRoutes;
 import net.hasor.meteor.connector.transport.ChannelFactory;
 import net.hasor.meteor.connector.transport.ConnectionEvents;
 import net.hasor.meteor.connector.transport.InputCloseHandler;
@@ -89,22 +90,6 @@ final class Http2Channel extends HttpNetworkChannel implements ProtoHandler<Http
             if (!event.isSuccess()) {
                 this.closeCause = event.getError();
                 this.execute(this::close);
-            } else if (event.getData() instanceof FullHttpRequest request) {
-                try {
-                    long id = request.streamId();
-                    if (request.isBad()) {
-                        this.invalidMessage(id, request.badReason());
-                        return;
-                    }
-
-                    String method = request.method().name();
-                    Map<String, String> headers = HttpMessages.headers(request);
-                    byte[] body = HttpMessages.body(request.content());
-                    HttpRequest copy = HttpRequest.newBuffered(method, request.uri(), headers, body, 2);
-                    this.execute(() -> this.request(id, copy));
-                } finally {
-                    request.release();
-                }
             } else if (event.getData() instanceof FullHttpResponse response) {
                 try {
                     long id = response.streamId();
@@ -113,12 +98,13 @@ final class Http2Channel extends HttpNetworkChannel implements ProtoHandler<Http
                         return;
                     }
 
-                    Map<String, String> trailers = Map.of();
+                    Map<String, List<String>> trailers = Map.of();
                     if (response.hasTrailingHeaders()) {
                         trailers = HttpMessages.headers(response.trailingHeaders());
                     }
+
                     int status = response.status().code();
-                    Map<String, String> headers = HttpMessages.headers(response);
+                    Map<String, List<String>> headers = HttpMessages.headers(response);
                     byte[] body = HttpMessages.body(response.content());
                     HttpResponse copy = HttpResponse.newBuffered(status, headers, body, trailers);
                     this.execute(() -> this.response(id, copy));
@@ -132,6 +118,8 @@ final class Http2Channel extends HttpNetworkChannel implements ProtoHandler<Http
     }
 
     private void initializeBody(ProtoBuildContext stack, int limit) {
+        // 每个 stream 的分区独立保存头部匹配结果，不能放在连接字段中。
+        AtomicReference<ContextRoutes.Route> selectedRoute = new AtomicReference<>();
         ProtoRoutingDataSelector<HttpObject, HttpObject> selector = (context, source, target) -> {
             boolean streaming;
             if (!this.server) {
@@ -139,24 +127,49 @@ final class Http2Channel extends HttpNetworkChannel implements ProtoHandler<Http
                 PartitionKey key = PartitionKey.findKey(context);
                 long id = Long.parseLong(key.getKey());
                 HttpExchange exchange = this.pending.get(id);
-                streaming = exchange != null && exchange.request().stream() != null;
+                HttpRequest request = exchange == null ? null : exchange.request();
+                streaming = request != null && (request.stream() != null || this.streamResponseBody());
             } else {
                 HttpObject first = source.peekMessage();
                 if (first == null) {
                     return null;
                 }
-                streaming = first instanceof DefaultHttpRequest request && this.streamBody(request.uri());
+                if (first instanceof DefaultHttpRequest request) {
+                    ContextRoutes.Route route = this.route(request.uri());
+                    selectedRoute.set(route);
+                    streaming = this.streamBody(route);
+                } else if (first instanceof FullHttpRequest request) {
+                    // h2c 升级首请求已经聚合，仍须为 stream 1 保存匹配结果。
+                    selectedRoute.set(this.route(request.uri()));
+                    streaming = false;
+                } else {
+                    streaming = false;
+                }
             }
             return streaming ? "stream" : "complete";
         };
 
         ProtoHelper.standard().nextRouteAsStatic("body-mode", selector, routing -> {
             routing.branchByInitializer("stream", branch -> {
-                branch.addLastDecoder("body", new Http2BodyHandler((id, request) -> this.execute(() -> this.request(id, request)), (id, response) -> this.execute(() -> this.response(id, response)), (id, failure) -> this.invalidMessage(id, failure.getMessage())));
+                Http2BodyHandler handler = new Http2BodyHandler((id, request) -> {
+                    request.route(selectedRoute.get());
+                    this.execute(() -> this.request(id, request));
+                }, (id, response) -> {
+                    this.execute(() -> this.response(id, response));
+                }, (id, failure) -> {
+                    this.invalidMessage(id, failure.getMessage());
+                });
+                branch.addLastDecoder("body", handler);
             });
             routing.branchByInitializer("complete", branch -> {
                 if (this.server) {
                     branch.addLastDecoder("aggregate", new HttpRequestAggregator(limit));
+                    Supplier<ContextRoutes.Route> routes = selectedRoute::get;
+                    BiConsumer<Long, HttpRequest> received = (id, request) -> {
+                        this.execute(() -> this.request(id, request));
+                    };
+                    HttpServerHandler handler = new HttpServerHandler(routes, received, this::invalidMessage);
+                    branch.addLastDecoder("messages", handler);
                 } else {
                     branch.addLastDecoder("aggregate", new HttpResponseAggregator(limit));
                 }
@@ -210,6 +223,7 @@ final class Http2Channel extends HttpNetworkChannel implements ProtoHandler<Http
     @Override
     public Future<Void> write(HttpExchange exchange) {
         BasicFuture<Void> sent = new BasicFuture<>();
+        sent.onFailed(done -> exchange.complete(done.getCause()));
         if (this.admitWrite(sent)) {
             this.executeWrite(this.executor, sent, () -> this.write(exchange, sent));
         }
@@ -236,13 +250,13 @@ final class Http2Channel extends HttpNetworkChannel implements ProtoHandler<Http
             id = stream;
             if (response.stream() != null) {
                 DefaultHttpResponse headers = new DefaultHttpResponse(HttpVersion.HTTP_2_0, HttpStatus.valueOf(response.status()));
-                this.writeBody(id, exchange, headers, response.headers(), response.stream(), sent);
+                this.writeBody(id, exchange, headers, response.headers(), response.stream(), response.trailers(), sent);
                 return;
             }
 
             FullHttpResponse out = new DefaultFullHttpResponse(HttpVersion.HTTP_2_0, HttpStatus.valueOf(response.status()), ByteBuf.wrap(response.body()));
-            response.headers().forEach(out::setHeader);
-            response.trailers().forEach(out.trailingHeaders()::setHeader);
+            HttpMessages.write(response.headers(), out);
+            HttpMessages.write(response.trailers(), out.trailingHeaders());
             message = out;
         } else {
             boolean full = this.pending.size() >= this.config.integer("maxPendingRequests", 1024);
@@ -260,16 +274,17 @@ final class Http2Channel extends HttpNetworkChannel implements ProtoHandler<Http
             if (request.stream() != null) {
                 DefaultHttpRequest headers = new DefaultHttpRequest(HttpVersion.HTTP_2_0, HttpMethod.valueOf(request.method()), request.uri());
                 headers.scheme(this.config.option("httpScheme", "http"));
-                Map<String, String> fields = new HashMap<>(request.headers());
-                fields.put("Host", this.remote.getHostPort());
-                this.writeBody(id, exchange, headers, fields, request.stream(), sent);
+                Map<String, List<String>> fields = new HashMap<>(request.headers());
+                fields.put("Host", List.of(this.remote.getHostPort()));
+                this.writeBody(id, exchange, headers, fields, request.stream(), request.trailers(), sent);
                 return;
             }
 
             FullHttpRequest out = new DefaultFullHttpRequest(HttpVersion.HTTP_2_0, HttpMethod.valueOf(request.method()), request.uri(), ByteBuf.wrap(request.body()));
             out.scheme(this.config.option("httpScheme", "http"));
-            request.headers().forEach(out::setHeader);
+            HttpMessages.write(request.headers(), out);
             out.setHeader("Host", this.remote.getHostPort());
+            HttpMessages.write(request.trailers(), out.trailingHeaders());
             message = out;
         }
         message.streamId(id);
@@ -302,15 +317,13 @@ final class Http2Channel extends HttpNetworkChannel implements ProtoHandler<Http
         }));
     }
 
-    private void writeBody(long id, HttpExchange exchange, HttpObject start, Map<String, String> fields, HttpBody body, BasicFuture<Void> sent) {
+    private void writeBody(long id, HttpExchange exchange, HttpObject start, Map<String, List<String>> fields, HttpBody body, Map<String, List<String>> trailers, BasicFuture<Void> sent) {
         start.streamId(id);
         LastHttpHeaders headers = new DefaultLastHttpHeaders();
-        fields.forEach(headers::setHeader);
+        HttpMessages.write(fields, headers);
         headers.removeHeader("Content-Length");
         headers.streamId(id);
-        body.completion().onFailed(done -> exchange.complete(done.getCause()));
-        exchange.completion().onFailed(done -> body.fail(done.getCause()));
-        Http2BodyWriter writer = new Http2BodyWriter(id, body, this::execute, message -> this.writeSocket(this.socket, message), sent);
+        HttpBodyWriter writer = new HttpBodyWriter(id, body, trailers, this::execute, message -> this.writeSocket(this.socket, message), sent);
         this.writeSocket(this.socket, new Object[] { start, headers }).onFinal(done -> this.execute(() -> {
             if (done.getCause() != null || done.isCancelled()) {
                 Throwable failure = done.getCause();
@@ -370,7 +383,6 @@ final class Http2Channel extends HttpNetworkChannel implements ProtoHandler<Http
                 exchange.respond(response);
                 exchange.complete(null);
             } else {
-                this.trackBody(exchange, response.stream());
                 response.stream().completion().onFinal(done -> this.execute(() -> {
                     // 失败由交换的终止回调发出 RST；提前摘除会丢失远端取消通知。
                     if (done.getCause() == null) {
@@ -390,21 +402,12 @@ final class Http2Channel extends HttpNetworkChannel implements ProtoHandler<Http
     private void track(long id, HttpExchange exchange) {
         this.pending.put(id, exchange);
         this.streams.put(exchange, id);
-        if (exchange.request().stream() != null) {
-            this.trackBody(exchange, exchange.request().stream());
-        }
-
         exchange.completion().onFinal(done -> this.execute(() -> {
             if (this.remove(id) != null) {
                 this.socket.fireEvent(Http2ResetEvent.class, new Http2ResetEvent(id, Http2ResetEvent.CANCEL));
                 this.closeAfterGoaway();
             }
         }));
-    }
-
-    private void trackBody(HttpExchange exchange, HttpBody body) {
-        exchange.completion().onFailed(done -> body.fail(done.getCause()));
-        body.completion().onFailed(done -> exchange.complete(done.getCause()));
     }
 
     private HttpExchange remove(long id) {

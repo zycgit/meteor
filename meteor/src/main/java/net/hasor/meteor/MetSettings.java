@@ -51,7 +51,7 @@ public interface MetSettings {
     /** 超过核心线程数的空闲线程在退出前等待新任务的最长时间（秒）。 */
     long getQueueKeepAliveTime();
 
-    /**客户端请求超时时间*/
+    /** 服务调用的默认超时（毫秒），未单独设置时沿用 defaultTimeout；服务显式超时优先。 */
     int getRequestTimeout();
 
     /**最大并发请求数*/

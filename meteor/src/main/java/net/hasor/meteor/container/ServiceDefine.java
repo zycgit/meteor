@@ -30,11 +30,7 @@ class ServiceDefine<T> extends MetBindInfoWrap<T> implements MetBindInfo<T> {
     private final Set<InterAddress>          oriAddressSet;
 
     public ServiceDefine(Class<T> bindType) {
-        this(new ServiceDomain<>(Objects.requireNonNull(bindType)));
-    }
-
-    public ServiceDefine(ServiceDomain<T> domain) {
-        super(Objects.requireNonNull(domain));
+        super(new ServiceDomain<>(Objects.requireNonNull(bindType)));
         this.filterList = new ArrayList<>();
         this.oriRouteScript = new HashMap<>();
         this.oriAddressSet = new HashSet<>();

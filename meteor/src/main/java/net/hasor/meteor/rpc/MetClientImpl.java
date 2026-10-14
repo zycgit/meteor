@@ -10,12 +10,10 @@ import java.lang.reflect.Proxy;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
-import net.hasor.cobble.concurrent.future.CancelFutureCallback;
 import net.hasor.cobble.concurrent.future.FutureCallback;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
@@ -99,6 +97,9 @@ public final class MetClientImpl implements MetClient {
         MetFuture future = this.asyncInvoke(bindInfo, methodName, parameterTypes, parameterObjects);
         int timeout = future.getRequest().getTimeout();
         if (timeout <= 0) {
+            timeout = this.caller.getContext().getSettings().getRequestTimeout();
+        }
+        if (timeout <= 0) {
             timeout = this.caller.getContext().getSettings().getDefaultTimeout();
         }
         return future.get(timeout, TimeUnit.MILLISECONDS).getData();
@@ -137,13 +138,7 @@ public final class MetClientImpl implements MetClient {
 
         future.onFinal(done -> {
             try {
-                if (done.isCancelled()) {
-                    if (listener instanceof CancelFutureCallback) {
-                        ((CancelFutureCallback<T>) listener).cancelled();
-                    } else {
-                        listener.failed(new CancellationException("RPC cancelled"));
-                    }
-                } else if (done.getCause() != null) {
+                if (done.getCause() != null) {
                     listener.failed(done.getCause());
                 } else {
                     listener.completed(result.apply(done.getResult()));

@@ -7,5 +7,5 @@
  */
 package net.hasor.meteor.connector.transport.http;
 
-record HttpInbound(String route, HttpRequest request, boolean keepAlive) {
+record HttpInbound(HttpRequest request, boolean keepAlive) {
 }

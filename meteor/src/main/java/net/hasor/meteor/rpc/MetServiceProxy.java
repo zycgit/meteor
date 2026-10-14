@@ -16,7 +16,7 @@ final class MetServiceProxy implements InvocationHandler {
     private final MetClient      client;
     private final MetBindInfo<?> bindInfo;
 
-    public MetServiceProxy(MetClient client, MetBindInfo<?> bindInfo) {
+    MetServiceProxy(MetClient client, MetBindInfo<?> bindInfo) {
         this.client = client;
         this.bindInfo = bindInfo;
     }

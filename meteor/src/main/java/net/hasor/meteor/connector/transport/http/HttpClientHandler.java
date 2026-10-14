@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.connector.transport.http;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.channel.data.ProtoRcvQueue;
@@ -33,9 +34,13 @@ final class HttpClientHandler implements ProtoHandler<FullHttpResponse, Object> 
                 }
 
                 int status = response.status().code();
-                Map<String, String> responseHeaders = headers(response);
+                Map<String, List<String>> responseHeaders = headers(response);
                 byte[] content = body(response.content());
-                Map<String, String> trailers = response.hasTrailingHeaders() ? headers(response.trailingHeaders()) : Map.of();
+                Map<String, List<String>> trailers = Map.of();
+                if (response.hasTrailingHeaders()) {
+                    trailers = headers(response.trailingHeaders());
+                }
+
                 HttpResponse copy = HttpResponse.newBuffered(status, responseHeaders, content, trailers);
                 boolean keep = keepAlive(response.protocolVersion(), response);
                 dst.offerMessage(new HttpInboundResponse(copy, keep));
@@ -48,7 +53,7 @@ final class HttpClientHandler implements ProtoHandler<FullHttpResponse, Object> 
 
     @Override
     public void onClose(ProtoContext context) {
-        this.channel.dispatch(() -> {
+        this.channel.execute(() -> {
             IOException failure = new IOException("HTTP connection closed before response");
             this.channel.failed(this.socket, failure);
         });
@@ -56,7 +61,7 @@ final class HttpClientHandler implements ProtoHandler<FullHttpResponse, Object> 
 
     @Override
     public ProtoStatus onError(ProtoContext context, Throwable failure, ProtoExceptionHolder holder) {
-        this.channel.dispatch(() -> {
+        this.channel.execute(() -> {
             this.channel.failed(this.socket, failure);
             this.socket.closeNow();
         });

@@ -20,6 +20,7 @@ import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.protocol.EndpointConnectorFactory;
 import net.hasor.meteor.domain.OptionInfo;
+import net.hasor.meteor.utils.ContextPathUtils;
 
 /** Configures RSF components and creates a context ready for service registration. */
 public final class MetConfiguration implements MetSettings {
@@ -27,13 +28,12 @@ public final class MetConfiguration implements MetSettings {
     private       int                          defaultTimeout        = 6000;
     private       String                       defaultGroup          = "default";
     private       String                       defaultVersion        = "1.0.0";
-    // 序列化器
     // 连接与协议
     private       String                       bindAddress           = "127.0.0.1";
     private       String                       defaultProtocol       = null;
     private final List<ConnectorSettings>      connectors            = new ArrayList<>();
     // 请求与响应
-    private       int                          requestTimeout        = 6000;
+    private       int                          requestTimeout        = 0;
     private       int                          maximumRequest        = 200;
     private       SendLimitPolicy              sendLimitPolicy       = SendLimitPolicy.Reject;
     private       int                          connectTimeout        = 3000;
@@ -157,6 +157,7 @@ public final class MetConfiguration implements MetSettings {
         return this;
     }
 
+    /** 设置服务调用的默认超时（毫秒）；非正数表示沿用 defaultTimeout，服务显式超时优先。 */
     public MetConfiguration setRequestTimeout(int value) {
         this.requestTimeout = value;
         return this;
@@ -347,7 +348,10 @@ public final class MetConfiguration implements MetSettings {
 
     @Override
     public int getRequestTimeout() {
-        return this.requestTimeout;
+        if (this.requestTimeout > 0) {
+            return this.requestTimeout;
+        }
+        return this.defaultTimeout;
     }
 
     @Override
@@ -545,8 +549,16 @@ public final class MetConfiguration implements MetSettings {
             return this;
         }
 
+        /** 设置协议默认上下文，未显式选择路径的服务只发布到这个上下文。 */
         public ProtocolSettings contextPath(String path) {
-            return this.option("contextPath", path);
+            String normalized = ContextPathUtils.normalize(path);
+            return this.option("contextPath", normalized);
+        }
+
+        /** 添加可供服务显式选择的上下文，不改变协议默认上下文。 */
+        public ProtocolSettings addContextPath(String path) {
+            ContextPathUtils.addContextPath(this.options, path);
+            return this;
         }
     }
 }

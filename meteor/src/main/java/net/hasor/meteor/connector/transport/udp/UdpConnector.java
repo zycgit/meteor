@@ -9,6 +9,7 @@ package net.hasor.meteor.connector.transport.udp;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.transport.ChannelFactory;
+import net.hasor.meteor.connector.transport.NetworkListen;
 import net.hasor.meteor.connector.transport.SocketConnector;
 import net.hasor.neta.channel.ProtoBuildContext;
 import net.hasor.neta.channel.transport.udp.UdpSoConfig;
@@ -16,6 +17,14 @@ import net.hasor.neta.channel.transport.udp.UdpSoConfig;
 public final class UdpConnector extends SocketConnector<byte[]> {
     public UdpConnector(ConnectorConfig config, ClassLoader loader) {
         super(config, loader, socketConfig(config), true);
+    }
+
+    @Override
+    public NetworkListen bind(InterAddress address, ChannelFactory<byte[]> factory) throws Exception {
+        if (address.getPort() == 0) {
+            throw new IllegalArgumentException("UDP listen port must be between 1 and 65535");
+        }
+        return super.bind(address, factory);
     }
 
     private static UdpSoConfig socketConfig(ConnectorConfig config) {

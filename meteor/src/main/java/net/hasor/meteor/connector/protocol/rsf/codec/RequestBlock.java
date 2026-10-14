@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.protocol.rsf.codec;
+import net.hasor.cobble.ArrayUtils;
 
 /**
  * RSF 1.0 Request 二进制传输协议
@@ -44,7 +45,7 @@ package net.hasor.meteor.connector.protocol.rsf.codec;
  * @version : 2014年10月25日
  * @author 赵永春 (zyc@hasor.net)
  */
-public class RequestBlock extends PoolBlock {
+class RequestBlock extends PoolBlock {
     private byte  rsfHead        = 0;  // byte[1]  RSF头
     private long  requestID      = 0;  // byte[8]  请求ID
     private short flags          = 0;  // byte[2]  标记
@@ -60,126 +61,126 @@ public class RequestBlock extends PoolBlock {
     /**
      * 获取协议版本。
      */
-    public byte getHead() {
+    byte getHead() {
         return this.rsfHead;
     }
 
     /**
      * 设置协议版本。
      */
-    public void setHead(byte rsfHead) {
+    void setHead(byte rsfHead) {
         this.rsfHead = rsfHead;
     }
 
     /**
      * 获取请求ID。
      */
-    public long getRequestID() {
+    long getRequestID() {
         return this.requestID;
     }
 
     /**
      * 设置请求ID。
      */
-    public void setRequestID(long requestID) {
+    void setRequestID(long requestID) {
         this.requestID = requestID;
     }
 
     /**
      * 获取flag
      */
-    public short getFlags() {
+    short getFlags() {
         return this.flags;
     }
 
     /**
      * 设置flag。
      */
-    public void setFlags(short flags) {
+    void setFlags(short flags) {
         this.flags = flags;
     }
 
     /**
      * 获取服务名
      */
-    public short getServiceName() {
+    short getServiceName() {
         return this.serviceName;
     }
 
     /**
      * 设置服务名
      */
-    public void setServiceName(short serviceName) {
+    void setServiceName(short serviceName) {
         this.serviceName = serviceName;
     }
 
     /**
      * 获取服务分组
      */
-    public short getServiceGroup() {
+    short getServiceGroup() {
         return this.serviceGroup;
     }
 
     /**
      * 设置服务分组
      */
-    public void setServiceGroup(short serviceGroup) {
+    void setServiceGroup(short serviceGroup) {
         this.serviceGroup = serviceGroup;
     }
 
     /**
      * 获取服务版本
      */
-    public short getServiceVersion() {
+    short getServiceVersion() {
         return this.serviceVersion;
     }
 
     /**
      * 设置服务版本
      */
-    public void setServiceVersion(short serviceVersion) {
+    void setServiceVersion(short serviceVersion) {
         this.serviceVersion = serviceVersion;
     }
 
     /**
      * 获取调用的方法名
      */
-    public short getTargetMethod() {
+    short getTargetMethod() {
         return this.targetMethod;
     }
 
     /**
      * 设置调用的方法名
      */
-    public void setTargetMethod(short targetMethod) {
+    void setTargetMethod(short targetMethod) {
         this.targetMethod = targetMethod;
     }
 
     /**
      * 获取序列化类型
      */
-    public short getSerializeType() {
+    short getSerializeType() {
         return this.serializeType;
     }
 
     /**
      * 设置序列化类型
      */
-    public void setSerializeType(short serializeType) {
+    void setSerializeType(short serializeType) {
         this.serializeType = serializeType;
     }
 
     /**
      * 获取远程客户端调用超时时间。
      */
-    public int getClientTimeout() {
+    int getClientTimeout() {
         return this.clientTimeout;
     }
 
     /**
      * 设置远程客户端调用超时时间。
      */
-    public void setClientTimeout(int clientTimeout) {
+    void setClientTimeout(int clientTimeout) {
         this.clientTimeout = clientTimeout;
     }
 
@@ -188,7 +189,7 @@ public class RequestBlock extends PoolBlock {
     /**
      * 添加请求参数。
      */
-    public void addParameter(short paramType, short paramData) {
+    void addParameter(short paramType, short paramData) {
         int pType = paramType << 16;
         int pData = paramData;
         int mergeData = (pType | pData);
@@ -198,21 +199,21 @@ public class RequestBlock extends PoolBlock {
     /**
      * 添加请求参数。
      */
-    public void addParameter(int mergeData) {
+    void addParameter(int mergeData) {
         this.paramData = ArrayUtils.add(this.paramData, mergeData);
     }
 
     /**
      * 获取请求参数类型列表。
      */
-    public int[] getParameters() {
+    int[] getParameters() {
         return this.paramData;
     }
 
     /**
      * 添加选项。
      */
-    public void addOption(short paramType, short paramData) {
+    void addOption(short paramType, short paramData) {
         int pType = paramType << 16;
         int pData = paramData;
         int mergeData = (pType | pData);
@@ -222,14 +223,14 @@ public class RequestBlock extends PoolBlock {
     /**
      * 添加选项。
      */
-    public void addOption(int mergeData) {
+    void addOption(int mergeData) {
         this.optionMap = ArrayUtils.add(this.optionMap, mergeData);
     }
 
     /**
      * 获取Option。
      */
-    public int[] getOptions() {
+    int[] getOptions() {
         return this.optionMap;
     }
 }

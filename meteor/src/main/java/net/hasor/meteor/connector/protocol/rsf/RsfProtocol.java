@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.connector.protocol.rsf;
 import java.util.function.BiConsumer;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.protocol.ProtocolContext;
 import net.hasor.meteor.connector.protocol.ProtocolFactory;
@@ -35,6 +36,10 @@ public final class RsfProtocol implements ProtocolFactory<byte[]> {
 
     public String transport() {
         return "tcp";
+    }
+
+    @Override
+    public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
     }
 
     public Class<byte[]> messageType() {

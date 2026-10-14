@@ -13,13 +13,13 @@ import java.util.List;
 /**
  * RSF/1 attribute pool. Each block owns heap data and needs no native-buffer finalizer.
  */
-public class PoolBlock {
-    public static final int          NULL_MARK   = -1;
-    public static final int          DataMaxSize = 0xFFFFFF;
-    public static final short        PoolMaxSize = 0x0FFF;
-    private             List<byte[]> values      = new ArrayList<>();
+class PoolBlock {
+    static final int          NULL_MARK   = -1;
+    static final int          DataMaxSize = 0xFFFFFF;
+    static final short        PoolMaxSize = 0x0FFF;
+    private      List<byte[]> values      = new ArrayList<>();
 
-    public void fillFrom(WireBuffer input) {
+    void fillFrom(WireBuffer input) {
         int count = input.readShort() & 0xFFFF;
         if (count > PoolMaxSize) {
             throw new IllegalArgumentException("Invalid RSF pool size");
@@ -50,8 +50,8 @@ public class PoolBlock {
         this.values = decoded;
     }
 
-    public void fillTo(WireBuffer output) {
-        requireOpen();
+    void fillTo(WireBuffer output) {
+        this.requireOpen();
         output.writeShort(this.values.size());
         for (byte[] value : this.values) {
             output.writeInt(value == null ? NULL_MARK : value.length);
@@ -64,8 +64,8 @@ public class PoolBlock {
         }
     }
 
-    public short pushData(byte[] data) {
-        requireOpen();
+    short pushData(byte[] data) {
+        this.requireOpen();
         if (this.values.size() >= PoolMaxSize || (data != null && data.length > DataMaxSize)) {
             throw new IllegalArgumentException("RSF pool limit exceeded");
         }
@@ -74,13 +74,13 @@ public class PoolBlock {
         return (short) (this.values.size() - 1);
     }
 
-    public byte[] readPool(short index) {
-        requireOpen();
+    byte[] readPool(short index) {
+        this.requireOpen();
         byte[] value = this.values.get(index);
         return value == null ? null : value.clone();
     }
 
-    public void release() {
+    void release() {
         this.values = null;
     }
 

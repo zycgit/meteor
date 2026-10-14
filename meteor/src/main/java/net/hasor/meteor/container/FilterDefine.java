@@ -34,10 +34,6 @@ class FilterDefine implements Supplier<MetFilter> {
         return this.filterProvider.get();
     }
 
-    public Supplier<? extends MetFilter> getProvider() {
-        return this.filterProvider;
-    }
-
     public String toString() {
         return "[" + this.filterID + "]";
     }

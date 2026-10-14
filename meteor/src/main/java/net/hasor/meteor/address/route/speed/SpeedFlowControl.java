@@ -32,7 +32,6 @@ public class SpeedFlowControl extends AbstractRule {
     private int                              rate       = 20;
     private int                              peak       = 200;
     private int                              timeWindow = 10;
-    private QoSBucket                        defaultQoSBucket;
     private ConcurrentMap<String, QoSBucket> qosBucketMap;
 
     public void parseControl(Settings settings) {
@@ -53,7 +52,6 @@ public class SpeedFlowControl extends AbstractRule {
         if (!qosBucket.validate()) {
             throw new IllegalArgumentException("Invalid speed rate, peak or time window");
         }
-        this.defaultQoSBucket = qosBucket;
     }
 
     public boolean callCheck(String serviceID, String methodName, InterAddress doCallAddress) {

@@ -6,8 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.rpc.filters.online;
-import net.hasor.cobble.logging.Logger;
-import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.MetFilter;
 import net.hasor.meteor.MetFilterChain;
 import net.hasor.meteor.MetRequest;
@@ -20,8 +18,6 @@ import net.hasor.meteor.domain.ProtocolStatus;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class OnlineMetFilter implements MetFilter {
-    protected Logger logger = LoggerFactory.getLogger(getClass());
-
     @Override
     public void doFilter(MetRequest request, MetResponse response, MetFilterChain chain) throws Throwable {
         if (!request.isLocal() && !request.getContext().isOnline()) {

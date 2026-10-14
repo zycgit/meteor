@@ -23,7 +23,7 @@ final class MetFilterHandler implements MetFilterChain {
     private final        MetFilterChain        rsfChain;
     private              int                   index;
 
-    public MetFilterHandler(final Supplier<MetFilter>[] rsfFilter, final MetFilterChain rsfChain) {
+    MetFilterHandler(final Supplier<MetFilter>[] rsfFilter, final MetFilterChain rsfChain) {
         this.rsfChain = rsfChain;
         this.index = -1;
         this.rsfFilter = (rsfFilter != null && rsfFilter.length != 0) ? rsfFilter : EMPTY_FILTER;

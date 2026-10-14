@@ -8,10 +8,7 @@
 package net.hasor.meteor.domain;
 import java.lang.reflect.Method;
 import java.util.Enumeration;
-import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetOptionSet;
-import net.hasor.meteor.MetRequest;
+import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
 
 /** One RPC invocation, with its direction and metadata supplied by the creator. */
@@ -170,6 +167,16 @@ public class MetRequestObject implements MetRequest {
     @Override
     public void addOption(String key, String value) {
         this.options.addOption(key, value);
+    }
+
+    @Override
+    public <T> T getOption(String key, MetOptionParser<T> parser) {
+        return parser.parse(this.getOption(key));
+    }
+
+    @Override
+    public <T> void addOption(String key, T value, MetOptionParser<T> parser) {
+        this.addOption(key, parser.format(value));
     }
 
     @Override

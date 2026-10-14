@@ -7,16 +7,14 @@
  */
 package net.hasor.meteor.connector.transport.http;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Executor;
-import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.ContextPaths;
+import net.hasor.meteor.connector.ContextRoutes;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.neta.channel.NetChannel;
 
@@ -28,6 +26,9 @@ abstract class HttpNetworkChannel implements NetworkChannel<HttpExchange> {
     protected final SocketTransport               transport;
     protected final Executor                      executor;
     private         ChannelListener<HttpExchange> receiver;
+    private         ContextRoutes                 routes;
+    private final   boolean                       streaming;
+    private         boolean                       streamingResponses;
     private final   BasicFuture<Void>             closed    = new BasicFuture<>();
     private final   Set<BasicFuture<?>>           submitted = new HashSet<>();
     private         int                           writing;
@@ -37,16 +38,33 @@ abstract class HttpNetworkChannel implements NetworkChannel<HttpExchange> {
         this.config = config;
         this.transport = transport;
         this.executor = executor;
+        this.streaming = Boolean.parseBoolean(config.option("streamBody", "false"));
+        this.streamingResponses = this.streaming;
     }
 
     protected final void receiver(ChannelListener<HttpExchange> receiver) {
+        this.streamingResponses = this.streaming;
+        if (receiver instanceof RoutedReceiver<HttpExchange> routed) {
+            this.routes = routed.contextRoutes();
+            if (this.routes == null) {
+                this.routes = configuredRoutes(routed.routes());
+            }
+
+            String initial = routed.initialRoute();
+            NetworkRoute<HttpExchange> outgoing = initial == null ? null : routed.routes().get(initial);
+            if (outgoing != null) {
+                this.streamingResponses = Boolean.parseBoolean(outgoing.options().get("streamBody"));
+            }
+        }
         this.receiver = receiver;
     }
 
-    protected final void received(String route, HttpExchange exchange) throws Exception {
+    protected final void received(HttpExchange exchange) throws Exception {
         if (this.receiver instanceof RoutedReceiver<HttpExchange> routed) {
-            if (routed.routes().containsKey(route)) {
-                routed.receive(route, exchange);
+            ContextRoutes.Route route = exchange.request().route();
+            String protocol = route == null ? "" : route.protocol();
+            if (routed.routes().containsKey(protocol)) {
+                routed.receive(protocol, exchange);
             } else {
                 exchange.respond(HttpResponse.newBuffered(404, Collections.emptyMap(), new byte[0], Map.of()));
                 this.write(exchange);
@@ -56,42 +74,28 @@ abstract class HttpNetworkChannel implements NetworkChannel<HttpExchange> {
         }
     }
 
-    protected final void received(HttpExchange exchange) throws Exception {
-        if (!(this.receiver instanceof RoutedReceiver<HttpExchange> routed)) {
-            this.receiver.receive(exchange);
-            return;
-        }
-
-        String selected = selectRoute(routed.routes(), exchange.request().uri());
-        this.received(selected, exchange);
+    /** 响应正文模式属于出站协议，不使用本地发布服务的请求路径索引。 */
+    protected final boolean streamResponseBody() {
+        return this.streamingResponses;
     }
 
-    protected final boolean streamBody(String uri) {
-        if (this.receiver instanceof RoutedReceiver<HttpExchange> routed) {
-            String route = selectRoute(routed.routes(), uri);
-            NetworkRoute<HttpExchange> selected = routed.routes().get(route);
-            if (selected != null) {
-                return Boolean.parseBoolean(selected.options().get("streamBody"));
-            }
-        }
-        return Boolean.parseBoolean(this.config.option("streamBody", "false"));
+    protected final boolean streamBody(ContextRoutes.Route route) {
+        return route == null ? this.streaming : Boolean.parseBoolean(route.options().get("streamBody"));
     }
 
-    protected static String selectRoute(Map<String, NetworkRoute<HttpExchange>> routes, String uri) {
-        String path = uri.split("\\?", 2)[0];
-        String selected = "";
-        int length = -1;
-        for (Map.Entry<String, NetworkRoute<HttpExchange>> route : routes.entrySet()) {
-            String mount = route.getValue().options().get("contextPath");
-            String prefix = mount.endsWith("/") ? mount : mount + "/";
-            boolean matches = StringUtils.equals(path, mount) || path.startsWith(prefix);
-            if (matches && mount.length() > length) {
-                selected = route.getKey();
-                length = mount.length();
+    protected final ContextRoutes.Route route(String uri) {
+        return this.routes == null ? null : this.routes.match(uri);
+    }
+
+    private static ContextRoutes configuredRoutes(Map<String, NetworkRoute<HttpExchange>> routes) {
+        List<ContextRoutes.Route> prefixes = new ArrayList<>();
+        for (Map.Entry<String, NetworkRoute<HttpExchange>> entry : routes.entrySet()) {
+            NetworkRoute<HttpExchange> network = entry.getValue();
+            for (ContextPaths.Mount mount : network.contexts().mounts()) {
+                prefixes.add(new ContextRoutes.Route(entry.getKey(), mount, network.options()));
             }
         }
-
-        return selected;
+        return new ContextRoutes(prefixes);
     }
 
     protected final void manageChannel() {

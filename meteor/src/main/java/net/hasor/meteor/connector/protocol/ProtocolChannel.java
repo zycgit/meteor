@@ -37,7 +37,7 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
     private final BasicFuture<MetChannel> connecting;
     private       boolean                 connected;
 
-    public ProtocolChannel(EndpointConnector<?> owner, long id, ReceivedListener listener, Executor executor, NetworkChannel<M> connection, ProtocolFactory<M> factory, BasicFuture<MetChannel> connecting, ProtocolConfig protocolConfig) {
+    ProtocolChannel(EndpointConnector<?> owner, long id, ReceivedListener listener, Executor executor, NetworkChannel<M> connection, ProtocolFactory<M> factory, BasicFuture<MetChannel> connecting, ProtocolConfig protocolConfig) {
         super(owner, id, listener);
         this.owner = owner;
         this.executor = executor;
