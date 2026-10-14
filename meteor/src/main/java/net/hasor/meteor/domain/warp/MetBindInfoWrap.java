@@ -99,6 +99,11 @@ public class MetBindInfoWrap<T> implements MetBindInfo<T> {
     }
 
     @Override
+    public boolean isDistributed() {
+        return this.target.isDistributed();
+    }
+
+    @Override
     public boolean isShadow() {
         return this.target.isShadow();
     }

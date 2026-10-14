@@ -9,8 +9,8 @@
  * RPC 的两条处理链，统一由 MetCaller 协调。
  * 对外公开 MetCaller、MetClientImpl 和 MetFilterProvider，其余类仅供包内实现使用。
  *
- * <p>出站通过 MetCaller.createRequest 和 invoke 发起，执行过滤器、登记请求、
- * 建连发送并管理超时；入站消息由 MetCaller.onMessage 接收。</p>
+ * <p>出站通过 MetCaller.createRequest 和 invoke 发起；本地提供者命中时直接调用，
+ * 否则执行过滤器、登记请求、建连发送并管理超时。入站消息由 MetCaller.onMessage 接收。</p>
  * <p>收到请求时交给 MetDispatcher 和 MetInvocationTask 执行本地服务，
  * 并通过来源 Channel 回复；收到响应或失败时完成对应的出站调用。</p>
  */

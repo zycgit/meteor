@@ -26,6 +26,7 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
     private          Class<T>                 bindType           = null;      // 服务类型
     private          boolean                  asMessage          = false;     // 是否为消息接口
     private          boolean                  asShadow           = false;     // 是否为消息接口
+    private          boolean                  asDistributed      = false;     // 是否强制进入分布式调用链
     private          boolean                  isSharedThreadPool = true;      // 是否共享调用线程池(提供者)
     private          int                      clientTimeout      = 6000;      // 调用超时（毫秒）
     private          String                   serializeType      = null;      // 传输序列化类型
@@ -118,6 +119,16 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
     /** 设置接口的工作状态,如果接口标记了@MetMessage,那么无论设置什么值 isMessage 都会返回true。 */
     public void setMessage(boolean asMessage) {
         this.asMessage = asMessage;
+    }
+
+    /** 是否强制进入分布式调用链。 */
+    public boolean isDistributed() {
+        return this.asDistributed;
+    }
+
+    /** 设置是否强制进入分布式调用链。 */
+    public void setDistributed(boolean distributed) {
+        this.asDistributed = distributed;
     }
 
     /** 接口是否要求工作在隐藏模式下。*/

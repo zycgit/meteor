@@ -318,6 +318,12 @@ final class MetBindBuilder implements MetPublisher {
         }
 
         @Override
+        public RegisterBuilder<T> asDistributedCall() {
+            this.serviceDefine.getDomain().setDistributed(true);
+            return this;
+        }
+
+        @Override
         public RegisterBuilder<T> asShadow() {
             this.serviceDefine.getDomain().setShadow(true);
             return this;

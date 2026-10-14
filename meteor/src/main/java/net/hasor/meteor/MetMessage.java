@@ -12,14 +12,18 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 宣布此接口为消息接口,RSF在处理该接口的 RPC 调用请求时会忽略远程机器的 response 。
- * 消息接口的工作方模式下,当确认 rpc 数据包投递到远程机器并进入调用队列之后，请求方会收到一个 ack 确认方法会立即返回成功。
+ * 声明服务接口或方法使用消息调用。接口上的注解作用于全部方法，方法上的注解只作用于该方法。
+ * 调用方等待协议完成消息提交，不等待业务执行结果。
  *
- * <p>提示: 您可以配合 RSF 的异步调用,使消息发布变为异步消息。</p>
+ * <p>RSF 等提供回执的协议等待远端入队确认；HTTP 协议可以使用空正文的 202 或 204 响应。
+ * 原生不提供回执的 notification 协议在消息完整写出后完成提交，此时不保证远端已经接收或执行。
+ * 业务返回值和执行异常不会作为最终响应发回调用方。</p>
+ *
+ * <p>提示：可以配合异步调用，使消息发布本身也不阻塞当前线程。</p>
  * @version : 2014年11月12日
  * @author 赵永春 (zyc@hasor.net)
  */
-@Target(ElementType.TYPE)
+@Target({ ElementType.TYPE, ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface MetMessage {
 }

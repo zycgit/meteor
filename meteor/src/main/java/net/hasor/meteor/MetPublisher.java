@@ -253,8 +253,11 @@ public interface MetPublisher {
         /** 为提供者使用独立业务线程池，线程数和队列容量沿用实例的队列配置。 */
         RegisterBuilder<T> asAloneThreadPool();
 
-        /** @return 将接口的工作模式改为Message模式, 效果等同于加上 {@link MetMessage}注解。*/
+        /** @return 将整个服务设为消息模式，效果等同于在服务接口上标注 {@link MetMessage}。 */
         RegisterBuilder<T> asMessage();
+
+        /** @return 强制服务调用进入分布式调用链，不再优先调用本地提供者。 */
+        RegisterBuilder<T> asDistributedCall();
 
         /** @return 隐藏模式, 隐藏模式下的服务无论身份是 提供者还是消费者, 都不会注册到注册中心上。
          * 如果想要调用隐藏模式的服务必须要通过 P2P 形式进行调用。*/
