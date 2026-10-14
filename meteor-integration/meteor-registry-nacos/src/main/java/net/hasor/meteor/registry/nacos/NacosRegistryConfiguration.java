@@ -9,6 +9,7 @@ package net.hasor.meteor.registry.nacos;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 import com.alibaba.nacos.api.NacosFactory;
+import com.alibaba.nacos.api.config.ConfigService;
 import com.alibaba.nacos.api.naming.NamingService;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.registry.RegistryConfiguration;
@@ -20,7 +21,7 @@ public final class NacosRegistryConfiguration extends RegistryConfiguration {
     private String address       = null;
     private String username      = null;
     private String password      = null;
-    private String group         = "METEOR";
+    private String group         = "meteor";
     private String namespace     = null;
     private long   timeoutMillis = 5000;
 
@@ -42,7 +43,7 @@ public final class NacosRegistryConfiguration extends RegistryConfiguration {
         return this;
     }
 
-    /** 设置注册数据分组，默认 METEOR。 */
+    /** 设置注册数据分组，默认 meteor。 */
     public NacosRegistryConfiguration setGroup(String value) {
         this.group = value;
         return this;
@@ -98,7 +99,8 @@ public final class NacosRegistryConfiguration extends RegistryConfiguration {
         return () -> {
             NamingService naming = NacosFactory.createNamingService(properties);
             try {
-                return new NacosRegistry(naming, NacosFactory.createConfigService(properties), group, timeout);
+                ConfigService configs = NacosFactory.createConfigService(properties);
+                return new NacosRegistry(naming, configs, properties, group, timeout);
             } catch (Exception failure) {
                 try {
                     naming.shutDown();

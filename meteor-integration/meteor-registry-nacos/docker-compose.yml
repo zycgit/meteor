@@ -1,0 +1,41 @@
+# 在本目录执行：docker compose up -d --wait
+# 停止：docker compose down；同时清空开发数据：docker compose down -v
+# Meteor 连接地址：127.0.0.1:8848；Nacos 控制台：http://127.0.0.1:18848
+# 本地开发关闭认证，用户名、密码留空；不用于生产部署。
+name: meteor-nacos-dev
+
+services:
+  nacos:
+    image: nacos/nacos-server:v3.1.2
+    environment:
+      MODE: standalone
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
+      # 临时记录包含实例及协议端点，默认 1024 字符不足以容纳登记内容。
+      JAVA_OPT: "-Dnacos.naming.service.metadata.length=65536 -XX:ActiveProcessorCount=2"
+      NACOS_AUTH_ENABLE: "false"
+      NACOS_AUTH_ADMIN_ENABLE: "false"
+      NACOS_AUTH_CONSOLE_ENABLE: "false"
+      # 3.1.2 镜像入口即使关闭认证也要求填写这三项；以下为公开的开发占位值。
+      NACOS_AUTH_IDENTITY_KEY: meteor-local
+      NACOS_AUTH_IDENTITY_VALUE: meteor-local-development
+      NACOS_AUTH_TOKEN: bWV0ZW9yLWxvY2FsLWRldmVsb3BtZW50LXNpZ25pbmcta2V5
+    ports:
+      - "127.0.0.1:8848:8848"
+      # SDK 的 gRPC 端口必须保持为主端口 + 1000。
+      - "127.0.0.1:9848:9848"
+      - "127.0.0.1:18848:8080"
+    volumes:
+      - nacos-data:/home/nacos/data
+      - nacos-logs:/home/nacos/logs
+    healthcheck:
+      test: [ "CMD", "curl", "-fsS", "http://127.0.0.1:8848/nacos/v3/admin/core/state/readiness" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+volumes:
+  nacos-data:
+  nacos-logs:

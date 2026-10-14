@@ -1,35 +1,103 @@
-/*
- * Copyright 2015-2026 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0.
- * See the LICENSE.txt file for the full license.
- * https://www.apache.org/licenses/LICENSE-2.0
- */
--- Execute once before opening the JDBC admin. expires_at is UTC epoch milliseconds.
+-- Registry schema. Run this script against a new empty database.
+-- expires_at stores UTC epoch milliseconds.
+
 CREATE TABLE meteor_sessions
 (
-    scope      VARCHAR(128) NOT NULL,
-    owner_id   VARCHAR(36)  NOT NULL,
-    expires_at BIGINT       NOT NULL,
-    PRIMARY KEY (scope, owner_id)
+    session_id VARCHAR(36) NOT NULL,
+    expires_at BIGINT      NOT NULL,
+    PRIMARY KEY (session_id)
 );
 
-CREATE TABLE meteor_records
+CREATE TABLE meteor_applications
 (
-    scope       VARCHAR(128) NOT NULL,
-    record_key  VARCHAR(64)  NOT NULL,
-    kind        VARCHAR(1)   NOT NULL,
-    record_type VARCHAR(64)  NOT NULL,
-    source_ref  VARCHAR(64),
-    target_ref  VARCHAR(64),
-    owner_id    VARCHAR(36),
-    revision    VARCHAR(36)  NOT NULL,
-    body        TEXT         NOT NULL,
-    PRIMARY KEY (scope, record_key)
+    application_id VARCHAR(64) NOT NULL,
+    search_text    TEXT        NOT NULL,
+    revision       VARCHAR(36) NOT NULL,
+    body           TEXT        NOT NULL,
+    PRIMARY KEY (application_id)
 );
 
-CREATE INDEX meteor_records_type ON meteor_records (scope, kind, record_type);
-CREATE INDEX meteor_records_source ON meteor_records (scope, source_ref, record_type);
-CREATE INDEX meteor_records_target ON meteor_records (scope, target_ref, record_type);
-CREATE INDEX meteor_records_owner ON meteor_records (scope, owner_id);
-CREATE INDEX meteor_sessions_expiry ON meteor_sessions (scope, expires_at);
+CREATE TABLE meteor_instances
+(
+    instance_id      VARCHAR(64) NOT NULL,
+    application_id   VARCHAR(64) NOT NULL,
+    unit_name        VARCHAR(256),
+    search_text      TEXT        NOT NULL,
+    revision         VARCHAR(36) NOT NULL,
+    body             TEXT        NOT NULL,
+    -- Keep the latest registration session after runtime departure.
+    session_id       VARCHAR(36) NOT NULL,
+    runtime_revision VARCHAR(36) NULL,
+    runtime_body     TEXT NULL,
+    rule_controls    TEXT NULL,
+    PRIMARY KEY (instance_id)
+);
+
+CREATE TABLE meteor_services
+(
+    service_id    VARCHAR(64) NOT NULL,
+    search_text   TEXT        NOT NULL,
+    revision      VARCHAR(36) NOT NULL,
+    rule_controls TEXT,
+    body          TEXT        NOT NULL,
+    PRIMARY KEY (service_id)
+);
+
+CREATE TABLE meteor_instance_services
+(
+    instance_id     VARCHAR(64) NOT NULL,
+    service_id      VARCHAR(64) NOT NULL,
+    member_role     VARCHAR(16) NOT NULL,
+    session_id      VARCHAR(36) NOT NULL,
+    search_text     TEXT        NOT NULL,
+    search_role     TEXT,
+    search_protocol TEXT,
+    search_address  TEXT,
+    revision        VARCHAR(36) NOT NULL,
+    rule_controls   TEXT,
+    body            TEXT        NOT NULL,
+    PRIMARY KEY (instance_id, service_id)
+);
+
+CREATE TABLE meteor_member_protocols
+(
+    service_id    VARCHAR(64)  NOT NULL,
+    instance_id   VARCHAR(64)  NOT NULL,
+    protocol_name VARCHAR(256) NOT NULL,
+    session_id    VARCHAR(36)  NOT NULL,
+    PRIMARY KEY (service_id, instance_id, protocol_name)
+);
+
+CREATE TABLE meteor_governance
+(
+    instance_id   VARCHAR(64) NOT NULL,
+    service_id    VARCHAR(64) NOT NULL,
+    item_name     VARCHAR(64) NOT NULL,
+    revision      VARCHAR(36) NOT NULL,
+    session_id    VARCHAR(36),
+    rule_controls TEXT,
+    body          TEXT,
+    PRIMARY KEY (instance_id, service_id, item_name)
+);
+
+-- Global state also holds rule switches when no state override exists.
+INSERT INTO meteor_governance(instance_id, service_id, item_name, revision, body)
+VALUES ('global', 'global', 'state', '00000000-0000-0000-0000-000000000000', NULL);
+
+CREATE INDEX met_governance_session ON meteor_governance (session_id);
+
+CREATE INDEX met_sessions_expiry ON meteor_sessions (expires_at);
+
+CREATE INDEX met_instances_application ON meteor_instances (application_id, instance_id);
+
+CREATE INDEX met_instances_unit ON meteor_instances (application_id, unit_name, instance_id);
+
+CREATE INDEX met_instances_session ON meteor_instances (session_id);
+
+CREATE INDEX met_iservices_session ON meteor_instance_services (session_id);
+
+CREATE INDEX met_iservices_members ON meteor_instance_services (service_id, member_role, instance_id);
+
+CREATE INDEX met_protocols_session ON meteor_member_protocols (session_id);
+
+CREATE INDEX met_protocols_instance ON meteor_member_protocols (instance_id, session_id);

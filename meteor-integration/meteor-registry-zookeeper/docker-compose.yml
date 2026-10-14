@@ -1,0 +1,30 @@
+# 在本目录执行：docker compose up -d --wait
+# 停止：docker compose down；同时清空开发数据：docker compose down -v
+# Meteor 连接地址：127.0.0.1:2181；默认根路径：/meteor；用户名、密码留空。
+# 仅用于本地单机开发验证。
+name: meteor-zookeeper-dev
+
+services:
+  zookeeper:
+    image: zookeeper:3.9.6
+    environment:
+      ZOO_STANDALONE_ENABLED: "true"
+      ZOO_ADMINSERVER_ENABLED: "false"
+      ZOO_AUTOPURGE_PURGEINTERVAL: "1"
+      ZOO_AUTOPURGE_SNAPRETAINCOUNT: "3"
+      JVMFLAGS: "-Xms128m -Xmx256m -XX:ActiveProcessorCount=2"
+    ports:
+      - "127.0.0.1:2181:2181"
+    volumes:
+      - zookeeper-data:/data
+      - zookeeper-log:/datalog
+    healthcheck:
+      test: [ "CMD", "zkServer.sh", "status" ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  zookeeper-data:
+  zookeeper-log:

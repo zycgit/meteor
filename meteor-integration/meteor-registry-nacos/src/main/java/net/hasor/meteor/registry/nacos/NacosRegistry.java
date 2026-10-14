@@ -6,486 +6,600 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.nacos;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.function.Function;
 import com.alibaba.nacos.api.config.ConfigService;
 import com.alibaba.nacos.api.naming.NamingService;
 import com.alibaba.nacos.api.naming.pojo.Instance;
-import com.alibaba.nacos.api.naming.pojo.ListView;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Cancellable;
-import net.hasor.meteor.registry.shared.storage.RecordStorageAccess;
-import net.hasor.meteor.registry.shared.storage.StorageDocument;
-import net.hasor.meteor.registry.shared.storage.StorageKeyUtils;
+import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.registry.shared.storage.DirectoryFilter;
+import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
-/**
- * 临时正文由 Naming 持有，起点索引只保存引用；持久正文使用有界目录和分片 CAS。
- */
-final class NacosRegistry extends RecordStorageAccess {
-    private static final String                       PREFIX        = "meteor.v2.";
-    private final        NamingService                naming;
-    private final        ConfigService                configs;
-    private final        String                       group;
-    private final        long                         timeout;
-    private final        Map<String, StorageDocument> owned         = new ConcurrentHashMap<>();
-    private final        Set<NacosStorageWatch>       subscriptions = ConcurrentHashMap.newKeySet();
-    private              ScheduledExecutorService     watchExecutor;
+/** 应用和服务定义持久保存；实例、成员关系和实例治理随 Naming 临时登记退出。 */
+final class NacosRegistry implements StorageAccess {
+    private final    NamingService                            naming;
+    private final    ConfigService                            configs;
+    private final    String                                   group;
+    private final    NacosConfigStore                         documents;
+    private final    NacosNamingStore                         runtime;
+    private final    NacosGovernance                          governance;
+    private final    NacosRuleStore                           rules;
+    private final    Map<String, EntInstanceRuntimeData>      instances  = new HashMap<>();
+    private final    Map<String, Map<String, MetServiceType>> references = new HashMap<>();
+    private final    Set<NacosStorageWatch>                   watches    = ConcurrentHashMap.newKeySet();
+    private final    ScheduledExecutorService                 executor;
+    private volatile boolean                                  closed;
 
-    @Override
-    public Cancellable watchEntities(EntityQuery query, Runnable listener) {
-        this.lifecycleLock.readLock().lock();
-        try {
-            this.requireOpen();
-            if (query == null || query.getType() == null) {
-                throw new IllegalArgumentException("Entity type is required");
-            }
+    NacosRegistry(NamingService naming, ConfigService configs, Properties properties, String group, long timeout) {
+        this.naming = naming;
+        this.configs = configs;
+        this.group = group;
+        this.documents = new NacosConfigStore(configs, group, timeout);
+        this.runtime = new NacosNamingStore(naming, group);
+        this.governance = new NacosGovernance(this.documents, this.runtime, properties, group);
+        this.rules = new NacosRuleStore(this.documents, this.governance);
+        this.executor = Executors.newSingleThreadScheduledExecutor(task -> {
+            Thread thread = new Thread(task, "Meteor-nacos-watch");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
 
-            EntityQuery selection = query.copy();
-            return this.watch(List.of("e." + selection.getType().name()), () -> {
-                return this.readVersions(selection);
-            }, listener);
-        } finally {
-            this.lifecycleLock.readLock().unlock();
+    private void requireOpen() {
+        if (this.closed) {
+            throw new IllegalStateException("Registry storage is closed");
         }
     }
 
-    @Override
-    public Cancellable watchRelations(RelationQuery query, Runnable listener) {
-        this.lifecycleLock.readLock().lock();
-        try {
-            this.requireOpen();
-            boolean scoped = query != null && (query.getType() != null || query.getSource() != null || query.getTarget() != null);
-            if (!scoped) {
-                throw new IllegalArgumentException("Specify relation type or endpoint");
-            }
+    private static String membersKey(String serviceId, MetServiceType role) {
+        String suffix = role == MetServiceType.Provider ? ".providers" : ".consumers";
+        return NacosKeyUtils.service(serviceId) + suffix;
+    }
 
-            RelationQuery selection = query.copy();
-            List<String> families = new ArrayList<>();
-            for (RelationType type : RelationType.values()) {
-                if (selection.getType() == null || selection.getType() == type) {
-                    families.add("r." + type.name());
+    @Override
+    public EntApplicationCatalogData getApplication(String name) throws Exception {
+        this.requireOpen();
+        return this.documents.get(NacosKeyUtils.application(name), EntApplicationCatalogData.class);
+    }
+
+    @Override
+    public void saveApplication(EntApplicationCatalogData value) throws Exception {
+        this.requireOpen();
+        String name = value.getApplicationName();
+        String key = NacosKeyUtils.application(name);
+        this.documents.update(key, EntApplicationCatalogData.class, previous -> value);
+        this.documents.index("applications", name, key);
+    }
+
+    @Override
+    public EntServiceCatalogData getService(String id) throws Exception {
+        this.requireOpen();
+        return this.documents.get(NacosKeyUtils.service(id), EntServiceCatalogData.class);
+    }
+
+    @Override
+    public void saveService(EntServiceCatalogData value) throws Exception {
+        this.requireOpen();
+        String id = value.getServiceId();
+        String key = NacosKeyUtils.service(id);
+        // 服务登记仅合并声明字段，保留同一详情中的管理端规则开关。
+        Map<String, Object> declaration = RegistryJson.copy(value, Map.class);
+        this.documents.update(key, Map.class, previous -> {
+            Map<String, Object> document = previous == null ? new LinkedHashMap<>() : previous;
+            for (String field : List.of("serviceId", "group", "name", "version", "type")) {
+                Object item = declaration.get(field);
+                if (item != null) {
+                    document.put(field, item);
                 }
             }
-            return this.watch(families, () -> this.readVersions(selection), listener);
-        } finally {
-            this.lifecycleLock.readLock().unlock();
+            return document;
+        });
+        this.documents.index("services", id, key);
+    }
+
+    @Override
+    public RecordPage<EntApplicationCatalogData> applications(DirectoryQuery query) throws Exception {
+        this.requireOpen();
+        Map<String, EntApplicationCatalogData> values = new TreeMap<>();
+        for (String id : this.documents.references("applications").keySet()) {
+            EntApplicationCatalogData value = this.getApplication(id);
+            if (value != null) {
+                values.put(id, value);
+            }
+        }
+        return page(values, query, EntApplicationCatalogData::getApplicationName, value -> null);
+    }
+
+    @Override
+    public RecordPage<EntServiceCatalogData> services(DirectoryQuery query) throws Exception {
+        this.requireOpen();
+        Map<String, EntServiceCatalogData> values = new TreeMap<>();
+        for (String id : this.documents.references("services").keySet()) {
+            EntServiceCatalogData value = this.getService(id);
+            if (value != null) {
+                values.put(id, value);
+            }
+        }
+        return page(values, query, EntServiceCatalogData::getServiceId, value -> null);
+    }
+
+    @Override
+    public InstanceStatus getInstance(String id) throws Exception {
+        this.requireOpen();
+        Instance node = this.runtime.find(NacosKeyUtils.instance(id), id);
+        if (node == null) {
+            return null;
+        }
+        EntInstanceRuntimeData body = RegistryJson.read(node.getMetadata().get("body"), EntInstanceRuntimeData.class);
+        InstanceStatus result = new InstanceStatus();
+        result.setInstance(RegistryJson.copy(body, EntInstanceCatalogData.class));
+        result.setRuntime(body);
+        return result;
+    }
+
+    @Override
+    public RecordPage<InstanceStatus> instances(String applicationName, DirectoryQuery query) throws Exception {
+        this.requireOpen();
+        Set<String> names = new TreeSet<>();
+        if (applicationName != null) {
+            names.add(applicationName);
+        } else {
+            names.addAll(this.documents.references("applications").keySet());
+        }
+        Map<String, InstanceStatus> values = new TreeMap<>();
+        for (String name : names) {
+            String key = NacosKeyUtils.application(name) + ".instances";
+            for (Instance reference : this.runtime.members(key)) {
+                String id = reference.getMetadata().get("instanceId");
+                InstanceStatus instance = this.getInstance(id);
+                if (instance != null) {
+                    values.put(id, instance);
+                }
+            }
+        }
+        return page(values, query, value -> identity(value.getInstance()), value -> value.getInstance().getUnitName());
+    }
+
+    @Override
+    public synchronized void registerInstance(EntInstanceRuntimeData value) throws Exception {
+        this.requireOpen();
+        String id = value.getInstanceId();
+        EntInstanceRuntimeData previous = this.instances.get(id);
+        if (previous == null && this.getInstance(id) != null) {
+            throw new IllegalStateException("Instance ID is already registered: " + id);
+        }
+        EntApplicationCatalogData application = new EntApplicationCatalogData();
+        application.setApplicationName(value.getApplicationName());
+        this.saveApplication(application);
+
+        // 只持有本进程的运行快照；实例 ID 标识一次运行，不支持另一个进程接管相同 ID。
+        EntInstanceRuntimeData snapshot = RegistryJson.copy(value, EntInstanceRuntimeData.class);
+        this.instances.put(id, snapshot);
+        this.references.computeIfAbsent(id, ignored -> new TreeMap<>());
+        this.publishInstance(snapshot);
+        this.ensureGovernance(snapshot, null);
+        String applicationKey = NacosKeyUtils.application(value.getApplicationName()) + ".instances";
+        this.runtime.publish(applicationKey, snapshot, Map.of());
+        if (previous != null && !StringUtils.equals(previous.getApplicationName(), value.getApplicationName())) {
+            String oldKey = NacosKeyUtils.application(previous.getApplicationName()) + ".instances";
+            this.runtime.withdraw(oldKey, id);
         }
     }
 
-    private Map<String, String> readVersions(EntityQuery query) throws Exception {
-        EntityQuery pageQuery = query.copy();
-        pageQuery.setLimit(1000);
-        pageQuery.setCursor(null);
-        Map<String, String> versions = new TreeMap<>();
-
-        do {
-            RecordPage<EntityRecord> page = this.findEntities(pageQuery);
-            for (EntityRecord record : page.records()) {
-                EntityRef entity = record.getRef();
-                String key = StorageKeyUtils.entity(entity);
-                versions.put(key, record.getRevision());
-            }
-            pageQuery.setCursor(page.nextCursor());
-        } while (pageQuery.getCursor() != null);
-        return versions;
+    private void publishInstance(EntInstanceRuntimeData instance) throws Exception {
+        String id = instance.getInstanceId();
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("body", RegistryJson.write(instance));
+        metadata.put("services", RegistryJson.write(this.references.get(id)));
+        this.runtime.publish(NacosKeyUtils.instance(id), instance, metadata);
     }
 
-    private Map<String, String> readVersions(RelationQuery query) throws Exception {
-        RelationQuery pageQuery = query.copy();
-        pageQuery.setLimit(1000);
-        pageQuery.setCursor(null);
-        Map<String, String> versions = new TreeMap<>();
-
-        do {
-            RecordPage<RelationRecord> page = this.findRelations(pageQuery);
-            for (RelationRecord record : page.records()) {
-                String key = StorageKeyUtils.relation(record.getType(), record.getSource(), record.getTarget());
-                versions.put(key, record.getRevision());
-            }
-            pageQuery.setCursor(page.nextCursor());
-        } while (pageQuery.getCursor() != null);
-        return versions;
+    private void ensureGovernance(EntInstanceRuntimeData instance, String serviceId) throws Exception {
+        String key = NacosKeyUtils.governance(instance.getInstanceId(), serviceId);
+        // 客户端只创建空的控制节点。控制字段由 Naming 管理接口维护，重复上报不能覆盖它们。
+        if (!this.runtime.owns(key, instance.getInstanceId())) {
+            this.runtime.publish(key, instance, Map.of());
+        }
     }
 
-    private synchronized Cancellable watch(List<String> families, Callable<Map<String, String>> snapshot, Runnable listener) {
-        if (this.watchExecutor == null) {
-            ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, task -> {
-                Thread thread = new Thread(task, "Meteor-nacos-watch-" + this.tempSessionId);
-                thread.setDaemon(true);
-                return thread;
+    private EntInstanceRuntimeData ownInstance(String id) {
+        this.requireOpen();
+        EntInstanceRuntimeData instance = this.instances.get(id);
+        if (instance == null) {
+            throw new IllegalStateException("Instance is not registered by this client: " + id);
+        }
+        return instance;
+    }
+
+    @Override
+    public synchronized void registerService(String instanceId, EntServiceRuntimeData value) throws Exception {
+        EntInstanceRuntimeData instance = this.ownInstance(instanceId);
+        String id = value.getServiceId();
+        this.saveService(value);
+        this.ensureGovernance(instance, id);
+
+        // 关系只保留自身的运行属性；服务声明、实例资料按各自的独立键查询。
+        Map<String, Object> relation = new LinkedHashMap<>();
+        relation.put("enabled", value.isEnabled());
+        relation.put("endpoints", value.getEndpoints());
+        relation.put("addresses", value.getAddresses());
+        relation.put("usedProtocols", value.getUsedProtocols());
+        String body = RegistryJson.write(relation);
+        this.runtime.publish(membersKey(id, value.getRole()), instance, Map.of("body", body));
+        MetServiceType other = MetServiceType.Provider;
+        if (value.getRole() == MetServiceType.Provider) {
+            other = MetServiceType.Consumer;
+        }
+        String previousKey = membersKey(id, other);
+        if (this.runtime.owns(previousKey, instanceId)) {
+            String targetKey = membersKey(id, value.getRole());
+            long deadline = NacosGovernance.writeDeadline();
+            this.governance.locked(NacosKeyUtils.governance(instanceId, id), () -> {
+                // 搬迁开关和撤回旧角色在同一治理锁内，避免期间下发到旧关系后丢失。
+                this.rules.moveControls(instanceId, previousKey, targetKey, deadline);
+                this.runtime.withdraw(previousKey, instanceId);
+                return null;
             });
-            executor.setRemoveOnCancelPolicy(true);
-            this.watchExecutor = executor;
         }
-        NacosStorageWatch watch = new NacosStorageWatch(this.naming, this.configs, this.group, this.timeout, families, snapshot, listener, this.watchExecutor, this.subscriptions::remove);
-        this.subscriptions.add(watch);
+
+        // 主关系成功后再发布反向引用。失败向上传递，重复登记会继续补齐引用。
+        this.references.get(instanceId).put(id, value.getRole());
+        this.publishInstance(instance);
+    }
+
+    @Override
+    public synchronized void unregisterService(String instanceId, String serviceId) throws Exception {
+        EntInstanceRuntimeData instance = this.ownInstance(instanceId);
+        this.runtime.withdraw(membersKey(serviceId, MetServiceType.Provider), instanceId);
+        this.runtime.withdraw(membersKey(serviceId, MetServiceType.Consumer), instanceId);
+        this.runtime.withdraw(NacosKeyUtils.governance(instanceId, serviceId), instanceId);
+        this.references.get(instanceId).remove(serviceId);
+        this.publishInstance(instance);
+    }
+
+    @Override
+    public RefServiceRelationData getMember(String serviceId, MetServiceType role, String instanceId) throws Exception {
+        this.requireOpen();
+        Instance node = this.runtime.find(membersKey(serviceId, role), instanceId);
+        return node == null ? null : this.member(serviceId, role, node);
+    }
+
+    private RefServiceRelationData member(String serviceId, MetServiceType role, Instance node) throws Exception {
+        InstanceStatus instance = this.getInstance(node.getMetadata().get("instanceId"));
+        EntServiceCatalogData catalog = this.getService(serviceId);
+        if (instance == null || catalog == null) {
+            return null;
+        }
+        EntServiceRuntimeData value = RegistryJson.read(node.getMetadata().get("body"), EntServiceRuntimeData.class);
+        value.setServiceId(serviceId);
+        value.setGroup(catalog.getGroup());
+        value.setName(catalog.getName());
+        value.setVersion(catalog.getVersion());
+        value.setType(catalog.getType());
+        value.setRole(role);
+        RefServiceRelationData result = new RefServiceRelationData();
+        result.setInstance(instance.getRuntime());
+        result.setService(value);
+        return result;
+    }
+
+    @Override
+    public EntServiceRuntimeData getInstanceService(String instanceId, String serviceId) throws Exception {
+        this.requireOpen();
+        for (MetServiceType role : MetServiceType.values()) {
+            RefServiceRelationData relation = this.getMember(serviceId, role, instanceId);
+            if (relation != null) {
+                return relation.getService();
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public RecordPage<EntServiceRuntimeData> instanceServices(String instanceId, DirectoryQuery query) throws Exception {
+        this.requireOpen();
+        Map<String, EntServiceRuntimeData> values = new TreeMap<>();
+        Instance node = this.runtime.find(NacosKeyUtils.instance(instanceId), instanceId);
+        if (node != null) {
+            Map<?, ?> services = RegistryJson.read(node.getMetadata().get("services"), Map.class);
+            for (Object id : services.keySet()) {
+                String serviceId = (String) id;
+                EntServiceRuntimeData value = this.getInstanceService(instanceId, serviceId);
+                if (value != null) {
+                    values.put(serviceId, value);
+                }
+            }
+        }
+        return page(values, query, EntServiceCatalogData::getServiceId, value -> null);
+    }
+
+    @Override
+    public RecordPage<RefServiceRelationData> members(String serviceId, MetServiceType role, DirectoryQuery query) throws Exception {
+        this.requireOpen();
+        Map<String, RefServiceRelationData> values = new TreeMap<>();
+        for (Instance node : this.runtime.members(membersKey(serviceId, role))) {
+            RefServiceRelationData member = this.member(serviceId, role, node);
+            if (member != null) {
+                values.put(member.getInstance().getInstanceId(), member);
+            }
+        }
+        return page(values, query, value -> identity(value.getInstance()), value -> value.getInstance().getUnitName());
+    }
+
+    @Override
+    public String[] applicationUnits(String applicationName) throws Exception {
+        this.requireOpen();
+        Set<String> units = new TreeSet<>();
+        String key = NacosKeyUtils.application(applicationName) + ".instances";
+        for (Instance node : this.runtime.members(key)) {
+            InstanceStatus instance = this.getInstance(node.getMetadata().get("instanceId"));
+            if (instance != null && StringUtils.isNotBlank(instance.getInstance().getUnitName())) {
+                units.add(instance.getInstance().getUnitName());
+            }
+        }
+        return units.toArray(String[]::new);
+    }
+
+    @Override
+    public String[] serviceUnits(String serviceId) throws Exception {
+        this.requireOpen();
+        Set<String> units = new TreeSet<>();
+        for (MetServiceType role : MetServiceType.values()) {
+            for (Instance node : this.runtime.members(membersKey(serviceId, role))) {
+                InstanceStatus instance = this.getInstance(node.getMetadata().get("instanceId"));
+                if (instance != null && StringUtils.isNotBlank(instance.getInstance().getUnitName())) {
+                    units.add(instance.getInstance().getUnitName());
+                }
+            }
+        }
+        return units.toArray(String[]::new);
+    }
+
+    @Override
+    public Map<String, ServiceSummary> serviceSummaries(Collection<String> serviceIds) throws Exception {
+        this.requireOpen();
+        Map<String, ServiceSummary> result = new HashMap<>();
+        for (String id : serviceIds) {
+            ServiceSummary summary = new ServiceSummary();
+            Set<String> protocols = new TreeSet<>();
+            for (MetServiceType role : MetServiceType.values()) {
+                int count = 0;
+                for (Instance node : this.runtime.members(membersKey(id, role))) {
+                    RefServiceRelationData member = this.member(id, role, node);
+                    if (member != null) {
+                        count++;
+                        protocols.addAll(DirectoryFilter.protocolNames(member.getService()));
+                    }
+                }
+                if (role == MetServiceType.Provider) {
+                    summary.setProviderCount(count);
+                } else {
+                    summary.setConsumerCount(count);
+                }
+            }
+            summary.setProtocols(protocols.toArray(String[]::new));
+            result.put(id, summary);
+        }
+        return result;
+    }
+
+    private static String identity(EntInstanceCatalogData value) {
+        return value.getInstanceId() + " " + value.getIpAddress() + " " + value.getProcessId();
+    }
+
+    private static <T> RecordPage<T> page(Map<String, T> values, DirectoryQuery input, Function<T, String> text, Function<T, String> unit) {
+        DirectoryQuery query = input == null ? new DirectoryQuery() : input;
+        if (query.getLimit() < 1 || query.getLimit() > 1000) {
+            throw new IllegalArgumentException("Directory page limit must be between 1 and 1000");
+        }
+        RecordPage<T> page = new RecordPage<>();
+        String last = null;
+        for (Map.Entry<String, T> entry : values.entrySet()) {
+            String id = entry.getKey();
+            if (query.getCursor() != null && id.compareTo(query.getCursor()) <= 0) {
+                continue;
+            }
+            T value = entry.getValue();
+            if (!DirectoryFilter.protocol(value, query.getProtocol())) {
+                continue;
+            }
+            String selectedUnit = query.getUnitName();
+            if (StringUtils.isNotBlank(selectedUnit) && !StringUtils.equals(selectedUnit, unit.apply(value))) {
+                continue;
+            }
+            if (StringUtils.isNotBlank(query.getSearch())) {
+                String candidate = DirectoryFilter.text(value, query.getField(), text.apply(value));
+                String search = query.getSearch().toLowerCase(Locale.ROOT);
+                if (!candidate.toLowerCase(Locale.ROOT).contains(search)) {
+                    continue;
+                }
+            }
+            if (page.getItems().size() == query.getLimit()) {
+                page.setNextCursor(last);
+                break;
+            }
+            page.getItems().add(value);
+            last = id;
+        }
+        return page;
+    }
+
+    @Override
+    public EntityRecord<EntConfigurationData> getConfiguration(String instanceId, String serviceId) throws Exception {
+        this.requireOpen();
+        return this.governance.get(instanceId, serviceId, "state", EntConfigurationData.class);
+    }
+
+    @Override
+    public void saveConfiguration(String instanceId, String serviceId, EntityRecord<EntConfigurationData> value) throws Exception {
+        this.requireOpen();
+        this.governance.save(instanceId, serviceId, "state", value, false);
+    }
+
+    @Override
+    public boolean deleteConfiguration(String instanceId, String serviceId, String revision) throws Exception {
+        this.requireOpen();
+        EntityRecord<EntConfigurationData> value = new EntityRecord<>();
+        value.setRevision(revision);
+        return this.governance.save(instanceId, serviceId, "state", value, true);
+    }
+
+    @Override
+    public EntityRecord<EntRuleConfigurationData> getRule(String instanceId, String serviceId, RuleKind kind) throws Exception {
+        this.requireOpen();
+        return this.rules.get(instanceId, serviceId, kind);
+    }
+
+    @Override
+    public void saveRule(String instanceId, String serviceId, RuleKind kind, EntityRecord<EntRuleConfigurationData> value) throws Exception {
+        this.requireOpen();
+        this.rules.save(instanceId, serviceId, kind, value, false);
+    }
+
+    @Override
+    public boolean deleteRule(String instanceId, String serviceId, RuleKind kind, String revision) throws Exception {
+        this.requireOpen();
+        EntityRecord<EntRuleConfigurationData> value = new EntityRecord<>();
+        value.setRevision(revision);
+        return this.rules.save(instanceId, serviceId, kind, value, true);
+    }
+
+    @Override
+    public EntityRecord<EntMetadataData> getMetadata(String instanceId, String serviceId) throws Exception {
+        this.requireOpen();
+        return this.governance.get(instanceId, serviceId, "metadata", EntMetadataData.class);
+    }
+
+    @Override
+    public void saveMetadata(String instanceId, String serviceId, EntityRecord<EntMetadataData> value) throws Exception {
+        this.requireOpen();
+        this.governance.save(instanceId, serviceId, "metadata", value, false);
+    }
+
+    @Override
+    public boolean deleteMetadata(String instanceId, String serviceId, String revision) throws Exception {
+        this.requireOpen();
+        EntityRecord<EntMetadataData> value = new EntityRecord<>();
+        value.setRevision(revision);
+        return this.governance.save(instanceId, serviceId, "metadata", value, true);
+    }
+
+    private synchronized Cancellable watch(List<String> names, List<String> dataIds, Callable<Map<String, String>> snapshot, Runnable listener) {
+        this.requireOpen();
+        NacosStorageWatch watch = new NacosStorageWatch(this.naming, this.configs, this.group, // 原生订阅来源
+                names, dataIds, snapshot, listener, this.executor, this.watches::remove);
+        this.watches.add(watch);
         watch.start();
         return watch;
     }
 
-    NacosRegistry(NamingService naming, ConfigService configs, String group, long timeout) {
-        this.naming = naming;
-        this.configs = configs;
-        this.group = group;
-        this.timeout = timeout;
-    }
-
-    private static String family(String key) {
-        return key.substring(0, key.lastIndexOf('.'));
-    }
-
-    private static String shard(String key) {
-        return StorageKeyUtils.hash(key).substring(0, 2);
-    }
-
-    private static String bucket(String key) {
-        return PREFIX + "config." + family(key) + "." + shard(key);
-    }
-
-    private static String primary(StorageDocument record) {
-        String key;
-        if (record.getEntity() != null) {
-            key = record.getKey();
-        } else {
-            key = StorageKeyUtils.entity(record.getRelation().getTarget());
-        }
-        return PREFIX + record.getKind() + "." + record.getType() + "." + StorageKeyUtils.hash(key);
-    }
-
-    private static String sourceIndex(RelationRecord relation) {
-        String source = StorageKeyUtils.entity(relation.getSource());
-        return PREFIX + "source." + relation.getType() + "." + StorageKeyUtils.hash(source);
-    }
-
-    private static String cluster(StorageDocument record) {
-        // SHA-256 的 64 位十六进制结果恰好满足 Nacos cluster 名称的长度限制。
-        return StorageKeyUtils.hash(record.getKey(), record.getSessionId());
-    }
-
-    private static String md5(String value) throws Exception {
-        String content = value == null ? "" : value;
-        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] digest = MessageDigest.getInstance("MD5").digest(bytes);
-        return HexFormat.of().formatHex(digest);
-    }
-
-    private RecordBucket readBucket(String content) throws Exception {
-        return content == null ? new RecordBucket() : RegistryJson.read(content, RecordBucket.class);
-    }
-
-    private List<Instance> nodes(String name) throws Exception {
-        return this.naming.getAllInstances(name, this.group, false);
-    }
-
-    private StorageDocument temporary(String key, String name, boolean liveOnly) throws Exception {
-        StorageDocument found = null;
-        for (Instance node : this.nodes(name)) {
-            if (liveOnly && (!node.isHealthy() || !node.isEnabled())) {
-                continue;
-            }
-
-            String body = node.getMetadata().get("record");
-            if (body == null) {
-                continue;
-            }
-
-            StorageDocument value = RegistryJson.read(body, StorageDocument.class);
-            if (StringUtils.equals(key, value.getKey())) {
-                if (found != null && !StringUtils.equals(found.getSessionId(), value.getSessionId())) {
-                    throw new IllegalStateException("Conflicting owners for temporary record: " + key);
-                }
-                found = value;
-            }
-        }
-        return found;
-    }
-
-    private StorageDocument persistent(String key) throws Exception {
-        return this.readBucket(this.configs.getConfig(bucket(key), this.group, this.timeout)).getRecords().get(key);
+    @Override
+    public Cancellable watchProviders(String serviceId, Runnable listener) {
+        String key = membersKey(serviceId, MetServiceType.Provider);
+        return this.watch(List.of(key), List.of(), () -> this.runtime.snapshot(key), listener);
     }
 
     @Override
-    protected StorageDocument readDocument(String key) throws Exception {
-        StorageDocument saved = this.persistent(key);
-        if (saved != null) {
-            return saved;
-        } else {
-            return this.temporary(key, PREFIX + family(key) + "." + StorageKeyUtils.hash(key), true);
-        }
-    }
-
-    @Override
-    protected StorageDocument readRelationDocument(RelationType type, EntityRef source, EntityRef target) throws Exception {
-        String key = StorageKeyUtils.relation(type, source, target);
-        StorageDocument durable = this.persistent(key);
-        if (durable != null) {
-            return durable;
-        }
-        String name = PREFIX + "r." + type.name() + "." + StorageKeyUtils.hash(StorageKeyUtils.entity(target));
-        return this.temporary(key, name, true);
-    }
-
-    private List<String> names(String prefix) throws Exception {
-        List<String> result = new ArrayList<>();
-        int page = 1;
-        ListView<String> view;
-        do {
-            view = this.naming.getServicesOfServer(page, 100, this.group);
-            for (String name : view.getData()) {
-                if (name.startsWith(prefix)) {
-                    result.add(name);
-                }
-            }
-        } while (page++ * 100 < view.getCount());
-        return result;
-    }
-
-    private void collect(String name, Map<String, StorageDocument> result, boolean reference) throws Exception {
-        for (Instance node : this.nodes(name)) {
-            if (!node.isHealthy() || !node.isEnabled()) {
-                continue;
-            }
-
-            StorageDocument record;
-            if (reference) {
-                String key = node.getMetadata().get("key");
-                String target = node.getMetadata().get("primary");
-                if (key == null || target == null) {
-                    continue;
-                }
-
-                record = this.temporary(key, target, true);
+    public Cancellable watchConfiguration(String instanceId, String serviceId, Runnable listener) {
+        String key = NacosKeyUtils.governance(instanceId, serviceId);
+        if (instanceId != null) {
+            List<String> names = new ArrayList<>();
+            names.add(key);
+            if (serviceId == null) {
+                names.add(NacosKeyUtils.instance(instanceId));
             } else {
-                String json = node.getMetadata().get("record");
-                if (json == null) {
-                    continue;
-                }
-                record = RegistryJson.read(json, StorageDocument.class);
+                names.add(membersKey(serviceId, MetServiceType.Provider));
+                names.add(membersKey(serviceId, MetServiceType.Consumer));
             }
-
-            if (record != null) {
-                StorageDocument previous = result.put(record.getKey(), record);
-                if (previous != null && !StringUtils.equals(previous.getSessionId(), record.getSessionId())) {
-                    throw new IllegalStateException("Conflicting temporary record owners");
-                }
-            }
-        }
-    }
-
-    @Override
-    protected List<StorageDocument> queryDocuments(String kind, String type, EntityRef source, EntityRef target) throws Exception {
-        if (StringUtils.equals("e", kind)) {
-            source = null;
-        }
-        Map<String, StorageDocument> result = new LinkedHashMap<>();
-        List<String> types = new ArrayList<>();
-        if (type == null) {
-            for (RelationType relationType : RelationType.values()) {
-                types.add(relationType.name());
-            }
-        } else {
-            types.add(type);
-        }
-        for (String current : types) {
-            String base = PREFIX + kind + "." + current + ".";
-            if (target != null) {
-                this.collect(base + StorageKeyUtils.hash(StorageKeyUtils.entity(target)), result, false);
-            } else if (source != null) {
-                String sourceKey = StorageKeyUtils.entity(source);
-                String index = PREFIX + "source." + current + "." + StorageKeyUtils.hash(sourceKey);
-                this.collect(index, result, true);
-            } else {
-                for (String name : this.names(base)) {
-                    this.collect(name, result, false);
-                }
-            }
-
-            String catalogName = PREFIX + "catalog." + kind + "." + current;
-            String catalog = this.configs.getConfig(catalogName, this.group, this.timeout);
-            if (catalog != null) {
-                for (String shard : RegistryJson.read(catalog, String[].class)) {
-                    String shardName = PREFIX + "config." + kind + "." + current + "." + shard;
-                    String body = this.configs.getConfig(shardName, this.group, this.timeout);
-                    for (StorageDocument value : this.readBucket(body).getRecords().values()) {
-                        if (result.put(value.getKey(), value) != null) {
-                            throw new IllegalStateException("Record has conflicting lifecycles");
+            return this.watch(names, List.of(), () -> {
+                Map<String, String> values = new TreeMap<>();
+                for (String name : names) {
+                    Map<String, String> fields = this.governance.readRuntime(name, instanceId, false);
+                    if (fields == null) {
+                        continue;
+                    }
+                    if (StringUtils.equals(name, key)) {
+                        values.put(name, RegistryJson.write(fields));
+                        continue;
+                    }
+                    // 应用重新上报端点或状态不属于治理变更，只比较详情中的规则开关。
+                    Map<String, String> controls = new TreeMap<>();
+                    for (String field : List.of("ruleEnabled", "ruleCleared")) {
+                        if (fields.containsKey(field)) {
+                            controls.put(field, fields.get(field));
                         }
                     }
+                    values.put(name, RegistryJson.write(controls));
+                }
+                return values;
+            }, listener);
+        }
+        List<String> keys = new ArrayList<>();
+        keys.add(key + ".state");
+        keys.add(key + ".metadata");
+        if (serviceId != null) {
+            keys.add(NacosKeyUtils.service(serviceId));
+        }
+        for (RuleKind kind : RuleKind.values()) {
+            keys.add(key + ".rule." + kind.name());
+        }
+        return this.watch(List.of(), keys, () -> {
+            Map<String, String> values = new TreeMap<>();
+            for (String dataId : keys) {
+                String body = this.documents.read(dataId);
+                if (body != null) {
+                    values.put(dataId, body);
                 }
             }
-        }
-
-        return new ArrayList<>(result.values());
-    }
-
-    private void includeShard(String key) throws Exception {
-        String name = PREFIX + "catalog." + family(key);
-        for (int attempt = 0; attempt < 8; attempt++) {
-            String old = this.configs.getConfig(name, this.group, this.timeout);
-            Set<String> shards = new TreeSet<>();
-            if (old != null) {
-                String[] existing = RegistryJson.read(old, String[].class);
-                shards.addAll(Arrays.asList(existing));
-            }
-            if (!shards.add(shard(key))) {
-                return;
-            }
-            if (this.configs.publishConfigCas(name, this.group, RegistryJson.write(shards), md5(old))) {
-                return;
-            }
-        }
-        throw new ConcurrentModificationException("Nacos record catalog remains busy");
-    }
-
-    private StorageDocument updatePersistent(StorageDocument input, boolean delete) throws Exception {
-        String dataId = bucket(input.getKey());
-        for (int attempt = 0; attempt < 8; attempt++) {
-            String old = this.configs.getConfig(dataId, this.group, this.timeout);
-            RecordBucket records = this.readBucket(old);
-            StorageDocument previous = records.getRecords().get(input.getKey());
-            if (delete && previous == null) {
-                return null;
-            }
-
-            StorageDocument saved;
-            if (delete) {
-                this.checkMutation(previous, input);
-                saved = records.getRecords().remove(input.getKey());
-            } else {
-                saved = this.prepareWrite(previous, input);
-                records.getRecords().put(input.getKey(), saved);
-            }
-
-            String json = RegistryJson.write(records);
-            if (json.getBytes(StandardCharsets.UTF_8).length > 65536) {
-                throw new IllegalStateException("Nacos record shard exceeds 64 KiB; reduce record content or split the registry scope");
-            }
-            // 通过版本及容量校验后才发布新分片的目录项。
-            if (!delete && attempt == 0) {
-                this.includeShard(input.getKey());
-            }
-            if (this.configs.publishConfigCas(dataId, this.group, json, md5(old))) {
-                return saved;
-            }
-        }
-        throw new ConcurrentModificationException("Nacos record shard remains busy");
-    }
-
-    private void register(String service, StorageDocument record, Map<String, String> metadata) throws Exception {
-        Instance node = new Instance();
-        node.setIp("127.0.0.1");
-        node.setPort(1);
-        node.setClusterName(cluster(record));
-        node.setEphemeral(true);
-        node.setMetadata(metadata);
-        this.naming.registerInstance(service, this.group, node);
+            return values;
+        }, listener);
     }
 
     @Override
-    protected StorageDocument writeDocument(StorageDocument input) throws Exception {
-        StorageDocument temporary = this.temporary(input.getKey(), primary(input), false);
-        if (input.getLifecycle() == RecordLifecycle.PERSISTENT) {
-            // 临时记录不得转换生命周期；持久记录的版本检查由分片 CAS 完成。
-            if (temporary != null) {
-                this.checkMutation(temporary, input);
-            }
-            return this.updatePersistent(input, false);
+    public synchronized void close() throws Exception {
+        if (this.closed) {
+            return;
         }
-
-        StorageDocument durable = this.persistent(input.getKey());
-        if (durable != null && temporary != null) {
-            throw new IllegalStateException("Record has conflicting lifecycles");
-        }
-
-        StorageDocument saved = this.prepareWrite(durable != null ? durable : temporary, input);
-
-        // 先登记引用，再提交正文；失败后的索引不会产生虚假查询结果。周期重新注册修复缺失索引。
-        this.owned.put(saved.getKey(), saved);
-        if (saved.getRelation() != null) {
-            String index = sourceIndex(saved.getRelation());
-            Map<String, String> metadata = Map.of("key", saved.getKey(), "primary", primary(saved));
-            this.register(index, saved, metadata);
-        }
-
-        this.register(primary(saved), saved, Map.of("record", RegistryJson.write(saved)));
-        return saved;
-    }
-
-    private void unregister(StorageDocument record) throws Exception {
-        this.naming.deregisterInstance(primary(record), this.group, "127.0.0.1", 1, cluster(record));
-        if (record.getRelation() != null) {
-            this.naming.deregisterInstance(sourceIndex(record.getRelation()), this.group, "127.0.0.1", 1, cluster(record));
-        }
-    }
-
-    @Override
-    protected boolean removeDocument(StorageDocument input) throws Exception {
-        StorageDocument durable = this.persistent(input.getKey());
-        StorageDocument temporary = this.temporary(input.getKey(), primary(input), false);
-        StorageDocument previous = durable != null ? durable : temporary;
-        if (previous == null) {
-            return false;
-        }
-
-        this.checkMutation(previous, input);
-        if (previous.getLifecycle() == RecordLifecycle.PERSISTENT) {
-            return this.updatePersistent(input, true) != null;
-        }
-
-        this.unregister(previous);
-        this.owned.remove(previous.getKey());
-        return true;
-    }
-
-    @Override
-    protected void closeStorage() throws Exception {
-        this.subscriptions.forEach(NacosStorageWatch::cancel);
-        if (this.watchExecutor != null) {
-            this.watchExecutor.shutdownNow();
-        }
-        Exception error = null;
-        for (StorageDocument record : this.owned.values()) {
+        this.closed = true;
+        Exception failure = null;
+        for (NacosStorageWatch watch : new ArrayList<>(this.watches)) {
             try {
-                this.unregister(record);
-            } catch (Exception failure) {
-                if (error == null) {
-                    error = failure;
-                } else {
-                    error.addSuppressed(failure);
-                }
+                watch.cancel();
+            } catch (Exception cleanup) {
+                failure = collect(failure, cleanup);
             }
         }
-
-        this.owned.clear();
-        try {
-            this.naming.shutDown();
-        } catch (Exception failure) {
-            if (error == null) {
-                error = failure;
-            } else {
-                error.addSuppressed(failure);
+        this.executor.shutdownNow();
+        // 撤回失败也必须关闭 SDK 连接，让服务端最终移除临时登记。
+        List<AutoCloseable> resources = List.of(this.runtime::close, this.governance, // 先撤回登记和释放治理客户端
+                this.naming::shutDown, this.configs::shutDown);
+        for (AutoCloseable resource : resources) {
+            try {
+                resource.close();
+            } catch (Exception cleanup) {
+                failure = collect(failure, cleanup);
             }
         }
-
-        try {
-            this.configs.shutDown();
-        } catch (Exception failure) {
-            if (error == null) {
-                error = failure;
-            } else {
-                error.addSuppressed(failure);
-            }
+        this.instances.clear();
+        this.references.clear();
+        if (failure != null) {
+            throw failure;
         }
+    }
 
-        if (error != null) {
-            throw error;
+    private static Exception collect(Exception previous, Exception next) {
+        if (previous == null) {
+            return next;
         }
+        previous.addSuppressed(next);
+        return previous;
     }
 }
