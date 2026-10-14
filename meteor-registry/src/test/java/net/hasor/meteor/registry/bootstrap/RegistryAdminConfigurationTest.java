@@ -13,6 +13,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.admin.MetClusterAdmin;
+import net.hasor.meteor.registry.admin.MetPage;
 import net.hasor.meteor.registry.admin.MetServiceInfo;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
@@ -22,9 +23,7 @@ import net.hasor.meteor.registry.shared.RegistryTestUtils.Echo;
 import net.hasor.meteor.registry.shared.StorageProbe;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
-import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
-import net.hasor.meteor.registry.shared.storage.domain.EntityRef;
-import net.hasor.meteor.registry.shared.storage.domain.EntityType;
+import net.hasor.meteor.registry.shared.storage.domain.EntServiceCatalogData;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -60,7 +59,7 @@ public class RegistryAdminConfigurationTest {
 
         try (MetContext firstContext = firstConfiguration.buildContext()) {
             RegistryAdmin first = firstContext.getExtension(RegistryAdmin.class);
-            assertEquals(0, first.getClusterAdmin().services(null).length);
+            assertEquals(0, first.getClusterAdmin().services(null, null).getItems().size());
 
             // 修改配置后创建第二个上下文，两个管理入口独立。
             bootstrap.setManagementToken("changed");
@@ -80,7 +79,7 @@ public class RegistryAdminConfigurationTest {
     }
 
     @Test
-    public void closingAdminReleasesSessionOnceAndRejectsFurtherStorageAccess() throws Exception {
+    public void closingAdminReleasesSessionOnceAndRejectsFurtherRegistryStorage() throws Exception {
         // 准备管理扩展并记录存储会话的释放次数。
         MemoryRegistryConfiguration storageConfiguration = new MemoryRegistryConfiguration();
         StorageProbe probe = new StorageProbe();
@@ -101,7 +100,7 @@ public class RegistryAdminConfigurationTest {
 
             assertEquals(1, probe.closedSessions());
             assertThrows(IllegalStateException.class, () -> admin.getClusterAdmin());
-            assertThrows(IllegalStateException.class, () -> cluster.services(null));
+            assertThrows(IllegalStateException.class, () -> cluster.services(null, null));
         }
 
         // 上下文退出时不会重复释放已关闭的管理会话。
@@ -131,9 +130,9 @@ public class RegistryAdminConfigurationTest {
             assertFalse(context.isOnline());
             assertEquals("managed", service.getMetaData("owner"));
             String instanceId = context.getInstanceID();
-            MetServiceInfo[] services = admin.getInstanceAdmin(instanceId).getServiceList();
-            assertEquals(1, services.length);
-            assertEquals(service.getBindID(), services[0].getServiceId());
+            MetPage<MetServiceInfo> services = admin.getInstanceAdmin(instanceId).getServiceList(null);
+            assertEquals(1, services.getItems().size());
+            assertEquals(service.getBindID(), services.getItems().get(0).getServiceId());
             assertTrue(context.getServiceInfo(ManagementRPC.class).isShadow());
 
             // 主动推送不影响管理 RPC 的注册。
@@ -159,7 +158,7 @@ public class RegistryAdminConfigurationTest {
 
             try (MetContext adminContext = adminConfiguration.buildContext()) {
                 RegistryAdmin admin = adminContext.getExtension(RegistryAdmin.class);
-                assertEquals(1, admin.getClusterAdmin().instances("订单").length);
+                assertEquals(1, admin.getClusterAdmin().instances("订单", null).getItems().size());
                 admin.getInstanceAdmin(context.getInstanceID()).block();
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
                 while (!admin.getInstanceAdmin(context.getInstanceID()).instance().isBlock()) {
@@ -183,18 +182,19 @@ public class RegistryAdminConfigurationTest {
     public void directStorageIsIndependentAndDoesNotRequireManagementToken() throws Exception {
         // 准备不带管理凭据的内存库。
         MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
-        EntityRef service = new EntityRef(EntityType.SERVICE, "echo");
+        EntServiceCatalogData service = new EntServiceCatalogData();
+        service.setServiceId("echo");
 
         try (StorageAccess first = configuration.openStorage(); //
              StorageAccess second = configuration.openStorage()) {
             // 两个会话共享记录，但拥有独立生命周期。
             assertNotSame(first, second);
-            first.saveEntity(new EntityRecord(service));
-            assertNotNull(second.getEntity(service));
+            first.saveService(service);
+            assertNotNull(second.getService("echo"));
 
             // 关闭写入会话不影响另一会话读取持久记录。
             first.close();
-            assertNotNull(second.getEntity(service));
+            assertNotNull(second.getService("echo"));
         }
     }
 
@@ -235,7 +235,7 @@ public class RegistryAdminConfigurationTest {
     }
 
     @Test
-    public void clientOnlySettingsDoNotPreventIndependentStorageAccess() throws Exception {
+    public void clientOnlySettingsDoNotPreventIndependentRegistryStorage() throws Exception {
         // 准备对客户端无效、对底层存储无影响的刷新参数。
         MemoryRegistryConfiguration registry = new MemoryRegistryConfiguration();
         registry.setManagementToken("secret");

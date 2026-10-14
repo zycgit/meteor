@@ -21,7 +21,7 @@ public final class AdminFactory {
 
     /** 接收已完成配置的存储位置描述，调用方不再修改。 */
     public AdminFactory(Supplier<StorageAccess> storage, String provider, Map<String, String> scope) {
-        this.governance = new GovernanceStore(storage);
+        this.governance = new GovernanceStore(storage, null, null);
         this.provider = provider;
         this.scope = scope;
     }

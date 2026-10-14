@@ -27,10 +27,7 @@ import net.hasor.meteor.registry.shared.RegistryTestUtils.Echo;
 import net.hasor.meteor.registry.shared.StorageProbe;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
-import net.hasor.meteor.registry.shared.storage.domain.EntData;
-import net.hasor.meteor.registry.shared.storage.domain.EntServiceConfigurationData;
-import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
-import net.hasor.meteor.registry.shared.utils.RegistryJson;
+import net.hasor.meteor.registry.shared.storage.domain.EntMetadataData;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -83,8 +80,11 @@ public class TargetAdminTest {
             assertEquals(first.getInstanceID(), instance.instance().getInstanceId());
             assertEquals("orders", instance.instance().getApplicationName());
             assertEquals(Map.of("rsf", address.toString()), instance.instance().getManagementAddress());
-            assertEquals("inventory", other.providers(null)[0].getInstance().getApplicationName());
-            assertEquals(1, instance.getServiceList().length);
+            MetServiceMember otherProvider = other.providers(null, null).getItems().get(0);
+            assertEquals("inventory", otherProvider.getInstance().getApplicationName());
+            MetPage<MetServiceInfo> services = instance.getServiceList(null);
+            assertEquals(1, services.getItems().size());
+            assertNull(services.getNextCursor());
             MetServiceInfo info = service.info();
             assertEquals(id, info.getServiceId());
             assertEquals(Echo.class.getName(), info.getType());
@@ -95,20 +95,26 @@ public class TargetAdminTest {
             assertEquals(info.getType(), found.getType());
             assertEquals(info.getRole(), found.getRole());
             assertArrayEquals(info.getProtocols(), found.getProtocols());
-            MetServiceInfo listed = instance.getServiceList()[0];
+            MetServiceInfo listed = services.getItems().get(0);
             assertEquals(info.getServiceId(), listed.getServiceId());
             assertEquals(info.getType(), listed.getType());
             assertEquals(info.getRole(), listed.getRole());
             assertArrayEquals(info.getProtocols(), listed.getProtocols());
-            assertEquals(1, service.providers(null).length);
-            assertEquals(0, service.consumers(null).length);
+            MetPage<MetServiceMember> providers = service.providers(null, null);
+            assertEquals(1, providers.getItems().size());
+            assertNull(providers.getNextCursor());
+            MetPage<MetServiceMember> consumers = service.consumers(null, null);
+            assertTrue(consumers.getItems().isEmpty());
+            assertNull(consumers.getNextCursor());
 
             // 端点筛选只针对目标实例，业务 RPC 初始可正常调用。
             MetEndpointFilter filter = new MetEndpointFilter();
             filter.setTransport("tcp");
-            assertEquals(1, service.providers(filter).length);
+            assertEquals(1, service.providers(filter, null).getItems().size());
             filter.setInstanceId(second.getInstanceID());
-            assertEquals(0, service.providers(filter).length);
+            MetPage<MetServiceMember> unmatched = service.providers(filter, null);
+            assertTrue(unmatched.getItems().isEmpty());
+            assertNull(unmatched.getNextCursor());
             assertEquals("first:ok", caller.getRsfClient(address).wrapper(Echo.class).echo("ok"));
 
             // 禁用目标服务只影响网络调用，本地调用和其他实例不受影响。
@@ -178,19 +184,21 @@ public class TargetAdminTest {
             assertEquals(consumer.getInstanceID(), instance.instance().getInstanceId());
             assertEquals(1, service.info().getConsumerCount());
             assertEquals(MetServiceType.Consumer, service.info().getRole());
-            MetServiceInfo consumerInfo = instance.getServiceList()[0];
+            MetServiceInfo consumerInfo = instance.getServiceList(null).getItems().get(0);
             assertEquals(Echo.class.getName(), consumerInfo.getType());
             assertEquals(MetServiceType.Consumer, consumerInfo.getRole());
             assertArrayEquals(new String[] { "rsf" }, consumerInfo.getProtocols());
-            assertEquals(0, service.providers(null).length);
-            assertEquals(1, service.consumers(null).length);
+            assertEquals(0, service.providers(null, null).getItems().size());
+            MetPage<MetServiceMember> consumers = service.consumers(null, null);
+            assertEquals(1, consumers.getItems().size());
+            assertNull(consumers.getNextCursor());
 
             // 直连查询返回实际监听地址，不把注册中心的发布地址混入本地端点。
             InterAddress bound = provider.bindAddress("rsf");
             InterAddress local = new InterAddress("rsf", "127.0.0.1", bound.getPort(), bound.getFormUnit());
             MetServiceAdmin localService = targets.getServiceAdminByAddress(local, id);
             assertEquals(id, localService.info().getServiceId());
-            MetServiceMember member = localService.providers(null)[0];
+            MetServiceMember member = localService.providers(null, null).getItems().get(0);
             assertEquals(Map.of("rsf", local.toString()), member.getInstance().getManagementAddress());
             assertEquals(provider.bindAddress("rsf").toString(), member.getEndpoints()[0].getListenAddress());
             assertNull(member.getEndpoints()[0].getPublishedAddress());
@@ -309,7 +317,7 @@ public class TargetAdminTest {
             instance.updateRule(MetRuleType.SERVICE_ROUTE, instanceRule);
             String late = target.publisher().rsfService(Echo.class, value -> value).name("late").register().getBindID();
             assertNull(target.getUpdater().serviceRoute(late));
-            assertEquals(2, instance.getServiceList().length);
+            assertEquals(2, instance.getServiceList(null).getItems().size());
             client.pullSync().get(5, TimeUnit.SECONDS);
             service.updateRule(MetRuleType.SERVICE_ROUTE, serviceRule);
             assertThrows(Throwable.class, () -> instance.fetchRule(MetRuleType.SERVICE_ROUTE));
@@ -378,10 +386,9 @@ public class TargetAdminTest {
                 client.pullSync().get(5, TimeUnit.SECONDS);
                 assertEquals("registry", binding.getMetaData("owner"));
                 assertFalse(instance.isBlock());
-                EntData content = storage.getEntity(RegistryGovernanceUtils.service(id)).getData();
-                EntServiceConfigurationData data = RegistryJson.copy(content, EntServiceConfigurationData.class);
+                EntMetadataData data = storage.getMetadata(null, id).getData();
                 assertEquals("registry", data.getMetadata().get("owner"));
-                assertEquals(1, admin.getClusterAdmin().services(null).length);
+                assertEquals(1, admin.getClusterAdmin().services(null, null).getItems().size());
 
                 // 注册中心故障时，直连查询和治理仍然可用。
                 probe.setUnavailable(true);
@@ -441,7 +448,7 @@ public class TargetAdminTest {
             assertTrue(management.isShadow());
             assertEquals(target.getInstanceID(), instance.instance().getInstanceId());
             assertEquals(Map.of("rsf", address.toString()), instance.instance().getManagementAddress());
-            assertEquals(1, instance.getServiceList().length);
+            assertEquals(1, instance.getServiceList(null).getItems().size());
             service.putMeta("owner", "direct");
             assertEquals("direct", target.getServiceInfo(Echo.class).getMetaData("owner"));
 

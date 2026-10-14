@@ -50,17 +50,17 @@ public class EndpointFilterTest {
             MetEndpointFilter filter = new MetEndpointFilter();
             filter.setTransport("TCP");
             filter.setProtocol("hprose");
-            assertEquals(0, api.providers(filter).length);
+            assertEquals(0, api.providers(filter, null).getItems().size());
             filter.setTransport("http");
-            assertEquals(1, api.providers(filter).length);
-            assertEquals(2, api.providers(filter)[0].getEndpoints().length);
+            assertEquals(1, api.providers(filter, null).getItems().size());
+            assertEquals(2, api.providers(filter, null).getItems().get(0).getEndpoints().length);
 
             // 叠加连接器和路径条件，路径匹配区分大小写。
             filter.setConnectorName("tcp-0");
-            assertEquals(0, api.providers(filter).length);
+            assertEquals(0, api.providers(filter, null).getItems().size());
             filter.setConnectorName("http-1");
             filter.setContextPath("/API");
-            assertEquals(0, api.providers(filter).length);
+            assertEquals(0, api.providers(filter, null).getItems().size());
             filter.setContextPath("/api");
             filter.setScheme("hprose");
 
@@ -68,19 +68,19 @@ public class EndpointFilterTest {
             String[] addresses = { http.getConfiguredAddress(), http.getListenAddress(), http.getPublishedAddress() };
             for (String address : addresses) {
                 filter.setAddress(address);
-                assertEquals(1, api.providers(filter).length);
+                assertEquals(1, api.providers(filter, null).getItems().size());
             }
             filter.setAddress(tcp.getConfiguredAddress());
-            assertEquals(0, api.providers(filter).length);
-            assertEquals(0, api.consumers(null).length);
+            assertEquals(0, api.providers(filter, null).getItems().size());
+            assertEquals(0, api.consumers(null, null).getItems().size());
 
             // 订阅者使用相同筛选规则，返回的端点信息与存储隔离。
             store(backend, MetServiceType.Consumer, new ServiceEndpointData[] { tcp, http });
             filter.setAddress(http.getConfiguredAddress());
-            assertEquals(1, api.consumers(filter).length);
-            MetServiceMember detached = api.consumers(filter)[0];
+            assertEquals(1, api.consumers(filter, null).getItems().size());
+            MetServiceMember detached = api.consumers(filter, null).getItems().get(0);
             detached.getEndpoints()[0].setProtocol("changed");
-            assertEquals("rsf", api.consumers(filter)[0].getEndpoints()[0].getProtocol());
+            assertEquals("rsf", api.consumers(filter, null).getItems().get(0).getEndpoints()[0].getProtocol());
         }
     }
 
@@ -99,15 +99,15 @@ public class EndpointFilterTest {
             MetEndpointFilter filter = new MetEndpointFilter();
             filter.setInstanceId("one");
             filter.setTransport(" ");
-            assertEquals(1, api.providers(filter).length);
+            assertEquals(1, api.providers(filter, null).getItems().size());
 
             // 增加实际协议条件或不匹配的实例条件后，成员被排除。
             filter.setProtocol("rsf");
-            assertEquals(0, api.providers(filter).length);
+            assertEquals(0, api.providers(filter, null).getItems().size());
             filter.setProtocol(null);
             filter.setInstanceId("missing");
-            assertEquals(0, api.providers(filter).length);
-            assertEquals(1, api.providers(null).length);
+            assertEquals(0, api.providers(filter, null).getItems().size());
+            assertEquals(1, api.providers(null, null).getItems().size());
         }
     }
 
@@ -126,6 +126,7 @@ public class EndpointFilterTest {
     private static void store(StorageAccess backend, MetServiceType role, ServiceEndpointData[] endpoints) throws Exception {
         InstanceData instance = new InstanceData();
         instance.setInstanceId("one");
+        instance.setApplicationName("application");
         ServiceData service = new ServiceData();
         service.setServiceId("echo");
         service.setRole(role);

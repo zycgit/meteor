@@ -10,6 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class InstanceData {
+    private String              ipAddress         = null; // 应用使用的本地 IP
+    private Long                processId         = null; // 应用进程 ID
     private String              instanceId        = null;
     private String              applicationName   = null;
     private boolean             block             = false;
@@ -27,6 +29,22 @@ public final class InstanceData {
 
     public String getApplicationName() {
         return this.applicationName;
+    }
+
+    public String getIpAddress() {
+        return this.ipAddress;
+    }
+
+    public void setIpAddress(String ipAddress) {
+        this.ipAddress = ipAddress;
+    }
+
+    public Long getProcessId() {
+        return this.processId;
+    }
+
+    public void setProcessId(Long processId) {
+        this.processId = processId;
     }
 
     public void setApplicationName(String applicationName) {

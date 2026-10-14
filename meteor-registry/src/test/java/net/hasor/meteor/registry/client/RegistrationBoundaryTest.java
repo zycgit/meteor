@@ -9,7 +9,7 @@ package net.hasor.meteor.registry.client;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
@@ -24,15 +24,12 @@ import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.RegistryTestUtils.Echo;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
-import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
-import net.hasor.meteor.registry.shared.utils.RegistryJson;
 import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class RegistrationBoundaryTest {
     @Test
-    public void eachInstanceServiceHasOneRelationAndNoRuntimeCopy() throws Exception {
+    public void eachInstanceOwnsItsServiceListAndMembersContainTheirIdentity() throws Exception {
         // 三个实例各自发布或订阅两个服务，目录应共享，关系按成员数量增长。
         MemoryRegistryConfiguration registry = new MemoryRegistryConfiguration();
         registry.setManagementToken("secret");
@@ -52,47 +49,39 @@ public class RegistrationBoundaryTest {
             second.start();
             consumer.start();
 
-            // 总共六条成员关系，不创建六条重复的实例服务运行记录。
-            int relations = 0;
+            // 实例拥有完整服务清单，服务拥有完整成员，不需要关系解引用。
             for (MetContext context : new MetContext[] { first, second, consumer }) {
-                EntityRef instance = RegistryGovernanceUtils.instance(context.getInstanceID());
-                RelationQuery memberships = new RelationQuery();
-                memberships.setTarget(instance);
-                int memberCount = storage.findRelations(memberships).records().size();
-                assertEquals(2, memberCount);
-                relations += memberCount;
-
-                EntityQuery runtime = new EntityQuery();
-                runtime.setType(EntityType.SERVICE);
-                runtime.setParent(instance);
-                runtime.setSection(EntitySection.RUNTIME);
-                assertTrue(storage.findEntities(runtime).records().isEmpty());
-
-                EntityRecord registration = storage.getEntity(RegistryGovernanceUtils.runtime(instance));
-                Map<?, ?> fields = RegistryJson.copy(registration.getData(), Map.class);
-                Set<String> expected = Set.of("applicationName", "unitName", "block", "listenAddresses", "managementAddresses");
-                assertEquals(expected, fields.keySet());
+                String instanceId = context.getInstanceID();
+                RecordPage<EntServiceRuntimeData> services = storage.instanceServices(instanceId, new DirectoryQuery());
+                assertEquals(2, services.getItems().size());
+                EntInstanceRuntimeData data = storage.getInstance(instanceId).getRuntime();
+                assertEquals(context.getSettings().getBindAddress(), data.getIpAddress());
+                assertEquals(Long.valueOf(ProcessHandle.current().pid()), data.getProcessId());
+                for (EntServiceRuntimeData service : services.getItems()) {
+                    RefServiceRelationData member = storage.getMember(service.getServiceId(), service.getRole(), instanceId);
+                    assertEquals(data.getIpAddress(), member.getInstance().getIpAddress());
+                    assertEquals(service.getType(), member.getService().getType());
+                }
             }
-            assertEquals(6, relations);
 
             // 集群和实例两个方向的查询都以这些关系为依据。
             RegistryAdmin admin = consumer.getExtension(RegistryAdmin.class);
-            MetServiceInfo[] services = admin.getClusterAdmin().services(null);
-            assertEquals(2, services.length);
+            List<MetServiceInfo> services = admin.getClusterAdmin().services(null, null).getItems();
+            assertEquals(2, services.size());
             for (MetServiceInfo service : services) {
                 assertEquals(2, service.getProviderCount());
                 assertEquals(1, service.getConsumerCount());
-                assertEquals(2, admin.getServiceAdmin(service.getServiceId()).providers(null).length);
+                assertEquals(2, admin.getServiceAdmin(service.getServiceId()).providers(null, null).getItems().size());
             }
-            assertEquals(2, admin.getInstanceAdmin(first.getInstanceID()).getServiceList().length);
+            assertEquals(2, admin.getInstanceAdmin(first.getInstanceID()).getServiceList(null).getItems().size());
 
             // 成员退出只清理其关系，服务目录仍保留，其他实例仍可发现。
             String firstId = first.getInstanceID();
             first.close();
-            RelationQuery departed = new RelationQuery();
-            departed.setTarget(RegistryGovernanceUtils.instance(firstId));
-            assertTrue(storage.findRelations(departed).records().isEmpty());
-            for (MetServiceInfo service : admin.getClusterAdmin().services(null)) {
+            assertTrue(storage.instanceServices(firstId, new DirectoryQuery()).getItems().isEmpty());
+            assertNull(storage.getInstance(firstId).getRuntime());
+            assertEquals(3, storage.instances("application", new DirectoryQuery()).getItems().size());
+            for (MetServiceInfo service : admin.getClusterAdmin().services(null, null).getItems()) {
                 assertEquals(1, service.getProviderCount());
                 assertEquals(1, service.getConsumerCount());
             }
@@ -145,7 +134,7 @@ public class RegistrationBoundaryTest {
             client.pushSync(id).get(5, TimeUnit.SECONDS);
             client.pullSync(id).get(5, TimeUnit.SECONDS);
             RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
-            assertEquals(1, admin.getServiceAdmin(id).consumers(null).length);
+            assertEquals(1, admin.getServiceAdmin(id).consumers(null, null).getItems().size());
         }
     }
 

@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.registry.admin.support;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.domain.MetServiceType;
@@ -28,27 +29,41 @@ final class TargetServiceAdmin implements MetServiceAdmin {
     // 目标实例的服务声明和成员
 
     @Override
+    public String[] units() {
+        String unit = this.rpc.service(this.serviceId).getInstance().getUnitName();
+        if (unit == null) {
+            return new String[0];
+        } else {
+            return new String[] { unit };
+        }
+    }
+
+    @Override
+    public MetPage<MetServiceMember> providers(MetEndpointFilter filter, MetDirectoryQuery query) {
+        List<MetServiceMember> members = this.members(MetServiceType.Provider, filter);
+        return DirectoryMapping.local(members, query, DirectoryMapping::memberIdentity);
+    }
+
+    @Override
+    public MetPage<MetServiceMember> consumers(MetEndpointFilter filter, MetDirectoryQuery query) {
+        List<MetServiceMember> members = this.members(MetServiceType.Consumer, filter);
+        return DirectoryMapping.local(members, query, DirectoryMapping::memberIdentity);
+    }
+
+    @Override
     public MetServiceInfo info() {
         return RegistryJson.copy(this.rpc.service(this.serviceId).getService(), MetServiceInfo.class);
     }
 
-    @Override
-    public MetServiceMember[] providers(MetEndpointFilter filter) {
-        return this.members(MetServiceType.Provider, filter);
-    }
-
-    @Override
-    public MetServiceMember[] consumers(MetEndpointFilter filter) {
-        return this.members(MetServiceType.Consumer, filter);
-    }
-
-    private MetServiceMember[] members(MetServiceType role, MetEndpointFilter filter) {
+    private List<MetServiceMember> members(MetServiceType role, MetEndpointFilter filter) {
         MetServiceMember member = RegistryJson.copy(this.rpc.service(this.serviceId), MetServiceMember.class);
+        member.getInstance().setOnline(true);
         boolean matchedRole = role == member.getService().getRole();
         if (!matchedRole || !MemberMatcherUtils.matches(member, filter)) {
-            return new MetServiceMember[0];
+            return Collections.emptyList();
+        } else {
+            return Collections.singletonList(member);
         }
-        return new MetServiceMember[] { member };
     }
 
     // 规则

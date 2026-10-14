@@ -46,7 +46,7 @@ public class RegistryExtensionTest {
             // 读取配置的凭据和查询服务对象不打开存储，实际管理操作才打开独立会话。
             MetClusterAdmin cluster = admin.getClusterAdmin();
             assertEquals(0, probe.openedSessions());
-            assertEquals(0, cluster.services(null).length);
+            assertEquals(0, cluster.services(null, null).getItems().size());
             assertEquals(1, probe.openedSessions());
             String serviceId = context.publisher().rsfService(Echo.class).register().getBindID();
             admin.getServiceAdmin(serviceId).putMeta("owner", "managed");
@@ -56,7 +56,7 @@ public class RegistryExtensionTest {
             assertEquals(2, probe.openedSessions());
             assertEquals("managed", context.getServiceInfo(Echo.class).getMetaData("owner"));
             client.pushSync().get(5, TimeUnit.SECONDS);
-            assertEquals(1, cluster.instances(null).length);
+            assertEquals(1, cluster.instances(null, null).getItems().size());
 
             // 重复关闭上下文，服务和会话一起释放，旧引用不可再操作。
             context.close();
@@ -66,7 +66,7 @@ public class RegistryExtensionTest {
             assertNull(context.getExtension(RegistryAdmin.class));
             assertNull(context.getExtension(RegistryClient.class));
             assertThrows(IllegalStateException.class, () -> admin.getClusterAdmin());
-            assertThrows(IllegalStateException.class, () -> cluster.services(null));
+            assertThrows(IllegalStateException.class, () -> cluster.services(null, null));
             assertThrows(ExecutionException.class, () -> client.pushSync().get(5, TimeUnit.SECONDS));
         }
     }
@@ -110,7 +110,7 @@ public class RegistryExtensionTest {
         try (MetContext context = configuration.buildContext()) {
             // 启动前先使用管理入口，打开管理会话。
             RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
-            assertEquals(0, admin.getClusterAdmin().services(null).length);
+            assertEquals(0, admin.getClusterAdmin().services(null, null).getItems().size());
 
             // 注入故障后启动，确认管理和客户端会话均被清理。
             probe.setUnavailable(true);

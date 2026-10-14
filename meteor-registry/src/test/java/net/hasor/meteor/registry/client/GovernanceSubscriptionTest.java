@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.client;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.ObjectUtils;
 import net.hasor.cobble.StringUtils;
@@ -25,10 +24,9 @@ import net.hasor.meteor.registry.shared.DecoratedRegistryConfiguration;
 import net.hasor.meteor.registry.shared.RegistryTestUtils;
 import net.hasor.meteor.registry.shared.RegistryTestUtils.Echo;
 import net.hasor.meteor.registry.shared.StorageProbe;
-import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
-import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
+import net.hasor.meteor.registry.shared.utils.RegistryJson;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -59,14 +57,13 @@ public class GovernanceSubscriptionTest {
             b.start();
 
             // 单个服务的变更不能改写另一个实例的运行记录。
-            EntityRef otherInstance = RegistryGovernanceUtils.instance(b.getInstanceID());
-            EntityRef otherRuntime = RegistryGovernanceUtils.runtime(otherInstance);
-            String otherRevision = storage.getEntity(otherRuntime).getRevision();
+            String otherInstance = b.getInstanceID();
+            String otherSnapshot = RegistryJson.write(storage.getInstance(otherInstance));
             admin.getServiceAdmin(echo.getBindID()).putMeta("owner", "first");
             RegistryTestUtils.await(() -> ObjectUtils.equals("first", echo.getMetaData("owner")));
             assertEquals("first", echo.getMetaData("owner"));
             assertNull(other.getMetaData("owner"));
-            assertEquals(otherRevision, storage.getEntity(otherRuntime).getRevision());
+            assertEquals(otherSnapshot, RegistryJson.write(storage.getInstance(otherInstance)));
 
             // 实例治理只影响指定实例。
             MetInstanceAdmin firstInstance = admin.getInstanceAdmin(a.getInstanceID());
@@ -116,24 +113,20 @@ public class GovernanceSubscriptionTest {
             client.pullSync().get(5, TimeUnit.SECONDS);
 
             // 拉取和推送不应改写持久规则记录的版本。
-            EntityRef child = RegistryGovernanceUtils.localService(instanceId, service.getBindID());
-            EntityRecord rule = storage.getEntity(RegistryGovernanceUtils.ruleRef(child, RuleTypeData.FLOW_CONTROL));
+            String serviceId = service.getBindID();
+            EntityRecord<EntRuleConfigurationData> rule = storage.getRule(instanceId, serviceId, RuleKind.FLOW_CONTROL);
             assertNotNull(rule);
             client.pushSync().get(5, TimeUnit.SECONDS);
-            assertEquals(rule.getRevision(), storage.getEntity(rule.getRef()).getRevision());
+            assertEquals(rule.getRevision(), storage.getRule(instanceId, serviceId, RuleKind.FLOW_CONTROL).getRevision());
 
-            // 关闭应用，运行记录和成员关系退出，配置及规则仍保留。
+            // 关闭应用，当前服务和成员退出，三个主目录、配置及规则仍保留。
             context.close();
-            EntityRef instanceRef = RegistryGovernanceUtils.instance(instanceId);
-            EntityRef instanceRegistration = RegistryGovernanceUtils.runtime(instanceRef);
-            assertNull(storage.getEntity(instanceRegistration));
-            assertNotNull(storage.getEntity(RegistryGovernanceUtils.service(service.getBindID())));
-            assertNotNull(storage.getEntity(rule.getRef()));
-            assertNotNull(storage.getEntity(RegistryGovernanceUtils.instance(instanceId)));
-            RelationQuery query = new RelationQuery();
-            query.setTarget(RegistryGovernanceUtils.instance(instanceId));
-            assertTrue(storage.findRelations(query).records().isEmpty());
-            assertEquals(1, admin.getClusterAdmin().services(null).length);
+            assertNull(storage.getInstance(instanceId).getRuntime());
+            assertNotNull(storage.getService(serviceId));
+            assertNotNull(storage.getRule(instanceId, serviceId, RuleKind.FLOW_CONTROL));
+            assertNotNull(storage.getConfiguration(instanceId, null));
+            assertTrue(storage.instanceServices(instanceId, new DirectoryQuery()).getItems().isEmpty());
+            assertEquals(1, admin.getClusterAdmin().services(null, null).getItems().size());
 
             // 服务目录继续保留服务身份，即使已没有在线成员。
             MetServiceAdmin catalog = admin.getServiceAdmin(service.getBindID());
@@ -220,17 +213,13 @@ public class GovernanceSubscriptionTest {
             RegistryTestUtils.await(() -> ObjectUtils.equals("local", service.getMetaData("scope")));
 
             // 删除规则也直接触发更新，不需要改写父对象。
-            EntityRef owner = RegistryGovernanceUtils.instance(id);
-            EntityRef rule = RegistryGovernanceUtils.ruleRef(owner, RuleTypeData.SERVICE_ROUTE);
-            storage.deleteEntity(storage.getEntity(rule));
+            EntityRecord<EntRuleConfigurationData> rule = storage.getRule(id, null, RuleKind.SERVICE_ROUTE);
+            storage.deleteRule(id, null, RuleKind.SERVICE_ROUTE, rule.getRevision());
             RegistryTestUtils.await(() -> {
                 String currentRule = context.getUpdater().serviceRoute(serviceId);
                 return StringUtils.equals(serviceRule, currentRule);
             });
-            EntityQuery query = new EntityQuery();
-            query.setType(EntityType.RULE);
-            query.setParent(RegistryGovernanceUtils.instance(id));
-            assertTrue(storage.findEntities(query).records().isEmpty());
+            assertNull(storage.getRule(id, null, RuleKind.SERVICE_ROUTE));
         }
     }
 
@@ -264,22 +253,17 @@ public class GovernanceSubscriptionTest {
             assertEquals("new", first.getMetaData("global"));
             assertNull(other.getMetaData("global"));
             assertFalse(admin.getInstanceAdmin(context.getInstanceID()).instance().isBlock());
-            EntityRef instance = RegistryGovernanceUtils.instance(context.getInstanceID());
-            EntityRef identity = RegistryGovernanceUtils.runtime(instance);
-            EntInstanceRuntimeData partial = ((EntInstanceRuntimeData) storage.getEntity(identity).getData());
+            String instance = context.getInstanceID();
+            EntInstanceRuntimeData partial = storage.getInstance(instance).getRuntime();
             assertFalse(partial.isBlock());
 
             // 全量拉取才应用其余服务和实例设置，并更新上报快照。
             client.pullSync().get(5, TimeUnit.SECONDS);
             assertEquals("new", other.getMetaData("global"));
             assertTrue(admin.getInstanceAdmin(context.getInstanceID()).instance().isBlock());
-            EntInstanceRuntimeData all = ((EntInstanceRuntimeData) storage.getEntity(identity).getData());
+            EntInstanceRuntimeData all = storage.getInstance(instance).getRuntime();
             assertTrue(all.isBlock());
 
-            // 存储模型只使用约定的实体和关系类型。
-            Set<EntityType> entityTypes = Set.of(EntityType.GLOBAL, EntityType.INSTANCE, EntityType.SERVICE, EntityType.RULE);
-            assertEquals(entityTypes, Set.of(EntityType.values()));
-            assertEquals(Set.of(RelationType.PROVIDES, RelationType.CONSUMES), Set.of(RelationType.values()));
         }
     }
 

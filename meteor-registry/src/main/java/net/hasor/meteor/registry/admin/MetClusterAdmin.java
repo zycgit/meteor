@@ -21,14 +21,20 @@ public interface MetClusterAdmin {
     RegistryStatus status();
 
     //
-    // 服务与实例目录；空过滤条件表示全部
+    // 应用、服务与实例目录分页查询
     //
 
-    /** 按服务标识包含的文本筛选服务目录，过滤条件为空时返回全部。 */
-    MetServiceInfo[] services(String filter);
+    /** 分页查询服务目录；文本条件使用 filter，query 提供字段、协议、单元及分页条件。 */
+    MetPage<MetServiceInfo> services(String filter, MetDirectoryQuery query);
 
-    /** 按应用名称查询实例目录，应用名称为空时返回全部。 */
-    MetInstanceInfo[] instances(String applicationName);
+    /** 分页读取持久应用目录；query 为 null 时读取默认首页，应用全部实例离线后仍保留。 */
+    MetPage<String> applications(MetDirectoryQuery query);
+
+    /** 分页查询应用下的实例档案，包含在线状态；应用名称为空表示集群实例目录。 */
+    MetPage<MetInstanceInfo> instances(String applicationName, MetDirectoryQuery query);
+
+    /** 查询指定应用的单元目录，不展开实例服务清单。 */
+    String[] units(String application);
 
     //
     // 全局默认规则

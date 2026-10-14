@@ -40,19 +40,19 @@ final class GovernanceFilter implements MetFilter {
         chain.doFilter(request, response);
     }
 
-    public boolean isBlock() {
+    boolean isBlock() {
         return this.block;
     }
 
-    public void setBlock(boolean block) {
+    void setBlock(boolean block) {
         this.block = block;
     }
 
-    public boolean isServiceEnabled(String serviceId) {
+    boolean isServiceEnabled(String serviceId) {
         return !this.disabled.contains(serviceId);
     }
 
-    public void setServiceEnabled(String serviceId, boolean enabled) {
+    void setServiceEnabled(String serviceId, boolean enabled) {
         if (enabled) {
             this.disabled.remove(serviceId);
         } else {
@@ -60,7 +60,7 @@ final class GovernanceFilter implements MetFilter {
         }
     }
 
-    public void retainServices(Collection<String> serviceIds) {
+    void retainServices(Collection<String> serviceIds) {
         this.disabled.retainAll(serviceIds);
     }
 

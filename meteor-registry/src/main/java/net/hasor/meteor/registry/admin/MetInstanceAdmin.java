@@ -47,8 +47,8 @@ public interface MetInstanceAdmin {
     // 实例关联的服务
     //
 
-    /** 查询目标实例声明的业务服务信息，角色、协议和成员数量仅统计该实例。 */
-    MetServiceInfo[] getServiceList();
+    /** 分页读取目标实例的业务服务清单，角色、协议和成员数量仅统计该实例；query 为 null 时读取默认首页。 */
+    MetPage<MetServiceInfo> getServiceList(MetDirectoryQuery query);
 
     /** 查询目标实例中指定业务服务的信息，未声明该服务时抛异常。 */
     MetServiceInfo getServiceById(String serviceId);

@@ -6,12 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.memory;
-import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
-import net.hasor.meteor.registry.shared.storage.StorageDocument;
 
 /**
  * 内置纯内存注册中心，无外部连接或磁盘持久化。
@@ -19,7 +16,7 @@ import net.hasor.meteor.registry.shared.storage.StorageDocument;
  * 不需要地址或存储认证参数，记录随配置对象一起回收。
  */
 public final class MemoryRegistryConfiguration extends RegistryConfiguration {
-    private final Map<String, StorageDocument> records = new ConcurrentHashMap<>();
+    private final MemoryRegistryDatabase database = new MemoryRegistryDatabase();
 
     @Override
     public String getProvider() {
@@ -28,7 +25,6 @@ public final class MemoryRegistryConfiguration extends RegistryConfiguration {
 
     @Override
     protected Callable<StorageAccess> createStorageOpener() {
-        Map<String, StorageDocument> records = this.records;
-        return () -> new MemoryStorage(records);
+        return () -> new MemoryStorage(this.database);
     }
 }

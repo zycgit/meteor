@@ -25,6 +25,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.MetException;
+import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.RegistryConfiguration;
@@ -35,10 +36,9 @@ import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.DecoratedRegistryConfiguration;
 import net.hasor.meteor.registry.shared.StorageProbe;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
-import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
-import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
+import net.hasor.meteor.registry.shared.utils.RegistryJson;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -174,12 +174,12 @@ public class ManagementPublicationTest {
 
         // 模拟 HTTP 双协议挂载和仅主动连接的 TCP 挂载。
         InterAddress httpAddress = InterAddress.forBinding("http", "0.0.0.0", 0, "default");
-        ProtocolConfig hprose = new ProtocolConfig("hprose", "hprose", Map.of("contextPath", "/api"));
-        ProtocolConfig soap = new ProtocolConfig("soap", "soap", Map.of("contextPath", "/soap"));
+        ProtocolConfig hprose = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/api"));
+        ProtocolConfig soap = new ProtocolConfig("soap", "soap", "soap", Map.of("contextPath", "/soap"));
         List<ProtocolConfig> httpProtocols = List.of(hprose, soap);
         ConnectorConfig http = new ConnectorConfig("http-0", httpAddress, Map.of("listenType", "http"), httpProtocols, true);
         InterAddress tcpAddress = InterAddress.forBinding("tcp", "127.0.0.1", 0, "default");
-        List<ProtocolConfig> tcpProtocols = List.of(new ProtocolConfig("rsf", "rsf", Map.of()));
+        List<ProtocolConfig> tcpProtocols = List.of(new ProtocolConfig("rsf", "rsf", "rsf", Map.of()));
         ConnectorConfig tcp = new ConnectorConfig("tcp-1", tcpAddress, Map.of("listenType", "tcp"), tcpProtocols, false);
         application.addExtension(context -> {
             // 提供不同协议挂载的环境快照；服务声明与治理仍使用真实 Meteor 实现。
@@ -273,7 +273,7 @@ public class ManagementPublicationTest {
             String id = context.publisher().rsfService(Echo.class, value -> value).register().getBindID();
             RegistryClient client = context.getExtension(RegistryClient.class);
             RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
-            assertEquals(0, admin.getClusterAdmin().instances(null).length);
+            assertEquals(0, admin.getClusterAdmin().instances(null, null).getItems().size());
 
             // 启动后公告可用的业务地址与管理地址。
             context.start();
@@ -340,28 +340,24 @@ public class ManagementPublicationTest {
             assertTrue(context.getUpdater().queryAvailableAddresses(id).isEmpty());
             assertEquals(List.of(new InterAddress(supported)), snapshot);
 
-            // 注册中心不保存地址本；实例服务仅存在发现关系。
-            EntityQuery query = new EntityQuery();
-            query.setType(EntityType.SERVICE);
-            query.setSection(EntitySection.RUNTIME);
-            query.setParent(RegistryGovernanceUtils.instance(context.getInstanceID()));
-            assertTrue(storage.findEntities(query).records().isEmpty());
+            // 实例清单包含实际登记，但不会存储诊断地址本。
+            EntServiceRuntimeData current = storage.getInstanceService(context.getInstanceID(), id);
+            assertNotNull(current);
+            assertFalse(RegistryJson.copy(current, java.util.Map.class).containsKey("addressBooks"));
 
             // 外部写入无效治理规则时，拉取 Future 保留原始失败。
-            EntityRef serviceRef = RegistryGovernanceUtils.service(id);
-            EntityRef ruleRef = RegistryGovernanceUtils.ruleRef(serviceRef, RuleTypeData.SERVICE_ROUTE);
-            EntityRecord record = new EntityRecord(ruleRef);
+            EntityRecord<EntRuleConfigurationData> record = new EntityRecord<>();
             EntRuleConfigurationData rule = new EntRuleConfigurationData();
             rule.setRule("<route><unknown/></route>");
             record.setData(rule);
-            storage.saveEntity(record);
+            storage.saveRule(null, id, RuleKind.SERVICE_ROUTE, record);
             Future<Void> pulling = client.pullSync();
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pulling.get(5, TimeUnit.SECONDS));
             assertTrue(failure.getCause() instanceof IllegalArgumentException);
 
             // 修复规则后重新拉取成功，应用本地默认选项保持原值。
             context.getSettings().getRequestOptions().addOption("owner", "local");
-            storage.deleteEntity(storage.getEntity(ruleRef));
+            storage.deleteRule(null, id, RuleKind.SERVICE_ROUTE, storage.getRule(null, id, RuleKind.SERVICE_ROUTE).getRevision());
             client.pullSync().get(5, TimeUnit.SECONDS);
             assertEquals("local", context.getSettings().getRequestOptions().getOption("owner"));
         }
@@ -432,32 +428,24 @@ public class ManagementPublicationTest {
 
     private static MetServiceMember member(RegistryAdmin admin, String serviceId) {
         MetServiceAdmin service = admin.getServiceAdmin(serviceId);
-        MetServiceMember[] providers = service.providers(null);
-        if (providers.length > 0) {
-            return providers[0];
+        List<MetServiceMember> providers = service.providers(null, null).getItems();
+        if (!providers.isEmpty()) {
+            return providers.get(0);
         }
-        return service.consumers(null)[0];
+        return service.consumers(null, null).getItems().get(0);
     }
 
     /** 模拟外部提供者公告，只有发现测试直接准备存储记录。 */
     private static void publishAddresses(StorageAccess storage, String serviceId, String... addresses) throws Exception {
-        EntityRef remote = RegistryGovernanceUtils.instance("remote");
-        EntityRef runtimeRef = RegistryGovernanceUtils.runtime(remote);
-        if (storage.getEntity(runtimeRef) == null) {
-            EntityRecord runtime = new EntityRecord(runtimeRef);
-            runtime.setLifecycle(RecordLifecycle.EPHEMERAL);
-            runtime.setData(new EntInstanceRuntimeData());
-            storage.saveEntity(runtime);
-        }
-        EntityRef service = RegistryGovernanceUtils.service(serviceId);
-        RelationRecord relation = storage.getRelation(RelationType.PROVIDES, service, remote);
-        if (relation == null) {
-            relation = new RelationRecord(RelationType.PROVIDES, service, remote);
-            relation.setLifecycle(RecordLifecycle.EPHEMERAL);
-        }
-        RefServiceRelationData data = new RefServiceRelationData();
-        data.setAddresses(addresses);
-        relation.setData(data);
-        storage.saveRelation(relation);
+        EntInstanceRuntimeData runtime = new EntInstanceRuntimeData();
+        runtime.setInstanceId("remote");
+        runtime.setApplicationName("remote-app");
+        runtime.setIpAddress("127.0.0.1");
+        storage.registerInstance(runtime);
+        EntServiceRuntimeData service = new EntServiceRuntimeData();
+        service.setServiceId(serviceId);
+        service.setRole(MetServiceType.Provider);
+        service.setAddresses(addresses);
+        storage.registerService("remote", service);
     }
 }

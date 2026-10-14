@@ -6,127 +6,70 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.admin.support;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
-import net.hasor.meteor.domain.MetServiceType;
-import net.hasor.meteor.registry.admin.MetInstanceAdmin;
-import net.hasor.meteor.registry.admin.MetInstanceInfo;
-import net.hasor.meteor.registry.admin.MetRuleType;
-import net.hasor.meteor.registry.admin.MetServiceInfo;
-import net.hasor.meteor.registry.shared.storage.domain.*;
-import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
-import net.hasor.meteor.registry.shared.utils.RegistryJson;
+import net.hasor.meteor.registry.admin.*;
+import net.hasor.meteor.registry.shared.storage.domain.DirectoryQuery;
+import net.hasor.meteor.registry.shared.storage.domain.EntServiceRuntimeData;
+import net.hasor.meteor.registry.shared.storage.domain.InstanceStatus;
+import net.hasor.meteor.registry.shared.storage.domain.RecordPage;
 import static net.hasor.meteor.registry.admin.support.GovernanceStore.call;
 
 /** 读取实例及其当前服务，保存实例治理配置，不直接操作应用进程。 */
 final class DefaultInstanceAdmin implements MetInstanceAdmin {
     private final GovernanceStore governance;
-    private final EntityRef       instance;
+    private final String          instanceId;
 
     public DefaultInstanceAdmin(GovernanceStore governance, String instanceId) {
-        this.governance = governance;
-        this.instance = RegistryGovernanceUtils.instance(instanceId);
-        // 获取实例管理接口时，确认目标实例当前存在。
-        this.snapshot();
-    }
-
-    // 实例登记与阻断状态
-
-    private EntInstanceRuntimeData snapshot() {
-        return call(() -> {
-            EntityRef ref = RegistryGovernanceUtils.runtime(this.instance);
-            EntityRecord record = this.governance.storage().getEntity(ref);
-            if (record == null) {
-                throw new IllegalArgumentException("Unknown instance: " + this.instance.id());
-            }
-            return (EntInstanceRuntimeData) record.getData();
-        });
+        this.governance = governance.scope(instanceId, null);
+        this.instanceId = instanceId;
+        this.instance();
     }
 
     @Override
     public MetInstanceInfo instance() {
-        EntInstanceRuntimeData snapshot = this.snapshot();
-        MetInstanceInfo result = RegistryJson.copy(snapshot, MetInstanceInfo.class);
-        result.setInstanceId(this.instance.id());
-        result.setManagementAddress(snapshot.getManagementAddresses());
-        return result;
-    }
-
-    @Override
-    public boolean isBlock() {
-        EntInstanceRuntimeData reported = this.snapshot();
         return call(() -> {
-            EntityRecord record = this.governance.storage().getEntity(this.instance);
-            if (record != null && record.getData() != null) {
-                EntInstanceConfigurationData desired = (EntInstanceConfigurationData) record.getData();
-                if (desired.getBlock() != null) {
-                    return desired.getBlock();
-                }
+            InstanceStatus status = this.governance.storage().getInstance(this.instanceId);
+            if (status == null) {
+                throw new IllegalArgumentException("Unknown instance: " + this.instanceId);
+            } else {
+                return DirectoryMapping.instance(status);
             }
-            return reported.isBlock();
         });
     }
 
     @Override
+    public boolean isBlock() {
+        Boolean desired = this.governance.state().getBlock();
+        return desired == null ? this.instance().isBlock() : desired;
+    }
+
+    @Override
     public void block() {
-        this.governance.update(this.instance, EntInstanceConfigurationData.class, data -> data.setBlock(true));
+        this.governance.updateState(data -> data.setBlock(true));
     }
 
     @Override
     public void unblock() {
-        this.governance.update(this.instance, EntInstanceConfigurationData.class, data -> data.setBlock(false));
+        this.governance.updateState(data -> data.setBlock(false));
     }
 
-    // 从发布、订阅关系读取当前实例的服务，不再另存服务运行快照。
-
     @Override
-    public MetServiceInfo[] getServiceList() {
-        return this.services(null);
+    public MetPage<MetServiceInfo> getServiceList(MetDirectoryQuery query) {
+        return call(() -> {
+            DirectoryQuery selection = DirectoryMapping.query(query);
+            RecordPage<EntServiceRuntimeData> page = this.governance.storage().instanceServices(this.instanceId, selection);
+            return DirectoryMapping.page(page, DirectoryMapping::service);
+        });
     }
 
     @Override
     public MetServiceInfo getServiceById(String serviceId) {
-        RegistryGovernanceUtils.service(serviceId);
-        MetServiceInfo[] services = this.services(serviceId);
-        if (services.length == 0) {
-            throw new IllegalArgumentException("Service is not active on instance: " + serviceId);
-        }
-        return services[0];
-    }
-
-    private MetServiceInfo[] services(String serviceId) {
-        this.snapshot();
         return call(() -> {
-            RelationQuery query = new RelationQuery();
-            query.setTarget(this.instance);
-            if (serviceId != null) {
-                query.setSource(RegistryGovernanceUtils.service(serviceId));
+            EntServiceRuntimeData service = this.governance.storage().getInstanceService(this.instanceId, serviceId);
+            if (service == null) {
+                throw new IllegalArgumentException("Service is not active on instance: " + serviceId);
+            } else {
+                return DirectoryMapping.service(service);
             }
-
-            List<MetServiceInfo> result = new ArrayList<>();
-            for (RelationRecord relation : RegistryGovernanceUtils.relations(this.governance.storage(), query)) {
-                EntityRecord catalog = this.governance.storage().getEntity(relation.getSource());
-                MetServiceInfo info = new MetServiceInfo();
-                if (catalog != null && catalog.getData() != null) {
-                    info = RegistryJson.copy(catalog.getData(), MetServiceInfo.class);
-                }
-
-                info.setServiceId(relation.getSource().id());
-                boolean provider = relation.getType() == RelationType.PROVIDES;
-                info.setRole(provider ? MetServiceType.Provider : MetServiceType.Consumer);
-                info.setProviderCount(provider ? 1 : 0);
-                info.setConsumerCount(provider ? 0 : 1);
-                RefServiceRelationData registration = (RefServiceRelationData) relation.getData();
-                Set<String> protocols = new TreeSet<>();
-                for (RefProtocolMountData endpoint : registration.getEndpoints()) {
-                    protocols.add(endpoint.getProtocolName());
-                }
-                info.setProtocols(protocols.toArray(String[]::new));
-                result.add(info);
-            }
-            return result.toArray(MetServiceInfo[]::new);
         });
     }
 
@@ -134,12 +77,12 @@ final class DefaultInstanceAdmin implements MetInstanceAdmin {
 
     @Override
     public String fetchRule(MetRuleType type) {
-        return this.governance.fetchRule(this.instance, type);
+        return this.governance.fetchRule(type);
     }
 
     @Override
     public void updateRule(MetRuleType type, String rule) {
-        this.governance.updateRule(this.instance, type, rule);
+        this.governance.updateRule(type, rule);
     }
 
     @Override
@@ -149,16 +92,16 @@ final class DefaultInstanceAdmin implements MetInstanceAdmin {
 
     @Override
     public boolean isRuleEnabled(MetRuleType type) {
-        return this.governance.isRuleEnabled(this.instance, type);
+        return this.governance.isRuleEnabled(type);
     }
 
     @Override
     public void enableRule(MetRuleType type) {
-        this.governance.setRuleEnabled(this.instance, type, true);
+        this.governance.setRuleEnabled(type, true);
     }
 
     @Override
     public void disableRule(MetRuleType type) {
-        this.governance.setRuleEnabled(this.instance, type, false);
+        this.governance.setRuleEnabled(type, false);
     }
 }

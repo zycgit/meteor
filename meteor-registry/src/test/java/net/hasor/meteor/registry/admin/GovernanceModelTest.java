@@ -23,12 +23,10 @@ import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.DecoratedRegistryConfiguration;
 import net.hasor.meteor.registry.shared.rpc.ConfigurationData;
-import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
-import net.hasor.meteor.registry.shared.storage.domain.EntData;
+import net.hasor.meteor.registry.shared.storage.domain.EntMetadataData;
 import net.hasor.meteor.registry.shared.storage.domain.EntRuleConfigurationData;
-import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
-import net.hasor.meteor.registry.shared.storage.domain.EntityRef;
+import net.hasor.meteor.registry.shared.storage.domain.RuleKind;
 import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
 import org.junit.Before;
@@ -57,23 +55,23 @@ public class GovernanceModelTest {
             MetServiceAdmin second = admin.getServiceAdmin("second");
             first.putMeta("key", "value");
             second.putMeta("key", "value");
-            EntityRef owner = RegistryGovernanceUtils.service("first");
-            String firstRevision = storage.getEntity(owner).getRevision();
-            EntityRef other = RegistryGovernanceUtils.service("second");
-            String otherRevision = storage.getEntity(other).getRevision();
+            String owner = "first";
+            String firstRevision = storage.getMetadata(null, owner).getRevision();
+            String other = "second";
+            String otherRevision = storage.getMetadata(null, other).getRevision();
 
             // 更新规则只创建所属规则记录，不改写服务及全局对象。
             String ruleScript = "<route><return value='addresses'/></route>";
             first.updateRule(MetRuleType.SERVICE_ROUTE, ruleScript);
-            EntityRef ref = RegistryGovernanceUtils.ruleRef(owner, RuleTypeData.SERVICE_ROUTE);
-            assertEquals(owner, storage.getEntity(ref).getRef().parent());
-            assertEquals(firstRevision, storage.getEntity(owner).getRevision());
-            assertEquals(otherRevision, storage.getEntity(other).getRevision());
-            assertNull(storage.getEntity(RegistryGovernanceUtils.GLOBAL));
+            RuleKind ref = RuleKind.SERVICE_ROUTE;
+            assertNotNull(storage.getRule(null, owner, ref));
+            assertEquals(firstRevision, storage.getMetadata(null, owner).getRevision());
+            assertEquals(otherRevision, storage.getMetadata(null, other).getRevision());
+            assertNull(storage.getMetadata(null, null));
 
             // 禁用保留正文，重置则清空当前规则。
             first.disableRule(MetRuleType.SERVICE_ROUTE);
-            EntRuleConfigurationData rule = ((EntRuleConfigurationData) storage.getEntity(ref).getData());
+            EntRuleConfigurationData rule = storage.getRule(null, owner, ref).getData();
             assertFalse(rule.isEnabled());
             assertNotNull(rule.getRule());
             first.resetRule(MetRuleType.SERVICE_ROUTE);
@@ -82,12 +80,12 @@ public class GovernanceModelTest {
 
             // 全局元信息独立保存，也不改写已有服务记录。
             admin.getClusterAdmin().putMeta("global", true);
-            ConfigurationData global = RegistryGovernanceUtils.read(storage, RegistryGovernanceUtils.GLOBAL);
+            ConfigurationData global = RegistryGovernanceUtils.read(storage, null, null);
             assertEquals(Boolean.TRUE, global.getMetadata().get("global"));
-            EntData globalContent = storage.getEntity(RegistryGovernanceUtils.GLOBAL).getData();
+            EntMetadataData globalContent = storage.getMetadata(null, null).getData();
             assertEquals(Set.of("metadata"), RegistryJson.copy(globalContent, Map.class).keySet());
-            assertEquals(firstRevision, storage.getEntity(owner).getRevision());
-            assertEquals(otherRevision, storage.getEntity(other).getRevision());
+            assertEquals(firstRevision, storage.getMetadata(null, owner).getRevision());
+            assertEquals(otherRevision, storage.getMetadata(null, other).getRevision());
         }
     }
 
@@ -112,8 +110,8 @@ public class GovernanceModelTest {
                 for (Future<?> result : pending) {
                     result.get(5, TimeUnit.SECONDS);
                 }
-                EntityRef service = RegistryGovernanceUtils.service("service");
-                ConfigurationData data = RegistryGovernanceUtils.read(storage, service);
+                String service = "service";
+                ConfigurationData data = RegistryGovernanceUtils.read(storage, null, service);
                 assertEquals(4, data.getMetadata().size());
                 for (int i = 0; i < 4; i++) {
                     assertEquals(i, data.getMetadata().get("key" + i));
@@ -176,20 +174,20 @@ public class GovernanceModelTest {
                 values.put("key" + i, i);
             }
             service.putMeta(values);
-            EntityRef ref = RegistryGovernanceUtils.service("echo");
-            String revision = storage.getEntity(ref).getRevision();
+            String ref = "echo";
+            String revision = storage.getMetadata(null, ref).getRevision();
 
             // 超限元信息和无效规则均不能提交存储。
             assertThrows(IllegalArgumentException.class, () -> service.putMeta("overflow", true));
             assertThrows(IllegalArgumentException.class, () -> {
                 service.updateRule(MetRuleType.FLOW_CONTROL, "<invalid/>");
             });
-            assertEquals(revision, storage.getEntity(ref).getRevision());
-            assertNull(storage.getEntity(RegistryGovernanceUtils.ruleRef(ref, RuleTypeData.FLOW_CONTROL)));
+            assertEquals(revision, storage.getMetadata(null, ref).getRevision());
+            assertNull(storage.getRule(null, ref, RuleKind.FLOW_CONTROL));
 
             // 批量删除只移除指定的两个键。
             service.removeMeta("key0", "key1");
-            ConfigurationData remaining = RegistryGovernanceUtils.read(storage, ref);
+            ConfigurationData remaining = RegistryGovernanceUtils.read(storage, null, ref);
             assertEquals(998, remaining.getMetadata().size());
         }
     }
@@ -198,15 +196,14 @@ public class GovernanceModelTest {
     public void failedRuleWriteReportsTheStorageErrorWithoutChangingOtherRecords() throws Exception {
         // 准备只让目标规则首次写入失败的存储观察器。
         try (StorageAccess storage = this.storageConfiguration.openStorage()) {
-            EntityRef owner = RegistryGovernanceUtils.service("echo");
-            EntityRef rule = RegistryGovernanceUtils.ruleRef(owner, RuleTypeData.FLOW_CONTROL);
+            String owner = "echo";
+            RuleKind rule = RuleKind.FLOW_CONTROL;
             AtomicBoolean failWrite = new AtomicBoolean();
             SQLException original = new SQLException("Cannot write governance rule");
             DecoratedRegistryConfiguration observed = new DecoratedRegistryConfiguration(this.storageConfiguration, delegate -> {
                 InvocationHandler failRuleWrite = (proxy, method, args) -> {
-                    if (StringUtils.equals(method.getName(), "saveEntity")) {
-                        EntityRecord record = (EntityRecord) args[0];
-                        if (record.getRef().equals(rule) && failWrite.compareAndSet(true, false)) {
+                    if (StringUtils.equals(method.getName(), "saveRule")) {
+                        if (args[2] == rule && failWrite.compareAndSet(true, false)) {
                             throw original;
                         }
                     }
@@ -227,7 +224,7 @@ public class GovernanceModelTest {
                 RegistryAdmin admin = adminContext.getExtension(RegistryAdmin.class);
                 MetServiceAdmin service = admin.getServiceAdmin("echo");
                 service.putMeta("owner", "team");
-                String revision = storage.getEntity(owner).getRevision();
+                String revision = storage.getMetadata(null, owner).getRevision();
 
                 // 触发一次写入故障，原异常上抛且服务记录不变。
                 failWrite.set(true);
@@ -235,16 +232,16 @@ public class GovernanceModelTest {
                     service.updateRule(MetRuleType.FLOW_CONTROL, "<controlSet/>");
                 });
                 assertSame(original, failure.getCause());
-                assertNull(storage.getEntity(rule));
-                assertEquals(revision, storage.getEntity(owner).getRevision());
+                assertNull(storage.getRule(null, owner, rule));
+                assertEquals(revision, storage.getMetadata(null, owner).getRevision());
 
                 // 故障解除后可写入；重复写入相同正文不增加记录版本。
                 service.updateRule(MetRuleType.FLOW_CONTROL, "<controlSet/>");
-                String savedRevision = storage.getEntity(rule).getRevision();
+                String savedRevision = storage.getRule(null, owner, rule).getRevision();
                 service.updateRule(MetRuleType.FLOW_CONTROL, "<controlSet/>");
-                assertEquals(savedRevision, storage.getEntity(rule).getRevision());
-                assertEquals(revision, storage.getEntity(owner).getRevision());
-                assertEquals("team", RegistryGovernanceUtils.read(storage, owner).getMetadata().get("owner"));
+                assertEquals(savedRevision, storage.getRule(null, owner, rule).getRevision());
+                assertEquals(revision, storage.getMetadata(null, owner).getRevision());
+                assertEquals("team", RegistryGovernanceUtils.read(storage, null, owner).getMetadata().get("owner"));
             }
         }
     }

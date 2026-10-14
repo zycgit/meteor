@@ -15,11 +15,9 @@ import net.hasor.meteor.registry.admin.MetRuleType;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.RegistryTestUtils;
-import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntRuleConfigurationData;
-import net.hasor.meteor.registry.shared.storage.domain.EntityRef;
-import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
+import net.hasor.meteor.registry.shared.storage.domain.RuleKind;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -51,9 +49,7 @@ public class XmlGovernanceTest {
                 String expected = xml;
                 admin.updateRule(type, xml);
                 RegistryTestUtils.await(() -> StringUtils.equals(expected, current(updater, id, type)));
-                EntityRef owner = RegistryGovernanceUtils.service(id);
-                EntityRef ref = RegistryGovernanceUtils.ruleRef(owner, RuleTypeData.valueOf(type.name()));
-                EntRuleConfigurationData stored = (EntRuleConfigurationData) observer.getEntity(ref).getData();
+                EntRuleConfigurationData stored = observer.getRule(null, id, RuleKind.valueOf(type.name())).getData();
                 assertEquals(xml, stored.getRule());
 
                 // 错误 XML 在管理端报告，存储与应用继续保留上一份有效规则。

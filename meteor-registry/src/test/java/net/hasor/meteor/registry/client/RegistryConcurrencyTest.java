@@ -36,10 +36,10 @@ public class RegistryConcurrencyTest {
             return (StorageAccess) Proxy.newProxyInstance(StorageAccess.class.getClassLoader(), new Class<?>[] { StorageAccess.class }, (proxy, method, args) -> {
                 // 禁用自动通知，仅暂停这次主动拉取；实际数据仍交给正式存储。
                 String name = method.getName();
-                if (StringUtils.equals(name, "watchEntities") || StringUtils.equals(name, "watchRelations")) {
+                if (StringUtils.equals(name, "watchConfiguration") || StringUtils.equals(name, "watchProviders")) {
                     return (Cancellable) () -> true;
                 }
-                if (StringUtils.equals(name, "getEntity") && armed.compareAndSet(true, false)) {
+                if (StringUtils.equals(name, "getConfiguration") && armed.compareAndSet(true, false)) {
                     reading.countDown();
                     assertTrue(release.await(10, TimeUnit.SECONDS));
                 }

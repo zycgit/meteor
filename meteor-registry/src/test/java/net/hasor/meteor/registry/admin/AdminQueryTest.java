@@ -11,7 +11,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
@@ -24,11 +23,8 @@ import net.hasor.meteor.registry.shared.rpc.ServiceData;
 import net.hasor.meteor.registry.shared.rpc.ServiceEndpointData;
 import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
-import net.hasor.meteor.registry.shared.storage.domain.EntData;
-import net.hasor.meteor.registry.shared.storage.domain.EntInstanceConfigurationData;
-import net.hasor.meteor.registry.shared.storage.domain.EntityRef;
-import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
-import net.hasor.meteor.registry.shared.utils.RegistryJson;
+import net.hasor.meteor.registry.shared.storage.domain.EntApplicationCatalogData;
+import net.hasor.meteor.registry.shared.storage.domain.EntConfigurationData;
 import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -66,7 +62,7 @@ public class AdminQueryTest {
             assertArrayEquals(new String[] { "hprose", "rsf" }, info.getProtocols());
 
             // 集群列表保留相同的服务信息，协议按当前成员汇总。
-            MetServiceInfo listed = admin.getClusterAdmin().services("echo")[0];
+            MetServiceInfo listed = admin.getClusterAdmin().services("echo", null).getItems().get(0);
             assertEquals(info.getType(), listed.getType());
             assertEquals(info.getRole(), listed.getRole());
             assertEquals(info.getProviderCount(), listed.getProviderCount());
@@ -80,9 +76,9 @@ public class AdminQueryTest {
             assertEquals(1, local.getConsumerCount());
             assertEquals(MetServiceType.Consumer, local.getRole());
             assertArrayEquals(new String[] { "hprose" }, local.getProtocols());
-            assertEquals(0, scoped.providers(null).length);
-            assertEquals(1, scoped.consumers(null).length);
-            MetServiceInfo consumerInfo = admin.getInstanceAdmin("a-consumer").getServiceList()[0];
+            assertEquals(0, scoped.providers(null, null).getItems().size());
+            assertEquals(1, scoped.consumers(null, null).getItems().size());
+            MetServiceInfo consumerInfo = admin.getInstanceAdmin("a-consumer").getServiceList(null).getItems().get(0);
             assertEquals(local.getType(), consumerInfo.getType());
             assertEquals(local.getRole(), consumerInfo.getRole());
             assertArrayEquals(local.getProtocols(), consumerInfo.getProtocols());
@@ -104,7 +100,7 @@ public class AdminQueryTest {
             provider.close();
             assertEquals(MetServiceType.Consumer, service.info().getRole());
             assertEquals(0, service.info().getProviderCount());
-            MetServiceInfo remaining = admin.getClusterAdmin().services("echo")[0];
+            MetServiceInfo remaining = admin.getClusterAdmin().services("echo", null).getItems().get(0);
             assertEquals(MetServiceType.Consumer, remaining.getRole());
             assertArrayEquals(new String[] { "hprose" }, remaining.getProtocols());
             consumer.close();
@@ -115,11 +111,11 @@ public class AdminQueryTest {
             assertEquals("example.Echo", inactive.getType());
             assertEquals(0, inactive.getProtocols().length);
             assertNull(inactive.getRole());
-            MetServiceInfo[] directory = admin.getClusterAdmin().services("echo");
-            assertEquals(1, directory.length);
-            assertEquals(inactive.getType(), directory[0].getType());
-            assertEquals(0, directory[0].getProtocols().length);
-            assertNull(directory[0].getRole());
+            List<MetServiceInfo> directory = admin.getClusterAdmin().services("echo", null).getItems();
+            assertEquals(1, directory.size());
+            assertEquals(inactive.getType(), directory.get(0).getType());
+            assertEquals(0, directory.get(0).getProtocols().length);
+            assertNull(directory.get(0).getRole());
         }
     }
 
@@ -135,7 +131,7 @@ public class AdminQueryTest {
             // 仅登记实例、服务目录和关系即可查询本机服务。
             snapshot("one", MetServiceType.Provider, "rsf").save(storage);
             MetInstanceAdmin instance = admin.getInstanceAdmin("one");
-            assertEquals(1, instance.getServiceList().length);
+            assertEquals(1, instance.getServiceList(null).getItems().size());
             MetServiceInfo service = instance.getServiceById("echo");
             assertEquals(1, service.getProviderCount());
             assertEquals("example.Echo", service.getType());
@@ -151,16 +147,13 @@ public class AdminQueryTest {
             assertFalse(instance.instance().isBlock());
 
             // 实例配置仅承载阻断治理，不再保存请求、响应默认选项。
-            EntityRef owner = RegistryGovernanceUtils.instance("one");
-            EntData content = storage.getEntity(owner).getData();
-            EntInstanceConfigurationData expected = (EntInstanceConfigurationData) content;
-            Map<?, ?> storedFields = RegistryJson.copy(content, Map.class);
-            assertEquals(Set.of("block"), storedFields.keySet());
+            EntConfigurationData expected = storage.getConfiguration("one", null).getData();
             assertEquals(Boolean.TRUE, expected.getBlock());
+            assertNull(expected.getEnabled());
 
             // 实例目录支持按应用名筛选。
-            assertEquals(1, admin.getClusterAdmin().instances("orders").length);
-            assertEquals(0, admin.getClusterAdmin().instances("other").length);
+            assertEquals(1, admin.getClusterAdmin().instances("orders", null).getItems().size());
+            assertEquals(0, admin.getClusterAdmin().instances("other", null).getItems().size());
         }
     }
 
@@ -180,11 +173,11 @@ public class AdminQueryTest {
             assertTrue(cluster.fetchMeta().isEmpty());
             assertTrue(service.fetchMeta().isEmpty());
             assertTrue(scoped.fetchMeta().isEmpty());
-            assertNull(storage.getEntity(RegistryGovernanceUtils.GLOBAL));
-            assertNull(storage.getEntity(RegistryGovernanceUtils.localService("one", "echo")));
+            assertNull(storage.getMetadata(null, null));
+            assertNull(storage.getMetadata("one", "echo"));
             MetServiceAdmin missing = admin.getServiceAdmin("missing");
             assertTrue(missing.fetchMeta().isEmpty());
-            assertNull(storage.getEntity(RegistryGovernanceUtils.service("missing")));
+            assertNull(storage.getService("missing"));
 
             // 各范围只返回自己保存的值，不把全局继承值带入服务编辑。
             cluster.putMeta(Map.of("owner", "global", "globalOnly", true));
@@ -222,7 +215,7 @@ public class AdminQueryTest {
             snapshot("one", MetServiceType.Provider, "rsf").save(storage);
             DecoratedRegistryConfiguration observed = new DecoratedRegistryConfiguration(this.configuration, delegate -> {
                 InvocationHandler scopeCheck = (proxy, method, arguments) -> {
-                    if (StringUtils.equals(method.getName(), "findEntities")) {
+                    if (StringUtils.equals(method.getName(), "instances") || StringUtils.equals(method.getName(), "getInstance")) {
                         throw new AssertionError("A service query must not scan the registry catalogue");
                     }
                     try {
@@ -245,8 +238,47 @@ public class AdminQueryTest {
                 MetServiceAdmin service = admin.getServiceAdmin("echo");
                 assertEquals(1, service.info().getProviderCount());
                 assertEquals(MetServiceType.Provider, service.info().getRole());
-                assertEquals(1, service.providers(null).length);
-                assertEquals(0, service.consumers(null).length);
+                assertEquals(1, service.providers(null, null).getItems().size());
+                assertEquals(0, service.consumers(null, null).getItems().size());
+            }
+        }
+    }
+
+    @Test
+    public void applicationDirectoryAndMembershipQueriesDoNotScanInstances() throws Exception {
+        // 应用存在独立持久记录，即使当前没有实例也能直接列出。
+        try (StorageAccess storage = this.configuration.openStorage()) {
+            snapshot("one", MetServiceType.Provider, "rsf").save(storage);
+            EntApplicationCatalogData empty = new EntApplicationCatalogData();
+            empty.setApplicationName("empty-app");
+            storage.saveApplication(empty);
+            DecoratedRegistryConfiguration observed = new DecoratedRegistryConfiguration(this.configuration, delegate -> {
+                InvocationHandler scopeCheck = (proxy, method, arguments) -> {
+                    String operation = method.getName();
+                    assertFalse("No instance enrichment reads", StringUtils.equals(operation, "getInstance"));
+                    if (StringUtils.equals(operation, "instances")) {
+                        assertEquals("orders", arguments[0]);
+                    }
+                    try {
+                        return method.invoke(delegate, arguments);
+                    } catch (InvocationTargetException failure) {
+                        throw failure.getCause();
+                    }
+                };
+                Class<?>[] contracts = { StorageAccess.class };
+                return (StorageAccess) Proxy.newProxyInstance(StorageAccess.class.getClassLoader(), contracts, scopeCheck);
+            });
+            observed.setManagementToken("secret");
+
+            // 应用列表仅查询应用；进入应用后只按应用归属索引查询实例。
+            try (RegistryAdmin admin = observed.buildAdmin()) {
+                MetPage<String> applications = admin.getClusterAdmin().applications(null);
+                assertEquals(List.of("empty-app", "orders"), applications.getItems());
+                assertNull(applications.getNextCursor());
+                List<MetInstanceInfo> instances = admin.getClusterAdmin().instances("orders", null).getItems();
+                assertEquals(1, instances.size());
+                assertEquals("one", instances.get(0).getInstanceId());
+                assertTrue(instances.get(0).isOnline());
             }
         }
     }
@@ -265,6 +297,9 @@ public class AdminQueryTest {
         ServiceMemberData member = new ServiceMemberData();
         member.setInstance(instance);
         member.setService(declaration);
+        if (role == MetServiceType.Consumer) {
+            member.setUsedProtocols(new String[] { protocol });
+        }
         ServiceEndpointData endpoint = new ServiceEndpointData();
         endpoint.setProtocolName(protocol);
         endpoint.setProtocol(protocol);

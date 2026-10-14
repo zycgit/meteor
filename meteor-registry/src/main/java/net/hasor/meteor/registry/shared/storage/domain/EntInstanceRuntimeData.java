@@ -1,28 +1,26 @@
 /*
  * Copyright 2015-2026 the original author or authors.
- *
  * Licensed under the Apache License, Version 2.0.
  * See the LICENSE.txt file for the full license.
- * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.shared.storage.domain;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import net.hasor.meteor.domain.MetServiceType;
 
-/** INSTANCE/RUNTIME 存储正文；仅保存已上报数据，实例 ID 由 EntityRef 提供。 */
-public final class EntInstanceRuntimeData extends EntData {
-    private String              applicationName     = null; // 应用名称
-    private boolean             block               = false; // 已上报的业务阻断状态
-    private String              unitName            = null; // 所属单元
-    private Map<String, String> listenAddresses     = new LinkedHashMap<>(); // 协议名称 -> 监听地址
-    private Map<String, String> managementAddresses = new LinkedHashMap<>(); // 协议名称 -> 管理 RPC 地址
+/** 当前登记会话中的实例运行数据；不能作为持久在线标记。 */
+public class EntInstanceRuntimeData extends EntInstanceCatalogData {
+    private MetServiceType[]    roles               = new MetServiceType[0];
+    private boolean             block               = false;
+    private Map<String, String> listenAddresses     = new LinkedHashMap<>();
+    private Map<String, String> managementAddresses = new LinkedHashMap<>();
 
-    public String getApplicationName() {
-        return this.applicationName;
+    public MetServiceType[] getRoles() {
+        return this.roles;
     }
 
-    public void setApplicationName(String applicationName) {
-        this.applicationName = applicationName;
+    public void setRoles(MetServiceType[] roles) {
+        this.roles = roles;
     }
 
     public boolean isBlock() {
@@ -31,14 +29,6 @@ public final class EntInstanceRuntimeData extends EntData {
 
     public void setBlock(boolean block) {
         this.block = block;
-    }
-
-    public String getUnitName() {
-        return this.unitName;
-    }
-
-    public void setUnitName(String unitName) {
-        this.unitName = unitName;
     }
 
     public Map<String, String> getListenAddresses() {
@@ -56,5 +46,4 @@ public final class EntInstanceRuntimeData extends EntData {
     public void setManagementAddresses(Map<String, String> managementAddresses) {
         this.managementAddresses = managementAddresses;
     }
-
 }

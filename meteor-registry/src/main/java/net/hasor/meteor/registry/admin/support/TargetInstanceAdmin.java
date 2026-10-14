@@ -6,10 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.admin.support;
-import net.hasor.meteor.registry.admin.MetInstanceAdmin;
-import net.hasor.meteor.registry.admin.MetInstanceInfo;
-import net.hasor.meteor.registry.admin.MetRuleType;
-import net.hasor.meteor.registry.admin.MetServiceInfo;
+import java.util.Arrays;
+import net.hasor.meteor.registry.admin.*;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
@@ -26,12 +24,15 @@ final class TargetInstanceAdmin implements MetInstanceAdmin {
 
     @Override
     public MetInstanceInfo instance() {
-        return RegistryJson.copy(this.rpc.instance(), MetInstanceInfo.class);
+        MetInstanceInfo instance = RegistryJson.copy(this.rpc.instance(), MetInstanceInfo.class);
+        instance.setOnline(true);
+        return instance;
     }
 
     @Override
-    public MetServiceInfo[] getServiceList() {
-        return RegistryJson.copy(this.rpc.services(), MetServiceInfo[].class);
+    public MetPage<MetServiceInfo> getServiceList(MetDirectoryQuery query) {
+        MetServiceInfo[] services = RegistryJson.copy(this.rpc.services(), MetServiceInfo[].class);
+        return DirectoryMapping.local(Arrays.asList(services), query, MetServiceInfo::getServiceId);
     }
 
     @Override

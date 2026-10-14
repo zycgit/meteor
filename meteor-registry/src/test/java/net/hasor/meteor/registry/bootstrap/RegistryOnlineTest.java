@@ -63,9 +63,9 @@ public class RegistryOnlineTest {
 
             // 同一个在线扩展同时提供存储管理和直连管理，两者各自完成真实操作。
             RegistryAdmin admin = caller.getExtension(RegistryAdmin.class);
-            assertEquals(1, admin.getClusterAdmin().instances(null).length);
+            assertEquals(1, admin.getClusterAdmin().instances(null, null).getItems().size());
             admin.getServiceAdmin("managed-only").putMeta("owner", "registry");
-            assertEquals(1, admin.getClusterAdmin().services("managed-only").length);
+            assertEquals(1, admin.getClusterAdmin().services("managed-only", null).getItems().size());
             assertEquals(target.getInstanceID(), instance.instance().getInstanceId());
             assertEquals(2, probe.openedSessions());
         }

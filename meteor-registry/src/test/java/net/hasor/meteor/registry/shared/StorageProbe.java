@@ -15,7 +15,10 @@ import java.util.function.Supplier;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
-import net.hasor.meteor.registry.shared.storage.domain.*;
+import net.hasor.meteor.registry.shared.storage.domain.DirectoryQuery;
+import net.hasor.meteor.registry.shared.storage.domain.EntServiceRuntimeData;
+import net.hasor.meteor.registry.shared.storage.domain.InstanceStatus;
+import net.hasor.meteor.registry.shared.storage.domain.RecordPage;
 
 /** 仅在故障、生命周期和手动拉取场景中装饰真实内存存储，不实现另一套存储。 */
 public final class StorageProbe {
@@ -45,10 +48,11 @@ public final class StorageProbe {
             }
 
             // 分别模拟读取失败和通知暂停，不替代真实存储实现。
-            if (StringUtils.equals(name, "getEntity") && this.readFailure != null) {
+            if (StringUtils.equals(name, "getConfiguration") && this.readFailure != null) {
                 throw this.readFailure.get();
             }
-            boolean watch = StringUtils.equals(name, "watchEntities") || StringUtils.equals(name, "watchRelations");
+
+            boolean watch = StringUtils.equals(name, "watchConfiguration") || StringUtils.equals(name, "watchProviders");
             if (watch && !this.notifications) {
                 return (Cancellable) () -> true;
             }
@@ -82,29 +86,31 @@ public final class StorageProbe {
         this.notifications = notifications;
     }
 
-    /** 通过记录 API 模拟当前会话的临时注册丢失，不接触存储实现内部数据。 */
-    public void expireSessionRecords() throws Exception {
+    /** 撤回当前会话的服务登记，验证自动核对恢复；会话失效由独立生命周期用例验证。 */
+    public void withdrawSessionServices() throws Exception {
         synchronized (this.sessions) {
             for (StorageAccess session : this.sessions) {
-                // 先删除当前会话拥有的实例运行记录。
-                EntityQuery instances = new EntityQuery();
-                instances.setType(EntityType.INSTANCE);
-                instances.setSection(EntitySection.RUNTIME);
-                for (EntityRecord instance : session.findEntities(instances).records()) {
-                    try {
-                        session.deleteEntity(instance);
-                    } catch (IllegalStateException otherSession) {
-                        continue;
+                DirectoryQuery instances = new DirectoryQuery();
+                do {
+                    RecordPage<InstanceStatus> page = session.instances(null, instances);
+                    for (InstanceStatus instance : page.getItems()) {
+                        String id = instance.getInstance().getInstanceId();
+                        DirectoryQuery services = new DirectoryQuery();
+                        do {
+                            RecordPage<EntServiceRuntimeData> entries = session.instanceServices(id, services);
+                            for (EntServiceRuntimeData service : entries.getItems()) {
+                                try {
+                                    session.unregisterService(id, service.getServiceId());
+                                } catch (IllegalStateException otherSession) {
+                                    // 每个会话只能撤回自己拥有的实例。
+                                }
+                            }
+                            services.setCursor(entries.getNextCursor());
+                        } while (services.getCursor() != null);
                     }
 
-                    // 再删除该实例的成员关系。
-                    EntityRef identity = new EntityRef(EntityType.INSTANCE, instance.getId());
-                    RelationQuery relations = new RelationQuery();
-                    relations.setTarget(identity);
-                    for (RelationRecord relation : session.findRelations(relations).records()) {
-                        session.deleteRelation(relation);
-                    }
-                }
+                    instances.setCursor(page.getNextCursor());
+                } while (instances.getCursor() != null);
             }
         }
     }

@@ -1,76 +1,28 @@
 /*
  * Copyright 2015-2026 the original author or authors.
- *
  * Licensed under the Apache License, Version 2.0.
  * See the LICENSE.txt file for the full license.
- * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.shared.storage.domain;
-import com.fasterxml.jackson.annotation.*;
 
-/** 实体存储封装；ref 唯一定位实体，data 保存实体正文，revision 用于 CAS。 */
-public final class EntityRecord {
-    private final EntityRef       ref;
-    private       RecordLifecycle lifecycle;
-    private       String          revision = "";
-    // 类型标识仅用于存储正文，普通 DTO 与 RPC 对象之间的转换不受影响。
-    @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "kind")
-    @JsonSubTypes({//
-            @JsonSubTypes.Type(value = EntGlobalConfigurationData.class, name = "globalConfiguration"),     //
-            @JsonSubTypes.Type(value = EntServiceCatalogData.class, name = "serviceCatalog"),               //
-            @JsonSubTypes.Type(value = EntServiceConfigurationData.class, name = "serviceConfiguration"),   //
-            @JsonSubTypes.Type(value = EntInstanceConfigurationData.class, name = "instanceConfiguration"), //
-            @JsonSubTypes.Type(value = EntRuleConfigurationData.class, name = "ruleConfiguration"),         //
-            @JsonSubTypes.Type(value = EntInstanceRuntimeData.class, name = "instanceRuntime")             //
-    })
-    private       EntData         data;
+/** 治理正文和单条存储 CAS 版本；版本不作为集群同步触发器。 */
+public class EntityRecord<T> {
+    private T      data;
+    private String revision;
 
-    public EntityRecord(EntityType type, String id) {
-        this(new EntityRef(type, id));
+    public T getData() {
+        return this.data;
     }
 
-    @JsonCreator
-    public EntityRecord(@JsonProperty("ref") EntityRef ref) {
-        this.ref = ref;
-        boolean runtime = ref.section() == EntitySection.RUNTIME;
-        this.lifecycle = runtime ? RecordLifecycle.EPHEMERAL : RecordLifecycle.PERSISTENT;
-    }
-
-    public EntityRef getRef() {
-        return this.ref;
-    }
-
-    @JsonIgnore
-    public EntityType getType() {
-        return this.ref.type();
-    }
-
-    @JsonIgnore
-    public String getId() {
-        return this.ref.id();
-    }
-
-    public RecordLifecycle getLifecycle() {
-        return this.lifecycle;
-    }
-
-    public void setLifecycle(RecordLifecycle value) {
-        this.lifecycle = value;
+    public void setData(T data) {
+        this.data = data;
     }
 
     public String getRevision() {
         return this.revision;
     }
 
-    public void setRevision(String value) {
-        this.revision = value;
-    }
-
-    public EntData getData() {
-        return this.data;
-    }
-
-    public void setData(EntData data) {
-        this.data = data;
+    public void setRevision(String revision) {
+        this.revision = revision;
     }
 }

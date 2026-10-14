@@ -45,11 +45,11 @@ public class RegistryAdminTokenProviderTest {
 
             // 创建存储和获取扩展不读取凭据；每次获取管理接口才调用配置的提供者。
             assertEquals(0, reads.get());
-            List<Runnable> entrypoints = List.of(
-                    admin::getClusterAdmin,
-                    () -> admin.getInstanceAdmin(instanceId),
-                    () -> admin.getServiceAdmin(serviceId),
-                    () -> admin.getServiceAdmin(serviceId, instanceId));
+            List<Runnable> entrypoints = List.of(admin::getClusterAdmin, () -> {
+                admin.getInstanceAdmin(instanceId);
+            }, () -> admin.getServiceAdmin(serviceId), () -> {
+                admin.getServiceAdmin(serviceId, instanceId);
+            });
             for (Runnable entrypoint : entrypoints) {
                 entrypoint.run();
             }
@@ -114,8 +114,7 @@ public class RegistryAdminTokenProviderTest {
 
             // 来源故障原样上抛，不替换或吞掉异常。
             unavailable.set(true);
-            IllegalStateException failure = assertThrows(IllegalStateException.class,
-                    () -> admin.getClusterAdmin());
+            IllegalStateException failure = assertThrows(IllegalStateException.class, () -> admin.getClusterAdmin());
             assertSame(original, failure);
 
             // 关闭后先拒绝访问，不再读取凭据来源。

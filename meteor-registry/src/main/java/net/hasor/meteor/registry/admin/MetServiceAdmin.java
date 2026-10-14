@@ -17,11 +17,14 @@ public interface MetServiceAdmin {
     /** 获取当前范围的服务基本信息、角色、协议及提供者和消费者数量。 */
     MetServiceInfo info();
 
-    /** 在当前范围内按端点条件查询提供者，null 表示不额外筛选，保留完整端点信息。 */
-    MetServiceMember[] providers(MetEndpointFilter filter);
+    /** 查询本服务当前成员所属的单元目录。 */
+    String[] units();
 
-    /** 在当前范围内按端点条件查询消费者，null 表示不额外筛选，保留完整端点信息。 */
-    MetServiceMember[] consumers(MetEndpointFilter filter);
+    /** 分页查询当前范围的提供者；filter 为 null 不限制端点，query 为 null 读取默认首页，保留完整端点信息。 */
+    MetPage<MetServiceMember> providers(MetEndpointFilter filter, MetDirectoryQuery query);
+
+    /** 分页查询当前范围的消费者；filter 按端点筛选，query 的协议条件按实际选用协议筛选，query 为 null 读取默认首页。 */
+    MetPage<MetServiceMember> consumers(MetEndpointFilter filter, MetDirectoryQuery query);
 
     //
     // 规则校验与按项更新

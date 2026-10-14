@@ -15,6 +15,17 @@ public final class ServiceMemberData {
     private boolean               enabled                = true;
     private ConfigurationData     effectiveConfiguration = null;
 
+    /** 消费者当前服务地址本中的协议，去重排序；不表示历史调用统计。 */
+    private String[] usedProtocols = new String[0];
+
+    public String[] getUsedProtocols() {
+        return this.usedProtocols;
+    }
+
+    public void setUsedProtocols(String[] usedProtocols) {
+        this.usedProtocols = usedProtocols;
+    }
+
     /** 获取当前服务使用的发布或订阅端点，包含尚未发布的端点。 */
     public ServiceEndpointData[] getEndpoints() {
         return this.endpoints;

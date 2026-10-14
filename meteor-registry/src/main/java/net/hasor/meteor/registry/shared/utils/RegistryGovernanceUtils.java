@@ -8,7 +8,6 @@
 package net.hasor.meteor.registry.shared.utils;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.address.dsl.FlowRuleParser;
 import net.hasor.meteor.address.dsl.XmlRuleParser;
@@ -50,62 +49,27 @@ public final class RegistryGovernanceUtils {
     ////////////////////////////////////////////////////////////////////////////////////////
     // 配置记录定位与读取
 
-    public static final EntityRef GLOBAL = new EntityRef(EntityType.GLOBAL, "default");
-
-    public static EntityRef service(String id) {
-        return new EntityRef(EntityType.SERVICE, id);
-    }
-
-    public static EntityRef instance(String id) {
-        return new EntityRef(EntityType.INSTANCE, id);
-    }
-
-    public static EntityRef localService(String instanceId, String serviceId) {
-        return new EntityRef(EntityType.SERVICE, serviceId, instance(instanceId), EntitySection.CONFIGURATION);
-    }
-
-    public static EntityRef runtime(EntityRef ref) {
-        return new EntityRef(ref.type(), ref.id(), ref.parent(), EntitySection.RUNTIME);
-    }
-
-    public static EntityRef ruleRef(EntityRef owner, RuleTypeData type) {
-        return new EntityRef(EntityType.RULE, Objects.requireNonNull(type, "rule type").name(), owner, EntitySection.CONFIGURATION);
-    }
-
-    /** 读取某个对象下的配置与规则，规则的开关与正文在同一条记录。 */
-    public static ConfigurationData read(StorageAccess storage, EntityRef owner) throws Exception {
+    /** 仅读取一个明确治理范围；各项独立读取，不遍历实体或成员。 */
+    public static ConfigurationData read(StorageAccess storage, String instanceId, String serviceId) throws Exception {
         ConfigurationData result = new ConfigurationData();
-        EntityRecord configuration = storage.getEntity(owner);
-        if (configuration != null && configuration.getData() != null) {
-            if (owner.type() == EntityType.GLOBAL) {
-                EntGlobalConfigurationData data = (EntGlobalConfigurationData) configuration.getData();
-                result.setMetadata(data.getMetadata().isEmpty() ? null : data.getMetadata());
-            } else if (owner.type() == EntityType.SERVICE) {
-                EntServiceConfigurationData data = (EntServiceConfigurationData) configuration.getData();
-                result.setEnabled(data.getEnabled());
-                result.setMetadata(data.getMetadata().isEmpty() ? null : data.getMetadata());
+        EntityRecord<EntConfigurationData> state = storage.getConfiguration(instanceId, serviceId);
+        if (state != null) {
+            result.setEnabled(state.getData().getEnabled());
+        }
+
+        EntityRecord<EntMetadataData> metadata = storage.getMetadata(instanceId, serviceId);
+        if (metadata != null && !metadata.getData().getMetadata().isEmpty()) {
+            result.setMetadata(metadata.getData().getMetadata());
+        }
+
+        for (RuleKind kind : RuleKind.values()) {
+            EntityRecord<EntRuleConfigurationData> record = storage.getRule(instanceId, serviceId, kind);
+            if (record != null) {
+                RuleTypeData type = RuleTypeData.valueOf(kind.name());
+                setRule(result, type, record.getData().getRule());
+                result.getRuleEnabled().put(type, record.getData().isEnabled());
             }
         }
-        EntityQuery query = new EntityQuery();
-        query.setType(EntityType.RULE);
-        query.setParent(owner);
-        for (EntityRecord record : entities(storage, query)) {
-            RuleTypeData type = RuleTypeData.valueOf(record.getId());
-            EntRuleConfigurationData rule = (EntRuleConfigurationData) record.getData();
-            setRule(result, type, rule.getRule());
-            result.getRuleEnabled().put(type, rule.isEnabled());
-        }
-        return result;
-    }
-
-    public static List<EntityRecord> entities(StorageAccess storage, EntityQuery query) throws Exception {
-        List<EntityRecord> result = new ArrayList<>();
-        query.setLimit(1000);
-        do {
-            RecordPage<EntityRecord> page = storage.findEntities(query);
-            result.addAll(page.records());
-            query.setCursor(page.nextCursor());
-        } while (query.getCursor() != null);
         return result;
     }
 
@@ -120,21 +84,6 @@ public final class RegistryGovernanceUtils {
             case ARGS_ROUTE -> configuration.setArgsRoute(rule);
             case FLOW_CONTROL -> configuration.setFlowControl(rule);
         }
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    // 关系查询
-    public static List<RelationRecord> relations(StorageAccess storage, RelationQuery query) throws Exception {
-        List<RelationRecord> result = new ArrayList<>();
-        query.setCursor(null);
-        query.setLimit(1000);
-
-        do {
-            RecordPage<RelationRecord> page = storage.findRelations(query);
-            result.addAll(page.records());
-            query.setCursor(page.nextCursor());
-        } while (query.getCursor() != null);
-        return result;
     }
 
 }

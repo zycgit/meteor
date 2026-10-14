@@ -8,6 +8,7 @@
 package net.hasor.meteor.registry.shared;
 import java.util.function.BooleanSupplier;
 import net.hasor.meteor.MetService;
+import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
@@ -24,26 +25,40 @@ public final class RegistryTestUtils {
     }
 
     public static boolean hasRegistrations(RegistryConfiguration configuration) throws Exception {
-        EntityQuery query = new EntityQuery();
-        query.setType(EntityType.INSTANCE);
-        query.setSection(EntitySection.RUNTIME);
-
         try (StorageAccess storage = configuration.openStorage()) {
-            return !storage.findEntities(query).records().isEmpty();
+            DirectoryQuery query = new DirectoryQuery();
+            do {
+                RecordPage<InstanceStatus> page = storage.instances(null, query);
+                for (InstanceStatus instance : page.getItems()) {
+                    if (instance.getRuntime() != null) {
+                        return true;
+                    }
+                }
+                query.setCursor(page.getNextCursor());
+            } while (query.getCursor() != null);
+            return false;
         }
     }
 
     public static boolean hasPublishedAddress(RegistryConfiguration configuration) {
-        RelationQuery query = new RelationQuery();
-        query.setType(RelationType.PROVIDES);
-
         try (StorageAccess storage = configuration.openStorage()) {
-            for (RelationRecord record : storage.findRelations(query).records()) {
-                RefServiceRelationData data = (RefServiceRelationData) record.getData();
-                if (data.getAddresses().length > 0) {
-                    return true;
+            DirectoryQuery services = new DirectoryQuery();
+            do {
+                RecordPage<EntServiceCatalogData> page = storage.services(services);
+                for (EntServiceCatalogData service : page.getItems()) {
+                    DirectoryQuery members = new DirectoryQuery();
+                    do {
+                        RecordPage<RefServiceRelationData> providers = storage.members(service.getServiceId(), MetServiceType.Provider, members);
+                        for (RefServiceRelationData member : providers.getItems()) {
+                            if (member.getService().getAddresses().length > 0) {
+                                return true;
+                            }
+                        }
+                        members.setCursor(providers.getNextCursor());
+                    } while (members.getCursor() != null);
                 }
-            }
+                services.setCursor(page.getNextCursor());
+            } while (services.getCursor() != null);
             return false;
         } catch (Exception failure) {
             throw new IllegalStateException(failure);

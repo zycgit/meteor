@@ -23,7 +23,7 @@ import net.hasor.meteor.MetContextEvent;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.shared.rpc.ConfigurationData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
-import net.hasor.meteor.registry.shared.storage.domain.EntInstanceConfigurationData;
+import net.hasor.meteor.registry.shared.storage.domain.EntConfigurationData;
 
 /** 协调本地运行服务与注册服务的生命周期、订阅及推拉流程。 */
 public final class DefaultRegistryClient implements RegistryClient, AutoCloseable {
@@ -229,7 +229,7 @@ public final class DefaultRegistryClient implements RegistryClient, AutoCloseabl
 
         List<Exception> failures = new ArrayList<>();
         if (serviceId == null) {
-            EntInstanceConfigurationData settings = this.registrationService.instanceConfiguration(instanceId);
+            EntConfigurationData settings = this.registrationService.instanceConfiguration(instanceId);
             Exception failure = this.rpcService.applyInstance(settings);
             if (failure != null) {
                 failures.add(failure);

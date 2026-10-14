@@ -7,7 +7,7 @@
  */
 package net.hasor.meteor.registry.shared.storage.domain;
 
-/** 发布、订阅关系中的协议挂载正文；仅保存上报的连接器和协议端点字段。 */
+/** 实例服务及服务成员中的协议挂载正文；仅保存上报的连接器和协议端点字段。 */
 public final class RefProtocolMountData {
     private String  connectorName     = null; // 实例内的连接器名称
     private String  transport         = null; // 传输 SPI 名称，如 tcp、http

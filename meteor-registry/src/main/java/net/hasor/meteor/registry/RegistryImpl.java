@@ -23,7 +23,7 @@ final class RegistryImpl implements RegistryAdmin {
     private volatile StorageAccess           storage;
     private volatile boolean                 closed;
 
-    public RegistryImpl(Callable<StorageAccess> storageOpener, RegistryInfo info, RegistryTokenProvider tokenProvider) {
+    RegistryImpl(Callable<StorageAccess> storageOpener, RegistryInfo info, RegistryTokenProvider tokenProvider) {
         this.tokenProvider = tokenProvider;
         this.admins = new AdminFactory(this::requireStorage, info.getProvider(), info.getScope());
         this.storageOpener = storageOpener;
