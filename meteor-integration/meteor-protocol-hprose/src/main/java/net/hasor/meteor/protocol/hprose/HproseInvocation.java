@@ -6,38 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.hprose;
+import java.util.List;
+import java.util.Map;
 import net.hasor.meteor.connector.transport.http.HttpResponse;
-import net.hasor.meteor.domain.payload.RequestPayload;
 
-/** Decoded Hprose invocation and its response encoder, or a local metadata reply. */
-final class HproseInvocation {
-    private final RequestPayload        request;
-    private final HttpResponse          immediate;
-    private final HproseResponseEncoder encoder;
-
-    private HproseInvocation(RequestPayload request, HttpResponse immediate, HproseResponseEncoder encoder) {
-        this.request = request;
-        this.immediate = immediate;
-        this.encoder = encoder;
-    }
-
-    public RequestPayload request() {
-        return this.request;
-    }
-
-    public HttpResponse immediate() {
-        return this.immediate;
-    }
-
-    public HproseResponseEncoder encoder() {
-        return this.encoder;
-    }
-
-    public static HproseInvocation respond(HttpResponse response) {
-        return new HproseInvocation(null, response, null);
-    }
-
-    public static HproseInvocation dispatch(RequestPayload request, HproseResponseEncoder encoder) {
-        return new HproseInvocation(request, null, encoder);
-    }
+/** 完整解码后的 HTTP 调用批次，或协议自己处理的发现与预检响应。 */
+record HproseInvocation(List<HproseCall> calls, Map<String, List<String>> headers, HttpResponse immediate) {
 }

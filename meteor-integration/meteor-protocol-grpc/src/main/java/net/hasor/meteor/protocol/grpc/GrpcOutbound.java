@@ -41,6 +41,7 @@ final class GrpcOutbound implements Flow.Subscriber<Object> {
                 ForkJoinPool.commonPool().execute(subscription::cancel);
                 return;
             }
+
             this.subscription = subscription;
         }
         this.wake();
@@ -52,6 +53,7 @@ final class GrpcOutbound implements Flow.Subscriber<Object> {
             if (this.stopped || this.ended) {
                 return;
             }
+
             if (item == null || !this.requested || this.buffered != null) {
                 this.failure = new IllegalStateException("Publisher emitted a null or unrequested message");
                 this.ended = true;
@@ -69,6 +71,7 @@ final class GrpcOutbound implements Flow.Subscriber<Object> {
             if (this.ended || this.stopped) {
                 return;
             }
+
             this.failure = failure;
             this.ended = true;
         }
@@ -89,6 +92,7 @@ final class GrpcOutbound implements Flow.Subscriber<Object> {
             if (this.stopped) {
                 return;
             }
+
             this.stopped = true;
             this.buffered = null;
             current = this.subscription;
@@ -121,6 +125,7 @@ final class GrpcOutbound implements Flow.Subscriber<Object> {
                         this.running = false;
                         return;
                     }
+
                     value = this.buffered;
                     this.buffered = null;
                     error = this.failure;
@@ -133,7 +138,9 @@ final class GrpcOutbound implements Flow.Subscriber<Object> {
                         return;
                     }
                 }
-                if (error != null) {
+
+                // onNext 后紧接 onError 时，已交付的消息先写出，再发送错误 trailers。
+                if (error != null && value == null) {
                     this.call.sendFailure(error);
                     return;
                 }

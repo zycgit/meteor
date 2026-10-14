@@ -1,0 +1,7 @@
+// Copyright 2015-2026 the original author or authors.
+// Licensed under the Apache License, Version 2.0.
+syntax = "proto3";
+package net.hasor.meteor.grpc;
+import public "grpc/health/v1/health.proto";
+import public "grpc/reflection/v1/reflection.proto";
+import public "grpc/reflection/v1alpha/reflection.proto";

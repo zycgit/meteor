@@ -21,8 +21,8 @@ import hprose.io.HproseWriter;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.connector.ContextPaths;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.ProtocolStatus;
@@ -42,20 +42,32 @@ public final class HproseUtils implements HproseConstants {
     private HproseUtils() {
     }
 
-    /** 返回已发布服务的 Hprose 方法别名。 */
+    /** 返回默认挂载点上已发布服务的 Hprose 方法别名。 */
     public static String[] doFunction(MetContext context, ProtocolConfig protocol) {
+        return doFunction(context, protocol, protocol.contextPath());
+    }
+
+    /** 返回协议已声明目录挂载点上的方法别名；精确入口使用 Mount 重载。 */
+    public static String[] doFunction(MetContext context, ProtocolConfig protocol, String contextPath) {
+        return doFunction(context, protocol, protocol.contexts().resolve(contextPath));
+    }
+
+    /** 返回当前请求实际挂载点上已发布服务的 Hprose 方法别名。 */
+    public static String[] doFunction(MetContext context, ProtocolConfig protocol, ContextPaths.Mount mount) {
         Set<String> allMethod = new LinkedHashSet<>();
-        allMethod.add("*");
 
         // .请求函数列表
         List<String> serviceIDs = context.getServiceIDs();
         for (String serviceID : serviceIDs) {
             MetBindInfo<?> serviceInfo = context.getServiceInfo(serviceID);
-            if (serviceInfo.isShadow() || MetServiceType.Provider != serviceInfo.getServiceType()) {
+            if (serviceInfo == null || serviceInfo.isShadow()) {
+                continue;
+            }
+            if (MetServiceType.Provider != serviceInfo.getServiceType()) {
                 continue;
             }
 
-            if (!protocol.accepts(serviceInfo.getBindProtocols())) {
+            if (!protocol.accepts(serviceInfo, mount)) {
                 continue;
             }
             String aliasName = serviceInfo.getAliasName(HPROSE);
@@ -71,72 +83,6 @@ public final class HproseUtils implements HproseConstants {
         return allMethod.toArray(new String[allMethod.size()]);
     }
 
-    /** 解析单个调用；批量调用和引用参数返回尚不支持。 */
-    public static RequestPayload doCall(MetContext context, InputStream content, String requestURI, String origin) throws IOException {
-        HproseReader reader = new HproseReader(content);
-        String callName = reader.readString();
-        int separator = callName == null ? -1 : callName.lastIndexOf('_');
-        if (separator <= 0 || separator == callName.length() - 1) {
-            throw new MetException(ProtocolStatus.ProtocolError, "Invalid Hprose call name: " + callName);
-        }
-
-        // 先确定服务与参数个数，再使用同一个 reader 解析完整参数列表，保留参数间的引用。
-        String alias = callName.substring(0, separator);
-        MetBindInfo<?> service = context.getServiceInfo(HPROSE, alias);
-        while (service == null && (separator = callName.lastIndexOf('_', separator - 1)) > 0) {
-            alias = callName.substring(0, separator);
-            service = context.getServiceInfo(HPROSE, alias);
-        }
-        if (service == null) {
-            throw new MetException(ProtocolStatus.NotFound, "Hprose service alias not found: " + callName);
-        }
-        String methodName = callName.substring(separator + 1);
-        int tag = reader.checkTags("azC");
-        int count = 0;
-        if (tag == TagList) {
-            reader.reset();
-            count = reader.readInt(TagOpenbrace);
-        }
-        Method method = findMethod(service, methodName, count);
-        Object[] arguments = new Object[count];
-        if (tag == TagList) {
-            reader.readArray(method.getGenericParameterTypes(), arguments, count);
-            tag = reader.checkTags("tzC");
-        }
-        if (tag != TagEnd) {
-            throw new MetException(ProtocolStatus.ProtocolError, "Hprose batch calls and reference returns are unsupported");
-        }
-        if (content.read() != -1) {
-            throw new MetException(ProtocolStatus.ProtocolError, "Unexpected data after Hprose call");
-        }
-
-        // 只向 RPC 层交付已完整解析并校验的请求。
-        RequestPayload request = new RequestPayload();
-        request.setServiceGroup(service.getBindGroup());
-        request.setServiceName(service.getBindName());
-        request.setServiceVersion(service.getBindVersion());
-        request.setTargetMethod(methodName);
-        request.setSerializeType(HPROSE);
-        request.setClientTimeout(context.getSettings().getDefaultTimeout());
-        request.setReceiveTime(System.currentTimeMillis());
-        request.addOption("Location", requestURI);
-        request.addOption("Origin", origin);
-        Class<?>[] types = method.getParameterTypes();
-        for (int index = 0; index < count; index++) {
-            request.addParameter(types[index].getName(), arguments[index]);
-        }
-        return request;
-    }
-
-    private static Method findMethod(MetBindInfo<?> service, String name, int count) {
-        for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
-            if (StringUtils.equals(method.getName(), name) && method.getParameterCount() == count) {
-                return method;
-            }
-        }
-        throw new MetException(ProtocolStatus.NotFound, "Hprose method not found: " + name + "/" + count);
-    }
-
     /** 解析 Hprose 错误字符串中的 JSON 扩展信息。 */
     public static JsonNode parseError(String error) throws IOException {
         return ERROR_MAPPER.readTree(error);
@@ -149,7 +95,7 @@ public final class HproseUtils implements HproseConstants {
             new HproseWriter(output).serialize(response.getReturnData());
             output.write('z');
         } else {
-            Map<String, String> errorMsg = new HashMap<String, String>();
+            Map<String, String> errorMsg = new HashMap<>();
             String[] optionKeys = response.getOptionKeys();
             if (optionKeys != null) {
                 for (String optKey : optionKeys) {

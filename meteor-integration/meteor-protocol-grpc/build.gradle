@@ -7,12 +7,20 @@ description = 'gRPC protocol adapter for ordinary Meteor Java services'
 
 dependencies {
     api project(':meteor')
+    api 'com.google.protobuf:protobuf-java:3.25.9'
+    api "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
     implementation 'com.squareup.wire:wire-schema-jvm:4.9.11'
     implementation 'com.google.protobuf:protobuf-java-util:3.25.9'
-    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
 
+    // for test
     testImplementation 'io.grpc:grpc-netty-shaded:1.84.1'
     testImplementation 'io.grpc:grpc-stub:1.84.1'
+    testImplementation 'io.grpc:grpc-services:1.84.1'
+    testImplementation('io.grpc:grpc-interop-testing:1.84.1') {
+        // 互通场景不使用指标导出和 xDS CEL，避免这两项将 Protobuf 升级到不兼容的 4.x。
+        exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-prometheus'
+        exclude group: 'dev.cel'
+    }
     testImplementation project(':meteor-protocol-hprose')
 }
 

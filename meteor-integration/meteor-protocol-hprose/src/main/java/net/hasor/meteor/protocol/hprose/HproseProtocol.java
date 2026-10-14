@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.protocol.hprose;
 import java.util.function.BiConsumer;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.protocol.ProtocolContext;
 import net.hasor.meteor.connector.protocol.ProtocolFactory;
@@ -39,6 +40,10 @@ public final class HproseProtocol implements ProtocolFactory<HttpExchange> {
 
     public String transport() {
         return "http";
+    }
+
+    @Override
+    public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
     }
 
     public Class<HttpExchange> messageType() {

@@ -1,0 +1,31 @@
+syntax = "proto3";
+package example;
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/wrappers.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/empty.proto";
+message Nested {string name = 1;}
+message Complex {
+  int64 signed_value = 1;
+  uint64 unsigned_value = 2;
+  bytes data = 3;
+  repeated Nested children = 4;
+  map<string, Nested> entries = 5;
+  optional int32 present_zero = 6;
+  oneof selection {string label = 7; int32 index = 8;}
+  enum Kind {UNKNOWN = 0; FIRST = 1;}
+  Kind kind = 9;
+  google.protobuf.Any payload = 10;
+  google.protobuf.Timestamp instant = 11;
+  google.protobuf.Duration elapsed = 12;
+  google.protobuf.Int32Value wrapped = 13;
+  google.protobuf.Struct extra = 14;
+  google.protobuf.FieldMask mask = 15;
+}
+service Types {
+  rpc roundTrip(Complex) returns (Complex);
+  rpc empty(google.protobuf.Empty) returns (google.protobuf.Empty);
+}

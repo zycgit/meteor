@@ -15,39 +15,48 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Stream;
+import com.google.protobuf.DescriptorProtos;
+import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.Descriptors.FileDescriptor;
 import com.google.protobuf.Descriptors.MethodDescriptor;
 import com.google.protobuf.Descriptors.ServiceDescriptor;
-import com.squareup.wire.schema.Location;
-import com.squareup.wire.schema.ProtoFile;
-import com.squareup.wire.schema.Schema;
-import com.squareup.wire.schema.SchemaLoader;
+import com.google.protobuf.util.JsonFormat;
+import com.squareup.wire.schema.*;
 import com.squareup.wire.schema.internal.SchemaEncoder;
 import com.squareup.wire.schema.internal.parser.ProtoFileElement;
 import com.squareup.wire.schema.internal.parser.ProtoParser;
+import net.hasor.cobble.StringUtils;
 
 /** 本地 .proto 资源及其导入文件；解析一次，不生成 Java 类，也不参与注册中心同步。 */
 public final class GrpcProtoResource {
     private final Map<String, ServiceDescriptor> services;
+    private final JsonFormat.TypeRegistry        types;
 
     public GrpcProtoResource(URL source) throws IOException {
+        this(new URL(source, "."), source.getPath().substring(source.getPath().lastIndexOf('/') + 1));
+    }
+
+    /** 从指定导入根目录加载入口文件，保留描述文件的相对名称。 */
+    public GrpcProtoResource(URL root, String name) throws IOException {
+        URL source = new URL(root, name);
         Path directory = Files.createTempDirectory("meteor-proto-");
         try {
             // 将 URL 资源及相对导入交给同一个 schema 根目录，兼容文件和 jar 资源。
-            String name = source.getPath().substring(source.getPath().lastIndexOf('/') + 1);
-            this.copy(new URL(source, "."), name, directory, new HashSet<>());
+            this.copy(root, name, directory, new HashSet<>());
             SchemaLoader loader = new SchemaLoader(FileSystems.getDefault());
             loader.setLoadExhaustively(true);
-            Location root = Location.get(directory.toString(), name);
-            loader.initRoots(List.of(root), List.of(Location.get(directory.toString())));
+            Location entry = Location.get(directory.toString(), name);
+            loader.initRoots(List.of(entry), List.of(Location.get(directory.toString())));
             Schema schema = loader.loadSchema();
 
             // Wire 负责语法和引用校验，Protobuf 负责标准描述信息与二进制编码。
             SchemaEncoder encoder = new SchemaEncoder(schema);
             Map<String, FileDescriptorProto> files = new HashMap<>();
             for (ProtoFile file : schema.getProtoFiles()) {
-                FileDescriptorProto descriptor = FileDescriptorProto.parseFrom(encoder.encode(file).toByteArray());
+                FileDescriptorProto.Builder encoded = FileDescriptorProto.parseFrom(encoder.encode(file).toByteArray()).toBuilder();
+                this.nestedExtensions(file, file.getTypes(), encoded.getMessageTypeBuilderList(), encoder);
+                FileDescriptorProto descriptor = encoded.build();
                 files.put(descriptor.getName(), descriptor);
             }
             Map<String, FileDescriptor> linked = new HashMap<>();
@@ -58,7 +67,14 @@ public final class GrpcProtoResource {
                     services.put(service.getFullName(), service);
                 }
             }
+
             this.services = Map.copyOf(services);
+            JsonFormat.TypeRegistry.Builder registry = JsonFormat.TypeRegistry.newBuilder();
+            for (FileDescriptor file : linked.values()) {
+                registry.add(file.getMessageTypes());
+            }
+
+            this.types = registry.build();
         } catch (IOException failure) {
             throw failure;
         } catch (Exception failure) {
@@ -72,6 +88,15 @@ public final class GrpcProtoResource {
         }
     }
 
+    /** 按完整服务名查询描述，未声明的服务返回 null。 */
+    public ServiceDescriptor service(String name) {
+        return this.services.get(name);
+    }
+
+    JsonFormat.TypeRegistry types() {
+        return this.types;
+    }
+
     public MethodDescriptor method(String serviceName, String methodName) {
         ServiceDescriptor service = this.services.get(serviceName);
         MethodDescriptor method = service == null ? null : service.findMethodByName(methodName);
@@ -81,25 +106,53 @@ public final class GrpcProtoResource {
         return method;
     }
 
+    private void nestedExtensions(ProtoFile file, List<Type> types, List<DescriptorProto.Builder> messages, SchemaEncoder encoder) throws IOException {
+        // Wire 的 SchemaEncoder 未写入 message 内的 extend；复用其顶层字段编码，再放回声明作用域。
+        for (Type type : types) {
+            for (DescriptorProto.Builder message : messages) {
+                if (!StringUtils.equals(type.getName(), message.getName())) {
+                    continue;
+                }
+                if (!type.getNestedExtendList().isEmpty()) {
+                    ProtoFile extensions = new ProtoFile(file.getLocation(), List.of(), List.of(), file.getPackageName(), List.of(), List.of(), type.getNestedExtendList(), file.getOptions(), file.getSyntax());
+                    FileDescriptorProto fields = FileDescriptorProto.parseFrom(encoder.encode(extensions).toByteArray());
+                    message.addAllExtension(fields.getExtensionList());
+                }
+                this.nestedExtensions(file, type.getNestedTypes(), message.getNestedTypeBuilderList(), encoder);
+            }
+        }
+    }
+
     private void copy(URL root, String name, Path directory, Set<String> copied) throws IOException {
         if (!copied.add(name)) {
             return;
         }
-        // Wire 自带标准 Protobuf 定义，业务导入从资源根目录读取。
-        if (name.startsWith("google/protobuf/") || name.startsWith("wire/")) {
+
+        // Wire 扩展由解析器提供；标准类型使用 Protobuf 自带的完整定义，业务导入相对资源根目录。
+        if (name.startsWith("wire/")) {
             return;
         }
         Path target = directory.resolve(name).normalize();
         if (!target.startsWith(directory)) {
             throw new IOException("Proto import escapes its resource root: " + name);
         }
+
+        URL source = new URL(root, name);
+        if (name.startsWith("google/protobuf/")) {
+            source = DescriptorProtos.class.getResource("/" + name);
+            if (source == null) {
+                throw new IOException("Unknown standard Protobuf resource: " + name);
+            }
+        }
+
         byte[] bytes;
-        try (InputStream input = new URL(root, name).openStream()) {
+        try (InputStream input = source.openStream()) {
             bytes = input.readNBytes(4 * 1024 * 1024 + 1);
         }
         if (bytes.length > 4 * 1024 * 1024) {
             throw new IOException("Proto resource exceeds 4 MiB: " + name);
         }
+
         Files.createDirectories(target.getParent());
         Files.write(target, bytes);
         String text = new String(bytes, StandardCharsets.UTF_8);
@@ -116,11 +169,13 @@ public final class GrpcProtoResource {
         if (existing != null) {
             return existing;
         }
+
         FileDescriptorProto file = files.get(name);
         List<FileDescriptor> dependencies = new ArrayList<>();
         for (String dependency : file.getDependencyList()) {
             dependencies.add(this.link(dependency, files, linked));
         }
+
         FileDescriptor descriptor = FileDescriptor.buildFrom(file, dependencies.toArray(FileDescriptor[]::new));
         linked.put(name, descriptor);
         return descriptor;

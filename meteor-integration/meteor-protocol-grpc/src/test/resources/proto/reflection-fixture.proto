@@ -1,0 +1,14 @@
+syntax = "proto2";
+package fixture;
+message Shape {
+  optional string label = 1;
+  extensions 100 to 199;
+  message Nested {optional string value = 1;}
+  optional Nested nested = 2;
+  oneof choice {string text = 3; int32 number = 4;}
+  enum Kind {UNKNOWN = 0; FIRST = 1;}
+  optional Kind kind = 5;
+}
+extend Shape {optional string note = 100;}
+message Extensions {extend Shape {optional int32 index = 101;}}
+service ReflectionFixture {rpc inspect(Shape) returns (Shape);}

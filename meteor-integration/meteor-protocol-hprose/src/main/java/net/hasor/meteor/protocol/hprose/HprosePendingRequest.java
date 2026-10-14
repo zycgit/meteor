@@ -6,7 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.hprose;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
 
-record HprosePendingRequest(HttpExchange exchange, HproseInvocation invocation) {
+/** 一个 RPC 请求在 HTTP 批次中的位置。 */
+record HprosePendingRequest(HproseBatch batch, HproseCall call, int index) {
 }

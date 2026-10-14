@@ -7,15 +7,8 @@
  */
 package net.hasor.meteor.protocol.grpc;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.BiConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
@@ -44,23 +37,26 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
     private final BiConsumer<Long, Payload>    messages;
     private final BasicFuture<Void>            ready   = new BasicFuture<>();
     private final Map<Long, Tuple>             pending = new HashMap<>();
-    private final Map<Long, GrpcStreamCall> streams = new HashMap<>();
-    private final ExecutorService workers;
-    private final int messageLimit;
+    private final Map<Long, GrpcStreamCall>    streams = new HashMap<>();
+    private final ExecutorService              workers;
+    private final int                          messageLimit;
+    private final ProtocolContext              context;
+    private final GrpcClientPolicy             policy;
 
-    public GrpcSession(ProtocolConfig config, ProtocolContext context, NetworkChannel<HttpExchange> connection, BiConsumer<Long, Payload> messages) {
+    public GrpcSession(ProtocolConfig config, ProtocolContext context, NetworkChannel<HttpExchange> connection, BiConsumer<Long, Payload> messages, GrpcClientPolicy policy) {
         this.connection = connection;
+        this.context = context;
+        this.policy = policy;
         this.protocol = new GrpcCodec(config, context.context());
         this.outbound = context.outbound();
         this.messages = messages;
         this.messageLimit = config.integer("maxMessageSize", 4 * 1024 * 1024);
-        this.workers = new ThreadPoolExecutor(0, config.integer("streamWorkers", 64), 30, TimeUnit.SECONDS,
-                new SynchronousQueue<>(), task -> {
-                    Thread thread = new Thread(task, "Meteor-gRPC-Flow");
-                    thread.setContextClassLoader(context.context().getClassLoader());
-                    thread.setDaemon(true);
-                    return thread;
-                });
+        this.workers = new ThreadPoolExecutor(0, config.integer("streamWorkers", 64), 30, TimeUnit.SECONDS, new SynchronousQueue<>(), task -> {
+            Thread thread = new Thread(task, "Meteor-gRPC-Flow");
+            thread.setContextClassLoader(context.context().getClassLoader());
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     public Future<Void> ready() {
@@ -90,6 +86,13 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
             this.reply(exchange, HttpResponse.newBuffered(505, Map.of(), new byte[0], Map.of()));
             return;
         }
+        String contentType = exchange.request().header("content-type");
+        String mediaType = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
+        boolean grpcType = mediaType.matches("application/grpc(?:[+;].*)?");
+        if (!grpcType) {
+            this.reply(exchange, HttpResponse.newBuffered(415, Map.of(), new byte[0], Map.of()));
+            return;
+        }
         try {
             RequestPayload request = this.protocol.open(exchange.request());
             if (new GrpcMethod(this.protocol.target(request)).streaming()) {
@@ -111,11 +114,8 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
         try {
             HttpRequest request = exchange.request();
             HttpBody body = request.stream();
-            byte[] bytes = body.readNBytes(this.messageLimit + 6);
-            if (bytes.length > this.messageLimit + 5) {
-                throw new IOException("gRPC message exceeds configured maxMessageSize");
-            }
-            HttpRequest complete = HttpRequest.newBuffered(request.method(), request.uri(), request.headers(), bytes, 2);
+            byte[] bytes = this.readUnaryBody(body);
+            HttpRequest complete = HttpRequest.newBuffered(request.method(), request.uri(), request.headers(), bytes, 2, body.trailers());
             this.connection.execute(() -> this.receiveUnary(exchange, complete, payload));
         } catch (Exception failure) {
             this.connection.execute(() -> this.reply(exchange, this.protocol.error(failure)));
@@ -175,8 +175,7 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
     }
 
     private GrpcStreamCall stream(RequestPayload request) {
-        GrpcStreamCall call = new GrpcStreamCall(request, this.protocol, this.outbound,
-                this.workers, this.connection::execute, this.messages);
+        GrpcStreamCall call = new GrpcStreamCall(request, this.protocol, this.outbound, this.workers, this.connection::execute, this.messages);
         this.streams.put(request.getRequestID(), call);
         call.completion().onFinal(done -> this.connection.execute(() -> {
             this.streams.remove(request.getRequestID(), call);
@@ -190,7 +189,7 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
         }
         GrpcStreamCall call = this.stream(request);
         HttpExchange exchange = new HttpExchange(this.protocol.streamRequest(request, call.output()));
-        call.attach(exchange);
+        call.attach(exchange, null);
         exchange.response().onFinal(done -> {
             if (done.getCause() != null) {
                 call.fail(done.getCause());
@@ -199,7 +198,7 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
             }
         });
         sent.onCancel(done -> call.fail(new CancellationException("RPC write cancelled")));
-        this.bridge(this.connection.write(exchange), sent);
+        this.bridge(this.writeRequest(exchange, request), sent);
         call.startRequest();
     }
 
@@ -208,10 +207,11 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
             throw new IllegalArgumentException("Configure streamBody=true on the gRPC protocol mount");
         }
         GrpcStreamCall call = this.stream(request);
-        call.attach(exchange);
-        Map<String, String> headers = Map.of("content-type", this.protocol.contentType(request.getSerializeType()));
-        exchange.respond(HttpResponse.newStreaming(200, headers, call.output(), Map.of()));
-        call.responseWritten(this.connection.write(exchange));
+        call.attach(exchange, response -> {
+            if (exchange.respond(response)) {
+                call.responseWritten(this.connection.write(exchange));
+            }
+        });
         call.receiveRequest();
     }
 
@@ -233,19 +233,20 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
         });
 
         exchange.response().onFinal(done -> this.connection.execute(() -> {
+            if (done.getCause() != null) {
+                this.responseFailed(request, done.getCause());
+                return;
+            }
+            HttpResponse response = done.getResult();
             try {
-                if (done.getCause() != null) {
-                    request.complete(done.getCause());
-                    this.messages.accept(request.getRequestID(), new ThrowPayload(done.getCause()));
-                    return;
+                if (response.stream() == null) {
+                    this.decodeResponse(request, response);
+                } else {
+                    // 普通调用也可能收到增量正文，不能在连接执行器中阻塞读取。
+                    this.workers.execute(() -> this.receiveUnaryResponse(request, response));
                 }
-
-                ResponsePayload response = this.protocol.decode(request, done.getResult());
-                this.messages.accept(response.getRequestID(), response);
-                request.complete(null);
             } catch (Exception error) {
-                request.complete(error);
-                this.messages.accept(request.getRequestID(), new ThrowPayload(error));
+                this.responseFailed(request, error);
             }
         }));
 
@@ -253,7 +254,50 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
             request.complete(new CancellationException("HTTP write cancelled"));
         });
 
-        this.bridge(this.connection.write(exchange), sent);
+        this.bridge(this.writeRequest(exchange, request), sent);
+    }
+
+    private Future<Void> writeRequest(HttpExchange exchange, RequestPayload request) {
+        GrpcMethodPolicy method = this.policy.method(exchange.request().uri());
+        if (method == null) {
+            return this.connection.write(exchange);
+        }
+        GrpcClientCall call = new GrpcClientCall(exchange, request, this.connection, this.context, this.workers, this.policy, method);
+        return call.start();
+    }
+
+    private void receiveUnaryResponse(RequestPayload request, HttpResponse response) {
+        try {
+            byte[] bytes = this.readUnaryBody(response.stream());
+            Map<String, List<String>> trailers = response.stream().trailers();
+            HttpResponse complete = HttpResponse.newBuffered(response.status(), response.headers(), bytes, trailers);
+            this.connection.execute(() -> this.decodeResponse(request, complete));
+        } catch (Exception error) {
+            this.connection.execute(() -> this.responseFailed(request, error));
+        }
+    }
+
+    private byte[] readUnaryBody(HttpBody body) throws IOException {
+        byte[] bytes = body.readNBytes(this.messageLimit + 6);
+        if (bytes.length > this.messageLimit + 5) {
+            throw new GrpcStatusException(8, "gRPC message exceeds configured maxMessageSize", null, null);
+        }
+        return bytes;
+    }
+
+    private void decodeResponse(RequestPayload request, HttpResponse input) {
+        try {
+            ResponsePayload response = this.protocol.decode(request, input);
+            this.messages.accept(response.getRequestID(), response);
+            request.complete(null);
+        } catch (Exception error) {
+            this.responseFailed(request, error);
+        }
+    }
+
+    private void responseFailed(RequestPayload request, Throwable error) {
+        request.complete(error);
+        this.messages.accept(request.getRequestID(), new ThrowPayload(error));
     }
 
     private void respond(ResponsePayload response, BasicFuture<Void> sent) throws Exception {
@@ -276,12 +320,12 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
         }
 
         HttpExchange exchange = item.getArg0();
-        exchange.respond(encoded);
+        exchange.respond(this.protocol.trailersOnly(encoded));
         this.bridge(this.connection.write(exchange), sent);
     }
 
     private void reply(HttpExchange exchange, HttpResponse response) {
-        if (exchange.respond(response)) {
+        if (exchange.respond(this.protocol.trailersOnly(response))) {
             this.connection.write(exchange);
         }
     }

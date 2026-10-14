@@ -15,3 +15,21 @@ dependencies {
 tasks.named('test') {
     jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
 }
+
+// 官方 Node.js 对端仅用于跨语言互通，安装在构建目录，不进入插件产物。
+tasks.register('prepareHprosePeer', Sync) {
+    from 'src/test/node'
+    into layout.buildDirectory.dir('hprose-peer')
+    preserve { include 'node_modules/**' }
+}
+tasks.register('installHprosePeer', Exec) {
+    dependsOn 'prepareHprosePeer'
+    workingDir layout.buildDirectory.dir('hprose-peer')
+    commandLine 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+    inputs.files('src/test/node/package.json', 'src/test/node/package-lock.json')
+    outputs.dir layout.buildDirectory.dir('hprose-peer/node_modules')
+}
+tasks.named('test') {
+    dependsOn 'installHprosePeer'
+    systemProperty 'hprose.peer.dir', layout.buildDirectory.dir('hprose-peer').get().asFile.absolutePath
+}

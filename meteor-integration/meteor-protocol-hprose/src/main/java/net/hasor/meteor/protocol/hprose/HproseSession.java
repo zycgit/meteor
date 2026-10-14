@@ -57,8 +57,10 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
         this.ready.failed(cause);
         List<HprosePendingRequest> closing = new ArrayList<>(this.pending.values());
         this.pending.clear();
+
         for (HprosePendingRequest item : closing) {
-            item.invocation().request().complete(cause);
+            item.batch().sent().failed(cause);
+            item.batch().exchange().complete(cause);
         }
     }
 
@@ -70,29 +72,56 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
                 return;
             }
 
-            RequestPayload request = invocation.request();
-            long id = request.getRequestID();
-            if (this.pending.containsKey(id)) {
-                throw new IllegalStateException("Duplicate HTTP request ID on this channel");
-            }
+            // 一个 HTTP 交换持有整个批次；断连或取消必须结束所有子调用。
+            HproseBatch batch = new HproseBatch(exchange, invocation);
+            exchange.completion().onFinal(done -> this.connection.execute(() -> {
+                if (done.getCause() != null) {
+                    batch.sent().failed(done.getCause());
+                }
 
-            HprosePendingRequest item = new HprosePendingRequest(exchange, invocation);
-            this.pending.put(id, item);
-            request.completion().onFinal(done -> this.connection.execute(() -> {
-                if (this.pending.remove(id, item)) {
-                    Throwable failure = done.getCause();
-                    if (failure == null) {
-                        failure = new CancellationException("RPC completed without a response");
+                for (HproseCall call : invocation.calls()) {
+                    if (call.request() != null) {
+                        this.pending.remove(call.request().getRequestID());
+                        call.request().complete(done.getCause());
                     }
-                    HttpResponse response = this.protocol.error(failure);
-                    this.reply(exchange, response);
                 }
             }));
 
-            exchange.completion().onFinal(done -> request.complete(done.getCause()));
-            this.messages.accept(id, request);
+            for (int index = 0; index < invocation.calls().size(); index++) {
+                HproseCall call = invocation.calls().get(index);
+                if (call.failure() != null) {
+                    this.accept(batch, index, this.protocol.encodeError(call.failure()));
+                    continue;
+                }
+
+                RequestPayload request = call.request();
+                long id = request.getRequestID();
+                HprosePendingRequest item = new HprosePendingRequest(batch, call, index);
+                this.pending.put(id, item);
+                request.completion().onFinal(done -> this.connection.execute(() -> {
+                    if (this.pending.remove(id, item)) {
+                        Throwable failure = done.getCause();
+                        if (failure == null) {
+                            failure = new CancellationException("RPC completed without a response");
+                        }
+                        this.accept(batch, item.index(), this.protocol.encodeError(failure));
+                    }
+                }));
+                this.messages.accept(id, request);
+            }
         } catch (Exception error) {
             this.reply(exchange, this.protocol.error(error));
+        }
+    }
+
+    private void accept(HproseBatch batch, int index, byte[] response) {
+        try {
+            if (batch.accept(index, response)) {
+                this.bridge(this.connection.write(batch.exchange()), batch.sent());
+            }
+        } catch (Exception failure) {
+            batch.sent().failed(failure);
+            batch.exchange().complete(failure);
         }
     }
 
@@ -137,7 +166,7 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
                     return;
                 }
 
-                ResponsePayload response = this.protocol.decode(request.getRequestID(), done.getResult());
+                ResponsePayload response = this.protocol.decode(request, done.getResult());
                 this.messages.accept(response.getRequestID(), response);
                 request.complete(null);
             } catch (Exception error) {
@@ -159,21 +188,22 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
             sent.failed(new IllegalStateException("HTTP response has no pending request on this channel"));
             return;
         }
-        if (!item.invocation().request().isMessage() && response.getStatus() == ProtocolStatus.Accept) {
+
+        if (!item.call().request().isMessage() && response.getStatus() == ProtocolStatus.Accept) {
             sent.completed(null);
             return;
         }
 
         this.pending.remove(response.getRequestID());
-        HttpResponse encoded;
+        byte[] encoded;
         try {
-            encoded = item.invocation().encoder().encode(response);
+            encoded = this.protocol.encodeResult(item.call(), response);
         } catch (Exception error) {
-            encoded = this.protocol.error(error);
+            encoded = this.protocol.encodeError(error);
         }
 
-        item.exchange().respond(encoded);
-        this.bridge(this.connection.write(item.exchange()), sent);
+        this.accept(item.batch(), item.index(), encoded);
+        this.bridge(item.batch().sent(), sent);
     }
 
     private void reply(HttpExchange exchange, HttpResponse response) {
@@ -202,8 +232,11 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
         List<HprosePendingRequest> unanswered = new ArrayList<>(this.pending.values());
         this.pending.clear();
         for (HprosePendingRequest item : unanswered) {
-            this.reply(item.exchange(), this.protocol.error(new IOException("HTTP connector closing")));
+            IOException failure = new IOException("HTTP connector closing");
+            this.accept(item.batch(), item.index(), this.protocol.encodeError(failure));
+            item.call().request().complete(failure);
         }
+
         if (this.outbound) {
             this.connection.drainAndClose();
         }

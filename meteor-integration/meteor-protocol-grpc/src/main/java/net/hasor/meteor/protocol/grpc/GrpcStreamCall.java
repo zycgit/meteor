@@ -10,6 +10,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
@@ -39,14 +40,18 @@ final class GrpcStreamCall {
     private final    Executor                  workers;
     private final    Consumer<Runnable>        serial;
     private final    BiConsumer<Long, Payload> messages;
-    private final    HttpBody                  output     = new HttpBody(65535);
-    private final    BasicFuture<Void>         completion = new BasicFuture<>();
-    private final    AtomicBoolean             terminal   = new AtomicBoolean();
-    private final    GrpcOutbound              sending    = new GrpcOutbound(this);
+    private final    HttpBody                  output           = new HttpBody(65535);
+    private final    BasicFuture<Void>         completion       = new BasicFuture<>();
+    private final    AtomicBoolean             terminal         = new AtomicBoolean();
+    private final    AtomicBoolean             responseStarted  = new AtomicBoolean();
+    private final    ResponsePayload           receivedResponse = new ResponsePayload();
+    private volatile Consumer<HttpResponse>    responseWriter;
+    private volatile ResponsePayload           outgoingResponse;
+    private final    GrpcOutbound              sending          = new GrpcOutbound(this);
     private volatile HttpExchange              exchange;
     private volatile HttpBody                  input;
     private volatile GrpcInbound               receiving;
-    private volatile Map<String, String>       trailers   = Map.of("grpc-status", "0");
+    private volatile Map<String, List<String>> trailers         = Map.of("grpc-status", List.of("0"));
 
     public GrpcStreamCall(RequestPayload request, GrpcCodec codec, boolean client, Executor workers, Consumer<Runnable> serial, BiConsumer<Long, Payload> messages) {
         this.request = request;
@@ -69,8 +74,9 @@ final class GrpcStreamCall {
         return this.completion;
     }
 
-    public void attach(HttpExchange exchange) {
+    public void attach(HttpExchange exchange, Consumer<HttpResponse> responseWriter) {
         this.exchange = exchange;
+        this.responseWriter = responseWriter;
         exchange.completion().onFailed(done -> this.fail(done.getCause()));
     }
 
@@ -87,7 +93,7 @@ final class GrpcStreamCall {
 
     public void receiveRequest() {
         this.input = this.exchange.request().stream();
-        String encoding = this.exchange.request().headers().get("grpc-encoding");
+        String encoding = this.exchange.request().header("grpc-encoding");
         if (this.method.streamingRequest()) {
             this.receiving = new GrpcInbound(this, () -> this.readMessage(this.input, encoding, true), () -> {
             });
@@ -112,14 +118,19 @@ final class GrpcStreamCall {
 
     public void receiveResponse(HttpResponse response) {
         try {
+            if (response.header("grpc-status") != null) {
+                this.codec.validateStatus(response, response.trailers());
+            }
             this.codec.validateResponseHeaders(this.request, response);
+            GrpcMetadata.from(this.receivedResponse).receive(response.headers(), false);
+            this.codec.readMetadata(response.headers(), this.receivedResponse);
             this.input = response.stream();
             InputStream body = this.input;
             if (body == null) {
                 body = new ByteArrayInputStream(response.body());
             }
             InputStream source = body;
-            String encoding = response.headers().get("grpc-encoding");
+            String encoding = response.header("grpc-encoding");
             if (this.method.streamingResponse()) {
                 this.receiving = new GrpcInbound(this, () -> {
                     Object value = this.readMessage(source, encoding, false);
@@ -156,7 +167,10 @@ final class GrpcStreamCall {
     }
 
     private void validateEnd(HttpResponse response) throws IOException {
-        Map<String, String> fields = this.input == null ? response.trailers() : this.input.trailers();
+        Map<String, List<String>> fields = this.input == null ? response.trailers() : this.input.trailers();
+        // 响应已交付时仍写回同一组选项，调用方可在流结束后读取 trailers。
+        GrpcMetadata.from(this.receivedResponse).receive(fields, true);
+        this.codec.readMetadata(fields, this.receivedResponse);
         this.codec.validateStatus(response, fields);
     }
 
@@ -174,8 +188,18 @@ final class GrpcStreamCall {
     }
 
     public void respond(ResponsePayload response) {
+        this.outgoingResponse = response;
+        if (GrpcStatusException.find(response.getFailure()) != null) {
+            this.sendFailure(response.getFailure());
+            return;
+        }
         if (response.getStatus() != ProtocolStatus.OK) {
             this.sendFailure(new MetException(response.getStatus(), response.getOption("message")));
+            return;
+        }
+        Map<String, List<String>> headers = this.codec.responseHeaders(this.request, response);
+        HttpResponse message = HttpResponse.newStreaming(200, headers, this.output, Map.of());
+        if (!this.beginResponse(message)) {
             return;
         }
         Flow.Publisher<?> source;
@@ -192,11 +216,16 @@ final class GrpcStreamCall {
             return;
         }
         byte[] bytes = this.codec.encodeValue(this.request, value, this.client);
-        this.output.output().write(this.codec.frame(bytes));
+        String encoding = this.client ? this.codec.requestCompression() : this.codec.responseCompression(this.request);
+        this.output.output().write(this.codec.frame(bytes, encoding));
     }
 
     public void finishOutput() {
-        this.output.finish(this.client ? Map.of() : this.trailers);
+        Map<String, List<String>> fields = this.trailers;
+        if (this.outgoingResponse != null) {
+            fields = this.codec.responseTrailers(this.outgoingResponse);
+        }
+        this.output.finish(this.client ? Map.of() : fields);
     }
 
     public void responseWritten(Future<Void> written) {
@@ -211,7 +240,7 @@ final class GrpcStreamCall {
     }
 
     private ResponsePayload response(Object value) {
-        ResponsePayload response = new ResponsePayload();
+        ResponsePayload response = this.receivedResponse;
         response.setRequestID(this.request.getRequestID());
         response.setStatus(ProtocolStatus.OK);
         response.setSerializeType(this.request.getSerializeType());
@@ -236,9 +265,23 @@ final class GrpcStreamCall {
         if (this.receiving != null) {
             this.receiving.fail(failure);
         }
-        this.trailers = this.codec.error(failure).trailers();
+        HttpResponse error = this.codec.error(failure, this.outgoingResponse);
+        this.outgoingResponse = null;
+        this.trailers = error.trailers();
         this.sending.stop();
+        if (this.beginResponse(this.codec.trailersOnly(error))) {
+            return;
+        }
         this.finishOutput();
+    }
+
+    private boolean beginResponse(HttpResponse response) {
+        if (!this.responseStarted.compareAndSet(false, true)) {
+            return false;
+        }
+        // 业务返回后才提交响应头，让过滤器设置的元数据也参与发送。
+        this.serial.accept(() -> this.responseWriter.accept(response));
+        return true;
     }
 
     public void cancel() {
