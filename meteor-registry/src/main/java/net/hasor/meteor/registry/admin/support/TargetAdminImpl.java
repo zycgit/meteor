@@ -41,7 +41,10 @@ public final class TargetAdminImpl implements TargetAdmin {
         Objects.requireNonNull(address, "management address");
         synchronized (this.context) {
             if (this.context.getServiceInfo(ManagementRPC.class) == null) {
-                this.context.publisher().rsfService(ManagementRPC.class).asShadow().register();
+                this.context.publisher().rsfService(ManagementRPC.class)//
+                        .asShadow()         //
+                        .asDistributedCall()//
+                        .register();
             }
         }
 

@@ -293,14 +293,14 @@ public class ManagementPublicationTest {
             assertEquals(management, instance.instance().getManagementAddress());
             assertEquals(0, member(admin, id).getAddresses().length);
 
-            // 解除阻断恢复业务公告；应用下线再次撤回业务地址。
+            // 解除阻断恢复业务公告；应用下线后监听暂停，业务和管理地址都撤回。
             instance.unblock();
             client.pullSync().get(5, TimeUnit.SECONDS);
             assertEquals(1, member(admin, id).getAddresses().length);
             context.offline();
             client.pushSync().get(5, TimeUnit.SECONDS);
             assertEquals(0, member(admin, id).getAddresses().length);
-            assertEquals(management, instance.instance().getManagementAddress());
+            assertTrue(instance.instance().getManagementAddress().isEmpty());
         }
 
         // 退出上下文释放所有扩展会话。

@@ -126,7 +126,7 @@ public class TargetAdminTest {
             service.enable();
             assertEquals("first:back", caller.getRsfClient(address).wrapper(Echo.class).echo("back"));
 
-            // 实例阻断同时覆盖入站和出站业务 RPC，管理入口仍可解除阻断。
+            // 实例阻断覆盖网络业务 RPC，默认本地优先调用仍可执行。
             instance.block();
             assertTrue(instance.isBlock());
             assertTrue(instance.instance().isBlock());
@@ -134,7 +134,7 @@ public class TargetAdminTest {
             assertTrue(first.isOnline());
             assertForbidden(() -> caller.getRsfClient(address).wrapper(Echo.class).echo("blocked"));
             InterAddress secondAddress = second.bindAddress("rsf");
-            assertForbidden(() -> first.getRsfClient(secondAddress).wrapper(Echo.class).echo("blocked"));
+            assertEquals("first:blocked", first.getRsfClient(secondAddress).wrapper(Echo.class).echo("blocked"));
             instance.unblock();
             assertEquals("first:back", caller.getRsfClient(address).wrapper(Echo.class).echo("back"));
 
@@ -176,8 +176,9 @@ public class TargetAdminTest {
             provider.start();
             consumer.start();
             TargetAdmin targets = provider.getExtension(TargetAdmin.class);
+            assertTrue(provider.getServiceInfo(ManagementRPC.class).isDistributed());
 
-            // 调用方也发布了管理服务；按地址调用必须绕过本地优先，访问指定对端。
+            // 管理服务显式使用分布式模式，按地址调用访问指定对端。
             InterAddress remote = consumer.bindAddress("rsf");
             MetInstanceAdmin instance = targets.getInstanceAdminByAddress(remote);
             MetServiceAdmin service = targets.getServiceAdminByAddress(remote, id);

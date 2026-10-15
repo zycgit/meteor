@@ -44,7 +44,10 @@ public final class ManagementRPCImpl implements ManagementRPC {
 
         MetPublisher publisher = this.context.publisher();
         publisher.bindFilter(GovernanceFilter.FILTER_ID, this.governance);
-        publisher.rsfService(ManagementRPC.class, this).asShadow().register();
+        publisher.rsfService(ManagementRPC.class, this)//
+                .asShadow()         //
+                .asDistributedCall()//
+                .register();
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////

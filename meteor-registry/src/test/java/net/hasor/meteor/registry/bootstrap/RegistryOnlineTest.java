@@ -59,6 +59,7 @@ public class RegistryOnlineTest {
             MetInstanceAdmin instance = targets.getInstanceAdminByAddress(target.bindAddress("rsf"));
             assertEquals(target.getInstanceID(), instance.instance().getInstanceId());
             assertTrue(caller.getServiceInfo(ManagementRPC.class).isShadow());
+            assertTrue(caller.getServiceInfo(ManagementRPC.class).isDistributed());
             assertEquals(1, probe.openedSessions());
 
             // 同一个在线扩展同时提供存储管理和直连管理，两者各自完成真实操作。
