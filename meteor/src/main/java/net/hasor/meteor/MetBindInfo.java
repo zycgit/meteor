@@ -72,6 +72,9 @@ public interface MetBindInfo<T> {
      */
     boolean isMessage();
 
+    /** @return 是否强制进入分布式调用链；默认优先调用本地提供者。 */
+    boolean isDistributedCall();
+
     /** 接口是否要求工作在隐藏模式下。*/
     boolean isShadow();
 

@@ -99,8 +99,8 @@ public class MetBindInfoWrap<T> implements MetBindInfo<T> {
     }
 
     @Override
-    public boolean isDistributed() {
-        return this.target.isDistributed();
+    public boolean isDistributedCall() {
+        return this.target.isDistributedCall();
     }
 
     @Override

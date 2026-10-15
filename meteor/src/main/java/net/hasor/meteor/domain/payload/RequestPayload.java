@@ -142,7 +142,7 @@ public class RequestPayload extends Payload {
         this.clientTimeout = clientTimeout;
     }
 
-    /** 是否为消息请求；消息请求只等待协议映射的远端入队确认，不等待业务最终响应。 */
+    /** 是否为消息请求；消息请求只等待协议完成提交，不等待业务最终响应。 */
     public boolean isMessage() {
         return this.isMessage;
     }
