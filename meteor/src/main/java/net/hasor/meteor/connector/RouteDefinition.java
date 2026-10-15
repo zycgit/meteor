@@ -12,9 +12,9 @@ import java.util.function.Function;
 
 /** One runtime route with protocol options, context mounts and a non-consuming message probe. */
 public final class RouteDefinition<M> {
-    private final Map<String, String>            options;
-    private final Function<M, RouteProbeResult>  probe;
-    private final RouteMounts                    mounts;
+    private final Map<String, String>           options;
+    private final Function<M, RouteProbeResult> probe;
+    private final RouteMounts                   mounts;
 
     RouteDefinition(Map<String, String> options, RouteMounts mounts, Function<M, RouteProbeResult> probe) {
         this.options = Map.copyOf(options);

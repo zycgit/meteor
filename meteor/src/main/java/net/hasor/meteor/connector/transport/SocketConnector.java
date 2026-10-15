@@ -22,10 +22,10 @@ import net.hasor.neta.channel.SoConfig;
  * Owns network resources only. The receiver is supplied by the layer assembling the channel.
  */
 public abstract class SocketConnector<M> implements NetworkConnector<M> {
-    protected final TransportConfig              config;
-    protected final SocketRuntime              transport;
-    private final   boolean                      sharedListenSocket;
-    private final   Set<SocketAdmissionTracker>  admissionTrackers = ConcurrentHashMap.newKeySet();
+    protected final TransportConfig             config;
+    protected final SocketRuntime               transport;
+    private final   boolean                     sharedListenSocket;
+    private final   Set<SocketAdmissionTracker> admissionTrackers = ConcurrentHashMap.newKeySet();
 
     protected SocketConnector(TransportConfig config, TransportPipeline pipeline, ClassLoader loader, //
             SoConfig socket, boolean sharedListenSocket) {

@@ -23,15 +23,14 @@ import net.hasor.neta.channel.*;
  * Owns Neta resources and ordered protocol executors. No RSF protocol knowledge.
  */
 public final class SocketRuntime {
-    private static final ThreadLocal<SocketRuntime> CURRENT = new ThreadLocal<>();
-
-    private final        TransportConfig              config;
-    private final        TransportPipeline            pipeline;
-    private              SslPipeline                  security;
-    private final        NetManager                   network;
-    private final        ExecutorService[]            workers;
-    private final        AtomicInteger                nextWorker = new AtomicInteger();
-    private final        SoConfig                     socketConfig;
+    private static final ThreadLocal<SocketRuntime> CURRENT    = new ThreadLocal<>();
+    private final        TransportConfig            config;
+    private final        TransportPipeline          pipeline;
+    private              SslPipeline                security;
+    private final        NetManager                 network;
+    private final        ExecutorService[]          workers;
+    private final        AtomicInteger              nextWorker = new AtomicInteger();
+    private final        SoConfig                   socketConfig;
 
     SocketRuntime(TransportConfig config, TransportPipeline pipeline, ClassLoader loader, SoConfig socketConfig) {
         this.config = config;

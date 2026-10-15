@@ -12,7 +12,7 @@ import java.util.function.Function;
 /** Startup result that can activate an immutable runtime route table. */
 final class PlanRouteTable<M> {
     private final Map<String, RouteDefinition<M>> definitions;
-    private final List<RouteSelection>             prefixes;
+    private final List<RouteSelection>            prefixes;
 
     PlanRouteTable(Map<String, RouteDefinition<M>> definitions) {
         this.definitions = Collections.unmodifiableMap(new LinkedHashMap<>(definitions));

@@ -37,7 +37,7 @@ import net.hasor.meteor.domain.payload.Payload;
 public class ConnectorManager implements AutoCloseable {
     private static final Logger                            logger         = Logger.getLogger(ConnectorManager.class);
     private final        MetContext                        context;
-    private final        TransportRuntimeServices                 transportRuntimeServices;
+    private final        TransportRuntimeServices          transportRuntimeServices;
     private              HashedWheelTimer                  timer;
     private volatile     State                             state          = State.STOPPED;
     private volatile     Thread                            closeThread;

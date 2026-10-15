@@ -14,7 +14,7 @@ import net.hasor.cobble.ClassUtils;
 
 /** Immutable prepared transport assembly. Creating it does not allocate runtime or network resources. */
 public final class TransportPlan<M> {
-    private final Class<? extends TransportPipeline>                                   pipelineType;
+    private final Class<? extends TransportPipeline>                                           pipelineType;
     private final BiFunction<TransportPipeline, TransportRuntimeServices, NetworkConnector<M>> creator;
 
     private TransportPlan(Class<? extends TransportPipeline> pipelineType, //
@@ -28,7 +28,9 @@ public final class TransportPlan<M> {
             BiFunction<TransportConfig, TransportRuntimeServices, NetworkConnector<M>> creator) {
         Objects.requireNonNull(config, "config");
         Objects.requireNonNull(creator, "creator");
-        return new TransportPlan<>(null, (pipeline, runtimeServices) -> creator.apply(config, runtimeServices));
+        return new TransportPlan<>(null, (pipeline, runtimeServices) -> {
+            return creator.apply(config, runtimeServices);
+        });
     }
 
     /** Resolve and validate a socket pipeline without initializing or instantiating its provider class. */

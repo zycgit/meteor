@@ -174,10 +174,10 @@ final class RouteServiceRegistry {
     }
 
     private static final class RouteEndpoint {
-        private final    ConnectorConfig                             config;
-        private final    Map<String, ProtocolMountBinding<?>>             protocols;
-        private final    Map<MetBindInfo<?>, List<RouteSelection>>   registrations = new IdentityHashMap<>();
-        private volatile Map<String, RouteSelection>                 exact         = Collections.emptyMap();
+        private final    ConnectorConfig                           config;
+        private final    Map<String, ProtocolMountBinding<?>>      protocols;
+        private final    Map<MetBindInfo<?>, List<RouteSelection>> registrations = new IdentityHashMap<>();
+        private volatile Map<String, RouteSelection>               exact         = Collections.emptyMap();
 
         private <M> RouteEndpoint(ConnectorConfig config, Collection<ProtocolMountBinding<M>> protocols) {
             this.config = config;

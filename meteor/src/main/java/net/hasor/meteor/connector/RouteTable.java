@@ -12,7 +12,7 @@ import java.util.function.Function;
 
 /** Immutable runtime route table consumed by transports after startup planning has completed. */
 public final class RouteTable<M> {
-    private final Map<String, RouteDefinition<M>> definitions;
+    private final Map<String, RouteDefinition<M>>  definitions;
     private final List<RouteSelection>             prefixes;
     private final Function<String, RouteSelection> exactResolver;
 

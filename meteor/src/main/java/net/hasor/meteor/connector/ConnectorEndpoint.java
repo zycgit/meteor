@@ -19,22 +19,22 @@ import net.hasor.meteor.domain.payload.Payload;
 
 /** Owns one configured endpoint, its listeners, transport connections and protocol channels. */
 final class ConnectorEndpoint<M> {
-    private static final Logger                         logger             = Logger.getLogger(ConnectorEndpoint.class);
-    private final        ConnectorConfig                config;
-    private final        TransportPlan<M>               transportPlan;
-    private final        boolean                        sharedRoutes;
+    private static final Logger logger = Logger.getLogger(ConnectorEndpoint.class);
+    private final        ConnectorConfig                      config;
+    private final        TransportPlan<M>                     transportPlan;
+    private final        boolean                              sharedRoutes;
     private final        Map<String, ProtocolMountBinding<M>> protocolBindings;
-    private final        RouteTable<M>                  routes;
-    private final        ConnectorManager               manager;
-    private final        Map<Long, ConnectorChannel<?>> channels           = new LinkedHashMap<>();
-    private final        Set<NetworkChannel<M>>         connections        = ConcurrentHashMap.newKeySet();
-    private final        Set<NetworkChannel<M>>         inboundConnections = ConcurrentHashMap.newKeySet();
-    private final        Set<NetworkChannel<M>>         closingInbound     = ConcurrentHashMap.newKeySet();
-    private              BasicFuture<NetworkListen>     binding;
-    private              NetworkListen                  listen;
-    private              NetworkConnector<M>            networkConnector;
-    private volatile     State                          state              = State.NEW;
-    private              boolean                        bindDisabled;
+    private final        RouteTable<M>                        routes;
+    private final        ConnectorManager                     manager;
+    private final        Map<Long, ConnectorChannel<?>>       channels           = new LinkedHashMap<>();
+    private final        Set<NetworkChannel<M>>               connections        = ConcurrentHashMap.newKeySet();
+    private final        Set<NetworkChannel<M>>               inboundConnections = ConcurrentHashMap.newKeySet();
+    private final        Set<NetworkChannel<M>>               closingInbound     = ConcurrentHashMap.newKeySet();
+    private              BasicFuture<NetworkListen>           binding;
+    private              NetworkListen                        listen;
+    private              NetworkConnector<M>                  networkConnector;
+    private volatile     State                                state              = State.NEW;
+    private              boolean                              bindDisabled;
 
     private enum State {
         NEW,

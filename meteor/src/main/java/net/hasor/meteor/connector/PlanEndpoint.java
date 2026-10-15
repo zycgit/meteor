@@ -15,11 +15,11 @@ import net.hasor.meteor.connector.transport.TransportPlan;
 
 /** Immutable endpoint assembly produced during connector initialization. */
 final class PlanEndpoint<M> {
-    private final ConnectorConfig                 config;
-    private final TransportPlan<M>                transportPlan;
-    private final boolean                         sharedRoutes;
+    private final ConnectorConfig                      config;
+    private final TransportPlan<M>                     transportPlan;
+    private final boolean                              sharedRoutes;
     private final Map<String, ProtocolMountBinding<M>> protocolBindings;
-    private final PlanRouteTable<M>               routeTablePlan;
+    private final PlanRouteTable<M>                    routeTablePlan;
 
     PlanEndpoint(ConnectorConfig config, TransportPlan<M> transportPlan, boolean sharedRoutes, //
             Map<String, ProtocolMountBinding<M>> protocolBindings, PlanRouteTable<M> routeTablePlan) {

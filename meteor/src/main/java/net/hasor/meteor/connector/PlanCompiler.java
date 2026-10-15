@@ -9,8 +9,8 @@ package net.hasor.meteor.connector;
 import java.util.*;
 import java.util.function.Function;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.connector.transport.TransportFactory;
 import net.hasor.meteor.connector.transport.TransportConfig;
+import net.hasor.meteor.connector.transport.TransportFactory;
 import net.hasor.meteor.connector.transport.TransportPlan;
 
 /** Discovers connector SPIs and compiles immutable startup plans without allocating network resources. */
