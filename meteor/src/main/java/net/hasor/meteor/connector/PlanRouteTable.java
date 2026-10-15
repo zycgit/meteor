@@ -27,11 +27,11 @@ final class PlanRouteTable<M> {
         List<RouteSelection> prefixes = new ArrayList<>();
         for (Map.Entry<String, RouteDefinition<M>> entry : definitions.entrySet()) {
             RouteDefinition<M> route = entry.getValue();
-            if (route.mounts() == null) {
+            if (route.mountIndex() == null) {
                 continue;
             }
 
-            for (RouteMount mount : route.mounts().mounts()) {
+            for (RouteMount mount : route.mountIndex().mounts()) {
                 prefixes.add(new RouteSelection(entry.getKey(), mount, route.options()));
             }
         }

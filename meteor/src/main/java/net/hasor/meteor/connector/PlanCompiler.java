@@ -148,7 +148,7 @@ final class PlanCompiler {
         for (ProtocolConfig mount : config.protocols()) {
             ProtocolFactory<M> protocol = this.resolve(mount, transport);
             Function<M, RouteProbeResult> probe = message -> protocol.probe(mount, message);
-            RouteDefinition<M> route = new RouteDefinition<>(mount.options(), mount.contexts(), probe);
+            RouteDefinition<M> route = new RouteDefinition<>(mount.options(), mount.mountIndex(), probe);
             protocolBindings.put(mount.mountId(), new ProtocolMountBinding<>(mount, protocol));
             routeDefinitions.put(mount.mountId(), route);
             protocolOptionsByMount.put(mount.mountId(), mount.options());

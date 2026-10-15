@@ -19,7 +19,7 @@ public final class ProtocolConfig {
     private final String              factoryName;
     private       String              mountId;
     private       Map<String, String> options;
-    private       RouteMounts         contexts;
+    private       RouteMountIndex     mountIndex;
     private       Set<String>         logicalNames;
 
     ProtocolConfig(String name, String scheme, String factoryName, Map<String, String> options) {
@@ -93,13 +93,13 @@ public final class ProtocolConfig {
             configured.put("contextPath", ContextPathUtils.normalize(path));
         }
 
-        this.contexts = new RouteMounts(configured);
+        this.mountIndex = new RouteMountIndex(configured);
         this.options = Collections.unmodifiableMap(configured);
     }
 
     /** 共享已编译的只读挂载表。 */
-    public RouteMounts contexts() {
-        return this.contexts;
+    public RouteMountIndex mountIndex() {
+        return this.mountIndex;
     }
 
     /** 协议的默认挂载点；非 HTTP 协议没有 context 时返回 null。 */
@@ -109,7 +109,7 @@ public final class ProtocolConfig {
 
     /** 全部已声明的挂载点，默认挂载点在首位。 */
     public List<String> contextPaths() {
-        return this.contexts.paths();
+        return this.mountIndex.paths();
     }
 
     /** 服务的完整地址声明；它不属于协议配置，也不隐含目录挂载。 */
@@ -176,7 +176,7 @@ public final class ProtocolConfig {
             }
         }
 
-        RouteMount mount = this.contexts.get(this.contextPath(selected));
+        RouteMount mount = this.mountIndex.get(this.contextPath(selected));
         if (mount == null) {
             throw new IllegalArgumentException("No service mount exposes request path: " + fullPath);
         } else {
@@ -189,7 +189,7 @@ public final class ProtocolConfig {
         if (mount == null || !this.accepts(service.getBindProtocols())) {
             return false;
         }
-        if (!mount.exact() && this.contexts.get(mount.path()) == null) {
+        if (!mount.exact() && this.mountIndex.get(mount.path()) == null) {
             return false;
         }
 
@@ -219,7 +219,7 @@ public final class ProtocolConfig {
 
     /** 仅匹配协议目录；精确匹配由端点共享的服务路由表负责。 */
     public RouteMount matchContext(String uri) {
-        return this.contexts.match(uri);
+        return this.mountIndex.match(uri);
     }
 
     /** Empty selection exposes the service through every configured protocol endpoint. */

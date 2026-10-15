@@ -10,12 +10,12 @@ package net.hasor.meteor.connector.transport;
 /**
  * Holds transport lifecycle events until the channel listener has been created.
  */
-public final class ChannelListenerLifecycle<M> implements RouteReceiver<M> {
+public final class ChannelListenerRelay<M> implements RouteReceiver<M> {
     private final Runnable           terminated;
     private       ChannelListener<M> listener;
     private       State              state = State.INITIALIZING;
     private       Throwable          failure;
-    private       boolean            listenerFailed;
+    private       boolean            attachmentFailed;
     private       boolean            terminationDelivered;
 
     private enum State {
@@ -24,7 +24,7 @@ public final class ChannelListenerLifecycle<M> implements RouteReceiver<M> {
         CLOSED
     }
 
-    public ChannelListenerLifecycle(Runnable terminated) {
+    public ChannelListenerRelay(Runnable terminated) {
         this.terminated = terminated;
     }
 
@@ -33,7 +33,7 @@ public final class ChannelListenerLifecycle<M> implements RouteReceiver<M> {
         State current;
         Throwable closedCause;
         synchronized (this) {
-            if (this.listener != null || this.listenerFailed) {
+            if (this.listener != null || this.attachmentFailed) {
                 throw new IllegalStateException("Channel listener has already been resolved");
             }
             this.listener = listener;
@@ -49,10 +49,10 @@ public final class ChannelListenerLifecycle<M> implements RouteReceiver<M> {
     }
 
     /** Mark listener construction as failed; termination still waits for the physical close event. */
-    public void listenerFailed() {
+    public void attachmentFailed() {
         boolean finish;
         synchronized (this) {
-            this.listenerFailed = true;
+            this.attachmentFailed = true;
             finish = this.state == State.CLOSED;
         }
         if (finish) {
@@ -103,7 +103,7 @@ public final class ChannelListenerLifecycle<M> implements RouteReceiver<M> {
             this.state = State.CLOSED;
             this.failure = cause;
             attached = this.listener;
-            finish = this.listenerFailed;
+            finish = this.attachmentFailed;
         }
 
         if (attached != null) {

@@ -14,12 +14,12 @@ import java.util.function.Function;
 public final class RouteDefinition<M> {
     private final Map<String, String>           options;
     private final Function<M, RouteProbeResult> probe;
-    private final RouteMounts                   mounts;
+    private final RouteMountIndex               mountIndex;
 
-    RouteDefinition(Map<String, String> options, RouteMounts mounts, Function<M, RouteProbeResult> probe) {
+    RouteDefinition(Map<String, String> options, RouteMountIndex mountIndex, Function<M, RouteProbeResult> probe) {
         this.options = Map.copyOf(options);
         this.probe = Objects.requireNonNull(probe, "probe");
-        this.mounts = mounts;
+        this.mountIndex = mountIndex;
     }
 
     public Map<String, String> options() {
@@ -30,7 +30,7 @@ public final class RouteDefinition<M> {
         return this.probe.apply(message);
     }
 
-    RouteMounts mounts() {
-        return this.mounts;
+    RouteMountIndex mountIndex() {
+        return this.mountIndex;
     }
 }

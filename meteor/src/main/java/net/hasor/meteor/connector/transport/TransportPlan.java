@@ -9,33 +9,30 @@ package net.hasor.meteor.connector.transport;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import net.hasor.cobble.ClassUtils;
 
 /** Immutable prepared transport assembly. Creating it does not allocate runtime or network resources. */
 public final class TransportPlan<M> {
-    private final Class<? extends TransportPipeline>                                           pipelineType;
-    private final BiFunction<TransportPipeline, TransportRuntimeServices, NetworkConnector<M>> creator;
+    private final Class<? extends TransportPipeline>     pipelineType;
+    private final TransportCreator<TransportPipeline, M> creator;
 
     private TransportPlan(Class<? extends TransportPipeline> pipelineType, //
-            BiFunction<TransportPipeline, TransportRuntimeServices, NetworkConnector<M>> creator) {
+            TransportCreator<TransportPipeline, M> creator) {
         this.pipelineType = pipelineType;
         this.creator = Objects.requireNonNull(creator, "creator");
     }
 
     /** Prepare a transport that does not use the socket pipeline extension. */
     public static <M> TransportPlan<M> direct(TransportConfig config, //
-            BiFunction<TransportConfig, TransportRuntimeServices, NetworkConnector<M>> creator) {
+            TransportCreator<TransportConfig, M> creator) {
         Objects.requireNonNull(config, "config");
         Objects.requireNonNull(creator, "creator");
-        return new TransportPlan<>(null, (pipeline, runtimeServices) -> {
-            return creator.apply(config, runtimeServices);
-        });
+        return new TransportPlan<>(null, (pipeline, runtimeServices) -> creator.create(config, runtimeServices));
     }
 
     /** Resolve and validate a socket pipeline without initializing or instantiating its provider class. */
     public static <M> TransportPlan<M> withPipeline(TransportConfig config, ClassLoader loader, //
-            BiFunction<TransportPipeline, TransportRuntimeServices, NetworkConnector<M>> creator) {
+            TransportCreator<TransportPipeline, M> creator) {
         Objects.requireNonNull(config, "config");
         Objects.requireNonNull(loader, "loader");
         Objects.requireNonNull(creator, "creator");
@@ -47,7 +44,7 @@ public final class TransportPlan<M> {
     public NetworkConnector<M> create(TransportRuntimeServices runtimeServices) {
         Objects.requireNonNull(runtimeServices, "runtimeServices");
         TransportPipeline pipeline = this.pipelineType == null ? null : ClassUtils.newInstance(this.pipelineType);
-        return this.creator.apply(pipeline, runtimeServices);
+        return this.creator.create(pipeline, runtimeServices);
     }
 
     private static Class<? extends TransportPipeline> resolvePipeline(TransportConfig config, ClassLoader loader) {

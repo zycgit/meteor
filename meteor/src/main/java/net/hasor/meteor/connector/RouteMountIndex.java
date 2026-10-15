@@ -10,13 +10,13 @@ import java.util.*;
 import net.hasor.meteor.utils.ContextPathUtils;
 
 /** Immutable protocol context mounts used while routing requests. */
-public final class RouteMounts {
+public final class RouteMountIndex {
     private final Map<String, RouteMount> mounts;
     private final List<RouteMount>        prefixes;
     private final List<RouteMount>        entries;
     private final List<String>            paths;
 
-    RouteMounts(Map<String, String> options) {
+    RouteMountIndex(Map<String, String> options) {
         Map<String, RouteMount> mounts = new LinkedHashMap<>();
         List<RouteMount> prefixes = new ArrayList<>();
         for (String path : ContextPathUtils.contextPaths(options)) {
