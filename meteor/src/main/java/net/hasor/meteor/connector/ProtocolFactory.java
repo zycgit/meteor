@@ -5,10 +5,9 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.protocol;
+package net.hasor.meteor.connector;
 import java.util.function.BiConsumer;
 import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.RouteMatch;
 import net.hasor.meteor.domain.payload.Payload;
@@ -16,9 +15,6 @@ import net.hasor.meteor.domain.payload.Payload;
 /** Protocol SPI. Transport requirements and protocol execution use one contract. */
 public interface ProtocolFactory<M> {
     String name();
-
-    /** Address scheme owned by this protocol, independent of user configuration. */
-    String scheme();
 
     String transport();
 
@@ -33,5 +29,6 @@ public interface ProtocolFactory<M> {
     /** Inspect data without consuming it when the transport needs content-based routing. */
     RouteMatch probe(ProtocolConfig config, M message);
 
-    ProtocolSession<M> create(ProtocolConfig config, ProtocolContext context, NetworkChannel<M> connection, BiConsumer<Long, Payload> messages);
+    ProtocolSession<M> create(ProtocolConfig config, ProtocolContext context, //
+            NetworkChannel<M> connection, BiConsumer<Long, Payload> messages);
 }

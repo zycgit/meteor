@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.protocol;
+package net.hasor.meteor.connector;
 import java.io.IOException;
 import java.util.function.Consumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;

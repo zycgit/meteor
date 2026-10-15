@@ -9,30 +9,42 @@ package net.hasor.meteor.connector;
 import java.util.*;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.connector.transport.ContextPaths;
 import net.hasor.meteor.domain.ContextPath;
 import net.hasor.meteor.utils.ContextPathUtils;
 
-/** 协议身份固定；参数在构建阶段补齐，发布给连接器后只读使用。 */
+/** One protocol mount: logical protocol identity, published address scheme and SPI provider name. */
 public final class ProtocolConfig {
     private final String              name;
     private final String              scheme;
     private final String              protocol;
+    private       String              mountId;
     private       Map<String, String> options;
     private       ContextPaths        contexts;
+    private       Set<String>         logicalNames;
 
-    public ProtocolConfig(String name, String scheme, String protocol, Map<String, String> options) {
+    ProtocolConfig(String name, String scheme, String protocol, Map<String, String> options) {
         this.name = Objects.requireNonNull(name, "name");
         this.scheme = Objects.requireNonNull(scheme, "scheme").toLowerCase(Locale.ROOT);
         this.protocol = Objects.requireNonNull(protocol, "protocol").toLowerCase(Locale.ROOT);
+        this.logicalNames = Set.of(this.name.toLowerCase(Locale.ROOT));
         this.setOptions(options);
         if (this.scheme.trim().isEmpty()) {
             throw new IllegalArgumentException("Protocol scheme must not be blank");
         }
     }
 
-    /** Public protocol identifier; defaults to its address scheme. */
+    /** Logical protocol identifier used by service declarations. */
     public String name() {
         return this.name;
+    }
+
+    /** Opaque runtime route identity assigned by the owning endpoint. */
+    public String mountId() {
+        if (this.mountId == null) {
+            throw new IllegalStateException("Protocol is not mounted on an endpoint");
+        }
+        return this.mountId;
     }
 
     public String scheme() {
@@ -43,12 +55,28 @@ public final class ProtocolConfig {
         return this.protocol;
     }
 
+    /** Create the endpoint-owned mount snapshot without sharing mutable preparation state. */
+    ProtocolConfig mounted(String mountId) {
+        ProtocolConfig mounted = new ProtocolConfig(this.name, this.scheme, this.protocol, this.options);
+        mounted.mountId = Objects.requireNonNull(mountId, "mountId");
+        return mounted;
+    }
+
+    /** Configure the logical-name namespace shared by every mount in one runtime. */
+    void setLogicalNames(Set<String> logicalNames) {
+        Set<String> normalized = new HashSet<>();
+        for (String name : logicalNames) {
+            normalized.add(name.toLowerCase(Locale.ROOT));
+        }
+        this.logicalNames = Collections.unmodifiableSet(normalized);
+    }
+
     public Map<String, String> options() {
         return this.options;
     }
 
     /** 构建阶段更新参数；复制输入以隔离用户配置和其他上下文。 */
-    public void setOptions(Map<String, String> options) {
+    void setOptions(Map<String, String> options) {
         Map<String, String> configured = new LinkedHashMap<>(options);
         String path = configured.get("contextPath");
         if (path != null) {
@@ -79,8 +107,9 @@ public final class ProtocolConfig {
         ContextPath selected = this.selectedContexts(service);
         if (selected == null || !selected.isExact()) {
             return Collections.emptySet();
+        } else {
+            return selected.getPaths();
         }
-        return selected.getPaths();
     }
 
     /** 服务未显式选择时使用默认目录；精确路径声明会替代目录选择。 */
@@ -88,20 +117,23 @@ public final class ProtocolConfig {
         if (!this.accepts(service.getBindProtocols())) {
             return List.of();
         }
+
         ContextPath selected = this.selectedContexts(service);
         if (selected != null) {
             return List.copyOf(selected.getPaths());
+        } else {
+            String defaultPath = this.contextPath();
+            return defaultPath == null ? List.of() : List.of(defaultPath);
         }
-        String defaultPath = this.contextPath();
-        return defaultPath == null ? List.of() : List.of(defaultPath);
     }
 
     /** 出站使用服务选择的精确地址，或所选默认目录、首个显式目录。 */
     public String contextPath(MetBindInfo<?> service) {
         if (!this.accepts(service.getBindProtocols())) {
             return null;
+        } else {
+            return this.contextPath(this.selectedContexts(service));
         }
-        return this.contextPath(this.selectedContexts(service));
     }
 
     private String contextPath(ContextPath selected) {
@@ -109,11 +141,13 @@ public final class ProtocolConfig {
         if (selected == null) {
             return defaultPath;
         }
+
         Set<String> paths = selected.getPaths();
         if (!selected.isExact() && paths.contains(defaultPath)) {
             return defaultPath;
+        } else {
+            return paths.iterator().next();
         }
-        return paths.iterator().next();
     }
 
     /** 按消费者自己的声明生成请求地址，精确模式不回退到目录前缀。 */
@@ -121,19 +155,23 @@ public final class ProtocolConfig {
         if (!this.accepts(service.getBindProtocols())) {
             throw new IllegalArgumentException("Service does not expose protocol: " + this.name);
         }
+
         String fullPath = "/" + relativePath;
         ContextPath selected = this.selectedContexts(service);
         if (selected != null && selected.isExact()) {
             if (selected.getPaths().contains(fullPath)) {
                 return fullPath;
+            } else {
+                throw new IllegalArgumentException("Service does not expose exact request path: " + fullPath);
             }
-            throw new IllegalArgumentException("Service does not expose exact request path: " + fullPath);
         }
+
         ContextPaths.Mount mount = this.contexts.get(this.contextPath(selected));
         if (mount == null) {
             throw new IllegalArgumentException("No service mount exposes request path: " + fullPath);
+        } else {
+            return mount.prefix() + relativePath;
         }
-        return mount.prefix() + relativePath;
     }
 
     /** 同时校验路径和匹配策略，精确入口不会暴露同路径上的目录服务。 */
@@ -144,23 +182,29 @@ public final class ProtocolConfig {
         if (!mount.exact() && this.contexts.get(mount.path()) == null) {
             return false;
         }
+
         ContextPath selected = this.selectedContexts(service);
         if (selected == null) {
             return !mount.exact() && StringUtils.equals(this.contextPath(), mount.path());
+        } else {
+            return selected.isExact() == mount.exact() && selected.getPaths().contains(mount.path());
         }
-        return selected.isExact() == mount.exact() && selected.getPaths().contains(mount.path());
     }
 
     private ContextPath selectedContexts(MetBindInfo<?> service) {
-        ContextPath selected = null;
+        // 已配置的逻辑名优先于同名的公开地址别名。
         for (Map.Entry<String, ContextPath> entry : service.getBindContextPaths().entrySet()) {
-            boolean matchesName = StringUtils.equalsIgnoreCase(entry.getKey(), this.name);
-            boolean matchesScheme = StringUtils.equalsIgnoreCase(entry.getKey(), this.scheme);
-            if (matchesName || matchesScheme) {
-                selected = entry.getValue();
+            if (this.isLogicalSelector(entry.getKey()) && StringUtils.equalsIgnoreCase(entry.getKey(), this.name)) {
+                return entry.getValue();
             }
         }
-        return selected;
+        for (Map.Entry<String, ContextPath> entry : service.getBindContextPaths().entrySet()) {
+            boolean alias = !this.isLogicalSelector(entry.getKey());
+            if (alias && StringUtils.equalsIgnoreCase(entry.getKey(), this.scheme)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     /** 仅匹配协议目录；精确匹配由端点共享的服务路由表负责。 */
@@ -175,13 +219,18 @@ public final class ProtocolConfig {
         }
 
         for (String value : selected) {
-            boolean named = StringUtils.equalsIgnoreCase(value, this.name);
-            boolean scheme = StringUtils.equalsIgnoreCase(value, this.scheme);
-            if (named || scheme) {
+            boolean matches = this.isLogicalSelector(value) ? //
+                    StringUtils.equalsIgnoreCase(value, this.name) : //
+                    StringUtils.equalsIgnoreCase(value, this.scheme);
+            if (matches) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean isLogicalSelector(String value) {
+        return value != null && this.logicalNames.contains(value.toLowerCase(Locale.ROOT));
     }
 
     public String option(String key, String fallback) {

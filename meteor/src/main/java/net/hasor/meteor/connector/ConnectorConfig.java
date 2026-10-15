@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.connector;
 import java.util.*;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.address.InterAddress;
 
 /** 固定的连接端点及协议挂载，协议参数在启动前完成准备。 */
@@ -18,7 +19,8 @@ public final class ConnectorConfig {
     private final Map<String, String>         options;
     private final Map<String, ProtocolConfig> protocols;
 
-    public ConnectorConfig(String name, InterAddress address, Map<String, String> options, Collection<ProtocolConfig> protocols, boolean bindEnabled) {
+    public ConnectorConfig(String name, InterAddress address, Map<String, String> options, //
+            Collection<ProtocolConfig> protocols, boolean bindEnabled) {
         this.name = Objects.requireNonNull(name, "name");
         this.bindEnabled = bindEnabled;
         this.address = Objects.requireNonNull(address, "address");
@@ -30,10 +32,15 @@ public final class ConnectorConfig {
         this.listenType = type.toLowerCase(Locale.ROOT);
 
         Map<String, ProtocolConfig> routes = new LinkedHashMap<>();
+        Set<String> logicalNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        int ordinal = 0;
         for (ProtocolConfig protocol : protocols) {
-            if (routes.putIfAbsent(protocol.scheme(), protocol) != null) {
-                throw new IllegalArgumentException("Duplicate protocol scheme on endpoint: " + protocol.scheme());
+            if (!logicalNames.add(protocol.name())) {
+                throw new IllegalArgumentException(//
+                        "Duplicate logical protocol on endpoint " + name + ": " + protocol.name());
             }
+            String mountId = this.name + "#" + ordinal++;
+            routes.put(mountId, protocol.mounted(mountId));
         }
 
         if (routes.isEmpty()) {
@@ -65,28 +72,48 @@ public final class ConnectorConfig {
         return this.listenType;
     }
 
-    public String option(String key, String fallback) {
+    String option(String key, String fallback) {
         return this.options.getOrDefault(key, fallback);
-    }
-
-    public int integer(String key, int fallback) {
-        int value = Integer.parseInt(this.option(key, Integer.toString(fallback)));
-        if (value <= 0) {
-            throw new IllegalArgumentException(key + " must be positive");
-        }
-
-        return value;
     }
 
     public Collection<ProtocolConfig> protocols() {
         return this.protocols.values();
     }
 
-    public ProtocolConfig protocol(String scheme) {
-        return this.protocols.get(scheme.toLowerCase(Locale.ROOT));
+    /** Endpoint-local protocol mounts keyed by their opaque runtime route identity. */
+    public Map<String, ProtocolConfig> mounts() {
+        return this.protocols;
     }
 
-    public int connectTimeout() {
-        return this.integer("connectTimeout", 3000);
+    public ProtocolConfig mount(String mountId) {
+        return this.protocols.get(mountId);
     }
+
+    /** Resolve an exact mount first, then a logical protocol and finally its published scheme alias. */
+    public ProtocolConfig protocol(String selector) {
+        ProtocolConfig mounted = this.mount(selector);
+        if (mounted != null) {
+            return mounted;
+        }
+
+        ProtocolConfig selected = this.select(selector, true);
+        return selected != null ? selected : this.select(selector, false);
+    }
+
+    private ProtocolConfig select(String selector, boolean logicalName) {
+        ProtocolConfig selected = null;
+        for (ProtocolConfig protocol : this.protocols.values()) {
+            boolean matches = logicalName ? StringUtils.equalsIgnoreCase(protocol.name(), selector) : //
+                    StringUtils.equalsIgnoreCase(protocol.scheme(), selector);
+            if (!matches) {
+                continue;
+            }
+            if (selected != null) {
+                throw new IllegalArgumentException("Ambiguous protocol mount on endpoint: " + selector);
+            }
+            selected = protocol;
+        }
+        return selected;
+    }
+
 }

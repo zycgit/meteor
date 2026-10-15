@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.protocol;
+package net.hasor.meteor.connector;
 import java.util.function.BiFunction;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.MetContext;
@@ -18,7 +18,8 @@ public final class ProtocolContext {
     private final InterAddress                            bindAddress;
     private final boolean                                 outbound;
 
-    public ProtocolContext(MetContext context, BiFunction<Runnable, Long, Cancellable> scheduler, InterAddress bindAddress, boolean outbound) {
+    ProtocolContext(MetContext context, BiFunction<Runnable, Long, Cancellable> scheduler, //
+            InterAddress bindAddress, boolean outbound) {
         this.context = context;
         this.scheduler = scheduler;
         this.bindAddress = bindAddress;

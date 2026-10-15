@@ -5,21 +5,18 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.protocol;
+package net.hasor.meteor.connector;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.*;
-import net.hasor.meteor.connector.transport.NetworkConnectorFactory;
-import net.hasor.meteor.connector.transport.NetworkRoute;
-import net.hasor.meteor.connector.transport.RouteMatch;
+import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.domain.MetServiceType;
 
 /** Composes independently discovered transports and protocols. No concrete implementation is referenced here. */
-public final class EndpointConnectorFactory implements MetConnectorFactory {
+public final class ConnectorAssembler {
     private final Map<String, NetworkConnectorFactory<?>> transports    = new LinkedHashMap<>();
     private final Map<String, ProtocolFactory<?>>         protocols     = new LinkedHashMap<>();
     private final Map<String, ContextRoutes>              contextRoutes = new ConcurrentHashMap<>();
@@ -27,8 +24,9 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
 
     public Collection<String> listenTypes(ClassLoader loader) {
         if (this.loader == loader) {
-            return Collections.unmodifiableSet(this.transports.keySet());
+            return this.transports.keySet();
         }
+
         Map<String, NetworkConnectorFactory<?>> networks = new LinkedHashMap<>();
         for (NetworkConnectorFactory<?> factory : ServiceLoader.load(NetworkConnectorFactory.class, loader)) {
             put(networks, factory.name(), factory, "transport");
@@ -44,29 +42,39 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
         this.protocols.clear();
         this.protocols.putAll(codecs);
         this.loader = loader;
-        return Collections.unmodifiableSet(this.transports.keySet());
+        return this.transports.keySet();
     }
 
-    /** Resolve a user selection to the immutable identity declared by its SPI provider. */
-    public ProtocolConfig protocol(String name, Map<String, String> options) {
+    /** Resolve a logical protocol provider and bind it to an explicitly published address scheme. */
+    public ProtocolConfig protocol(String name, String scheme, Map<String, String> options) {
         ProtocolFactory<?> factory = this.protocols.get(name.toLowerCase(Locale.ROOT));
         if (factory == null) {
             throw new IllegalArgumentException("Unknown protocol: " + name);
         }
-        return new ProtocolConfig(factory.name(), factory.scheme(), factory.name(), options);
+        String publishedScheme = scheme == null ? factory.name() : scheme;
+        return new ProtocolConfig(factory.name(), publishedScheme, factory.name(), options);
     }
 
     /** Validate and normalize an endpoint without constructing network resources. */
     public void prepare(ConnectorConfig config) {
-        NetworkConnectorFactory<?> transport = this.transports.get(config.listenType());
-        if (transport == null) {
-            throw new IllegalArgumentException("Unknown transport: " + config.listenType());
+        this.prepareAll(List.of(config));
+    }
+
+    /** Validate all endpoints against one logical protocol namespace. */
+    public void prepareAll(Collection<ConnectorConfig> configs) {
+        this.configureLogicalNames(configs);
+        for (ConnectorConfig config : configs) {
+            NetworkConnectorFactory<?> transport = this.transports.get(config.listenType());
+            if (transport == null) {
+                throw new IllegalArgumentException("Unknown transport: " + config.listenType());
+            }
+            this.prepare(config, transport);
         }
-        this.prepare(config, transport);
     }
 
     /** 处理服务发布校验，按协议选择调用已挂载的扩展，不创建网络资源。 */
-    public void validateService(Collection<ConnectorConfig> endpoints, MetBindInfo<?> service) {
+    void validateService(Collection<ConnectorConfig> endpoints, MetBindInfo<?> service) {
+        this.configureLogicalNames(endpoints);
         this.validateContexts(endpoints, service);
         for (ConnectorConfig endpoint : endpoints) {
             for (ProtocolConfig mount : endpoint.protocols()) {
@@ -90,20 +98,21 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
             return;
         }
 
-        Map<ContextRoutes, List<ContextRoutes.Route>> additions = new LinkedHashMap<>();
+        Map<ContextRoutes, List<ContextRoute>> additions = new LinkedHashMap<>();
         for (ConnectorConfig endpoint : endpoints) {
             if (!StringUtils.equalsIgnoreCase(endpoint.listenType(), "http")) {
                 continue;
             }
 
-            List<ContextRoutes.Route> entries = new ArrayList<>();
+            List<ContextRoute> entries = new ArrayList<>();
             for (ProtocolConfig protocol : endpoint.protocols()) {
                 if (!protocol.accepts(service.getBindProtocols())) {
                     continue;
                 }
+
                 for (String path : protocol.exactPaths(service)) {
                     ContextPaths.Mount mount = ContextPaths.exact(path);
-                    entries.add(new ContextRoutes.Route(protocol.scheme(), mount, protocol.options()));
+                    entries.add(new ContextRoute(protocol.mountId(), mount, protocol.options()));
                 }
             }
 
@@ -114,7 +123,7 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
             }
         }
 
-        for (Map.Entry<ContextRoutes, List<ContextRoutes.Route>> entry : additions.entrySet()) {
+        for (Map.Entry<ContextRoutes, List<ContextRoute>> entry : additions.entrySet()) {
             entry.getKey().register(service, entry.getValue());
         }
     }
@@ -131,10 +140,10 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
         }
 
         return this.contextRoutes.computeIfAbsent(endpoint.name(), name -> {
-            List<ContextRoutes.Route> prefixes = new ArrayList<>();
+            List<ContextRoute> prefixes = new ArrayList<>();
             for (ProtocolConfig protocol : endpoint.protocols()) {
                 for (ContextPaths.Mount mount : protocol.contexts().mounts()) {
-                    prefixes.add(new ContextRoutes.Route(protocol.scheme(), mount, protocol.options()));
+                    prefixes.add(new ContextRoute(protocol.mountId(), mount, protocol.options()));
                 }
             }
             return new ContextRoutes(prefixes);
@@ -147,38 +156,76 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
             return;
         }
 
-        // 服务选择使用协议名或 scheme，与 protocol(...) 的选择规则一致。
-        Map<String, ProtocolConfig> configured = new HashMap<>();
-        for (ConnectorConfig endpoint : endpoints) {
-            for (ProtocolConfig protocol : endpoint.protocols()) {
-                configured.put(protocol.name().toLowerCase(Locale.ROOT), protocol);
-                configured.put(protocol.scheme(), protocol);
-            }
-        }
-
         Set<ProtocolConfig> validated = new HashSet<>();
         for (String name : selected) {
-            ProtocolConfig protocol = configured.get(name);
-            if (protocol == null) {
+            List<ProtocolConfig> configured = this.selectProtocols(endpoints, name);
+            if (configured.isEmpty()) {
                 throw new IllegalArgumentException("Context selected for unknown protocol: " + name);
             }
-            if (!protocol.accepts(service.getBindProtocols())) {
-                throw new IllegalArgumentException("Context selected for unbound protocol: " + name);
-            }
-            if (!validated.add(protocol)) {
-                continue;
-            }
+            for (ProtocolConfig protocol : configured) {
+                if (!protocol.accepts(service.getBindProtocols())) {
+                    throw new IllegalArgumentException("Context selected for unbound protocol: " + name);
+                }
+                if (!validated.add(protocol)) {
+                    continue;
+                }
 
-            if (!protocol.exactPaths(service).isEmpty()) {
-                String transport = this.protocols.get(protocol.protocol()).transport();
-                if (!StringUtils.equalsIgnoreCase(transport, "http")) {
-                    throw new IllegalArgumentException("Exact service paths require HTTP transport: " + name);
+                if (!protocol.exactPaths(service).isEmpty()) {
+                    String transport = this.protocols.get(protocol.protocol()).transport();
+                    if (!StringUtils.equalsIgnoreCase(transport, "http")) {
+                        throw new IllegalArgumentException("Exact service paths require HTTP transport: " + name);
+                    }
+                } else {
+                    List<String> paths = protocol.contextPaths(service);
+                    if (!protocol.contextPaths().containsAll(paths)) {
+                        String message = "Context is not configured for protocol " + name + ": " + paths;
+                        throw new IllegalArgumentException(message);
+                    }
                 }
-            } else {
-                List<String> paths = protocol.contextPaths(service);
-                if (!protocol.contextPaths().containsAll(paths)) {
-                    throw new IllegalArgumentException("Context is not configured for protocol " + name + ": " + paths);
-                }
+            }
+        }
+    }
+
+    private List<ProtocolConfig> selectProtocols(Collection<ConnectorConfig> endpoints, String selector) {
+        List<ProtocolConfig> available = new ArrayList<>();
+        for (ConnectorConfig endpoint : endpoints) {
+            available.addAll(endpoint.protocols());
+        }
+
+        List<ProtocolConfig> named = new ArrayList<>();
+        for (ProtocolConfig protocol : available) {
+            if (StringUtils.equalsIgnoreCase(protocol.name(), selector)) {
+                named.add(protocol);
+            }
+        }
+        if (!named.isEmpty()) {
+            return named;
+        }
+
+        List<ProtocolConfig> aliases = new ArrayList<>();
+        Set<String> logicalNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (ProtocolConfig protocol : available) {
+            if (StringUtils.equalsIgnoreCase(protocol.scheme(), selector)) {
+                aliases.add(protocol);
+                logicalNames.add(protocol.name());
+            }
+        }
+        if (logicalNames.size() > 1) {
+            throw new IllegalArgumentException("Context protocol alias is ambiguous: " + selector);
+        }
+        return aliases;
+    }
+
+    private void configureLogicalNames(Collection<ConnectorConfig> endpoints) {
+        Set<String> logicalNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (ConnectorConfig endpoint : endpoints) {
+            for (ProtocolConfig protocol : endpoint.protocols()) {
+                logicalNames.add(protocol.name());
+            }
+        }
+        for (ConnectorConfig endpoint : endpoints) {
+            for (ProtocolConfig protocol : endpoint.protocols()) {
+                protocol.setLogicalNames(logicalNames);
             }
         }
     }
@@ -194,16 +241,20 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
             if (hasContext && !StringUtils.equalsIgnoreCase(transport.name(), "http")) {
                 throw new IllegalArgumentException("Transport does not support HTTP contexts: " + transport.name());
             }
+            if (!hasContext && StringUtils.equalsIgnoreCase(transport.name(), "http")) {
+                String defaultPath = config.protocols().size() == 1 ? "/" : "/" + mount.name();
+                options.put("contextPath", defaultPath);
+            }
 
             options.putIfAbsent("serializeType", protocol.defaultSerializeType());
-            routes.put(mount.scheme(), options);
+            routes.put(mount.mountId(), options);
         }
 
         // 传输层只整理参数；校验完成后更新原来的协议配置。
         transport.configRoutes(routes);
 
         for (ProtocolConfig mount : config.protocols()) {
-            mount.setOptions(routes.get(mount.scheme()));
+            mount.setOptions(routes.get(mount.mountId()));
         }
     }
 
@@ -217,7 +268,7 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
         }
     }
 
-    public MetConnector create(ConnectorConfig config, ConnectorManager manager) {
+    ConnectorEndpoint<?> create(ConnectorConfig config, ConnectorManager manager) {
         NetworkConnectorFactory<?> transport = this.transports.get(config.listenType());
         if (transport == null) {
             throw new IllegalArgumentException("Unknown transport: " + config.listenType());
@@ -226,19 +277,23 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
         }
     }
 
-    private <M> MetConnector assemble(ConnectorConfig config, ConnectorManager manager, NetworkConnectorFactory<M> transport) {
-        Map<String, ProtocolFactory<M>> mounted = new LinkedHashMap<>();
-        Map<String, NetworkRoute<M>> routes = new LinkedHashMap<>();
+    private <M> ConnectorEndpoint<M> assemble(ConnectorConfig config, ConnectorManager manager, //
+            NetworkConnectorFactory<M> transport) {
+        Map<String, ProtocolMount<M>> mounts = new LinkedHashMap<>();
+        Map<String, Map<String, String>> routeOptions = new LinkedHashMap<>();
         for (ProtocolConfig mount : config.protocols()) {
             ProtocolFactory<M> protocol = this.resolve(mount, transport);
-            mounted.put(mount.scheme(), protocol);
             Function<M, RouteMatch> probe = message -> protocol.probe(mount, message);
             NetworkRoute<M> route = new NetworkRoute<>(mount.options(), mount.contexts(), probe);
-            routes.put(mount.scheme(), route);
+            mounts.put(mount.mountId(), new ProtocolMount<>(mount, protocol, route));
+            routeOptions.put(mount.mountId(), mount.options());
         }
 
         ContextRoutes contexts = this.contextRoutes(config);
-        return new EndpointConnector<>(config, manager, transport, mounted, Collections.unmodifiableMap(routes), contexts);
+        Map<String, ProtocolMount<M>> readyMounts = Collections.unmodifiableMap(mounts);
+        TransportConfig transportConfig = new TransportConfig(config.name(), config.address(), config.bindEnabled(), //
+                config.options(), routeOptions);
+        return new ConnectorEndpoint<>(config, transportConfig, manager, transport, readyMounts, contexts);
     }
 
     @SuppressWarnings("unchecked")
@@ -248,7 +303,9 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
             throw new IllegalArgumentException("Unknown protocol: " + config.protocol());
         }
         if (!StringUtils.equalsIgnoreCase(transport.name(), protocol.transport())) {
-            throw new IllegalArgumentException("Protocol " + protocol.name() + " requires transport " + protocol.transport() + ", endpoint uses " + transport.name());
+            String message = "Protocol " + protocol.name() + " requires transport " + protocol.transport();
+            message += ", endpoint uses " + transport.name();
+            throw new IllegalArgumentException(message);
         }
         if (protocol.messageType() != transport.messageType()) {
             throw new IllegalArgumentException("Incompatible transport message type for protocol: " + protocol.name());
@@ -257,4 +314,5 @@ public final class EndpointConnectorFactory implements MetConnectorFactory {
         // The SPI message contracts were checked before crossing the generic registry boundary.
         return (ProtocolFactory<M>) protocol;
     }
+
 }

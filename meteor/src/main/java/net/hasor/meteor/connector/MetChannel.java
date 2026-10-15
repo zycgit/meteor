@@ -10,21 +10,16 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.domain.payload.Payload;
 
-/** An outbound or accepted protocol channel; transport implementations own response correlation. */
+/** Minimal protocol channel used by the RPC layer. */
 public interface MetChannel {
-    /** The connector that owns this channel for its entire lifetime. */
-    MetConnector getConnector();
-
-    /** Connection identity assigned by ConnectorManager, independent of request IDs and remote addresses. */
-    long getChannelId();
+    /** Public protocol identity selected for this channel. */
+    String getProtocol();
 
     /** Local endpoint with protocol scheme, or null while no physical connection is established. */
     InterAddress getLocal();
 
     /** Remote endpoint with protocol scheme. */
     InterAddress getRemote();
-
-    boolean isActive();
 
     /**
      * Sends a request or response and completes with this channel after writing, independently of any RPC response.
@@ -33,10 +28,4 @@ public interface MetChannel {
      * Failure notification payloads are local events and cannot be sent.
      */
     Future<MetChannel> sendData(Payload payload);
-
-    /** Reject new sends, drain submitted writes, then complete with this channel after closure. */
-    Future<MetChannel> drainAndClose();
-
-    /** Close without draining writes; complete with this channel when closure finishes. */
-    Future<MetChannel> close();
 }

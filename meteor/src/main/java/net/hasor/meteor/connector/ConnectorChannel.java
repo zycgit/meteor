@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.protocol;
+package net.hasor.meteor.connector;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -16,19 +16,18 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.ChannelListener;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
-import net.hasor.meteor.domain.payload.ResponsePayload;
-import net.hasor.meteor.domain.payload.ThrowPayload;
 
 /** Common RSF channel facade and write lifecycle for every protocol session. */
-final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelListener<M> {
+final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
+    private final long                    channelId;
+    private final String                  protocol;
     private final String                  serializeType;
     private final Executor                executor;
-    private final EndpointConnector<?>    owner;
+    private final ConnectorEndpoint<?>    owner;
     private final BasicFuture<MetChannel> closed    = new BasicFuture<>();
     private final Set<BasicFuture<?>>     submitted = new HashSet<>();
     private       boolean                 draining;
@@ -37,8 +36,11 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
     private final BasicFuture<MetChannel> connecting;
     private       boolean                 connected;
 
-    ProtocolChannel(EndpointConnector<?> owner, long id, ReceivedListener listener, Executor executor, NetworkChannel<M> connection, ProtocolFactory<M> factory, BasicFuture<MetChannel> connecting, ProtocolConfig protocolConfig) {
-        super(owner, id, listener);
+    ConnectorChannel(ConnectorEndpoint<?> owner, long id, Executor executor, //
+            NetworkChannel<M> connection, ProtocolFactory<M> factory, //
+            BasicFuture<MetChannel> connecting, ProtocolConfig protocolConfig) {
+        this.channelId = id;
+        this.protocol = protocolConfig.name();
         this.owner = owner;
         this.executor = executor;
         this.connection = connection;
@@ -48,7 +50,8 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
         InterAddress local = owner.getBindAddress();
         InterAddress advertised = null;
         if (local != null) {
-            advertised = new InterAddress(protocolConfig.scheme(), local.getHost(), local.getPort(), local.getFormUnit());
+            String scheme = protocolConfig.scheme();
+            advertised = new InterAddress(scheme, local.getHost(), local.getPort(), local.getFormUnit());
         }
 
         ConnectorManager manager = owner.manager();
@@ -71,7 +74,7 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
             }
 
             this.close();
-        } else if (this.connected && this.isActive() && this.connecting != null) {
+        } else if (this.connected && this.connection.isOpen() && this.connecting != null) {
             if (!this.connecting.isDone()) {
                 if (!this.connecting.completed(this)) {
                     this.close();
@@ -112,6 +115,15 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
     }
 
     @Override
+    public String getProtocol() {
+        return this.protocol;
+    }
+
+    long channelId() {
+        return this.channelId;
+    }
+
+    @Override
     public InterAddress getLocal() {
         return this.connection.getLocal();
     }
@@ -119,12 +131,6 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
     @Override
     public InterAddress getRemote() {
         return this.connection.getRemote();
-    }
-
-    @Override
-    public boolean isActive() {
-        Future<Void> ready = this.session.ready();
-        return this.connection.isOpen() && ready.isDone() && !ready.isCancelled() && ready.getCause() == null;
     }
 
     @Override
@@ -156,17 +162,7 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
     }
 
     private void received(long id, Payload payload) {
-        switch (payload.getType()) {
-            case REQUEST:
-                this.listener().onRequest(this, id, (RequestPayload) payload);
-                break;
-            case RESPONSE:
-                this.listener().onResponse(this, id, (ResponsePayload) payload);
-                break;
-            case THROW:
-                this.listener().onFailure(this, id, (ThrowPayload) payload);
-                break;
-        }
+        this.owner.received(this, id, payload);
     }
 
     private void prepareDrain() {
@@ -177,8 +173,7 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
         this.connection.drainAndClose();
     }
 
-    @Override
-    public Future<MetChannel> close() {
+    Future<MetChannel> close() {
         this.stopWrites();
         this.connection.close();
         return this.closeFuture();
@@ -214,7 +209,7 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
 
     private boolean admitWrite(BasicFuture<?> sent) {
         synchronized (this) {
-            if (!this.draining && !this.closed.isDone() && this.owner.writable()) {
+            if (!this.draining && !this.closed.isDone() && this.owner.acceptsWrites()) {
                 this.submitted.add(sent);
                 sent.onFinal(done -> {
                     synchronized (this) {
@@ -230,8 +225,7 @@ final class ProtocolChannel<M> extends AbstractMetChannel implements ChannelList
         return false;
     }
 
-    @Override
-    public Future<MetChannel> drainAndClose() {
+    Future<MetChannel> drainAndClose() {
         synchronized (this) {
             this.draining = true;
         }
