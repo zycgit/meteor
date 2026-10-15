@@ -8,27 +8,23 @@
 package net.hasor.meteor.connector.protocol.rsf.codec;
 import java.io.IOException;
 
-/**
- * Protocol Interface,for custom network protocol
- * @version : 2014年11月4日
- * @author 赵永春 (zyc@hasor.net)
- */
-class RpcResponseProtocolV1 {
+/** Encodes and decodes RSF/1 response frames. */
+class RsfV1ResponseCodec {
 
     /**
      * encode Message to byte & write to network framework
      */
-    void encode(ResponseBlock resMsg, WireBuffer buf) throws IOException {
+    void encode(RsfV1ResponseFrame resMsg, RsfV1WireBuffer buf) throws IOException {
         //
         //* --------------------------------------------------------bytes =13
-        //* byte[1]  version                              RSF版本(0x81)
-        buf.writeByte(resMsg.getHead());
+        //* byte[1]  frameType                            RSF帧类型
+        buf.writeByte(resMsg.getFrameType());
         //* byte[8]  requestID                            请求ID
         buf.writeLong(resMsg.getRequestID());
         //* byte[1]  keepData                             保留区
         buf.writeByte(0);
         //* byte[3]  contentLength                        内容大小(max = 16MB)
-        WireBuffer responseBody = this.encodeResponse(resMsg);
+        RsfV1WireBuffer responseBody = this.encodeBody(resMsg);
         try {
             int bodyLength = responseBody.readableBytes();
             if (bodyLength > 0xFFFFFF) {
@@ -44,21 +40,21 @@ class RpcResponseProtocolV1 {
         //
     }
 
-    private WireBuffer encodeResponse(ResponseBlock resMsg) {
-        WireBuffer bodyBuf = WireBuffer.output();
+    private RsfV1WireBuffer encodeBody(RsfV1ResponseFrame resMsg) {
+        RsfV1WireBuffer bodyBuf = RsfV1WireBuffer.output();
         //
         //* --------------------------------------------------------bytes =8
         //* byte[2]  status                               响应状态
         bodyBuf.writeShort(resMsg.getStatus());
         //* byte[2]  serializeType-(attr-index)           序列化策略
-        bodyBuf.writeShort(resMsg.getSerializeType());
+        bodyBuf.writeShort(resMsg.getSerializeTypeIndex());
         //* byte[2]  returnType-(attr-index)              返回数据类型
-        bodyBuf.writeShort(resMsg.getReturnType());
+        bodyBuf.writeShort(resMsg.getReturnTypeIndex());
         //* byte[2]  returnData-(attr-index)              返回数据
-        bodyBuf.writeShort(resMsg.getReturnData());
+        bodyBuf.writeShort(resMsg.getReturnDataIndex());
         //* --------------------------------------------------------bytes =1 ~ 1021
         //* byte[1]  optionCount                          选项参数总数
-        int[] optionMapping = resMsg.getOptions();
+        int[] optionMapping = resMsg.getOptionMappings();
         if (optionMapping.length > 255) {
             throw new IllegalArgumentException("Too many RSF options");
         }
@@ -70,17 +66,17 @@ class RpcResponseProtocolV1 {
         }
         //* --------------------------------------------------------bytes =n
         //* dataBody                                      数据池
-        resMsg.fillTo(bodyBuf);
+        resMsg.writeTo(bodyBuf);
         return bodyBuf;
     }
 
     /**
      * decode stream to object
      */
-    ResponseBlock decode(WireBuffer buf) throws IOException {
+    RsfV1ResponseFrame decode(RsfV1WireBuffer buf) throws IOException {
         //* --------------------------------------------------------bytes =13
-        //* byte[1]  version                              RSF版本
-        byte version = buf.readByte();
+        //* byte[1]  frameType                            RSF帧类型
+        byte frameType = buf.readByte();
         //* byte[8]  requestID                            包含的请求ID
         long requestID = buf.readLong();
         //* byte[1]  keepData                             保留区
@@ -89,29 +85,29 @@ class RpcResponseProtocolV1 {
         //.readUnsignedMedium()
         buf.skipBytes(3);
         //
-        ResponseBlock res = new ResponseBlock();
-        res.setHead(version);
+        RsfV1ResponseFrame res = new RsfV1ResponseFrame();
+        res.setFrameType(frameType);
         res.setRequestID(requestID);
         //* --------------------------------------------------------bytes =8
         //* byte[2]  status                               响应状态
         res.setStatus(buf.readShort());
         //* byte[2]  serializeType-(attr-index)           序列化策略
-        res.setSerializeType(buf.readShort());
+        res.setSerializeTypeIndex(buf.readShort());
         //* byte[2]  returnType-(attr-index)              返回数据类型
-        res.setReturnType(buf.readShort());
+        res.setReturnTypeIndex(buf.readShort());
         //* byte[2]  returnData-(attr-index)              返回数据
-        res.setReturnData(buf.readShort());
+        res.setReturnDataIndex(buf.readShort());
         //* --------------------------------------------------------bytes =1 ~ 1021
         //* byte[1]  optionCount                          选项参数总数
         int optionCount = buf.readUnsignedByte();
         for (int i = 0; i < optionCount; i++) {
             //* byte[4]  attr-0-(attr-index,attr-index)   选项参数
             int mergeData = buf.readInt();
-            res.addOption(mergeData);
+            res.addOptionMapping(mergeData);
         }
         //* --------------------------------------------------------bytes =n
         //* dataBody                                      数据池
-        res.fillFrom(buf);
+        res.readFrom(buf);
         return res;
     }
 }

@@ -20,10 +20,10 @@ import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.ProtocolContext;
-import net.hasor.meteor.connector.protocol.ProtocolSession;
-import net.hasor.meteor.connector.protocol.rsf.codec.CodecAdapterForV1;
-import net.hasor.meteor.connector.protocol.rsf.codec.RsfFrameDecoder;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.protocol.rsf.codec.RsfV1Codec;
+import net.hasor.meteor.connector.protocol.rsf.codec.RsfV1FrameDecoder;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
@@ -33,29 +33,30 @@ import net.hasor.meteor.domain.payload.ThrowPayload;
 
 /** One connection's handshake, request correlation and RSF/1 message lifecycle. */
 final class RsfSession implements ProtocolSession<byte[]> {
-    private final ProtocolContext           context;
-    private final NetworkChannel<byte[]>    connection;
-    private final BiConsumer<Long, Payload> messages;
-    private final CodecAdapterForV1         codec;
-    private final RsfFrameDecoder           decoder;
-    private final int                       maxFrameSize;
-    private final int                       maxPendingRequests;
-    private final int                       handshakeTimeout;
-    private final BasicFuture<Void>         ready   = new BasicFuture<>();
-    private final Map<Long, PendingRequest> pending = new HashMap<>();
-    private final Map<Long, RequestPayload> inbound = new HashMap<>();
-    private       Cancellable               handshakeTimer;
-    private       boolean                   closed;
+    private final ProtocolSessionContext          sessionContext;
+    private final NetworkChannel<byte[]>          networkChannel;
+    private final BiConsumer<Long, Payload>       messageConsumer;
+    private final RsfV1Codec                      codec;
+    private final RsfV1FrameDecoder               decoder;
+    private final int                             maxFrameSizeBytes;
+    private final int                             maxPendingRequests;
+    private final int                             handshakeTimeoutMillis;
+    private final BasicFuture<Void>               ready            = new BasicFuture<>();
+    private final Map<Long, OutboundRequestState> outboundRequests = new HashMap<>();
+    private final Map<Long, RequestPayload>       inboundRequests  = new HashMap<>();
+    private       Cancellable                     handshakeTimer;
+    private       boolean                         closed;
 
-    RsfSession(ProtocolConfig config, ProtocolContext context, NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
-        this.context = context;
-        this.connection = connection;
-        this.messages = messages;
-        this.codec = new CodecAdapterForV1(context.context());
-        this.maxFrameSize = config.integer("maxFrameSize", 16 * 1024 * 1024);
+    RsfSession(ProtocolConfig config, ProtocolSessionContext sessionContext, //
+            NetworkChannel<byte[]> networkChannel, BiConsumer<Long, Payload> messageConsumer) {
+        this.sessionContext = sessionContext;
+        this.networkChannel = networkChannel;
+        this.messageConsumer = messageConsumer;
+        this.codec = new RsfV1Codec(sessionContext.metContext());
+        this.maxFrameSizeBytes = config.integer("maxFrameSize", 16 * 1024 * 1024);
         this.maxPendingRequests = config.integer("maxPendingRequests", 1024);
-        this.handshakeTimeout = config.integer("handshakeTimeout", config.integer("connectTimeout", 3000));
-        this.decoder = new RsfFrameDecoder(this.maxFrameSize);
+        this.handshakeTimeoutMillis = config.integer("handshakeTimeout", config.integer("connectTimeout", 3000));
+        this.decoder = new RsfV1FrameDecoder(this.maxFrameSizeBytes);
     }
 
     @Override
@@ -69,20 +70,20 @@ final class RsfSession implements ProtocolSession<byte[]> {
             return;
         }
 
-        Runnable expireHandshake = () -> this.connection.execute(this::handshakeExpired);
-        this.handshakeTimer = this.context.schedule(expireHandshake, this.handshakeTimeout);
+        Runnable expireHandshake = () -> this.networkChannel.execute(this::handshakeExpired);
+        this.handshakeTimer = this.sessionContext.schedule(expireHandshake, this.handshakeTimeoutMillis);
 
         ResponsePayload hello = new ResponsePayload();
         hello.setRequestID(-1);
         hello.setStatus(ProtocolStatus.OK);
-        InterAddress address = this.context.bindAddress();
+        InterAddress address = this.sessionContext.bindAddress();
         String serverInfo = address == null ? "" : address.toHostSchema();
         hello.addOption("SERVER_INFO", serverInfo);
 
-        this.write(hello).onFinal(done -> {
+        this.writePayload(hello).onFinal(done -> {
             Throwable error = failure(done);
             if (error != null) {
-                this.connection.execute(() -> this.failHandshake(error));
+                this.networkChannel.execute(() -> this.failHandshake(error));
             }
         });
     }
@@ -95,14 +96,14 @@ final class RsfSession implements ProtocolSession<byte[]> {
 
     private void failHandshake(Throwable error) {
         this.closed(error);
-        this.connection.close();
+        this.networkChannel.close();
     }
 
     @Override
     public void receive(byte[] bytes) throws Exception {
         ByteBuffer input = ByteBuffer.wrap(bytes);
         while (input.hasRemaining() && !this.closed) {
-            byte[] frame = this.decoder.read(input);
+            byte[] frame = this.decoder.readFrame(input);
             if (frame == null) {
                 return;
             }
@@ -134,7 +135,7 @@ final class RsfSession implements ProtocolSession<byte[]> {
             return failed(new UnsupportedOperationException("RSF/1 only sends requests and responses"));
         }
 
-        if (this.closed || !this.connection.isOpen()) {
+        if (this.closed || !this.networkChannel.isOpen()) {
             return failed(new IOException("RSF session is not ready"));
         }
 
@@ -159,70 +160,70 @@ final class RsfSession implements ProtocolSession<byte[]> {
         }
 
         long id = request.getRequestID();
-        if (this.pending.size() >= this.maxPendingRequests || this.pending.containsKey(id)) {
+        if (this.outboundRequests.size() >= this.maxPendingRequests || this.outboundRequests.containsKey(id)) {
             IOException error = new IOException("Duplicate RSF request ID or pending limit reached");
             sent.failed(error);
-            this.messages.accept(id, new ThrowPayload(error));
+            this.messageConsumer.accept(id, new ThrowPayload(error));
             return sent;
         }
 
-        PendingRequest entry = new PendingRequest(request, sent);
-        this.pending.put(id, entry);
+        OutboundRequestState requestState = new OutboundRequestState(request, sent);
+        this.outboundRequests.put(id, requestState);
 
         try {
-            request.completion().onFinal(done -> this.execute(sent, () -> {
-                if (this.pending.remove(id, entry)) {
+            request.completion().onFinal(done -> this.executeOnChannel(sent, () -> {
+                if (this.outboundRequests.remove(id, requestState)) {
                     sent.failed(completionCause(request));
                 }
             }));
             // RPC can complete on another thread while the completion callback is being installed.
             if (!request.completion().isDone()) {
-                this.write(request).onFinal(done -> {
-                    this.execute(sent, () -> this.finishRequestWrite(entry, failure(done)));
+                this.writePayload(request).onFinal(done -> {
+                    this.executeOnChannel(sent, () -> this.finishRequestWrite(requestState, failure(done)));
                 });
             }
         } catch (Throwable error) {
-            this.finishRequestWrite(entry, error);
+            this.finishRequestWrite(requestState, error);
         }
         return sent;
     }
 
-    private void finishRequestWrite(PendingRequest entry, Throwable error) {
+    private void finishRequestWrite(OutboundRequestState requestState, Throwable error) {
         if (error == null) {
-            entry.sent().completed(null);
+            requestState.sent().completed(null);
         } else {
-            long id = entry.request().getRequestID();
-            boolean removed = this.pending.remove(id, entry);
-            entry.sent().failed(error);
+            long id = requestState.request().getRequestID();
+            boolean removed = this.outboundRequests.remove(id, requestState);
+            requestState.sent().failed(error);
             if (removed) {
-                this.messages.accept(id, new ThrowPayload(error));
+                this.messageConsumer.accept(id, new ThrowPayload(error));
             }
         }
     }
 
     private Future<Void> sendResponse(ResponsePayload response) {
         long id = response.getRequestID();
-        RequestPayload incoming = this.inbound.get(id);
+        RequestPayload incoming = this.inboundRequests.get(id);
         if (incoming == null) {
             return failed(new IllegalStateException("RSF response has no pending request on this channel"));
         }
 
         if (incoming.isMessage() || response.getStatus() != ProtocolStatus.Accept) {
-            this.inbound.remove(id);
+            this.inboundRequests.remove(id);
             incoming.complete(null);
         }
 
-        return this.write(response);
+        return this.writePayload(response);
     }
 
-    private Future<Void> write(Payload message) {
+    private Future<Void> writePayload(Payload message) {
         try {
             byte[] bytes = this.codec.encode(message);
-            if (bytes.length > this.maxFrameSize) {
+            if (bytes.length > this.maxFrameSizeBytes) {
                 throw new IOException("RSF frame exceeds configured limit");
             }
 
-            return this.connection.write(bytes);
+            return this.networkChannel.write(bytes);
         } catch (Exception error) {
             return failed(error);
         }
@@ -234,31 +235,31 @@ final class RsfSession implements ProtocolSession<byte[]> {
             return;
         }
 
-        if (this.inbound.size() >= this.maxPendingRequests || this.inbound.containsKey(id)) {
-            this.connection.close();
+        if (this.inboundRequests.size() >= this.maxPendingRequests || this.inboundRequests.containsKey(id)) {
+            this.networkChannel.close();
             return;
         }
 
-        this.inbound.put(id, request);
+        this.inboundRequests.put(id, request);
         request.completion().onFinal(done -> {
-            this.connection.execute(() -> this.inbound.remove(id, request));
+            this.networkChannel.execute(() -> this.inboundRequests.remove(id, request));
         });
-        this.messages.accept(id, request);
+        this.messageConsumer.accept(id, request);
     }
 
     private void receiveResponse(ResponsePayload response) {
         long id = response.getRequestID();
-        PendingRequest entry = this.pending.get(id);
-        if (entry == null) {
+        OutboundRequestState requestState = this.outboundRequests.get(id);
+        if (requestState == null) {
             return;
         }
 
-        if (entry.request().isMessage() || response.getStatus() != ProtocolStatus.Accept) {
-            this.pending.remove(id);
-            entry.request().complete(null);
+        if (requestState.request().isMessage() || response.getStatus() != ProtocolStatus.Accept) {
+            this.outboundRequests.remove(id);
+            requestState.request().complete(null);
         }
 
-        this.messages.accept(id, response);
+        this.messageConsumer.accept(id, response);
     }
 
     @Override
@@ -279,26 +280,26 @@ final class RsfSession implements ProtocolSession<byte[]> {
         }
 
         this.decoder.reset();
-        List<PendingRequest> outgoing = new ArrayList<>(this.pending.values());
-        List<RequestPayload> incoming = new ArrayList<>(this.inbound.values());
-        this.pending.clear();
-        this.inbound.clear();
+        List<OutboundRequestState> outgoingRequests = new ArrayList<>(this.outboundRequests.values());
+        List<RequestPayload> incomingRequests = new ArrayList<>(this.inboundRequests.values());
+        this.outboundRequests.clear();
+        this.inboundRequests.clear();
         this.ready.failed(error);
 
-        for (PendingRequest entry : outgoing) {
-            entry.request().complete(error);
-            entry.sent().failed(error);
-            this.messages.accept(entry.request().getRequestID(), new ThrowPayload(error));
+        for (OutboundRequestState requestState : outgoingRequests) {
+            requestState.request().complete(error);
+            requestState.sent().failed(error);
+            this.messageConsumer.accept(requestState.request().getRequestID(), new ThrowPayload(error));
         }
 
-        for (RequestPayload request : incoming) {
+        for (RequestPayload request : incomingRequests) {
             request.complete(error);
         }
     }
 
-    private void execute(BasicFuture<Void> result, Runnable task) {
+    private void executeOnChannel(BasicFuture<Void> result, Runnable task) {
         try {
-            this.connection.execute(() -> {
+            this.networkChannel.execute(() -> {
                 try {
                     task.run();
                 } catch (Throwable error) {
@@ -323,5 +324,23 @@ final class RsfSession implements ProtocolSession<byte[]> {
         BasicFuture<Void> result = new BasicFuture<>();
         result.failed(error);
         return result;
+    }
+
+    private static final class OutboundRequestState {
+        private final RequestPayload    request;
+        private final BasicFuture<Void> sent;
+
+        private OutboundRequestState(RequestPayload request, BasicFuture<Void> sent) {
+            this.request = request;
+            this.sent = sent;
+        }
+
+        private RequestPayload request() {
+            return this.request;
+        }
+
+        private BasicFuture<Void> sent() {
+            return this.sent;
+        }
     }
 }

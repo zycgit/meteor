@@ -11,23 +11,23 @@ import java.util.Arrays;
 /**
  * Bounded, heap-owned big-endian wire buffer. No pooled/network buffer escapes the transport.
  */
-final class WireBuffer {
+final class RsfV1WireBuffer {
     private static final int    LIMIT = 0xFFFFFF + 13;
     private              byte[] data;
     private              int    reader;
     private              int    writer;
 
-    private WireBuffer(byte[] data, int writer) {
+    private RsfV1WireBuffer(byte[] data, int writer) {
         this.data = data;
         this.writer = writer;
     }
 
-    static WireBuffer output() {
-        return new WireBuffer(new byte[128], 0);
+    static RsfV1WireBuffer output() {
+        return new RsfV1WireBuffer(new byte[128], 0);
     }
 
-    static WireBuffer input(byte[] bytes) {
-        return new WireBuffer(bytes.clone(), bytes.length);
+    static RsfV1WireBuffer input(byte[] bytes) {
+        return new RsfV1WireBuffer(bytes.clone(), bytes.length);
     }
 
     int readableBytes() {
@@ -60,29 +60,29 @@ final class WireBuffer {
         }
     }
 
-    WireBuffer writeByte(int value) {
+    RsfV1WireBuffer writeByte(int value) {
         this.reserve(1);
         this.data[this.writer++] = (byte) value;
         return this;
     }
 
-    WireBuffer writeShort(int value) {
+    RsfV1WireBuffer writeShort(int value) {
         return this.writeNumber(value, 2);
     }
 
-    WireBuffer writeMedium(int value) {
+    RsfV1WireBuffer writeMedium(int value) {
         return this.writeNumber(value, 3);
     }
 
-    WireBuffer writeInt(int value) {
+    RsfV1WireBuffer writeInt(int value) {
         return this.writeNumber(value, 4);
     }
 
-    WireBuffer writeLong(long value) {
+    RsfV1WireBuffer writeLong(long value) {
         return this.writeNumber(value, 8);
     }
 
-    private WireBuffer writeNumber(long value, int size) {
+    private RsfV1WireBuffer writeNumber(long value, int size) {
         this.reserve(size);
         for (int i = size - 1; i >= 0; i--) {
             this.data[this.writer++] = (byte) (value >>> (i * 8));
@@ -120,20 +120,20 @@ final class WireBuffer {
         return value;
     }
 
-    WireBuffer skipBytes(int size) {
+    RsfV1WireBuffer skipBytes(int size) {
         this.require(size);
         this.reader += size;
         return this;
     }
 
-    WireBuffer writeBytes(byte[] bytes) {
+    RsfV1WireBuffer writeBytes(byte[] bytes) {
         this.reserve(bytes.length);
         System.arraycopy(bytes, 0, this.data, this.writer, bytes.length);
         this.writer += bytes.length;
         return this;
     }
 
-    WireBuffer writeBytes(WireBuffer source) {
+    RsfV1WireBuffer writeBytes(RsfV1WireBuffer source) {
         return this.writeBytes(source.toByteArray());
     }
 

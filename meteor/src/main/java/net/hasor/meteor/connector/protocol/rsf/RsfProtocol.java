@@ -8,23 +8,14 @@
 package net.hasor.meteor.connector.protocol.rsf;
 import java.util.function.BiConsumer;
 import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.ProtocolContext;
-import net.hasor.meteor.connector.protocol.ProtocolFactory;
-import net.hasor.meteor.connector.protocol.ProtocolSession;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.RouteMatch;
 import net.hasor.meteor.domain.payload.Payload;
 
 /**
  * RSF/1 message adapter, including its own request/response correlation.
  */
 public final class RsfProtocol implements ProtocolFactory<byte[]> {
-    @Override
-    public String scheme() {
-        return this.name();
-    }
-
     public String name() {
         return "rsf";
     }
@@ -34,7 +25,7 @@ public final class RsfProtocol implements ProtocolFactory<byte[]> {
         return "Java";
     }
 
-    public String transport() {
+    public String transportType() {
         return "tcp";
     }
 
@@ -47,16 +38,21 @@ public final class RsfProtocol implements ProtocolFactory<byte[]> {
     }
 
     @Override
-    public RouteMatch probe(ProtocolConfig config, byte[] prefix) {
+    public RouteProbeResult probe(ProtocolConfig config, byte[] prefix) {
         if (prefix.length == 0) {
-            return RouteMatch.NEED_MORE;
+            return RouteProbeResult.NEED_MORE;
         } else {
-            return (prefix[0] & 0xff) == 0xb1 ? RouteMatch.MATCH : RouteMatch.REJECT;
+            int frameType = prefix[0] & 0xff;
+            boolean request = frameType == 0x91;
+            boolean message = frameType == 0xa1;
+            boolean response = frameType == 0xb1;
+            return request || message || response ? RouteProbeResult.MATCH : RouteProbeResult.REJECT;
         }
     }
 
     @Override
-    public ProtocolSession<byte[]> create(ProtocolConfig config, ProtocolContext manager, NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
+    public ProtocolSession<byte[]> createSession(ProtocolConfig config, ProtocolSessionContext manager, //
+            NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
         return new RsfSession(config, manager, connection, messages);
     }
 }

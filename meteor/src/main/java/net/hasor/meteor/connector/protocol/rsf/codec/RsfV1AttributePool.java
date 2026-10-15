@@ -10,18 +10,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * RSF/1 attribute pool. Each block owns heap data and needs no native-buffer finalizer.
- */
-class PoolBlock {
-    static final int          NULL_MARK   = -1;
-    static final int          DataMaxSize = 0xFFFFFF;
-    static final short        PoolMaxSize = 0x0FFF;
-    private      List<byte[]> values      = new ArrayList<>();
+/** RSF/1 attribute pool. Each pool owns heap data and needs no native-buffer finalizer. */
+class RsfV1AttributePool {
+    static final int          NULL_MARKER     = -1;
+    static final int          MAX_VALUE_SIZE  = 0xFFFFFF;
+    static final short        MAX_VALUE_COUNT = 0x0FFF;
+    private      List<byte[]> values          = new ArrayList<>();
 
-    void fillFrom(WireBuffer input) {
+    void readFrom(RsfV1WireBuffer input) {
         int count = input.readShort() & 0xFFFF;
-        if (count > PoolMaxSize) {
+        if (count > MAX_VALUE_COUNT) {
             throw new IllegalArgumentException("Invalid RSF pool size");
         }
 
@@ -29,7 +27,7 @@ class PoolBlock {
         long total = 0;
         for (int i = 0; i < count; i++) {
             int length = input.readInt();
-            if (length < NULL_MARK || length > DataMaxSize) {
+            if (length < NULL_MARKER || length > MAX_VALUE_SIZE) {
                 throw new IllegalArgumentException("Invalid RSF pool item length");
             }
             lengths[i] = length;
@@ -44,17 +42,17 @@ class PoolBlock {
         List<byte[]> decoded = new ArrayList<>(count);
         int offset = 0;
         for (int length : lengths) {
-            decoded.add(length == NULL_MARK ? null : Arrays.copyOfRange(body, offset, offset + length));
+            decoded.add(length == NULL_MARKER ? null : Arrays.copyOfRange(body, offset, offset + length));
             offset += Math.max(length, 0);
         }
         this.values = decoded;
     }
 
-    void fillTo(WireBuffer output) {
+    void writeTo(RsfV1WireBuffer output) {
         this.requireOpen();
         output.writeShort(this.values.size());
         for (byte[] value : this.values) {
-            output.writeInt(value == null ? NULL_MARK : value.length);
+            output.writeInt(value == null ? NULL_MARKER : value.length);
         }
 
         for (byte[] value : this.values) {
@@ -64,9 +62,9 @@ class PoolBlock {
         }
     }
 
-    short pushData(byte[] data) {
+    short addValue(byte[] data) {
         this.requireOpen();
-        if (this.values.size() >= PoolMaxSize || (data != null && data.length > DataMaxSize)) {
+        if (this.values.size() >= MAX_VALUE_COUNT || (data != null && data.length > MAX_VALUE_SIZE)) {
             throw new IllegalArgumentException("RSF pool limit exceeded");
         }
 
@@ -74,7 +72,7 @@ class PoolBlock {
         return (short) (this.values.size() - 1);
     }
 
-    byte[] readPool(short index) {
+    byte[] getValue(short index) {
         this.requireOpen();
         byte[] value = this.values.get(index);
         return value == null ? null : value.clone();

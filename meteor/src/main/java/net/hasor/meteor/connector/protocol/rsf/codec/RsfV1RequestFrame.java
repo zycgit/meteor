@@ -20,8 +20,8 @@ import net.hasor.cobble.ArrayUtils;
  * byte[2]  servicesGroup-(attr-index)           远程服务分组
  * byte[2]  servicesVersion-(attr-index)         远程服务版本
  * byte[2]  servicesMethod-(attr-index)          远程服务方法名
- * byte[2]  serializeType-(attr-index)           序列化策略
- * byte[4]  clientTimeout                        远程客户端超时时间
+ * byte[2]  serializeTypeIndex-(attr-index)           序列化策略
+ * byte[4]  clientTimeoutMillis                        远程客户端超时时间
  * byte[2]  flag                                 标记
  * --------------------------------------------------------bytes =1 ~ 1021
  * byte[1]  paramCount                           参数总数
@@ -45,31 +45,31 @@ import net.hasor.cobble.ArrayUtils;
  * @version : 2014年10月25日
  * @author 赵永春 (zyc@hasor.net)
  */
-class RequestBlock extends PoolBlock {
-    private byte  rsfHead        = 0;  // byte[1]  RSF头
-    private long  requestID      = 0;  // byte[8]  请求ID
-    private short flags          = 0;  // byte[2]  标记
-    private short serviceName    = 0;  // byte[2]  远程服务名
-    private short serviceGroup   = 0;  // byte[2]  远程服务分组
-    private short serviceVersion = 0;  // byte[2]  远程服务版本
-    private short targetMethod   = 0;  // byte[2]  远程服务方法名
-    private short serializeType  = 0;  // byte[2]  序列化策略
-    private int   clientTimeout  = 0;  // byte[4]  远程客户端超时时间
-    private int[] paramData      = {}; // (attr-index,attr-index)
-    private int[] optionMap      = {}; // (attr-index,attr-index)
+class RsfV1RequestFrame extends RsfV1AttributePool {
+    private byte  frameType           = 0;  // byte[1]  RSF头
+    private long  requestID           = 0;  // byte[8]  请求ID
+    private short flags               = 0;  // byte[2]  标记
+    private short serviceNameIndex    = 0;  // byte[2]  远程服务名索引
+    private short serviceGroupIndex   = 0;  // byte[2]  远程服务分组索引
+    private short serviceVersionIndex = 0;  // byte[2]  远程服务版本
+    private short targetMethodIndex   = 0;  // byte[2]  远程服务方法名
+    private short serializeTypeIndex  = 0;  // byte[2]  序列化策略
+    private int   clientTimeoutMillis = 0;  // byte[4]  远程客户端超时时间
+    private int[] parameterMappings   = {}; // (attr-index,attr-index)
+    private int[] optionMappings      = {}; // (attr-index,attr-index)
 
     /**
-     * 获取协议版本。
+     * 获取帧类型。
      */
-    byte getHead() {
-        return this.rsfHead;
+    byte getFrameType() {
+        return this.frameType;
     }
 
     /**
-     * 设置协议版本。
+     * 设置帧类型。
      */
-    void setHead(byte rsfHead) {
-        this.rsfHead = rsfHead;
+    void setFrameType(byte frameType) {
+        this.frameType = frameType;
     }
 
     /**
@@ -103,85 +103,85 @@ class RequestBlock extends PoolBlock {
     /**
      * 获取服务名
      */
-    short getServiceName() {
-        return this.serviceName;
+    short getServiceNameIndex() {
+        return this.serviceNameIndex;
     }
 
     /**
      * 设置服务名
      */
-    void setServiceName(short serviceName) {
-        this.serviceName = serviceName;
+    void setServiceNameIndex(short serviceNameIndex) {
+        this.serviceNameIndex = serviceNameIndex;
     }
 
     /**
      * 获取服务分组
      */
-    short getServiceGroup() {
-        return this.serviceGroup;
+    short getServiceGroupIndex() {
+        return this.serviceGroupIndex;
     }
 
     /**
      * 设置服务分组
      */
-    void setServiceGroup(short serviceGroup) {
-        this.serviceGroup = serviceGroup;
+    void setServiceGroupIndex(short serviceGroupIndex) {
+        this.serviceGroupIndex = serviceGroupIndex;
     }
 
     /**
      * 获取服务版本
      */
-    short getServiceVersion() {
-        return this.serviceVersion;
+    short getServiceVersionIndex() {
+        return this.serviceVersionIndex;
     }
 
     /**
      * 设置服务版本
      */
-    void setServiceVersion(short serviceVersion) {
-        this.serviceVersion = serviceVersion;
+    void setServiceVersionIndex(short serviceVersionIndex) {
+        this.serviceVersionIndex = serviceVersionIndex;
     }
 
     /**
      * 获取调用的方法名
      */
-    short getTargetMethod() {
-        return this.targetMethod;
+    short getTargetMethodIndex() {
+        return this.targetMethodIndex;
     }
 
     /**
      * 设置调用的方法名
      */
-    void setTargetMethod(short targetMethod) {
-        this.targetMethod = targetMethod;
+    void setTargetMethodIndex(short targetMethodIndex) {
+        this.targetMethodIndex = targetMethodIndex;
     }
 
     /**
      * 获取序列化类型
      */
-    short getSerializeType() {
-        return this.serializeType;
+    short getSerializeTypeIndex() {
+        return this.serializeTypeIndex;
     }
 
     /**
      * 设置序列化类型
      */
-    void setSerializeType(short serializeType) {
-        this.serializeType = serializeType;
+    void setSerializeTypeIndex(short serializeTypeIndex) {
+        this.serializeTypeIndex = serializeTypeIndex;
     }
 
     /**
      * 获取远程客户端调用超时时间。
      */
-    int getClientTimeout() {
-        return this.clientTimeout;
+    int getClientTimeoutMillis() {
+        return this.clientTimeoutMillis;
     }
 
     /**
      * 设置远程客户端调用超时时间。
      */
-    void setClientTimeout(int clientTimeout) {
-        this.clientTimeout = clientTimeout;
+    void setClientTimeoutMillis(int clientTimeoutMillis) {
+        this.clientTimeoutMillis = clientTimeoutMillis;
     }
 
     //
@@ -189,48 +189,46 @@ class RequestBlock extends PoolBlock {
     /**
      * 添加请求参数。
      */
-    void addParameter(short paramType, short paramData) {
-        int pType = paramType << 16;
-        int pData = paramData;
-        int mergeData = (pType | pData);
-        this.addParameter(mergeData);
+    void addParameterMapping(short typeIndex, short valueIndex) {
+        int encodedType = typeIndex << 16;
+        int packedMapping = encodedType | valueIndex;
+        this.addParameterMapping(packedMapping);
     }
 
     /**
      * 添加请求参数。
      */
-    void addParameter(int mergeData) {
-        this.paramData = ArrayUtils.add(this.paramData, mergeData);
+    void addParameterMapping(int packedMapping) {
+        this.parameterMappings = ArrayUtils.add(this.parameterMappings, packedMapping);
     }
 
     /**
      * 获取请求参数类型列表。
      */
-    int[] getParameters() {
-        return this.paramData;
+    int[] getParameterMappings() {
+        return this.parameterMappings;
     }
 
     /**
      * 添加选项。
      */
-    void addOption(short paramType, short paramData) {
-        int pType = paramType << 16;
-        int pData = paramData;
-        int mergeData = (pType | pData);
-        this.addOption(mergeData);
+    void addOptionMapping(short nameIndex, short valueIndex) {
+        int encodedName = nameIndex << 16;
+        int packedMapping = encodedName | valueIndex;
+        this.addOptionMapping(packedMapping);
     }
 
     /**
      * 添加选项。
      */
-    void addOption(int mergeData) {
-        this.optionMap = ArrayUtils.add(this.optionMap, mergeData);
+    void addOptionMapping(int packedMapping) {
+        this.optionMappings = ArrayUtils.add(this.optionMappings, packedMapping);
     }
 
     /**
      * 获取Option。
      */
-    int[] getOptions() {
-        return this.optionMap;
+    int[] getOptionMappings() {
+        return this.optionMappings;
     }
 }

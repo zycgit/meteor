@@ -17,9 +17,9 @@ import net.hasor.cobble.ArrayUtils;
  * byte[3]  contentLength                        内容大小(max ~ 16MB)
  * --------------------------------------------------------bytes =6
  * byte[2]  status                               响应状态
- * byte[2]  serializeType-(attr-index)           序列化策略
- * byte[2]  returnType-(attr-index)              返回数据类型
- * byte[2]  returnData-(attr-index)              返回数据
+ * byte[2]  serializeTypeIndex-(attr-index)           序列化策略
+ * byte[2]  returnTypeIndex-(attr-index)              返回数据类型
+ * byte[2]  returnDataIndex-(attr-index)              返回数据
  * --------------------------------------------------------bytes =1 ~ 1021
  * byte[1]  optionCount                          选项参数总数
  *     byte[4]  attr-0-(attr-index,attr-index)   选项参数1
@@ -36,27 +36,27 @@ import net.hasor.cobble.ArrayUtils;
  * @version : 2014年10月25日
  * @author 赵永春 (zyc@hasor.net)
  */
-class ResponseBlock extends PoolBlock {
-    private byte  rsfHead       = 0;  // byte[1]  RSF头
-    private long  requestID     = 0;  // byte[8]  请求ID
-    private short status        = 0;  // byte[2]  响应状态
-    private short serializeType = 0;  // byte[2]  序列化类型
-    private short returnType    = 0;  // byte[2]  返回数据类型
-    private short returnData    = 0;  // byte[2]  返回数据
-    private int[] optionMap     = {}; // (attr-index,attr-index)
+class RsfV1ResponseFrame extends RsfV1AttributePool {
+    private byte  frameType          = 0;  // byte[1]  RSF头
+    private long  requestID          = 0;  // byte[8]  请求ID
+    private short status             = 0;  // byte[2]  响应状态
+    private short serializeTypeIndex = 0;  // byte[2]  序列化类型
+    private short returnTypeIndex    = 0;  // byte[2]  返回数据类型索引
+    private short returnDataIndex    = 0;  // byte[2]  返回数据索引
+    private int[] optionMappings     = {}; // (attr-index, attr-index)
 
     /**
-     * 获取协议版本。
+     * 获取帧类型。
      */
-    byte getHead() {
-        return this.rsfHead;
+    byte getFrameType() {
+        return this.frameType;
     }
 
     /**
-     * 设置协议版本。
+     * 设置帧类型。
      */
-    void setHead(byte rsfHead) {
-        this.rsfHead = rsfHead;
+    void setFrameType(byte frameType) {
+        this.frameType = frameType;
     }
 
     /**
@@ -90,66 +90,65 @@ class ResponseBlock extends PoolBlock {
     /**
      * 获取序列化类型
      */
-    short getSerializeType() {
-        return this.serializeType;
+    short getSerializeTypeIndex() {
+        return this.serializeTypeIndex;
     }
 
     /**
      * 设置序列化类型
      */
-    void setSerializeType(short serializeType) {
-        this.serializeType = serializeType;
+    void setSerializeTypeIndex(short serializeTypeIndex) {
+        this.serializeTypeIndex = serializeTypeIndex;
     }
 
     /**
      * 获取返回值类型
      */
-    short getReturnType() {
-        return this.returnType;
+    short getReturnTypeIndex() {
+        return this.returnTypeIndex;
     }
 
     /**
      * 设置返回值类型
      */
-    void setReturnType(short returnType) {
-        this.returnType = returnType;
+    void setReturnTypeIndex(short returnTypeIndex) {
+        this.returnTypeIndex = returnTypeIndex;
     }
 
     /**
      * 获取返回值数据
      */
-    short getReturnData() {
-        return this.returnData;
+    short getReturnDataIndex() {
+        return this.returnDataIndex;
     }
 
     /**
      * 设置返回值数据
      */
-    void setReturnData(short returnData) {
-        this.returnData = returnData;
+    void setReturnDataIndex(short returnDataIndex) {
+        this.returnDataIndex = returnDataIndex;
     }
 
     /**
      * 添加选项。
      */
-    void addOption(short paramType, short paramData) {
-        int pType = paramType << 16;
-        int pData = paramData;
-        int mergeData = (pType | pData);
-        this.addOption(mergeData);
+    void addOptionMapping(short nameIndex, short valueIndex) {
+        int encodedName = nameIndex << 16;
+        int packedMapping = encodedName | valueIndex;
+        this.addOptionMapping(packedMapping);
     }
 
     /**
      * 添加选项。
      */
-    void addOption(int mergeData) {
-        this.optionMap = ArrayUtils.add(this.optionMap, mergeData);
+    void addOptionMapping(int packedMapping) {
+        this.optionMappings = ArrayUtils.add(this.optionMappings, packedMapping);
     }
 
     /**
      * 获取Option。
      */
-    int[] getOptions() {
-        return this.optionMap;
+    int[] getOptionMappings() {
+        return this.optionMappings;
     }
 }

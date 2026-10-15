@@ -11,18 +11,18 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /** Reassembles bounded RSF frames from arbitrary byte chunks. */
-public final class RsfFrameDecoder {
+public final class RsfV1FrameDecoder {
     private static final int    HEADER_SIZE = 13;
     private final        int    maxFrameSize;
     private              byte[] frame       = new byte[HEADER_SIZE];
     private              int    used;
 
-    public RsfFrameDecoder(int maxFrameSize) {
+    public RsfV1FrameDecoder(int maxFrameSize) {
         this.maxFrameSize = maxFrameSize;
     }
 
     /** Returns one complete frame, or null when more bytes are needed. */
-    public byte[] read(ByteBuffer input) throws IOException {
+    public byte[] readFrame(ByteBuffer input) throws IOException {
         while (input.hasRemaining()) {
             int count = Math.min(this.frame.length - this.used, input.remaining());
             input.get(this.frame, this.used, count);
