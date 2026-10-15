@@ -9,7 +9,6 @@ package net.hasor.meteor.connector;
 import java.util.function.BiConsumer;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.RouteMatch;
 import net.hasor.meteor.domain.payload.Payload;
 
 /** Protocol SPI. Transport requirements and protocol execution use one contract. */

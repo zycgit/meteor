@@ -9,7 +9,6 @@ package net.hasor.meteor.connector;
 import java.util.*;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.connector.transport.ContextPaths;
 import net.hasor.meteor.domain.ContextPath;
 import net.hasor.meteor.utils.ContextPathUtils;
 
@@ -20,7 +19,7 @@ public final class ProtocolConfig {
     private final String              protocol;
     private       String              mountId;
     private       Map<String, String> options;
-    private       ContextPaths        contexts;
+    private       RouteMounts         contexts;
     private       Set<String>         logicalNames;
 
     ProtocolConfig(String name, String scheme, String protocol, Map<String, String> options) {
@@ -32,6 +31,17 @@ public final class ProtocolConfig {
         if (this.scheme.trim().isEmpty()) {
             throw new IllegalArgumentException("Protocol scheme must not be blank");
         }
+    }
+
+    /** Creates an unresolved protocol selection; SPI resolution is deferred until connector initialization. */
+    public static ProtocolConfig newConfig(String name, String scheme, Map<String, String> options) {
+        String protocolName = normalizeIdentity(name, "Protocol name");
+        String publishedScheme = protocolName;
+        if (!StringUtils.isBlank(scheme)) {
+            publishedScheme = normalizeIdentity(scheme, "Protocol scheme");
+        }
+
+        return new ProtocolConfig(protocolName, publishedScheme, protocolName, options);
     }
 
     /** Logical protocol identifier used by service declarations. */
@@ -83,12 +93,12 @@ public final class ProtocolConfig {
             configured.put("contextPath", ContextPathUtils.normalize(path));
         }
 
-        this.contexts = new ContextPaths(configured);
+        this.contexts = new RouteMounts(configured);
         this.options = Collections.unmodifiableMap(configured);
     }
 
     /** 共享已编译的只读挂载表。 */
-    public ContextPaths contexts() {
+    public RouteMounts contexts() {
         return this.contexts;
     }
 
@@ -166,7 +176,7 @@ public final class ProtocolConfig {
             }
         }
 
-        ContextPaths.Mount mount = this.contexts.get(this.contextPath(selected));
+        RouteMount mount = this.contexts.get(this.contextPath(selected));
         if (mount == null) {
             throw new IllegalArgumentException("No service mount exposes request path: " + fullPath);
         } else {
@@ -175,7 +185,7 @@ public final class ProtocolConfig {
     }
 
     /** 同时校验路径和匹配策略，精确入口不会暴露同路径上的目录服务。 */
-    public boolean accepts(MetBindInfo<?> service, ContextPaths.Mount mount) {
+    public boolean accepts(MetBindInfo<?> service, RouteMount mount) {
         if (mount == null || !this.accepts(service.getBindProtocols())) {
             return false;
         }
@@ -208,7 +218,7 @@ public final class ProtocolConfig {
     }
 
     /** 仅匹配协议目录；精确匹配由端点共享的服务路由表负责。 */
-    public ContextPaths.Mount matchContext(String uri) {
+    public RouteMount matchContext(String uri) {
         return this.contexts.match(uri);
     }
 
@@ -243,6 +253,14 @@ public final class ProtocolConfig {
             throw new IllegalArgumentException(key + " must be positive");
         } else {
             return value;
+        }
+    }
+
+    private static String normalizeIdentity(String value, String description) {
+        if (StringUtils.isBlank(value)) {
+            throw new IllegalArgumentException(description + " must not be blank");
+        } else {
+            return value.toLowerCase(Locale.ROOT);
         }
     }
 }

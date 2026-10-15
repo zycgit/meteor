@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport;
+package net.hasor.meteor.connector;
 
 /** Non-consuming recognition of network data. */
 public enum RouteMatch {

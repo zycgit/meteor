@@ -8,6 +8,7 @@
 package net.hasor.meteor.connector;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -20,7 +21,11 @@ import net.hasor.cobble.concurrent.timer.HashedWheelTimer;
 import net.hasor.cobble.concurrent.timer.Timeout;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.MetContextEvent;
+import net.hasor.meteor.MetContextEventType;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.connector.transport.SocketTransport;
+import net.hasor.meteor.connector.transport.TransportRuntime;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
@@ -30,17 +35,20 @@ import net.hasor.meteor.domain.payload.Payload;
  * The owner serializes init() and close(). Endpoint creation and stopping admission are mutually exclusive.
  */
 public class ConnectorManager implements AutoCloseable {
-    private static final Logger                            logger           = Logger.getLogger(ConnectorManager.class);
+    private static final Logger                            logger         = Logger.getLogger(ConnectorManager.class);
     private final        MetContext                        context;
+    private final        TransportRuntime                  runtime;
     private              HashedWheelTimer                  timer;
-    private volatile     State                             state            = State.STOPPED;
-    private final        AtomicLong                        connectionIds    = new AtomicLong();
-    private final        ReentrantLock                     creationLock     = new ReentrantLock();
+    private volatile     State                             state          = State.STOPPED;
+    private volatile     Thread                            closeThread;
+    private final        AtomicLong                        connectionIds  = new AtomicLong();
+    private final        ReentrantLock                     lifecycleLock  = new ReentrantLock();
+    private final        BasicFuture<Void>                 closeCompleted = new BasicFuture<>();
     //
-    private final        ConnectorAssembler                assembler;
-    private final        Map<String, ConnectorConfig>      connectorConfigs = new LinkedHashMap<>();
-    private final        Map<String, ConnectorEndpoint<?>> connectors       = new LinkedHashMap<>();
-    private final        List<ConnectorSubscriber>         subscribers      = new CopyOnWriteArrayList<>();
+    private final        PlanCompiler                      compiler       = new PlanCompiler();
+    private final        Map<String, ConnectorEndpoint<?>> connectors     = new LinkedHashMap<>();
+    private final        List<ConnectorSubscriber>         subscribers    = new CopyOnWriteArrayList<>();
+    private              RouteRegistry                     routeRegistry;
 
     private enum State {
         STOPPED,
@@ -50,9 +58,9 @@ public class ConnectorManager implements AutoCloseable {
         CLOSED
     }
 
-    public ConnectorManager(MetContext context, ConnectorAssembler assembler) {
+    public ConnectorManager(MetContext context) {
         this.context = Objects.requireNonNull(context, "context");
-        this.assembler = Objects.requireNonNull(assembler, "assembler");
+        this.runtime = new TransportRuntime(this.context.getClassLoader(), this::schedule);
     }
 
     private Map<String, ConnectorConfig> readConfigurations() {
@@ -90,9 +98,9 @@ public class ConnectorManager implements AutoCloseable {
     // life method include init and close
     //
 
-    /** Prepare the supplied assembler and read configurations without opening network resources. */
+    /** Compile every configured endpoint without opening network resources. */
     public void init() {
-        this.creationLock.lock();
+        this.lifecycleLock.lock();
         try {
             synchronized (this) {
                 if (this.state == State.CLOSED) {
@@ -103,18 +111,20 @@ public class ConnectorManager implements AutoCloseable {
                 }
             }
 
-            Set<String> supported = new HashSet<>();
-            for (String name : this.assembler.listenTypes(this.context.getClassLoader())) {
-                supported.add(listenType(name));
-            }
-
+            // 发现传输层和协议扩展，然后统一校验全部端点配置。
+            this.compiler.discover(this.context.getClassLoader());
             Map<String, ConnectorConfig> configured = this.readConfigurations();
+            this.compiler.prepareAll(configured.values());
+
+            // 编译启动计划，并激活独立的运行期路由表。
+            RouteRegistry initializedRoutes = new RouteRegistry(this.context);
+            Map<String, ConnectorEndpoint<?>> endpoints = new LinkedHashMap<>();
             for (ConnectorConfig config : configured.values()) {
-                if (!supported.contains(config.listenType())) {
-                    throw new IllegalArgumentException("No connector factory for " + config.listenType());
-                }
+                PlanConnector<?> plan = this.compiler.compile(config);
+                endpoints.put(config.name(), plan.activate(this, initializedRoutes));
             }
 
+            // The timer and compiled plans become visible as one initialized manager state.
             HashedWheelTimer initializedTimer = new HashedWheelTimer(task -> {
                 Thread thread = new Thread(task, "Meteor-Connector-timer");
                 thread.setContextClassLoader(this.context.getClassLoader());
@@ -122,35 +132,37 @@ public class ConnectorManager implements AutoCloseable {
             });
 
             synchronized (this) {
-                this.connectorConfigs.putAll(configured);
+                this.connectors.putAll(endpoints);
+                this.routeRegistry = initializedRoutes;
                 this.timer = initializedTimer;
                 this.state = State.ACTIVE;
             }
         } finally {
-            this.creationLock.unlock();
+            this.lifecycleLock.unlock();
         }
     }
 
     /** Bind or restart every configured listener, exposing inbound traffic only after all endpoints are ready. */
     public void startInbound() throws Exception {
-        this.creationLock.lock();
+        this.lifecycleLock.lock();
         try {
-            List<ConnectorConfig> configured;
+            List<ConnectorEndpoint<?>> endpoints;
             boolean restarting;
             synchronized (this) {
                 this.requireReady();
                 restarting = this.state == State.INBOUND_STOPPED;
                 this.state = State.OPENING;
-                configured = new ArrayList<>(this.connectorConfigs.values());
+                endpoints = this.bindEndpoints();
             }
 
             try {
-                for (ConnectorConfig config : configured) {
-                    if (!config.bindEnabled()) {
-                        continue;
-                    }
+                // Build all configured inbound transports before any listener is exposed.
+                for (ConnectorEndpoint<?> connector : endpoints) {
+                    connector.init();
+                }
 
-                    ConnectorEndpoint<?> connector = this.getOrCreateConnector(config);
+                // Existing listeners resume only after every endpoint can serve traffic.
+                for (ConnectorEndpoint<?> connector : endpoints) {
                     if (restarting && connector.hasListener()) {
                         connector.startInbound();
                     }
@@ -163,13 +175,13 @@ public class ConnectorManager implements AutoCloseable {
                 throw failure;
             }
         } finally {
-            this.creationLock.unlock();
+            this.lifecycleLock.unlock();
         }
     }
 
     /** Stop accepting new inbound traffic and start draining accepted connections. */
     public void stopInbound() {
-        this.creationLock.lock();
+        this.lifecycleLock.lock();
         try {
             synchronized (this) {
                 this.requireReady();
@@ -185,25 +197,44 @@ public class ConnectorManager implements AutoCloseable {
                 throw (RuntimeException) failure;
             }
         } finally {
-            this.creationLock.unlock();
+            this.lifecycleLock.unlock();
         }
     }
 
     /** Close listeners first, drain all registered channels, then release connector resources. */
     public void close() {
-        // Finish connector creation before stopping admission. Release the lock before closing resources.
-        this.creationLock.lock();
+        boolean startClose = false;
+        List<ConnectorEndpoint<?>> closing = Collections.emptyList();
+        this.lifecycleLock.lock();
         try {
-            if (this.state == State.CLOSED) {
-                return;
+            if (this.state != State.CLOSED) {
+                this.state = State.CLOSED;
+                closing = this.snapshotConnectors();
+                startClose = true;
             }
-            this.state = State.CLOSED;
         } finally {
-            this.creationLock.unlock();
+            this.lifecycleLock.unlock();
         }
 
-        List<ConnectorEndpoint<?>> closing = this.snapshotConnectors();
+        if (startClose) {
+            this.startClose(closing);
+        }
+        if (Thread.currentThread() != this.closeThread && !SocketTransport.isCurrentThreadInTransport()) {
+            this.awaitClose();
+        }
+    }
+
+    private void startClose(List<ConnectorEndpoint<?>> closing) {
+        Thread lifecycle = new Thread(() -> this.closeResources(closing), "Meteor-Connector-close");
+        lifecycle.setContextClassLoader(this.context.getClassLoader());
+        lifecycle.setDaemon(false);
+        this.closeThread = lifecycle;
+        lifecycle.start();
+    }
+
+    private void closeResources(List<ConnectorEndpoint<?>> closing) {
         try {
+            // Stop every listener before any endpoint begins draining its admitted work.
             for (ConnectorEndpoint<?> connector : closing) {
                 try {
                     connector.closeBind();
@@ -212,21 +243,56 @@ public class ConnectorManager implements AutoCloseable {
                 }
             }
 
-            // Each connector drains its connections before releasing transport resources.
             for (ConnectorEndpoint<?> connector : closing) {
                 try {
-                    connector.close();
+                    connector.beginClose();
                 } catch (RuntimeException | Error failure) {
-                    logger.warn("Connector close failed", failure);
+                    logger.warn("Connector close preparation failed", failure);
                 }
             }
+
+            // Drain every logical channel before asking physical connections to finish.
+            List<Future<?>> drainingChannels = new ArrayList<>();
+            for (ConnectorEndpoint<?> connector : closing) {
+                try {
+                    drainingChannels.addAll(connector.drainChannels());
+                } catch (RuntimeException | Error failure) {
+                    logger.warn("Connector channel drain failed", failure);
+                }
+            }
+            this.awaitCloseFutures(drainingChannels, "Connector channel drain failed");
+
+            // Physical drains include transport writes which do not belong to one protocol session.
+            List<Future<?>> drainingConnections = new ArrayList<>();
+            for (ConnectorEndpoint<?> connector : closing) {
+                try {
+                    drainingConnections.addAll(connector.drainConnections());
+                } catch (RuntimeException | Error failure) {
+                    logger.warn("Connector connection drain failed", failure);
+                }
+            }
+            this.awaitCloseFutures(drainingConnections, "Connector connection drain failed");
         } finally {
+            for (ConnectorEndpoint<?> connector : closing) {
+                try {
+                    connector.closeTransport();
+                } catch (RuntimeException | Error failure) {
+                    logger.warn("Connector transport close failed", failure);
+                }
+            }
+
             HashedWheelTimer stopping;
+            RouteRegistry stoppingRoutes;
             synchronized (this) {
                 this.connectors.clear();
-                this.connectorConfigs.clear();
+                stoppingRoutes = this.routeRegistry;
+                this.routeRegistry = null;
                 stopping = this.timer;
                 this.timer = null;
+            }
+
+            if (stoppingRoutes != null) {
+                stoppingRoutes.clear();
             }
 
             if (stopping != null) {
@@ -237,6 +303,70 @@ public class ConnectorManager implements AutoCloseable {
                 }
             }
             this.subscribers.clear();
+            this.closeCompleted.completed(null);
+        }
+    }
+
+    private void awaitCloseFutures(List<Future<?>> pending, String message) {
+        boolean interrupted = false;
+        for (Future<?> future : pending) {
+            for (; ; ) {
+                try {
+                    future.get();
+                    break;
+                } catch (InterruptedException failure) {
+                    interrupted = true;
+                } catch (ExecutionException | RuntimeException failure) {
+                    logger.warn(message, failure);
+                    break;
+                }
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void awaitClose() {
+        boolean interrupted = false;
+        for (; ; ) {
+            try {
+                this.closeCompleted.get();
+                break;
+            } catch (InterruptedException failure) {
+                interrupted = true;
+            } catch (ExecutionException failure) {
+                logger.warn("Connector close failed", failure);
+                break;
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Apply one synchronous service declaration event to every active endpoint route. */
+    protected final void serviceEvent(MetContextEvent event) {
+        MetContextEventType eventType = event.getType();
+        if (eventType != MetContextEventType.REGISTERED && eventType != MetContextEventType.REMOVED) {
+            return;
+        }
+
+        this.lifecycleLock.lock();
+        try {
+            RouteRegistry activeRoutes;
+            synchronized (this) {
+                this.requireReady();
+                activeRoutes = this.routeRegistry;
+            }
+
+            if (eventType == MetContextEventType.REGISTERED) {
+                activeRoutes.registerService(event.getServiceInfo());
+            } else {
+                activeRoutes.removeService(event.getServiceInfo());
+            }
+        } finally {
+            this.lifecycleLock.unlock();
         }
     }
 
@@ -265,15 +395,17 @@ public class ConnectorManager implements AutoCloseable {
             MountTarget target;
             synchronized (this) {
                 this.requireReady();
-                ConnectorConfig endpoint = this.connectorConfigs.get(endpointName);
-                if (endpoint == null) {
+                ConnectorEndpoint<?> connector = this.connectors.get(endpointName);
+                if (connector == null) {
                     throw undefined("Unknown connector endpoint: " + endpointName);
                 }
 
+                ConnectorConfig endpoint = connector.config();
                 List<MountTarget> available = new ArrayList<>();
                 for (ProtocolConfig mount : endpoint.protocols()) {
                     available.add(new MountTarget(endpoint, mount));
                 }
+
                 List<MountTarget> selected = this.selectForConnect(available, selector, address.getSchema());
                 MountTarget resolved = this.requireSingleMount(selected, address.getSchema(), selector);
                 ProtocolConfig mount = resolved.mount();
@@ -286,8 +418,23 @@ public class ConnectorManager implements AutoCloseable {
     }
 
     private Future<MetChannel> connect(MountTarget target, InterAddress address) throws Exception {
-        ConnectorEndpoint<?> connector = this.getOrCreateConnector(target.endpoint());
-        return connector.connect(target.mount().mountId(), address);
+        this.lifecycleLock.lock();
+        try {
+            ConnectorEndpoint<?> connector;
+            synchronized (this) {
+                this.requireReady();
+                connector = this.connectors.get(target.endpoint().name());
+                if (connector == null) {
+                    throw undefined("Unknown connector endpoint: " + target.endpoint().name());
+                }
+            }
+
+            // Starting the transport connection and stopping admission are one lifecycle decision.
+            connector.init();
+            return connector.connect(target.mount().mountId(), address);
+        } finally {
+            this.lifecycleLock.unlock();
+        }
     }
 
     private MountTarget resolve(String scheme, String protocol) {
@@ -325,7 +472,8 @@ public class ConnectorManager implements AutoCloseable {
 
     private List<MountTarget> configuredMounts() {
         List<MountTarget> candidates = new ArrayList<>();
-        for (ConnectorConfig endpoint : this.connectorConfigs.values()) {
+        for (ConnectorEndpoint<?> connector : this.connectors.values()) {
+            ConnectorConfig endpoint = connector.config();
             for (ProtocolConfig mount : endpoint.protocols()) {
                 candidates.add(new MountTarget(endpoint, mount));
             }
@@ -335,7 +483,8 @@ public class ConnectorManager implements AutoCloseable {
 
     private List<MountTarget> findConfiguredMountsByScheme(String scheme) {
         List<MountTarget> candidates = new ArrayList<>();
-        for (ConnectorConfig endpoint : this.connectorConfigs.values()) {
+        for (ConnectorEndpoint<?> connector : this.connectors.values()) {
+            ConnectorConfig endpoint = connector.config();
             for (ProtocolConfig mount : endpoint.protocols()) {
                 if (StringUtils.equalsIgnoreCase(mount.scheme(), scheme)) {
                     candidates.add(new MountTarget(endpoint, mount));
@@ -422,68 +571,10 @@ public class ConnectorManager implements AutoCloseable {
         }
     }
 
-    private ConnectorEndpoint<?> getOrCreateConnector(ConnectorConfig config) throws Exception {
-        synchronized (this) {
-            this.requireReady();
-            ConnectorEndpoint<?> ready = this.connectors.get(config.name());
-            if (ready != null) {
-                return ready;
-            }
-        }
-
-        this.creationLock.lock();
-        try {
-            synchronized (this) {
-                this.requireReady();
-                ConnectorEndpoint<?> ready = this.connectors.get(config.name());
-                if (ready != null) {
-                    return ready;
-                }
-            }
-
-            ConnectorEndpoint<?> connector = null;
-            try {
-                connector = this.assembler.create(config, this);
-                if (!StringUtils.equals(config.name(), connector.config().name())) {
-                    throw new IllegalArgumentException("Provider changed connector name");
-                }
-
-                connector.init();
-                synchronized (this) {
-                    this.connectors.put(config.name(), connector);
-                }
-                return connector;
-            } catch (Exception | Error failure) {
-                if (connector != null) {
-                    try {
-                        connector.close();
-                    } catch (Throwable cleanup) {
-                        if (cleanup != failure) {
-                            failure.addSuppressed(cleanup);
-                        }
-                    }
-                }
-                throw failure;
-            }
-        } finally {
-            this.creationLock.unlock();
-        }
-    }
-
-    //
-
     private static <T> Future<T> failed(Throwable cause) {
         BasicFuture<T> result = new BasicFuture<>();
         result.failed(cause);
         return result;
-    }
-
-    private static String listenType(String type) {
-        Objects.requireNonNull(type, "listenType");
-        if (StringUtils.isBlank(type)) {
-            throw new IllegalArgumentException("listenType must not be blank");
-        }
-        return type.toLowerCase(Locale.ROOT);
     }
 
     private void requireReady() {
@@ -505,6 +596,16 @@ public class ConnectorManager implements AutoCloseable {
 
     private synchronized List<ConnectorEndpoint<?>> snapshotConnectors() {
         return new ArrayList<>(this.connectors.values());
+    }
+
+    private List<ConnectorEndpoint<?>> bindEndpoints() {
+        List<ConnectorEndpoint<?>> endpoints = new ArrayList<>();
+        for (ConnectorEndpoint<?> endpoint : this.connectors.values()) {
+            if (endpoint.config().bindEnabled()) {
+                endpoints.add(endpoint);
+            }
+        }
+        return endpoints;
     }
 
     private Throwable stopAllInbound(Throwable failure) {
@@ -633,6 +734,10 @@ public class ConnectorManager implements AutoCloseable {
 
     public MetContext context() {
         return this.context;
+    }
+
+    TransportRuntime runtime() {
+        return this.runtime;
     }
 
     public synchronized Cancellable schedule(Runnable task, long delayMillis) {

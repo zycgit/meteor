@@ -7,18 +7,15 @@
  */
 package net.hasor.meteor.connector;
 import java.util.Objects;
-import net.hasor.meteor.connector.transport.NetworkRoute;
 
 /** One endpoint-owned runtime mount and all values resolved for its route. */
-final class ProtocolMount<M> {
+final class RouteProtocol<M> {
     private final ProtocolConfig     config;
     private final ProtocolFactory<M> factory;
-    private final NetworkRoute<M>    route;
 
-    ProtocolMount(ProtocolConfig config, ProtocolFactory<M> factory, NetworkRoute<M> route) {
+    RouteProtocol(ProtocolConfig config, ProtocolFactory<M> factory) {
         this.config = Objects.requireNonNull(config, "config");
         this.factory = Objects.requireNonNull(factory, "factory");
-        this.route = Objects.requireNonNull(route, "route");
     }
 
     String mountId() {
@@ -31,9 +28,5 @@ final class ProtocolMount<M> {
 
     ProtocolFactory<M> factory() {
         return this.factory;
-    }
-
-    NetworkRoute<M> route() {
-        return this.route;
     }
 }
