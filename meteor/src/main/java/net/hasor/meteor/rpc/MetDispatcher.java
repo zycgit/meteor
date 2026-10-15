@@ -80,8 +80,7 @@ final class MetDispatcher implements AutoCloseable {
         serviceUniqueName += info.getServiceName() + "-" + info.getServiceVersion();
         try {
             String targetMethod = info.getTargetMethod();
-            String message = "request(" + info.getRequestID() + ") -> received, bindID =" + serviceUniqueName;
-            message += ", targetMethod =" + targetMethod + ", remoteAddress =" + target + ".";
+            String message = "request(" + info.getRequestID() + ") -> received, bindID =" + serviceUniqueName + ", targetMethod =" + targetMethod + ", remoteAddress =" + target + ".";
             logger.info(message);
 
             // 放入业务线程准备执行，再向对端发送接纳回执。

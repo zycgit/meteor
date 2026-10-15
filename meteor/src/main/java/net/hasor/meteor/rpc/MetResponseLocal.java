@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.rpc.filters.thread;
+package net.hasor.meteor.rpc;
 import net.hasor.meteor.MetResponse;
 import net.hasor.meteor.domain.warp.AbstractMetResponseWarp;
 

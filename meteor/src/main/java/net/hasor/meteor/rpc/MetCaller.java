@@ -31,7 +31,7 @@ import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 
-/** Coordinates outbound invocations, inbound dispatch, connector messages and RPC shutdown. */
+/** Coordinates outbound invocations, inbound dispatch and connector messages. */
 public final class MetCaller implements AutoCloseable {
     private static final Logger                    invLogger   = LoggerFactory.getLogger(MetCaller.class);
     private static final AtomicLong                REQUEST_IDS = new AtomicLong(1);
@@ -39,6 +39,7 @@ public final class MetCaller implements AutoCloseable {
     private final        MetContext                context;
     private final        Semaphore                 requestPermits;
     private volatile     boolean                   closed;
+    private              boolean                   resourcesClosed;
     private final        MetDispatcher             dispatcher;
     private final        MetFilterProvider         filterProvider;
     private final        ConnectorManager          connectors;
@@ -57,7 +58,7 @@ public final class MetCaller implements AutoCloseable {
         try {
             this.connectors.subscribe(this::onMessage);
         } catch (RuntimeException | Error failure) {
-            this.closeRpc();
+            this.close();
             throw failure;
         }
     }
@@ -72,28 +73,22 @@ public final class MetCaller implements AutoCloseable {
 
     @Override
     public void close() {
-        if (!this.stop()) {
-            return;
+        synchronized (this) {
+            if (this.resourcesClosed) {
+                return;
+            }
+            this.closed = true;
+            this.resourcesClosed = true;
         }
-
-        try {
-            this.connectors.close();
-        } finally {
-            this.closeRpc();
-        }
+        this.closeOwnedResources();
     }
 
     /** Stop admission while allowing responses to complete already registered calls. */
-    private synchronized boolean stop() {
-        if (this.closed) {
-            return false;
-        }
-
+    public synchronized void stopAdmission() {
         this.closed = true;
-        return true;
     }
 
-    private void closeRpc() {
+    private void closeOwnedResources() {
         try {
             List<PendingRequest> pending;
             synchronized (this) {
@@ -208,13 +203,15 @@ public final class MetCaller implements AutoCloseable {
     }
 
     private void invokeByLocal(MetRequestObject request, MetResponseObject response, Object target) throws Throwable {
-        try {
-            Method method = request.getMethod();
-            Object result = method.invoke(target, request.getParameterObject());
-            response.sendData(result);
-        } catch (InvocationTargetException e) {
-            throw e.getTargetException();
-        }
+        MetInvocationContext.invoke(request, response, (currentRequest, currentResponse) -> {
+            try {
+                Method method = currentRequest.getMethod();
+                Object result = method.invoke(target, currentRequest.getParameterObject());
+                currentResponse.sendData(result);
+            } catch (InvocationTargetException e) {
+                throw e.getTargetException();
+            }
+        });
     }
 
     private void invokeByDistributed(MetRequestObject request, MetResponseObject response, MetFuture future) throws Throwable {
@@ -227,7 +224,7 @@ public final class MetCaller implements AutoCloseable {
                 this.sendRequest(future);
             }
         });
-        filters.doFilter(request, response);
+        MetInvocationContext.invoke(request, response, filters);
     }
 
     private void sendRequest(MetFuture future) throws Exception {
@@ -556,7 +553,12 @@ public final class MetCaller implements AutoCloseable {
                 errorInfo = "RPC failed, status = " + info.getStatus();
             }
 
-            invLogger.error("response(" + request.getRequestID() + ") -> statusFailed, bindID =" + request.getBindInfo().getBindID() + ", status =" + info.getStatus() + ".");
+            long requestId = request.getRequestID();
+            String bindId = request.getBindInfo().getBindID();
+            short status = info.getStatus();
+            String logPrefix = "response(" + requestId + ") -> statusFailed";
+            String message = logPrefix + ", bindID =" + bindId + ", status =" + status + ".";
+            invLogger.error(message);
             future.failed(new MetException(info.getStatus(), errorInfo));
             return;
         }
@@ -572,7 +574,9 @@ public final class MetCaller implements AutoCloseable {
         MetResponseObject response = new MetResponseObject(request);
         response.setOptions(info);
         response.sendData(result);
-        invLogger.info("response(" + request.getRequestID() + ") -> successful, bindID =" + request.getBindInfo().getBindID() + ".");
+        long requestId = request.getRequestID();
+        String bindId = request.getBindInfo().getBindID();
+        invLogger.info("response(" + requestId + ") -> successful, bindID =" + bindId + ".");
         future.completed(response);
     }
 

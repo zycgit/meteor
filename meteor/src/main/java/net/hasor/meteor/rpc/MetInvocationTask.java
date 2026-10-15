@@ -13,6 +13,7 @@ import java.util.function.Supplier;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFilter;
 import net.hasor.meteor.MetFilterChain;
 import net.hasor.meteor.address.InterAddress;
@@ -90,7 +91,8 @@ final class MetInvocationTask implements Runnable {
             if (pTypeList.size() != pObjectList.size()) {
                 String errorInfo = "do request(" + requestID + ") failed -> parameter count differs from type count.";
                 this.logger.error(errorInfo);
-                ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.InvokeError, errorInfo);
+                short status = ProtocolStatus.InvokeError;
+                ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, status, errorInfo);
                 this.sendResponse(info);
                 return;
             }
@@ -107,9 +109,12 @@ final class MetInvocationTask implements Runnable {
             }
         } catch (Throwable e) {
             String errorMessage = "(" + e.getClass().getName() + ")" + e.getMessage();
-            String errorInfo = "do request(" + requestID + ") failed -> serializeType(" + serializeType + ") ,serialize error: " + errorMessage;
+            String requestPrefix = "do request(" + requestID + ") failed";
+            String serializeInfo = "serializeType(" + serializeType + ")";
+            String errorInfo = requestPrefix + " -> " + serializeInfo + " ,serialize error: " + errorMessage;
             this.logger.error(errorInfo, e);
-            ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.SerializeError, errorInfo);
+            short status = ProtocolStatus.SerializeError;
+            ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, status, errorInfo);
             this.sendResponse(info);
             return;
         }
@@ -123,14 +128,17 @@ final class MetInvocationTask implements Runnable {
             String errorMessage = "(" + e.getClass().getName() + ")" + e.getMessage();
             String errorInfo = "do request(" + requestID + ") failed -> lookup service method error : " + errorMessage;
             this.logger.error(errorInfo, e);
-            ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.Forbidden, errorInfo);
+            short status = ProtocolStatus.Forbidden;
+            ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, status, errorInfo);
             this.sendResponse(info);
             return;
         }
 
         MetResponseObject rsfResponse = null;
         try {
-            MetRequestObject rsfRequest = new MetRequestObject(requestID, false, this.dispatcher.getContext(), bindInfo, targetMethod, pObjects);
+            MetContext context = this.dispatcher.getContext();
+            MetRequestObject rsfRequest = new MetRequestObject(//
+                    requestID, false, context, bindInfo, targetMethod, pObjects);
             rsfRequest.setPeerAddress(this.target);
             rsfRequest.setFlags(this.requestInfo.getFlags());
             rsfRequest.setSerializeType(this.requestInfo.getSerializeType());
@@ -143,12 +151,14 @@ final class MetInvocationTask implements Runnable {
 
             String serviceID = bindInfo.getBindID();
             Supplier<MetFilter>[] rsfFilters = this.dispatcher.getFilterProviders(serviceID);
-            new MetFilterHandler(rsfFilters, INVOCATION_EXECUTOR).doFilter(rsfRequest, rsfResponse);
+            MetFilterHandler invocation = new MetFilterHandler(rsfFilters, INVOCATION_EXECUTOR);
+            MetInvocationContext.invoke(rsfRequest, rsfResponse, invocation);
 
             this.sendResponse(rsfResponse);//将Response写入客户端。
         } catch (Throwable e) {
             String errorMessage = "(" + e.getClass().getName() + ")" + e.getMessage();
-            String msgLog = "do request(" + requestID + ") failed -> service " + bindInfo.getBindID() + ", error :" + errorMessage;
+            String serviceID = bindInfo.getBindID();
+            String msgLog = "do request(" + requestID + ") failed -> service " + serviceID + ", error :" + errorMessage;
             this.logger.error(msgLog, e);
             ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.InvokeError, msgLog);
             info.setFailure(e);
@@ -190,7 +200,9 @@ final class MetInvocationTask implements Runnable {
             info = MetPayloadBuilder.buildResponsePayload(rsfResponse);
         } catch (Throwable e) {
             String errorMessage = "(" + e.getClass().getName() + ")" + e.getMessage();
-            String errorInfo = "do request(" + requestID + ") failed -> serializeType(" + serializeType + ") ,serialize error: " + errorMessage;
+            String requestPrefix = "do request(" + requestID + ") failed";
+            String serializeInfo = "serializeType(" + serializeType + ")";
+            String errorInfo = requestPrefix + " -> " + serializeInfo + " ,serialize error: " + errorMessage;
             this.logger.error(errorInfo, e);
             info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.SerializeError, errorInfo);
         }
