@@ -9,14 +9,17 @@ package net.hasor.meteor.connector.transport;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import net.hasor.meteor.connector.RouteDefinition;
+import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.neta.bytebuf.ByteBuf;
 
 /** Non-consuming bounded stream probes; datagrams are inspected as complete messages. */
-public final class ByteRoutingUtils {
-    private ByteRoutingUtils() {
+public final class RouteByteUtils {
+    private RouteByteUtils() {
     }
 
-    public static String select(List<ByteBuf> buffers, Map<String, NetworkRoute<byte[]>> routes, int limit, boolean datagram) {
+    public static String select(List<ByteBuf> buffers, Map<String, RouteDefinition<byte[]>> routes, //
+            int limit, boolean datagram) {
         byte[] prefix = new byte[limit];
         int length = 0;
         for (ByteBuf buffer : buffers) {
@@ -31,22 +34,26 @@ public final class ByteRoutingUtils {
         prefix = Arrays.copyOf(prefix, length);
         String selected = null;
         boolean more = false;
-        for (Map.Entry<String, NetworkRoute<byte[]>> route : routes.entrySet()) {
-            RouteMatch match = route.getValue().match(prefix);
-            if (match == RouteMatch.MATCH) {
+        for (Map.Entry<String, RouteDefinition<byte[]>> route : routes.entrySet()) {
+            RouteProbeResult probe = route.getValue().probe(prefix);
+            if (probe == RouteProbeResult.MATCH) {
                 if (selected != null) {
-                    throw new IllegalArgumentException("Ambiguous network route: " + selected + " and " + route.getKey());
+                    String message = "Ambiguous network route: " + selected + " and " + route.getKey();
+                    throw new IllegalArgumentException(message);
                 }
                 selected = route.getKey();
             }
-            more |= match == RouteMatch.NEED_MORE;
+            more |= probe == RouteProbeResult.NEED_MORE;
         }
 
+        if (!datagram && more) {
+            if (length < limit) {
+                return null;
+            }
+            throw new IllegalArgumentException("Network route remains unresolved at probe limit");
+        }
         if (selected != null) {
             return selected;
-        }
-        if (!datagram && more && length < limit) {
-            return null;
         }
 
         throw new IllegalArgumentException("No route matches the received " + (datagram ? "datagram" : "prefix"));

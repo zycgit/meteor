@@ -9,16 +9,17 @@ package net.hasor.meteor.connector;
 import java.util.*;
 import java.util.function.Function;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.connector.transport.NetworkConnectorFactory;
+import net.hasor.meteor.connector.transport.TransportFactory;
 import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.TransportPlan;
 
 /** Discovers connector SPIs and compiles immutable startup plans without allocating network resources. */
 final class PlanCompiler {
-    private final Map<String, NetworkConnectorFactory<?>> transports = new LinkedHashMap<>();
-    private final Map<String, ProtocolFactory<?>>         protocols  = new LinkedHashMap<>();
-    private final Set<ConnectorConfig>                    prepared   = Collections.newSetFromMap(new IdentityHashMap<>());
-    private       ClassLoader                             loader;
+    private final Map<String, TransportFactory<?>> discoveredTransports = new LinkedHashMap<>();
+    private final Map<String, ProtocolFactory<?>>  discoveredProtocols  = new LinkedHashMap<>();
+    private final Set<ConnectorConfig>             preparedConfigs      = //
+            Collections.newSetFromMap(new IdentityHashMap<>());
+    private       ClassLoader                      loader;
 
     void discover(ClassLoader loader) {
         if (this.loader == loader) {
@@ -26,23 +27,23 @@ final class PlanCompiler {
         }
 
         // 发现并校验传输层 SPI。
-        Map<String, NetworkConnectorFactory<?>> networks = new LinkedHashMap<>();
-        for (NetworkConnectorFactory<?> factory : ServiceLoader.load(NetworkConnectorFactory.class, loader)) {
-            put(networks, factory.name(), factory, "transport");
+        Map<String, TransportFactory<?>> transports = new LinkedHashMap<>();
+        for (TransportFactory<?> factory : ServiceLoader.load(TransportFactory.class, loader)) {
+            put(transports, factory.name(), factory, "transport");
         }
 
         // 发现并校验协议 SPI。
-        Map<String, ProtocolFactory<?>> codecs = new LinkedHashMap<>();
+        Map<String, ProtocolFactory<?>> protocols = new LinkedHashMap<>();
         for (ProtocolFactory<?> factory : ServiceLoader.load(ProtocolFactory.class, loader)) {
-            put(codecs, factory.name(), factory, "protocol");
+            put(protocols, factory.name(), factory, "protocol");
         }
 
         // 两类 SPI 都加载成功后再替换当前规划器的发现结果。
-        this.transports.clear();
-        this.transports.putAll(networks);
-        this.protocols.clear();
-        this.protocols.putAll(codecs);
-        this.prepared.clear();
+        this.discoveredTransports.clear();
+        this.discoveredTransports.putAll(transports);
+        this.discoveredProtocols.clear();
+        this.discoveredProtocols.putAll(protocols);
+        this.preparedConfigs.clear();
         this.loader = loader;
     }
 
@@ -50,13 +51,13 @@ final class PlanCompiler {
     void prepareAll(Collection<ConnectorConfig> configs) {
         this.configureLogicalNames(configs);
         for (ConnectorConfig config : configs) {
-            NetworkConnectorFactory<?> transport = this.transports.get(config.listenType());
+            TransportFactory<?> transport = this.discoveredTransports.get(config.transportType());
             if (transport == null) {
-                throw new IllegalArgumentException("Unknown transport: " + config.listenType());
+                throw new IllegalArgumentException("Unknown transport: " + config.transportType());
             }
-            if (!this.prepared.contains(config)) {
+            if (!this.preparedConfigs.contains(config)) {
                 this.prepare(config, transport);
-                this.prepared.add(config);
+                this.preparedConfigs.add(config);
             }
         }
     }
@@ -75,7 +76,7 @@ final class PlanCompiler {
         }
     }
 
-    private <M> void prepare(ConnectorConfig config, NetworkConnectorFactory<M> transport) {
+    private <M> void prepare(ConnectorConfig config, TransportFactory<M> transport) {
         // 参数优先级：协议显式配置 > 端点公共参数 > 协议默认值。
         Map<String, Map<String, String>> routes = new LinkedHashMap<>();
         for (ProtocolConfig mount : config.protocols()) {
@@ -131,44 +132,44 @@ final class PlanCompiler {
         }
     }
 
-    PlanConnector<?> compile(ConnectorConfig config) {
-        NetworkConnectorFactory<?> transport = this.transports.get(config.listenType());
+    PlanEndpoint<?> compile(ConnectorConfig config) {
+        TransportFactory<?> transport = this.discoveredTransports.get(config.transportType());
         if (transport == null) {
-            throw new IllegalArgumentException("Unknown transport: " + config.listenType());
+            throw new IllegalArgumentException("Unknown transport: " + config.transportType());
         }
         return this.compile(config, transport);
     }
 
-    private <M> PlanConnector<M> compile(ConnectorConfig config, NetworkConnectorFactory<M> transport) {
+    private <M> PlanEndpoint<M> compile(ConnectorConfig config, TransportFactory<M> transport) {
         // 将协议挂载编译成运行期协议与路由值。
-        Map<String, RouteProtocol<M>> protocols = new LinkedHashMap<>();
-        Map<String, Map<String, String>> routeOptions = new LinkedHashMap<>();
-        Map<String, RouteEntry<M>> routeEntries = new LinkedHashMap<>();
+        Map<String, ProtocolMountBinding<M>> protocolBindings = new LinkedHashMap<>();
+        Map<String, Map<String, String>> protocolOptionsByMount = new LinkedHashMap<>();
+        Map<String, RouteDefinition<M>> routeDefinitions = new LinkedHashMap<>();
         for (ProtocolConfig mount : config.protocols()) {
             ProtocolFactory<M> protocol = this.resolve(mount, transport);
-            Function<M, RouteMatch> probe = message -> protocol.probe(mount, message);
-            RouteEntry<M> route = new RouteEntry<>(mount.options(), mount.contexts(), probe);
-            protocols.put(mount.mountId(), new RouteProtocol<>(mount, protocol));
-            routeEntries.put(mount.mountId(), route);
-            routeOptions.put(mount.mountId(), mount.options());
+            Function<M, RouteProbeResult> probe = message -> protocol.probe(mount, message);
+            RouteDefinition<M> route = new RouteDefinition<>(mount.options(), mount.contexts(), probe);
+            protocolBindings.put(mount.mountId(), new ProtocolMountBinding<>(mount, protocol));
+            routeDefinitions.put(mount.mountId(), route);
+            protocolOptionsByMount.put(mount.mountId(), mount.options());
         }
 
         // 传输计划只保留运行时创建连接器所需的不可变装配结果。
-        PlanRoutes<M> routePlan = new PlanRoutes<>(routeEntries);
+        PlanRouteTable<M> routeTablePlan = new PlanRouteTable<>(routeDefinitions);
         TransportConfig transportConfig = new TransportConfig(//
-                config.name(), config.address(), config.bindEnabled(), config.options(), routeOptions);
+                config.name(), config.address(), config.bindEnabled(), config.options(), protocolOptionsByMount);
         TransportPlan<M> transportPlan = transport.prepare(transportConfig, this.loader);
-        return new PlanConnector<>(config, transportPlan, transport.sharedRoutes(), protocols, routePlan);
+        return new PlanEndpoint<>(config, transportPlan, transport.sharedRoutes(), protocolBindings, routeTablePlan);
     }
 
     @SuppressWarnings("unchecked")
-    private <M> ProtocolFactory<M> resolve(ProtocolConfig config, NetworkConnectorFactory<M> transport) {
-        ProtocolFactory<?> protocol = this.protocols.get(config.protocol());
+    private <M> ProtocolFactory<M> resolve(ProtocolConfig config, TransportFactory<M> transport) {
+        ProtocolFactory<?> protocol = this.discoveredProtocols.get(config.factoryName());
         if (protocol == null) {
-            throw new IllegalArgumentException("Unknown protocol: " + config.protocol());
+            throw new IllegalArgumentException("Unknown protocol: " + config.factoryName());
         }
-        if (!StringUtils.equalsIgnoreCase(transport.name(), protocol.transport())) {
-            String message = "Protocol " + protocol.name() + " requires transport " + protocol.transport();
+        if (!StringUtils.equalsIgnoreCase(transport.name(), protocol.transportType())) {
+            String message = "Protocol " + protocol.name() + " requires transport " + protocol.transportType();
             message += ", endpoint uses " + transport.name();
             throw new IllegalArgumentException(message);
         }

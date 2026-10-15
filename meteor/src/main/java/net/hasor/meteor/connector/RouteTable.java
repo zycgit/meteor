@@ -6,19 +6,64 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
-/** Runtime routing contract consumed by transports after startup planning has completed. */
-public interface RouteTable<M> {
+/** Immutable runtime route table consumed by transports after startup planning has completed. */
+public final class RouteTable<M> {
+    private final Map<String, RouteDefinition<M>> definitions;
+    private final List<RouteSelection>             prefixes;
+    private final Function<String, RouteSelection> exactResolver;
+
+    RouteTable(Map<String, RouteDefinition<M>> definitions, List<RouteSelection> prefixes, //
+            Function<String, RouteSelection> exactResolver) {
+        this.definitions = definitions;
+        this.prefixes = prefixes;
+        this.exactResolver = exactResolver;
+    }
+
     /** Return immutable protocol entries indexed by their runtime mount ID. */
-    Map<String, RouteEntry<M>> entries();
+    public Map<String, RouteDefinition<M>> definitions() {
+        return this.definitions;
+    }
 
     /** Return whether the supplied runtime mount ID belongs to this endpoint. */
-    boolean contains(String mountId);
+    public boolean contains(String mountId) {
+        return this.definitions.containsKey(mountId);
+    }
 
     /** Select an HTTP-style route from its request URI. */
-    RouteSelection select(String uri);
+    public RouteSelection select(String uri) {
+        RouteSelection exact = this.exactResolver == null ? null : this.exactResolver.apply(uri);
+        if (exact != null) {
+            return exact;
+        }
+
+        int query = uri.indexOf('?');
+        int end = query < 0 ? uri.length() : query;
+        for (RouteSelection route : this.prefixes) {
+            if (route.matches(uri, end)) {
+                return route;
+            }
+        }
+        return null;
+    }
 
     /** Validate an explicit mount or resolve the only mount when no selection was supplied. */
-    String fixedMount(String mountId);
+    public String resolveMountId(String mountId) {
+        if (mountId != null) {
+            if (!this.definitions.containsKey(mountId)) {
+                throw new IllegalArgumentException("Unknown protocol mount: " + mountId);
+            }
+
+            return mountId;
+        }
+
+        if (this.definitions.size() == 1) {
+            return this.definitions.keySet().iterator().next();
+        }
+
+        return null;
+    }
 }

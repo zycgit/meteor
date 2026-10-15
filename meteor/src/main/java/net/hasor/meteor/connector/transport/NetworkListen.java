@@ -15,5 +15,11 @@ public interface NetworkListen extends AutoCloseable {
 
     void onClose(Runnable action);
 
+    /** Suspend admission without completing the close callback. */
+    void suspend();
+
+    /** Resume admission after suspension. */
+    void resume();
+
     void close();
 }

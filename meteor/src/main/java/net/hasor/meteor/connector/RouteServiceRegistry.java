@@ -14,16 +14,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.domain.MetServiceType;
 
 /** Owns dynamic service routes after startup plans have been activated. */
-final class RouteRegistry {
+final class RouteServiceRegistry {
     private final MetContext                 context;
     private final Map<String, RouteEndpoint> endpoints = new LinkedHashMap<>();
 
-    RouteRegistry(MetContext context) {
+    RouteServiceRegistry(MetContext context) {
         this.context = Objects.requireNonNull(context, "context");
     }
 
     synchronized <M> Function<String, RouteSelection> addEndpoint(ConnectorConfig config, //
-            Collection<RouteProtocol<M>> protocols) {
+            Collection<ProtocolMountBinding<M>> protocols) {
         RouteEndpoint endpoint = new RouteEndpoint(config, protocols);
         if (this.endpoints.putIfAbsent(config.name(), endpoint) != null) {
             throw new IllegalArgumentException("Duplicate route endpoint: " + config.name());
@@ -139,9 +139,9 @@ final class RouteRegistry {
 
     private String transport(ProtocolConfig config) {
         for (RouteEndpoint endpoint : this.endpoints.values()) {
-            RouteProtocol<?> protocol = endpoint.protocols.get(config.mountId());
+            ProtocolMountBinding<?> protocol = endpoint.protocols.get(config.mountId());
             if (protocol != null && protocol.config() == config) {
-                return protocol.factory().transport();
+                return protocol.factory().transportType();
             }
         }
         throw new IllegalArgumentException("Protocol route is not active: " + config.name());
@@ -160,7 +160,8 @@ final class RouteRegistry {
         private final List<RouteSelection>        routes;
         private final Map<String, RouteSelection> exact;
 
-        private RouteUpdate(RouteEndpoint endpoint, MetBindInfo<?> service, List<RouteSelection> routes, Map<String, RouteSelection> exact) {
+        private RouteUpdate(RouteEndpoint endpoint, MetBindInfo<?> service, //
+                List<RouteSelection> routes, Map<String, RouteSelection> exact) {
             this.endpoint = endpoint;
             this.service = service;
             this.routes = routes;
@@ -173,16 +174,16 @@ final class RouteRegistry {
     }
 
     private static final class RouteEndpoint {
-        private final    ConnectorConfig                           config;
-        private final    Map<String, RouteProtocol<?>>             protocols;
-        private final    Map<MetBindInfo<?>, List<RouteSelection>> registrations = new IdentityHashMap<>();
-        private volatile Map<String, RouteSelection>               exact         = Collections.emptyMap();
+        private final    ConnectorConfig                             config;
+        private final    Map<String, ProtocolMountBinding<?>>             protocols;
+        private final    Map<MetBindInfo<?>, List<RouteSelection>>   registrations = new IdentityHashMap<>();
+        private volatile Map<String, RouteSelection>                 exact         = Collections.emptyMap();
 
-        private <M> RouteEndpoint(ConnectorConfig config, Collection<RouteProtocol<M>> protocols) {
+        private <M> RouteEndpoint(ConnectorConfig config, Collection<ProtocolMountBinding<M>> protocols) {
             this.config = config;
-            Map<String, RouteProtocol<?>> mounted = new LinkedHashMap<>();
-            for (RouteProtocol<M> protocol : protocols) {
-                RouteProtocol<?> previous = mounted.putIfAbsent(protocol.mountId(), protocol);
+            Map<String, ProtocolMountBinding<?>> mounted = new LinkedHashMap<>();
+            for (ProtocolMountBinding<M> protocol : protocols) {
+                ProtocolMountBinding<?> previous = mounted.putIfAbsent(protocol.mountId(), protocol);
                 if (previous != null) {
                     throw new IllegalArgumentException("Duplicate protocol mount: " + protocol.mountId());
                 }
@@ -191,7 +192,7 @@ final class RouteRegistry {
         }
 
         private RouteUpdate prepare(MetBindInfo<?> service) {
-            for (RouteProtocol<?> protocol : this.protocols.values()) {
+            for (ProtocolMountBinding<?> protocol : this.protocols.values()) {
                 ProtocolConfig config = protocol.config();
                 if (config.accepts(service.getBindProtocols())) {
                     protocol.factory().validateService(config, service);
@@ -200,8 +201,8 @@ final class RouteRegistry {
 
             List<RouteSelection> additions = new ArrayList<>();
             boolean provider = !service.isShadow() && service.getServiceType() == MetServiceType.Provider;
-            if (provider && StringUtils.equalsIgnoreCase(this.config.listenType(), "http")) {
-                for (RouteProtocol<?> protocol : this.protocols.values()) {
+            if (provider && StringUtils.equalsIgnoreCase(this.config.transportType(), "http")) {
+                for (ProtocolMountBinding<?> protocol : this.protocols.values()) {
                     this.addExactRoutes(service, protocol.config(), additions);
                 }
             }
@@ -239,7 +240,8 @@ final class RouteRegistry {
             return Collections.unmodifiableMap(selected);
         }
 
-        private void register(MetBindInfo<?> service, List<RouteSelection> routes, Map<String, RouteSelection> selected) {
+        private void register(MetBindInfo<?> service, List<RouteSelection> routes, //
+                Map<String, RouteSelection> selected) {
             if (routes.isEmpty()) {
                 this.registrations.remove(service);
             } else {

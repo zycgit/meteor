@@ -8,16 +8,18 @@
 package net.hasor.meteor.connector.transport;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.connector.RouteTable;
 
 public interface NetworkConnector<M> extends AutoCloseable {
-    NetworkListen bind(InterAddress address, ChannelFactory<M> factory) throws Exception;
+    NetworkListen bind(InterAddress address, RouteTable<M> routes, ChannelListenerFactory<M> factory) throws Exception;
 
     /**
      * Establishes a transport channel and installs its receiver. The receiver observes activation.
      * HTTP establishes a logical channel here and opens its socket on the first exchange.
      * Application handshakes, if any, run above this operation.
      */
-    Future<Void> connect(InterAddress address, ChannelFactory<M> factory);
+    Future<Void> connect(InterAddress address, RouteTable<M> routes, String initialMountId, //
+            ChannelListenerFactory<M> factory);
 
     /** Releases network resources. Drain individual channels first when graceful shutdown is required. */
     void close();

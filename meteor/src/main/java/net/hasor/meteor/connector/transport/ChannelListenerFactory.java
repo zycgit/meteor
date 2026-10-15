@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.connector.transport;
 
-/** A selected route travels with its message, independently of subsequent routing decisions. */
-public record InboundMessage<M>(String route, M message) {
+/** Creates the listener after close observation is installed and before channel events are delivered. */
+public interface ChannelListenerFactory<M> {
+    ChannelListener<M> createListener(NetworkChannel<M> channel) throws Exception;
 }

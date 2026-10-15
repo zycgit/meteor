@@ -17,34 +17,33 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.transport.ChannelListener;
-import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 
-/** Common RSF channel facade and write lifecycle for every protocol session. */
+/** Connector-side channel facade and write lifecycle for one protocol session. */
 final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
-    private final long                    channelId;
-    private final String                  protocol;
-    private final String                  serializeType;
-    private final Executor                executor;
-    private final ConnectorEndpoint<?>    owner;
-    private final BasicFuture<MetChannel> closed    = new BasicFuture<>();
-    private final Set<BasicFuture<?>>     submitted = new HashSet<>();
-    private       boolean                 draining;
-    private final NetworkChannel<M>       connection;
-    private final ProtocolSession<M>      session;
-    private final BasicFuture<MetChannel> connecting;
-    private       boolean                 connected;
+    private final long                      channelId;
+    private final String                    protocol;
+    private final String                    serializeType;
+    private final Executor                  executor;
+    private final ConnectorEndpoint<?>      owner;
+    private final BasicFuture<MetChannel>   closed    = new BasicFuture<>();
+    private final Set<BasicFuture<?>>       submitted = new HashSet<>();
+    private       boolean                   draining;
+    private final ProtocolNetworkChannel<M> connection;
+    private final ProtocolSession<M>        session;
+    private final BasicFuture<MetChannel>   connectResult;
+    private       boolean                   connected;
 
     ConnectorChannel(ConnectorEndpoint<?> owner, long id, Executor executor, //
-            NetworkChannel<M> connection, ProtocolFactory<M> factory, //
-            BasicFuture<MetChannel> connecting, ProtocolConfig protocolConfig) {
+            ProtocolNetworkChannel<M> connection, ProtocolFactory<M> factory, //
+            BasicFuture<MetChannel> connectResult, ProtocolConfig protocolConfig) {
         this.channelId = id;
         this.protocol = protocolConfig.name();
         this.owner = owner;
         this.executor = executor;
         this.connection = connection;
-        this.connecting = connecting;
+        this.connectResult = connectResult;
         this.serializeType = protocolConfig.option("serializeType", null);
 
         InterAddress local = owner.getBindAddress();
@@ -55,9 +54,10 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
         }
 
         ConnectorManager manager = owner.manager();
-        boolean outbound = connecting != null;
-        ProtocolContext context = new ProtocolContext(manager.context(), manager::schedule, advertised, outbound);
-        this.session = factory.create(protocolConfig, context, connection, this::received);
+        boolean outbound = connectResult != null;
+        ProtocolSessionContext context = new ProtocolSessionContext(//
+                manager.context(), manager::schedule, advertised, outbound);
+        this.session = factory.createSession(protocolConfig, context, connection, this::publishMessage);
         this.session.ready().onFinal(done -> {
             this.connection.execute(() -> this.completeConnect(done));
         });
@@ -65,21 +65,21 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
 
     private void completeConnect(Future<Void> done) {
         if (done.isCancelled() || done.getCause() != null) {
-            if (this.connecting != null) {
+            if (this.connectResult != null) {
                 Throwable failure = done.getCause();
                 if (done.isCancelled()) {
                     failure = new CancellationException("Protocol handshake cancelled");
                 }
-                this.connecting.failed(failure);
+                this.connectResult.failed(failure);
             }
 
             this.close();
-        } else if (this.connected && this.connection.isOpen() && this.connecting != null) {
-            if (!this.connecting.isDone()) {
-                if (!this.connecting.completed(this)) {
+        } else if (this.connected && this.connection.isOpen() && this.connectResult != null) {
+            if (!this.connectResult.isDone()) {
+                if (!this.connectResult.completed(this)) {
                     this.close();
                 }
-            } else if (this.connecting.isCancelled()) {
+            } else if (this.connectResult.isCancelled()) {
                 this.close();
             }
         }
@@ -87,7 +87,7 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
 
     @Override
     public void connected() {
-        this.manageChannel();
+        this.registerChannel();
         if (this.connection.isOpen()) {
             this.connected = true;
             this.session.connected();
@@ -107,11 +107,15 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
         try {
             this.session.closed(error);
         } finally {
-            if (this.connecting != null) {
-                this.connecting.failed(error);
+            if (this.connectResult != null) {
+                this.connectResult.failed(error);
             }
-            this.forgetChannel();
+            this.unregisterChannel();
         }
+    }
+
+    void networkClosed(Throwable failure) {
+        this.connection.terminate(failure);
     }
 
     @Override
@@ -137,7 +141,7 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
     public Future<MetChannel> sendData(Payload payload) {
         BasicFuture<MetChannel> sent = new BasicFuture<>();
         if (this.admitWrite(sent)) {
-            this.executeWrite(this.executor, sent, () -> {
+            this.executeWrite(sent, () -> {
                 if (!sent.isCancelled()) {
                     if (payload instanceof RequestPayload request && StringUtils.isBlank(request.getSerializeType())) {
                         request.setSerializeType(this.serializeType);
@@ -161,32 +165,24 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
         return sent;
     }
 
-    private void received(long id, Payload payload) {
-        this.owner.received(this, id, payload);
-    }
-
-    private void prepareDrain() {
-        this.session.prepareDrain();
-    }
-
-    private void closeAfterDrain() {
-        this.connection.drainAndClose();
+    private void publishMessage(long id, Payload payload) {
+        this.owner.publishMessage(this, id, payload);
     }
 
     Future<MetChannel> close() {
         this.stopWrites();
         this.connection.close();
-        return this.closeFuture();
+        return this.closed;
     }
 
-    private void manageChannel() {
+    private void registerChannel() {
         if (!this.closed.isDone()) {
-            this.owner.connected(this);
+            this.owner.registerChannel(this);
         }
     }
 
-    private void forgetChannel() {
-        this.owner.disconnected(this);
+    private void unregisterChannel() {
+        this.owner.unregisterChannel(this);
         ArrayList<BasicFuture<?>> pending;
         synchronized (this) {
             this.draining = true;
@@ -201,10 +197,6 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
 
     private synchronized void stopWrites() {
         this.draining = true;
-    }
-
-    private BasicFuture<MetChannel> closeFuture() {
-        return this.closed;
     }
 
     private boolean admitWrite(BasicFuture<?> sent) {
@@ -230,8 +222,8 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
             this.draining = true;
         }
 
-        this.executeWrite(this.executor, this.closed, () -> {
-            this.prepareDrain();
+        this.executeWrite(this.closed, () -> {
+            this.session.prepareDrain();
             this.checkDrain();
         });
 
@@ -246,13 +238,13 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
         }
 
         // Completion may run inside Neta's pipeline; close only on the ordered executor.
-        this.executeWrite(this.executor, this.closed, () -> {
+        this.executeWrite(this.closed, () -> {
             synchronized (this) {
                 if (!this.submitted.isEmpty()) {
                     return;
                 }
             }
-            this.closeAfterDrain();
+            this.connection.drainAndClose();
         });
     }
 
@@ -266,9 +258,9 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
         }
     }
 
-    private void executeWrite(Executor executor, BasicFuture<?> result, Runnable action) {
+    private void executeWrite(BasicFuture<?> result, Runnable action) {
         try {
-            executor.execute(() -> {
+            this.executor.execute(() -> {
                 try {
                     action.run();
                 } catch (Throwable failure) {

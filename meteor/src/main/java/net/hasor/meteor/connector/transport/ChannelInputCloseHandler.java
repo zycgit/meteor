@@ -11,7 +11,7 @@ import net.hasor.neta.channel.data.ProtoRcvQueue;
 import net.hasor.neta.channel.data.ProtoSndQueue;
 
 /** Delivers input closure after the last decoded message through the application event queue. */
-public final class InputCloseHandler implements ProtoHandler<Object, Object> {
+public final class ChannelInputCloseHandler implements ProtoHandler<Object, Object> {
     private SoInputCloseEvent inputClose;
 
     @Override

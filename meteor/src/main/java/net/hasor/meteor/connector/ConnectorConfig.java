@@ -13,7 +13,7 @@ import net.hasor.meteor.address.InterAddress;
 /** 固定的连接端点及协议挂载，协议参数在启动前完成准备。 */
 public final class ConnectorConfig {
     private final String                      name;
-    private final String                      listenType;
+    private final String                      transportType;
     private final boolean                     bindEnabled;
     private final InterAddress                address;
     private final Map<String, String>         options;
@@ -24,12 +24,8 @@ public final class ConnectorConfig {
         this.name = Objects.requireNonNull(name, "name");
         this.bindEnabled = bindEnabled;
         this.address = Objects.requireNonNull(address, "address");
+        this.transportType = this.address.getSchema();
         this.options = Collections.unmodifiableMap(new HashMap<>(options));
-        String type = this.options.get("listenType");
-        if (type == null || type.trim().isEmpty()) {
-            throw new IllegalArgumentException("Missing listenType for endpoint: " + name);
-        }
-        this.listenType = type.toLowerCase(Locale.ROOT);
 
         Map<String, ProtocolConfig> routes = new LinkedHashMap<>();
         Set<String> logicalNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
@@ -68,8 +64,8 @@ public final class ConnectorConfig {
     }
 
     /** Transport type used to select a factory and start the requested operation. */
-    public String listenType() {
-        return this.listenType;
+    public String transportType() {
+        return this.transportType;
     }
 
     String option(String key, String fallback) {

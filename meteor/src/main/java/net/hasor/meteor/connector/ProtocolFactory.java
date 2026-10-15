@@ -15,7 +15,7 @@ import net.hasor.meteor.domain.payload.Payload;
 public interface ProtocolFactory<M> {
     String name();
 
-    String transport();
+    String transportType();
 
     /** Default serializer for calls sent through this protocol. */
     String defaultSerializeType();
@@ -26,8 +26,8 @@ public interface ProtocolFactory<M> {
     void validateService(ProtocolConfig config, MetBindInfo<?> service);
 
     /** Inspect data without consuming it when the transport needs content-based routing. */
-    RouteMatch probe(ProtocolConfig config, M message);
+    RouteProbeResult probe(ProtocolConfig config, M message);
 
-    ProtocolSession<M> create(ProtocolConfig config, ProtocolContext context, //
+    ProtocolSession<M> createSession(ProtocolConfig config, ProtocolSessionContext context, //
             NetworkChannel<M> connection, BiConsumer<Long, Payload> messages);
 }

@@ -12,15 +12,15 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 
 /** Services available to wire codecs, without access to endpoint or connection management. */
-public final class ProtocolContext {
-    private final MetContext                              context;
+public final class ProtocolSessionContext {
+    private final MetContext                              metContext;
     private final BiFunction<Runnable, Long, Cancellable> scheduler;
     private final InterAddress                            bindAddress;
     private final boolean                                 outbound;
 
-    ProtocolContext(MetContext context, BiFunction<Runnable, Long, Cancellable> scheduler, //
+    ProtocolSessionContext(MetContext metContext, BiFunction<Runnable, Long, Cancellable> scheduler, //
             InterAddress bindAddress, boolean outbound) {
-        this.context = context;
+        this.metContext = metContext;
         this.scheduler = scheduler;
         this.bindAddress = bindAddress;
         this.outbound = outbound;
@@ -31,12 +31,12 @@ public final class ProtocolContext {
         return this.bindAddress;
     }
 
-    public boolean outbound() {
+    public boolean isOutbound() {
         return this.outbound;
     }
 
-    public MetContext context() {
-        return this.context;
+    public MetContext metContext() {
+        return this.metContext;
     }
 
     public Cancellable schedule(Runnable action, long delayMillis) {

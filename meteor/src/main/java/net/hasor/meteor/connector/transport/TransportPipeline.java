@@ -6,14 +6,15 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.transport;
-import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.neta.channel.ProtoBuildContext;
 
 /**
  * Builds per-connection transport stages before the application codec, in inbound order.
  * Both accepted and initiated connections use this hook; getChannel().isClient() identifies the side.
- * A provider must create fresh stateful handlers per invocation.
+ * The provider type and constructor are validated while the endpoint plan is compiled. A fresh provider is created
+ * when the endpoint transport is activated, then shared by that transport's concurrent connections. It must create
+ * fresh stateful handlers per invocation.
  */
 public interface TransportPipeline {
-    void initialize(ConnectorConfig config, ProtoBuildContext stack) throws Exception;
+    void initialize(TransportConfig config, ProtoBuildContext stack) throws Exception;
 }

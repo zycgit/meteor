@@ -13,33 +13,30 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import net.hasor.cobble.ClassUtils;
 import net.hasor.cobble.ExceptionUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.neta.channel.*;
 
 /**
  * Owns Neta resources and ordered protocol executors. No RSF protocol knowledge.
  */
-public final class SocketTransport implements AutoCloseable {
-    private final        ConnectorConfig              config;
+public final class SocketRuntime {
+    private static final ThreadLocal<SocketRuntime> CURRENT = new ThreadLocal<>();
+
+    private final        TransportConfig              config;
     private final        TransportPipeline            pipeline;
-    private static final ThreadLocal<SocketTransport> CURRENT    = new ThreadLocal<>();
+    private              SslPipeline                  security;
     private final        NetManager                   network;
     private final        ExecutorService[]            workers;
     private final        AtomicInteger                nextWorker = new AtomicInteger();
     private final        SoConfig                     socketConfig;
 
-    public SocketTransport(ConnectorConfig config, ClassLoader loader, SoConfig socketConfig) {
+    SocketRuntime(TransportConfig config, TransportPipeline pipeline, ClassLoader loader, SoConfig socketConfig) {
         this.config = config;
-        this.pipeline = this.loadPipeline(config, loader);
+        this.pipeline = pipeline;
         int count = config.integer("workerThread", 2);
-        if (count <= 0) {
-            throw new IllegalArgumentException("workerThread must be positive");
-        }
 
         NetConfig settings = new NetConfig();
         settings.setClassLoader(loader);
@@ -51,7 +48,7 @@ public final class SocketTransport implements AutoCloseable {
         this.socketConfig = socketConfig;
         this.workers = new ExecutorService[count];
         for (int i = 0; i < count; i++) {
-            String name = "RSF(" + config.name() + ")-Protocol-" + i;
+            String name = "Meteor(" + config.name() + ")-Transport-" + i;
             this.workers[i] = Executors.newSingleThreadExecutor(task -> {
                 Thread thread = new Thread(() -> {
                     CURRENT.set(this);
@@ -71,16 +68,26 @@ public final class SocketTransport implements AutoCloseable {
         return this.workers[Math.floorMod(this.nextWorker.getAndIncrement(), this.workers.length)];
     }
 
-    public NetListen bind(InterAddress address, ProtoInitializer initializer) throws IOException {
+    /** Returns whether the caller is executing transport or ordered protocol work. */
+    public static boolean isCurrentThreadInTransport() {
+        boolean orderedProtocol = CURRENT.get() != null;
+        return orderedProtocol || NetChannel.isCurrentThreadInPipeline() || NetChannel.isCurrentThreadInIoThread();
+    }
+
+    void installSecurity(SslPipeline security) {
+        this.security = security;
+    }
+
+    NetListen bind(InterAddress address, ProtoInitializer initializer) throws IOException {
         return this.network.bind(address.toSocketAddress(), stack -> {
-            this.initializePipeline(stack, initializer);
+            this.initializePipeline(stack, initializer, null);
         }, this.socketConfig);
     }
 
     public Future<NetChannel> connect(InterAddress address, ProtoInitializer initializer) {
         try {
             return this.network.connectAsync(address.toSocketAddress(), stack -> {
-                this.initializePipeline(stack, initializer);
+                this.initializePipeline(stack, initializer, address.getHost());
             }, this.socketConfig);
         } catch (IOException failure) {
             BasicFuture<NetChannel> result = new BasicFuture<>();
@@ -89,21 +96,11 @@ public final class SocketTransport implements AutoCloseable {
         }
     }
 
-    private TransportPipeline loadPipeline(ConnectorConfig config, ClassLoader loader) {
-        String name = config.option("transportPipeline", "");
-        if (name.isEmpty()) {
-            return null;
-        }
-
+    private void initializePipeline(ProtoBuildContext stack, ProtoInitializer application, String peerHost) {
         try {
-            return ClassUtils.newInstance(ClassUtils.getClass(loader, name).asSubclass(TransportPipeline.class));
-        } catch (ClassNotFoundException failure) {
-            throw new IllegalArgumentException("Unknown transport pipeline: " + name, failure);
-        }
-    }
-
-    private void initializePipeline(ProtoBuildContext stack, ProtoInitializer application) {
-        try {
+            if (this.security != null) {
+                this.security.initialize(stack, peerHost);
+            }
             if (this.pipeline != null) {
                 this.pipeline.initialize(this.config, stack);
             }
@@ -114,9 +111,8 @@ public final class SocketTransport implements AutoCloseable {
         }
     }
 
-    @Override
-    public void close() {
-        if (CURRENT.get() == this || NetChannel.isCurrentThreadInPipeline()) {
+    void close() {
+        if (isCurrentThreadInTransport()) {
             throw new IllegalStateException("Close the connector from its lifecycle thread");
         }
 

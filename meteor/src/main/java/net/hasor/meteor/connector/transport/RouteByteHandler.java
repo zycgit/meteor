@@ -5,8 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport.udp;
-import net.hasor.meteor.connector.transport.InboundMessage;
+package net.hasor.meteor.connector.transport;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.ProtoContext;
 import net.hasor.neta.channel.ProtoHandler;
@@ -14,12 +13,12 @@ import net.hasor.neta.channel.ProtoStatus;
 import net.hasor.neta.channel.data.ProtoRcvQueue;
 import net.hasor.neta.channel.data.ProtoSndQueue;
 
-/** Copies engine-owned buffers into application events. */
-final class UdpInboundHandler implements ProtoHandler<ByteBuf, Object> {
-    private final String route;
+/** Copies engine-owned byte buffers into routed transport messages. */
+public final class RouteByteHandler implements ProtoHandler<ByteBuf, Object> {
+    private final String mountId;
 
-    public UdpInboundHandler(String route) {
-        this.route = route;
+    public RouteByteHandler(String mountId) {
+        this.mountId = mountId;
     }
 
     public ProtoStatus onMessage(ProtoContext context, ProtoRcvQueue<ByteBuf> source, ProtoSndQueue<Object> target) {
@@ -28,7 +27,7 @@ final class UdpInboundHandler implements ProtoHandler<ByteBuf, Object> {
             try {
                 byte[] bytes = new byte[buffer.readableBytes()];
                 buffer.readBytes(bytes);
-                target.offerMessage(new InboundMessage<>(this.route, bytes));
+                target.offerMessage(new RouteMessage<>(this.mountId, bytes));
             } finally {
                 buffer.release();
             }

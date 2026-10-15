@@ -7,9 +7,7 @@
  */
 package net.hasor.meteor.connector.transport;
 
-/**
- * Attaches one receiver before a channel can deliver connected or message notifications.
- */
-public interface ChannelFactory<M> {
-    ChannelListener<M> create(NetworkChannel<M> channel) throws Exception;
+/** Receives a transport message after the transport route has selected its protocol mount. */
+public interface RouteReceiver<M> extends ChannelListener<M> {
+    void receive(String mountId, M message) throws Exception;
 }

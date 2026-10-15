@@ -15,12 +15,12 @@ import net.hasor.neta.channel.data.ProtoRcvQueue;
 import net.hasor.neta.channel.data.ProtoSndQueue;
 
 /** One lifecycle observer for a physical connection, outside all protocol branches. */
-public final class ConnectionEvents implements ProtoHandler<Object, Object> {
+public final class ChannelLifecycleHandler implements ProtoHandler<Object, Object> {
     private final Runnable            active;
     private final Runnable            closed;
     private final Consumer<Throwable> failed;
 
-    public ConnectionEvents(Runnable active, Runnable closed, Consumer<Throwable> failed) {
+    public ChannelLifecycleHandler(Runnable active, Runnable closed, Consumer<Throwable> failed) {
         this.active = active;
         this.closed = closed;
         this.failed = failed;

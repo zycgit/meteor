@@ -7,22 +7,18 @@
  */
 package net.hasor.meteor.connector.transport;
 import java.util.Map;
-import net.hasor.meteor.connector.ConnectorConfig;
 
-/** Transport-only SPI. Creating a provider does not allocate network resources. */
-public interface NetworkConnectorFactory<M> {
+/** Transport-only SPI. Preparing a plan does not allocate runtime or network resources. */
+public interface TransportFactory<M> {
     String name();
 
     Class<M> messageType();
 
     /** Message routes can share an accepted physical channel without closing each other. */
-    default boolean sharedRoutes() {
-        return false;
-    }
+    boolean sharedRoutes();
 
     /** 构建阶段按挂载名校验并更新参数；此时不创建资源和消息探测器。 */
-    default void configRoutes(Map<String, Map<String, String>> routes) {
-    }
+    void configRoutes(Map<String, Map<String, String>> routes);
 
-    NetworkConnector<M> create(ConnectorConfig config, ClassLoader loader);
+    TransportPlan<M> prepare(TransportConfig config, ClassLoader loader);
 }

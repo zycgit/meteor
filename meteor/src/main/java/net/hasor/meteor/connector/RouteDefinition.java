@@ -11,12 +11,12 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /** One runtime route with protocol options, context mounts and a non-consuming message probe. */
-public final class RouteEntry<M> {
-    private final Map<String, String>     options;
-    private final Function<M, RouteMatch> probe;
-    private final RouteMounts             mounts;
+public final class RouteDefinition<M> {
+    private final Map<String, String>            options;
+    private final Function<M, RouteProbeResult>  probe;
+    private final RouteMounts                    mounts;
 
-    RouteEntry(Map<String, String> options, RouteMounts mounts, Function<M, RouteMatch> probe) {
+    RouteDefinition(Map<String, String> options, RouteMounts mounts, Function<M, RouteProbeResult> probe) {
         this.options = Map.copyOf(options);
         this.probe = Objects.requireNonNull(probe, "probe");
         this.mounts = mounts;
@@ -26,7 +26,7 @@ public final class RouteEntry<M> {
         return this.options;
     }
 
-    public RouteMatch match(M message) {
+    public RouteProbeResult probe(M message) {
         return this.probe.apply(message);
     }
 

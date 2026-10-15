@@ -8,7 +8,6 @@
 package net.hasor.meteor.connector;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
@@ -19,22 +18,22 @@ import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.domain.payload.Payload;
 
 /** Owns one configured endpoint, its listeners, transport connections and protocol channels. */
-final class ConnectorEndpoint<M> implements AutoCloseable {
-    private static final Logger                         logger         = Logger.getLogger(ConnectorEndpoint.class);
+final class ConnectorEndpoint<M> {
+    private static final Logger                         logger             = Logger.getLogger(ConnectorEndpoint.class);
     private final        ConnectorConfig                config;
-    private final        TransportPlan<M>               transport;
+    private final        TransportPlan<M>               transportPlan;
     private final        boolean                        sharedRoutes;
-    private final        Map<String, RouteProtocol<M>>  protocols;
+    private final        Map<String, ProtocolMountBinding<M>> protocolBindings;
     private final        RouteTable<M>                  routes;
     private final        ConnectorManager               manager;
-    private final        Map<Long, ConnectorChannel<?>> channels       = new LinkedHashMap<>();
-    private final        Set<NetworkChannel<M>>         connections    = ConcurrentHashMap.newKeySet();
-    private final        Set<NetworkChannel<M>>         accepted       = ConcurrentHashMap.newKeySet();
-    private final        Set<NetworkChannel<M>>         closingInbound = ConcurrentHashMap.newKeySet();
+    private final        Map<Long, ConnectorChannel<?>> channels           = new LinkedHashMap<>();
+    private final        Set<NetworkChannel<M>>         connections        = ConcurrentHashMap.newKeySet();
+    private final        Set<NetworkChannel<M>>         inboundConnections = ConcurrentHashMap.newKeySet();
+    private final        Set<NetworkChannel<M>>         closingInbound     = ConcurrentHashMap.newKeySet();
     private              BasicFuture<NetworkListen>     binding;
     private              NetworkListen                  listen;
-    private              NetworkConnector<M>            network;
-    private volatile     State                          state          = State.NEW;
+    private              NetworkConnector<M>            networkConnector;
+    private volatile     State                          state              = State.NEW;
     private              boolean                        bindDisabled;
 
     private enum State {
@@ -43,22 +42,18 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
         CLOSED
     }
 
-    ConnectorEndpoint(ConnectorConfig config, TransportPlan<M> transport, boolean sharedRoutes, //
-            Map<String, RouteProtocol<M>> protocols, RouteTable<M> routes, ConnectorManager manager) {
+    ConnectorEndpoint(ConnectorConfig config, TransportPlan<M> transportPlan, boolean sharedRoutes, //
+            Map<String, ProtocolMountBinding<M>> protocolBindings, RouteTable<M> routes, ConnectorManager manager) {
         this.config = config;
-        this.transport = transport;
+        this.transportPlan = transportPlan;
         this.sharedRoutes = sharedRoutes;
-        this.protocols = protocols;
+        this.protocolBindings = protocolBindings;
         this.routes = routes;
         this.manager = manager;
     }
 
     ConnectorConfig config() {
         return this.config;
-    }
-
-    RouteTable<M> routes() {
-        return this.routes;
     }
 
     ConnectorManager manager() {
@@ -86,7 +81,7 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
             }
 
             try {
-                this.network = this.transport.create(this.manager.runtime());
+                this.networkConnector = this.transportPlan.create(this.manager.transportRuntimeServices());
                 this.state = State.READY;
             } catch (Exception | Error error) {
                 this.state = State.NEW;
@@ -157,7 +152,7 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
     }
 
     private Future<NetworkListen> createListen(InterAddress address) throws Exception {
-        NetworkListen networkListen = this.network.bind(address, this.routes, //
+        NetworkListen networkListen = this.networkConnector.bind(address, this.routes, //
                 channel -> this.attach(channel, null, null));
         networkListen.onClose(() -> this.onListenClosed(networkListen));
         return new BasicFuture<>(networkListen);
@@ -227,7 +222,7 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
 
     private Future<MetChannel> openSession(String mountId, InterAddress address) {
         BasicFuture<MetChannel> result = new BasicFuture<>();
-        Future<Void> connecting = this.network.connect(address, this.routes, mountId, channel -> {
+        Future<Void> connecting = this.networkConnector.connect(address, this.routes, mountId, channel -> {
             result.onCancel(done -> channel.close());
             return this.attach(channel, result, mountId);
         });
@@ -237,11 +232,11 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
         return result;
     }
 
-    private ChannelListener<M> attach(NetworkChannel<M> channel, BasicFuture<MetChannel> connecting, String mountId) {
-        boolean inbound = connecting == null;
-        Runnable terminated = () -> this.onConnectionClosed(channel);
-        return new RouteDispatcher<>(this, channel, this.protocols, connecting, mountId, //
-                inbound, this.sharedRoutes, terminated);
+    private ChannelListener<M> attach(NetworkChannel<M> channel, BasicFuture<MetChannel> outboundResult, //
+            String mountId) {
+        Runnable terminationListener = () -> this.onConnectionClosed(channel);
+        return new RouteChannelDispatcher<>(this, channel, this.protocolBindings, outboundResult, mountId, //
+                this.sharedRoutes, terminationListener);
     }
 
     synchronized boolean registerConnection(NetworkChannel<M> channel, boolean inbound) {
@@ -257,18 +252,18 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
 
         this.connections.add(channel);
         if (inbound) {
-            this.accepted.add(channel);
+            this.inboundConnections.add(channel);
         }
         return true;
     }
 
     private void onConnectionClosed(NetworkChannel<M> channel) {
         this.connections.remove(channel);
-        this.accepted.remove(channel);
+        this.inboundConnections.remove(channel);
         this.closingInbound.remove(channel);
     }
 
-    void connected(ConnectorChannel<?> channel) {
+    void registerChannel(ConnectorChannel<?> channel) {
         synchronized (this) {
             if (this.acceptsWrites()) {
                 ConnectorChannel<?> previous = this.channels.putIfAbsent(channel.channelId(), channel);
@@ -281,12 +276,12 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
         channel.close();
     }
 
-    synchronized void disconnected(ConnectorChannel<?> channel) {
+    synchronized void unregisterChannel(ConnectorChannel<?> channel) {
         this.channels.remove(channel.channelId(), channel);
     }
 
-    void received(MetChannel channel, long requestId, Payload payload) {
-        this.manager.received(channel, requestId, payload);
+    void publishMessage(MetChannel channel, long requestId, Payload payload) {
+        this.manager.publishMessage(channel, requestId, payload);
     }
 
     boolean acceptingInbound(NetworkChannel<M> channel) {
@@ -344,7 +339,7 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
                 failure = appendFailure(failure, error);
             }
         }
-        for (NetworkChannel<M> channel : new ArrayList<>(this.accepted)) {
+        for (NetworkChannel<M> channel : new ArrayList<>(this.inboundConnections)) {
             try {
                 this.closeInbound(channel);
             } catch (RuntimeException | Error error) {
@@ -364,7 +359,7 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
         }
     }
 
-    void closeBind() {
+    void closeListener() {
         BasicFuture<NetworkListen> pending;
         NetworkListen closing;
         synchronized (this) {
@@ -391,19 +386,6 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
         }
     }
 
-    @Override
-    public void close() {
-        if (!this.beginClose()) {
-            return;
-        }
-        try {
-            this.awaitChannels(this.drainChannels());
-            this.awaitConnections(this.drainConnections());
-        } finally {
-            this.closeTransport();
-        }
-    }
-
     boolean beginClose() {
         synchronized (this) {
             if (this.state == State.CLOSED) {
@@ -411,8 +393,6 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
             }
             this.state = State.CLOSED;
         }
-
-        this.closeBind();
         return true;
     }
 
@@ -434,26 +414,6 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
         return pending;
     }
 
-    private void awaitChannels(List<Future<MetChannel>> pending) {
-        boolean interrupted = false;
-        for (Future<MetChannel> future : pending) {
-            for (; ; ) {
-                try {
-                    future.get();
-                    break;
-                } catch (InterruptedException failure) {
-                    interrupted = true;
-                } catch (ExecutionException | RuntimeException failure) {
-                    logger.warn("Channel drain failed", failure);
-                    break;
-                }
-            }
-        }
-        if (interrupted) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     List<Future<Void>> drainConnections() {
         List<Future<Void>> draining = new ArrayList<>();
         for (NetworkChannel<M> channel : this.connections) {
@@ -467,32 +427,12 @@ final class ConnectorEndpoint<M> implements AutoCloseable {
         return draining;
     }
 
-    private void awaitConnections(List<Future<Void>> draining) {
-        boolean interrupted = false;
-        for (Future<Void> future : draining) {
-            for (; ; ) {
-                try {
-                    future.get();
-                    break;
-                } catch (InterruptedException failure) {
-                    interrupted = true;
-                } catch (ExecutionException | RuntimeException failure) {
-                    logger.warn("Connection drain failed", failure);
-                    break;
-                }
-            }
-        }
-        if (interrupted) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     void closeTransport() {
-        if (this.network != null) {
-            this.network.close();
+        if (this.networkConnector != null) {
+            this.networkConnector.close();
         }
         this.connections.clear();
-        this.accepted.clear();
+        this.inboundConnections.clear();
         this.closingInbound.clear();
     }
 

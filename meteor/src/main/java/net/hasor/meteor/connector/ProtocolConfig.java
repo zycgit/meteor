@@ -16,16 +16,16 @@ import net.hasor.meteor.utils.ContextPathUtils;
 public final class ProtocolConfig {
     private final String              name;
     private final String              scheme;
-    private final String              protocol;
+    private final String              factoryName;
     private       String              mountId;
     private       Map<String, String> options;
     private       RouteMounts         contexts;
     private       Set<String>         logicalNames;
 
-    ProtocolConfig(String name, String scheme, String protocol, Map<String, String> options) {
+    ProtocolConfig(String name, String scheme, String factoryName, Map<String, String> options) {
         this.name = Objects.requireNonNull(name, "name");
         this.scheme = Objects.requireNonNull(scheme, "scheme").toLowerCase(Locale.ROOT);
-        this.protocol = Objects.requireNonNull(protocol, "protocol").toLowerCase(Locale.ROOT);
+        this.factoryName = Objects.requireNonNull(factoryName, "factoryName").toLowerCase(Locale.ROOT);
         this.logicalNames = Set.of(this.name.toLowerCase(Locale.ROOT));
         this.setOptions(options);
         if (this.scheme.trim().isEmpty()) {
@@ -61,13 +61,13 @@ public final class ProtocolConfig {
         return this.scheme;
     }
 
-    public String protocol() {
-        return this.protocol;
+    public String factoryName() {
+        return this.factoryName;
     }
 
     /** Create the endpoint-owned mount snapshot without sharing mutable preparation state. */
     ProtocolConfig mounted(String mountId) {
-        ProtocolConfig mounted = new ProtocolConfig(this.name, this.scheme, this.protocol, this.options);
+        ProtocolConfig mounted = new ProtocolConfig(this.name, this.scheme, this.factoryName, this.options);
         mounted.mountId = Objects.requireNonNull(mountId, "mountId");
         return mounted;
     }

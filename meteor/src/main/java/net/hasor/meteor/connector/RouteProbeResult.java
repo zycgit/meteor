@@ -7,8 +7,8 @@
  */
 package net.hasor.meteor.connector;
 
-/** Non-consuming recognition of network data. */
-public enum RouteMatch {
+/** Result of probing network data without consuming it. */
+public enum RouteProbeResult {
     MATCH,
     NEED_MORE,
     REJECT

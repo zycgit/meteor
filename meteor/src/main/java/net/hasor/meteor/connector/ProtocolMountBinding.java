@@ -8,12 +8,12 @@
 package net.hasor.meteor.connector;
 import java.util.Objects;
 
-/** One endpoint-owned runtime mount and all values resolved for its route. */
-final class RouteProtocol<M> {
+/** Resolved protocol configuration and factory bound to one endpoint mount. */
+final class ProtocolMountBinding<M> {
     private final ProtocolConfig     config;
     private final ProtocolFactory<M> factory;
 
-    RouteProtocol(ProtocolConfig config, ProtocolFactory<M> factory) {
+    ProtocolMountBinding(ProtocolConfig config, ProtocolFactory<M> factory) {
         this.config = Objects.requireNonNull(config, "config");
         this.factory = Objects.requireNonNull(factory, "factory");
     }
