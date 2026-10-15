@@ -8,6 +8,7 @@
 package net.hasor.meteor.rpc;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
@@ -32,13 +33,15 @@ final class MetInvocationTask implements Runnable {
     private final InterAddress   target;
     private final MetChannel     channel;
     private final RequestPayload requestInfo;
+    private final long           receivedNanos;
     private final ClassLoader    classLoader;
 
-    MetInvocationTask(MetChannel channel, MetDispatcher dispatcher, RequestPayload requestInfo) {
+    MetInvocationTask(MetChannel channel, MetDispatcher dispatcher, RequestPayload requestInfo, long receivedNanos) {
         this.channel = channel;
         this.target = channel.getRemote();
         this.dispatcher = dispatcher;
         this.requestInfo = requestInfo;
+        this.receivedNanos = receivedNanos;
         this.classLoader = dispatcher.getContext().getClassLoader();
     }
 
@@ -64,10 +67,11 @@ final class MetInvocationTask implements Runnable {
         }
 
         /*检查timeout。*/
-        long lostTime = System.currentTimeMillis() - this.requestInfo.getReceiveTime();
         int clientTimeout = this.requestInfo.getClientTimeout();
         int timeout = this.validateTimeout(clientTimeout, bindInfo);
-        if (lostTime > timeout) {
+        long elapsedNanos = System.nanoTime() - this.receivedNanos;
+        long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(timeout);
+        if (elapsedNanos > timeoutNanos) {
             String errorInfo = "do request(" + requestID + ") failed -> timeout for server.";
             this.logger.error(errorInfo);
             ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.Timeout, errorInfo);
@@ -84,7 +88,7 @@ final class MetInvocationTask implements Runnable {
             List<String> pTypeList = this.requestInfo.getParameterTypes();
             List<Object> pObjectList = this.requestInfo.getParameterValues();
             if (pTypeList.size() != pObjectList.size()) {
-                String errorInfo = "do request(" + requestID + ") failed -> parameters count and types count, not equal.";
+                String errorInfo = "do request(" + requestID + ") failed -> parameter count differs from type count.";
                 this.logger.error(errorInfo);
                 ResponsePayload info = MetPayloadBuilder.buildResponseStatus(requestID, ProtocolStatus.InvokeError, errorInfo);
                 this.sendResponse(info);

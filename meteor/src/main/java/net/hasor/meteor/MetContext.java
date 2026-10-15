@@ -96,9 +96,9 @@ public interface MetContext extends OnlineStatus, AutoCloseable {
     /**创建{@link MetPublisher}。*/
     MetPublisher publisher();
 
-    /**应用上线（优雅上线）*/
+    /**应用上线并恢复入站监听。*/
     void online();
 
-    /**应用下线（优雅停机）*/
+    /**停止接受新入站连接并开始关闭已接入连接；不等待所有连接或业务执行结束。*/
     void offline();
 }

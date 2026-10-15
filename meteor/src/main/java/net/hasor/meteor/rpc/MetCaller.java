@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.rpc;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.*;
@@ -61,7 +62,7 @@ public final class MetCaller implements AutoCloseable {
         }
     }
 
-    MetContext getContext() {
+    public MetContext getContext() {
         return this.context;
     }
 
@@ -139,11 +140,13 @@ public final class MetCaller implements AutoCloseable {
         routing.getService().put("meta", metadata);
         routing.getMethod().put("signature", targetMethod.toGenericString());
         InterAddress targetAddress = target.get(routing);
-        MetRequestObject request = new MetRequestObject(REQUEST_IDS.incrementAndGet(), true, this.context, bindInfo, targetMethod, parameterObjects);
+
+        MetRequestObject request = new MetRequestObject(//
+                REQUEST_IDS.incrementAndGet(), true, this.context, bindInfo, targetMethod, parameterObjects);
         request.setPeerAddress(targetAddress);
         request.setFlags(flags);
         request.setSerializeType(bindInfo.getSerializeType());
-        request.setMessage(bindInfo.isMessage());
+        request.setMessage(bindInfo.isMessage() || targetMethod.isAnnotationPresent(MetMessage.class));
         request.setTimeout(this.timeout(bindInfo.getClientTimeout()));
 
         // 创建时复制默认选项，后续由调用方覆盖或删除。
@@ -151,8 +154,9 @@ public final class MetCaller implements AutoCloseable {
         return request;
     }
 
-    /** 发送 RSF 调用请求，处理RsfFilter */
+    /** 根据服务配置与本地提供者选择本地调用或分布式调用。 */
     public MetFuture invoke(MetRequestObject rsfRequest) {
+        long requestID = rsfRequest.getRequestID();
         MetBindInfo<?> bindInfo = rsfRequest.getBindInfo();
         String serviceID = bindInfo.getBindID();
         MetFuture rsfFuture = this.createFuture(rsfRequest);
@@ -161,36 +165,69 @@ public final class MetCaller implements AutoCloseable {
             return rsfFuture;
         }
 
-        invLogger.info("request(" + rsfRequest.getRequestID() + ") -> doSendRequest, bindID =" + serviceID + ", callMethod =" + rsfRequest.getMethod() + ", isMessage =" + bindInfo.isMessage() + ".");
+        invLogger.info("request(" + requestID + ") -> doSendRequest, bindID =" + serviceID //
+                + ", callMethod =" + rsfRequest.getMethod() + ", isMessage =" + rsfRequest.isMessage() + ".");
 
         try {
-            // 执行调用过滤器；未被本地处理的请求才进入网络发送。
-            MetResponseObject res = new MetResponseObject(rsfRequest);
-            /*下面这段代码要负责 -> 执行rsfFilter过滤器链，并最终调用sendRequest发送请求。*/
-            Supplier<MetFilter>[] rsfFilterList = this.filterProvider.getFilterProviders(serviceID);
-            MetFilterHandler filters = new MetFilterHandler(rsfFilterList, (request, response) -> {
-                if (!response.isResponse()) {
-                    invLogger.info("request(" + request.getRequestID() + ") -> sendRequest, response wait for remote.");
-                    this.sendRequest(rsfFuture);//发送请求到远方
-                }
-            });
-            filters.doFilter(rsfRequest, res);
+            MetResponseObject response = new MetResponseObject(rsfRequest);
 
-            // A filter may respond without continuing the chain, including LocalPref.
-            if (res.isResponse()) {
-                if (res.getStatus() == ProtocolStatus.OK || res.getStatus() == ProtocolStatus.Accept) {
-                    rsfFuture.completed(res);
+            // 默认优先使用本地提供者；强制分布式或本地未提供实例时进入 RPC 链路。
+            boolean localPreferred = rsfRequest.isLocal() && !bindInfo.isDistributedCall();
+            Object localTarget = null;
+            if (localPreferred) {
+                Supplier<?> localProvider = this.context.getServiceProvider(bindInfo);
+                if (localProvider != null) {
+                    localTarget = localProvider.get();
+                }
+            }
+
+            if (localTarget != null) {
+                this.invokeByLocal(rsfRequest, response, localTarget);
+            } else {
+                this.invokeByDistributed(rsfRequest, response, rsfFuture);
+            }
+
+            // Filter 可以直接完成调用；消息回执的 Accept 也可表示已受理。
+            if (response.isResponse()) {
+                short status = response.getStatus();
+                boolean acceptedMessage = rsfRequest.isMessage() && status == ProtocolStatus.Accept;
+                if (status == ProtocolStatus.OK || acceptedMessage) {
+                    rsfFuture.completed(response);
                 } else {
-                    rsfFuture.failed(new MetException(res.getStatus(), res.getOption("message")));
+                    rsfFuture.failed(new MetException(response.getStatus(), response.getOption("message")));
                 }
             }
         } catch (Throwable e) {
-            invLogger.error("request(" + rsfRequest.getRequestID() + ") -> errorFailed, sendRequest, doRsfFilterChain. error =" + e.getMessage() + ".", e);
+            String message = "request(" + requestID + ") -> invoke failed, error =" + e.getMessage() + ".";
+            invLogger.error(message, e);
             this.removeRsfFuture(rsfFuture, e);
             rsfFuture.failed(e);
         }
 
         return rsfFuture;
+    }
+
+    private void invokeByLocal(MetRequestObject request, MetResponseObject response, Object target) throws Throwable {
+        try {
+            Method method = request.getMethod();
+            Object result = method.invoke(target, request.getParameterObject());
+            response.sendData(result);
+        } catch (InvocationTargetException e) {
+            throw e.getTargetException();
+        }
+    }
+
+    private void invokeByDistributed(MetRequestObject request, MetResponseObject response, MetFuture future) throws Throwable {
+        String serviceID = request.getBindInfo().getBindID();
+        Supplier<MetFilter>[] filterProviders = this.filterProvider.getFilterProviders(serviceID);
+        MetFilterHandler filters = new MetFilterHandler(filterProviders, (filterRequest, filterResponse) -> {
+            if (!filterResponse.isResponse()) {
+                long requestID = filterRequest.getRequestID();
+                invLogger.info("request(" + requestID + ") -> sendRequest, response wait for remote.");
+                this.sendRequest(future);
+            }
+        });
+        filters.doFilter(request, response);
     }
 
     private void sendRequest(MetFuture future) throws Exception {

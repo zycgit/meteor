@@ -53,6 +53,7 @@ final class MetDispatcher implements AutoCloseable {
      * @param info 请求消息。
      */
     void onRequest(MetChannel channel, long requestId, RequestPayload info) {
+        long receivedNanos = System.nanoTime();
         if (requestId != info.getRequestID()) {
             logger.warn("Request ID mismatch: envelope=" + requestId + ", payload=" + info.getRequestID());
             info.complete(new IllegalArgumentException("Request ID mismatch"));
@@ -60,24 +61,34 @@ final class MetDispatcher implements AutoCloseable {
         }
 
         // 协议暴露限制在入队和 Accept 回执之前检查，消息调用同样不能绕过。
-        MetBindInfo<?> service = this.context.getServiceInfo(info.getServiceGroup(), info.getServiceName(), info.getServiceVersion());
+        MetBindInfo<?> service = this.context.getServiceInfo(//
+                info.getServiceGroup(), info.getServiceName(), info.getServiceVersion());
         if (service != null && !service.getBindProtocols().isEmpty()) {
             String scheme = channel.getLocal().getSchema();
             ProtocolConfig protocol = channel.getConnector().config().protocol(scheme);
             if (protocol == null || !protocol.accepts(service.getBindProtocols())) {
                 String message = "Service is not exposed through protocol: " + scheme;
-                ResponsePayload response = MetPayloadBuilder.buildResponseStatus(requestId, ProtocolStatus.Forbidden, message);
+                ResponsePayload response = MetPayloadBuilder.buildResponseStatus(//
+                        requestId, ProtocolStatus.Forbidden, message);
                 channel.sendData(response).onFinal(done -> info.complete(done.getCause()));
                 return;
             }
         }
 
         InterAddress target = channel.getRemote();
-        String serviceUniqueName = "[" + info.getServiceGroup() + "]" + info.getServiceName() + "-" + info.getServiceVersion();
+        String serviceUniqueName = "[" + info.getServiceGroup() + "]";
+        serviceUniqueName += info.getServiceName() + "-" + info.getServiceVersion();
         try {
-            logger.info("request(" + info.getRequestID() + ") -> received, bindID =" + serviceUniqueName + ", targetMethod =" + info.getTargetMethod() + ", remoteAddress =" + target + ".");
-            this.dispatcherExecutor.execute(service, new MetInvocationTask(channel, this, info));//放入业务线程准备执行
-            ResponsePayload resp = MetPayloadBuilder.buildResponseStatus(info.getRequestID(), ProtocolStatus.Accept, null);
+            String targetMethod = info.getTargetMethod();
+            String message = "request(" + info.getRequestID() + ") -> received, bindID =" + serviceUniqueName;
+            message += ", targetMethod =" + targetMethod + ", remoteAddress =" + target + ".";
+            logger.info(message);
+
+            // 放入业务线程准备执行，再向对端发送接纳回执。
+            MetInvocationTask task = new MetInvocationTask(channel, this, info, receivedNanos);
+            this.dispatcherExecutor.execute(service, task);
+            ResponsePayload resp = MetPayloadBuilder.buildResponseStatus(//
+                    info.getRequestID(), ProtocolStatus.Accept, null);
 
             channel.sendData(resp).onFinal(done -> {
                 boolean finalResponse = info.isMessage() || resp.getStatus() != ProtocolStatus.Accept;
@@ -91,12 +102,17 @@ final class MetDispatcher implements AutoCloseable {
                 }
             });
         } catch (RejectedExecutionException e) {
-            logger.info("request(" + info.getRequestID() + ") -> rejected request, queue is full. -> bindID =" + serviceUniqueName + ", targetMethod =" + info.getTargetMethod() + ", remoteAddress =" + target + ".");
+            String targetMethod = info.getTargetMethod();
+            String message = "request(" + info.getRequestID() + ") -> rejected request, queue is full.";
+            message += " -> bindID =" + serviceUniqueName + ", targetMethod =" + targetMethod;
+            message += ", remoteAddress =" + target + ".";
+            logger.info(message);
 
             String errorMessage = "(" + e.getClass().getName() + ")" + e.getMessage();
             String msgLog = "rejected request, queue is full." + errorMessage;
             logger.warn(msgLog, e);
-            ResponsePayload resp = MetPayloadBuilder.buildResponseStatus(info.getRequestID(), ProtocolStatus.QueueFull, msgLog);
+            ResponsePayload resp = MetPayloadBuilder.buildResponseStatus(//
+                    info.getRequestID(), ProtocolStatus.QueueFull, msgLog);
 
             channel.sendData(resp).onFinal(done -> {
                 boolean finalResponse = info.isMessage() || resp.getStatus() != ProtocolStatus.Accept;
