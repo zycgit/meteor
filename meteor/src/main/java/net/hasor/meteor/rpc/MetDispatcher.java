@@ -6,8 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.rpc;
+import java.util.Set;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
+import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.MetBindInfo;
@@ -15,7 +18,6 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFilter;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.MetChannel;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -61,16 +63,14 @@ final class MetDispatcher implements AutoCloseable {
         }
 
         // 协议暴露限制在入队和 Accept 回执之前检查，消息调用同样不能绕过。
-        MetBindInfo<?> service = this.context.getServiceInfo(//
-                info.getServiceGroup(), info.getServiceName(), info.getServiceVersion());
+        MetBindInfo<?> service = this.context.getServiceInfo(info.getServiceGroup(), info.getServiceName(), info.getServiceVersion());
         if (service != null && !service.getBindProtocols().isEmpty()) {
-            String scheme = channel.getLocal().getSchema();
-            ProtocolConfig protocol = channel.getConnector().config().protocol(scheme);
-            if (protocol == null || !protocol.accepts(service.getBindProtocols())) {
+            if (!this.accepts(service.getBindProtocols(), channel)) {
+                String scheme = channel.getLocal().getSchema();
                 String message = "Service is not exposed through protocol: " + scheme;
                 ResponsePayload response = MetPayloadBuilder.buildResponseStatus(//
                         requestId, ProtocolStatus.Forbidden, message);
-                channel.sendData(response).onFinal(done -> info.complete(done.getCause()));
+                channel.sendData(response).onFinal(done -> this.completeResponse(info, response, done));
                 return;
             }
         }
@@ -80,7 +80,8 @@ final class MetDispatcher implements AutoCloseable {
         serviceUniqueName += info.getServiceName() + "-" + info.getServiceVersion();
         try {
             String targetMethod = info.getTargetMethod();
-            String message = "request(" + info.getRequestID() + ") -> received, bindID =" + serviceUniqueName + ", targetMethod =" + targetMethod + ", remoteAddress =" + target + ".";
+            String message = "request(" + info.getRequestID() + ") -> received, bindID =" + serviceUniqueName;
+            message += ", targetMethod =" + targetMethod + ", remoteAddress =" + target + ".";
             logger.info(message);
 
             // 放入业务线程准备执行，再向对端发送接纳回执。
@@ -89,17 +90,7 @@ final class MetDispatcher implements AutoCloseable {
             ResponsePayload resp = MetPayloadBuilder.buildResponseStatus(//
                     info.getRequestID(), ProtocolStatus.Accept, null);
 
-            channel.sendData(resp).onFinal(done -> {
-                boolean finalResponse = info.isMessage() || resp.getStatus() != ProtocolStatus.Accept;
-                boolean writeFailed = done.getCause() != null || done.isCancelled();
-                if (finalResponse || writeFailed) {
-                    Throwable failure = done.getCause();
-                    if (done.isCancelled()) {
-                        failure = new IllegalStateException("Response write cancelled");
-                    }
-                    info.complete(failure);
-                }
-            });
+            channel.sendData(resp).onFinal(done -> this.completeResponse(info, resp, done));
         } catch (RejectedExecutionException e) {
             String targetMethod = info.getTargetMethod();
             String message = "request(" + info.getRequestID() + ") -> rejected request, queue is full.";
@@ -113,17 +104,42 @@ final class MetDispatcher implements AutoCloseable {
             ResponsePayload resp = MetPayloadBuilder.buildResponseStatus(//
                     info.getRequestID(), ProtocolStatus.QueueFull, msgLog);
 
-            channel.sendData(resp).onFinal(done -> {
-                boolean finalResponse = info.isMessage() || resp.getStatus() != ProtocolStatus.Accept;
-                boolean writeFailed = done.getCause() != null || done.isCancelled();
-                if (finalResponse || writeFailed) {
-                    Throwable failure = done.getCause();
-                    if (done.isCancelled()) {
-                        failure = new IllegalStateException("Response write cancelled");
-                    }
-                    info.complete(failure);
-                }
-            });
+            channel.sendData(resp).onFinal(done -> this.completeResponse(info, resp, done));
         }
+    }
+
+    private void completeResponse(RequestPayload request, ResponsePayload response, Future<MetChannel> writing) {
+        boolean finalResponse = request.isMessage() || response.getStatus() != ProtocolStatus.Accept;
+        boolean writeFailed = writing.getCause() != null || writing.isCancelled();
+        if (!finalResponse && !writeFailed) {
+            return;
+        }
+
+        Throwable failure = writing.getCause();
+        if (writing.isCancelled()) {
+            failure = new IllegalStateException("Response write cancelled");
+        }
+        request.complete(failure);
+    }
+
+    private boolean accepts(Set<String> selected, MetChannel channel) {
+        String protocol = channel.getProtocol();
+        String scheme = channel.getLocal().getSchema();
+        Set<String> logicalNames = this.context.getSettings().getProtocols();
+        for (String value : selected) {
+            boolean logical = false;
+            for (String name : logicalNames) {
+                if (StringUtils.equalsIgnoreCase(value, name)) {
+                    logical = true;
+                    break;
+                }
+            }
+            boolean matches = logical ? StringUtils.equalsIgnoreCase(value, protocol) : //
+                    StringUtils.equalsIgnoreCase(value, scheme);
+            if (matches) {
+                return true;
+            }
+        }
+        return false;
     }
 }

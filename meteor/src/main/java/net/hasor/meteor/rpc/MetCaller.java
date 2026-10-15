@@ -23,8 +23,10 @@ import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.dsl.RouteContext;
 import net.hasor.meteor.address.provider.AddressProvider;
+import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ConnectorManager;
 import net.hasor.meteor.connector.MetChannel;
+import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.*;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -215,19 +217,97 @@ public final class MetCaller implements AutoCloseable {
     }
 
     private void invokeByDistributed(MetRequestObject request, MetResponseObject response, MetFuture future) throws Throwable {
+        ProtocolSelection selection = this.resolveProtocol(request);
+        request.setBindAddress(selection.bindAddress);
+
         String serviceID = request.getBindInfo().getBindID();
         Supplier<MetFilter>[] filterProviders = this.filterProvider.getFilterProviders(serviceID);
         MetFilterHandler filters = new MetFilterHandler(filterProviders, (filterRequest, filterResponse) -> {
             if (!filterResponse.isResponse()) {
                 long requestID = filterRequest.getRequestID();
                 invLogger.info("request(" + requestID + ") -> sendRequest, response wait for remote.");
-                this.sendRequest(future);
+                this.sendRequest(future, selection);
             }
         });
         MetInvocationContext.invoke(request, response, filters);
     }
 
-    private void sendRequest(MetFuture future) throws Exception {
+    private ProtocolSelection resolveProtocol(MetRequestObject request) {
+        InterAddress target = request.getTargetAddress();
+        if (target == null) {
+            return new ProtocolSelection(null, null, this.context.getDefaultProtocol(), null);
+        }
+
+        MetBindInfo<?> service = request.getBindInfo();
+        Set<String> declared = service.getBindProtocols();
+        boolean useDefault = declared == null || declared.isEmpty();
+        String defaultProtocol = this.context.getDefaultProtocol();
+        Set<String> selectors = useDefault ? Collections.singleton(defaultProtocol) : declared;
+        List<ProtocolCandidate> available = new ArrayList<>();
+        Set<String> logicalNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (ConnectorConfig endpoint : this.context.getSettings().getConnectorConfigs()) {
+            for (ProtocolConfig mount : endpoint.protocols()) {
+                available.add(new ProtocolCandidate(endpoint, mount));
+                logicalNames.add(mount.name());
+            }
+        }
+
+        // 完整候选同时满足目标地址和逻辑身份；没有服务声明时，默认协议只负责消除歧义。
+        String scheme = target.getSchema();
+        available.removeIf(candidate -> !StringUtils.equalsIgnoreCase(candidate.mount.scheme(), scheme));
+        List<ProtocolCandidate> candidates = this.selectProtocols(available, selectors, logicalNames);
+        if (candidates.isEmpty() && useDefault) {
+            candidates = available;
+        }
+
+        String serviceId = service.getBindID();
+        if (candidates.isEmpty()) {
+            String message = "Service [" + serviceId + "] has no protocol for address scheme " + scheme;
+            message += " and selection " + selectors;
+            throw new MetException(ProtocolStatus.ProtocolUndefined, message);
+        }
+        if (candidates.size() > 1) {
+            String message = "Service [" + serviceId + "] protocol is ambiguous for address scheme " + scheme;
+            message += ": " + this.describeCandidates(candidates);
+            throw new MetException(ProtocolStatus.ProtocolUndefined, message);
+        }
+
+        ProtocolCandidate selected = candidates.get(0);
+        InterAddress bindAddress = this.context.bindAddress(selected.endpoint.name(), selected.mount.mountId());
+        return new ProtocolSelection(//
+                selected.endpoint.name(), selected.mount.mountId(), selected.mount.name(), bindAddress);
+    }
+
+    private List<ProtocolCandidate> selectProtocols(//
+            List<ProtocolCandidate> available, Set<String> selectors, Set<String> logicalNames) {
+        List<ProtocolCandidate> selected = new ArrayList<>();
+        for (ProtocolCandidate candidate : available) {
+            for (String selector : selectors) {
+                boolean logicalName = logicalNames.contains(selector);
+                String value = logicalName ? candidate.mount.name() : candidate.mount.scheme();
+                if (StringUtils.equalsIgnoreCase(value, selector)) {
+                    selected.add(candidate);
+                    break;
+                }
+            }
+        }
+        return selected;
+    }
+
+    private String describeCandidates(List<ProtocolCandidate> candidates) {
+        StringJoiner description = new StringJoiner("; ");
+        for (ProtocolCandidate candidate : candidates) {
+            ConnectorConfig endpoint = candidate.endpoint;
+            ProtocolConfig mount = candidate.mount;
+            String binding = endpoint.bindEnabled() ? "bound" : "outbound";
+            String item = "endpoint=" + endpoint.name() + ", protocol=" + mount.name();
+            item += ", scheme=" + mount.scheme() + ", mode=" + binding;
+            description.add(item);
+        }
+        return description.toString();
+    }
+
+    private void sendRequest(MetFuture future, ProtocolSelection selection) throws Exception {
         MetRequestObject request = (MetRequestObject) future.getRequest();
         if (future.isDone()) {
             return;
@@ -251,7 +331,7 @@ public final class MetCaller implements AutoCloseable {
             return;
         }
 
-        Future<?> sending = this.sendRequest(address, payload);
+        Future<?> sending = this.sendRequest(address, selection, payload);
         sending.onFailed(sent -> this.putResponse(payload.getRequestID(), sent.getCause()));
         sending.onCancel(sent -> {
             long requestId = payload.getRequestID();
@@ -342,13 +422,13 @@ public final class MetCaller implements AutoCloseable {
         return false;
     }
 
-    private Future<?> sendRequest(InterAddress address, RequestPayload request) {
+    private Future<?> sendRequest(InterAddress address, ProtocolSelection selection, RequestPayload request) {
         BasicFuture<MetChannel> sent = new BasicFuture<>();
 
         if (this.closed) {
             sent.failed(new IllegalStateException("RPC is closed"));
         } else {
-            this.connectors.connect(address).onFinal(connected -> {
+            this.connectors.connect(selection.endpointName, selection.mountId, address).onFinal(connected -> {
                 this.finishConnect(request, sent, connected);
             });
         }
@@ -444,6 +524,31 @@ public final class MetCaller implements AutoCloseable {
             timeout = this.context.getSettings().getRequestTimeout();
         }
         return timeout > 0 ? timeout : this.context.getSettings().getDefaultTimeout();
+    }
+
+    private static final class ProtocolSelection {
+        private final String       endpointName;
+        private final String       mountId;
+        private final String       protocol;
+        private final InterAddress bindAddress;
+
+        private ProtocolSelection(//
+                String endpointName, String mountId, String protocol, InterAddress bindAddress) {
+            this.endpointName = endpointName;
+            this.mountId = mountId;
+            this.protocol = protocol;
+            this.bindAddress = bindAddress;
+        }
+    }
+
+    private static final class ProtocolCandidate {
+        private final ConnectorConfig endpoint;
+        private final ProtocolConfig  mount;
+
+        private ProtocolCandidate(ConnectorConfig endpoint, ProtocolConfig mount) {
+            this.endpoint = endpoint;
+            this.mount = mount;
+        }
     }
 
     //

@@ -203,7 +203,7 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
         }
         Objects.requireNonNull(context, "context");
 
-        // 替换项移到末尾，协议名和 scheme 的声明保持后一次优先。
+        // 替换项移到末尾，同一个规范化选择器重复声明时保留最后一次选择。
         Map<String, ContextPath> selected = new LinkedHashMap<>(this.bindContextPaths);
         String key = protocol.trim().toLowerCase(Locale.ROOT);
         selected.remove(key);

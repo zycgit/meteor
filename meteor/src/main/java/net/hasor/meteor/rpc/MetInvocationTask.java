@@ -137,9 +137,9 @@ final class MetInvocationTask implements Runnable {
         MetResponseObject rsfResponse = null;
         try {
             MetContext context = this.dispatcher.getContext();
-            MetRequestObject rsfRequest = new MetRequestObject(//
-                    requestID, false, context, bindInfo, targetMethod, pObjects);
+            MetRequestObject rsfRequest = new MetRequestObject(requestID, false, context, bindInfo, targetMethod, pObjects);
             rsfRequest.setPeerAddress(this.target);
+            rsfRequest.setBindAddress(this.channel.getLocal());
             rsfRequest.setFlags(this.requestInfo.getFlags());
             rsfRequest.setSerializeType(this.requestInfo.getSerializeType());
             rsfRequest.setMessage(this.requestInfo.isMessage());

@@ -23,13 +23,15 @@ public class MetRequestObject implements MetRequest {
     private final AttributeSet   attributes = new AttributeSet();
     private       MetOptionSet   options    = this.attributes;
     private       InterAddress   peerAddress;
+    private       InterAddress   bindAddress;
     private       short          flags;
     private       String         serializeType;
     private       boolean        message;
     private       int            timeout;
     private       long           receiveTime;
 
-    public MetRequestObject(long requestID, boolean local, MetContext context, MetBindInfo<?> bindInfo, Method targetMethod, Object[] parameterObjects) {
+    public MetRequestObject(long requestID, boolean local, MetContext context,//
+            MetBindInfo<?> bindInfo, Method targetMethod, Object[] parameterObjects) {
         this.requestID = requestID;
         this.local = local;
         this.context = context;
@@ -128,6 +130,11 @@ public class MetRequestObject implements MetRequest {
         this.peerAddress = peerAddress;
     }
 
+    /** Supply the exact local endpoint selected for this invocation. */
+    public void setBindAddress(InterAddress bindAddress) {
+        this.bindAddress = bindAddress;
+    }
+
     @Override
     public InterAddress getRemoteAddress() {
         // Preserve the existing API: outbound requests report the local RSF address here.
@@ -140,13 +147,7 @@ public class MetRequestObject implements MetRequest {
     }
 
     private InterAddress getBindAddress() {
-        String protocol;
-        if (this.peerAddress == null) {
-            protocol = this.context.getSettings().getBindAddressSet(this.context.getDefaultProtocol()).getSchema();
-        } else {
-            protocol = this.peerAddress.getSchema();
-        }
-        return this.context.bindAddress(protocol);
+        return this.bindAddress;
     }
 
     /** Inbound calls share the payload's options; attributes always remain request-local. */

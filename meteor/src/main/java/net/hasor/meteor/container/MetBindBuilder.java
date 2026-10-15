@@ -46,7 +46,9 @@ final class MetBindBuilder implements MetPublisher {
             try {
                 return type.getConstructor().newInstance();
             } catch (ReflectiveOperationException e) {
-                throw new IllegalArgumentException("Cannot construct " + type.getName() + "; register an instance or Supplier instead", e);
+                String message = "Cannot construct " + type.getName();
+                message += "; register an instance or Supplier instead";
+                throw new IllegalArgumentException(message, e);
             }
         };
     }
@@ -167,12 +169,12 @@ final class MetBindBuilder implements MetPublisher {
         @Override
         public ConfigurationBuilder<T> protocol(String protocol, String... protocolArrays) {
             if (StringUtils.isNotBlank(protocol)) {
-                this.serviceDefine.getDomain().addBindProtocol(protocol);
+                this.serviceDefine.getDomain().addBindProtocol(this.protocolSelector(protocol));
             }
 
             for (String prot : protocolArrays) {
                 if (StringUtils.isNotBlank(prot)) {
-                    this.serviceDefine.getDomain().addBindProtocol(prot);
+                    this.serviceDefine.getDomain().addBindProtocol(this.protocolSelector(prot));
                 }
             }
             return this;
@@ -184,9 +186,9 @@ final class MetBindBuilder implements MetPublisher {
             List<String> paths = new ArrayList<>(additionalContextPaths.length + 1);
             paths.add(defaultContextPath);
             Collections.addAll(paths, additionalContextPaths);
-            String scheme = this.pathProtocol(protocol);
+            String protocolName = this.protocolSelector(protocol);
             ContextPath context = new ContextPath(paths, false);
-            this.serviceDefine.getDomain().setBindContextPaths(scheme, context);
+            this.serviceDefine.getDomain().setBindContextPaths(protocolName, context);
             return this;
         }
 
@@ -196,29 +198,48 @@ final class MetBindBuilder implements MetPublisher {
             List<String> paths = new ArrayList<>(additionalPaths.length + 1);
             paths.add(path);
             Collections.addAll(paths, additionalPaths);
-            String scheme = this.pathProtocol(protocol);
+            String protocolName = this.protocolSelector(protocol);
             ContextPath context = new ContextPath(paths, true);
-            this.serviceDefine.getDomain().setBindContextPaths(scheme, context);
+            this.serviceDefine.getDomain().setBindContextPaths(protocolName, context);
             return this;
         }
 
-        /** 协议名与 scheme 先归一，再替换路径，避免两种名称保留不同的匹配模式。 */
-        private String pathProtocol(String selection) {
+        /** 逻辑协议名优先；地址 scheme 只在能够唯一确定逻辑协议时作为兼容别名。 */
+        private String protocolSelector(String selection) {
             if (StringUtils.isBlank(selection)) {
-                throw new IllegalArgumentException("Path protocol must not be blank");
+                throw new IllegalArgumentException("Service protocol must not be blank");
             }
 
-            String name = selection.trim();
+            String selector = selection.trim();
+
+            // 先在全部端点中解析逻辑协议名，同一逻辑协议可以挂载在多个传输端点上。
             for (ConnectorConfig endpoint : MetBindBuilder.this.getSettings().getConnectorConfigs()) {
                 for (ProtocolConfig protocol : endpoint.protocols()) {
-                    boolean matchesName = StringUtils.equalsIgnoreCase(name, protocol.name());
-                    boolean matchesScheme = StringUtils.equalsIgnoreCase(name, protocol.scheme());
-                    if (matchesName || matchesScheme) {
-                        return protocol.scheme();
+                    if (StringUtils.equalsIgnoreCase(selector, protocol.name())) {
+                        return protocol.name();
                     }
                 }
             }
-            throw new IllegalArgumentException("Path selected for unknown protocol: " + selection);
+
+            // 没有逻辑名匹配时，公开地址 scheme 必须唯一对应一个逻辑协议。
+            String selected = null;
+            String selectedScheme = null;
+            for (ConnectorConfig endpoint : MetBindBuilder.this.getSettings().getConnectorConfigs()) {
+                for (ProtocolConfig protocol : endpoint.protocols()) {
+                    if (!StringUtils.equalsIgnoreCase(selector, protocol.scheme())) {
+                        continue;
+                    }
+                    if (selected != null && !StringUtils.equalsIgnoreCase(selected, protocol.name())) {
+                        throw new IllegalArgumentException("Service protocol alias is ambiguous: " + selection);
+                    }
+                    selected = protocol.name();
+                    selectedScheme = protocol.scheme();
+                }
+            }
+            if (selectedScheme != null) {
+                return selectedScheme;
+            }
+            throw new IllegalArgumentException("Service selected unknown protocol: " + selection);
         }
 
         public ConfigurationBuilder<T> bindFilter(String filterID, MetFilter instance) {
