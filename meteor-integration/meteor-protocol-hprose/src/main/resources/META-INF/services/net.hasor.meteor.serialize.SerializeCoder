@@ -1,1 +1,1 @@
-net.hasor.meteor.protocol.hprose.HproseSerializeCoder
+net.hasor.meteor.protocol.hprose.codec.HproseSerializeCoder

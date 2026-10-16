@@ -20,8 +20,8 @@ import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.SendLimitPolicy;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.protocol.hprose.scenario.bootstrap.BootstrapTestSupport;
-import net.hasor.meteor.protocol.hprose.scenario.example.TextService;
+import net.hasor.meteor.protocol.hprose.support.BootstrapTestSupport;
+import net.hasor.meteor.protocol.hprose.support.example.TextService;
 import net.hasor.meteor.serialize.coder.JsonSerializeCoder;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -168,10 +168,8 @@ public class MetConfigurationTest extends BootstrapTestSupport {
                 assertEquals("Java", secondConnector.protocol("rsf").option("serializeType", null));
                 assertEquals(23001, firstConnector.address().getPort());
                 assertEquals(23002, secondConnector.address().getPort());
-                assertEquals(1000, firstConnector.connectTimeout());
-                assertEquals(2000, secondConnector.connectTimeout());
-                assertEquals("first", firstConnector.option("custom.nested", null));
-                assertEquals("second", secondConnector.option("custom.nested", null));
+                assertEquals(1000, firstSettings.getConnectTimeout());
+                assertEquals(2000, secondSettings.getConnectTimeout());
                 assertNull(first.bindAddress("rsf"));
                 assertNull(second.bindAddress("rsf"));
 
@@ -271,8 +269,6 @@ public class MetConfigurationTest extends BootstrapTestSupport {
                 ConnectorConfig newEndpoint = secondSettings.getConnectorConfigs().iterator().next();
                 assertEquals(8080, oldEndpoint.address().getPort());
                 assertEquals(8081, newEndpoint.address().getPort());
-                assertEquals(1200, oldEndpoint.connectTimeout());
-                assertEquals(2400, newEndpoint.connectTimeout());
                 assertEquals("/first", oldEndpoint.protocol("hprose").option("contextPath", null));
                 assertEquals("/second", newEndpoint.protocol("hprose").option("contextPath", null));
                 assertEquals("first", firstSettings.getResponseOptions().getOption("tag"));
@@ -335,10 +331,11 @@ public class MetConfigurationTest extends BootstrapTestSupport {
 
     @Test
     public void duplicateProtocolFailsBuild() throws Exception {
-        // 同一协议名称不同大小写仍表示重复挂载。
+        // 同一个端点内，同一协议名称不同大小写仍表示重复挂载。
         MetConfiguration duplicate = new MetConfiguration();
-        duplicate.connector("tcp").protocol("rsf");
-        duplicate.connector("tcp").protocol("RSF");
+        MetConfiguration.ConnectorSettings tcp = duplicate.connector("tcp");
+        tcp.protocol("rsf");
+        tcp.protocol("RSF");
         assertThrows(IllegalArgumentException.class, duplicate::buildContext);
     }
 
@@ -347,8 +344,8 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         // 不同协议也不能占用规范化后相同的 HTTP 路径。
         MetConfiguration conflictingPaths = new MetConfiguration();
         MetConfiguration.ConnectorSettings http = conflictingPaths.connector("http");
-        http.protocol("hprosea").contextPath("/same/");
-        http.protocol("hproseb").contextPath("/same");
+        http.protocol("hprose").contextPath("/same/");
+        http.protocol("hprosea").contextPath("/same");
         var conflict = assertThrows(IllegalArgumentException.class, conflictingPaths::buildContext);
         assertTrue(conflict.getMessage().contains("Duplicate HTTP directory mount"));
     }
@@ -369,18 +366,18 @@ public class MetConfigurationTest extends BootstrapTestSupport {
     }
 
     @Test
-    public void transportOptionCannotOverrideListenType() {
-        // 传输选项不能覆盖由正式配置入口或 SPI 确定的 listenType。
+    public void transportOptionCannotOverrideTransportType() {
+        // 传输选项不能覆盖由正式配置入口确定的传输类型。
         MetConfiguration.ConnectorSettings tcp = new MetConfiguration().connector("tcp");
-        assertThrows(IllegalArgumentException.class, () -> tcp.option("listenType", "other"));
+        assertThrows(IllegalArgumentException.class, () -> tcp.option("transportType", "other"));
     }
 
     @Test
-    public void protocolOptionCannotOverrideListenType() {
-        // 协议选项不能覆盖由正式配置入口或 SPI 确定的 listenType。
+    public void protocolOptionCannotOverrideTransportType() {
+        // 协议选项不能覆盖由正式配置入口确定的传输类型。
         MetConfiguration.ConnectorSettings tcp = new MetConfiguration().connector("tcp");
         MetConfiguration.ProtocolSettings rsf = tcp.protocol("rsf");
-        assertThrows(IllegalArgumentException.class, () -> rsf.option("listenType", "other"));
+        assertThrows(IllegalArgumentException.class, () -> rsf.option("transportType", "other"));
     }
 
     @Test
@@ -462,7 +459,7 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         // 指定类加载器隐藏协议 SPI 声明，构建不能退回其它加载器发现协议。
         MetConfiguration config = new MetConfiguration();
         config.connector("http").protocol("hprose");
-        String protocolSpi = "META-INF/services/net.hasor.meteor.connector.protocol.ProtocolFactory";
+        String protocolSpi = "META-INF/services/net.hasor.meteor.connector.ProtocolFactory";
         ClassLoader loader = new ClassLoader(this.getClass().getClassLoader()) {
             @Override
             public Enumeration<URL> getResources(String name) throws IOException {

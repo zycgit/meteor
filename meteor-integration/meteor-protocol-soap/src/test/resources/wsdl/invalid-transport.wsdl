@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+        xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        xmlns:tns="urn:meteor:test:invalid-transport"
+        targetNamespace="urn:meteor:test:invalid-transport">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:test:invalid-transport">
+            <xsd:element name="send" type="xsd:string"/>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="SendRequest">
+        <wsdl:part name="parameters" element="tns:send"/>
+    </wsdl:message>
+    <wsdl:portType name="SendPortType">
+        <wsdl:operation name="send">
+            <wsdl:input message="tns:SendRequest"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="SendBinding" type="tns:SendPortType">
+        <soap:binding style="document" transport="urn:meteor:transport:jms"/>
+        <wsdl:operation name="send">
+            <soap:operation soapAction="urn:meteor:test:invalid-transport:send"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="SendService">
+        <wsdl:port name="SendPort" binding="tns:SendBinding">
+            <soap:address location="http://127.0.0.1:1/placeholder/SendService"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

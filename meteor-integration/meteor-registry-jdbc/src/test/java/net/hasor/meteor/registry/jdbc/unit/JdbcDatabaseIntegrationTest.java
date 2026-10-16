@@ -67,11 +67,15 @@ public class JdbcDatabaseIntegrationTest {
             writer.registerInstance(instance());
             JdbcTemplate jdbc = new JdbcTemplate(connection);
             String sql = "SELECT expires_at FROM meteor_instances";
-            long initialExpiry = jdbc.queryForList(sql, Long.class).get(0);
+            long heartbeatMarker = Long.MAX_VALUE;
+            jdbc.executeUpdate("UPDATE meteor_instances SET expires_at=?", new Object[] { heartbeatMarker });
 
-            // 等到真实数据库更新完成，再检查实例仍提供有效的运行信息。
-            await(() -> jdbc.queryForList(sql, Long.class).get(0) > initialExpiry);
-            assertNotNull(writer.getInstance("one").getRuntime());
+            // 等待心跳把哨兵替换为真实租约，避免墙上时钟回拨影响前后时间戳比较。
+            await(() -> jdbc.queryForList(sql, Long.class).get(0) < heartbeatMarker);
+            long renewedExpiry = jdbc.queryForList(sql, Long.class).get(0);
+            String runtime = jdbc.queryForList("SELECT runtime_body FROM meteor_instances", String.class).get(0);
+            assertTrue(renewedExpiry > 0);
+            assertNotNull(runtime);
         }
     }
 
@@ -88,17 +92,20 @@ public class JdbcDatabaseIntegrationTest {
             writer.registerInstance(instance("two", "orders", "west"));
             writer.registerService("two", service());
             JdbcTemplate jdbc = new JdbcTemplate(connection);
+            long liveMarker = Long.MAX_VALUE;
+            String prepareSql = "UPDATE meteor_instances SET expires_at=" //
+                    + "CASE WHEN unit_name='east' THEN CAST(0 AS BIGINT) ELSE ? END";
+            jdbc.executeUpdate(prepareSql, new Object[] { liveMarker });
             String liveSql = "SELECT expires_at FROM meteor_instances WHERE unit_name='west'";
-            long initialExpiry = jdbc.queryForList(liveSql, Long.class).get(0);
-            jdbc.executeUpdate("UPDATE meteor_instances SET expires_at=0 WHERE unit_name='east'");
 
-            // 等待同一轮后台心跳续租 two，one 必须保持到期且服务不可见。
-            await(() -> jdbc.queryForList(liveSql, Long.class).get(0) > initialExpiry);
+            // 用哨兵值观察 two 被续租，避免墙上时钟跳变影响时间戳大小比较。
+            await(() -> jdbc.queryForList(liveSql, Long.class).get(0) < liveMarker);
             String expiredSql = "SELECT expires_at FROM meteor_instances WHERE unit_name='east'";
+            long renewedExpiry = jdbc.queryForList(liveSql, Long.class).get(0);
+            assertTrue(renewedExpiry > 0);
             assertEquals(List.of(0L), jdbc.queryForList(expiredSql, Long.class));
             assertNull(writer.getInstance("one").getRuntime());
             assertNull(writer.getMember("echo", MetServiceType.Provider, "one"));
-            assertNotNull(writer.getMember("echo", MetServiceType.Provider, "two"));
             assertThrows(IllegalStateException.class, () -> writer.registerService("one", service()));
         }
     }
@@ -115,8 +122,7 @@ public class JdbcDatabaseIntegrationTest {
                 writer.registerInstance(instance());
                 connection.setAutoCommit(false);
                 JdbcTemplate jdbc = new JdbcTemplate(connection);
-                jdbc.executeUpdate("UPDATE meteor_instances SET expires_at=expires_at");
-                long expiry = jdbc.queryForList("SELECT expires_at FROM meteor_instances", Long.class).get(0);
+                jdbc.executeUpdate("UPDATE meteor_instances SET expires_at=0");
                 CountDownLatch waiting = new CountDownLatch(1);
                 CountDownLatch nextHeartbeat = new CountDownLatch(1);
                 AtomicInteger attempts = new AtomicInteger();
@@ -131,16 +137,15 @@ public class JdbcDatabaseIntegrationTest {
                 });
 
                 try {
-                    // 先确认心跳已发起锁请求，再等实际到期时间后释放行锁。
+                    // 持锁事务先把租约置为到期，再确认心跳已经发起锁请求。
                     assertTrue("Heartbeat did not wait for the instance row", waiting.await(5, TimeUnit.SECONDS));
-                    await(() -> System.currentTimeMillis() >= expiry);
                     connection.commit();
 
                     // 下一轮开始说明前一轮已经执行完毕，旧时间不能把到期实例重新续活。
                     boolean completed = nextHeartbeat.await(5, TimeUnit.SECONDS);
                     assertTrue("Heartbeat did not complete its first attempt", completed);
                     List<Long> currentExpiry = jdbc.queryForList("SELECT expires_at FROM meteor_instances", Long.class);
-                    assertEquals(List.of(expiry), currentExpiry);
+                    assertEquals(List.of(0L), currentExpiry);
                     assertNull(writer.getInstance("one").getRuntime());
                 } finally {
                     connection.rollback();

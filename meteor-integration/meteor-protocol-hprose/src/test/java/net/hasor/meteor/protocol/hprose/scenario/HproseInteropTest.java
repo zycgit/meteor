@@ -19,9 +19,9 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.protocol.hprose.scenario.example.Person;
-import net.hasor.meteor.protocol.hprose.scenario.example.Sample;
-import net.hasor.meteor.protocol.hprose.scenario.example.SampleImpl;
+import net.hasor.meteor.protocol.hprose.support.example.Person;
+import net.hasor.meteor.protocol.hprose.support.example.Sample;
+import net.hasor.meteor.protocol.hprose.support.example.SampleImpl;
 import org.junit.Test;
 import static org.junit.Assert.*;
 

@@ -16,6 +16,7 @@ import java.util.concurrent.*;
 import java.util.function.Supplier;
 import hprose.io.HproseReader;
 import hprose.io.HproseWriter;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
@@ -24,8 +25,9 @@ import net.hasor.meteor.MetPublisher.ConfigurationBuilder;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetTimeoutException;
-import net.hasor.meteor.protocol.hprose.scenario.example.Echo;
-import net.hasor.meteor.protocol.hprose.scenario.example.EchoService;
+import net.hasor.meteor.protocol.hprose.support.BootstrapTestSupport;
+import net.hasor.meteor.protocol.hprose.support.example.Echo;
+import net.hasor.meteor.protocol.hprose.support.example.EchoService;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -50,13 +52,13 @@ public class ContextHttpTest extends BootstrapTestSupport {
     }
 
     @Test
-    public void mountedProtocolsShareConfiguredPortAndAdvertiseTheirOwnSchemes() throws Exception {
-        // 两个协议挂载共享 HTTP 端口，按路径分流。
+    public void mountedProtocolsShareHttpSchemeAndRouteByContext() throws Exception {
+        // 正式 Hprose 与测试别名共享 HTTP 地址和端口，按路径分流。
         MetConfiguration config = this.configuration();
         int sharedPort = this.port();
         MetConfiguration.ConnectorSettings http = config.connector("http").bind("127.0.0.1", sharedPort);
-        http.protocol("hprosea").contextPath("/a");
-        http.protocol("hproseb").contextPath("/b");
+        http.protocol("hprose").addressScheme("http").contextPath("/a");
+        http.protocol("hprosea").addressScheme("http").contextPath("/b");
         try (MetContext server = config.buildContext()) {
             // 先启动 HTTP 应用，再发布本场景使用的服务。
             server.start();
@@ -64,13 +66,13 @@ public class ContextHttpTest extends BootstrapTestSupport {
             // 将 Echo 实现发布到已启动的协议入口。
             server.publisher().rsfService(Echo.class).toInstance(new EchoService()).register();
 
-            // 两个挂载分别公开自己的 scheme，并在同一端口响应对应路径。
-            for (String branch : Arrays.asList("a", "b")) {
-                String scheme = "hprose" + branch;
-                assertTrue(server.runProtocols().contains(scheme));
-                assertEquals(scheme, server.bindAddress(scheme).getSchema());
-                assertEquals(sharedPort, server.bindAddress(scheme).getPort());
-                assertEquals(scheme, this.invokeHttp(sharedPort, "/" + branch, scheme));
+            // 两个逻辑协议均公开 HTTP 地址，并在同一端口响应各自路径。
+            for (String protocol : Arrays.asList("hprose", "hprosea")) {
+                String branch = StringUtils.equals("hprose", protocol) ? "a" : "b";
+                assertTrue(server.runProtocols().contains(protocol));
+                assertEquals("http", server.bindAddress(protocol).getSchema());
+                assertEquals(sharedPort, server.bindAddress(protocol).getPort());
+                assertEquals(protocol, this.invokeHttp(sharedPort, "/" + branch, protocol));
             }
         }
     }

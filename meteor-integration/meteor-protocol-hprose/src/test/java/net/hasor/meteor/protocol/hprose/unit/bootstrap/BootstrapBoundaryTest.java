@@ -29,11 +29,8 @@ import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.rpc.MetCaller;
 import net.hasor.meteor.rpc.MetClientImpl;
-import net.hasor.meteor.rpc.filters.local.LocalPref;
-import net.hasor.meteor.rpc.filters.online.OnlineMetFilter;
-import net.hasor.meteor.rpc.filters.thread.LocalWarpFilter;
-import net.hasor.meteor.rpc.filters.thread.MetRequestLocal;
-import net.hasor.meteor.rpc.filters.thread.MetResponseLocal;
+import net.hasor.meteor.rpc.MetRequestLocal;
+import net.hasor.meteor.rpc.MetResponseLocal;
 import net.hasor.meteor.serialize.SerializeCoder;
 import net.hasor.meteor.serialize.SerializeFactory;
 import net.hasor.meteor.serialize.coder.HessianSerializeCoder;
@@ -64,7 +61,6 @@ public class BootstrapBoundaryTest {
         types.addAll(List.of(MetContext.class, MetRequest.class, RequestPayload.class));
         types.addAll(List.of(MetRequestObject.class, MetResponseObject.class, ServiceDomain.class));
         types.addAll(List.of(MetCaller.class, MetClientImpl.class, MetContainer.class));
-        types.addAll(List.of(LocalPref.class, OnlineMetFilter.class, LocalWarpFilter.class));
         types.addAll(List.of(MetRequestLocal.class, MetResponseLocal.class));
 
         // 每个类只能存在一份定义，且应与框架入口位于同一个产物。

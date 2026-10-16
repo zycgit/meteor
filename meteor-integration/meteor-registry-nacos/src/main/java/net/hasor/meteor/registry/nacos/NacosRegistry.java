@@ -25,13 +25,9 @@ import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
 /** 应用和服务定义持久保存；实例、成员关系和实例治理随 Naming 临时登记退出。 */
 final class NacosRegistry implements StorageAccess {
-    private final    NamingService                            naming;
-    private final    ConfigService                            configs;
-    private final    String                                   group;
-    private final    NacosConfigStore                         documents;
-    private final    NacosNamingStore                         runtime;
+    private final    NacosConfigStore                         configStore;
+    private final    NacosNamingStore                         namingStore;
     private final    NacosGovernance                          governance;
-    private final    NacosRuleStore                           rules;
     private final    Map<String, EntInstanceRuntimeData>      instances  = new HashMap<>();
     private final    Map<String, Map<String, MetServiceType>> references = new HashMap<>();
     private final    Set<NacosStorageWatch>                   watches    = ConcurrentHashMap.newKeySet();
@@ -39,13 +35,9 @@ final class NacosRegistry implements StorageAccess {
     private volatile boolean                                  closed;
 
     NacosRegistry(NamingService naming, ConfigService configs, Properties properties, String group, long timeout) {
-        this.naming = naming;
-        this.configs = configs;
-        this.group = group;
-        this.documents = new NacosConfigStore(configs, group, timeout);
-        this.runtime = new NacosNamingStore(naming, group);
-        this.governance = new NacosGovernance(this.documents, this.runtime, properties, group);
-        this.rules = new NacosRuleStore(this.documents, this.governance);
+        this.configStore = new NacosConfigStore(configs, group, timeout);
+        this.namingStore = new NacosNamingStore(naming, group);
+        this.governance = new NacosGovernance(this.configStore, this.namingStore, properties, group);
         this.executor = Executors.newSingleThreadScheduledExecutor(task -> {
             Thread thread = new Thread(task, "Meteor-nacos-watch");
             thread.setDaemon(true);
@@ -67,7 +59,7 @@ final class NacosRegistry implements StorageAccess {
     @Override
     public EntApplicationCatalogData getApplication(String name) throws Exception {
         this.requireOpen();
-        return this.documents.get(NacosKeyUtils.application(name), EntApplicationCatalogData.class);
+        return this.configStore.get(NacosKeyUtils.application(name), EntApplicationCatalogData.class);
     }
 
     @Override
@@ -75,14 +67,14 @@ final class NacosRegistry implements StorageAccess {
         this.requireOpen();
         String name = value.getApplicationName();
         String key = NacosKeyUtils.application(name);
-        this.documents.update(key, EntApplicationCatalogData.class, previous -> value);
-        this.documents.index("applications", name, key);
+        this.configStore.update(key, EntApplicationCatalogData.class, previous -> value);
+        this.configStore.index("applications", name, key);
     }
 
     @Override
     public EntServiceCatalogData getService(String id) throws Exception {
         this.requireOpen();
-        return this.documents.get(NacosKeyUtils.service(id), EntServiceCatalogData.class);
+        return this.configStore.get(NacosKeyUtils.service(id), EntServiceCatalogData.class);
     }
 
     @Override
@@ -92,7 +84,7 @@ final class NacosRegistry implements StorageAccess {
         String key = NacosKeyUtils.service(id);
         // 服务登记仅合并声明字段，保留同一详情中的管理端规则开关。
         Map<String, Object> declaration = RegistryJson.copy(value, Map.class);
-        this.documents.update(key, Map.class, previous -> {
+        this.configStore.update(key, Map.class, previous -> {
             Map<String, Object> document = previous == null ? new LinkedHashMap<>() : previous;
             for (String field : List.of("serviceId", "group", "name", "version", "type")) {
                 Object item = declaration.get(field);
@@ -102,14 +94,14 @@ final class NacosRegistry implements StorageAccess {
             }
             return document;
         });
-        this.documents.index("services", id, key);
+        this.configStore.index("services", id, key);
     }
 
     @Override
     public RecordPage<EntApplicationCatalogData> applications(DirectoryQuery query) throws Exception {
         this.requireOpen();
         Map<String, EntApplicationCatalogData> values = new TreeMap<>();
-        for (String id : this.documents.references("applications").keySet()) {
+        for (String id : this.configStore.references("applications").keySet()) {
             EntApplicationCatalogData value = this.getApplication(id);
             if (value != null) {
                 values.put(id, value);
@@ -122,7 +114,7 @@ final class NacosRegistry implements StorageAccess {
     public RecordPage<EntServiceCatalogData> services(DirectoryQuery query) throws Exception {
         this.requireOpen();
         Map<String, EntServiceCatalogData> values = new TreeMap<>();
-        for (String id : this.documents.references("services").keySet()) {
+        for (String id : this.configStore.references("services").keySet()) {
             EntServiceCatalogData value = this.getService(id);
             if (value != null) {
                 values.put(id, value);
@@ -134,7 +126,7 @@ final class NacosRegistry implements StorageAccess {
     @Override
     public InstanceStatus getInstance(String id) throws Exception {
         this.requireOpen();
-        Instance node = this.runtime.find(NacosKeyUtils.instance(id), id);
+        Instance node = this.namingStore.find(NacosKeyUtils.instance(id), id);
         if (node == null) {
             return null;
         }
@@ -152,12 +144,12 @@ final class NacosRegistry implements StorageAccess {
         if (applicationName != null) {
             names.add(applicationName);
         } else {
-            names.addAll(this.documents.references("applications").keySet());
+            names.addAll(this.configStore.references("applications").keySet());
         }
         Map<String, InstanceStatus> values = new TreeMap<>();
         for (String name : names) {
             String key = NacosKeyUtils.application(name) + ".instances";
-            for (Instance reference : this.runtime.members(key)) {
+            for (Instance reference : this.namingStore.members(key)) {
                 String id = reference.getMetadata().get("instanceId");
                 InstanceStatus instance = this.getInstance(id);
                 if (instance != null) {
@@ -173,25 +165,27 @@ final class NacosRegistry implements StorageAccess {
         this.requireOpen();
         String id = value.getInstanceId();
         EntInstanceRuntimeData previous = this.instances.get(id);
-        if (previous == null && this.getInstance(id) != null) {
+        String instanceKey = NacosKeyUtils.instance(id);
+        boolean ownsInstance = this.namingStore.owns(instanceKey, id);
+        if (previous == null && !ownsInstance && this.getInstance(id) != null) {
             throw new IllegalStateException("Instance ID is already registered: " + id);
         }
         EntApplicationCatalogData application = new EntApplicationCatalogData();
         application.setApplicationName(value.getApplicationName());
         this.saveApplication(application);
 
-        // 只持有本进程的运行快照；实例 ID 标识一次运行，不支持另一个进程接管相同 ID。
+        // 先完成全部远端登记；本地快照只记录已完整提交的应用归属，失败重试仍能撤回旧关系。
         EntInstanceRuntimeData snapshot = RegistryJson.copy(value, EntInstanceRuntimeData.class);
-        this.instances.put(id, snapshot);
         this.references.computeIfAbsent(id, ignored -> new TreeMap<>());
         this.publishInstance(snapshot);
         this.ensureGovernance(snapshot, null);
         String applicationKey = NacosKeyUtils.application(value.getApplicationName()) + ".instances";
-        this.runtime.publish(applicationKey, snapshot, Map.of());
+        this.namingStore.publish(applicationKey, snapshot, Map.of());
         if (previous != null && !StringUtils.equals(previous.getApplicationName(), value.getApplicationName())) {
             String oldKey = NacosKeyUtils.application(previous.getApplicationName()) + ".instances";
-            this.runtime.withdraw(oldKey, id);
+            this.namingStore.withdraw(oldKey, id);
         }
+        this.instances.put(id, snapshot);
     }
 
     private void publishInstance(EntInstanceRuntimeData instance) throws Exception {
@@ -199,14 +193,14 @@ final class NacosRegistry implements StorageAccess {
         Map<String, String> metadata = new HashMap<>();
         metadata.put("body", RegistryJson.write(instance));
         metadata.put("services", RegistryJson.write(this.references.get(id)));
-        this.runtime.publish(NacosKeyUtils.instance(id), instance, metadata);
+        this.namingStore.publish(NacosKeyUtils.instance(id), instance, metadata);
     }
 
     private void ensureGovernance(EntInstanceRuntimeData instance, String serviceId) throws Exception {
         String key = NacosKeyUtils.governance(instance.getInstanceId(), serviceId);
         // 客户端只创建空的控制节点。控制字段由 Naming 管理接口维护，重复上报不能覆盖它们。
-        if (!this.runtime.owns(key, instance.getInstanceId())) {
-            this.runtime.publish(key, instance, Map.of());
+        if (!this.namingStore.owns(key, instance.getInstanceId())) {
+            this.namingStore.publish(key, instance, Map.of());
         }
     }
 
@@ -233,19 +227,19 @@ final class NacosRegistry implements StorageAccess {
         relation.put("addresses", value.getAddresses());
         relation.put("usedProtocols", value.getUsedProtocols());
         String body = RegistryJson.write(relation);
-        this.runtime.publish(membersKey(id, value.getRole()), instance, Map.of("body", body));
+        this.namingStore.publish(membersKey(id, value.getRole()), instance, Map.of("body", body));
         MetServiceType other = MetServiceType.Provider;
         if (value.getRole() == MetServiceType.Provider) {
             other = MetServiceType.Consumer;
         }
         String previousKey = membersKey(id, other);
-        if (this.runtime.owns(previousKey, instanceId)) {
+        if (this.namingStore.owns(previousKey, instanceId)) {
             String targetKey = membersKey(id, value.getRole());
             long deadline = NacosGovernance.writeDeadline();
             this.governance.locked(NacosKeyUtils.governance(instanceId, id), () -> {
                 // 搬迁开关和撤回旧角色在同一治理锁内，避免期间下发到旧关系后丢失。
-                this.rules.moveControls(instanceId, previousKey, targetKey, deadline);
-                this.runtime.withdraw(previousKey, instanceId);
+                this.governance.moveRuleControls(instanceId, previousKey, targetKey, deadline);
+                this.namingStore.withdraw(previousKey, instanceId);
                 return null;
             });
         }
@@ -258,9 +252,9 @@ final class NacosRegistry implements StorageAccess {
     @Override
     public synchronized void unregisterService(String instanceId, String serviceId) throws Exception {
         EntInstanceRuntimeData instance = this.ownInstance(instanceId);
-        this.runtime.withdraw(membersKey(serviceId, MetServiceType.Provider), instanceId);
-        this.runtime.withdraw(membersKey(serviceId, MetServiceType.Consumer), instanceId);
-        this.runtime.withdraw(NacosKeyUtils.governance(instanceId, serviceId), instanceId);
+        this.namingStore.withdraw(membersKey(serviceId, MetServiceType.Provider), instanceId);
+        this.namingStore.withdraw(membersKey(serviceId, MetServiceType.Consumer), instanceId);
+        this.namingStore.withdraw(NacosKeyUtils.governance(instanceId, serviceId), instanceId);
         this.references.get(instanceId).remove(serviceId);
         this.publishInstance(instance);
     }
@@ -268,7 +262,7 @@ final class NacosRegistry implements StorageAccess {
     @Override
     public RefServiceRelationData getMember(String serviceId, MetServiceType role, String instanceId) throws Exception {
         this.requireOpen();
-        Instance node = this.runtime.find(membersKey(serviceId, role), instanceId);
+        Instance node = this.namingStore.find(membersKey(serviceId, role), instanceId);
         return node == null ? null : this.member(serviceId, role, node);
     }
 
@@ -307,7 +301,7 @@ final class NacosRegistry implements StorageAccess {
     public RecordPage<EntServiceRuntimeData> instanceServices(String instanceId, DirectoryQuery query) throws Exception {
         this.requireOpen();
         Map<String, EntServiceRuntimeData> values = new TreeMap<>();
-        Instance node = this.runtime.find(NacosKeyUtils.instance(instanceId), instanceId);
+        Instance node = this.namingStore.find(NacosKeyUtils.instance(instanceId), instanceId);
         if (node != null) {
             Map<?, ?> services = RegistryJson.read(node.getMetadata().get("services"), Map.class);
             for (Object id : services.keySet()) {
@@ -325,7 +319,7 @@ final class NacosRegistry implements StorageAccess {
     public RecordPage<RefServiceRelationData> members(String serviceId, MetServiceType role, DirectoryQuery query) throws Exception {
         this.requireOpen();
         Map<String, RefServiceRelationData> values = new TreeMap<>();
-        for (Instance node : this.runtime.members(membersKey(serviceId, role))) {
+        for (Instance node : this.namingStore.members(membersKey(serviceId, role))) {
             RefServiceRelationData member = this.member(serviceId, role, node);
             if (member != null) {
                 values.put(member.getInstance().getInstanceId(), member);
@@ -339,7 +333,7 @@ final class NacosRegistry implements StorageAccess {
         this.requireOpen();
         Set<String> units = new TreeSet<>();
         String key = NacosKeyUtils.application(applicationName) + ".instances";
-        for (Instance node : this.runtime.members(key)) {
+        for (Instance node : this.namingStore.members(key)) {
             InstanceStatus instance = this.getInstance(node.getMetadata().get("instanceId"));
             if (instance != null && StringUtils.isNotBlank(instance.getInstance().getUnitName())) {
                 units.add(instance.getInstance().getUnitName());
@@ -353,7 +347,7 @@ final class NacosRegistry implements StorageAccess {
         this.requireOpen();
         Set<String> units = new TreeSet<>();
         for (MetServiceType role : MetServiceType.values()) {
-            for (Instance node : this.runtime.members(membersKey(serviceId, role))) {
+            for (Instance node : this.namingStore.members(membersKey(serviceId, role))) {
                 InstanceStatus instance = this.getInstance(node.getMetadata().get("instanceId"));
                 if (instance != null && StringUtils.isNotBlank(instance.getInstance().getUnitName())) {
                     units.add(instance.getInstance().getUnitName());
@@ -372,7 +366,7 @@ final class NacosRegistry implements StorageAccess {
             Set<String> protocols = new TreeSet<>();
             for (MetServiceType role : MetServiceType.values()) {
                 int count = 0;
-                for (Instance node : this.runtime.members(membersKey(id, role))) {
+                for (Instance node : this.namingStore.members(membersKey(id, role))) {
                     RefServiceRelationData member = this.member(id, role, node);
                     if (member != null) {
                         count++;
@@ -455,13 +449,13 @@ final class NacosRegistry implements StorageAccess {
     @Override
     public EntityRecord<EntRuleConfigurationData> getRule(String instanceId, String serviceId, RuleKind kind) throws Exception {
         this.requireOpen();
-        return this.rules.get(instanceId, serviceId, kind);
+        return this.governance.getRule(instanceId, serviceId, kind);
     }
 
     @Override
     public void saveRule(String instanceId, String serviceId, RuleKind kind, EntityRecord<EntRuleConfigurationData> value) throws Exception {
         this.requireOpen();
-        this.rules.save(instanceId, serviceId, kind, value, false);
+        this.governance.saveRule(instanceId, serviceId, kind, value, false);
     }
 
     @Override
@@ -469,7 +463,7 @@ final class NacosRegistry implements StorageAccess {
         this.requireOpen();
         EntityRecord<EntRuleConfigurationData> value = new EntityRecord<>();
         value.setRevision(revision);
-        return this.rules.save(instanceId, serviceId, kind, value, true);
+        return this.governance.saveRule(instanceId, serviceId, kind, value, true);
     }
 
     @Override
@@ -494,7 +488,7 @@ final class NacosRegistry implements StorageAccess {
 
     private synchronized Cancellable watch(List<String> names, List<String> dataIds, Callable<Map<String, String>> snapshot, Runnable listener) {
         this.requireOpen();
-        NacosStorageWatch watch = new NacosStorageWatch(this.naming, this.configs, this.group, // 原生订阅来源
+        NacosStorageWatch watch = new NacosStorageWatch(this.namingStore, this.configStore, // 原生订阅来源
                 names, dataIds, snapshot, listener, this.executor, this.watches::remove);
         this.watches.add(watch);
         watch.start();
@@ -504,7 +498,7 @@ final class NacosRegistry implements StorageAccess {
     @Override
     public Cancellable watchProviders(String serviceId, Runnable listener) {
         String key = membersKey(serviceId, MetServiceType.Provider);
-        return this.watch(List.of(key), List.of(), () -> this.runtime.snapshot(key), listener);
+        return this.watch(List.of(key), List.of(), () -> this.namingStore.snapshot(key), listener);
     }
 
     @Override
@@ -554,7 +548,7 @@ final class NacosRegistry implements StorageAccess {
         return this.watch(List.of(), keys, () -> {
             Map<String, String> values = new TreeMap<>();
             for (String dataId : keys) {
-                String body = this.documents.read(dataId);
+                String body = this.configStore.read(dataId);
                 if (body != null) {
                     values.put(dataId, body);
                 }
@@ -579,8 +573,7 @@ final class NacosRegistry implements StorageAccess {
         }
         this.executor.shutdownNow();
         // 撤回失败也必须关闭 SDK 连接，让服务端最终移除临时登记。
-        List<AutoCloseable> resources = List.of(this.runtime::close, this.governance, // 先撤回登记和释放治理客户端
-                this.naming::shutDown, this.configs::shutDown);
+        List<AutoCloseable> resources = List.of(this.governance, this.namingStore, this.configStore);
         for (AutoCloseable resource : resources) {
             try {
                 resource.close();

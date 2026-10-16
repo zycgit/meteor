@@ -83,9 +83,9 @@ public class NacosStorageWatchTest {
         // 在配置监听器安装时注入 SDK 错误。
         try (MockNacosSdk sdk = new MockNacosSdk(); //
              StorageAccess reader = sdk.configuration().openStorage()) {
-            sdk.rejectConfigListener = true;
+            sdk.failConfigSubscribeAfterInstall = true;
 
-            // 错误上抛，并回收先前已经安装的原生监听器。
+            // SDK 已登记当前监听器后再抛错，启动补偿仍须回收全部原生监听器。
             Runnable callback = () -> {
             };
             IllegalStateException failure = assertThrows(IllegalStateException.class, () -> {

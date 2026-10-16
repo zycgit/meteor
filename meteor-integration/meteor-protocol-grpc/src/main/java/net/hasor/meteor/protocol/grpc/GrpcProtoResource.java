@@ -21,7 +21,6 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.Descriptors.FileDescriptor;
 import com.google.protobuf.Descriptors.MethodDescriptor;
 import com.google.protobuf.Descriptors.ServiceDescriptor;
-import com.google.protobuf.util.JsonFormat;
 import com.squareup.wire.schema.*;
 import com.squareup.wire.schema.internal.SchemaEncoder;
 import com.squareup.wire.schema.internal.parser.ProtoFileElement;
@@ -30,16 +29,33 @@ import net.hasor.cobble.StringUtils;
 
 /** 本地 .proto 资源及其导入文件；解析一次，不生成 Java 类，也不参与注册中心同步。 */
 public final class GrpcProtoResource {
-    private final Map<String, ServiceDescriptor> services;
-    private final JsonFormat.TypeRegistry        types;
+    private static final String                         RESOURCE_ROOT = "/META-INF/meteor/protocol/";
+    private final        Map<String, ServiceDescriptor> services;
+    private final        List<FileDescriptor>           fileDescriptors;
 
     public GrpcProtoResource(URL source) throws IOException {
-        this(new URL(source, "."), source.getPath().substring(source.getPath().lastIndexOf('/') + 1));
-    }
+        if (source == null) {
+            throw new IllegalArgumentException("gRPC proto resource URL is required");
+        }
 
-    /** 从指定导入根目录加载入口文件，保留描述文件的相对名称。 */
-    public GrpcProtoResource(URL root, String name) throws IOException {
-        URL source = new URL(root, name);
+        // 内置定义以协议资源目录为导入根，业务定义沿用入口文件所在目录。
+        String location = source.toExternalForm();
+        int resourceRoot = location.lastIndexOf(RESOURCE_ROOT);
+        URL root;
+        String name;
+        if (resourceRoot >= 0) {
+            int nameStart = resourceRoot + RESOURCE_ROOT.length();
+            root = new URL(location.substring(0, nameStart));
+            name = location.substring(nameStart);
+        } else {
+            root = new URL(source, ".");
+            String path = source.getPath();
+            name = path.substring(path.lastIndexOf('/') + 1);
+        }
+        if (StringUtils.isBlank(name)) {
+            throw new IOException("gRPC proto resource must identify an entry file: " + source);
+        }
+
         Path directory = Files.createTempDirectory("meteor-proto-");
         try {
             // 将 URL 资源及相对导入交给同一个 schema 根目录，兼容文件和 jar 资源。
@@ -54,7 +70,8 @@ public final class GrpcProtoResource {
             SchemaEncoder encoder = new SchemaEncoder(schema);
             Map<String, FileDescriptorProto> files = new HashMap<>();
             for (ProtoFile file : schema.getProtoFiles()) {
-                FileDescriptorProto.Builder encoded = FileDescriptorProto.parseFrom(encoder.encode(file).toByteArray()).toBuilder();
+                byte[] descriptorBytes = encoder.encode(file).toByteArray();
+                FileDescriptorProto.Builder encoded = FileDescriptorProto.parseFrom(descriptorBytes).toBuilder();
                 this.nestedExtensions(file, file.getTypes(), encoded.getMessageTypeBuilderList(), encoder);
                 FileDescriptorProto descriptor = encoded.build();
                 files.put(descriptor.getName(), descriptor);
@@ -69,12 +86,8 @@ public final class GrpcProtoResource {
             }
 
             this.services = Map.copyOf(services);
-            JsonFormat.TypeRegistry.Builder registry = JsonFormat.TypeRegistry.newBuilder();
-            for (FileDescriptor file : linked.values()) {
-                registry.add(file.getMessageTypes());
-            }
-
-            this.types = registry.build();
+            Comparator<FileDescriptor> byFullName = Comparator.comparing(FileDescriptor::getFullName);
+            this.fileDescriptors = linked.values().stream().sorted(byFullName).toList();
         } catch (IOException failure) {
             throw failure;
         } catch (Exception failure) {
@@ -93,10 +106,6 @@ public final class GrpcProtoResource {
         return this.services.get(name);
     }
 
-    JsonFormat.TypeRegistry types() {
-        return this.types;
-    }
-
     public MethodDescriptor method(String serviceName, String methodName) {
         ServiceDescriptor service = this.services.get(serviceName);
         MethodDescriptor method = service == null ? null : service.findMethodByName(methodName);
@@ -106,7 +115,13 @@ public final class GrpcProtoResource {
         return method;
     }
 
-    private void nestedExtensions(ProtoFile file, List<Type> types, List<DescriptorProto.Builder> messages, SchemaEncoder encoder) throws IOException {
+    /** 返回入口资源解析到的全部文件描述，用于完整解析 Any 等跨文件消息。 */
+    public List<FileDescriptor> fileDescriptors() {
+        return this.fileDescriptors;
+    }
+
+    private void nestedExtensions(ProtoFile file, List<Type> types, List<DescriptorProto.Builder> messages, //
+            SchemaEncoder encoder) throws IOException {
         // Wire 的 SchemaEncoder 未写入 message 内的 extend；复用其顶层字段编码，再放回声明作用域。
         for (Type type : types) {
             for (DescriptorProto.Builder message : messages) {
@@ -114,8 +129,11 @@ public final class GrpcProtoResource {
                     continue;
                 }
                 if (!type.getNestedExtendList().isEmpty()) {
-                    ProtoFile extensions = new ProtoFile(file.getLocation(), List.of(), List.of(), file.getPackageName(), List.of(), List.of(), type.getNestedExtendList(), file.getOptions(), file.getSyntax());
-                    FileDescriptorProto fields = FileDescriptorProto.parseFrom(encoder.encode(extensions).toByteArray());
+                    ProtoFile extensions = new ProtoFile(file.getLocation(), List.of(), List.of(), //
+                            file.getPackageName(), List.of(), List.of(), type.getNestedExtendList(), //
+                            file.getOptions(), file.getSyntax());
+                    byte[] extensionBytes = encoder.encode(extensions).toByteArray();
+                    FileDescriptorProto fields = FileDescriptorProto.parseFrom(extensionBytes);
                     message.addAllExtension(fields.getExtensionList());
                 }
                 this.nestedExtensions(file, type.getNestedTypes(), message.getNestedTypeBuilderList(), encoder);
@@ -164,7 +182,8 @@ public final class GrpcProtoResource {
         }
     }
 
-    private FileDescriptor link(String name, Map<String, FileDescriptorProto> files, Map<String, FileDescriptor> linked) throws Exception {
+    private FileDescriptor link(String name, Map<String, FileDescriptorProto> files, //
+            Map<String, FileDescriptor> linked) throws Exception {
         FileDescriptor existing = linked.get(name);
         if (existing != null) {
             return existing;

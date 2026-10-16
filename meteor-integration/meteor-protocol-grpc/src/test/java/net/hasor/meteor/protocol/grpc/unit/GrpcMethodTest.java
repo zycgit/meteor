@@ -12,7 +12,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.lang.reflect.Method;
 import java.util.concurrent.Flow;
-import net.hasor.meteor.protocol.grpc.GrpcUnitAccess.MethodShape;
+import net.hasor.meteor.protocol.grpc.codec.GrpcCodecUnitAccess.MethodShape;
 import net.hasor.meteor.protocol.grpc.scenario.example.Message;
 import net.hasor.meteor.protocol.grpc.scenario.example.Messages;
 import org.junit.Test;

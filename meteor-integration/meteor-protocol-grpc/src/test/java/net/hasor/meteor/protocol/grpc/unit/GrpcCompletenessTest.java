@@ -18,16 +18,16 @@ import com.google.protobuf.DynamicMessage;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.protocol.grpc.GrpcMetadata;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import net.hasor.meteor.protocol.grpc.GrpcUnitAccess;
-import net.hasor.meteor.protocol.grpc.GrpcUnitAccess.Codec;
+import net.hasor.meteor.protocol.grpc.codec.GrpcCodecUnitAccess;
+import net.hasor.meteor.protocol.grpc.codec.GrpcCodecUnitAccess.Codec;
 import net.hasor.meteor.protocol.grpc.scenario.example.Echo;
 import net.hasor.meteor.protocol.grpc.scenario.example.EchoImpl;
 import net.hasor.meteor.protocol.grpc.scenario.example.Message;
@@ -44,10 +44,9 @@ public class GrpcCompletenessTest {
     @Test
     public void binaryMetadataDecodesCombinedAndPaddedValues() throws Exception {
         // 准备逗号合并值、空值和不同填充形式的二进制头部。
-        GrpcMetadata metadata = new GrpcMetadata();
         List<String> binaryValues = List.of("AP8=, , YQ", "Yg==");
         Map<String, List<String>> headers = Map.of("x-data-bin", binaryValues, "x-text", List.of("one", "two"));
-        GrpcUnitAccess.receiveMetadata(metadata, headers, false);
+        GrpcMetadata metadata = GrpcCodecUnitAccess.receiveMetadata(headers, false);
 
         // 解码时按原有顺序保留每个二进制值。
         List<byte[]> data = metadata.getBinaryHeader("x-data-bin");
@@ -60,7 +59,7 @@ public class GrpcCompletenessTest {
     @Test
     public void metadataSnapshotsAreImmutableAndIndependent() throws Exception {
         // 写入两个同名头部并取得不可变快照。
-        GrpcMetadata metadata = new GrpcMetadata();
+        GrpcMetadata metadata = GrpcMetadata.create();
         metadata.addHeader("x-text", "one");
         metadata.addHeader("x-text", "two");
         Map<String, List<String>> snapshot = metadata.getHeaders();
@@ -75,7 +74,7 @@ public class GrpcCompletenessTest {
     @Test
     public void reservedMetadataKeyIsRejected() throws Exception {
         // 创建供用户填写的元数据对象。
-        GrpcMetadata metadata = new GrpcMetadata();
+        GrpcMetadata metadata = GrpcMetadata.create();
 
         // 用户不能覆盖协议保留的 grpc-status 头部。
         assertThrows(IllegalArgumentException.class, () -> metadata.addHeader("grpc-status", "0"));
@@ -84,7 +83,7 @@ public class GrpcCompletenessTest {
     @Test
     public void metadataLineBreakIsRejected() throws Exception {
         // 创建供用户填写的元数据对象。
-        GrpcMetadata metadata = new GrpcMetadata();
+        GrpcMetadata metadata = GrpcMetadata.create();
 
         // 文本头部拒绝包含换行符的值。
         assertThrows(IllegalArgumentException.class, () -> metadata.addHeader("x-text", "bad\r\nvalue"));
@@ -93,7 +92,7 @@ public class GrpcCompletenessTest {
     @Test
     public void binaryMetadataRequiresBinaryApi() throws Exception {
         // 创建供用户填写的元数据对象。
-        GrpcMetadata metadata = new GrpcMetadata();
+        GrpcMetadata metadata = GrpcMetadata.create();
 
         // 二进制头部只能通过二进制 API 写入。
         assertThrows(IllegalArgumentException.class, () -> metadata.addHeader("x-data-bin", "value"));
@@ -299,7 +298,7 @@ public class GrpcCompletenessTest {
             request.setSerializeType("Json");
             ResponsePayload response = new ResponsePayload();
             response.setStatus(ProtocolStatus.OK);
-            response.setReturnData(new Message("x".repeat(1000), 1));
+            response.setReturnData(Message.of("x".repeat(1000), 1));
 
             // 响应保持 identity，消息帧也不设置压缩标志。
             HttpResponse identity = codec.encode(request, response);
@@ -324,7 +323,7 @@ public class GrpcCompletenessTest {
             request.setSerializeType("Json");
             ResponsePayload response = new ResponsePayload();
             response.setStatus(ProtocolStatus.OK);
-            response.setReturnData(new Message("x".repeat(1000), 1));
+            response.setReturnData(Message.of("x".repeat(1000), 1));
 
             // 请求声明接受 gzip 后，响应与帧头均使用压缩。
             request.addOption("grpc-accept-encoding", "identity, gzip");
@@ -492,7 +491,7 @@ public class GrpcCompletenessTest {
     private static Codec codec(MetContext context, Map<String, String> options) {
         Map<String, String> mounted = new LinkedHashMap<>(options);
         mounted.putIfAbsent("contextPath", "/");
-        ProtocolConfig config = new ProtocolConfig("grpc", "grpc", "grpc", mounted);
+        ProtocolConfig config = GrpcCodecUnitAccess.config(mounted);
         return new Codec(config, context);
     }
 }

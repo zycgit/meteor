@@ -18,7 +18,7 @@ public class EchoImpl implements Echo {
 
     public Message echo(Message request) {
         this.calls.incrementAndGet();
-        return new Message(request.getValue(), request.getCount() + 1);
+        return Message.of(request.getValue(), request.getCount() + 1);
     }
 
     public Message fail(Message request) {

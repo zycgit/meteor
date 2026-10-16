@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE definitions [
+        <!ENTITY localFile SYSTEM "file:///etc/passwd">
+        ]>
+<wsdl:definitions
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+        targetNamespace="urn:meteor:test:xxe">
+    <wsdl:documentation>&localFile;</wsdl:documentation>
+</wsdl:definitions>

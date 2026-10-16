@@ -43,12 +43,16 @@ final class MockNacosSdk implements AutoCloseable {
     final         Map<String, Set<EventListener>>       namingListeners    = new ConcurrentHashMap<>();
     final         AtomicInteger                         reads              = new AtomicInteger();
     final         AtomicInteger                         disconnectedChecks = new AtomicInteger();
+    final         AtomicInteger                         adminCreations     = new AtomicInteger();
+    final         AtomicInteger                         lockCreations      = new AtomicInteger();
     final         List<NamingService>                   namingClients      = new ArrayList<>();
     final         List<ConfigService>                   configClients      = new ArrayList<>();
     volatile      boolean                               available          = true;
     volatile      boolean                               notify             = true;
-    volatile      boolean                               rejectConfigListener;
+    volatile      boolean                               failConfigSubscribeAfterInstall;
     volatile      boolean                               rejectPrimary;
+    volatile      String                                rejectBatchKey;
+    volatile      int                                   rejectBatchWrites;
     volatile      int                                   conflicts;
     volatile      int                                   adminVisibilityDelay;
     final         AtomicInteger                         adminReads         = new AtomicInteger();
@@ -87,9 +91,15 @@ final class MockNacosSdk implements AutoCloseable {
         this.lockFactory = mockStatic(NacosLockFactory.class);
         this.adminFactory //
                 .when(() -> NamingMaintainerFactory.createNamingMaintainerService(any(Properties.class))) //
-                .thenAnswer(call -> this.adminService());
+                .thenAnswer(call -> {
+                    this.adminCreations.incrementAndGet();
+                    return this.adminService();
+                });
         this.lockFactory.when(() -> NacosLockFactory.createLockService(any(Properties.class))) //
-                .thenAnswer(call -> this.lockService());
+                .thenAnswer(call -> {
+                    this.lockCreations.incrementAndGet();
+                    return this.lockService();
+                });
         var namingFactory = this.sdk.when(() -> NacosFactory.createNamingService(any(Properties.class)));
         namingFactory.thenAnswer(call -> this.namingService());
         var configFactory = this.sdk.when(() -> NacosFactory.createConfigService(any(Properties.class)));
@@ -180,6 +190,10 @@ final class MockNacosSdk implements AutoCloseable {
         doAnswer(call -> {
             String name = call.getArgument(0);
             List<Instance> input = call.getArgument(2);
+            if (this.rejectBatchWrites > 0 && StringUtils.equals(this.rejectBatchKey, name)) {
+                this.rejectBatchWrites--;
+                throw new IllegalStateException("batch write failed");
+            }
             if (this.rejectPrimary && name.endsWith(".providers")) {
                 throw new IllegalStateException("write failed");
             }
@@ -234,12 +248,12 @@ final class MockNacosSdk implements AutoCloseable {
 
         // 配置监听器可注入安装失败，持久数据读写保留真实存储的 CAS 调用。
         doAnswer(call -> {
-            if (this.rejectConfigListener) {
-                throw new IllegalStateException("listener registration failed");
-            }
             String name = call.getArgument(0);
             Set<Listener> listeners = this.configListeners.computeIfAbsent(name, key -> ConcurrentHashMap.newKeySet());
             listeners.add(call.getArgument(2));
+            if (this.failConfigSubscribeAfterInstall) {
+                throw new IllegalStateException("listener registration failed");
+            }
             return null;
         }).when(configs).addListener(anyString(), eq("test"), any(Listener.class));
         doAnswer(call -> {

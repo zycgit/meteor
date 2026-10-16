@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+        xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap12/"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        xmlns:tns="urn:meteor:test:styles:rpc"
+        targetNamespace="urn:meteor:test:styles:rpc">
+    <wsdl:message name="AddRequest">
+        <wsdl:part name="left" type="xsd:int"/>
+        <wsdl:part name="right" type="xsd:int"/>
+    </wsdl:message>
+    <wsdl:message name="AddResponse">
+        <wsdl:part name="result" type="xsd:int"/>
+    </wsdl:message>
+
+    <wsdl:portType name="RpcPortType">
+        <wsdl:operation name="add" parameterOrder="left right">
+            <wsdl:input message="tns:AddRequest"/>
+            <wsdl:output message="tns:AddResponse"/>
+        </wsdl:operation>
+    </wsdl:portType>
+
+    <wsdl:binding name="RpcBinding" type="tns:RpcPortType">
+        <soap:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="urn:meteor:test:styles:rpc:add" soapActionRequired="true"/>
+            <wsdl:input>
+                <soap:body use="literal" namespace="relative/rpc"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal" namespace="urn:meteor:test:styles:rpc:body"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+
+    <wsdl:service name="RpcService">
+        <wsdl:port name="RpcPort" binding="tns:RpcBinding">
+            <soap:address location="http://127.0.0.1:1/placeholder/RpcService"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

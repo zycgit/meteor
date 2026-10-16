@@ -16,8 +16,8 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.ObjLongConsumer;
 import hprose.io.HproseReader;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
@@ -26,20 +26,21 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.ProtocolContext;
-import net.hasor.meteor.connector.protocol.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.ProtocolSessionContextTestAccess;
 import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
-import net.hasor.meteor.protocol.hprose.HproseProtocol;
-import net.hasor.meteor.protocol.hprose.HproseUnitAccess.Codec;
-import net.hasor.meteor.protocol.hprose.HproseUtils;
+import net.hasor.meteor.protocol.hprose.codec.HproseHttpCodecTestAccess;
+import net.hasor.meteor.protocol.hprose.codec.HproseHttpCodecTestAccess.HttpCodec;
+import net.hasor.meteor.protocol.hprose.session.HproseProtocol;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -49,15 +50,49 @@ public class HproseSessionTest {
     }
 
     @Test
-    public void batchRepliesKeepRequestOrderAndShareThePhysicalWrite() throws Exception {
-        // 准备入站批次会话，让物理写入等待测试主动完成。
+    public void connectedSessionReportsReady() throws Exception {
+        // 创建连接后的会话，检查协议就绪状态。
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        try (MetContext context = configuration.buildContext()) {
+            context.publisher().rsfService(Echo.class).name("Echo").register();
+            MemoryNetwork network = new MemoryNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, false);
+
+            assertTrue(session.ready().isDone());
+        }
+    }
+
+    @Test
+    public void inboundSessionAssignsIndependentRequestIds() throws Exception {
+        // 准备包含两个调用的入站批次和会话。
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
-            ProtocolConfig config = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/rpc"));
-            Codec codec = new Codec(config, context);
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec codec = new HttpCodec(config, context);
             MemoryNetwork network = new MemoryNetwork();
-            network.writeResult = new BasicFuture<>();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, false);
+
+            // 会话接收入站调用时分配通道内唯一的请求标识。
+            session.receive(batch(codec));
+            RequestPayload first = (RequestPayload) received.get(0);
+            RequestPayload second = (RequestPayload) received.get(1);
+            assertTrue(first.getRequestID() > 0);
+            assertNotEquals(first.getRequestID(), second.getRequestID());
+        }
+    }
+
+    @Test
+    public void batchRepliesKeepRequestOrder() throws Exception {
+        // 准备包含两个调用的入站批次会话。
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        try (MetContext context = configuration.buildContext()) {
+            context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec codec = new HttpCodec(config, context);
+            MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
             HttpExchange exchange = batch(codec);
@@ -65,17 +100,9 @@ public class HproseSessionTest {
             RequestPayload first = (RequestPayload) received.get(0);
             RequestPayload second = (RequestPayload) received.get(1);
 
-            // 后面的业务先完成；未齐的批次不发送部分 HTTP 响应。
+            // 后面的业务先完成；最终报文仍按请求位置排列结果。
             Future<Void> secondSent = session.send(reply(second.getRequestID(), "second"));
-            assertFalse(secondSent.isDone());
-            assertTrue(network.writes.isEmpty());
             Future<Void> firstSent = session.send(reply(first.getRequestID(), "first"));
-            assertEquals(List.of(exchange), network.writes);
-            assertFalse(firstSent.isDone());
-            assertFalse(secondSent.isDone());
-
-            // 物理写入完成后才释放两个发送者，报文顺序与调用顺序一致。
-            network.writeResult.completed(null);
             firstSent.get(1, TimeUnit.SECONDS);
             secondSent.get(1, TimeUnit.SECONDS);
             HttpResponse response = exchange.response().getResult();
@@ -90,13 +117,76 @@ public class HproseSessionTest {
     }
 
     @Test
+    public void batchRepliesSharePhysicalWriteCompletion() throws Exception {
+        // 准备入站批次会话，让物理写入等待测试主动完成。
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        try (MetContext context = configuration.buildContext()) {
+            context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec codec = new HttpCodec(config, context);
+            MemoryNetwork network = new MemoryNetwork();
+            network.writeResult = new BasicFuture<>();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, false);
+            HttpExchange exchange = batch(codec);
+            session.receive(exchange);
+            RequestPayload first = (RequestPayload) received.get(0);
+            RequestPayload second = (RequestPayload) received.get(1);
+
+            // 同一批次的两个发送者都等待唯一一次物理写入完成。
+            Future<Void> secondSent = session.send(reply(second.getRequestID(), "second"));
+            Future<Void> firstSent = session.send(reply(first.getRequestID(), "first"));
+            assertEquals(List.of(exchange), network.writes);
+            assertFalse(firstSent.isDone());
+            assertFalse(secondSent.isDone());
+
+            network.writeResult.completed(null);
+            firstSent.get(1, TimeUnit.SECONDS);
+            secondSent.get(1, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    public void cancellingOneBatchReplyDoesNotCancelSharedWrite() throws Exception {
+        // 准备入站批次会话，让物理写入和 HTTP 交换等待测试主动完成。
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        try (MetContext context = configuration.buildContext()) {
+            context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec codec = new HttpCodec(config, context);
+            MemoryNetwork network = new MemoryNetwork();
+            network.writeResult = new BasicFuture<>();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, false);
+            HttpExchange exchange = batch(codec);
+            network.writeResult.onFinal(done -> exchange.complete(done.getCause()));
+            session.receive(exchange);
+            RequestPayload first = (RequestPayload) received.get(0);
+            RequestPayload second = (RequestPayload) received.get(1);
+
+            // 取消一个子响应的等待者，其余响应仍组成批次并提交唯一的物理写入。
+            Future<Void> cancelled = session.send(reply(first.getRequestID(), "first"));
+            assertTrue(cancelled.cancel());
+            Future<Void> remaining = session.send(reply(second.getRequestID(), "second"));
+            assertTrue(cancelled.isCancelled());
+            assertEquals(List.of(exchange), network.writes);
+            assertFalse(remaining.isDone());
+
+            // 物理写入完成后，剩余发送者和对应 HTTP 交换均正常结束。
+            network.writeResult.completed(null);
+            remaining.get(1, TimeUnit.SECONDS);
+            exchange.completion().get(1, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
     public void batchTimeoutPreservesOtherResults() throws Exception {
         // 准备同一批次的两个调用，让第一个先产生正常结果。
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
-            ProtocolConfig config = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/rpc"));
-            Codec codec = new Codec(config, context);
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec codec = new HttpCodec(config, context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
@@ -125,8 +215,8 @@ public class HproseSessionTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
-            ProtocolConfig config = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/rpc"));
-            Codec codec = new Codec(config, context);
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec codec = new HttpCodec(config, context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
@@ -153,8 +243,8 @@ public class HproseSessionTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
-            ProtocolConfig config = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/rpc"));
-            Codec codec = new Codec(config, context);
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec codec = new HttpCodec(config, context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
@@ -173,12 +263,36 @@ public class HproseSessionTest {
         }
     }
 
-    private static HttpExchange batch(Codec codec) throws Exception {
+    @Test
+    public void malformedCorsRequestKeepsCredentialResponseHeaders() throws Exception {
+        // 准备带 Origin 的非法入站请求，观察协议错误响应的跨域头。
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        try (MetContext context = configuration.buildContext()) {
+            context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
+            MemoryNetwork network = new MemoryNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, false);
+            String origin = "https://client.example";
+            Map<String, List<String>> headers = Map.of("Origin", List.of(origin));
+            HttpRequest request = HttpRequest.newBuffered("POST", "/rpc", headers, new byte[] { '?' }, 1, Map.of());
+            HttpExchange exchange = new HttpExchange(request);
+
+            // 整体解码失败仍沿用请求 Origin，使凭证请求可以读取错误正文。
+            session.receive(exchange);
+            HttpResponse response = exchange.response().get(1, TimeUnit.SECONDS);
+            assertEquals(origin, response.header("Access-Control-Allow-Origin"));
+            assertEquals("true", response.header("Access-Control-Allow-Credentials"));
+            assertEquals("Origin", response.header("Vary"));
+            assertTrue(received.isEmpty());
+        }
+    }
+
+    private static HttpExchange batch(HttpCodec codec) throws Exception {
         // 去掉第一条调用的结束标记，拼成共用结束标记的批次报文。
         ByteArrayOutputStream body = new ByteArrayOutputStream();
-        byte[] first = codec.encode(outgoing(1, "one")).body();
+        byte[] first = codec.encodeRequest(outgoing(1, "one")).body();
         body.write(first, 0, first.length - 1);
-        body.write(codec.encode(outgoing(2, "two")).body());
+        body.write(codec.encodeRequest(outgoing(2, "two")).body());
         byte[] batchBody = body.toByteArray();
         HttpRequest request = HttpRequest.newBuffered("POST", "/rpc", Map.of(), batchBody, 1, Map.of());
         return new HttpExchange(request);
@@ -190,8 +304,8 @@ public class HproseSessionTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
-            ProtocolConfig config = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/rpc"));
-            Codec protocol = new Codec(config, context);
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec protocol = new HttpCodec(config, context);
 
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -214,8 +328,8 @@ public class HproseSessionTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
-            ProtocolConfig config = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/rpc"));
-            Codec protocol = new Codec(config, context);
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec protocol = new HttpCodec(config, context);
 
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -236,8 +350,8 @@ public class HproseSessionTest {
             assertSame(first, network.writes.get(1));
             HttpResponse secondWire = second.response().get(5, TimeUnit.SECONDS);
             HttpResponse firstWire = first.response().get(5, TimeUnit.SECONDS);
-            assertEquals("second-reply", protocol.decode(two, secondWire).getReturnData());
-            assertEquals("first-reply", protocol.decode(one, firstWire).getReturnData());
+            assertEquals("second-reply", protocol.decodeResponse(two, secondWire).getReturnData());
+            assertEquals("first-reply", protocol.decodeResponse(one, firstWire).getReturnData());
         }
     }
 
@@ -247,8 +361,8 @@ public class HproseSessionTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
-            ProtocolConfig config = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/rpc"));
-            Codec protocol = new Codec(config, context);
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec protocol = new HttpCodec(config, context);
 
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -261,7 +375,7 @@ public class HproseSessionTest {
             request.complete(new TimeoutException("expired"));
             assertSame(exchange, network.writes.get(0));
             HttpResponse wire = exchange.response().get(5, TimeUnit.SECONDS);
-            ResponsePayload expired = protocol.decode(request, wire);
+            ResponsePayload expired = protocol.decodeResponse(request, wire);
             assertEquals(ProtocolStatus.InvokeError, expired.getStatus());
             ResponsePayload lateReply = reply(request.getRequestID(), "late");
             Future<Void> lateSent = session.send(lateReply);
@@ -271,13 +385,46 @@ public class HproseSessionTest {
     }
 
     @Test
-    public void unifiedSessionDrainReleasesEveryUnansweredExchange() throws Exception {
+    public void completedInboundRequestRejectsQueuedBusinessResponse() throws Exception {
+        // 准备入站请求，并暂停会话完成回调所在的连接执行器。
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        try (MetContext context = configuration.buildContext()) {
+            context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec codec = new HttpCodec(config, context);
+            MemoryNetwork network = new MemoryNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, false);
+            HttpExchange exchange = call(codec, "timeout");
+            session.receive(exchange);
+            RequestPayload request = (RequestPayload) received.get(0);
+            network.deferTasks = true;
+
+            // RPC 已进入超时终态时，较早排队的业务响应不能覆盖该结果。
+            TimeoutException timeout = new TimeoutException("deadline");
+            request.complete(timeout);
+            Future<Void> late = session.send(reply(request.getRequestID(), "late"));
+            assertSame(timeout, late.getCause());
+            assertTrue(network.writes.isEmpty());
+
+            // 恢复连接执行器后，由请求完成回调写出原始超时结果。
+            network.resumeTasks();
+            assertEquals(List.of(exchange), network.writes);
+            HttpResponse wire = exchange.response().get(1, TimeUnit.SECONDS);
+            ResponsePayload response = codec.decodeResponse(request, wire);
+            assertEquals(ProtocolStatus.InvokeError, response.getStatus());
+            assertEquals("deadline", response.getOption("message"));
+        }
+    }
+
+    @Test
+    public void prepareDrainResolvesPendingWithoutClosingBorrowedChannel() throws Exception {
         // 准备两条尚未返回结果的 HTTP 调用，作为排空对象。
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
-            ProtocolConfig config = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/rpc"));
-            Codec protocol = new Codec(config, context);
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec protocol = new HttpCodec(config, context);
 
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -290,13 +437,15 @@ public class HproseSessionTest {
             assertEquals(2, network.writes.size());
             for (HttpExchange exchange : network.writes) {
                 HttpResponse wire = exchange.response().get(5, TimeUnit.SECONDS);
-                ResponsePayload response = protocol.decode(outgoing(0, ""), wire);
+                ResponsePayload response = protocol.decodeResponse(outgoing(0, ""), wire);
                 assertEquals(ProtocolStatus.InvokeError, response.getStatus());
             }
             RequestPayload first = (RequestPayload) received.get(0);
             ResponsePayload lateReply = reply(first.getRequestID(), "late");
             Future<Void> lateSent = session.send(lateReply);
             assertNotNull(lateSent.getCause());
+            assertEquals(0, network.closeCalls);
+            assertEquals(0, network.drainCalls);
         }
     }
 
@@ -306,8 +455,8 @@ public class HproseSessionTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
-            ProtocolConfig config = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/rpc"));
-            Codec protocol = new Codec(config, context);
+            ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
+            HttpCodec protocol = new HttpCodec(config, context);
 
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -341,7 +490,7 @@ public class HproseSessionTest {
             RequestPayload first = outgoing(20, "first");
             session.send(first).get(5, TimeUnit.SECONDS);
             ByteArrayOutputStream body = new ByteArrayOutputStream();
-            HproseUtils.parseResponse(20, reply(20, "answer"), body);
+            HproseHttpCodecTestAccess.writeResponse(20, reply(20, "answer"), body);
 
             // HTTP 响应到达后，映射回原请求的 Payload 并结束其生命周期。
             byte[] responseBody = body.toByteArray();
@@ -433,6 +582,49 @@ public class HproseSessionTest {
     }
 
     @Test
+    public void completedOutboundRequestDoesNotPublishItsLocalFailure() throws Exception {
+        // 准备已写出的出站请求，观察 RPC 本地终结后的协议通知。
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        try (MetContext context = configuration.buildContext()) {
+            context.publisher().rsfService(Echo.class).name("Echo").register();
+            MemoryNetwork network = new MemoryNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, true);
+            RequestPayload request = outgoing(62, "timeout");
+            session.send(request).get(1, TimeUnit.SECONDS);
+
+            // 本地超时已经结束 RPC，协议不得把同一原因再次发布为网络消息。
+            request.complete(new TimeoutException("deadline"));
+            assertTrue(request.completion().isDone());
+            assertTrue(received.isEmpty());
+        }
+    }
+
+    @Test
+    public void completedOutboundRequestDoesNotPublishQueuedResponse() throws Exception {
+        // 准备已到达但尚未由连接执行器处理的出站响应。
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        try (MetContext context = configuration.buildContext()) {
+            context.publisher().rsfService(Echo.class).name("Echo").register();
+            MemoryNetwork network = new MemoryNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, true);
+            RequestPayload request = outgoing(63, "timeout");
+            session.send(request).get(1, TimeUnit.SECONDS);
+            ByteArrayOutputStream body = new ByteArrayOutputStream();
+            HproseHttpCodecTestAccess.writeResponse(63, reply(63, "late"), body);
+            HttpResponse response = HttpResponse.newBuffered(200, Map.of(), body.toByteArray(), Map.of());
+            network.deferTasks = true;
+            network.writes.get(0).respond(response);
+
+            // 回调排队期间本地请求进入终态，恢复执行后不得再投递业务响应。
+            request.complete(new TimeoutException("deadline"));
+            network.resumeTasks();
+            assertTrue(received.isEmpty());
+        }
+    }
+
+    @Test
     public void outboundSessionRejectsResponsePayload() throws Exception {
         // 准备主动连接的会话，观察不支持的消息是否被写出。
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
@@ -458,7 +650,6 @@ public class HproseSessionTest {
             context.publisher().rsfService(Echo.class).name("Echo").register();
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
-            ProtocolSession<HttpExchange> session = session(context, network, received, true);
 
             // 入站会话只允许回送响应，拒绝发起新请求。
             ProtocolSession<HttpExchange> inbound = session(context, network, received, false);
@@ -478,18 +669,18 @@ public class HproseSessionTest {
 
         // 将协议与内存网络组装成已连接会话，收到的消息交由测试观察。
         InterAddress address = new InterAddress("hprose", "127.0.0.1", 8080, "default");
-        ProtocolContext context = new ProtocolContext(runtime, scheduler, address, outbound);
-        ProtocolConfig config = new ProtocolConfig("hprose", "hprose", "hprose", Map.of("contextPath", "/rpc"));
+        ProtocolSessionContext context = ProtocolSessionContextTestAccess.newContext( //
+                runtime, scheduler, address, outbound);
+        ProtocolConfig config = HproseHttpCodecTestAccess.protocolConfig(Map.of("contextPath", "/rpc"));
         HproseProtocol factory = new HproseProtocol();
-        BiConsumer<Long, Payload> messages = (id, payload) -> received.add(payload);
-        ProtocolSession<HttpExchange> session = factory.create(config, context, network, messages);
+        ObjLongConsumer<Payload> messages = (payload, id) -> received.add(payload);
+        ProtocolSession<HttpExchange> session = factory.createSession(config, context, network, messages);
         session.connected();
-        assertTrue(session.ready().isDone());
         return session;
     }
 
-    private static HttpExchange call(Codec protocol, String value) throws Exception {
-        return new HttpExchange(protocol.encode(outgoing(1, value)));
+    private static HttpExchange call(HttpCodec protocol, String value) throws Exception {
+        return new HttpExchange(protocol.encodeRequest(outgoing(1, value)));
     }
 
     private static RequestPayload outgoing(long id, String value) {
@@ -516,7 +707,11 @@ public class HproseSessionTest {
 
     private static final class MemoryNetwork implements NetworkChannel<HttpExchange> {
         private final List<HttpExchange> writes      = new ArrayList<>();
+        private final List<Runnable>     tasks       = new ArrayList<>();
         private       BasicFuture<Void>  writeResult = new BasicFuture<>((Void) null);
+        private       boolean            deferTasks;
+        private       int                closeCalls;
+        private       int                drainCalls;
 
         public InterAddress getLocal() {
             return new InterAddress("hprose", "127.0.0.1", 2181, "default");
@@ -537,15 +732,30 @@ public class HproseSessionTest {
         }
 
         public void execute(Runnable task) {
-            task.run();
+            if (this.deferTasks) {
+                this.tasks.add(task);
+            } else {
+                task.run();
+            }
+        }
+
+        private void resumeTasks() {
+            this.deferTasks = false;
+            List<Runnable> pending = new ArrayList<>(this.tasks);
+            this.tasks.clear();
+            for (Runnable task : pending) {
+                task.run();
+            }
         }
 
         public Future<Void> close() {
+            this.closeCalls++;
             return new BasicFuture<>((Void) null);
         }
 
         public Future<Void> drainAndClose() {
-            return this.close();
+            this.drainCalls++;
+            return new BasicFuture<>((Void) null);
         }
     }
 }

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap12/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:meteor:test:bound-header-fault"
+                  targetNamespace="urn:meteor:test:bound-header-fault">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:test:bound-header-fault">
+            <xsd:element name="echo">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="message" type="xsd:string"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="echoResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="return" type="xsd:string"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="token" type="xsd:int"/>
+            <xsd:element name="receipt" type="xsd:int"/>
+            <xsd:element name="tokenFault" type="xsd:int"/>
+            <xsd:element name="problem" type="xsd:int"/>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="Input">
+        <wsdl:part name="parameters" element="tns:echo"/>
+    </wsdl:message>
+    <wsdl:message name="Output">
+        <wsdl:part name="parameters" element="tns:echoResponse"/>
+    </wsdl:message>
+    <wsdl:message name="Token">
+        <wsdl:part name="token" element="tns:token"/>
+    </wsdl:message>
+    <wsdl:message name="Receipt">
+        <wsdl:part name="receipt" element="tns:receipt"/>
+    </wsdl:message>
+    <wsdl:message name="HeaderProblem">
+        <wsdl:part name="detail" element="tns:tokenFault"/>
+    </wsdl:message>
+    <wsdl:message name="Problem">
+        <wsdl:part name="detail" element="tns:problem"/>
+    </wsdl:message>
+    <wsdl:portType name="BoundPortType">
+        <wsdl:operation name="echo">
+            <wsdl:input message="tns:Input"/>
+            <wsdl:output message="tns:Output"/>
+            <wsdl:fault name="Problem" message="tns:Problem"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="BoundBinding" type="tns:BoundPortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="echo">
+            <soap:operation soapAction="urn:meteor:test:bound-header-fault:echo"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+                <soap:header message="tns:Token" part="token" use="literal">
+                    <soap:headerfault message="tns:HeaderProblem" part="detail" use="literal"/>
+                </soap:header>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+                <soap:header message="tns:Receipt" part="receipt" use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="Problem">
+                <soap:fault name="Problem" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="EchoService">
+        <wsdl:port name="BoundPort" binding="tns:BoundBinding">
+            <soap:address location="http://127.0.0.1:1/services/EchoService"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

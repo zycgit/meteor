@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:meteor:test:choice" targetNamespace="urn:meteor:test:choice">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:test:choice">
+            <xsd:element name="notify">
+                <xsd:complexType>
+                    <xsd:choice>
+                        <xsd:element name="text" type="xsd:string"/>
+                        <xsd:element name="number" type="xsd:int"/>
+                    </xsd:choice>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="NotifyRequest">
+        <wsdl:part name="parameters" element="tns:notify"/>
+    </wsdl:message>
+    <wsdl:portType name="NotifyPortType">
+        <wsdl:operation name="notify">
+            <wsdl:input message="tns:NotifyRequest"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="NotifyBinding" type="tns:NotifyPortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="notify">
+            <soap:operation soapAction="urn:meteor:test:choice:notify"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="NotifyService">
+        <wsdl:port name="NotifyPort" binding="tns:NotifyBinding">
+            <soap:address location="http://127.0.0.1:1/notify"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

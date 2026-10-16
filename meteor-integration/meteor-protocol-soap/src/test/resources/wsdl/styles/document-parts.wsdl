@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:meteor:test:styles:parts"
+                  targetNamespace="urn:meteor:test:styles:parts">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:test:styles:parts">
+            <xsd:element name="leftValue" type="xsd:int"/>
+            <xsd:element name="traceId" type="xsd:string"/>
+            <xsd:element name="rightValue" type="xsd:int"/>
+            <xsd:element name="sum" type="xsd:int"/>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="AddRequest">
+        <wsdl:part name="left" element="tns:leftValue"/>
+        <wsdl:part name="trace" element="tns:traceId"/>
+        <wsdl:part name="right" element="tns:rightValue"/>
+    </wsdl:message>
+    <wsdl:message name="AddResponse">
+        <wsdl:part name="trace" element="tns:traceId"/>
+        <wsdl:part name="result" element="tns:sum"/>
+    </wsdl:message>
+    <wsdl:portType name="AddPortType">
+        <wsdl:operation name="add">
+            <wsdl:input message="tns:AddRequest"/>
+            <wsdl:output message="tns:AddResponse"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="AddBinding" type="tns:AddPortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="add">
+            <soap:operation soapAction="urn:meteor:test:styles:parts:add"/>
+            <wsdl:input>
+                <soap:body use="literal" parts="right left"/>
+                <soap:header use="literal" message="tns:AddRequest" part="trace"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal" parts="result"/>
+                <soap:header use="literal" message="tns:AddResponse" part="trace"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="AddService">
+        <wsdl:port name="AddPort" binding="tns:AddBinding">
+            <soap:address location="http://127.0.0.1:1/placeholder/AddService"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

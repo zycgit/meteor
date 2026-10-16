@@ -6,13 +6,16 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.jdbc.unit;
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 import net.hasor.cobble.concurrent.future.Cancellable;
+import net.hasor.dbvisitor.jdbc.core.JdbcTemplate;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
@@ -24,6 +27,41 @@ import static net.hasor.meteor.registry.jdbc.unit.JdbcStorageData.*;
 import static org.junit.Assert.*;
 
 public class JdbcStorageWatchTest {
+    @Test
+    public void blockedWatchListenerDoesNotDelayLeaseHeartbeat() throws Exception {
+        // 同一存储会话同时登记实例并建立订阅，让回调持续占用订阅调度线程。
+        String url = createDatabase();
+        JdbcRegistryConfiguration configuration = configuration(url);
+        configuration.setLeaseMillis(600);
+        CountDownLatch listenerStarted = new CountDownLatch(1);
+        CountDownLatch releaseListener = new CountDownLatch(1);
+        try (StorageAccess storage = configuration.openStorage(); //
+             Connection connection = DriverManager.getConnection(url, "", "")) {
+            storage.registerInstance(instance());
+            Cancellable watch = storage.watchConfiguration(null, null, () -> {
+                listenerStarted.countDown();
+                try {
+                    releaseListener.await();
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertTrue("Watch listener did not start", listenerStarted.await(3, TimeUnit.SECONDS));
+
+            // 阻塞的治理回调不能占用租约线程，下一轮心跳仍应替换哨兵值。
+            JdbcTemplate jdbc = new JdbcTemplate(connection);
+            long heartbeatMarker = Long.MAX_VALUE;
+            jdbc.executeUpdate("UPDATE meteor_instances SET expires_at=?", new Object[] { heartbeatMarker });
+            try {
+                String sql = "SELECT expires_at FROM meteor_instances";
+                await(() -> jdbc.queryForList(sql, Long.class).get(0) < heartbeatMarker);
+            } finally {
+                releaseListener.countDown();
+                watch.cancel();
+            }
+        }
+    }
+
     @Test
     public void configurationWatchIgnoresOtherInstanceChanges() throws Exception {
         // 只订阅 one 实例的 echo 配置。
@@ -225,12 +263,12 @@ public class JdbcStorageWatchTest {
         }
     }
 
-    private static void await(BooleanSupplier condition) throws Exception {
+    private static void await(Callable<Boolean> condition) throws Exception {
         // 每轮重新查询可观察条件，超时报告具体的订阅失败。
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-        while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
+        while (!condition.call() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }
-        assertTrue("Storage notification did not arrive", condition.getAsBoolean());
+        assertTrue("Asynchronous storage condition did not become true", condition.call());
     }
 }

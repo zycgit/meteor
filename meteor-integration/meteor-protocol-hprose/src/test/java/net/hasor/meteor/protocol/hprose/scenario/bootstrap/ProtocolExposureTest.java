@@ -18,7 +18,8 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolStatus;
-import net.hasor.meteor.protocol.hprose.scenario.example.TextService;
+import net.hasor.meteor.protocol.hprose.support.BootstrapTestSupport;
+import net.hasor.meteor.protocol.hprose.support.example.TextService;
 import org.junit.Test;
 import static org.junit.Assert.*;
 

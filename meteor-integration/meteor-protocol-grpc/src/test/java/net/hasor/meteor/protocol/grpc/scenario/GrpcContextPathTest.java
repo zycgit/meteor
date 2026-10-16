@@ -50,7 +50,7 @@ public class GrpcContextPathTest {
             try {
                 var method = this.method("rpc/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
                 CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS);
-                Message result = ClientCalls.blockingUnaryCall(peer, method, options, new Message("default", 3));
+                Message result = ClientCalls.blockingUnaryCall(peer, method, options, Message.of("default", 3));
                 assertEquals("default", result.getValue());
                 assertEquals(4, result.getCount());
                 assertEquals(1, implementation.getCalls());
@@ -79,7 +79,7 @@ public class GrpcContextPathTest {
             try {
                 var method = this.method("admin/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
                 CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS);
-                Message request = new Message("hidden", 1);
+                Message request = Message.of("hidden", 1);
                 StatusRuntimeException failure = assertThrows(StatusRuntimeException.class, () -> {
                     ClientCalls.blockingUnaryCall(peer, method, options, request);
                 });
@@ -112,7 +112,7 @@ public class GrpcContextPathTest {
             try {
                 var method = this.method("admin/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
                 CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS);
-                Message result = ClientCalls.blockingUnaryCall(peer, method, options, new Message("selected", 6));
+                Message result = ClientCalls.blockingUnaryCall(peer, method, options, Message.of("selected", 6));
                 assertEquals("selected", result.getValue());
                 assertEquals(7, result.getCount());
                 assertEquals(1, implementation.getCalls());
@@ -142,7 +142,7 @@ public class GrpcContextPathTest {
             try {
                 var method = this.method("rpc/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
                 CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS);
-                Message request = new Message("hidden", 2);
+                Message request = Message.of("hidden", 2);
                 StatusRuntimeException failure = assertThrows(StatusRuntimeException.class, () -> {
                     ClientCalls.blockingUnaryCall(peer, method, options, request);
                 });
@@ -156,7 +156,7 @@ public class GrpcContextPathTest {
     }
 
     @Test(timeout = 20000)
-    public void serviceCanSelectMultipleContextPaths() throws Exception {
+    public void serviceCanSelectMultipleRouteMounts() throws Exception {
         // 同一个服务显式选择两个已配置路径。
         MetConfiguration configuration = this.configuration();
         configuration.connector("http").bind("127.0.0.1", 0).protocol("grpc") //
@@ -176,7 +176,7 @@ public class GrpcContextPathTest {
                 for (String path : List.of("rpc", "admin", "rpc")) {
                     var method = this.method(path + "/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
                     CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS);
-                    Message result = ClientCalls.blockingUnaryCall(peer, method, options, new Message(path, 4));
+                    Message result = ClientCalls.blockingUnaryCall(peer, method, options, Message.of(path, 4));
                     assertEquals(path, result.getValue());
                     assertEquals(5, result.getCount());
                 }
@@ -207,7 +207,7 @@ public class GrpcContextPathTest {
             try {
                 var method = this.method("rpc/internal/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
                 CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS);
-                Message request = new Message("nested", 8);
+                Message request = Message.of("nested", 8);
                 Message result = ClientCalls.blockingUnaryCall(peer, method, options, request);
                 assertEquals("nested", result.getValue());
                 assertEquals(9, result.getCount());
@@ -237,7 +237,7 @@ public class GrpcContextPathTest {
             try {
                 var method = this.method("rpc/internal/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
                 CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS);
-                Message request = new Message("hidden", 1);
+                Message request = Message.of("hidden", 1);
                 StatusRuntimeException failure = assertThrows(StatusRuntimeException.class, () -> {
                     ClientCalls.blockingUnaryCall(peer, method, options, request);
                 });
@@ -255,7 +255,7 @@ public class GrpcContextPathTest {
         // 官方服务端只注册 /admin 方法，客户端默认路径保持为 /rpc。
         var method = this.method("admin/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
         var handler = ServerCalls.<Message, Message>asyncUnaryCall((request, reply) -> {
-            reply.onNext(new Message(request.getValue(), request.getCount() + 5));
+            reply.onNext(Message.of(request.getValue(), request.getCount() + 5));
             reply.onCompleted();
         });
         ServerServiceDefinition service = ServerServiceDefinition.builder("admin/example.Echo") //
@@ -274,7 +274,7 @@ public class GrpcContextPathTest {
             // 正式客户端实际发出 unary 请求，只有服务选择的 URI 可以返回结果。
             InterAddress address = new InterAddress("grpc", "127.0.0.1", server.getPort(), "default");
             Echo remote = client.getRsfClient(address).getRemote(info);
-            Message result = remote.echo(new Message("outbound", 2));
+            Message result = remote.echo(Message.of("outbound", 2));
             assertEquals("outbound", result.getValue());
             assertEquals(7, result.getCount());
         } finally {
@@ -289,7 +289,7 @@ public class GrpcContextPathTest {
         var handler = ServerCalls.<Message, Message>asyncServerStreamingCall((request, reply) -> {
             // 按请求顺序发送有限条消息，使调用方能验证整个响应流完成。
             for (int index = 0; index < request.getCount(); index++) {
-                reply.onNext(new Message(request.getValue(), index));
+                reply.onNext(Message.of(request.getValue(), index));
             }
             reply.onCompleted();
         });
@@ -310,7 +310,7 @@ public class GrpcContextPathTest {
             InterAddress address = new InterAddress("grpc", "127.0.0.1", server.getPort(), "default");
             Messages remote = client.getRsfClient(address).getRemote(info);
             List<Message> replies = new ArrayList<>();
-            MetCaller.consume(remote.list(new Message("selected-stream", 3)), replies::add) //
+            MetCaller.consume(remote.list(Message.of("selected-stream", 3)), replies::add) //
                     .get(5, TimeUnit.SECONDS);
             assertEquals(3, replies.size());
             for (int index = 0; index < replies.size(); index++) {

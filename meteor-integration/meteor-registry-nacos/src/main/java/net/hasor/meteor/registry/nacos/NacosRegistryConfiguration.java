@@ -98,10 +98,19 @@ public final class NacosRegistryConfiguration extends RegistryConfiguration {
         long timeout = this.timeoutMillis;
         return () -> {
             NamingService naming = NacosFactory.createNamingService(properties);
+            ConfigService configs = null;
             try {
-                ConfigService configs = NacosFactory.createConfigService(properties);
+                configs = NacosFactory.createConfigService(properties);
                 return new NacosRegistry(naming, configs, properties, group, timeout);
             } catch (Exception failure) {
+                if (configs != null) {
+                    try {
+                        configs.shutDown();
+                    } catch (Exception cleanup) {
+                        failure.addSuppressed(cleanup);
+                    }
+                }
+
                 try {
                     naming.shutDown();
                 } catch (Exception cleanup) {

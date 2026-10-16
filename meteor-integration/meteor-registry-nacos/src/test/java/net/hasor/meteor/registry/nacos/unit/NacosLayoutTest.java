@@ -21,6 +21,22 @@ import static org.junit.Assert.*;
 
 public class NacosLayoutTest {
     @Test
+    public void instanceIdentityUsesAValidNacosClusterName() throws Exception {
+        // 业务实例 ID 包含 Nacos 3.1.2 集群名不接受的分隔字符。
+        try (MockNacosSdk sdk = new MockNacosSdk(); //
+             StorageAccess storage = sdk.configuration().openStorage()) {
+            String instanceId = "node_with.dot";
+            storage.registerInstance(instance(instanceId));
+
+            // 集群名只含字母、数字和连字符，原始 ID 仍由元信息完整保存和查询。
+            Instance stored = sdk.nodes.get("instances.node_5fwith_2edot").values().iterator().next();
+            assertTrue(stored.getClusterName().matches("[A-Za-z0-9-]{1,64}"));
+            assertEquals(instanceId, stored.getMetadata().get("instanceId"));
+            assertNotNull(storage.getInstance(instanceId));
+        }
+    }
+
+    @Test
     public void applicationAndServiceBodiesHaveDirectKeys() throws Exception {
         // 通过公开存储入口完成一次应用与服务登记。
         try (MockNacosSdk sdk = new MockNacosSdk(); //

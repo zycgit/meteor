@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap12/"
+                  xmlns:env="http://www.w3.org/2003/05/soap-envelope"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:meteor:test:header-control"
+                  targetNamespace="urn:meteor:test:header-control">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:test:header-control">
+            <xsd:import namespace="http://www.w3.org/2003/05/soap-envelope"/>
+            <xsd:element name="request" type="xsd:string"/>
+            <xsd:element name="token">
+                <xsd:complexType>
+                    <xsd:simpleContent>
+                        <xsd:extension base="xsd:string">
+                            <xsd:attribute ref="env:mustUnderstand" fixed="1"/>
+                        </xsd:extension>
+                    </xsd:simpleContent>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="Input">
+        <wsdl:part name="parameters" element="tns:request"/>
+        <wsdl:part name="token" element="tns:token"/>
+    </wsdl:message>
+    <wsdl:portType name="HeaderPortType">
+        <wsdl:operation name="notify">
+            <wsdl:input message="tns:Input"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="HeaderBinding" type="tns:HeaderPortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="notify">
+            <soap:operation soapAction="urn:meteor:test:header-control:notify"/>
+            <wsdl:input>
+                <soap:body use="literal" parts="parameters"/>
+                <soap:header message="tns:Input" part="token" use="literal"/>
+            </wsdl:input>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="HeaderService">
+        <wsdl:port name="HeaderPort" binding="tns:HeaderBinding">
+            <soap:address location="http://127.0.0.1:1/header-control"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

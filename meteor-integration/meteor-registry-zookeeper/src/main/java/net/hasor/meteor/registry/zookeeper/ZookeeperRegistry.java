@@ -16,6 +16,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Cancellable;
+import net.hasor.cobble.function.EConsumer;
+import net.hasor.cobble.function.EFunction;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.storage.DirectoryFilter;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
@@ -32,17 +34,17 @@ import org.apache.zookeeper.data.Stat;
 
 /** 持久业务目录与原生临时登记；成员正文和反向引用在同一 multi 事务提交。 */
 final class ZookeeperRegistry implements StorageAccess {
-    private final    CuratorFramework                               client;
-    private final    String                                         root;
-    private final    Map<String, Integer>                           owners             = new HashMap<>();
-    private final    Map<ZookeeperStorageWatch, List<CuratorCache>> watches            = new ConcurrentHashMap<>();
-    private final    ScheduledExecutorService                       executor;
-    private final    ZookeeperRuleStore                             rules;
-    private volatile boolean                                        closed;
-    private final    ConnectionStateListener                        connectionListener = (connection, state) -> {
-        this.watches.keySet().forEach(ZookeeperStorageWatch::refresh);
+    private final    CuratorFramework           client;
+    private final    String                     root;
+    private final    Map<String, Integer>       ownerVersions      = new HashMap<>();
+    private final    Set<ZookeeperStorageWatch> watches            = ConcurrentHashMap.newKeySet();
+    private final    ScheduledExecutorService   executor;
+    private final    ZookeeperRuleStore         rules;
+    private volatile boolean                    closed;
+    private final    ConnectionStateListener    connectionListener = (connection, state) -> {
+        this.watches.forEach(ZookeeperStorageWatch::refresh);
         if (state.isConnected()) {
-            this.watches.keySet().forEach(ZookeeperStorageWatch::signal);
+            this.watches.forEach(ZookeeperStorageWatch::signal);
         }
     };
 
@@ -154,17 +156,12 @@ final class ZookeeperRegistry implements StorageAccess {
         }
     }
 
-    @FunctionalInterface
-    private interface Mutation {
-        void prepare(List<CuratorOp> ops) throws Exception;
-    }
-
-    private void mutate(Mutation mutation) throws Exception {
+    private void mutate(EConsumer<List<CuratorOp>, Exception> mutation) throws Exception {
         this.requireOpen();
         for (int attempt = 0; attempt < 8; attempt++) {
             List<CuratorOp> ops = new ArrayList<>();
             try {
-                mutation.prepare(ops);
+                mutation.eAccept(ops);
                 if (!ops.isEmpty()) {
                     this.client.transaction().forOperations(ops);
                 }
@@ -215,12 +212,8 @@ final class ZookeeperRegistry implements StorageAccess {
         this.mutate(ops -> this.put(ops, this.application(application.getApplicationName()) + "/info", application, false));
     }
 
-    @FunctionalInterface
-    private interface Reader<T> {
-        T read(String child) throws Exception;
-    }
-
-    private <T> RecordPage<T> page(String path, DirectoryQuery query, Reader<T> reader, Function<T, String> text, Function<T, String> unit) throws Exception {
+    private <T> RecordPage<T> page(String path, DirectoryQuery query, //
+            EFunction<String, T, Exception> reader, Function<T, String> text, Function<T, String> unit) throws Exception {
         DirectoryQuery selection = query == null ? new DirectoryQuery() : query;
         if (selection.getLimit() < 1 || selection.getLimit() > 1000) {
             throw new IllegalArgumentException("Directory page limit must be between 1 and 1000");
@@ -232,7 +225,7 @@ final class ZookeeperRegistry implements StorageAccess {
             if (selection.getCursor() != null && child.compareTo(selection.getCursor()) <= 0) {
                 continue;
             }
-            T value = reader.read(child);
+            T value = reader.eApply(child);
             if (value == null) {
                 continue;
             }
@@ -400,7 +393,7 @@ final class ZookeeperRegistry implements StorageAccess {
     }
 
     private EntInstanceRuntimeData own(List<CuratorOp> ops, String instanceId) throws Exception {
-        Integer version = this.owners.get(instanceId);
+        Integer version = this.ownerVersions.get(instanceId);
         String path = this.instance(instanceId);
         Stat runtime = this.client.checkExists().forPath(path + "/runtime");
         long session = this.client.getZookeeperClient().getZooKeeper().getSessionId();
@@ -442,8 +435,8 @@ final class ZookeeperRegistry implements StorageAccess {
             Stat owner = this.client.checkExists().forPath(path + "/owner");
             Stat runtime = this.client.checkExists().forPath(path + "/runtime");
             long session = this.client.getZookeeperClient().getZooKeeper().getSessionId();
-            if (this.owners.containsKey(id)) {
-                if (owner.getVersion() != this.owners.get(id)) {
+            if (this.ownerVersions.containsKey(id)) {
+                if (owner.getVersion() != this.ownerVersions.get(id)) {
                     throw new IllegalStateException("Instance was replaced by another session: " + id);
                 }
                 if (runtime != null) {
@@ -494,7 +487,7 @@ final class ZookeeperRegistry implements StorageAccess {
             this.put(ops, this.application(value.getApplicationName()) + "/info", application, false);
             this.put(ops, this.application(value.getApplicationName()) + "/instances/" + key(id), archive, false);
         });
-        this.owners.put(id, committedVersion[0]);
+        this.ownerVersions.put(id, committedVersion[0]);
     }
 
     private void member(List<CuratorOp> ops, EntInstanceRuntimeData instance, EntServiceRuntimeData service) throws Exception {
@@ -541,7 +534,7 @@ final class ZookeeperRegistry implements StorageAccess {
 
     @Override
     public synchronized void registerService(String instanceId, EntServiceRuntimeData service) throws Exception {
-        int[] committedVersion = { this.owners.getOrDefault(instanceId, -1) };
+        int[] committedVersion = { this.ownerVersions.getOrDefault(instanceId, -1) };
         this.mutate(ops -> {
             EntInstanceRuntimeData instance = this.own(ops, instanceId);
             EntServiceRuntimeData previous = this.getInstanceService(instanceId, service.getServiceId());
@@ -568,12 +561,12 @@ final class ZookeeperRegistry implements StorageAccess {
             }
             committedVersion[0] = this.advanceOwner(ops, instanceId);
         });
-        this.owners.put(instanceId, committedVersion[0]);
+        this.ownerVersions.put(instanceId, committedVersion[0]);
     }
 
     @Override
     public synchronized void unregisterService(String instanceId, String serviceId) throws Exception {
-        int[] committedVersion = { this.owners.getOrDefault(instanceId, -1) };
+        int[] committedVersion = { this.ownerVersions.getOrDefault(instanceId, -1) };
         this.mutate(ops -> {
             this.own(ops, instanceId);
             EntServiceRuntimeData previous = this.getInstanceService(instanceId, serviceId);
@@ -582,7 +575,7 @@ final class ZookeeperRegistry implements StorageAccess {
                 committedVersion[0] = this.advanceOwner(ops, instanceId);
             }
         });
-        this.owners.put(instanceId, committedVersion[0]);
+        this.ownerVersions.put(instanceId, committedVersion[0]);
     }
 
     private String configuration(String instanceId, String serviceId) {
@@ -734,7 +727,7 @@ final class ZookeeperRegistry implements StorageAccess {
     public void saveRule(String instanceId, String serviceId, RuleKind kind, EntityRecord<EntRuleConfigurationData> value) throws Exception {
         this.requireOpen();
         String path = this.configuration(instanceId, serviceId) + "/" + kind.name();
-        String owner = instanceId == null ? null : this.instance(instanceId) + "/owner";
+        String owner = this.governanceOwner(instanceId);
         this.rules.save(this.ruleDetail(instanceId, serviceId), path, owner, serviceId, kind, value, false);
     }
 
@@ -742,7 +735,7 @@ final class ZookeeperRegistry implements StorageAccess {
     public boolean deleteRule(String instanceId, String serviceId, RuleKind kind, String revision) throws Exception {
         this.requireOpen();
         String path = this.configuration(instanceId, serviceId) + "/" + kind.name();
-        String owner = instanceId == null ? null : this.instance(instanceId) + "/owner";
+        String owner = this.governanceOwner(instanceId);
         EntityRecord<EntRuleConfigurationData> value = new EntityRecord<>();
         value.setRevision(revision);
         return this.rules.save(this.ruleDetail(instanceId, serviceId), path, owner, serviceId, kind, value, true);
@@ -793,14 +786,8 @@ final class ZookeeperRegistry implements StorageAccess {
 
     private synchronized Cancellable watch(List<String> paths, String detailPath, Runnable listener) {
         this.requireOpen();
-        List<CuratorCache> caches = new ArrayList<>();
         Callable<Map<String, String>> snapshot = () -> this.versions(paths, detailPath);
-        Consumer<ZookeeperStorageWatch> onCancel = cancelled -> {
-            List<CuratorCache> removed = this.watches.remove(cancelled);
-            if (removed != null) {
-                removed.forEach(CuratorCache::close);
-            }
-        };
+        Consumer<ZookeeperStorageWatch> onCancel = this.watches::remove;
         ZookeeperStorageWatch watch = new ZookeeperStorageWatch(this.client, snapshot, listener, this.executor, onCancel);
         CuratorCacheListener events = CuratorCacheListener.builder() //
                 .forAll((type, previous, current) -> watch.signal()) //
@@ -809,14 +796,11 @@ final class ZookeeperRegistry implements StorageAccess {
         for (String path : paths) {
             CuratorCache cache = CuratorCache.build(this.client, path);
             cache.listenable().addListener(events);
-            caches.add(cache);
+            watch.addOwnedCache(cache);
         }
-        this.watches.put(watch, caches);
+        this.watches.add(watch);
         try {
-            for (CuratorCache cache : caches) {
-                cache.start();
-            }
-            watch.signal();
+            watch.start();
         } catch (RuntimeException failure) {
             watch.cancel();
             throw failure;
@@ -844,7 +828,7 @@ final class ZookeeperRegistry implements StorageAccess {
         }
         this.closed = true;
         this.client.getConnectionStateListenable().removeListener(this.connectionListener);
-        for (ZookeeperStorageWatch watch : new ArrayList<>(this.watches.keySet())) {
+        for (ZookeeperStorageWatch watch : new ArrayList<>(this.watches)) {
             watch.cancel();
         }
         this.executor.shutdownNow();

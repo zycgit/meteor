@@ -13,12 +13,13 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import com.alibaba.nacos.api.config.ConfigService;
+import com.alibaba.nacos.api.config.listener.Listener;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.codec.MD5;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
-/** 持久正文按业务键点查；JSONL 索引只保存引用，不保存实体正文。 */
-final class NacosConfigStore {
+/** 持久正文按业务键点查，并管理 Config 客户端的订阅与生命周期。 */
+final class NacosConfigStore implements AutoCloseable {
     private static final int           INDEX_BUCKETS = 16;
     private final        ConfigService configs;
     private final        String        group;
@@ -104,6 +105,18 @@ final class NacosConfigStore {
         return references;
     }
 
+    void subscribe(String dataId, Listener listener) throws Exception {
+        this.configs.addListener(dataId, this.group, listener);
+    }
+
+    void unsubscribe(String dataId, Listener listener) throws Exception {
+        this.configs.removeListener(dataId, this.group, listener);
+    }
+
+    boolean isAvailable() {
+        return StringUtils.equals("UP", this.configs.getServerStatus());
+    }
+
     private static Map<String, String> entries(String content) throws Exception {
         Map<String, String> result = new TreeMap<>();
         if (content != null) {
@@ -124,5 +137,10 @@ final class NacosConfigStore {
         if (attempt > 0) {
             TimeUnit.MILLISECONDS.sleep(Math.min(25L << (attempt - 1), 200L));
         }
+    }
+
+    @Override
+    public void close() throws Exception {
+        this.configs.shutDown();
     }
 }

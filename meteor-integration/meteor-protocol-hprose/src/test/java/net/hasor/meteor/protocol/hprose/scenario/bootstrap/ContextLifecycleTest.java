@@ -10,17 +10,15 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.domain.MetException;
-import net.hasor.meteor.domain.ProtocolStatus;
-import net.hasor.meteor.protocol.hprose.scenario.example.Echo;
-import net.hasor.meteor.protocol.hprose.scenario.example.EchoService;
+import net.hasor.meteor.protocol.hprose.support.BootstrapTestSupport;
+import net.hasor.meteor.protocol.hprose.support.example.Echo;
+import net.hasor.meteor.protocol.hprose.support.example.EchoService;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -102,31 +100,25 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
     }
 
     @Test
-    public void manualOnlineStateControlsRemoteAdmission() throws Exception {
-        // 禁用自动上线，显式上线后才接受远程调用。
+    public void manualOnlineStartsListeningOnlyAfterOnline() throws Exception {
+        // 禁用自动上线，启动阶段不得提前开放监听端口。
         MetConfiguration config = this.configuration();
         config.setAutomaticOnline(false);
         try (MetContext server = config.buildContext(); //
              MetContext client = this.configuration().buildContext()) {
-            // 启动并发布服务后，服务端仍维持手动上线前的离线状态。
+            // 启动并发布服务后，服务端仍维持离线状态且没有监听地址。
             server.start();
             client.start();
             server.publisher().rsfService(Echo.class, new EchoService()).register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
 
+            assertFalse(server.isOnline());
+            assertNull(server.bindAddress("rsf"));
+
+            // 显式上线后才取得监听地址，并通过新连接完成远程调用。
+            server.online();
             MetClient caller = client.getRsfClient(server.bindAddress("rsf"));
             Echo remote = caller.getRemote(service);
-
-            // 离线时通过真实网络调用，验证返回的是准入拒绝。
-            assertFalse(server.isOnline());
-            Class<?>[] types = { String.class };
-            MetFuture denied = caller.asyncInvoke(service, "echo", types, new Object[] { "offline" });
-            var rejected = assertThrows(ExecutionException.class, () -> denied.getData(5, TimeUnit.SECONDS));
-            Throwable failure = rejected.getCause();
-            assertEquals(ProtocolStatus.Forbidden, ((MetException) failure).getStatus());
-
-            // 显式上线后，同一个客户端可以正常调用。
-            server.online();
             assertEquals("online", remote.echo("online"));
         }
     }
@@ -141,17 +133,13 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
             server.start();
             client.start();
             server.publisher().rsfService(Echo.class, new EchoService()).register();
-            MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
-            MetClient caller = client.getRsfClient(server.bindAddress("rsf"));
+            client.publisher().rsfService(Echo.class).register();
 
-            // 已运行的应用主动下线后，重复启动不能恢复远程接入。
+            // 已运行的应用主动下线后，重复启动不能重新开放监听。
             server.offline();
             server.start();
             assertFalse(server.isOnline());
-            Class<?>[] types = { String.class };
-            MetFuture denied = caller.asyncInvoke(service, "echo", types, new Object[] { "offline" });
-            var rejected = assertThrows(ExecutionException.class, () -> denied.getData(5, TimeUnit.SECONDS));
-            assertEquals(ProtocolStatus.Forbidden, ((MetException) rejected.getCause()).getStatus());
+            assertNull(server.bindAddress("rsf"));
         }
     }
 
@@ -166,12 +154,46 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
             client.start();
             server.publisher().rsfService(Echo.class, new EchoService()).register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            assertNull(server.bindAddress("rsf"));
 
-            // 连续上线不改变已开放的远程调用能力。
+            // 首次上线开放监听，重复上线不影响通过新连接发起远程调用。
             server.online();
             server.online();
+            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
             assertEquals("online", remote.echo("online"));
+        }
+    }
+
+    @Test
+    public void offlineContextStillInvokesItsLocalService() throws Exception {
+        // 本地调用不经过入站连接，实例离线后仍可使用本地服务。
+        try (MetContext context = this.configuration().buildContext()) {
+            context.start();
+            MetBindInfo<Echo> service = context.publisher().rsfService(Echo.class, new EchoService()).register();
+
+            // 离线释放监听资源，但不改变容器内的服务调用能力。
+            context.offline();
+            assertNull(context.bindAddress("rsf"));
+            Echo local = context.getRsfClient().getRemote(service);
+            assertEquals("local", local.echo("local"));
+        }
+    }
+
+    @Test
+    public void offlineContextCanStillInitiateAnOutboundCall() throws Exception {
+        // 调用方离线只停止自身入站监听，仍可主动连接其他在线实例。
+        try (MetContext server = this.configuration().buildContext(); //
+             MetContext client = this.configuration().buildContext()) {
+            server.start();
+            client.start();
+            server.publisher().rsfService(Echo.class, new EchoService()).register();
+            MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
+
+            // 客户端离线后没有监听地址，但通过新建出站连接仍能调用服务端。
+            client.offline();
+            assertNull(client.bindAddress("rsf"));
+            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            assertEquals("outbound", remote.echo("outbound"));
         }
     }
 

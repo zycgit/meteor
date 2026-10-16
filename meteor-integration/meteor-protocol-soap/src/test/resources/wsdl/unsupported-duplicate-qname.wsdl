@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+        xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        xmlns:tns="urn:meteor:test:duplicate-qname"
+        targetNamespace="urn:meteor:test:duplicate-qname">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:test:duplicate-qname" elementFormDefault="qualified">
+            <xsd:element name="combine">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="value" type="xsd:string"/>
+                        <xsd:element name="value" type="xsd:string"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="combineResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="result" type="xsd:string"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+
+    <wsdl:message name="CombineRequest">
+        <wsdl:part name="parameters" element="tns:combine"/>
+    </wsdl:message>
+    <wsdl:message name="CombineResponse">
+        <wsdl:part name="parameters" element="tns:combineResponse"/>
+    </wsdl:message>
+
+    <wsdl:portType name="CombinePortType">
+        <wsdl:operation name="combine">
+            <wsdl:input message="tns:CombineRequest"/>
+            <wsdl:output message="tns:CombineResponse"/>
+        </wsdl:operation>
+    </wsdl:portType>
+
+    <wsdl:binding name="CombineBinding" type="tns:CombinePortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="combine">
+            <soap:operation soapAction="urn:meteor:test:duplicate-qname:combine"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+
+    <wsdl:service name="CombineService">
+        <wsdl:port name="CombinePort" binding="tns:CombineBinding">
+            <soap:address location="http://127.0.0.1:1/services/CombineService"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

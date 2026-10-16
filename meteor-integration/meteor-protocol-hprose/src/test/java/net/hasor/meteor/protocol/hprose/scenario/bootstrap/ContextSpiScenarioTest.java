@@ -10,9 +10,10 @@ import java.net.URLClassLoader;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.protocol.hprose.scenario.example.Echo;
-import net.hasor.meteor.protocol.hprose.scenario.example.EchoService;
-import net.hasor.meteor.protocol.hprose.scenario.example.SerializerExamples.SpiCoder;
+import net.hasor.meteor.protocol.hprose.support.BootstrapTestSupport;
+import net.hasor.meteor.protocol.hprose.support.example.Echo;
+import net.hasor.meteor.protocol.hprose.support.example.EchoService;
+import net.hasor.meteor.protocol.hprose.support.example.SerializerExamples.SpiCoder;
 import org.junit.Test;
 import static org.junit.Assert.*;
 

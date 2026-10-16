@@ -211,6 +211,13 @@ final class ZookeeperRuleStore {
         }
     }
 
-    private record Node(byte[] body, Stat stat) {
+    private static final class Node {
+        private final byte[] body;
+        private final Stat   stat;
+
+        private Node(byte[] body, Stat stat) {
+            this.body = body;
+            this.stat = stat;
+        }
     }
 }

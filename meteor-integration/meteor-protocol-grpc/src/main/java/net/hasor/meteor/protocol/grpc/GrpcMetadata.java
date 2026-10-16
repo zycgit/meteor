@@ -7,21 +7,29 @@
  */
 package net.hasor.meteor.protocol.grpc;
 import java.util.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.meteor.MetOptionSet;
 import net.hasor.meteor.domain.OptionInfo;
 
 /** 单次 gRPC 的元数据视图，以 JSON 选项保存多值字段并转换二进制值。 */
 public final class GrpcMetadata {
-    private static final String       HEADERS  = "grpc-metadata-headers";
-    private static final String       TRAILERS = "grpc-metadata-trailers";
+    private static final String       HEADERS      = "grpc-metadata-headers";
+    private static final String       TRAILERS     = "grpc-metadata-trailers";
+    private static final Set<String>  HTTP_HEADERS = Set.of(//
+            "content-type", "content-length", "host", "connection", "transfer-encoding", "te", "user-agent");
+    private static final ObjectMapper MAPPER       = new ObjectMapper();
+    private static final JavaType     FIELDS       = fieldsType();
     private final        MetOptionSet options;
-
-    public GrpcMetadata() {
-        this(new OptionInfo());
-    }
 
     private GrpcMetadata(MetOptionSet options) {
         this.options = options;
+    }
+
+    /** 创建一份不依附请求或响应的元数据。 */
+    public static GrpcMetadata create() {
+        return new GrpcMetadata(new OptionInfo());
     }
 
     /** 取得请求或响应的元数据视图，修改直接写回该消息的选项。 */
@@ -31,12 +39,12 @@ public final class GrpcMetadata {
 
     /** 读取头部快照，二进制字段的值为线上 Base64 文本。 */
     public Map<String, List<String>> getHeaders() {
-        return this.options.getOption(HEADERS, GrpcMetadataParser.INSTANCE);
+        return parse(this.options.getOption(HEADERS));
     }
 
     /** 读取尾部快照；流式响应的尾部在消息流结束时才可用。 */
     public Map<String, List<String>> getTrailers() {
-        return this.options.getOption(TRAILERS, GrpcMetadataParser.INSTANCE);
+        return parse(this.options.getOption(TRAILERS));
     }
 
     public List<String> getHeader(String name) {
@@ -57,50 +65,24 @@ public final class GrpcMetadata {
 
     public void addHeader(String name, String value) {
         Map<String, List<String>> fields = append(this.getHeaders(), asciiName(name), List.of(ascii(value)));
-        this.options.addOption(HEADERS, fields, GrpcMetadataParser.INSTANCE);
+        this.options.addOption(HEADERS, format(fields));
     }
 
     public void addTrailer(String name, String value) {
         Map<String, List<String>> fields = append(this.getTrailers(), asciiName(name), List.of(ascii(value)));
-        this.options.addOption(TRAILERS, fields, GrpcMetadataParser.INSTANCE);
+        this.options.addOption(TRAILERS, format(fields));
     }
 
     public void addBinaryHeader(String name, byte[] value) {
         String encoded = Base64.getEncoder().withoutPadding().encodeToString(value);
         Map<String, List<String>> fields = append(this.getHeaders(), binaryName(name), List.of(encoded));
-        this.options.addOption(HEADERS, fields, GrpcMetadataParser.INSTANCE);
+        this.options.addOption(HEADERS, format(fields));
     }
 
     public void addBinaryTrailer(String name, byte[] value) {
         String encoded = Base64.getEncoder().withoutPadding().encodeToString(value);
         Map<String, List<String>> fields = append(this.getTrailers(), binaryName(name), List.of(encoded));
-        this.options.addOption(TRAILERS, fields, GrpcMetadataParser.INSTANCE);
-    }
-
-    void receive(Map<String, List<String>> fields, boolean trailing) {
-        Map<String, List<String>> values = new LinkedHashMap<>();
-        for (Map.Entry<String, List<String>> field : fields.entrySet()) {
-            String name = field.getKey().toLowerCase(Locale.ROOT);
-            if (!GrpcCodec.isMetadata(name)) {
-                continue;
-            }
-
-            List<String> parts = new ArrayList<>();
-            for (String value : field.getValue()) {
-                if (name.endsWith("-bin")) {
-                    // HTTP 允许合并同名二进制字段，先拆分再解码；接受有或无 padding。
-                    for (String part : value.split(",", -1)) {
-                        byte[] bytes = Base64.getDecoder().decode(part.trim());
-                        parts.add(Base64.getEncoder().withoutPadding().encodeToString(bytes));
-                    }
-                } else {
-                    parts.add(value);
-                }
-            }
-            values.put(name, List.copyOf(parts));
-        }
-        String key = trailing ? TRAILERS : HEADERS;
-        this.options.addOption(key, values, GrpcMetadataParser.INSTANCE);
+        this.options.addOption(TRAILERS, format(fields));
     }
 
     private static Map<String, List<String>> append(Map<String, List<String>> source, String key, List<String> added) {
@@ -113,10 +95,15 @@ public final class GrpcMetadata {
 
     private static String name(String name) {
         String key = name.toLowerCase(Locale.ROOT);
-        if (!GrpcCodec.isMetadata(key)) {
+        if (!isApplicationKey(key)) {
             throw new IllegalArgumentException("Reserved or invalid gRPC metadata key: " + name);
         }
         return key;
+    }
+
+    private static boolean isApplicationKey(String name) {
+        return name != null && name.matches("[0-9a-z_.-]+") && !name.startsWith("grpc-") && //
+                !HTTP_HEADERS.contains(name);
     }
 
     private static String asciiName(String name) {
@@ -151,5 +138,40 @@ public final class GrpcMetadata {
             decoded.add(Base64.getDecoder().decode(value));
         }
         return List.copyOf(decoded);
+    }
+
+    private static JavaType fieldsType() {
+        JavaType keyType = MAPPER.getTypeFactory().constructType(String.class);
+        JavaType valueType = MAPPER.getTypeFactory().constructCollectionType(List.class, String.class);
+        return MAPPER.getTypeFactory().constructMapType(LinkedHashMap.class, keyType, valueType);
+    }
+
+    private static Map<String, List<String>> parse(String value) {
+        if (value == null) {
+            return Map.of();
+        }
+
+        try {
+            Map<String, List<String>> fields = MAPPER.readValue(value, FIELDS);
+            if (fields == null) {
+                throw new IllegalArgumentException("gRPC metadata must be a JSON object");
+            }
+
+            Map<String, List<String>> snapshot = new LinkedHashMap<>();
+            for (Map.Entry<String, List<String>> field : fields.entrySet()) {
+                snapshot.put(field.getKey(), List.copyOf(field.getValue()));
+            }
+            return Collections.unmodifiableMap(snapshot);
+        } catch (JsonProcessingException failure) {
+            throw new IllegalArgumentException("Invalid gRPC metadata option", failure);
+        }
+    }
+
+    private static String format(Map<String, List<String>> value) {
+        try {
+            return MAPPER.writeValueAsString(value);
+        } catch (JsonProcessingException failure) {
+            throw new IllegalArgumentException("Cannot encode gRPC metadata option", failure);
+        }
     }
 }

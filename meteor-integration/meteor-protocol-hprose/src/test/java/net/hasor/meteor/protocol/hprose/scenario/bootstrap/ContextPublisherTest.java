@@ -11,8 +11,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import net.hasor.meteor.*;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.protocol.hprose.scenario.example.Echo;
-import net.hasor.meteor.protocol.hprose.scenario.example.EchoService;
+import net.hasor.meteor.protocol.hprose.support.BootstrapTestSupport;
+import net.hasor.meteor.protocol.hprose.support.example.Echo;
+import net.hasor.meteor.protocol.hprose.support.example.EchoService;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -155,7 +156,7 @@ public class ContextPublisherTest extends BootstrapTestSupport {
     }
 
     @Test
-    public void registeredMetadataCanBeUpdated() throws Exception {
+    public void registeredMetadataUpdateIsVisibleThroughContext() throws Exception {
         // 构建上下文后注册本地服务实例。
         MetConfiguration contextConfiguration = this.configuration();
         try (MetContext context = contextConfiguration.buildContext()) {
@@ -165,6 +166,17 @@ public class ContextPublisherTest extends BootstrapTestSupport {
             // 写入元数据后，从上下文重新查询也能读取到该值。
             service.setMetaData("tag", "value");
             assertEquals("value", context.getServiceInfo(service.getBindID()).getMetaData("tag"));
+        }
+    }
+
+    @Test
+    public void registeredMetadataCanBeRemoved() throws Exception {
+        // 先注册带元数据的本地服务。
+        MetConfiguration contextConfiguration = this.configuration();
+        try (MetContext context = contextConfiguration.buildContext()) {
+            EchoService instance = new EchoService();
+            MetBindInfo<Echo> service = context.publisher().rsfService(Echo.class, instance).register();
+            service.setMetaData("tag", "value");
 
             // 删除同一键后，注册项不再保留该元数据。
             service.removeMetaData("tag");
@@ -196,10 +208,10 @@ public class ContextPublisherTest extends BootstrapTestSupport {
             EchoService instance = new EchoService();
             MetBindInfo<Echo> service = context.publisher().rsfService(Echo.class, instance).register();
 
-            // 启动前本地调用可用，但没有网络监听且不能提前上线。
+            // 启动前本地调用可用，网络计划已编译但尚未监听且不能提前上线。
             assertEquals("local", context.getRsfClient().getRemote(service).echo("local"));
             assertFalse(context.isOnline());
-            assertTrue(context.runProtocols().isEmpty());
+            assertEquals(Collections.singleton("rsf"), context.runProtocols());
             assertNull(context.bindAddress("rsf"));
             assertThrows(IllegalStateException.class, context::online);
         }
@@ -218,10 +230,10 @@ public class ContextPublisherTest extends BootstrapTestSupport {
             Object[] arguments = { "value" };
             MetFuture call = context.getRsfClient().asyncInvoke(service, "echo", types, arguments);
 
-            // 调用已经完成且没有开启任何网络监听。
+            // 调用已经完成，预编译的协议计划保持可见且没有触发网络监听。
             assertTrue(call.isDone());
             assertEquals("cached", call.getData(1, TimeUnit.SECONDS));
-            assertTrue(context.runProtocols().isEmpty());
+            assertEquals(Collections.singleton("rsf"), context.runProtocols());
         }
     }
 }

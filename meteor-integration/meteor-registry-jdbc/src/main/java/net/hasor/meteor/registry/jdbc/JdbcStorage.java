@@ -18,6 +18,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.sql.DataSource;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Cancellable;
+import net.hasor.cobble.function.EFunction;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.dbvisitor.jdbc.PreparedStatementSetter;
@@ -46,7 +47,8 @@ final class JdbcStorage implements StorageAccess {
     private final        long                     leaseMillis;
     private final        String                   sessionId           = UUID.randomUUID().toString();
     private final        Set<String>              registeredInstances = ConcurrentHashMap.newKeySet();
-    private final        ScheduledExecutorService scheduler;
+    private final        ScheduledExecutorService leaseScheduler;
+    private final        ScheduledExecutorService watchScheduler;
     private final        ReentrantReadWriteLock   lifecycle           = new ReentrantReadWriteLock();
     private volatile     boolean                  closed;
 
@@ -59,13 +61,19 @@ final class JdbcStorage implements StorageAccess {
             return null;
         });
 
-        this.scheduler = Executors.newSingleThreadScheduledExecutor(task -> {
-            Thread thread = new Thread(task, "Meteor-jdbc-session");
+        this.leaseScheduler = newScheduler("Meteor-jdbc-lease");
+        this.watchScheduler = newScheduler("Meteor-jdbc-watch");
+        long heartbeatInterval = leaseMillis / 3;
+        this.leaseScheduler.scheduleWithFixedDelay( //
+                this::heartbeat, heartbeatInterval, heartbeatInterval, TimeUnit.MILLISECONDS);
+    }
+
+    private static ScheduledExecutorService newScheduler(String threadName) {
+        return Executors.newSingleThreadScheduledExecutor(task -> {
+            Thread thread = new Thread(task, threadName);
             thread.setDaemon(true);
             return thread;
         });
-
-        this.scheduler.scheduleWithFixedDelay(this::heartbeat, leaseMillis / 3, leaseMillis / 3, TimeUnit.MILLISECONDS);
     }
 
     private void heartbeat() {
@@ -759,7 +767,7 @@ final class JdbcStorage implements StorageAccess {
         try {
             this.requireOpen();
             JdbcStorageWatch watch = new JdbcStorageWatch(snapshot, Objects.requireNonNull(listener));
-            watch.scheduled(this.scheduler.scheduleWithFixedDelay(watch, 0, 200, TimeUnit.MILLISECONDS));
+            watch.scheduled(this.watchScheduler.scheduleWithFixedDelay(watch, 0, 200, TimeUnit.MILLISECONDS));
             return watch;
         } finally {
             this.lifecycle.readLock().unlock();
@@ -913,7 +921,8 @@ final class JdbcStorage implements StorageAccess {
                 return;
             }
             this.closed = true;
-            this.scheduler.shutdownNow();
+            this.watchScheduler.shutdownNow();
+            this.leaseScheduler.shutdownNow();
             if (!this.registeredInstances.isEmpty()) {
                 this.inTransaction(jdbc -> {
                     this.clearSession(jdbc);
@@ -925,7 +934,7 @@ final class JdbcStorage implements StorageAccess {
         }
     }
 
-    private <T> T transaction(Transaction<T> action) throws Exception {
+    private <T> T transaction(EFunction<JdbcTemplate, T, Exception> action) throws Exception {
         this.lifecycle.readLock().lock();
         try {
             this.requireOpen();
@@ -935,11 +944,11 @@ final class JdbcStorage implements StorageAccess {
         }
     }
 
-    private <T> T inTransaction(Transaction<T> action) throws Exception {
+    private <T> T inTransaction(EFunction<JdbcTemplate, T, Exception> action) throws Exception {
         try (Connection connection = this.dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
-                T result = action.execute(new JdbcTemplate(connection));
+                T result = action.eApply(new JdbcTemplate(connection));
                 connection.commit();
                 return result;
             } catch (Exception | Error failure) {
@@ -951,10 +960,6 @@ final class JdbcStorage implements StorageAccess {
                 throw failure;
             }
         }
-    }
-
-    private interface Transaction<T> {
-        T execute(JdbcTemplate jdbc) throws Exception;
     }
 
     private static boolean isDuplicateKey(SQLException failure) {

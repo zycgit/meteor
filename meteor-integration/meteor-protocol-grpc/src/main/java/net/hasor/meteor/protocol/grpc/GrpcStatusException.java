@@ -27,7 +27,7 @@ public final class GrpcStatusException extends MetException {
         this.code = code;
         this.description = description;
         this.details = details == null ? new byte[0] : details.clone();
-        this.metadata = metadata == null ? new GrpcMetadata() : metadata;
+        this.metadata = metadata == null ? GrpcMetadata.create() : metadata;
         this.validateDetails();
     }
 

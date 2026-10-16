@@ -9,10 +9,13 @@ import java.util.Map;
 import com.alibaba.nacos.api.config.ConfigService;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.naming.NamingService;
+import com.alibaba.nacos.api.naming.pojo.Instance;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.registry.nacos.NacosGovernanceAccess;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
 import org.junit.Test;
+import static net.hasor.meteor.registry.nacos.unit.NacosTestData.instance;
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -20,6 +23,43 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 public class NacosFailureTest {
+    @Test
+    public void closedGovernanceDoesNotCreateAdministrativeClients() throws Exception {
+        // 打开存储只创建 Naming 与 Config 客户端，治理管理客户端仍保持懒加载。
+        try (MockNacosSdk sdk = new MockNacosSdk(); //
+             StorageAccess storage = sdk.configuration().openStorage()) {
+            assertEquals(0, sdk.adminCreations.get());
+            assertEquals(0, sdk.lockCreations.get());
+
+            // 治理组件关闭后拒绝后续加锁，不能重新创建已经退出生命周期的管理资源。
+            NamingService naming = sdk.namingClients.get(0);
+            ConfigService configs = sdk.configClients.get(0);
+            assertThrows(IllegalStateException.class, () -> NacosGovernanceAccess.lockAfterClose(naming, configs));
+            assertEquals(0, sdk.adminCreations.get());
+            assertEquals(0, sdk.lockCreations.get());
+        }
+    }
+
+    @Test
+    public void failedApplicationMoveCanBeCompletedByRetryingTheSameInstance() throws Exception {
+        // 先登记到 orders，再让撤回旧应用成员关系的第一次写入失败。
+        try (MockNacosSdk sdk = new MockNacosSdk(); //
+             StorageAccess storage = sdk.configuration().openStorage()) {
+            storage.registerInstance(instance("node"));
+            EntInstanceRuntimeData moved = instance("node");
+            moved.setApplicationName("payments");
+            sdk.rejectBatchKey = "applications.orders.instances";
+            sdk.rejectBatchWrites = 1;
+            assertThrows(IllegalStateException.class, () -> storage.registerInstance(moved));
+
+            // 本地仍保留上次完整归属，同一操作重试会再次撤回旧关系并提交新快照。
+            storage.registerInstance(moved);
+            Map<String, Instance> oldMembers = sdk.nodes.get("applications.orders.instances");
+            assertTrue(oldMembers == null || oldMembers.isEmpty());
+            assertEquals("payments", storage.getInstance("node").getRuntime().getApplicationName());
+        }
+    }
+
     @Test
     public void directoryContentionFailsWithoutPublishingAnIncompleteService() throws Exception {
         // 目录 CAS 连续竞争失败，耗尽存储层的有界重试。

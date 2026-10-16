@@ -11,7 +11,7 @@ import java.security.KeyStore;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
-import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.TransportPipeline;
 import net.hasor.neta.channel.ProtoBuildContext;
 import net.hasor.neta.codec.ssl.SslConfig;
@@ -19,7 +19,7 @@ import net.hasor.neta.codec.ssl.SslDuplex;
 
 /** 示例 TLS 管线由 transportPipeline 加载；内置证书仅用于 localhost 演示。 */
 public final class DemoTlsPipeline implements TransportPipeline {
-    public void initialize(ConnectorConfig config, ProtoBuildContext pipeline) throws Exception {
+    public void initialize(TransportConfig config, ProtoBuildContext pipeline) throws Exception {
         // 应用负责准备证书和信任库，再将 TLS 处理器加入传输管线。
         KeyStore store = KeyStore.getInstance("PKCS12");
         char[] password = "meteor-test".toCharArray();

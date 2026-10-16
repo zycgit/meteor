@@ -1028,7 +1028,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 1，并等待错误由客户端向上传递。
-            Message argument = new Message("", 1);
+            Message argument = Message.of("", 1);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1073,7 +1073,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 2，并等待错误由客户端向上传递。
-            Message argument = new Message("", 2);
+            Message argument = Message.of("", 2);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1118,7 +1118,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 3，并等待错误由客户端向上传递。
-            Message argument = new Message("", 3);
+            Message argument = Message.of("", 3);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1163,7 +1163,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 4，并等待错误由客户端向上传递。
-            Message argument = new Message("", 4);
+            Message argument = Message.of("", 4);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1208,7 +1208,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 5，并等待错误由客户端向上传递。
-            Message argument = new Message("", 5);
+            Message argument = Message.of("", 5);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1253,7 +1253,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 6，并等待错误由客户端向上传递。
-            Message argument = new Message("", 6);
+            Message argument = Message.of("", 6);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1298,7 +1298,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 7，并等待错误由客户端向上传递。
-            Message argument = new Message("", 7);
+            Message argument = Message.of("", 7);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1343,7 +1343,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 8，并等待错误由客户端向上传递。
-            Message argument = new Message("", 8);
+            Message argument = Message.of("", 8);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1388,7 +1388,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 9，并等待错误由客户端向上传递。
-            Message argument = new Message("", 9);
+            Message argument = Message.of("", 9);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1433,7 +1433,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 10，并等待错误由客户端向上传递。
-            Message argument = new Message("", 10);
+            Message argument = Message.of("", 10);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1478,7 +1478,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 11，并等待错误由客户端向上传递。
-            Message argument = new Message("", 11);
+            Message argument = Message.of("", 11);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1523,7 +1523,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 12，并等待错误由客户端向上传递。
-            Message argument = new Message("", 12);
+            Message argument = Message.of("", 12);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1568,7 +1568,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 13，并等待错误由客户端向上传递。
-            Message argument = new Message("", 13);
+            Message argument = Message.of("", 13);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1613,7 +1613,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 14，并等待错误由客户端向上传递。
-            Message argument = new Message("", 14);
+            Message argument = Message.of("", 14);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1658,7 +1658,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 15，并等待错误由客户端向上传递。
-            Message argument = new Message("", 15);
+            Message argument = Message.of("", 15);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1703,7 +1703,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             var caller = client.getRsfClient(address);
 
             // 通过异步调用请求错误码 16，并等待错误由客户端向上传递。
-            Message argument = new Message("", 16);
+            Message argument = Message.of("", 16);
             var future = caller.asyncInvoke(info, "fail", new Class<?>[] { Message.class }, new Object[] { argument });
             Exception failure = assertThrows(Exception.class, () -> future.get(5, TimeUnit.SECONDS));
 
@@ -1749,7 +1749,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
 
             // 先取得响应流，业务将在交付一条消息后发送错误 trailers。
             Class<?>[] parameterTypes = { Message.class };
-            Object[] arguments = { new Message("first", 1) };
+            Object[] arguments = { Message.of("first", 1) };
             var responseFuture = caller.asyncInvoke(info, "failStream", parameterTypes, arguments);
             MetResponse response = responseFuture.get(5, TimeUnit.SECONDS);
 

@@ -25,7 +25,7 @@ import io.grpc.stub.StreamObserver;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.protocol.grpc.inner.GrpcServices;
+import net.hasor.meteor.protocol.grpc.builtin.GrpcBuiltinServicesFactory;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
@@ -193,7 +193,7 @@ public class GrpcBuiltinContextTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(10000);
         configuration.connector("http").bind("127.0.0.1", 0).protocol("grpc") // 只声明业务默认目录。
                 .contextPath("/rpc").option("streamBody", true);
-        configuration.addExtension(new GrpcServices());
+        configuration.addExtension(new GrpcBuiltinServicesFactory());
         return configuration;
     }
 

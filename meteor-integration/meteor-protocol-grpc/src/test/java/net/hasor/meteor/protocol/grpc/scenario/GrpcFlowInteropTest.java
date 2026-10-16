@@ -58,7 +58,7 @@ public class GrpcFlowInteropTest {
                 // 标准服务端流：官方客户端仅使用 Protobuf marshaller，没有 Meteor 私有信封。
                 var serverMethod = this.method("list", MethodDescriptor.MethodType.SERVER_STREAMING);
                 CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS);
-                Message request = new Message("native", 3);
+                Message request = Message.of("native", 3);
                 var messages = ClientCalls.blockingServerStreamingCall(peer, serverMethod, options, request);
                 List<Message> values = new ArrayList<>();
                 messages.forEachRemaining(values::add);
@@ -98,8 +98,8 @@ public class GrpcFlowInteropTest {
                 CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS);
                 var clientCall = peer.newCall(clientMethod, options);
                 StreamObserver<Message> requests = ClientCalls.asyncClientStreamingCall(clientCall, sum);
-                requests.onNext(new Message("a", 4));
-                requests.onNext(new Message("b", 7));
+                requests.onNext(Message.of("a", 4));
+                requests.onNext(Message.of("b", 7));
                 requests.onCompleted();
                 sum.done.get(5, TimeUnit.SECONDS);
                 assertEquals(11, sum.values.get(0).getCount());
@@ -136,8 +136,8 @@ public class GrpcFlowInteropTest {
                 CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS);
                 var bidiCall = peer.newCall(bidiMethod, options);
                 StreamObserver<Message> exchange = ClientCalls.asyncBidiStreamingCall(bidiCall, replies);
-                exchange.onNext(new Message("one", 1));
-                exchange.onNext(new Message("two", 2));
+                exchange.onNext(Message.of("one", 1));
+                exchange.onNext(Message.of("two", 2));
                 exchange.onCompleted();
                 replies.done.get(5, TimeUnit.SECONDS);
                 assertEquals(2, replies.values.size());
@@ -189,8 +189,8 @@ public class GrpcFlowInteropTest {
         var collect = this.method("collect", MethodDescriptor.MethodType.CLIENT_STREAMING);
         var exchange = this.method("exchange", MethodDescriptor.MethodType.BIDI_STREAMING);
         var listHandler = ServerCalls.<Message, Message>asyncServerStreamingCall((request, reply) -> {
-            reply.onNext(new Message(request.getValue(), 2));
-            reply.onNext(new Message(request.getValue(), 5));
+            reply.onNext(Message.of(request.getValue(), 2));
+            reply.onNext(Message.of(request.getValue(), 5));
             reply.onCompleted();
         });
         var collectHandler = ServerCalls.asyncClientStreamingCall(this::collect);
@@ -216,7 +216,7 @@ public class GrpcFlowInteropTest {
             InterAddress address = new InterAddress("grpc", "127.0.0.1", server.getPort(), "default");
             Messages remote = client.getRsfClient(address).getRemote(info);
             List<Message> values = new ArrayList<>();
-            MetCaller.consume(remote.list(new Message("official", 0)), values::add) //
+            MetCaller.consume(remote.list(Message.of("official", 0)), values::add) //
                     .get(5, TimeUnit.SECONDS);
             assertEquals(2, values.size());
             assertEquals(5, values.get(1).getCount());
@@ -232,8 +232,8 @@ public class GrpcFlowInteropTest {
         var collect = this.method("collect", MethodDescriptor.MethodType.CLIENT_STREAMING);
         var exchange = this.method("exchange", MethodDescriptor.MethodType.BIDI_STREAMING);
         var listHandler = ServerCalls.<Message, Message>asyncServerStreamingCall((request, reply) -> {
-            reply.onNext(new Message(request.getValue(), 2));
-            reply.onNext(new Message(request.getValue(), 5));
+            reply.onNext(Message.of(request.getValue(), 2));
+            reply.onNext(Message.of(request.getValue(), 5));
             reply.onCompleted();
         });
         var collectHandler = ServerCalls.asyncClientStreamingCall(this::collect);
@@ -258,7 +258,7 @@ public class GrpcFlowInteropTest {
             // 使用对端真实监听地址创建代理，并检查流的内容和结束信号。
             InterAddress address = new InterAddress("grpc", "127.0.0.1", server.getPort(), "default");
             Messages remote = client.getRsfClient(address).getRemote(info);
-            List<Message> values = List.of(new Message("official", 2), new Message("official", 5));
+            List<Message> values = List.of(Message.of("official", 2), Message.of("official", 5));
             Message sum = remote.collect(MetCaller.fromIterable(values));
             assertEquals(7, sum.getCount());
         } finally {
@@ -273,8 +273,8 @@ public class GrpcFlowInteropTest {
         var collect = this.method("collect", MethodDescriptor.MethodType.CLIENT_STREAMING);
         var exchange = this.method("exchange", MethodDescriptor.MethodType.BIDI_STREAMING);
         var listHandler = ServerCalls.<Message, Message>asyncServerStreamingCall((request, reply) -> {
-            reply.onNext(new Message(request.getValue(), 2));
-            reply.onNext(new Message(request.getValue(), 5));
+            reply.onNext(Message.of(request.getValue(), 2));
+            reply.onNext(Message.of(request.getValue(), 5));
             reply.onCompleted();
         });
         var collectHandler = ServerCalls.asyncClientStreamingCall(this::collect);
@@ -299,7 +299,7 @@ public class GrpcFlowInteropTest {
             // 使用对端真实监听地址创建代理，并检查流的内容和结束信号。
             InterAddress address = new InterAddress("grpc", "127.0.0.1", server.getPort(), "default");
             Messages remote = client.getRsfClient(address).getRemote(info);
-            List<Message> values = List.of(new Message("official", 2), new Message("official", 5));
+            List<Message> values = List.of(Message.of("official", 2), Message.of("official", 5));
             List<Message> replies = new ArrayList<>();
             var requests = MetCaller.fromIterable(values);
             var responses = remote.exchange(requests);
@@ -325,7 +325,7 @@ public class GrpcFlowInteropTest {
             }
 
             public void onCompleted() {
-                reply.onNext(new Message("sum", this.sum));
+                reply.onNext(Message.of("sum", this.sum));
                 reply.onCompleted();
             }
         };

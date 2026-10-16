@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+        xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        xmlns:tns="urn:meteor:test:signal"
+        xmlns:types="urn:meteor:test:signal:types"
+        targetNamespace="urn:meteor:test:signal">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:test:signal">
+            <xsd:import namespace="urn:meteor:test:signal:types" schemaLocation="signal-types.xsd"/>
+        </xsd:schema>
+    </wsdl:types>
+
+    <wsdl:message name="SignalRequest">
+        <wsdl:part name="parameters" element="types:signal"/>
+    </wsdl:message>
+
+    <wsdl:portType name="SignalPortType">
+        <wsdl:operation name="signal">
+            <wsdl:input message="tns:SignalRequest"/>
+        </wsdl:operation>
+    </wsdl:portType>
+
+    <wsdl:binding name="SignalBinding" type="tns:SignalPortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="signal">
+            <soap:operation soapAction="urn:meteor:test:signal"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+        </wsdl:operation>
+    </wsdl:binding>
+
+    <wsdl:service name="SignalService">
+        <wsdl:port name="SignalPort" binding="tns:SignalBinding">
+            <soap:address location="http://127.0.0.1:1/placeholder/SignalService"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

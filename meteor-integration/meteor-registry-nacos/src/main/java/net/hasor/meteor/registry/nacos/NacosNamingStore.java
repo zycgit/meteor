@@ -8,13 +8,14 @@
 package net.hasor.meteor.registry.nacos;
 import java.util.*;
 import com.alibaba.nacos.api.naming.NamingService;
+import com.alibaba.nacos.api.naming.listener.EventListener;
 import com.alibaba.nacos.api.naming.pojo.Instance;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.registry.shared.storage.domain.EntInstanceRuntimeData;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
-/** 只维护本客户端发布的临时成员；连接生命周期交给 Nacos。 */
-final class NacosNamingStore {
+/** 维护本客户端发布的临时成员，并管理 Naming 客户端的订阅与生命周期。 */
+final class NacosNamingStore implements AutoCloseable {
     private final NamingService                      naming;
     private final String                             group;
     private final Map<String, Map<String, Instance>> registrations = new LinkedHashMap<>();
@@ -58,10 +59,7 @@ final class NacosNamingStore {
             return;
         }
 
-        String cluster = NacosKeyUtils.encode(id);
-        if (cluster.length() > 64) {
-            throw new IllegalArgumentException("Nacos instance identity exceeds 64 encoded characters: " + id);
-        }
+        String cluster = NacosKeyUtils.cluster(id);
         Instance node = new Instance();
         node.setIp(instance.getIpAddress());
         node.setPort(0);
@@ -100,7 +98,20 @@ final class NacosNamingStore {
         return result;
     }
 
-    synchronized void close() throws Exception {
+    void subscribe(String key, EventListener listener) throws Exception {
+        this.naming.subscribe(key, this.group, listener);
+    }
+
+    void unsubscribe(String key, EventListener listener) throws Exception {
+        this.naming.unsubscribe(key, this.group, listener);
+    }
+
+    boolean isAvailable() {
+        return StringUtils.equals("UP", this.naming.getServerStatus());
+    }
+
+    @Override
+    public synchronized void close() throws Exception {
         Exception failure = null;
         for (String key : this.registrations.keySet()) {
             try {
@@ -114,6 +125,15 @@ final class NacosNamingStore {
             }
         }
         this.registrations.clear();
+        try {
+            this.naming.shutDown();
+        } catch (Exception cleanup) {
+            if (failure == null) {
+                failure = cleanup;
+            } else if (failure != cleanup) {
+                failure.addSuppressed(cleanup);
+            }
+        }
         if (failure != null) {
             throw failure;
         }

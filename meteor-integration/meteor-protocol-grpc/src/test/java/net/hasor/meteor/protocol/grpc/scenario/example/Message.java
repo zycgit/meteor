@@ -6,17 +6,21 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.grpc.scenario.example;
+import java.io.Serializable;
 
-public class Message {
-    private String value;
-    private int    count;
+public class Message implements Serializable {
+    private static final long   serialVersionUID = 1L;
+    private              String value;
+    private              int    count;
 
     public Message() {
     }
 
-    public Message(String value, int count) {
-        this.value = value;
-        this.count = count;
+    public static Message of(String value, int count) {
+        Message message = new Message();
+        message.value = value;
+        message.count = count;
+        return message;
     }
 
     public String getValue() {

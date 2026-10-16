@@ -34,7 +34,7 @@ public class MetadataServiceImpl implements MetadataService {
         } catch (Exception failure) {
             throw new IllegalStateException(failure);
         }
-        return new Message("sum", sum.get());
+        return Message.of("sum", sum.get());
     }
 
     public Flow.Publisher<Message> exchange(Flow.Publisher<Message> requests) {
@@ -43,7 +43,7 @@ public class MetadataServiceImpl implements MetadataService {
 
     public Message fail(Message request) {
         // 同时返回状态详情和尾部，验证错误路径不丢失元数据。
-        GrpcMetadata metadata = new GrpcMetadata();
+        GrpcMetadata metadata = GrpcMetadata.create();
         metadata.addTrailer("x-error", "preserved");
         int code = request.getCount();
         byte[] statusDetails = details(code);
@@ -64,7 +64,7 @@ public class MetadataServiceImpl implements MetadataService {
                     subscriber.onNext(request);
 
                     // 错误详情和尾部必须随 onError 一起保留。
-                    GrpcMetadata metadata = new GrpcMetadata();
+                    GrpcMetadata metadata = GrpcMetadata.create();
                     metadata.addTrailer("x-error", "late");
                     GrpcStatusException failure = new GrpcStatusException(9, "late failure", details(9), metadata);
                     subscriber.onError(failure);

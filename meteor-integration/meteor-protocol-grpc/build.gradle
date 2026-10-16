@@ -22,6 +22,7 @@ dependencies {
         exclude group: 'dev.cel'
     }
     testImplementation project(':meteor-protocol-hprose')
+    testImplementation "org.hprose:hprose-java:${property('lib.hprose')}"
 }
 
 // 同端口互通测试包含 Hprose bean 反序列化。

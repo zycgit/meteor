@@ -7,10 +7,12 @@
  */
 package net.hasor.meteor.registry.nacos;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import net.hasor.cobble.StringUtils;
 
-/** 业务 ID 的可逆编码；句点只用于分隔节点，不参与实体散列。 */
+/** 业务键使用可逆编码；Naming 集群名只使用 Nacos 接受的安全字符。 */
 final class NacosKeyUtils {
     private NacosKeyUtils() {
     }
@@ -31,6 +33,39 @@ final class NacosKeyUtils {
             }
         }
         return encoded.toString();
+    }
+
+    static String cluster(String id) {
+        if (StringUtils.isBlank(id)) {
+            throw new IllegalArgumentException("Registry identity must not be blank");
+        }
+
+        boolean escaped = false;
+        StringBuilder encoded = new StringBuilder();
+        for (byte value : id.getBytes(StandardCharsets.UTF_8)) {
+            int ch = value & 0xff;
+            boolean letter = ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z';
+            boolean digit = ch >= '0' && ch <= '9';
+            if (letter || digit) {
+                encoded.append((char) ch);
+            } else {
+                escaped = true;
+                encoded.append('-').append(HexFormat.of().toHexDigits(value));
+            }
+        }
+        if (escaped) {
+            encoded.insert(0, 'x');
+        }
+        if (encoded.length() <= 64) {
+            return encoded.toString();
+        }
+
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(id.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is not available", impossible);
+        }
     }
 
     static String application(String id) {

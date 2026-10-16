@@ -11,12 +11,9 @@ import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import com.alibaba.nacos.api.config.ConfigService;
 import com.alibaba.nacos.api.config.listener.Listener;
-import com.alibaba.nacos.api.naming.NamingService;
 import com.alibaba.nacos.api.naming.listener.EventListener;
 import net.hasor.cobble.ExceptionUtils;
-import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
@@ -24,9 +21,8 @@ import net.hasor.cobble.logging.LoggerFactory;
 /** 已知 Naming 节点和 Config 键的原生订阅；范围内定期复核通知遗漏与读取失败。 */
 final class NacosStorageWatch implements Cancellable {
     private static final Logger                        LOGGER            = LoggerFactory.getLogger(NacosStorageWatch.class);
-    private final        NamingService                 naming;
-    private final        ConfigService                 configs;
-    private final        String                        group;
+    private final        NacosNamingStore              naming;
+    private final        NacosConfigStore              configs;
     private final        List<String>                  names;
     private final        List<String>                  dataIds;
     private final        Callable<Map<String, String>> snapshot;
@@ -52,10 +48,9 @@ final class NacosStorageWatch implements Cancellable {
     private              Map<String, String>           previous;
     private              ScheduledFuture<?>            refresh;
 
-    NacosStorageWatch(NamingService naming, ConfigService configs, String group, List<String> names, List<String> dataIds, Callable<Map<String, String>> snapshot, Runnable listener, ScheduledExecutorService executor, Consumer<NacosStorageWatch> onCancel) {
+    NacosStorageWatch(NacosNamingStore naming, NacosConfigStore configs, List<String> names, List<String> dataIds, Callable<Map<String, String>> snapshot, Runnable listener, ScheduledExecutorService executor, Consumer<NacosStorageWatch> onCancel) {
         this.naming = naming;
         this.configs = configs;
-        this.group = group;
         this.names = names;
         this.dataIds = dataIds;
         this.snapshot = snapshot;
@@ -67,13 +62,15 @@ final class NacosStorageWatch implements Cancellable {
     synchronized void start() {
         try {
             for (String name : this.names) {
-                this.naming.subscribe(name, this.group, this.namingListener);
                 this.subscribedNames.add(name);
+                this.naming.subscribe(name, this.namingListener);
             }
+
             for (String dataId : this.dataIds) {
-                this.configs.addListener(dataId, this.group, this.configListener);
                 this.subscribedConfigs.add(dataId);
+                this.configs.subscribe(dataId, this.configListener);
             }
+
             this.refresh = this.executor.scheduleWithFixedDelay(this::signal, 1, 1, TimeUnit.SECONDS);
             this.signal();
         } catch (Exception failure) {
@@ -90,6 +87,7 @@ final class NacosStorageWatch implements Cancellable {
         if (this.cancelled.get() || !this.queued.compareAndSet(false, true)) {
             return;
         }
+
         try {
             this.executor.execute(this::read);
         } catch (RejectedExecutionException closed) {
@@ -102,12 +100,14 @@ final class NacosStorageWatch implements Cancellable {
         if (this.cancelled.get()) {
             return;
         }
+
         try {
-            boolean namingUp = this.names.isEmpty() || StringUtils.equals("UP", this.naming.getServerStatus());
-            boolean configUp = this.dataIds.isEmpty() || StringUtils.equals("UP", this.configs.getServerStatus());
+            boolean namingUp = this.names.isEmpty() || this.naming.isAvailable();
+            boolean configUp = this.dataIds.isEmpty() || this.configs.isAvailable();
             if (!namingUp || !configUp) {
                 throw new IllegalStateException("Nacos is disconnected");
             }
+
             Map<String, String> current = this.snapshot.call();
             if (!this.cancelled.get() && !current.equals(this.previous)) {
                 this.listener.run();
@@ -127,24 +127,28 @@ final class NacosStorageWatch implements Cancellable {
         if (!this.cancelled.compareAndSet(false, true)) {
             return false;
         }
+
         if (this.refresh != null) {
             this.refresh.cancel(false);
         }
+
         Exception failure = null;
         for (String name : this.subscribedNames) {
             try {
-                this.naming.unsubscribe(name, this.group, this.namingListener);
+                this.naming.unsubscribe(name, this.namingListener);
             } catch (Exception cleanup) {
                 failure = append(failure, cleanup);
             }
         }
+
         for (String dataId : this.subscribedConfigs) {
             try {
-                this.configs.removeListener(dataId, this.group, this.configListener);
+                this.configs.unsubscribe(dataId, this.configListener);
             } catch (Exception cleanup) {
                 failure = append(failure, cleanup);
             }
         }
+
         this.onCancel.accept(this);
         if (failure != null) {
             throw new IllegalStateException("Cannot unsubscribe Nacos registry changes", failure);
@@ -156,6 +160,7 @@ final class NacosStorageWatch implements Cancellable {
         if (previous == null) {
             return next;
         }
+
         previous.addSuppressed(next);
         return previous;
     }

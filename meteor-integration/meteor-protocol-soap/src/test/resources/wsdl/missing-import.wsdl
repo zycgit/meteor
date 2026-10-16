@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        targetNamespace="urn:meteor:test:missing">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:test:missing">
+            <xsd:import namespace="urn:meteor:test:missing:types" schemaLocation="missing-types.xsd"/>
+        </xsd:schema>
+    </wsdl:types>
+</wsdl:definitions>

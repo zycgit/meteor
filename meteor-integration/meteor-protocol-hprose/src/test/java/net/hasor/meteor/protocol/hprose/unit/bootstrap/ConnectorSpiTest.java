@@ -8,17 +8,13 @@
 package net.hasor.meteor.protocol.hprose.unit.bootstrap;
 import java.io.IOException;
 import java.util.*;
-import java.util.function.BiConsumer;
+import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.ProtocolContext;
-import net.hasor.meteor.connector.protocol.ProtocolFactory;
-import net.hasor.meteor.connector.protocol.ProtocolSession;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.domain.payload.Payload;
 import org.junit.Test;
@@ -33,11 +29,11 @@ public class ConnectorSpiTest {
         custom.bind("127.0.0.1", 23000);
         custom.option("custom.nested", "custom-value");
         custom.option("custom.parallelism", 3);
-        custom.protocol("custom-test");
+        custom.protocol("custom-test").addressScheme("custom-wire");
         try (MetContext runtime = settings.buildContext()) {
             assertNull(runtime.bindAddress("custom-test"));
 
-            // 启动后才创建监听，地址的 scheme 由自定义协议 SPI 决定。
+            // 启动后才创建监听，地址 scheme 使用挂载声明的别名。
             runtime.start();
             assertEquals(Collections.singleton("custom-test"), runtime.runProtocols());
             assertEquals(23000, runtime.bindAddress("custom-test").getPort());
@@ -81,7 +77,14 @@ public class ConnectorSpiTest {
         assertEquals(4, FailingTransport.events.size());
     }
 
-    public static class CustomTransport implements NetworkConnectorFactory<byte[]> {
+    public static class CustomTransport implements TransportFactory<byte[]> {
+        public boolean sharedRoutes() {
+            return false;
+        }
+
+        public void configRoutes(Map<String, Map<String, String>> routes) {
+        }
+
         public String name() {
             return "custom";
         }
@@ -90,11 +93,13 @@ public class ConnectorSpiTest {
             return byte[].class;
         }
 
-        public NetworkConnector<byte[]> create(ConnectorConfig config, ClassLoader loader) {
-            // 验证组装器把协议专属参数原样传给传输提供者。
-            assertEquals("custom-value", config.option("custom.nested", null));
-            assertEquals(3, config.integer("custom.parallelism", 1));
-            return new StubConnector();
+        public TransportPlan<byte[]> prepare(TransportConfig config, ClassLoader loader) {
+            return TransportPlan.direct(config, (prepared, runtime) -> {
+                // 验证组装器把协议专属参数原样传给传输提供者。
+                assertEquals("custom-value", prepared.option("custom.nested", null));
+                assertEquals(3, prepared.integer("custom.parallelism", 1));
+                return new StubConnector();
+            });
         }
     }
 
@@ -108,30 +113,35 @@ public class ConnectorSpiTest {
             return "failing";
         }
 
-        public NetworkConnector<byte[]> create(ConnectorConfig config, ClassLoader loader) {
-            // 只在第二次绑定注入故障，并记录关闭动作供外层验证清理范围。
-            return new StubConnector() {
-                public NetworkListen bind(InterAddress address, ChannelFactory<byte[]> factory) throws IOException {
-                    events.add("bind:" + config.name());
-                    if (++bindings == 2) {
-                        throw failure;
+        public TransportPlan<byte[]> prepare(TransportConfig config, ClassLoader loader) {
+            return TransportPlan.direct(config, (prepared, runtime) -> {
+                // 只在第二次绑定注入故障，并记录关闭动作供外层验证清理范围。
+                return new StubConnector() {
+                    public NetworkListen bind(InterAddress address, RouteTable<byte[]> routes, //
+                            ChannelListenerFactory<byte[]> factory) throws IOException {
+                        events.add("bind:" + prepared.name());
+                        if (++bindings == 2) {
+                            throw failure;
+                        }
+                        firstListen = super.bind(address, routes, factory);
+                        return firstListen;
                     }
-                    firstListen = super.bind(address, factory);
-                    return firstListen;
-                }
 
-                public void close() {
-                    events.add("close:" + config.name());
-                }
-            };
+                    public void close() {
+                        events.add("close:" + prepared.name());
+                    }
+                };
+            });
         }
     }
 
     private static class StubConnector implements NetworkConnector<byte[]> {
-        public NetworkListen bind(InterAddress address, ChannelFactory<byte[]> factory) throws IOException {
+        public NetworkListen bind(InterAddress address, RouteTable<byte[]> routes, //
+                ChannelListenerFactory<byte[]> factory) throws IOException {
             // 测试监听只模拟开放状态和一次性关闭通知，不创建实际网络资源。
             return new NetworkListen() {
                 private boolean  open = true;
+                private boolean  suspended;
                 private Runnable closed;
 
                 public InterAddress getAddress() {
@@ -139,11 +149,22 @@ public class ConnectorSpiTest {
                 }
 
                 public boolean isOpen() {
-                    return this.open;
+                    return this.open && !this.suspended;
                 }
 
                 public void onClose(Runnable action) {
                     this.closed = action;
+                }
+
+                public void suspend() {
+                    this.suspended = true;
+                }
+
+                public void resume() {
+                    if (!this.open) {
+                        throw new IllegalStateException("Listener is closed");
+                    }
+                    this.suspended = false;
                 }
 
                 public void close() {
@@ -158,7 +179,8 @@ public class ConnectorSpiTest {
             };
         }
 
-        public Future<Void> connect(InterAddress address, ChannelFactory<byte[]> factory) {
+        public Future<Void> connect(InterAddress address, RouteTable<byte[]> routes, String initialMountId, //
+                ChannelListenerFactory<byte[]> factory) {
             throw new UnsupportedOperationException();
         }
 
@@ -168,23 +190,19 @@ public class ConnectorSpiTest {
 
     public static class CustomProtocol implements ProtocolFactory<byte[]> {
         @Override
-        public RouteMatch probe(ProtocolConfig config, byte[] message) {
-            return RouteMatch.REJECT;
+        public RouteProbeResult probe(ProtocolConfig config, byte[] message) {
+            return RouteProbeResult.REJECT;
         }
 
         public String name() {
             return "custom-test";
         }
 
-        public String scheme() {
-            return "custom-wire";
-        }
-
         public String defaultSerializeType() {
             return "Java";
         }
 
-        public String transport() {
+        public String transportType() {
             return "custom";
         }
 
@@ -196,8 +214,8 @@ public class ConnectorSpiTest {
             return byte[].class;
         }
 
-        public ProtocolSession<byte[]> create(ProtocolConfig config, ProtocolContext context, //
-                NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
+        public ProtocolSession<byte[]> createSession(ProtocolConfig config, ProtocolSessionContext context, //
+                NetworkChannel<byte[]> connection, ObjLongConsumer<Payload> messages) {
             throw new AssertionError("Binding must not open a protocol session");
         }
     }
@@ -207,11 +225,7 @@ public class ConnectorSpiTest {
             return "failing-test";
         }
 
-        public String scheme() {
-            return this.name();
-        }
-
-        public String transport() {
+        public String transportType() {
             return "failing";
         }
     }

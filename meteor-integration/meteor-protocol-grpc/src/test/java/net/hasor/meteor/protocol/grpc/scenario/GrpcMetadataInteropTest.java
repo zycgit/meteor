@@ -341,7 +341,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .register();
             InterAddress address = new InterAddress("grpc", "127.0.0.1", peer.getPort(), "default");
             var caller = client.getRsfClient(address);
-            Object argument = new Message("z".repeat(10000), 2);
+            Object argument = Message.of("z".repeat(10000), 2);
             Class<?> parameter = Message.class;
 
             // 发起普通请求，并从公开响应对象读取元数据。
@@ -391,7 +391,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .register();
             InterAddress address = new InterAddress("grpc", "127.0.0.1", peer.getPort(), "default");
             var caller = client.getRsfClient(address);
-            Object argument = new Message("z".repeat(10000), 2);
+            Object argument = Message.of("z".repeat(10000), 2);
             Class<?> parameter = Message.class;
 
             // 发起返回流的请求，响应头先于流结束到达。
@@ -441,7 +441,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .register();
             InterAddress address = new InterAddress("grpc", "127.0.0.1", peer.getPort(), "default");
             var caller = client.getRsfClient(address);
-            Object argument = new Message("z".repeat(10000), 2);
+            Object argument = Message.of("z".repeat(10000), 2);
             Class<?> parameter = Message.class;
 
             argument = MetCaller.fromIterable(List.of(argument, argument));
@@ -494,7 +494,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .register();
             InterAddress address = new InterAddress("grpc", "127.0.0.1", peer.getPort(), "default");
             var caller = client.getRsfClient(address);
-            Object argument = new Message("z".repeat(10000), 2);
+            Object argument = Message.of("z".repeat(10000), 2);
             Class<?> parameter = Message.class;
 
             argument = MetCaller.fromIterable(List.of(argument, argument));

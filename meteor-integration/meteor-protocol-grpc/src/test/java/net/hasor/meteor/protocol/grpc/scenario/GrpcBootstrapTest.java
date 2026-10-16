@@ -60,9 +60,9 @@ public class GrpcBootstrapTest {
             Echo jsonRemote = caller.getRemote(jsonInfo);
             assertNotNull(protoInfo.getBindResource());
             assertNull(jsonInfo.getBindResource());
-            Message protobufResponse = binaryRemote.echo(new Message("protobuf", 1));
+            Message protobufResponse = binaryRemote.echo(Message.of("protobuf", 1));
             assertEquals("protobuf", protobufResponse.getValue());
-            Message jsonResponse = jsonRemote.echo(new Message("json", 1));
+            Message jsonResponse = jsonRemote.echo(Message.of("json", 1));
             assertEquals("json", jsonResponse.getValue());
         }
     }
@@ -73,19 +73,19 @@ public class GrpcBootstrapTest {
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc");
         var listener = incoming.connector("http").bind("127.0.0.1", 0);
         listener.option("transportPipeline", DemoTlsPipeline.class.getName());
-        listener.protocol("grpc").contextPath("/rpc");
-        listener.protocol("hprose").contextPath("/legacy");
+        listener.protocol("grpc").addressScheme("https").contextPath("/rpc");
+        listener.protocol("hprose").addressScheme("https").contextPath("/legacy");
         MetConfiguration outgoing = new MetConfiguration().setDefaultProtocol("grpc");
         var grpc = outgoing.connector("http") //
                 .option("transportPipeline", DemoTlsPipeline.class.getName());
         grpc.option("httpVersion", 2) //
                 .option("tlsAlpn", "h2") //
-                .protocol("grpc") //
+                .protocol("grpc").addressScheme("https") //
                 .contextPath("/rpc");
         var hprose = outgoing.connector("http") //
                 .option("transportPipeline", DemoTlsPipeline.class.getName());
         hprose.option("tlsAlpn", "http/1.1") //
-                .protocol("hprose") //
+                .protocol("hprose").addressScheme("https") //
                 .contextPath("/legacy");
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -96,19 +96,23 @@ public class GrpcBootstrapTest {
             publication.aliasName("grpc", "example.SecureEcho").aliasName("Hprose", "secureEcho");
             publication.serialize("Json").register();
             var json = client.publisher().rsfService(Echo.class);
-            MetBindInfo<Echo> grpcInfo = json.aliasName("grpc", "example.SecureEcho").serialize("Json").register();
+            MetBindInfo<Echo> grpcInfo = json.aliasName("grpc", "example.SecureEcho") //
+                    .serialize("Json").protocol("grpc").register();
             var binary = client.publisher().rsfService(Echo.class).name("hprose-client");
-            MetBindInfo<Echo> hproseInfo = binary.aliasName("Hprose", "secureEcho").serialize("Hprose").register();
+            MetBindInfo<Echo> hproseInfo = binary.aliasName("Hprose", "secureEcho") //
+                    .serialize("Hprose").protocol("hprose").register();
 
             // 比较实际监听端口，再分别验证 HTTP/2 和 HTTP/1.1 上的 RPC。
             InterAddress grpcAddress = server.bindAddress("grpc");
             InterAddress hproseAddress = server.bindAddress("hprose");
+            assertEquals("https", grpcAddress.getSchema());
+            assertEquals(grpcAddress, hproseAddress);
             assertEquals(grpcAddress.getPort(), hproseAddress.getPort());
             Echo overHttp2 = client.getRsfClient(grpcAddress).getRemote(grpcInfo);
             Echo overHttp1 = client.getRsfClient(hproseAddress).getRemote(hproseInfo);
-            Message grpcResponse = overHttp2.echo(new Message("secure HTTP/2", 1));
+            Message grpcResponse = overHttp2.echo(Message.of("secure HTTP/2", 1));
             assertEquals("secure HTTP/2", grpcResponse.getValue());
-            Message hproseResponse = overHttp1.echo(new Message("secure HTTP/1.1", 1));
+            Message hproseResponse = overHttp1.echo(Message.of("secure HTTP/1.1", 1));
             assertEquals("secure HTTP/1.1", hproseResponse.getValue());
         }
     }

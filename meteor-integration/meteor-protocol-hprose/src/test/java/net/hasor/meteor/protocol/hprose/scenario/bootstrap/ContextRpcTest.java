@@ -28,10 +28,10 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetTimeoutException;
-import net.hasor.meteor.domain.ProtocolStatus;
-import net.hasor.meteor.protocol.hprose.scenario.example.Echo;
-import net.hasor.meteor.protocol.hprose.scenario.example.EchoService;
-import net.hasor.meteor.protocol.hprose.scenario.example.Signal;
+import net.hasor.meteor.protocol.hprose.support.BootstrapTestSupport;
+import net.hasor.meteor.protocol.hprose.support.example.Echo;
+import net.hasor.meteor.protocol.hprose.support.example.EchoService;
+import net.hasor.meteor.protocol.hprose.support.example.Signal;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -147,30 +147,27 @@ public class ContextRpcTest extends BootstrapTestSupport {
     }
 
     @Test
-    public void offlineServiceRejectsRemoteCalls() throws Exception {
-        // 准备已发布回显服务的服务端和对应调用方。
+    public void offlineStopsListeningAndClosesExistingConnection() throws Exception {
+        // 准备已发布回显服务的服务端，并建立一条真实远程连接。
         MetConfiguration serverConfig = this.configuration();
         serverConfig.setQueueMinPoolSize(2);
         try (MetContext server = serverConfig.buildContext(); //
              MetContext client = this.configuration().buildContext()) {
-            // 启动后发布服务，先建立正常的订阅关系。
+            // 启动后发布服务，先确认既有连接可以完成调用。
             server.start();
             client.start();
 
             server.publisher().rsfService(Echo.class).toProvider(EchoService::new).register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).timeout(250).register();
-
             MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            assertEquals("online", remote.getRemote(service).echo("online"));
 
-            // 服务离线属于准入拒绝，仍能收到明确响应。
+            // 离线关闭监听和既有入站连接，后续调用以连接失败结束。
             server.offline();
+            assertNull(server.bindAddress("rsf"));
             Class<?>[] types = { String.class };
-            MetFuture denied = remote.asyncInvoke(service, "echo", types, new Object[] { "offline" });
-            Throwable offline = assertFailure(denied);
-            assertEquals(ProtocolStatus.Forbidden, ((MetException) offline).getStatus());
-
-            // 断言完成后恢复服务端在线状态。
-            server.online();
+            MetFuture call = remote.asyncInvoke(service, "echo", types, new Object[] { "offline" });
+            assertNotNull(assertFailure(call));
         }
     }
 
@@ -996,8 +993,8 @@ public class ContextRpcTest extends BootstrapTestSupport {
     }
 
     @Test
-    public void fixedTargetBypassesLocalServiceEvenWhenBothContextsProvideIt() throws Exception {
-        // 显式指定目标地址必须访问远端，即使调用方也发布同名服务。
+    public void fixedTargetRetainsLocalPreferenceWhenBothContextsProvideTheService() throws Exception {
+        // 显式指定目标地址不改变服务默认的本地优先策略。
         MetConfiguration serverConfiguration = this.configuration();
         MetConfiguration clientConfiguration = this.configuration();
         try (MetContext server = serverConfiguration.buildContext(); //
@@ -1021,10 +1018,47 @@ public class ContextRpcTest extends BootstrapTestSupport {
             };
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class, localImplementation).register();
 
-            // 默认调用优先本地实现；显式目标地址必须绕过本地服务。
+            // 普通调用和固定地址调用都优先本地实现。
             assertEquals("local", client.getRsfClient().getRemote(service).echo("value"));
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
-            assertEquals("remote", remote.echo("value"));
+            Echo fixedTarget = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            assertEquals("local", fixedTarget.echo("value"));
+        }
+    }
+
+    @Test
+    public void distributedServiceUsesTheAddressBookInsteadOfTheLocalProvider() throws Exception {
+        // 服务显式声明分布式模式后，默认客户端必须通过地址本访问目标实例。
+        MetConfiguration serverConfiguration = this.configuration();
+        MetConfiguration clientConfiguration = this.configuration();
+        try (MetContext server = serverConfiguration.buildContext(); //
+             MetContext client = clientConfiguration.buildContext()) {
+            // 两端分别发布同名服务，以返回值区分本地和远端实现。
+            server.start();
+            client.start();
+
+            EchoService remoteImplementation = new EchoService() {
+                @Override
+                public String echo(String value) {
+                    return "remote";
+                }
+            };
+            server.publisher().rsfService(Echo.class, remoteImplementation).register();
+            EchoService localImplementation = new EchoService() {
+                @Override
+                public String echo(String value) {
+                    return "local";
+                }
+            };
+            MetBindInfo<Echo> service = client.publisher() //
+                    .rsfService(Echo.class, localImplementation) //
+                    .bindAddress(server.bindAddress("rsf")) //
+                    .asDistributedCall() //
+                    .register();
+
+            // 本地提供者仍然存在，但分布式模式使请求进入地址本调用链。
+            assertTrue(service.isDistributedCall());
+            Echo distributed = client.getRsfClient().getRemote(service);
+            assertEquals("remote", distributed.echo("value"));
         }
     }
 }

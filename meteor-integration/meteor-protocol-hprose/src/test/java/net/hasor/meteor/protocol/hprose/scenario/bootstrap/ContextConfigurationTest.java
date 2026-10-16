@@ -6,11 +6,17 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.hprose.scenario.bootstrap;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.protocol.hprose.scenario.example.TextService;
+import net.hasor.meteor.protocol.hprose.support.BootstrapTestSupport;
+import net.hasor.meteor.protocol.hprose.support.example.Signal;
+import net.hasor.meteor.protocol.hprose.support.example.TextService;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -24,12 +30,12 @@ public class ContextConfigurationTest extends BootstrapTestSupport {
         try (MetContext context = source.buildContext()) {
             context.start();
 
-            // 启动后仍没有绑定地址或入站监听协议。
+            // 启动后仍没有绑定地址，预编译的出口协议计划可以被查询。
             ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
             assertFalse(endpoint.bindEnabled());
             assertNull(context.getSettings().getBindAddressSet("rsf"));
             assertNull(context.bindAddress("rsf"));
-            assertTrue(context.runProtocols().isEmpty());
+            assertEquals(Collections.singleton("rsf"), context.runProtocols());
         }
     }
 
@@ -90,6 +96,44 @@ public class ContextConfigurationTest extends BootstrapTestSupport {
             assertEquals("remote:value", remote.echo("value"));
             assertNull(client.bindAddress("hprose"));
             assertNull(client.getSettings().getBindAddressSet("hprose"));
+        }
+    }
+
+    @Test
+    public void hproseMessageCompletesAfterRemoteAdmission() throws Exception {
+        // 通过公开配置入口准备 Hprose 服务端和仅出站客户端。
+        MetConfiguration serverConfig = new MetConfiguration();
+        serverConfig.connector("http").bind("127.0.0.1", 0).protocol("hprose").contextPath("/signal");
+        MetConfiguration clientConfig = new MetConfiguration();
+        clientConfig.connector("http").protocol("hprose").contextPath("/signal");
+        try (MetContext server = serverConfig.buildContext(); //
+             MetContext client = clientConfig.buildContext()) {
+            server.start();
+            client.start();
+
+            // 方法级 @MetMessage 决定两端消息模式，处理方法保持阻塞以区分确认和执行完成。
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            CountDownLatch finished = new CountDownLatch(1);
+            Signal handler = value -> {
+                entered.countDown();
+                assertTrue("Handler was not released", release.await(10, TimeUnit.SECONDS));
+                finished.countDown();
+            };
+            server.publisher().rsfService(Signal.class, handler).register();
+            MetBindInfo<Signal> service = client.publisher().rsfService(Signal.class).register();
+
+            try {
+                // Hprose 成功确认结束调用，此时服务实现仍在等待放行。
+                MetFuture sent = client.getRsfClient(server.bindAddress("hprose")) //
+                        .asyncInvoke(service, "accept", new Class<?>[] { String.class }, new Object[] { "message" });
+                sent.getData(5, TimeUnit.SECONDS);
+                assertTrue(entered.await(5, TimeUnit.SECONDS));
+                assertEquals(1, finished.getCount());
+            } finally {
+                release.countDown();
+            }
+            assertTrue(finished.await(5, TimeUnit.SECONDS));
         }
     }
 }

@@ -1,5 +1,0 @@
-net.hasor.meteor.protocol.hprose.unit.bootstrap.ConnectorSpiTest$CustomProtocol
-net.hasor.meteor.protocol.hprose.unit.bootstrap.ConnectorSpiTest$FailingProtocol
-net.hasor.meteor.protocol.hprose.unit.bootstrap.ConnectorSpiTest$SecondFailingProtocol
-net.hasor.meteor.protocol.hprose.scenario.bootstrap.spi.TestHproseProtocolA
-net.hasor.meteor.protocol.hprose.scenario.bootstrap.spi.TestHproseProtocolB

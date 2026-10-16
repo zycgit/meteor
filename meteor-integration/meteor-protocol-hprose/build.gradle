@@ -7,8 +7,8 @@ description = 'HTTP/Hprose protocol plugin and Hprose serialization'
 
 dependencies {
     api project(':meteor')
-    api "org.hprose:hprose-java:${property('lib.hprose')}"
-    api "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+    implementation "org.hprose:hprose-java:${property('lib.hprose')}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
 }
 
 // Hprose bean decoding reflects into java.io on Java 17.

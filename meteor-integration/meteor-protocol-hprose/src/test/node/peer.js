@@ -1,10 +1,17 @@
 'use strict';
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const hprose = require('hprose');
 
-async function callMeteor(url, scenario) {
+async function callMeteor(url, scenario, tlsDirectory) {
     // 官方客户端先发现 Meteor 发布的方法，再执行当前测试指定的唯一场景。
-    const client = hprose.Client.create(url);
+    let settings;
+    if (tlsDirectory) {
+        // 通过官方客户端的 options 注入身份和信任根，保持证书与主机名校验。
+        settings = {options: tlsOptions(tlsDirectory, 'client')};
+    }
+    const client = hprose.Client.create(url, undefined, settings);
     client.timeout = 5000;
     const service = await client.ready();
 
@@ -95,9 +102,25 @@ async function callMeteor(url, scenario) {
     console.log('OK');
 }
 
-function serve() {
+function tlsOptions(directory, identity) {
+    // PKCS12 来自同一验收 CA，服务器与客户端分别加载自己的私钥。
+    return {
+        pfx: fs.readFileSync(path.join(directory, identity + '.p12')),
+        passphrase: 'meteor-test',
+        ca: fs.readFileSync(path.join(directory, 'ca.pem')),
+        rejectUnauthorized: true,
+        ALPNProtocols: ['http/1.1']
+    };
+}
+
+function serve(tlsDirectory) {
     // 官方 Hprose 服务端监听随机端口，为 Meteor 客户端提供独立对端。
-    const server = new hprose.HttpServer(0, '127.0.0.1');
+    let options;
+    if (tlsDirectory) {
+        options = tlsOptions(tlsDirectory, 'server');
+        options.requestCert = true;
+    }
+    const server = new hprose.HttpServer(0, '127.0.0.1', options);
     server.errorDelay = 0;
 
     // 基础类型直接回传，业务对象模拟由服务端修改字段。
@@ -129,8 +152,10 @@ function serve() {
 // 角色与场景都由对应 Java 测试指定，退出码向父进程传递结果。
 if (process.argv[2] === 'server') {
     serve();
+} else if (process.argv[2] === 'https-server') {
+    serve(process.argv[3]);
 } else {
-    callMeteor(process.argv[3], process.argv[4]).then(() => process.exit(0), failure => {
+    callMeteor(process.argv[3], process.argv[4], process.argv[5]).then(() => process.exit(0), failure => {
         console.error(failure.stack || failure);
         process.exit(1);
     });

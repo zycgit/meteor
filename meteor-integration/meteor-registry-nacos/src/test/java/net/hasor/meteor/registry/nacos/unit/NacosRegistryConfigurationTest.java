@@ -7,6 +7,8 @@
  */
 package net.hasor.meteor.registry.nacos.unit;
 import java.util.Properties;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import com.alibaba.nacos.api.NacosFactory;
 import com.alibaba.nacos.api.config.ConfigService;
 import com.alibaba.nacos.api.exception.NacosException;
@@ -287,6 +289,29 @@ public class NacosRegistryConfigurationTest {
             // 配置客户端失败后关闭已创建的 Naming 客户端。
             NacosException actual = assertThrows(NacosException.class, bootstrap::openStorage);
             assertSame(failure, actual);
+            verify(naming).shutDown();
+        }
+    }
+
+    @Test
+    public void registryConstructionFailureClosesBothSdkClients() throws Exception {
+        // 两种 SDK 客户端均已创建，但存储对象的最后组装失败。
+        NacosRegistryConfiguration configuration = new NacosRegistryConfiguration();
+        configuration.setAddress("nacos.example:8848");
+        try (MockedStatic<NacosFactory> sdk = mockStatic(NacosFactory.class); //
+             MockedStatic<Executors> executors = mockStatic(Executors.class)) {
+            NamingService naming = mock(NamingService.class);
+            ConfigService configs = mock(ConfigService.class);
+            IllegalStateException constructionFailure = new IllegalStateException("executor unavailable");
+            sdk.when(() -> NacosFactory.createNamingService(any(Properties.class))).thenReturn(naming);
+            sdk.when(() -> NacosFactory.createConfigService(any(Properties.class))).thenReturn(configs);
+            executors.when(() -> Executors.newSingleThreadScheduledExecutor(any(ThreadFactory.class))) //
+                    .thenThrow(constructionFailure);
+
+            // 组装错误直接传播，并关闭尚未转交给存储对象的两个 SDK 客户端。
+            IllegalStateException failure = assertThrows(IllegalStateException.class, configuration::openStorage);
+            assertSame(constructionFailure, failure);
+            verify(configs).shutDown();
             verify(naming).shutDown();
         }
     }

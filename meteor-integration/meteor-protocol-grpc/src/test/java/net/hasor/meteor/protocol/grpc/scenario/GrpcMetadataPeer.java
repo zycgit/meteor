@@ -125,7 +125,7 @@ abstract class GrpcMetadataPeer {
 
             public void onCompleted() {
                 if (!echo) {
-                    reply.onNext(new Message("sum", this.sum));
+                    reply.onNext(Message.of("sum", this.sum));
                 }
                 reply.onCompleted();
             }
@@ -176,11 +176,11 @@ abstract class GrpcMetadataPeer {
 
         // 请求流发送两条消息；其余模式只发送一个请求，然后关闭输入。
         call.request(10);
-        call.sendMessage(new Message("z".repeat(10000), count));
+        call.sendMessage(Message.of("z".repeat(10000), count));
         boolean clientStream = type == MethodDescriptor.MethodType.CLIENT_STREAMING;
         boolean duplex = type == MethodDescriptor.MethodType.BIDI_STREAMING;
         if (clientStream || duplex) {
-            call.sendMessage(new Message("second", count));
+            call.sendMessage(Message.of("second", count));
         }
         call.halfClose();
         return completed.get(6, TimeUnit.SECONDS);

@@ -34,7 +34,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.TransportPipeline;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
@@ -73,13 +73,13 @@ public class GrpcInteropTest {
             try {
                 // 官方客户端的 marshaller 独立使用字段号 7 和 2，验证真实 Protobuf 兼容性。
                 MethodDescriptor<Message, Message> echo = this.method("grpc/example.Echo/echo", false);
-                Message result = this.call(peer, echo, new Message("中文", 3));
+                Message result = this.call(peer, echo, Message.of("中文", 3));
                 assertEquals("中文", result.getValue());
                 assertEquals(4, result.getCount());
                 assertEquals(1, implementation.getCalls());
 
                 // HTTP/1 的 Hprose 挂载实际处理请求，共用监听端口。
-                Message hprose = this.hprose(port, new Message("http1", 5));
+                Message hprose = this.hprose(port, Message.of("http1", 5));
                 assertEquals("http1", hprose.getValue());
                 assertEquals(6, hprose.getCount());
             } finally {
@@ -114,7 +114,7 @@ public class GrpcInteropTest {
             try {
                 // 业务异常作为 gRPC status 返回，保留错误说明，随后仍能调用。
                 MethodDescriptor<Message, Message> fail = this.method("grpc/example.Echo/fail", false);
-                Message request = new Message("failure", 0);
+                Message request = Message.of("failure", 0);
                 var error = assertThrows(StatusRuntimeException.class, () -> this.call(peer, fail, request));
                 assertEquals(Status.Code.INTERNAL, error.getStatus().getCode());
                 String description = error.getStatus().getDescription();
@@ -122,7 +122,7 @@ public class GrpcInteropTest {
 
                 // 同一通道再次发起正常调用，之前的失败不能污染响应。
                 MethodDescriptor<Message, Message> echo = this.method("grpc/example.Echo/echo", false);
-                Message next = this.call(peer, echo, new Message("again", 1));
+                Message next = this.call(peer, echo, Message.of("again", 1));
                 assertEquals("again", next.getValue());
             } finally {
                 peer.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
@@ -175,7 +175,7 @@ public class GrpcInteropTest {
         // 独立搭建官方 Protobuf 服务端，消息按 proto 字段号编解码。
         MethodDescriptor<Message, Message> method = this.method("example.Echo/echo", false);
         var handler = ServerCalls.<Message, Message>asyncUnaryCall((request, reply) -> {
-            Message response = new Message(request.getValue(), request.getCount() + 5);
+            Message response = Message.of(request.getValue(), request.getCount() + 5);
             reply.onNext(response);
             reply.onCompleted();
         });
@@ -197,7 +197,7 @@ public class GrpcInteropTest {
             // 使用官方服务的真实端口调用接口，验证返回值经过正确的消息编码。
             InterAddress address = new InterAddress("grpc", "127.0.0.1", server.getPort(), "default");
             Echo remote = client.getRsfClient(address).getRemote(info);
-            Message result = remote.echo(new Message("outgoing", 2));
+            Message result = remote.echo(Message.of("outgoing", 2));
             assertEquals("outgoing", result.getValue());
             assertEquals(7, result.getCount());
         } finally {
@@ -210,7 +210,7 @@ public class GrpcInteropTest {
         // 独立搭建官方服务端，通过自定义 marshaller 使用 JSON 消息。
         MethodDescriptor<Message, Message> method = this.method("example.Echo/echo", true);
         var handler = ServerCalls.<Message, Message>asyncUnaryCall((request, reply) -> {
-            Message response = new Message(request.getValue(), request.getCount() + 5);
+            Message response = Message.of(request.getValue(), request.getCount() + 5);
             reply.onNext(response);
             reply.onCompleted();
         });
@@ -228,7 +228,7 @@ public class GrpcInteropTest {
             // 使用官方服务的真实端口调用接口，验证返回值经过正确的消息编码。
             InterAddress address = new InterAddress("grpc", "127.0.0.1", server.getPort(), "default");
             Echo remote = client.getRsfClient(address).getRemote(info);
-            Message result = remote.echo(new Message("outgoing", 2));
+            Message result = remote.echo(Message.of("outgoing", 2));
             assertEquals("outgoing", result.getValue());
             assertEquals(7, result.getCount());
         } finally {
@@ -246,7 +246,7 @@ public class GrpcInteropTest {
         mount.option("streamBody", true).option("maxMessageSize", 128);
         EchoImpl implementation = new EchoImpl() {
             public Message echo(Message request) {
-                return new Message("x".repeat(request.getCount()), request.getCount());
+                return Message.of("x".repeat(request.getCount()), request.getCount());
             }
         };
         try (MetContext server = incoming.buildContext(); //
@@ -263,7 +263,7 @@ public class GrpcInteropTest {
             Echo remote = caller.getRemote(info);
 
             // 增量响应结束后才交付普通调用结果。
-            Message response = remote.echo(new Message("", 3));
+            Message response = remote.echo(Message.of("", 3));
             assertEquals("xxx", response.getValue());
         }
     }
@@ -278,7 +278,7 @@ public class GrpcInteropTest {
         mount.option("streamBody", true).option("maxMessageSize", 128);
         EchoImpl implementation = new EchoImpl() {
             public Message echo(Message request) {
-                return new Message("x".repeat(request.getCount()), request.getCount());
+                return Message.of("x".repeat(request.getCount()), request.getCount());
             }
         };
         try (MetContext server = incoming.buildContext(); //
@@ -296,14 +296,14 @@ public class GrpcInteropTest {
 
             // 消息超限仅结束当前调用。
             Class<?>[] types = { Message.class };
-            Object[] arguments = { new Message("", 512) };
+            Object[] arguments = { Message.of("", 512) };
             MetFuture oversized = caller.asyncInvoke(info, "echo", types, arguments);
             var failure = assertThrows(ExecutionException.class, () -> oversized.get(3, TimeUnit.SECONDS));
             String message = failure.getCause().getMessage();
             assertTrue(message.contains("maxMessageSize"));
 
             // 当前消息被拒绝后，符合长度限制的下一次调用仍须成功。
-            Message next = remote.echo(new Message("", 1));
+            Message next = remote.echo(Message.of("", 1));
             assertEquals("x", next.getValue());
         }
     }
@@ -356,7 +356,7 @@ public class GrpcInteropTest {
             List<MetFuture> calls = new ArrayList<>();
             Class<?>[] types = { Message.class };
             for (int i = 0; i < 20; i++) {
-                Object[] arguments = { new Message("call-" + i, i) };
+                Object[] arguments = { Message.of("call-" + i, i) };
                 calls.add(remote.asyncInvoke(info, "echo", types, arguments));
             }
             assertTrue(entered.await(3, TimeUnit.SECONDS));
@@ -386,7 +386,7 @@ public class GrpcInteropTest {
         private static final AtomicInteger servers = new AtomicInteger();
 
         @Override
-        public void initialize(ConnectorConfig config, ProtoBuildContext stack) {
+        public void initialize(TransportConfig config, ProtoBuildContext stack) {
             if (stack.getChannel().isClient()) {
                 clients.incrementAndGet();
             } else {
@@ -412,7 +412,7 @@ public class GrpcInteropTest {
             try {
                 // 官方客户端以 JSON 消息调用，检查 Meteor 使用发布时选择的序列化器。
                 MethodDescriptor<Message, Message> method = this.method("example.Echo/echo", true);
-                Message response = this.call(peer, method, new Message("custom JSON", 7));
+                Message response = this.call(peer, method, Message.of("custom JSON", 7));
                 assertEquals("custom JSON", response.getValue());
                 assertEquals(8, response.getCount());
             } finally {
@@ -460,14 +460,14 @@ public class GrpcInteropTest {
             Class<?>[] types = { Message.class };
 
             // 等业务进入阻塞段后取消，确保验证的是在途调用。
-            Object[] arguments = { new Message("cancel", 0) };
+            Object[] arguments = { Message.of("cancel", 0) };
             MetFuture cancelled = remote.asyncInvoke(info, "slow", types, arguments);
             assertEquals("cancel", entered.poll(3, TimeUnit.SECONDS));
             assertTrue(cancelled.cancel());
 
             // 同一个客户端继续调用，取消与迟到结果不会污染后续响应。
             release.countDown();
-            Message result = remote.getRemote(info).echo(new Message("after", 4));
+            Message result = remote.getRemote(info).echo(Message.of("after", 4));
             assertEquals("after", result.getValue());
             assertEquals(5, result.getCount());
         } finally {
@@ -514,7 +514,7 @@ public class GrpcInteropTest {
             Class<?>[] types = { Message.class };
 
             // 等待已进入业务的调用超时，服务端随后返回的结果应被隔离。
-            Object[] arguments = { new Message("timeout", 0) };
+            Object[] arguments = { Message.of("timeout", 0) };
             MetFuture expired = remote.asyncInvoke(info, "slow", types, arguments);
             assertEquals("timeout", entered.poll(3, TimeUnit.SECONDS));
             var failure = assertThrows(ExecutionException.class, () -> expired.getData(3, TimeUnit.SECONDS));
@@ -522,7 +522,7 @@ public class GrpcInteropTest {
 
             // 同一个客户端继续调用，超时与迟到结果不会污染后续响应。
             release.countDown();
-            Message result = remote.getRemote(info).echo(new Message("after", 4));
+            Message result = remote.getRemote(info).echo(Message.of("after", 4));
             assertEquals("after", result.getValue());
             assertEquals(5, result.getCount());
         } finally {
@@ -554,7 +554,7 @@ public class GrpcInteropTest {
                 // 大消息经过多个流控窗口后，字段内容与计数都必须完整。
                 String value = "message".repeat(40_000);
                 MethodDescriptor<Message, Message> method = this.method("example.Echo/echo", false);
-                Message request = new Message(value, 1);
+                Message request = Message.of(value, 1);
                 Message response = this.call(peer, method, request);
                 assertEquals(value, response.getValue());
                 assertEquals(2, response.getCount());
@@ -656,7 +656,7 @@ public class GrpcInteropTest {
                     }
 
                     // 未知 Protobuf 字段按标准规则跳过，不影响已知字段。
-                    Message message = new Message("", 0);
+                    Message message = Message.of("", 0);
                     CodedInputStream input = CodedInputStream.newInstance(stream);
                     int tag;
                     while ((tag = input.readTag()) != 0) {

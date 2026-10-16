@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+        xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        xmlns:tns="urn:meteor:test:echo"
+        xmlns:types="urn:meteor:test:echo:types"
+        targetNamespace="urn:meteor:test:echo">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:test:echo">
+            <xsd:import namespace="urn:meteor:test:echo:types" schemaLocation="echo-types.xsd"/>
+        </xsd:schema>
+    </wsdl:types>
+
+    <wsdl:message name="EchoRequest">
+        <wsdl:part name="parameters" element="types:echo"/>
+    </wsdl:message>
+    <wsdl:message name="EchoResponse">
+        <wsdl:part name="parameters" element="types:echoResponse"/>
+    </wsdl:message>
+
+    <wsdl:portType name="EchoPortType">
+        <wsdl:operation name="echo">
+            <wsdl:input message="tns:EchoRequest"/>
+            <wsdl:output message="tns:EchoResponse"/>
+        </wsdl:operation>
+    </wsdl:portType>
+
+    <wsdl:binding name="EchoBinding" type="tns:EchoPortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="echo">
+            <soap:operation soapAction="urn:meteor:test:echo"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+
+    <wsdl:service name="EchoService">
+        <wsdl:port name="EchoPort" binding="missing:EchoBinding">
+            <soap:address location="http://127.0.0.1:1/placeholder/EchoService"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

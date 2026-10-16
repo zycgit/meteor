@@ -37,7 +37,7 @@ public final class MessageService implements Messages {
             Stream<Message> messages = IntStream.range(0, query.getCount()) //
                     .mapToObj(index -> {
                         this.produced.incrementAndGet();
-                        return new Message(query.getValue(), index);
+                        return Message.of(query.getValue(), index);
                     });
             return messages.iterator();
         });
@@ -49,7 +49,7 @@ public final class MessageService implements Messages {
         try {
             var consuming = MetCaller.consume(messages, value -> sum.addAndGet(value.getCount()));
             consuming.get(5, TimeUnit.SECONDS);
-            return new Message("sum", sum.get());
+            return Message.of("sum", sum.get());
         } catch (Exception failure) {
             throw new IllegalStateException(failure);
         }

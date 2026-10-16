@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap12/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:meteor:test:headers" targetNamespace="urn:meteor:test:headers">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:test:headers">
+            <xsd:element name="request" type="xsd:string"/>
+            <xsd:element name="response" type="xsd:string"/>
+            <xsd:element name="token" type="xsd:string"/>
+            <xsd:element name="tokenFault" type="xsd:string"/>
+            <xsd:element name="problem" type="xsd:string"/>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="Input">
+        <wsdl:part name="parameters" element="tns:request"/>
+        <wsdl:part name="token" element="tns:token"/>
+    </wsdl:message>
+    <wsdl:message name="Output">
+        <wsdl:part name="result" element="tns:response"/>
+    </wsdl:message>
+    <wsdl:message name="HeaderError">
+        <wsdl:part name="detail" element="tns:tokenFault"/>
+    </wsdl:message>
+    <wsdl:message name="Problem">
+        <wsdl:part name="detail" element="tns:problem"/>
+    </wsdl:message>
+    <wsdl:portType name="HeaderPortType">
+        <wsdl:operation name="echo">
+            <wsdl:input message="tns:Input"/>
+            <wsdl:output message="tns:Output"/>
+            <wsdl:fault name="Problem" message="tns:Problem"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="HeaderBinding" type="tns:HeaderPortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="echo">
+            <soap:operation soapAction="urn:meteor:test:headers:echo"/>
+            <wsdl:input>
+                <soap:body use="literal" parts="parameters"/>
+                <soap:header message="tns:Input" part="token" use="literal">
+                    <soap:headerfault message="tns:HeaderError" part="detail" use="literal"/>
+                </soap:header>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+                <soap:header message="tns:Input" part="token" use="literal"/>
+            </wsdl:output>
+            <wsdl:fault name="Problem">
+                <soap:fault name="Problem" use="literal"/>
+            </wsdl:fault>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="HeaderService">
+        <wsdl:port name="HeaderPort" binding="tns:HeaderBinding">
+            <soap:address location="http://127.0.0.1:1/headers"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>
