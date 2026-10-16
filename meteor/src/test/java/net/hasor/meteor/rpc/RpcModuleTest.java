@@ -494,7 +494,7 @@ public class RpcModuleTest {
     public void coreRpcDoesNotDependOnTheHprosePlugin() throws Exception {
         // 核心 RPC 契约测试的运行时不应包含可选 Hprose 插件。
         ClassLoader loader = this.getClass().getClassLoader();
-        String hproseClass = "net/hasor/meteor/protocol/hprose/session/HproseProtocol.class";
+        String hproseClass = "net/hasor/meteor/protocol/hprose/HproseProtocol.class";
         assertNull(loader.getResource(hproseClass));
     }
 

@@ -6,10 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.rpc.rsfs;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import net.hasor.example.rpc.rsfs.RsfsBlockingProvider;
+import net.hasor.example.rpc.rsfs.RsfsBlockingService;
+import net.hasor.example.rpc.rsfs.RsfsConfigurations;
+import net.hasor.example.rpc.rsfs.RsfsEcho;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
@@ -18,10 +20,6 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.domain.ProtocolStatus;
-import net.hasor.example.rpc.rsfs.RsfsBlockingProvider;
-import net.hasor.example.rpc.rsfs.RsfsBlockingService;
-import net.hasor.example.rpc.rsfs.RsfsConfigurations;
-import net.hasor.example.rpc.rsfs.RsfsEcho;
 import org.junit.Test;
 import org.junit.function.ThrowingRunnable;
 import static org.junit.Assert.*;
@@ -82,34 +80,6 @@ public class RsfsLifecycleScenarioTest {
             MetException error = (MetException) failure.getCause();
             assertEquals(ProtocolStatus.InvokeError, error.getStatus());
             assertTrue(error.getMessage().contains("business-error:invalid"));
-        }
-    }
-
-    @Test(timeout = 30000)
-    public void concurrentHessianCallsKeepTheirOwnResults() throws Exception {
-        // 多个请求共享双向 TLS 连接，并使用 Hessian 编码。
-        MetConfiguration incoming = RsfsConfigurations.server("server", "REQUIRE");
-        MetConfiguration outgoing = RsfsConfigurations.client("client", "trust");
-        try (MetContext server = incoming.buildContext(); //
-             MetContext client = outgoing.buildContext()) {
-            server.start();
-            client.start();
-            server.publisher().rsfService(RsfsEcho.class, value -> "reply:" + value) //
-                    .protocol("rsfs").serialize("Hessian").register();
-            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class) //
-                    .protocol("rsfs").serialize("Hessian").register();
-            MetClient remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs"));
-
-            // 同时挂起一批请求，再逐一核对关联号对应的业务结果。
-            List<MetFuture> calls = new ArrayList<>();
-            Class<?>[] parameters = { String.class };
-            for (int index = 0; index < 32; index++) {
-                Object[] arguments = { "request-" + index };
-                calls.add(remote.asyncInvoke(service, "echo", parameters, arguments));
-            }
-            for (int index = 0; index < calls.size(); index++) {
-                assertEquals("reply:request-" + index, calls.get(index).get(5, TimeUnit.SECONDS).getData());
-            }
         }
     }
 

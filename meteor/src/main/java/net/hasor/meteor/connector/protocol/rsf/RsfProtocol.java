@@ -22,7 +22,7 @@ public final class RsfProtocol implements ProtocolFactory<byte[]> {
 
     @Override
     public String defaultSerializeType() {
-        return "Java";
+        return "Json";
     }
 
     public String transportType() {

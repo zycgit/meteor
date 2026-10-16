@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.serialize;
-import net.hasor.meteor.serialize.*;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -55,22 +54,10 @@ public class SerializeFactoryTest {
     }
 
     @Test
-    public void hessianBuiltinWorksWithoutContainer() throws Exception {
-        // 通过真实 SPI 工厂取得 Hessian，独立完成一次编码与解码。
-        SerializeFactory factory = SerializeFactory.createFactory();
-        SerializeCoder coder = factory.getSerializeCoder("Hessian");
-        assertNotNull(coder);
-        assertEquals("Hessian", coder.name());
-        assertSame(coder, factory.getSerializeCoder("hessian"));
-        assertSame(coder, factory.getSerializeCoder("HESSIAN"));
-        byte[] encoded = coder.encode("hello");
-        assertEquals("hello", coder.decode(encoded, String.class));
-    }
-
-    @Test
     public void absentCodersReturnNull() {
         // 不存在的名称不会隐式安装协议插件或回退到其他编码器。
         SerializeFactory factory = SerializeFactory.createFactory();
+        assertNull(factory.getSerializeCoder("Hessian"));
         assertNull(factory.getSerializeCoder("Hprose"));
         assertNull(factory.getSerializeCoder("unknown"));
         assertNull(factory.getSerializeCoder(null));
@@ -217,7 +204,6 @@ public class SerializeFactoryTest {
             Locale.setDefault(Locale.ENGLISH);
             SerializeFactory factory = SerializeFactory.createFactory();
             Locale.setDefault(new Locale("tr", "TR"));
-            assertSame(factory.getSerializeCoder("Hessian"), factory.getSerializeCoder("HESSIAN"));
             CustomCoder coder = new CustomCoder();
             factory.registerSerializeCoder("MIXED", coder);
             Locale.setDefault(Locale.ENGLISH);

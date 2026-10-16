@@ -10,15 +10,16 @@ import java.net.URL;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Set;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetListenEndpoint;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
+import net.hasor.meteor.serialize.coder.JsonSerializeCoder;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -37,10 +38,12 @@ public class StandaloneMetConfigurationTest {
             assertEquals("application", context.getApplicationName());
             assertEquals("application", context.getSettings().getApplicationName());
             var endpoint = context.getSettings().getConnectorConfigs().iterator().next();
-            assertEquals("Java", endpoint.protocol("rsf").option("serializeType", null));
+            assertEquals("Json", endpoint.protocol("rsf").option("serializeType", null));
+            assertTrue(context.getSerializeCoder("Json") instanceof JsonSerializeCoder);
             assertTrue(context.getSerializeCoder("Java") instanceof JavaSerializeCoder);
+            assertNull(context.getSerializeCoder("Hessian"));
             assertNull(context.getSerializeCoder("Hprose"));
-            String hproseClass = "net/hasor/meteor/protocol/hprose/session/HproseProtocol.class";
+            String hproseClass = "net/hasor/meteor/protocol/hprose/HproseProtocol.class";
             assertNull(this.getClass().getClassLoader().getResource(hproseClass));
             assertNull(context.getListenAddress("rsf"));
             assertEquals(Collections.singleton("rsf"), context.runProtocols());
@@ -151,15 +154,14 @@ public class StandaloneMetConfigurationTest {
         try (MetContext context = configuration.buildContext()) {
             context.start();
 
-            // 逻辑协议返回全部运行地址；结构化端点说明地址所属连接器和协议。
+            // 逻辑协议返回全部运行地址，连接器名称和公开 scheme 可精确选择其中一个。
             List<InterAddress> addresses = context.getListenAddresses("rsf");
-            List<MetListenEndpoint> endpoints = context.getListenEndpoints();
             assertEquals(3, addresses.size());
             assertEquals(List.of("rsf", "rsf", "rsfs"), addresses.stream().map(InterAddress::getSchema).toList());
-            assertEquals(List.of("tcp-0", "tcp-1", "tcp-2"), //
-                    endpoints.stream().map(MetListenEndpoint::getConnectorName).toList());
-            assertEquals(List.of("rsf", "rsf", "rsf"), //
-                    endpoints.stream().map(MetListenEndpoint::getProtocol).toList());
+            assertEquals(addresses.get(0), context.getListenAddress("tcp-0", "rsf", "rsf"));
+            assertEquals(addresses.get(1), context.getListenAddress("tcp-1", "rsf", "rsf"));
+            assertEquals(addresses.get(2), context.getListenAddress("tcp-2", "rsf", "rsfs"));
+            assertEquals(Set.of("rsf"), context.runProtocols());
             assertNotEquals(addresses.get(0).getPort(), addresses.get(1).getPort());
             assertNotEquals(addresses.get(0).getPort(), addresses.get(2).getPort());
             assertNotEquals(addresses.get(1).getPort(), addresses.get(2).getPort());

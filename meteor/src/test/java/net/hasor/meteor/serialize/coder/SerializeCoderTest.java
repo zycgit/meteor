@@ -6,16 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.serialize.coder;
-import net.hasor.meteor.serialize.*;
 import java.io.IOException;
-import net.hasor.example.serialize.Payload;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import net.hasor.example.serialize.Payload;
+import net.hasor.meteor.serialize.SerializeCoder;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -28,7 +24,6 @@ public class SerializeCoderTest {
         List<Object[]> coders = new ArrayList<>();
         coders.add(new Object[] { "Java", new JavaSerializeCoder() });
         coders.add(new Object[] { "Json", new JsonSerializeCoder() });
-        coders.add(new Object[] { "Hessian", new HessianSerializeCoder() });
         return coders;
     }
 
@@ -221,9 +216,6 @@ public class SerializeCoderTest {
                 break;
             case "Json":
                 fixture = "\"hello\"".getBytes(StandardCharsets.UTF_8);
-                break;
-            case "Hessian":
-                fixture = new byte[] { 'S', 0, 5, 'h', 'e', 'l', 'l', 'o' };
                 break;
             default:
                 throw new AssertionError(this.name);

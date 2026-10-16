@@ -14,10 +14,10 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetPublisher;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.AddressPool;
-import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.container.ContainerFixtures.AnnotatedEcho;
 import net.hasor.meteor.container.ContainerFixtures.Echo;
 import net.hasor.meteor.container.ContainerFixtures.EchoImpl;
+import net.hasor.meteor.domain.MetServiceType;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -78,11 +78,11 @@ public class MetContainerRegistrationTest {
         builder.name("echo");
         builder.version("3");
         builder.timeout(2500);
-        builder.serialize("Hessian");
+        builder.serialize("Java");
         MetBindInfo<Echo> service = builder.register();
         assertEquals("[custom]echo-3", service.getBindID());
         assertEquals(2500, service.getClientTimeout());
-        assertEquals("Hessian", service.getSerializeType());
+        assertEquals("Java", service.getSerializeType());
     }
 
     @Test

@@ -1,3 +1,2 @@
 net.hasor.meteor.serialize.coder.JavaSerializeCoder
 net.hasor.meteor.serialize.coder.JsonSerializeCoder
-net.hasor.meteor.serialize.coder.HessianSerializeCoder

@@ -166,7 +166,7 @@ public class MetCallerTest {
             assertEquals(1, client.localFilters.get());
             assertEquals(1, client.cancelledTimers.get());
             ClassLoader loader = getClass().getClassLoader();
-            String hproseClass = "net/hasor/meteor/protocol/hprose/session/HproseProtocol.class";
+            String hproseClass = "net/hasor/meteor/protocol/hprose/HproseProtocol.class";
             assertNull(loader.getResource(hproseClass));
         }
     }
