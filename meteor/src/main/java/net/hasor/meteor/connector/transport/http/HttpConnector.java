@@ -44,8 +44,7 @@ final class HttpConnector extends SocketConnector<HttpExchange> {
 
         HttpApplicationInitializer application = this::initializeApplication;
         this.http1 = new Http1Pipeline(config, this.transport, application, this::requireHttps);
-        this.http2 = new Http2Pipeline(config, this.transport, httpScheme(config), this.webSocket != null,
-                application);
+        this.http2 = new Http2Pipeline(config, this.transport, httpScheme(config), this.webSocket != null, application);
     }
 
     @Override

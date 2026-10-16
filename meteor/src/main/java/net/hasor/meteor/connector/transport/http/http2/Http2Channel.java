@@ -53,8 +53,7 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
 
     Http2Channel(TransportConfig config, SocketRuntime transport, //
             NetChannel socket, InterAddress remote, Executor executor, //
-            RouteTable<HttpExchange> routes, String initialMountId, boolean server, String scheme, boolean upgrades,
-            HttpApplicationInitializer application) {
+            RouteTable<HttpExchange> routes, String initialMountId, boolean server, String scheme, boolean upgrades, HttpApplicationInitializer application) {
         super(config, transport, executor, routes, initialMountId);
         this.socket = socket;
         this.remote = remote;
@@ -66,10 +65,15 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
 
     void initialize(ProtoBuildContext stack, ChannelListenerFactory<HttpExchange> factory, //
             ProtoRoutingControl routing) throws Exception {
+        if (!this.server && !this.attachReceiver(factory)) {
+            this.socket.closeNow();
+            return;
+        }
+
         ChannelLifecycleHandler lifecycleHandler = new ChannelLifecycleHandler(() -> {
             try {
                 // Neta 会预初始化所有 HTTP 分支，此处只发布已被当前连接选中的分支。
-                if (!this.attachReceiver(factory)) {
+                if (this.server && !this.attachReceiver(factory)) {
                     this.socket.closeNow();
                     return;
                 }
@@ -87,10 +91,7 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
             }
         }, () -> {
             this.execute(this::terminated);
-        }, failure -> {
-            this.closeCause = failure;
-            this.execute(this::close);
-        });
+        }, this::fail);
         stack.addLastDecoder("lifecycle", lifecycleHandler);
 
         // 先完成连接级帧处理，再按 HTTP/2 stream 分区处理消息。
@@ -123,11 +124,10 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
 
         // 回调只复制消息，释放 Neta 缓冲；收发及关闭统一进入连接执行器。
         this.socket.subscribe(//
-                event -> this.selected && (event.isInbound() || !event.isSuccess()), //
+                event -> (this.selected || !this.server) && (event.isInbound() || !event.isSuccess()), //
                 SubscribeMode.SYNC, event -> {
                     if (!event.isSuccess()) {
-                        this.closeCause = event.getError();
-                        this.execute(this::close);
+                        this.fail(event.getError());
                     } else if (event.getData() instanceof FullHttpResponse response) {
                         try {
                             long id = response.streamId();
@@ -153,6 +153,14 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
                         this.execute(this::close);
                     }
                 });
+    }
+
+    private void fail(Throwable failure) {
+        this.closeCause = failure;
+        this.execute(() -> {
+            this.terminated();
+            this.socket.closeNow();
+        });
     }
 
     private void initializeBody(ProtoBuildContext stack, int limit) {
