@@ -155,7 +155,7 @@ public class WebServicesInteropTest {
     }
 
     private URL wsdl(MetContext context, String serviceName) throws Exception {
-        int port = context.bindAddress("soap").getPort();
+        int port = context.getListenAddress("soap").getPort();
         String path = "/services/" + serviceName + "?wsdl";
         return URI.create("http://127.0.0.1:" + port + path).toURL();
     }

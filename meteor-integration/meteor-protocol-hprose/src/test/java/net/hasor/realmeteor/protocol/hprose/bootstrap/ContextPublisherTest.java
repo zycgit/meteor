@@ -212,7 +212,7 @@ public class ContextPublisherTest extends BootstrapTestSupport {
             assertEquals("local", context.getRsfClient().getRemote(service).echo("local"));
             assertFalse(context.isOnline());
             assertEquals(Collections.singleton("rsf"), context.runProtocols());
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
             assertThrows(IllegalStateException.class, context::online);
         }
     }

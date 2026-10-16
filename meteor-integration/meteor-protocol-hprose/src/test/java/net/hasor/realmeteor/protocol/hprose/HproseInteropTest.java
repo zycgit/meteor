@@ -44,7 +44,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证中文和补充字符的往返，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "unicode");
             try {
@@ -78,7 +78,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证整型参数与结果，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "integer");
             try {
@@ -112,7 +112,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证 null 的往返，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "null");
             try {
@@ -146,7 +146,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证二进制字节的往返，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "bytes");
             try {
@@ -180,7 +180,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证日期精度，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "date");
             try {
@@ -214,7 +214,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证 Map 内容，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "map");
             try {
@@ -248,7 +248,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证 JavaBean 的字段转换，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "bean");
             try {
@@ -282,7 +282,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证无返回值方法，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "void");
             try {
@@ -316,7 +316,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证引用参数回写，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "byref");
             try {
@@ -350,7 +350,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证批次顺序和错误隔离，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "batch");
             try {
@@ -384,7 +384,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证函数发现响应，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "discovery");
             try {
@@ -418,7 +418,7 @@ public class HproseInteropTest {
                     .register();
 
             // 由官方客户端验证跨域预检响应，断言位于 peer.js。
-            int port = context.bindAddress("hprose").getPort();
+            int port = context.getListenAddress("hprose").getPort();
             String target = "http://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("client", target, "cors");
             try {

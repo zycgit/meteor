@@ -45,7 +45,7 @@ public class GrpcContextPathTest {
                     .aliasName("grpc", "example.Echo").serialize("Json").register();
 
             // 官方客户端访问默认路径，服务应执行一次并返回业务结果。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 var method = this.method("rpc/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
@@ -74,7 +74,7 @@ public class GrpcContextPathTest {
                     .aliasName("grpc", "example.Echo").serialize("Json").register();
 
             // 官方客户端访问额外路径，必须收到不可调用状态且业务没有执行。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 var method = this.method("admin/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
@@ -107,7 +107,7 @@ public class GrpcContextPathTest {
                     .contextPathByPrefix("grpc", "/admin").register();
 
             // 官方客户端访问服务选择的路径，验证业务调用成功。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 var method = this.method("admin/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
@@ -137,7 +137,7 @@ public class GrpcContextPathTest {
                     .contextPathByPrefix("grpc", "/admin").register();
 
             // 访问默认路径应被拒绝，不能执行隐藏服务。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 var method = this.method("rpc/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
@@ -170,7 +170,7 @@ public class GrpcContextPathTest {
                     .contextPathByPrefix("grpc", "/rpc", "/admin").register();
 
             // 在同一通道来回切换允许路径，每次请求都应独立选择并到达同一实例。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 for (String path : List.of("rpc", "admin", "rpc")) {
@@ -202,7 +202,7 @@ public class GrpcContextPathTest {
                     .contextPathByPrefix("grpc", "/rpc/internal").register();
 
             // 请求 URI 同时拥有两个前缀，应正确去掉最长前缀并执行服务。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 var method = this.method("rpc/internal/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
@@ -232,7 +232,7 @@ public class GrpcContextPathTest {
                     .aliasName("grpc", "example.Echo").serialize("Json").register();
 
             // 最长路径匹配后仍必须检查服务可见范围，不能退回父路径执行。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 var method = this.method("rpc/internal/example.Echo/echo", MethodDescriptor.MethodType.UNARY);

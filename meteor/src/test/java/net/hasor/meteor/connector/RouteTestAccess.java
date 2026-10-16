@@ -23,12 +23,4 @@ public final class RouteTestAccess {
             Function<M, RouteProbeResult> probe) {
         return new RouteDefinition<>(options, mountIndex, probe);
     }
-
-    public static RouteMountIndex mountIndex(Map<String, String> options) {
-        return new RouteMountIndex(options);
-    }
-
-    public static RouteSelection selection(String mountId, RouteMount mount, Map<String, String> options) {
-        return new RouteSelection(mountId, mount, options);
-    }
 }

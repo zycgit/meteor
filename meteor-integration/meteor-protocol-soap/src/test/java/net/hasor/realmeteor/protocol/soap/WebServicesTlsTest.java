@@ -349,7 +349,7 @@ public class WebServicesTlsTest {
     }
 
     private URI endpoint(MetContext context) {
-        int port = context.bindAddress("soap").getPort();
+        int port = context.getListenAddress("soap").getPort();
         return URI.create("https://localhost:" + port + "/services/EchoService");
     }
 }

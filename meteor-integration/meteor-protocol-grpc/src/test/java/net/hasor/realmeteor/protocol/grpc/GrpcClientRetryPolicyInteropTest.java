@@ -78,7 +78,7 @@ public class GrpcClientRetryPolicyInteropTest {
             ObjectMapper mapper = new ObjectMapper();
             Map<String, ?> policy = mapper.readValue(RETRY, new TypeReference<>() {
             });
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel channel = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .defaultServiceConfig(policy) //

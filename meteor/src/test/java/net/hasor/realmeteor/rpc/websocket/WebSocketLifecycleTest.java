@@ -80,7 +80,7 @@ public class WebSocketLifecycleTest {
                     .protocol("jsonws").serialize("Json").register();
             MetBindInfo<WebSocketSample> service = client.publisher().rsfService(WebSocketSample.class) //
                     .protocol("jsonws").serialize("Json").register();
-            MetClient remote = client.getRsfClient(server.bindAddress("jsonws"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("jsonws"));
 
             // 请求确实进入 Dispatcher 后再取消；后续调用仍能复用该会话。
             try {
@@ -117,7 +117,7 @@ public class WebSocketLifecycleTest {
                     .protocol("jsonws").serialize("Json").register();
             MetBindInfo<WebSocketSample> service = client.publisher().rsfService(WebSocketSample.class) //
                     .protocol("jsonws").serialize("Json").register();
-            MetClient remote = client.getRsfClient(server.bindAddress("jsonws"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("jsonws"));
 
             // 关闭端点应主动失败挂起调用，不能留到十秒业务期限。
             try {

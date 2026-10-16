@@ -41,7 +41,7 @@ public class WebServicesFaultDeliveryTest {
             }).aliasName("soap", "EchoService").protocol("soap").register();
 
             // 同时建立独立连接，以首个请求触发不经过 Dispatcher 的 VersionMismatch。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/EchoService");
             String body = "<soap:Envelope xmlns:soap=\"urn:wrong:soap\"><soap:Body/></soap:Envelope>";
             HttpRequest request = HttpRequest.newBuilder(endpoint) //
@@ -87,7 +87,7 @@ public class WebServicesFaultDeliveryTest {
             }).aliasName("soap", "EchoService").protocol("soap").register();
 
             // 每个新连接的首个请求都携带 Envelope 上不允许的 encodingStyle。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/EchoService");
             String body = """
                     <soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"

@@ -64,13 +64,14 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         try (MetContext context = settings.buildContext(loader)) {
             MetSettings runtimeSettings = context.getSettings();
             assertFalse(context.isOnline());
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
             assertSame(loader, context.getClassLoader());
             assertTrue(context.getSerializeCoder("jSoN") instanceof JsonSerializeCoder);
             assertEquals("second", runtimeSettings.getResponseOptions().getOption("server.tag"));
             assertEquals("configured", runtimeSettings.getRequestOptions().getOption("client.tag"));
             assertEquals(Paths.get("custom-rsf-data"), runtimeSettings.getDataHome());
-            assertEquals("zone_a", runtimeSettings.getBindAddressSet("rsf").getFormUnit());
+            ConnectorConfig connector = runtimeSettings.getConnectorConfigs().iterator().next();
+            assertEquals("zone_a", connector.address().getFormUnit());
             assertEquals(17, runtimeSettings.getMaximumRequest());
             assertEquals(23, runtimeSettings.getQueueMaxSize());
         }
@@ -169,8 +170,8 @@ public class MetConfigurationTest extends BootstrapTestSupport {
                 assertEquals(23002, secondConnector.address().getPort());
                 assertEquals(1000, firstSettings.getConnectTimeout());
                 assertEquals(2000, secondSettings.getConnectTimeout());
-                assertNull(first.bindAddress("rsf"));
-                assertNull(second.bindAddress("rsf"));
+                assertNull(first.getListenAddress("rsf"));
+                assertNull(second.getListenAddress("rsf"));
 
                 // 上下文构建后继续添加接入点或请求头，不得污染已有快照。
                 configuration.connector("http").protocol("hprose");
@@ -242,7 +243,8 @@ public class MetConfigurationTest extends BootstrapTestSupport {
         assertEquals(200, settings.getMaximumRequest());
         assertEquals(Paths.get("meteor-data"), settings.getDataHome());
         assertEquals(Collections.singleton("rsf"), settings.getProtocols());
-        assertEquals("rsf://127.0.0.1:2181/default", settings.getBindAddressSet("rsf").toHostSchema());
+        ConnectorConfig connector = settings.getConnectorConfigs().iterator().next();
+        assertEquals("tcp://127.0.0.1:2181/default", connector.address().toHostSchema());
         assertFalse(settings.isLocalDiskCache());
         assertTrue(settings.isAutomaticOnline());
     }

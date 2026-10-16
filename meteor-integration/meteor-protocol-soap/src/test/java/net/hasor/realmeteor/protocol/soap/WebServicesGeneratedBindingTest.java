@@ -49,7 +49,7 @@ public class WebServicesGeneratedBindingTest {
                     .register();
 
             // 在线 WSDL 必须公开所选绑定，不能静默使用默认 document/wrapped 契约。
-            int port = server.bindAddress("soap").getPort();
+            int port = server.getListenAddress("soap").getPort();
             URI wsdl = URI.create("http://127.0.0.1:" + port + "/services/EchoService?wsdl");
             HttpRequest request = HttpRequest.newBuilder(wsdl).timeout(Duration.ofSeconds(15)).GET().build();
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -75,7 +75,7 @@ public class WebServicesGeneratedBindingTest {
             assertEquals(new QName(namespace, "echoResult"), this.qualifiedName(outputPart, "element"));
 
             // 客户端根据独立生成的同一契约，经真实 HTTP 监听完成业务调用。
-            EchoService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(subscription);
+            EchoService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscription);
             assertEquals("document literal SOAP 1.1", remote.echo("document literal SOAP 1.1"));
         }
     }
@@ -102,7 +102,7 @@ public class WebServicesGeneratedBindingTest {
                     .register();
 
             // 在线 WSDL 必须公开所选绑定，不能静默使用默认 document/wrapped 契约。
-            int port = server.bindAddress("soap").getPort();
+            int port = server.getListenAddress("soap").getPort();
             URI wsdl = URI.create("http://127.0.0.1:" + port + "/services/EchoService?wsdl");
             HttpRequest request = HttpRequest.newBuilder(wsdl).timeout(Duration.ofSeconds(15)).GET().build();
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -128,7 +128,7 @@ public class WebServicesGeneratedBindingTest {
             assertEquals(new QName(namespace, "echoResult"), this.qualifiedName(outputPart, "element"));
 
             // 客户端根据独立生成的同一契约，经真实 HTTP 监听完成业务调用。
-            EchoService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(subscription);
+            EchoService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscription);
             assertEquals("document literal SOAP 1.2", remote.echo("document literal SOAP 1.2"));
         }
     }
@@ -155,7 +155,7 @@ public class WebServicesGeneratedBindingTest {
                     .register();
 
             // 在线 WSDL 必须公开所选绑定，不能静默使用默认 document/wrapped 契约。
-            int port = server.bindAddress("soap").getPort();
+            int port = server.getListenAddress("soap").getPort();
             URI wsdl = URI.create("http://127.0.0.1:" + port + "/services/EchoService?wsdl");
             HttpRequest request = HttpRequest.newBuilder(wsdl).timeout(Duration.ofSeconds(15)).GET().build();
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -185,7 +185,7 @@ public class WebServicesGeneratedBindingTest {
             assertEquals(stringType, this.qualifiedName(outputPart, "type"));
 
             // 客户端根据独立生成的同一契约，经真实 HTTP 监听完成业务调用。
-            EchoService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(subscription);
+            EchoService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscription);
             assertEquals("rpc literal SOAP 1.1", remote.echo("rpc literal SOAP 1.1"));
         }
     }
@@ -212,7 +212,7 @@ public class WebServicesGeneratedBindingTest {
                     .register();
 
             // 在线 WSDL 必须公开所选绑定，不能静默使用默认 document/wrapped 契约。
-            int port = server.bindAddress("soap").getPort();
+            int port = server.getListenAddress("soap").getPort();
             URI wsdl = URI.create("http://127.0.0.1:" + port + "/services/EchoService?wsdl");
             HttpRequest request = HttpRequest.newBuilder(wsdl).timeout(Duration.ofSeconds(15)).GET().build();
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -242,7 +242,7 @@ public class WebServicesGeneratedBindingTest {
             assertEquals(stringType, this.qualifiedName(outputPart, "type"));
 
             // 客户端根据独立生成的同一契约，经真实 HTTP 监听完成业务调用。
-            EchoService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(subscription);
+            EchoService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscription);
             assertEquals("rpc literal SOAP 1.2", remote.echo("rpc literal SOAP 1.2"));
         }
     }
@@ -269,7 +269,7 @@ public class WebServicesGeneratedBindingTest {
                     .register();
 
             // 在线 WSDL 必须公开所选绑定，不能静默使用默认 document/wrapped 契约。
-            int port = server.bindAddress("soap").getPort();
+            int port = server.getListenAddress("soap").getPort();
             URI wsdl = URI.create("http://127.0.0.1:" + port + "/services/EchoService?wsdl");
             HttpRequest request = HttpRequest.newBuilder(wsdl).timeout(Duration.ofSeconds(15)).GET().build();
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -302,7 +302,7 @@ public class WebServicesGeneratedBindingTest {
             assertEquals(encoding, outputBody.getAttribute("encodingStyle"));
 
             // 客户端根据独立生成的同一契约，经真实 HTTP 监听完成业务调用。
-            EchoService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(subscription);
+            EchoService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscription);
             assertEquals("rpc encoded SOAP 1.1", remote.echo("rpc encoded SOAP 1.1"));
         }
     }
@@ -329,7 +329,7 @@ public class WebServicesGeneratedBindingTest {
                     .register();
 
             // 在线 WSDL 必须公开所选绑定，不能静默使用默认 document/wrapped 契约。
-            int port = server.bindAddress("soap").getPort();
+            int port = server.getListenAddress("soap").getPort();
             URI wsdl = URI.create("http://127.0.0.1:" + port + "/services/EchoService?wsdl");
             HttpRequest request = HttpRequest.newBuilder(wsdl).timeout(Duration.ofSeconds(15)).GET().build();
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -362,7 +362,7 @@ public class WebServicesGeneratedBindingTest {
             assertEquals(encoding, outputBody.getAttribute("encodingStyle"));
 
             // 客户端根据独立生成的同一契约，经真实 HTTP 监听完成业务调用。
-            EchoService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(subscription);
+            EchoService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscription);
             assertEquals("rpc encoded SOAP 1.2", remote.echo("rpc encoded SOAP 1.2"));
         }
     }

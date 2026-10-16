@@ -27,8 +27,8 @@ public class RsfsSchemeTest {
     public void rsfProtocolUsesSecureSchemeWithoutChangingItsWireContract() {
         // 同一个协议实现可以挂载成不同的公开地址，协议本身不推断端点安全属性。
         RsfProtocol protocol = new RsfProtocol();
-        ProtocolConfig plain = ProtocolTestAccess.config("rsf", "rsf", "rsf", Map.of());
-        ProtocolConfig secure = ProtocolTestAccess.config("rsf", "rsfs", "rsf", Map.of());
+        ProtocolConfig plain = ProtocolConfig.newConfig("rsf", "rsf", Map.of());
+        ProtocolConfig secure = ProtocolConfig.newConfig("rsf", "rsfs", Map.of());
 
         // TLS 只包装传输字节，RSF 探测和序列化约定保持不变。
         assertEquals("rsf", plain.name());
@@ -73,11 +73,11 @@ public class RsfsSchemeTest {
                 .option("tlsEnabled", true) //
                 .protocol("rsf").addressScheme("rsfs");
 
-        // 默认协议规范化为逻辑名；公开别名仍精确选择安全端点。
+        // 默认协议规范化为逻辑名；配置快照保留安全端点的公开地址 scheme。
         assertEquals("rsf", configuration.getDefaultProtocol());
-        InterAddress address = configuration.getBindAddressSet("rsfs");
-        assertNotNull(address);
-        assertEquals("rsfs", address.getSchema());
+        List<ConnectorConfig> connectors = List.copyOf(configuration.getConnectorConfigs());
+        ProtocolConfig secure = connectors.get(1).protocols().iterator().next();
+        assertEquals("rsfs", secure.scheme());
     }
 
     @Test
@@ -89,11 +89,11 @@ public class RsfsSchemeTest {
                 .protocol("rsf").addressScheme("rsfs");
         configuration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
 
-        // 默认值保留逻辑名；端点加逻辑协议可精确选择明文挂载。
+        // 默认值保留逻辑名；配置快照仍保持端点及其地址 scheme 的顺序。
         assertEquals("rsf", configuration.getDefaultProtocol());
-        InterAddress address = configuration.getBindAddressSet("tcp-1", configuration.getDefaultProtocol());
-        assertNotNull(address);
-        assertEquals("rsf", address.getSchema());
+        List<ConnectorConfig> connectors = List.copyOf(configuration.getConnectorConfigs());
+        ProtocolConfig plain = connectors.get(1).protocols().iterator().next();
+        assertEquals("rsf", plain.scheme());
     }
 
     @Test
@@ -101,7 +101,7 @@ public class RsfsSchemeTest {
         // 端点只按 SPI 名称选择协议，rsfs 仅是启用 TLS 后生成的地址 scheme。
         Map<String, String> options = Map.of();
         InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "default");
-        ProtocolConfig protocol = ProtocolTestAccess.config("rsfs", "rsfs", "rsfs", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsfs", "rsfs", options);
         ConnectorConfig config = new ConnectorConfig("invalid", address, options, List.of(protocol), false);
 
         // 即使端点启用 TLS，也必须选择唯一的 rsf 协议实现。
@@ -149,7 +149,7 @@ public class RsfsSchemeTest {
 
     private ConnectorConfig endpoint(Map<String, String> options) {
         InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "default");
-        ProtocolConfig protocol = ProtocolTestAccess.config("rsf", "rsfs", "rsf", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "rsfs", options);
         return new ConnectorConfig("secure", address, options, List.of(protocol), true);
     }
 }

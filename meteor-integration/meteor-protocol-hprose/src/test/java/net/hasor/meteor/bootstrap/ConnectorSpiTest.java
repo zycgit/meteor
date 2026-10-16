@@ -30,13 +30,13 @@ public class ConnectorSpiTest {
         custom.option("custom.parallelism", 3);
         custom.protocol("custom-test").addressScheme("custom-wire");
         try (MetContext runtime = settings.buildContext()) {
-            assertNull(runtime.bindAddress("custom-test"));
+            assertNull(runtime.getListenAddress("custom-test"));
 
             // 启动后才创建监听，地址 scheme 使用挂载声明的别名。
             runtime.start();
             assertEquals(Collections.singleton("custom-test"), runtime.runProtocols());
-            assertEquals(23000, runtime.bindAddress("custom-test").getPort());
-            assertEquals("custom-wire", runtime.bindAddress("custom-test").getSchema());
+            assertEquals(23000, runtime.getListenAddress("custom-test").getPort());
+            assertEquals("custom-wire", runtime.getListenAddress("custom-test").getSchema());
         }
     }
 

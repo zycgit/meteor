@@ -43,7 +43,7 @@ public class WebSocketBootstrapTest {
                     .protocol("jsonws").serialize("Json").register();
 
             // 公开代理返回业务结果，并观察服务端真正执行一次。
-            WebSocketSample remote = client.getRsfClient(server.bindAddress("jsonws")).getRemote(service);
+            WebSocketSample remote = client.getRsfClient(server.getListenAddress("jsonws")).getRemote(service);
             assertEquals("server:中文🙂", remote.echo("中文🙂"));
             assertEquals(1, implementation.calls());
         }
@@ -70,7 +70,7 @@ public class WebSocketBootstrapTest {
 
             // 非 UTF-8 字节内容必须原样往返，不能依赖字符串转换。
             byte[] value = { 0, 1, 127, -128, -1, 13, 10 };
-            WebSocketSample remote = client.getRsfClient(server.bindAddress("jsonws")).getRemote(service);
+            WebSocketSample remote = client.getRsfClient(server.getListenAddress("jsonws")).getRemote(service);
             assertArrayEquals(value, remote.binary(value));
             assertEquals(1, implementation.calls());
         }
@@ -104,9 +104,9 @@ public class WebSocketBootstrapTest {
                     .group("http").name("http.echo").version("1").protocol("wshttp").serialize("Java").register();
 
             // 同一个监听端口同时承载升级消息与普通 HTTP，实际调用落入各自服务。
-            assertEquals(server.bindAddress("jsonws").getPort(), server.bindAddress("wshttp").getPort());
-            WebSocketSample wsRemote = client.getRsfClient(server.bindAddress("jsonws")).getRemote(wsService);
-            WebSocketSample httpRemote = client.getRsfClient(server.bindAddress("wshttp")).getRemote(httpService);
+            assertEquals(server.getListenAddress("jsonws").getPort(), server.getListenAddress("wshttp").getPort());
+            WebSocketSample wsRemote = client.getRsfClient(server.getListenAddress("jsonws")).getRemote(wsService);
+            WebSocketSample httpRemote = client.getRsfClient(server.getListenAddress("wshttp")).getRemote(httpService);
             assertEquals("server:ws", wsRemote.echo("ws"));
             assertEquals("server:http", httpRemote.echo("http"));
             assertEquals(1, websocket.calls());
@@ -142,9 +142,9 @@ public class WebSocketBootstrapTest {
                     .group("http").name("http.echo").version("1").protocol("wshttp").serialize("Java").register();
 
             // 同一个监听端口同时承载升级消息与普通 HTTP，实际调用落入各自服务。
-            assertEquals(server.bindAddress("jsonws").getPort(), server.bindAddress("wshttp").getPort());
-            WebSocketSample wsRemote = client.getRsfClient(server.bindAddress("jsonws")).getRemote(wsService);
-            WebSocketSample httpRemote = client.getRsfClient(server.bindAddress("wshttp")).getRemote(httpService);
+            assertEquals(server.getListenAddress("jsonws").getPort(), server.getListenAddress("wshttp").getPort());
+            WebSocketSample wsRemote = client.getRsfClient(server.getListenAddress("jsonws")).getRemote(wsService);
+            WebSocketSample httpRemote = client.getRsfClient(server.getListenAddress("wshttp")).getRemote(httpService);
             assertEquals("server:ws", wsRemote.echo("ws"));
             assertEquals("server:http", httpRemote.echo("http"));
             assertEquals(1, websocket.calls());
@@ -174,7 +174,7 @@ public class WebSocketBootstrapTest {
                     .protocol("jsonws").serialize("Json").register();
 
             // Caller 得到明确连接失败，不能等到业务超时后才结束。
-            MetClient remote = client.getRsfClient(server.bindAddress("jsonws"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("jsonws"));
             Class<?>[] parameterTypes = { String.class };
             Object[] arguments = { "blocked" };
             MetFuture call = remote.asyncInvoke(service, "echo", parameterTypes, arguments);

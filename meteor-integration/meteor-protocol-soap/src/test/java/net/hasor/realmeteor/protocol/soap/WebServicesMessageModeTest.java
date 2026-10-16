@@ -51,7 +51,7 @@ public class WebServicesMessageModeTest {
                     .register();
 
             // 真实 HTTP 调用普通方法，过滤器与返回值均遵循 request-response 语义。
-            MixedService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(subscribed);
+            MixedService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscribed);
             assertEquals("ordinary result", remote.echo("ordinary result"));
             assertFalse("Ordinary method was treated as a message", observedMessage.get());
             assertFalse("Mixed service must not enable message mode for every method", subscribed.isMessage());
@@ -88,7 +88,7 @@ public class WebServicesMessageModeTest {
                     .register();
 
             // 消息请求真实经过 HTTP，调用完成时业务尚未结束，过滤器已看到消息模式。
-            MixedService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(subscribed);
+            MixedService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscribed);
             Future<?> call = invocation.submit(() -> remote.signal("mixed notice"));
             try {
                 assertTrue("Business method was not entered", notifications.awaitEntered(5, TimeUnit.SECONDS));
@@ -134,7 +134,7 @@ public class WebServicesMessageModeTest {
                     .register();
 
             // 客户端正常完成 one-way 网络调用，远端业务收到通知。
-            PlainSignalService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(subscribed);
+            PlainSignalService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscribed);
             remote.signal("legacy notice");
             assertTrue("Message binding was lost", subscribed.isMessage());
             assertTrue("Business method was not invoked", service.awaitInvocation(5, TimeUnit.SECONDS));

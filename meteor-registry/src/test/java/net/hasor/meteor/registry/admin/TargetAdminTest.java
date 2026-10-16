@@ -68,10 +68,10 @@ public class TargetAdminTest {
             secondClient.pullSync().get(5, TimeUnit.SECONDS);
 
             // 按目标地址取得管理入口，调用方不创建存储会话。
-            InterAddress address = first.bindAddress("rsf");
+            InterAddress address = first.getListenAddress("rsf");
             MetInstanceAdmin instance = targets.getInstanceAdminByAddress(address);
             MetServiceAdmin service = targets.getServiceAdminByAddress(address, id);
-            MetServiceAdmin other = targets.getServiceAdminByAddress(second.bindAddress("rsf"), id);
+            MetServiceAdmin other = targets.getServiceAdminByAddress(second.getListenAddress("rsf"), id);
             assertEquals(2, probe.openedSessions());
 
             // 查询目标的应用、服务和端点信息。
@@ -133,7 +133,7 @@ public class TargetAdminTest {
             assertEquals(Map.of("tcp-0#rsf", address.toString()), instance.instance().getManagementAddress());
             assertTrue(first.isOnline());
             assertForbidden(() -> caller.getRsfClient(address).wrapper(Echo.class).echo("blocked"));
-            InterAddress secondAddress = second.bindAddress("rsf");
+            InterAddress secondAddress = second.getListenAddress("rsf");
             assertEquals("first:blocked", first.getRsfClient(secondAddress).wrapper(Echo.class).echo("blocked"));
             instance.unblock();
             assertEquals("first:back", caller.getRsfClient(address).wrapper(Echo.class).echo("back"));
@@ -179,7 +179,7 @@ public class TargetAdminTest {
             assertTrue(provider.getServiceInfo(ManagementRPC.class).isDistributedCall());
 
             // 管理服务显式使用分布式模式，按地址调用访问指定对端。
-            InterAddress remote = consumer.bindAddress("rsf");
+            InterAddress remote = consumer.getListenAddress("rsf");
             MetInstanceAdmin instance = targets.getInstanceAdminByAddress(remote);
             MetServiceAdmin service = targets.getServiceAdminByAddress(remote, id);
             assertEquals(consumer.getInstanceID(), instance.instance().getInstanceId());
@@ -195,13 +195,13 @@ public class TargetAdminTest {
             assertNull(consumers.getNextCursor());
 
             // 直连查询返回实际监听地址，不把注册中心的发布地址混入本地端点。
-            InterAddress bound = provider.bindAddress("rsf");
+            InterAddress bound = provider.getListenAddress("rsf");
             InterAddress local = new InterAddress("rsf", "127.0.0.1", bound.getPort(), bound.getFormUnit());
             MetServiceAdmin localService = targets.getServiceAdminByAddress(local, id);
             assertEquals(id, localService.info().getServiceId());
             MetServiceMember member = localService.providers(null, null).getItems().get(0);
             assertEquals(Map.of("tcp-0#rsf", local.toString()), member.getInstance().getManagementAddress());
-            assertEquals(provider.bindAddress("rsf").toString(), member.getEndpoints()[0].getListenAddress());
+            assertEquals(provider.getListenAddress("rsf").toString(), member.getEndpoints()[0].getListenAddress());
             assertNull(member.getEndpoints()[0].getPublishedAddress());
             assertEquals(2, probe.openedSessions());
         }
@@ -239,7 +239,7 @@ public class TargetAdminTest {
             caller.start();
             TargetAdmin targets = caller.getExtension(TargetAdmin.class);
             client.pullSync().get(5, TimeUnit.SECONDS);
-            InterAddress address = target.bindAddress("rsf");
+            InterAddress address = target.getListenAddress("rsf");
             String id = binding.getBindID();
             MetInstanceAdmin instance = targets.getInstanceAdminByAddress(address);
             MetServiceAdmin service = targets.getServiceAdminByAddress(address, id);
@@ -376,8 +376,8 @@ public class TargetAdminTest {
                 client.pullSync().get(5, TimeUnit.SECONDS);
 
                 // 直连修改只作用于目标当前状态。
-                MetServiceAdmin direct = targets.getServiceAdminByAddress(target.bindAddress("rsf"), id);
-                MetInstanceAdmin instance = targets.getInstanceAdminByAddress(target.bindAddress("rsf"));
+                MetServiceAdmin direct = targets.getServiceAdminByAddress(target.getListenAddress("rsf"), id);
+                MetInstanceAdmin instance = targets.getInstanceAdminByAddress(target.getListenAddress("rsf"));
                 direct.putMeta("owner", "direct");
                 instance.block();
                 assertEquals("direct", binding.getMetaData("owner"));
@@ -436,11 +436,11 @@ public class TargetAdminTest {
             assertNull(target.getExtension(RegistryAdmin.class));
             assertNull(caller.getExtension(RegistryClient.class));
             assertNull(target.getExtension(RegistryClient.class));
-            assertNull(caller.bindAddress("rsf"));
+            assertNull(caller.getListenAddress("rsf"));
             assertNotNull(caller.getServiceInfo(ManagementRPC.class));
 
             // 两侧均未配置存储，通过已知地址完成真实 TCP 管理调用。
-            InterAddress listen = target.bindAddress("rsf");
+            InterAddress listen = target.getListenAddress("rsf");
             InterAddress address = new InterAddress("rsf", "127.0.0.1", listen.getPort(), listen.getFormUnit());
             MetInstanceAdmin instance = targets.getInstanceAdminByAddress(address);
             MetServiceAdmin service = targets.getServiceAdminByAddress(address, id);

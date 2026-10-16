@@ -71,12 +71,12 @@ public class SocketLifecycleTest {
             server.init();
             client.init();
             server.startInbound();
-            InterAddress address = server.bindAddress("raw");
+            InterAddress address = server.getListenAddress("raw");
             MetChannel channel = client.connect(address).get(3, TimeUnit.SECONDS);
 
             // 停止入站会关闭服务端已接纳连接，并撤下公开监听地址。
             server.stopInbound();
-            assertNull(server.bindAddress("raw"));
+            assertNull(server.getListenAddress("raw"));
         }
     }
 
@@ -89,13 +89,13 @@ public class SocketLifecycleTest {
             server.init();
             client.init();
             server.startInbound();
-            InterAddress address = server.bindAddress("raw");
+            InterAddress address = server.getListenAddress("raw");
             server.stopInbound();
-            assertNull(server.bindAddress("raw"));
+            assertNull(server.getListenAddress("raw"));
 
             // 恢复监听后可通过同一公开地址重新发起连接。
             server.startInbound();
-            InterAddress resumed = server.bindAddress("raw");
+            InterAddress resumed = server.getListenAddress("raw");
             assertEquals(address, resumed);
             MetChannel channel = client.connect(resumed).get(3, TimeUnit.SECONDS);
         }

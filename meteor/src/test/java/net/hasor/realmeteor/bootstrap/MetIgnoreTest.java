@@ -103,7 +103,7 @@ public class MetIgnoreTest {
                     .name("SelectiveService").register();
             server.start();
             client.start();
-            RemoteView remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            RemoteView remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
 
             // 服务端允许普通重载及公开默认方法，调用结果经真实 RPC 返回。
             assertEquals("remote", remote.echo("remote"));
@@ -131,7 +131,7 @@ public class MetIgnoreTest {
                     .name("SelectiveService").register();
             server.start();
             client.start();
-            RemoteView remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            RemoteView remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
 
             // 服务端拒绝本次调用，不执行目标方法，后续合法调用仍可用。
             assertForbidden(() -> remote.echo(1));
@@ -158,7 +158,7 @@ public class MetIgnoreTest {
                     .name("SelectiveService").register();
             server.start();
             client.start();
-            RemoteView remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            RemoteView remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
 
             // 服务端拒绝本次调用，不执行目标方法，后续合法调用仍可用。
             assertForbidden(remote::hidden);
@@ -185,7 +185,7 @@ public class MetIgnoreTest {
                     .name("SelectiveService").register();
             server.start();
             client.start();
-            RemoteView remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            RemoteView remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
 
             // 服务端拒绝本次调用，不执行目标方法，后续合法调用仍可用。
             assertForbidden(remote::inheritedHidden);
@@ -212,7 +212,7 @@ public class MetIgnoreTest {
                     .name("SelectiveService").register();
             server.start();
             client.start();
-            RemoteView remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            RemoteView remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
 
             // 服务端拒绝本次调用，不执行目标方法，后续合法调用仍可用。
             assertForbidden(remote::helper);
@@ -239,7 +239,7 @@ public class MetIgnoreTest {
                     .name("SelectiveService").register();
             server.start();
             client.start();
-            RemoteView remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            RemoteView remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
 
             // 服务端拒绝本次调用，不执行目标方法，后续合法调用仍可用。
             assertForbidden(remote::implementationOnly);

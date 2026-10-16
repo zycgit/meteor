@@ -1048,8 +1048,8 @@ public class HttpTransportTest {
         }
 
         private InterAddress bindAddress() {
-            String protocol = this.config.protocols().iterator().next().scheme();
-            return this.manager.bindAddress(protocol);
+            String protocol = this.config.protocols().iterator().next().name();
+            return this.manager.getListenAddress(protocol);
         }
 
         private Future<MetChannel> connect(InterAddress address) {

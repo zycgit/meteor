@@ -54,7 +54,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 请求四条中文消息，等待服务端流结束后检查内容与顺序。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             List<Message> values = new ArrayList<>();
             MetCaller.consume(remote.list(Message.of("中文", 4)), values::add) //
                     .get(5, TimeUnit.SECONDS);
@@ -90,7 +90,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 将四条消息作为请求流发送，验证半关闭后得到的汇总。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             List<Message> values = new ArrayList<>();
             for (int index = 0; index < 4; index++) {
                 values.add(Message.of("中文", index));
@@ -126,7 +126,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 发送空请求流，服务端仍应返回零值汇总。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Flow.Publisher<Message> emptyRequests = MetCaller.fromIterable(List.of());
             Message summary = remote.collect(emptyRequests);
             assertEquals(0, summary.getCount());
@@ -159,7 +159,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 发送四条请求并收集响应，验证双向流逐条回传。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             List<Message> values = new ArrayList<>();
             for (int index = 0; index < 4; index++) {
                 values.add(Message.of("中文", index));
@@ -199,7 +199,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 订阅空响应流；正常完成前不允许出现任何消息。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             MetCaller.consume(remote.list(Message.of("empty", 0)), value -> fail()) //
                     .get(5, TimeUnit.SECONDS);
         }
@@ -227,7 +227,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 请求四条中文消息，等待服务端流结束后检查内容与顺序。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             List<Message> values = new ArrayList<>();
             MetCaller.consume(remote.list(Message.of("中文", 4)), values::add) //
                     .get(5, TimeUnit.SECONDS);
@@ -259,7 +259,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 将四条消息作为请求流发送，验证半关闭后得到的汇总。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             List<Message> values = new ArrayList<>();
             for (int index = 0; index < 4; index++) {
                 values.add(Message.of("中文", index));
@@ -291,7 +291,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 发送空请求流，服务端仍应返回零值汇总。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Flow.Publisher<Message> emptyRequests = MetCaller.fromIterable(List.of());
             Message summary = remote.collect(emptyRequests);
             assertEquals(0, summary.getCount());
@@ -320,7 +320,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 发送四条请求并收集响应，验证双向流逐条回传。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             List<Message> values = new ArrayList<>();
             for (int index = 0; index < 4; index++) {
                 values.add(Message.of("中文", index));
@@ -356,7 +356,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 订阅空响应流；正常完成前不允许出现任何消息。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             MetCaller.consume(remote.list(Message.of("empty", 0)), value -> fail()) //
                     .get(5, TimeUnit.SECONDS);
         }
@@ -383,7 +383,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 订阅跨窗口的大消息流；未请求消息前，不应向订阅者交付。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Flow.Publisher<Message> result = remote.list(Message.of("x".repeat(200000), 20));
             Probe probe = new Probe();
             result.subscribe(probe);
@@ -430,7 +430,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 向同一响应流注册两个订阅者，第二次订阅必须失败。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Flow.Publisher<Message> result = remote.list(Message.of("x".repeat(200000), 20));
             Probe first = new Probe();
             result.subscribe(first);
@@ -463,7 +463,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 等待远端消息源开始执行，再取消订阅并确认源被释放。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Probe cancelled = new Probe();
             remote.never(new Message()).subscribe(cancelled);
             assertTrue(cancelled.subscribed.await(2, TimeUnit.SECONDS));
@@ -494,7 +494,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 请求一条消息，确认源异常通过订阅者终态交付。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Probe failure = new Probe();
             remote.broken(new Message()).subscribe(failure);
             failure.subscription.request(1);
@@ -524,7 +524,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 请求零条消息，当前订阅应收到非法参数错误。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Probe invalid = new Probe();
             remote.list(Message.of("bad demand", 2)).subscribe(invalid);
             invalid.subscription.request(0);
@@ -561,7 +561,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 仅订阅而不 request，期限到达后仍应失败并取消远端源。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Probe timeout = new Probe();
             remote.never(new Message()).subscribe(timeout);
             assertThrows(Exception.class, () -> timeout.finished.get(3, TimeUnit.SECONDS));
@@ -589,7 +589,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 订阅后关闭客户端，未完成的响应流必须收到失败通知。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Probe closing = new Probe();
             remote.never(new Message()).subscribe(closing);
             client.close();
@@ -621,7 +621,7 @@ public class GrpcFlowTest {
                     .register();
 
             // 让消息消费停在回调中，等待该调用期限独立释放请求配额。
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Flow.Publisher<Message> messages = remote.list(Message.of("x".repeat(200000), 20));
             Future<Void> blocked = MetCaller.consume(messages, value -> {
                 processing.countDown();

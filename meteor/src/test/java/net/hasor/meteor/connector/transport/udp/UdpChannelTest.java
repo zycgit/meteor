@@ -356,7 +356,7 @@ public class UdpChannelTest {
 
     private ConnectorConfig config(InterAddress remote) {
         Map<String, String> options = Collections.emptyMap();
-        ProtocolConfig mount = ProtocolTestAccess.config("raw-udp", "udp", "udp", options);
+        ProtocolConfig mount = ProtocolConfig.newConfig("raw-udp", "udp", options);
         return new ConnectorConfig("raw-udp", remote, options, List.of(mount), true);
     }
 

@@ -48,7 +48,7 @@ public class ConnectorSubscriptionsTest {
             manager.startInbound();
 
             // 原始报文经传输选路和协议解析后进入统一订阅入口。
-            this.send(manager.bindAddress("a"), "AArequest\n");
+            this.send(manager.getListenAddress("a"), "AArequest\n");
             assertTrue(delivered.await(3, TimeUnit.SECONDS));
             assertEquals(List.of("first", "second"), deliveries);
 
@@ -79,7 +79,7 @@ public class ConnectorSubscriptionsTest {
             manager.startInbound();
 
             // 单个观察者异常不能截断后续订阅者。
-            this.send(manager.bindAddress("a"), "AArequest\n");
+            this.send(manager.getListenAddress("a"), "AArequest\n");
             assertTrue(delivered.await(3, TimeUnit.SECONDS));
             assertTrue(received.get() instanceof RequestPayload);
         }
@@ -110,7 +110,7 @@ public class ConnectorSubscriptionsTest {
             manager.startInbound();
 
             // close 必须先让出协议线程，外部重复 close 则等待同一关闭屏障完成。
-            InterAddress address = manager.bindAddress("a");
+            InterAddress address = manager.getListenAddress("a");
             try (Socket socket = new Socket(address.getHost(), address.getPort())) {
                 socket.setSoTimeout(3000);
                 socket.getOutputStream().write("AArequest\n".getBytes(StandardCharsets.UTF_8));

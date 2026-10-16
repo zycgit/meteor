@@ -10,7 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolTestAccess;
 import net.hasor.meteor.connector.RouteMount;
 import net.hasor.meteor.utils.ContextPathUtils;
 import org.junit.Test;
@@ -53,7 +52,7 @@ public class HttpContextRoutingTest {
         options.put("contextPath", "/");
         ContextPathUtils.addContextPath(options, "/rpc");
         ContextPathUtils.addContextPath(options, "/rpc/internal");
-        ProtocolConfig protocol = ProtocolTestAccess.config("grpc", "grpc", "grpc", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "grpc", options);
 
         // 按最长路径选择，查询参数不改变挂载匹配。
         RouteMount selected = protocol.matchContext("/rpc/internal/example.Echo/echo?source=test");
@@ -65,7 +64,7 @@ public class HttpContextRoutingTest {
     public void contextMatchingRequiresACompletePathSegment() {
         // /rpc 不能抢占 /rpcOther 下的请求。
         Map<String, String> options = Map.of("contextPath", "/rpc");
-        ProtocolConfig protocol = ProtocolTestAccess.config("grpc", "grpc", "grpc", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "grpc", options);
 
         // 未匹配的请求保持无路由，不回退到默认 context。
         assertNull(protocol.matchContext("/rpcOther/example.Echo/echo"));

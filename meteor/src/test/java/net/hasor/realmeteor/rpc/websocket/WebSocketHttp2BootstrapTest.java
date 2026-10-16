@@ -41,7 +41,7 @@ public class WebSocketHttp2BootstrapTest {
                     .protocol("jsonws").serialize("Json").register();
 
             // 只有完成 H2 升级且消息抵达 Dispatcher 后才会得到业务前缀。
-            WebSocketSample remote = client.getRsfClient(server.bindAddress("jsonws")).getRemote(service);
+            WebSocketSample remote = client.getRsfClient(server.getListenAddress("jsonws")).getRemote(service);
             assertEquals("server:h2🙂", remote.echo("h2🙂"));
             assertEquals(1, implementation.calls());
         }
@@ -72,7 +72,7 @@ public class WebSocketHttp2BootstrapTest {
                     .name("first").protocol("jsonws").serialize("Json").register();
             MetBindInfo<WebSocketSample> secondService = client.publisher().rsfService(WebSocketSample.class) //
                     .name("second").protocol("jsonws").serialize("Json").register();
-            MetClient remote = client.getRsfClient(server.bindAddress("jsonws"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("jsonws"));
 
             // 两个 stream 都已进入业务后，关闭第一个；第二个必须保留自己的结果。
             try {

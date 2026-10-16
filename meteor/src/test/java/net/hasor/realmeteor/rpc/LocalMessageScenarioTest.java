@@ -30,7 +30,7 @@ public class LocalMessageScenarioTest {
                 return "received:" + value;
             }).register();
             context.start();
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
 
             // 本地消息在发起调用的线程完成业务，返回的 Future 已经具有业务结果。
             MetFuture future = context.getRsfClient() //
@@ -63,7 +63,7 @@ public class LocalMessageScenarioTest {
                 throw businessFailure;
             }).register();
             context.start();
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
 
             // 调用方保留原始业务异常，不因缺少地址而改报远程调用失败。
             MetFuture future = context.getRsfClient() //

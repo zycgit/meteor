@@ -61,7 +61,7 @@ public class WebServicesFullFaultTest {
                     .register();
 
             // 独立上下文通过真实 HTTP 调用，原始 SOAP Fault 类型到达调用方。
-            MetFuture invocation = client.getRsfClient(server.bindAddress("soap")) //
+            MetFuture invocation = client.getRsfClient(server.getListenAddress("soap")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "bad" });
             ExecutionException failure = assertThrows(ExecutionException.class, //
                     () -> invocation.getData(5, TimeUnit.SECONDS));
@@ -111,7 +111,7 @@ public class WebServicesFullFaultTest {
                     .register();
 
             // 调用方收到具体 Fault，不需要从错误消息反向解析 XML。
-            MetFuture invocation = client.getRsfClient(server.bindAddress("soap")) //
+            MetFuture invocation = client.getRsfClient(server.getListenAddress("soap")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "bad" });
             ExecutionException failure = assertThrows(ExecutionException.class, //
                     () -> invocation.getData(5, TimeUnit.SECONDS));
@@ -152,7 +152,7 @@ public class WebServicesFullFaultTest {
                     .register();
 
             // 两条说明经 HTTP 保留顺序，未被错误当作重复字段拒绝。
-            MetFuture invocation = client.getRsfClient(server.bindAddress("soap")) //
+            MetFuture invocation = client.getRsfClient(server.getListenAddress("soap")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "bad" });
             ExecutionException failure = assertThrows(ExecutionException.class, //
                     () -> invocation.getData(5, TimeUnit.SECONDS));

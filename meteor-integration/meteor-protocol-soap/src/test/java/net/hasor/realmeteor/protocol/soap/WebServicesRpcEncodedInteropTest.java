@@ -51,7 +51,7 @@ public class WebServicesRpcEncodedInteropTest {
                     .register();
 
             // Axis Call 根据真实 RPC/encoded 参数描述生成 SOAP 1.1 请求。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/RpcEchoService");
             Call call = (Call) new Service().createCall();
             call.setSOAPVersion(SOAPConstants.SOAP11_CONSTANTS);
@@ -94,7 +94,7 @@ public class WebServicesRpcEncodedInteropTest {
                     .register();
 
             // Axis Call 根据真实 RPC/encoded 参数描述生成 SOAP 1.2 请求。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/RpcEchoService");
             Call call = (Call) new Service().createCall();
             call.setSOAPVersion(SOAPConstants.SOAP12_CONSTANTS);

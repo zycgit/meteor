@@ -26,7 +26,6 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolTestAccess;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
@@ -341,7 +340,7 @@ public class Http1LifecycleTest {
     private static ConnectorConfig config(boolean streaming) {
         InterAddress address = InterAddress.forBinding("http", "127.0.0.1", 0, "default");
         Map<String, String> options = Map.of("streamBody", String.valueOf(streaming));
-        ProtocolConfig protocol = ProtocolTestAccess.config("http", "http", "http", Map.of("contextPath", "/"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("http", "http", Map.of("contextPath", "/"));
         return new ConnectorConfig("http", address, options, List.of(protocol), true);
     }
 

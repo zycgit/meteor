@@ -37,7 +37,7 @@ public class WebServicesContextPathTest {
                     .register();
 
             // 选择的 private context 返回生成定义，并保留正确的服务地址。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI privateWsdl = URI.create("http://127.0.0.1:" + port + "/private/EchoService?wsdl");
             HttpClient http = this.httpClient();
             HttpResponse<String> allowed = http.send(this.get(privateWsdl), HttpResponse.BodyHandlers.ofString());
@@ -65,7 +65,7 @@ public class WebServicesContextPathTest {
                     .register();
 
             // 默认 context 可获取定义，返回的服务地址也保留该挂载路径。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI publicWsdl = URI.create("http://127.0.0.1:" + port + "/public/EchoService?wsdl");
             HttpClient http = this.httpClient();
             HttpResponse<String> allowed = http.send(this.get(publicWsdl), HttpResponse.BodyHandlers.ofString());
@@ -99,7 +99,7 @@ public class WebServicesContextPathTest {
                     .register();
 
             // 从 public 发起相同的合法 SOAP 请求，业务方法不得执行。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI publicEndpoint = URI.create("http://127.0.0.1:" + port + "/public/EchoService");
             HttpClient http = this.httpClient();
             HttpRequest deniedRequest = this.echoRequest(publicEndpoint);
@@ -136,7 +136,7 @@ public class WebServicesContextPathTest {
                     .register();
 
             // 额外挂载上的合法 SOAP 请求找不到默认服务，业务调用计数保持为零。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI privateEndpoint = URI.create("http://127.0.0.1:" + port + "/private/EchoService");
             HttpClient http = this.httpClient();
             HttpRequest deniedRequest = this.echoRequest(privateEndpoint);

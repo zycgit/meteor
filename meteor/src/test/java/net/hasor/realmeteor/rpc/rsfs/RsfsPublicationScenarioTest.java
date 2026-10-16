@@ -38,7 +38,7 @@ public class RsfsPublicationScenarioTest {
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
 
             // 通过公开地址更新入口交付发现结果，让普通客户端自行选址。
-            InterAddress address = server.bindAddress("rsfs");
+            InterAddress address = server.getListenAddress("rsf", "rsfs");
             client.getUpdater().appendStaticAddress(service.getBindID(), List.of(address));
             RsfsEcho remote = client.getRsfClient().getRemote(service);
             assertEquals("rsf", server.getDefaultProtocol());
@@ -67,9 +67,9 @@ public class RsfsPublicationScenarioTest {
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).register();
 
             // 被选择的入口可调用；另一入口收到协议禁止状态且不得执行服务。
-            RsfsEcho allowed = client.getRsfClient(server.bindAddress("rsfs")).getRemote(service);
+            RsfsEcho allowed = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
             assertEquals("allowed", allowed.echo("allowed"));
-            InterAddress plain = server.bindAddress("tcp-1", "rsf");
+            InterAddress plain = server.getListenAddress("rsf", "rsf");
             MetFuture rejected = client.getRsfClient(plain) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "blocked" });
             ThrowingRunnable awaitRejected = () -> rejected.get(5, TimeUnit.SECONDS);
@@ -77,7 +77,7 @@ public class RsfsPublicationScenarioTest {
             assertTrue(failure.getCause() instanceof MetException);
             assertEquals(ProtocolStatus.Forbidden, ((MetException) failure.getCause()).getStatus());
             assertEquals(1, calls.get());
-            assertNotEquals(plain.getPort(), server.bindAddress("rsfs").getPort());
+            assertNotEquals(plain.getPort(), server.getListenAddress("rsf", "rsfs").getPort());
         }
     }
 
@@ -100,13 +100,13 @@ public class RsfsPublicationScenarioTest {
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).register();
 
             // 逻辑协议名优先于地址别名，两个端点都使用同一个 RSF 协议实现。
-            InterAddress plain = server.bindAddress("tcp-1", "rsf");
+            InterAddress plain = server.getListenAddress("rsf", "rsf");
             RsfsEcho allowed = client.getRsfClient(plain).getRemote(service);
             assertEquals("allowed", allowed.echo("allowed"));
-            RsfsEcho secure = client.getRsfClient(server.bindAddress("rsfs")).getRemote(service);
+            RsfsEcho secure = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
             assertEquals("secure", secure.echo("secure"));
             assertEquals(2, calls.get());
-            assertNotEquals(plain.getPort(), server.bindAddress("rsfs").getPort());
+            assertNotEquals(plain.getPort(), server.getListenAddress("rsf", "rsfs").getPort());
         }
     }
 

@@ -55,7 +55,7 @@ public class GrpcBootstrapTest {
                     .register();
 
             // 两种编码共用一个协议挂载点，分别通过公开代理完成调用。
-            var caller = client.getRsfClient(server.bindAddress("grpc"));
+            var caller = client.getRsfClient(server.getListenAddress("grpc"));
             Echo binaryRemote = caller.getRemote(protoInfo);
             Echo jsonRemote = caller.getRemote(jsonInfo);
             assertNotNull(protoInfo.getBindResource());
@@ -103,8 +103,8 @@ public class GrpcBootstrapTest {
                     .serialize("Hprose").protocol("hprose").register();
 
             // 比较实际监听端口，再分别验证 HTTP/2 和 HTTP/1.1 上的 RPC。
-            InterAddress grpcAddress = server.bindAddress("grpc");
-            InterAddress hproseAddress = server.bindAddress("hprose");
+            InterAddress grpcAddress = server.getListenAddress("grpc");
+            InterAddress hproseAddress = server.getListenAddress("hprose");
             assertEquals("https", grpcAddress.getSchema());
             assertEquals(grpcAddress, hproseAddress);
             assertEquals(grpcAddress.getPort(), hproseAddress.getPort());

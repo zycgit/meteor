@@ -41,7 +41,7 @@ public class UdpConnectorTest {
             server.subscribe(serverInbox);
             client.subscribe(clientInbox);
             server.startInbound();
-            InterAddress listenAddress = server.bindAddress("udp");
+            InterAddress listenAddress = server.getListenAddress("udp");
             MetChannel first = client.connect(listenAddress).get(2, TimeUnit.SECONDS);
             MetChannel second = client.connect(listenAddress).get(2, TimeUnit.SECONDS);
             assertNotSame(first, second);
@@ -83,7 +83,7 @@ public class UdpConnectorTest {
             server.subscribe(serverInbox);
             client.subscribe(clientInbox);
             server.startInbound();
-            InterAddress listenAddress = server.bindAddress("udp");
+            InterAddress listenAddress = server.getListenAddress("udp");
             MetChannel outgoing = client.connect(listenAddress).get(2, TimeUnit.SECONDS);
             outgoing.sendData(request(1, "establish")).get(2, TimeUnit.SECONDS);
             Delivery accepted = serverInbox.take();
@@ -113,7 +113,7 @@ public class UdpConnectorTest {
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
             server.startInbound();
-            InterAddress listenAddress = server.bindAddress("udp");
+            InterAddress listenAddress = server.getListenAddress("udp");
             InterAddress bound = listenAddress;
             InetSocketAddress target = new InetSocketAddress(bound.getHost(), bound.getPort());
             send(firstPeer, target, packet(1, 1, "first"));
@@ -121,14 +121,14 @@ public class UdpConnectorTest {
 
             // 离线停止共享监听并关闭旧 peer，停止期间不再接收数据报。
             server.stopInbound();
-            assertNull(server.bindAddress("udp"));
+            assertNull(server.getListenAddress("udp"));
             send(secondPeer, target, packet(1, 2, "stopped"));
             assertNull(inbox.messages.poll(200, TimeUnit.MILLISECONDS));
 
             // 重新上线复用原监听和端口，新来源可以建立全新的 peer。
             server.startInbound();
-            assertNotNull(server.bindAddress("udp"));
-            assertEquals(bound, server.bindAddress("udp"));
+            assertNotNull(server.getListenAddress("udp"));
+            assertEquals(bound, server.getListenAddress("udp"));
             send(secondPeer, target, packet(1, 3, "restarted"));
             Delivery restarted = inbox.take();
             assertNotSame(first.channel, restarted.channel);
@@ -147,7 +147,7 @@ public class UdpConnectorTest {
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
             server.startInbound();
-            InterAddress listenAddress = server.bindAddress("udp");
+            InterAddress listenAddress = server.getListenAddress("udp");
             InetSocketAddress target = new InetSocketAddress("127.0.0.1", listenAddress.getPort());
             send(peer, target, packet(1, 1, "short"));
             Delivery first = inbox.take();
@@ -182,7 +182,7 @@ public class UdpConnectorTest {
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
             server.startInbound();
-            InterAddress listenAddress = server.bindAddress("udp");
+            InterAddress listenAddress = server.getListenAddress("udp");
             InetSocketAddress target = new InetSocketAddress("127.0.0.1", listenAddress.getPort());
             send(good, target, packet(1, 1, "good"));
             Delivery healthy = inbox.take();
@@ -201,7 +201,7 @@ public class UdpConnectorTest {
             send(good, target, packet(1, 3, "healthy"));
             Delivery afterFailure = inbox.take();
             assertSame(healthy.channel, afterFailure.channel);
-            assertNotNull(server.bindAddress("udp"));
+            assertNotNull(server.getListenAddress("udp"));
         }
     }
 
@@ -216,7 +216,7 @@ public class UdpConnectorTest {
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
             server.startInbound();
-            InterAddress listenAddress = server.bindAddress("udp");
+            InterAddress listenAddress = server.getListenAddress("udp");
             InetSocketAddress target = new InetSocketAddress("127.0.0.1", listenAddress.getPort());
             send(good, target, packet(1, 1, "good"));
             Delivery healthy = inbox.take();
@@ -226,7 +226,7 @@ public class UdpConnectorTest {
             // 残缺头部只关闭坏 peer，不能投递残缺消息或关闭共享监听。
             send(bad, target, new byte[] { 1 });
             assertNull(inbox.messages.poll(100, TimeUnit.MILLISECONDS));
-            assertNotNull(server.bindAddress("udp"));
+            assertNotNull(server.getListenAddress("udp"));
 
             // 等故障生效后再收发，证明正常 peer 的会话和响应能力未受污染。
             healthy.channel.sendData(response(1, "reply")).get(2, TimeUnit.SECONDS);
@@ -251,7 +251,7 @@ public class UdpConnectorTest {
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
             server.startInbound();
-            InterAddress listenAddress = server.bindAddress("udp");
+            InterAddress listenAddress = server.getListenAddress("udp");
             InetSocketAddress target = new InetSocketAddress("127.0.0.1", listenAddress.getPort());
             send(peer, target, packet(1, 1, "ok"));
             MetChannel channel = inbox.take().channel;
@@ -260,7 +260,7 @@ public class UdpConnectorTest {
             byte[] oversized = packet(1, 2, "this datagram exceeds the configured limit");
             send(peer, target, oversized);
             assertNull(inbox.messages.poll(100, TimeUnit.MILLISECONDS));
-            assertNotNull(server.bindAddress("udp"));
+            assertNotNull(server.getListenAddress("udp"));
         }
     }
 
@@ -274,7 +274,7 @@ public class UdpConnectorTest {
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
             server.startInbound();
-            InterAddress listenAddress = server.bindAddress("udp");
+            InterAddress listenAddress = server.getListenAddress("udp");
             int port = listenAddress.getPort();
             InetSocketAddress target = new InetSocketAddress("127.0.0.1", port);
             send(peer, target, packet(1, 1, "hello"));
@@ -284,7 +284,7 @@ public class UdpConnectorTest {
             Future<MetChannel> writing = request.channel.sendData(response(1, "drained"));
             server.close();
             assertSame(request.channel, writing.get(2, TimeUnit.SECONDS));
-            assertNull(server.bindAddress("udp"));
+            assertNull(server.getListenAddress("udp"));
             peer.setSoTimeout(2000);
             DatagramPacket received = new DatagramPacket(new byte[512], 512);
             peer.receive(received);
@@ -340,7 +340,7 @@ public class UdpConnectorTest {
                 manager.startInbound();
             });
             assertEquals("maxDatagramSize must be positive", failure.getMessage());
-            assertNull(manager.bindAddress("udp"));
+            assertNull(manager.getListenAddress("udp"));
         }
     }
 
@@ -356,7 +356,7 @@ public class UdpConnectorTest {
                 manager.startInbound();
             });
             assertEquals("maxDatagramSize must be between 1 and 65507", failure.getMessage());
-            assertNull(manager.bindAddress("udp"));
+            assertNull(manager.getListenAddress("udp"));
         }
     }
 

@@ -36,9 +36,13 @@ public class HttpUpgradeAuthorizationTest {
     public void http1AuthorizationCompletesAfterTheReceivePipelineReleasesItsChannelLock() throws Exception {
         // Hold the simulated Neta receive pipeline after its authorizer returns.
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        RouteMountIndex paths = RouteTestAccess.mountIndex(Map.of("contextPath", "/ws"));
+        ProtocolConfig config = ProtocolConfig.newConfig("jsonws", "jsonws", Map.of("contextPath", "/ws"));
         Map<String, String> options = Map.of("upgrade", "websocket");
-        RouteSelection expected = RouteTestAccess.selection("jsonws", paths.get("/ws"), options);
+        RouteDefinition<HttpExchange> definition = RouteTestAccess.definition(//
+                options, config.mountIndex(), exchange -> RouteProbeResult.MATCH);
+        RouteTable<HttpExchange> routes = RouteTestAccess.activate(Map.of("jsonws", definition), null);
+        RouteSelection expected = routes.select("/ws");
+        assertNotNull(expected);
         AtomicReference<RouteSelection> selected = new AtomicReference<>();
         AtomicReference<Throwable> failure = new AtomicReference<>();
         CountDownLatch returned = new CountDownLatch(1);
@@ -78,9 +82,13 @@ public class HttpUpgradeAuthorizationTest {
     public void http1AuthorizationWaitsForAnEarlierResponseToFinish() throws Exception {
         // Register an ordinary HTTP request before asking the same connection to upgrade.
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        RouteMountIndex paths = RouteTestAccess.mountIndex(Map.of("contextPath", "/ws"));
+        ProtocolConfig config = ProtocolConfig.newConfig("jsonws", "jsonws", Map.of("contextPath", "/ws"));
         Map<String, String> options = Map.of("upgrade", "websocket");
-        RouteSelection expected = RouteTestAccess.selection("jsonws", paths.get("/ws"), options);
+        RouteDefinition<HttpExchange> definition = RouteTestAccess.definition(//
+                options, config.mountIndex(), exchange -> RouteProbeResult.MATCH);
+        RouteTable<HttpExchange> routes = RouteTestAccess.activate(Map.of("jsonws", definition), null);
+        RouteSelection expected = routes.select("/ws");
+        assertNotNull(expected);
         PendingAuthorization fixture = new PendingAuthorization(executor, uri -> expected);
         try {
             HttpExchange ordinary = fixture.request().get(3, TimeUnit.SECONDS);
@@ -129,9 +137,10 @@ public class HttpUpgradeAuthorizationTest {
 
         private PendingAuthorization(Executor executor, Function<String, RouteSelection> router) throws Exception {
             // 先接纳普通 HTTP 请求，保留尚未完成的响应。
-            RouteMountIndex mounts = RouteTestAccess.mountIndex(Map.of("contextPath", "/ordinary"));
+            ProtocolConfig protocol = ProtocolConfig.newConfig(//
+                    "ordinary", "http", Map.of("contextPath", "/ordinary"));
             Function<HttpExchange, RouteProbeResult> probe = message -> RouteProbeResult.MATCH;
-            RouteDefinition<HttpExchange> ordinary = RouteTestAccess.definition(Map.of(), mounts, probe);
+            RouteDefinition<HttpExchange> ordinary = RouteTestAccess.definition(Map.of(), protocol.mountIndex(), probe);
             RouteTable<HttpExchange> routes = RouteTestAccess.activate(Map.of("ordinary", ordinary), router);
             this.channel = new Http1ServerChannel(Owner.config(), null, new OpenSocket(), executor, routes);
             this.channel.attach(channel -> new RouteReceiver<>() {
@@ -157,8 +166,8 @@ public class HttpUpgradeAuthorizationTest {
 
             // 注入已匹配路由的请求，供升级授权测试观察顺序。
             HttpRequest inbound = HttpRequest.newBuffered("GET", "/ordinary", Map.of(), new byte[0], 1, Map.of());
-            RouteMountIndex paths = RouteTestAccess.mountIndex(Map.of("contextPath", "/ordinary"));
-            RouteSelection route = RouteTestAccess.selection("ordinary", paths.get("/ordinary"), Map.of());
+            RouteTable<HttpExchange> ordinaryRoutes = RouteTestAccess.activate(Map.of("ordinary", ordinary), null);
+            RouteSelection route = ordinaryRoutes.select("/ordinary");
             HttpMessageUtils.route(inbound, route);
             this.channel.received(inbound, true);
         }

@@ -46,7 +46,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
             server.publisher().rsfService(Echo.class).toInstance(new EchoService()).register();
 
             // 原生 HTTP 调用经过 Hprose 解码后，返回原始中文参数。
-            int httpPort = server.bindAddress("hprose").getPort();
+            int httpPort = server.getListenAddress("hprose").getPort();
             assertEquals("HTTP中文", this.invokeHttp(httpPort, "/hprose", "HTTP中文"));
         }
     }
@@ -70,8 +70,8 @@ public class ContextHttpTest extends BootstrapTestSupport {
             for (String protocol : Arrays.asList("hprose", "hprosea")) {
                 String branch = StringUtils.equals("hprose", protocol) ? "a" : "b";
                 assertTrue(server.runProtocols().contains(protocol));
-                assertEquals("http", server.bindAddress(protocol).getSchema());
-                assertEquals(sharedPort, server.bindAddress(protocol).getPort());
+                assertEquals("http", server.getListenAddress(protocol).getSchema());
+                assertEquals(sharedPort, server.getListenAddress(protocol).getPort());
                 assertEquals(protocol, this.invokeHttp(sharedPort, "/" + branch, protocol));
             }
         }
@@ -118,7 +118,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
             server.publisher().rsfService(Echo.class, provider).serialize("Hprose").register();
             MetBindInfo<Echo> defaults = client.publisher().rsfService(Echo.class).serialize("Hprose").register();
 
-            MetClient caller = client.getRsfClient(server.bindAddress("hprose").toHostSchema());
+            MetClient caller = client.getRsfClient(server.getListenAddress("hprose").toHostSchema());
 
             // 使用默认订阅调用，确认请求选择默认名称的实现。
             assertEquals("default alias", caller.getRemote(defaults).echo("default alias"));
@@ -161,7 +161,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
             assertEquals(service.getBindID(), namedService.getBindID());
             assertNull(server.getServiceInfo("Hprose", "echo"));
 
-            MetClient caller = client.getRsfClient(server.bindAddress("hprose").toHostSchema());
+            MetClient caller = client.getRsfClient(server.getListenAddress("hprose").toHostSchema());
 
             // 按订阅的自定义别名发起真实 HTTP 调用。
             assertEquals("HTTP双端", caller.getRemote(service).echo("HTTP双端"));
@@ -196,7 +196,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
                     .register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).serialize("Hprose").register();
 
-            MetClient caller = client.getRsfClient(server.bindAddress("hprose").toHostSchema());
+            MetClient caller = client.getRsfClient(server.getListenAddress("hprose").toHostSchema());
 
             // 基本类型参数经过 HTTP 编解码后仍参与正常加法运算。
             assertEquals(7, caller.getRemote(service).add(3, 4));
@@ -231,7 +231,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
                     .register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).serialize("Hprose").register();
 
-            MetClient caller = client.getRsfClient(server.bindAddress("hprose").toHostSchema());
+            MetClient caller = client.getRsfClient(server.getListenAddress("hprose").toHostSchema());
 
             // null 作为正常业务结果返回，不被转换为错误或空字符串。
             assertNull(caller.getRemote(service).echo(null));
@@ -266,7 +266,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
                     .register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).serialize("Hprose").register();
 
-            MetClient caller = client.getRsfClient(server.bindAddress("hprose").toHostSchema());
+            MetClient caller = client.getRsfClient(server.getListenAddress("hprose").toHostSchema());
 
             Echo remote = caller.getRemote(service);
 
@@ -327,7 +327,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
             subscribed.timeout(500);
             MetBindInfo<Echo> service = subscribed.register();
 
-            MetClient remote = client.getRsfClient(server.bindAddress("hprose"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("hprose"));
             Class<?>[] slowTypes = { int.class };
             Object[] slowArguments = { 1 };
             try {
@@ -391,7 +391,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
             subscribed.timeout(500);
             MetBindInfo<Echo> service = subscribed.register();
 
-            MetClient remote = client.getRsfClient(server.bindAddress("hprose"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("hprose"));
             Class<?>[] slowTypes = { int.class };
             Object[] slowArguments = { 1 };
             try {
@@ -457,7 +457,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
             subscribed.timeout(5000);
             MetBindInfo<Echo> service = subscribed.register();
 
-            MetClient remote = client.getRsfClient(server.bindAddress("hprose"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("hprose"));
             try {
                 // 发起慢调用并等待服务进入，保持方法阻塞以观察服务端期限。
                 Class<?>[] parameterTypes = { int.class };

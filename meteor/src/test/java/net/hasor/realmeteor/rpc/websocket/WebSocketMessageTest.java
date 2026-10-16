@@ -43,7 +43,7 @@ public class WebSocketMessageTest {
                     .protocol("jsonws").serialize("Json").register();
             WebSocketObservation sent = client.getExtension(WebSocketObservation.class);
             WebSocketObservation received = server.getExtension(WebSocketObservation.class);
-            MetClient remote = client.getRsfClient(server.bindAddress("jsonws"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("jsonws"));
 
             // 写出后 Caller 已完成，服务端仍在业务闩锁内，线上没有回执消息。
             try {

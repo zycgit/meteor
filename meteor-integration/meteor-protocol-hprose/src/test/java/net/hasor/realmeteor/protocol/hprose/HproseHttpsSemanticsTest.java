@@ -51,7 +51,7 @@ public class HproseHttpsSemanticsTest {
                     .sslContext(HproseTlsSupport.trustedClientContext()) //
                     .version(HttpClient.Version.HTTP_2) //
                     .build();
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             URI uri = URI.create("https://127.0.0.1:" + port + "/rpc");
 
             // GET 发现应返回 Hprose 函数表，包含发布接口中的公开方法。
@@ -92,7 +92,7 @@ public class HproseHttpsSemanticsTest {
                     .sslContext(HproseTlsSupport.trustedClientContext()) //
                     .version(HttpClient.Version.HTTP_2) //
                     .build();
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             URI uri = URI.create("https://127.0.0.1:" + port + "/rpc");
 
             // byref 的 t 标志要求服务端把修改后的参数通过 A 段一并返回。
@@ -133,7 +133,7 @@ public class HproseHttpsSemanticsTest {
                     .sslContext(HproseTlsSupport.trustedClientContext()) //
                     .version(HttpClient.Version.HTTP_2) //
                     .build();
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             URI uri = URI.create("https://127.0.0.1:" + port + "/rpc");
 
             // 同一批次包含慢成功、业务异常和普通成功，结果必须保持提交顺序。

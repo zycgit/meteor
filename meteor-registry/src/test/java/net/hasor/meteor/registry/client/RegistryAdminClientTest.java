@@ -112,7 +112,7 @@ public class RegistryAdminClientTest {
             assertEquals("managed", provider.getMetaData("marker"));
             assertEquals("managed", consumer.getMetaData("marker"));
             assertEquals("local", context.getSettings().getRequestOptions().getOption("marker"));
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
         }
     }
 
@@ -252,7 +252,7 @@ public class RegistryAdminClientTest {
             assertEquals(2, caller.getServiceIDs().size());
             assertTrue(server.getServiceInfo(ManagementRPC.class).isShadow());
             assertTrue(caller.getServiceInfo(ManagementRPC.class).isShadow());
-            assertNull(caller.bindAddress("rsf"));
+            assertNull(caller.getListenAddress("rsf"));
 
             // 等待两端上报，使用独立管理上下文检查监听与公告地址。
             provider.pushSync().get(5, TimeUnit.SECONDS);
@@ -263,14 +263,14 @@ public class RegistryAdminClientTest {
                 RegistryAdmin admin = adminContext.getExtension(RegistryAdmin.class);
                 MetInstanceAdmin serverAdmin = admin.getInstanceAdmin(server.getInstanceID());
                 Map<String, String> management = serverAdmin.instance().getManagementAddress();
-                assertEquals(Map.of("tcp-0#rsf", server.bindAddress("rsf").toString()), management);
+                assertEquals(Map.of("tcp-0#rsf", server.getListenAddress("rsf").toString()), management);
                 MetInstanceAdmin callerAdmin = admin.getInstanceAdmin(caller.getInstanceID());
                 assertTrue(callerAdmin.instance().getManagementAddress().isEmpty());
                 MetServiceAdmin service = admin.getServiceAdmin(binding.getBindID());
                 MetServiceMember member = service.providers(null, null).getItems().get(0);
                 assertEquals("rsf", member.getEndpoints()[0].getProtocol());
-                assertEquals(server.bindAddress("rsf").toString(), member.getEndpoints()[0].getPublishedAddress());
-                assertArrayEquals(new String[] { server.bindAddress("rsf").toString() }, member.getAddresses());
+                assertEquals(server.getListenAddress("rsf").toString(), member.getEndpoints()[0].getPublishedAddress());
+                assertArrayEquals(new String[] { server.getListenAddress("rsf").toString() }, member.getAddresses());
             }
 
             // 服务端下线、上线和关闭分别触发地址撤销、恢复和最终删除。
@@ -334,7 +334,7 @@ public class RegistryAdminClientTest {
             instance.block();
             RegistryTestUtils.await(() -> instance.instance().isBlock());
             assertTrue(server.isOnline());
-            Echo remote = caller.getRsfClient(server.bindAddress("rsf")).wrapper(Echo.class);
+            Echo remote = caller.getRsfClient(server.getListenAddress("rsf")).wrapper(Echo.class);
             Throwable rejected = assertThrows(Throwable.class, () -> remote.echo("blocked"));
             while (!(rejected instanceof MetException) && rejected.getCause() != null) {
                 rejected = rejected.getCause();
@@ -578,7 +578,7 @@ public class RegistryAdminClientTest {
             IllegalStateException failure = assertThrows(IllegalStateException.class, context::start);
             assertTrue(failure.getCause() instanceof IllegalArgumentException);
             assertFalse(context.isOnline());
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
             assertFalse(RegistryTestUtils.hasRegistrations(storageConfiguration));
             assertEquals(probe.openedSessions(), probe.closedSessions());
             Future<Void> push = client.pushSync();

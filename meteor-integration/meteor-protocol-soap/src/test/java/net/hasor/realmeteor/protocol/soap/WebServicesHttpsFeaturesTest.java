@@ -196,7 +196,7 @@ public class WebServicesHttpsFeaturesTest {
             MetBindInfo<BinaryService> subscription = this.subscribeBinary(client);
 
             // 直接 byte[] 在 MTOM 请求和响应中通过 HTTPS 完整往返。
-            InterAddress address = server.bindAddress("soap");
+            InterAddress address = server.getListenAddress("soap");
             BinaryService remote = client.getRsfClient(address).getRemote(subscription);
             byte[] expected = { 0, 1, 2, (byte) 0x80, (byte) 0xff };
             assertArrayEquals(expected, remote.echo(expected));
@@ -220,7 +220,7 @@ public class WebServicesHttpsFeaturesTest {
             MetBindInfo<BinaryService> subscription = this.subscribeBinary(client);
 
             // 直接 byte[] 在 SwA 请求和响应中通过 HTTPS 完整往返。
-            InterAddress address = server.bindAddress("soap");
+            InterAddress address = server.getListenAddress("soap");
             BinaryService remote = client.getRsfClient(address).getRemote(subscription);
             byte[] expected = { 9, 8, 7, (byte) 0x80, (byte) 0xff };
             assertArrayEquals(expected, remote.echo(expected));
@@ -327,7 +327,7 @@ public class WebServicesHttpsFeaturesTest {
     }
 
     private URI endpoint(MetContext context, String path) {
-        int port = context.bindAddress("soap").getPort();
+        int port = context.getListenAddress("soap").getPort();
         return URI.create("https://localhost:" + port + path);
     }
 }

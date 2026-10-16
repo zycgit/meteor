@@ -113,7 +113,7 @@ public class ProtocolSpiTest {
 
             // 首次监听才创建网络连接器，物理连接复用启动时固定的 provider。
             manager.startInbound();
-            InterAddress address = manager.bindAddress("custom");
+            InterAddress address = manager.getListenAddress("custom");
             try (Socket ignored = new Socket("127.0.0.1", address.getPort())) {
                 assertTrue(CountingTransportPipeline.connected.await(3, TimeUnit.SECONDS));
             }
@@ -160,7 +160,7 @@ public class ProtocolSpiTest {
             assertEquals(1, FailingOnceTransportPipeline.attempts.get());
             manager.startInbound();
             assertEquals(2, FailingOnceTransportPipeline.attempts.get());
-            assertNotNull(manager.bindAddress("custom"));
+            assertNotNull(manager.getListenAddress("custom"));
         }
     }
 
@@ -189,7 +189,7 @@ public class ProtocolSpiTest {
 
                 // 同一个端点再开启监听时复用已经创建的传输。
                 manager.startInbound();
-                InterAddress boundAddress = manager.bindAddress("custom");
+                InterAddress boundAddress = manager.getListenAddress("custom");
                 assertNotNull(boundAddress);
                 assertEquals(1, CustomTransport.created.get());
 

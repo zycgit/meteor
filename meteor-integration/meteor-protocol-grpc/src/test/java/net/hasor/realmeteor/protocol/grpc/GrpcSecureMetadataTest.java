@@ -69,7 +69,7 @@ public class GrpcSecureMetadataTest {
                     .aliasName("grpc", "example.Echo") //
                     .serialize("Json") //
                     .register();
-            var caller = client.getRsfClient(server.bindAddress("grpc"));
+            var caller = client.getRsfClient(server.getListenAddress("grpc"));
 
             // 发送可压缩的大消息，等待调用完成后检查正文及最终 trailers。
             String payload = "gzip安全消息".repeat(4096);
@@ -132,7 +132,7 @@ public class GrpcSecureMetadataTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Json") //
                     .register();
-            var caller = client.getRsfClient(server.bindAddress("grpc"));
+            var caller = client.getRsfClient(server.getListenAddress("grpc"));
 
             // 发送可压缩的大消息，等待调用完成后检查正文及最终 trailers。
             String payload = "gzip安全消息".repeat(4096);
@@ -206,7 +206,7 @@ public class GrpcSecureMetadataTest {
                     .serialize("Protobuf") //
                     .bindResource(resource) //
                     .register();
-            var caller = client.getRsfClient(server.bindAddress("grpc"));
+            var caller = client.getRsfClient(server.getListenAddress("grpc"));
 
             // 发送可压缩的大消息，等待调用完成后检查正文及最终 trailers。
             String payload = "gzip安全消息".repeat(4096);
@@ -272,7 +272,7 @@ public class GrpcSecureMetadataTest {
                     .serialize("Protobuf") //
                     .bindResource(resource) //
                     .register();
-            var caller = client.getRsfClient(server.bindAddress("grpc"));
+            var caller = client.getRsfClient(server.getListenAddress("grpc"));
 
             // 发送可压缩的大消息，等待调用完成后检查正文及最终 trailers。
             String payload = "gzip安全消息".repeat(4096);

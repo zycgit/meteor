@@ -52,7 +52,7 @@ public class WebServicesRpcLiteralInteropTest {
                     .register();
 
             // Metro 从线上 WSDL 创建有 RPC 注解的强类型代理。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URL wsdl = URI.create("http://127.0.0.1:" + port + "/services/RpcEchoService?wsdl").toURL();
             QName serviceName = new QName(NAMESPACE, "RpcEchoService");
             QName portName = new QName(NAMESPACE, "RpcEchoServicePort");
@@ -89,7 +89,7 @@ public class WebServicesRpcLiteralInteropTest {
                     .register();
 
             // Metro 从线上 SOAP 1.2 WSDL 创建同一个 RPC 注解接口的强类型代理。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URL wsdl = URI.create("http://127.0.0.1:" + port + "/services/RpcEchoService?wsdl").toURL();
             QName serviceName = new QName(NAMESPACE, "RpcEchoService");
             QName portName = new QName(NAMESPACE, "RpcEchoServicePort");

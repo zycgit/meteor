@@ -347,7 +347,7 @@ public class RsfSessionTest {
 
     private ProtocolConfig config(Map<String, String> options) {
         Map<String, String> configured = new HashMap<>(options);
-        return ProtocolTestAccess.config("rsf", "rsf", "rsf", configured);
+        return ProtocolConfig.newConfig("rsf", "rsf", configured);
     }
 
     private static final class Connection implements NetworkChannel<byte[]> {

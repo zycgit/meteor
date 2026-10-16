@@ -8,10 +8,7 @@
 package net.hasor.meteor.registry.client.support;
 import java.util.*;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetPublisher;
-import net.hasor.meteor.MetUpdater;
+import net.hasor.meteor.*;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
@@ -189,23 +186,17 @@ public final class ManagementRPCImpl implements ManagementRPC {
         result.setApplicationName(this.context.getApplicationName());
         result.setUnitName(this.context.getSettings().getUnitName());
         result.setBlock(this.governance.isBlock());
-        for (ConnectorConfig connector : this.context.getSettings().getConnectorConfigs()) {
-            if (!connector.bindEnabled()) {
-                continue;
-            }
+        for (MetListenEndpoint endpoint : this.context.getListenEndpoints()) {
+            InterAddress address = endpoint.getListenAddress();
+            String addressKey = endpoint.getConnectorName() + "#" + address.getSchema();
+            result.getListenAddresses().putIfAbsent(addressKey, address.toString());
 
-            for (ProtocolConfig protocol : connector.protocols()) {
-                InterAddress address = this.context.bindAddress(connector.name(), protocol.mountId());
-                if (address != null) {
-                    String addressKey = connector.name() + "#" + protocol.scheme();
-                    result.getListenAddresses().putIfAbsent(addressKey, address.toString());
-                    InterAddress managementAddress = address;
-                    if (StringUtils.isNotBlank(this.publishHost)) {
-                        managementAddress = new InterAddress(address.getSchema(), this.publishHost, address.getPort(), address.getFormUnit());
-                    }
-                    result.getManagementAddress().putIfAbsent(addressKey, managementAddress.toString());
-                }
+            InterAddress managementAddress = address;
+            if (StringUtils.isNotBlank(this.publishHost)) {
+                managementAddress = new InterAddress(//
+                        address.getSchema(), this.publishHost, address.getPort(), address.getFormUnit());
             }
+            result.getManagementAddress().putIfAbsent(addressKey, managementAddress.toString());
         }
         return result;
     }
@@ -584,6 +575,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
 
     private ServiceEndpointData[] endpoints(MetBindInfo<?> service) {
         List<ServiceEndpointData> result = new ArrayList<>();
+        Map<String, InterAddress> listenAddresses = this.listenAddresses();
         Set<String> protocols = service.getBindProtocols();
         for (ConnectorConfig connector : this.context.getSettings().getConnectorConfigs()) {
             boolean provider = service.getServiceType() == MetServiceType.Provider;
@@ -602,7 +594,9 @@ public final class ManagementRPCImpl implements ManagementRPC {
                     paths = Collections.singletonList(null);
                 }
 
-                InterAddress listen = connector.bindEnabled() ? this.context.bindAddress(connector.name(), protocol.mountId()) : null;
+                String endpointKey = this.listenEndpointKey(//
+                        connector.name(), protocol.name(), protocol.scheme());
+                InterAddress listen = listenAddresses.get(endpointKey);
                 for (String path : paths) {
                     ServiceEndpointData endpoint = new ServiceEndpointData();
                     endpoint.setConnectorName(connector.name());
@@ -620,6 +614,21 @@ public final class ManagementRPCImpl implements ManagementRPC {
         }
 
         return result.toArray(ServiceEndpointData[]::new);
+    }
+
+    private Map<String, InterAddress> listenAddresses() {
+        Map<String, InterAddress> result = new HashMap<>();
+        for (MetListenEndpoint endpoint : this.context.getListenEndpoints()) {
+            InterAddress listenAddress = endpoint.getListenAddress();
+            String endpointKey = this.listenEndpointKey(//
+                    endpoint.getConnectorName(), endpoint.getProtocol(), listenAddress.getSchema());
+            result.put(endpointKey, endpoint.getListenAddress());
+        }
+        return result;
+    }
+
+    private String listenEndpointKey(String connectorName, String protocol, String addressScheme) {
+        return connectorName + "\u0000" + protocol + "\u0000" + addressScheme;
     }
 
     private InterAddress toPublishAddress(InterAddress address) throws Exception {

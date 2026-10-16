@@ -33,8 +33,7 @@ public class ContextConfigurationTest extends BootstrapTestSupport {
             // 启动后仍没有绑定地址，预编译的出口协议计划可以被查询。
             ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
             assertFalse(endpoint.bindEnabled());
-            assertNull(context.getSettings().getBindAddressSet("rsf"));
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
             assertEquals(Collections.singleton("rsf"), context.runProtocols());
         }
     }
@@ -45,11 +44,11 @@ public class ContextConfigurationTest extends BootstrapTestSupport {
         MetConfiguration source = new MetConfiguration();
         source.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
         try (MetContext context = source.buildContext()) {
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
 
             // 显式启动后才分配可用端口。
             context.start();
-            assertTrue(context.bindAddress("rsf").getPort() > 0);
+            assertTrue(context.getListenAddress("rsf").getPort() > 0);
         }
     }
 
@@ -69,10 +68,9 @@ public class ContextConfigurationTest extends BootstrapTestSupport {
             client.start();
 
             // 指定服务端地址完成远程调用，客户端仍不创建任何监听。
-            TextService remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            TextService remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("remote:value", remote.echo("value"));
-            assertNull(client.bindAddress("rsf"));
-            assertNull(client.getSettings().getBindAddressSet("rsf"));
+            assertNull(client.getListenAddress("rsf"));
         }
     }
 
@@ -92,10 +90,9 @@ public class ContextConfigurationTest extends BootstrapTestSupport {
             client.start();
 
             // 指定服务端地址完成远程调用，客户端仍不创建任何监听。
-            TextService remote = client.getRsfClient(server.bindAddress("hprose")).getRemote(service);
+            TextService remote = client.getRsfClient(server.getListenAddress("hprose")).getRemote(service);
             assertEquals("remote:value", remote.echo("value"));
-            assertNull(client.bindAddress("hprose"));
-            assertNull(client.getSettings().getBindAddressSet("hprose"));
+            assertNull(client.getListenAddress("hprose"));
         }
     }
 
@@ -125,7 +122,7 @@ public class ContextConfigurationTest extends BootstrapTestSupport {
 
             try {
                 // Hprose 成功确认结束调用，此时服务实现仍在等待放行。
-                MetFuture sent = client.getRsfClient(server.bindAddress("hprose")) //
+                MetFuture sent = client.getRsfClient(server.getListenAddress("hprose")) //
                         .asyncInvoke(service, "accept", new Class<?>[] { String.class }, new Object[] { "message" });
                 sent.getData(5, TimeUnit.SECONDS);
                 assertTrue(entered.await(5, TimeUnit.SECONDS));

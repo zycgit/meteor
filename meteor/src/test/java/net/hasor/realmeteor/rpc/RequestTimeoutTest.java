@@ -32,7 +32,7 @@ public class RequestTimeoutTest {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
             server.start();
             client.start();
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             assertEquals("ready", remote.getRemote(service).echo("ready"));
 
             // 服务端保持调用未完成，观察请求携带的超时及异步失败原因。
@@ -65,7 +65,7 @@ public class RequestTimeoutTest {
             client.start();
 
             // 通过公开客户端发起请求，检查继承值及远程结果。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             Class<?>[] parameterTypes = { String.class };
             Object[] arguments = { "fallback" };
             MetFuture invocation = remote.asyncInvoke(service, "echo", parameterTypes, arguments);
@@ -94,7 +94,7 @@ public class RequestTimeoutTest {
             });
             server.start();
             client.start();
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
 
             // 确认请求超过全局默认仍在等待，再释放服务完成同步调用。
             try {
@@ -130,7 +130,7 @@ public class RequestTimeoutTest {
             client.start();
 
             // 注解的明确声明跟随远程请求，不被全局默认值覆盖。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             Class<?>[] parameterTypes = { String.class };
             Object[] arguments = { "annotated" };
             MetFuture invocation = remote.asyncInvoke(service, "echo", parameterTypes, arguments);
@@ -153,7 +153,7 @@ public class RequestTimeoutTest {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
             server.start();
             client.start();
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             assertEquals("ready", remote.getRemote(service).echo("ready"));
 
             // 同步调用必须在请求时限内报告超时，而不是继续等待服务默认时限。
@@ -192,7 +192,7 @@ public class RequestTimeoutTest {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
             server.start();
             client.start();
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             assertEquals("ready", remote.getRemote(service).echo("ready"));
 
             // 服务保持阻塞，直接检查公共回调报告的异常。
@@ -235,7 +235,7 @@ public class RequestTimeoutTest {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
             server.start();
             client.start();
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             assertEquals("ready", remote.getRemote(service).echo("ready"));
 
             // 首次调用超时后仍不释放服务端，让第二次调用证明客户端额度已回收。

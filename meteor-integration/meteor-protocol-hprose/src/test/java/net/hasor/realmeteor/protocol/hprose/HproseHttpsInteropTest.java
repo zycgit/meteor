@@ -48,7 +48,7 @@ public class HproseHttpsInteropTest {
                     .register();
 
             // 官方客户端在双向 TLS 上发现服务并验证中文及补充字符往返。
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             String target = "https://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("https-client", target, "unicode", this.tlsDirectory());
             try {
@@ -88,7 +88,7 @@ public class HproseHttpsInteropTest {
                     .register();
 
             // 官方客户端在一个 HTTPS 批次中验证顺序及错误隔离，随后再次调用确认恢复。
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             String target = "https://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("https-client", target, "batch", this.tlsDirectory());
             try {
@@ -128,7 +128,7 @@ public class HproseHttpsInteropTest {
                     .register();
 
             // 官方客户端在 HTTPS 上读取 byref 参数，验证服务端修改后的参数回传。
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             String target = "https://127.0.0.1:" + port + "/rpc";
             Process peer = this.peer("https-client", target, "byref", this.tlsDirectory());
             try {

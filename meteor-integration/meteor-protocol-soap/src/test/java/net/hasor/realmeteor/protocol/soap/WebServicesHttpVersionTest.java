@@ -106,7 +106,7 @@ public class WebServicesHttpVersionTest {
             MetBindInfo<EchoService> subscription = this.subscribeEcho(client);
 
             // 成功调用即证明 prior knowledge 通道完成，HTTP/2 通道没有 HTTP/1 回退路径。
-            InterAddress address = server.bindAddress("soap");
+            InterAddress address = server.getListenAddress("soap");
             EchoService remote = client.getRsfClient(address).getRemote(subscription);
             assertEquals("soap11-prior", remote.echo("soap11-prior"));
         }
@@ -125,7 +125,7 @@ public class WebServicesHttpVersionTest {
             MetBindInfo<EchoService> subscription = this.subscribeEcho(client);
 
             // SOAP 1.2 在明文 prior knowledge 通道上完成普通 request-response。
-            InterAddress address = server.bindAddress("soap");
+            InterAddress address = server.getListenAddress("soap");
             EchoService remote = client.getRsfClient(address).getRemote(subscription);
             assertEquals("soap12-prior", remote.echo("soap12-prior"));
         }
@@ -217,7 +217,7 @@ public class WebServicesHttpVersionTest {
     }
 
     private URI endpoint(MetContext context) {
-        int port = context.bindAddress("soap").getPort();
+        int port = context.getListenAddress("soap").getPort();
         return URI.create("http://127.0.0.1:" + port + "/services/EchoService");
     }
 }

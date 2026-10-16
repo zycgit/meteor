@@ -46,7 +46,7 @@ public class WebSocketTlsBootstrapTest {
                     .protocol("jsonws").serialize("Json").register();
 
             // TLS 主机名和 CA 校验成功后才能升级并执行服务。
-            WebSocketSample remote = client.getRsfClient(server.bindAddress("jsonws")).getRemote(service);
+            WebSocketSample remote = client.getRsfClient(server.getListenAddress("jsonws")).getRemote(service);
             assertEquals("server:单向TLS🙂", remote.echo("单向TLS🙂"));
             assertEquals(1, implementation.calls());
         }
@@ -76,7 +76,7 @@ public class WebSocketTlsBootstrapTest {
 
             // 真实代理调用检查 mTLS 后的二进制消息与参数类型。
             byte[] value = { -1, 0, -128, 127 };
-            WebSocketSample remote = client.getRsfClient(server.bindAddress("jsonws")).getRemote(service);
+            WebSocketSample remote = client.getRsfClient(server.getListenAddress("jsonws")).getRemote(service);
             assertArrayEquals(value, remote.binary(value));
             assertEquals(1, implementation.calls());
         }
@@ -105,7 +105,7 @@ public class WebSocketTlsBootstrapTest {
                     .protocol("jsonws").serialize("Json").register();
 
             // TLS 主机名和 CA 校验成功后才能升级并执行服务。
-            WebSocketSample remote = client.getRsfClient(server.bindAddress("jsonws")).getRemote(service);
+            WebSocketSample remote = client.getRsfClient(server.getListenAddress("jsonws")).getRemote(service);
             assertEquals("server:单向TLS🙂", remote.echo("单向TLS🙂"));
             assertEquals(1, implementation.calls());
         }
@@ -135,7 +135,7 @@ public class WebSocketTlsBootstrapTest {
 
             // 真实代理调用检查 mTLS 后的二进制消息与参数类型。
             byte[] value = { -1, 0, -128, 127 };
-            WebSocketSample remote = client.getRsfClient(server.bindAddress("jsonws")).getRemote(service);
+            WebSocketSample remote = client.getRsfClient(server.getListenAddress("jsonws")).getRemote(service);
             assertArrayEquals(value, remote.binary(value));
             assertEquals(1, implementation.calls());
         }
@@ -164,7 +164,7 @@ public class WebSocketTlsBootstrapTest {
                     .protocol("jsonws").serialize("Json").register();
 
             // 认证失败应终结 Caller，而不是进入业务或耗尽业务超时。
-            MetClient remote = client.getRsfClient(server.bindAddress("jsonws"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("jsonws"));
             Class<?>[] parameterTypes = { String.class };
             Object[] arguments = { "anonymous" };
             MetFuture call = remote.asyncInvoke(service, "echo", parameterTypes, arguments);
@@ -198,7 +198,7 @@ public class WebSocketTlsBootstrapTest {
                     .protocol("jsonws").serialize("Json").register();
 
             // 认证阶段拒绝连接，公开调用方收到失败且业务没有执行。
-            MetClient remote = client.getRsfClient(server.bindAddress("jsonws"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("jsonws"));
             Class<?>[] parameterTypes = { String.class };
             Object[] arguments = { "untrusted" };
             MetFuture call = remote.asyncInvoke(service, "echo", parameterTypes, arguments);

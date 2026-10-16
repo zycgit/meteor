@@ -76,7 +76,7 @@ public class RegistryConcurrencyTest {
                 assertFalse(push.isDone());
 
                 // 独立上下文通过真实 TCP 调用提供者，不能走本地服务捷径。
-                Echo remote = caller.getRsfClient(server.bindAddress("rsf")).wrapper(Echo.class);
+                Echo remote = caller.getRsfClient(server.getListenAddress("rsf")).wrapper(Echo.class);
                 String response = submissions.submit(() -> remote.echo("available")).get(5, TimeUnit.SECONDS);
                 assertEquals("available", response);
             } finally {

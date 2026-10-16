@@ -66,7 +66,7 @@ public class WebServicesHttpsInteropTest {
             QName portName = new QName(ECHO_NAMESPACE, "EchoPort");
             Service service = Service.create(wsdl, serviceName);
             Dispatch<SOAPMessage> dispatch = service.createDispatch(portName, SOAPMessage.class, Service.Mode.MESSAGE);
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             String endpoint = "https://localhost:" + port + "/services/EchoService";
             this.secure(dispatch, endpoint, "urn:meteor:test:echo");
             SOAPMessage request = this.message(SOAPConstants.SOAP_1_1_PROTOCOL, ECHO_TYPE_NAMESPACE, //

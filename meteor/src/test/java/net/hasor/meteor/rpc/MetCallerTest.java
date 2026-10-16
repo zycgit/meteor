@@ -1658,8 +1658,7 @@ public class MetCallerTest {
             this.service.setDistributed(true);
             Map<String, String> options = new HashMap<>();
             options.put("mode", mode);
-            String protocolName = options.getOrDefault("protocol", this.address.getSchema());
-            ProtocolConfig mount = ProtocolTestAccess.config("rpc", this.address.getSchema(), protocolName, options);
+            ProtocolConfig mount = ProtocolConfig.newConfig("rpc", this.address.getSchema(), options);
             this.config = new ConnectorConfig("rpc", this.address, options, Collections.singletonList(mount), true);
             this.configured = new AtomicReference<>(Collections.emptyList());
 
@@ -1716,8 +1715,6 @@ public class MetCallerTest {
                         return this.service;
                     case "getServiceProvider":
                         return this.serviceProvider;
-                    case "bindAddress":
-                        return this.address;
                     default:
                         throw new AssertionError("Unexpected context: " + method);
                 }
@@ -1813,6 +1810,24 @@ public class MetCallerTest {
 
         private InterAddress localAddress() {
             return this.config.address();
+        }
+
+        @Override
+        public InterAddress getListenAddress(//
+                String endpointName, String protocolName, String addressScheme) {
+            if (!StringUtils.equals(this.config.name(), endpointName)) {
+                return null;
+            }
+            for (ProtocolConfig protocol : this.config.protocols()) {
+                boolean protocolMatched = StringUtils.equals(protocol.name(), protocolName);
+                boolean schemeMatched = StringUtils.equals(protocol.scheme(), addressScheme);
+                if (protocolMatched && schemeMatched) {
+                    InterAddress configured = this.config.address();
+                    return new InterAddress(//
+                            protocol.scheme(), configured.getHost(), configured.getPort(), configured.getFormUnit());
+                }
+            }
+            return null;
         }
 
         private ConnectorConfig config() {

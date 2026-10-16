@@ -38,7 +38,7 @@ public class GrpcBuiltinContextTest {
         MetConfiguration configuration = this.configuration();
         try (MetContext context = configuration.buildContext()) {
             context.start();
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel channel = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 // 未配置根目录，官方客户端仍通过标准精确地址查询实例状态。
@@ -58,7 +58,7 @@ public class GrpcBuiltinContextTest {
         MetConfiguration configuration = this.configuration();
         try (MetContext context = configuration.buildContext()) {
             context.start();
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel channel = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 // 在标准方法前增加业务前缀，调用方必须收到 UNIMPLEMENTED。
@@ -81,7 +81,7 @@ public class GrpcBuiltinContextTest {
         MetConfiguration configuration = this.configuration();
         try (MetContext context = configuration.buildContext()) {
             context.start();
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel channel = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 // 使用官方 Reflection v1 描述在标准地址建立双向流。
@@ -111,7 +111,7 @@ public class GrpcBuiltinContextTest {
         MetConfiguration configuration = this.configuration();
         try (MetContext context = configuration.buildContext()) {
             context.start();
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel channel = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 // 增加业务前缀后不能获取反射数据，断言实际协议错误。
@@ -137,7 +137,7 @@ public class GrpcBuiltinContextTest {
         MetConfiguration configuration = this.configuration();
         try (MetContext context = configuration.buildContext()) {
             context.start();
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel channel = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 // v1alpha 使用兼容的标准反射消息，服务路径必须选择其自身别名。
@@ -169,7 +169,7 @@ public class GrpcBuiltinContextTest {
         MetConfiguration configuration = this.configuration();
         try (MetContext context = configuration.buildContext()) {
             context.start();
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel channel = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 // 增加业务前缀访问 v1alpha，断言调用方收到 UNIMPLEMENTED。

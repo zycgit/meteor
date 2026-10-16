@@ -24,9 +24,6 @@ public final class SoapProtocolTestAccess {
 
     public static RouteSelection selection(ProtocolConfig config, String uri) {
         RouteMount mount = config.matchContext(uri);
-        if (mount == null) {
-            throw new IllegalArgumentException("No protocol route matches: " + uri);
-        }
         return new RouteSelection(config.mountId(), mount, config.options());
     }
 }

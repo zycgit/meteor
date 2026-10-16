@@ -57,7 +57,7 @@ public class UdpDtlsTransportTest {
             server.init();
             client.init();
             server.startInbound();
-            InterAddress address = server.bindAddress("testprotocol");
+            InterAddress address = server.getListenAddress("testprotocol");
             MetChannel outgoing = client.connect(address).get(3, TimeUnit.SECONDS);
             assertEquals("DTLSv1.2", UdpDtlsObservationPipeline.await(serverObservation));
             assertEquals("DTLSv1.2", UdpDtlsObservationPipeline.await(clientObservation));
@@ -87,7 +87,7 @@ public class UdpDtlsTransportTest {
             server.init();
             client.init();
             server.startInbound();
-            InterAddress address = server.bindAddress("testprotocol");
+            InterAddress address = server.getListenAddress("testprotocol");
             client.connect(address).get(3, TimeUnit.SECONDS);
             assertEquals("DTLSv1.2", UdpDtlsObservationPipeline.await(serverObservation));
             assertEquals("DTLSv1.2", UdpDtlsObservationPipeline.await(clientObservation));
@@ -116,7 +116,7 @@ public class UdpDtlsTransportTest {
             Inbox serverInbox = new Inbox();
             server.subscribe(serverInbox);
             server.startInbound();
-            InterAddress address = server.bindAddress("testprotocol");
+            InterAddress address = server.getListenAddress("testprotocol");
             MetChannel outgoing = client.connect(address).get(3, TimeUnit.SECONDS);
 
             // 不等待握手观察事件，连续提交两条消息以覆盖握手期间的写入排队。
@@ -149,7 +149,7 @@ public class UdpDtlsTransportTest {
             Inbox serverInbox = new Inbox();
             server.subscribe(serverInbox);
             server.startInbound();
-            InterAddress serverAddress = server.bindAddress("testprotocol");
+            InterAddress serverAddress = server.getListenAddress("testprotocol");
 
             try (DtlsUdpRelay relay = DtlsUdpRelay.start(serverAddress.toSocketAddress()); //
                  ConnectorManager client = SocketTestSupport.manager(clientConfig)) {
@@ -226,7 +226,7 @@ public class UdpDtlsTransportTest {
 
             // 启动监听并由客户端创建 DTLS peer，配置经过 ConnectorSettings 和 TransportConfig 进入 Neta。
             server.startInbound();
-            InterAddress address = server.bindAddress("testprotocol");
+            InterAddress address = server.getListenAddress("testprotocol");
             MetChannel outgoing = client.connect(address).get(3, TimeUnit.SECONDS);
             assertEquals("DTLSv1.2", UdpDtlsObservationPipeline.await(serverObservation));
             assertEquals("DTLSv1.2", UdpDtlsObservationPipeline.await(clientObservation));

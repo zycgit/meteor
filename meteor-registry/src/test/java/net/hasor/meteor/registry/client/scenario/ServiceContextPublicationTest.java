@@ -126,7 +126,7 @@ public class ServiceContextPublicationTest {
 
             // 直连管理不生成注册发布地址，但保留两个实际服务上下文。
             TargetAdmin targets = caller.getExtension(TargetAdmin.class);
-            MetServiceAdmin service = targets.getServiceAdminByAddress(context.bindAddress("rsf"), id);
+            MetServiceAdmin service = targets.getServiceAdminByAddress(context.getListenAddress("rsf"), id);
             MetServiceMember member = service.providers(null, null).getItems().get(0);
             assertEquals(List.of("/one", "/two"), contextPaths(member));
             assertNull(member.getEndpoints()[0].getPublishedAddress());

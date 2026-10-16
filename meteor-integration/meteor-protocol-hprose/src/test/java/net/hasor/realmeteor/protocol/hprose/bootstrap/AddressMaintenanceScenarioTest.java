@@ -67,7 +67,7 @@ public class AddressMaintenanceScenarioTest extends BootstrapTestSupport {
             server.start();
 
             File home = this.temporary.newFolder();
-            List<InterAddress> addresses = Collections.singletonList(server.bindAddress("rsf"));
+            List<InterAddress> addresses = Collections.singletonList(server.getListenAddress("rsf"));
             MetConfiguration seedConfiguration = this.configuration();
             try (MetContext seed = seedConfiguration.buildContext()) {
                 MetBindInfo<Echo> seedService = seed.publisher().rsfService(Echo.class).register();

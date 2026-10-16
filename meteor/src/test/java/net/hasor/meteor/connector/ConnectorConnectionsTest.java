@@ -20,11 +20,11 @@ public class ConnectorConnectionsTest {
         try (ConnectorManager manager = EndpointFixture.manager(config)) {
             manager.init();
             manager.startInbound();
-            assertNotNull(manager.bindAddress("rsf"));
+            assertNotNull(manager.getListenAddress("rsf"));
 
             // 停止入站接纳后，调用方不能再取得暂停的监听地址。
             manager.stopInbound();
-            assertNull(manager.bindAddress("rsf"));
+            assertNull(manager.getListenAddress("rsf"));
         }
     }
 
@@ -35,12 +35,12 @@ public class ConnectorConnectionsTest {
         try (ConnectorManager manager = EndpointFixture.manager(config)) {
             manager.init();
             manager.startInbound();
-            InterAddress first = manager.bindAddress("rsf");
+            InterAddress first = manager.getListenAddress("rsf");
             manager.stopInbound();
 
             // 重新启动入站接纳时复用原监听器，不打开另一个端口。
             manager.startInbound();
-            InterAddress resumed = manager.bindAddress("rsf");
+            InterAddress resumed = manager.getListenAddress("rsf");
             assertEquals(first, resumed);
         }
     }
@@ -52,11 +52,11 @@ public class ConnectorConnectionsTest {
         try (ConnectorManager manager = EndpointFixture.manager(config)) {
             manager.init();
             manager.startInbound();
-            assertNotNull(manager.bindAddress("rsf"));
+            assertNotNull(manager.getListenAddress("rsf"));
             manager.close();
 
             // 管理器清理端点路由后不再保留公开地址。
-            assertNull(manager.bindAddress("rsf"));
+            assertNull(manager.getListenAddress("rsf"));
             assertFalse(manager.isInitialized());
         }
     }
@@ -74,7 +74,7 @@ public class ConnectorConnectionsTest {
             ProtocolConfig mount = clientConfig.protocols().iterator().next();
 
             // 精确连接入口直接使用 mountId，不再退回 scheme 或逻辑协议二次选择。
-            InterAddress target = server.bindAddress("rsf");
+            InterAddress target = server.getListenAddress("rsf");
             MetChannel channel = client.connect("client", mount.mountId(), target).get(3, TimeUnit.SECONDS);
             assertEquals("rsf", channel.getProtocol());
         }

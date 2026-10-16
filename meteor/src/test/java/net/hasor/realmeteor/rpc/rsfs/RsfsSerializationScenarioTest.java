@@ -31,8 +31,8 @@ public class RsfsSerializationScenarioTest {
                     .protocol("rsfs").serialize("Java").register();
 
             // 显式使用 rsfs 地址经过真实 TLS 连接，不能命中本地优先调用。
-            RsfsEcho remote = client.getRsfClient(server.bindAddress("rsfs")).getRemote(service);
-            assertEquals("rsfs", server.bindAddress("rsfs").getSchema());
+            RsfsEcho remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
+            assertEquals("rsfs", server.getListenAddress("rsf", "rsfs").getSchema());
             assertEquals("secure:Java", remote.echo("Java"));
         }
     }
@@ -52,8 +52,8 @@ public class RsfsSerializationScenarioTest {
                     .protocol("rsfs").serialize("Java").register();
 
             // 显式使用 rsfs 地址经过真实 TLS 连接，不能命中本地优先调用。
-            RsfsEcho remote = client.getRsfClient(server.bindAddress("rsfs")).getRemote(service);
-            assertEquals("rsfs", server.bindAddress("rsfs").getSchema());
+            RsfsEcho remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
+            assertEquals("rsfs", server.getListenAddress("rsf", "rsfs").getSchema());
             assertEquals("secure:Java", remote.echo("Java"));
         }
     }
@@ -73,8 +73,8 @@ public class RsfsSerializationScenarioTest {
                     .protocol("rsfs").serialize("Json").register();
 
             // 显式使用 rsfs 地址经过真实 TLS 连接，不能命中本地优先调用。
-            RsfsEcho remote = client.getRsfClient(server.bindAddress("rsfs")).getRemote(service);
-            assertEquals("rsfs", server.bindAddress("rsfs").getSchema());
+            RsfsEcho remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
+            assertEquals("rsfs", server.getListenAddress("rsf", "rsfs").getSchema());
             assertEquals("secure:Json", remote.echo("Json"));
         }
     }
@@ -94,8 +94,8 @@ public class RsfsSerializationScenarioTest {
                     .protocol("rsfs").serialize("Json").register();
 
             // 显式使用 rsfs 地址经过真实 TLS 连接，不能命中本地优先调用。
-            RsfsEcho remote = client.getRsfClient(server.bindAddress("rsfs")).getRemote(service);
-            assertEquals("rsfs", server.bindAddress("rsfs").getSchema());
+            RsfsEcho remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
+            assertEquals("rsfs", server.getListenAddress("rsf", "rsfs").getSchema());
             assertEquals("secure:Json", remote.echo("Json"));
         }
     }
@@ -115,8 +115,8 @@ public class RsfsSerializationScenarioTest {
                     .protocol("rsfs").serialize("Hessian").register();
 
             // 显式使用 rsfs 地址经过真实 TLS 连接，不能命中本地优先调用。
-            RsfsEcho remote = client.getRsfClient(server.bindAddress("rsfs")).getRemote(service);
-            assertEquals("rsfs", server.bindAddress("rsfs").getSchema());
+            RsfsEcho remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
+            assertEquals("rsfs", server.getListenAddress("rsf", "rsfs").getSchema());
             assertEquals("secure:Hessian", remote.echo("Hessian"));
         }
     }
@@ -136,8 +136,8 @@ public class RsfsSerializationScenarioTest {
                     .protocol("rsfs").serialize("Hessian").register();
 
             // 显式使用 rsfs 地址经过真实 TLS 连接，不能命中本地优先调用。
-            RsfsEcho remote = client.getRsfClient(server.bindAddress("rsfs")).getRemote(service);
-            assertEquals("rsfs", server.bindAddress("rsfs").getSchema());
+            RsfsEcho remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
+            assertEquals("rsfs", server.getListenAddress("rsf", "rsfs").getSchema());
             assertEquals("secure:Hessian", remote.echo("Hessian"));
         }
     }

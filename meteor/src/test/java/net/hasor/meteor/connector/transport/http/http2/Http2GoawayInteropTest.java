@@ -29,7 +29,6 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolTestAccess;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
@@ -277,7 +276,7 @@ public class Http2GoawayInteropTest {
     private static ConnectorConfig config(Map<String, String> options, boolean server) {
         InterAddress local = InterAddress.forBinding("http", "127.0.0.1", 0, "default");
         Map<String, String> values = new HashMap<>(options);
-        ProtocolConfig protocol = ProtocolTestAccess.config("http", "http", "http", Map.of("contextPath", "/"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("http", "http", Map.of("contextPath", "/"));
         return new ConnectorConfig("http", local, values, List.of(protocol), server);
     }
 

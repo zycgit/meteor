@@ -1249,7 +1249,7 @@ public class MetCallerLifecycleTest {
             this.service.setClientTimeout(6000);
             this.service.setDistributed(true);
             Map<String, String> endpointOptions = Map.of();
-            ProtocolConfig protocol = ProtocolTestAccess.config("rsf", "rsf", "rsf", Collections.emptyMap());
+            ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "rsf", Collections.emptyMap());
             InterAddress local = InterAddress.forBinding("tcp", "127.0.0.1", 0, "default");
             ConnectorConfig endpoint = new ConnectorConfig(//
                     "rpc", local, endpointOptions, Collections.singletonList(protocol), false);
@@ -1297,8 +1297,6 @@ public class MetCallerLifecycleTest {
                         return this.getClass().getClassLoader();
                     case "subscribe":
                         return (Cancellable) () -> true;
-                    case "bindAddress":
-                        return this.peer;
                     default:
                         throw new AssertionError("Unexpected context access: " + m);
                 }

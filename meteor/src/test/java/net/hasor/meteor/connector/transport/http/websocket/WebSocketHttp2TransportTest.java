@@ -23,7 +23,6 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolTestAccess;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
@@ -366,7 +365,7 @@ public class WebSocketHttp2TransportTest {
         Map<String, String> options = Map.of("httpVersion", "2", //
                 "maxPendingRequests", Integer.toString(capacity));
         InterAddress address = InterAddress.forBinding("http", "127.0.0.1", 0, "default");
-        ProtocolConfig protocol = ProtocolTestAccess.config("websocket", "websocket", "websocket", //
+        ProtocolConfig protocol = ProtocolConfig.newConfig("websocket", "websocket", //
                 Map.of("contextPath", "/ws", "upgrade", "websocket"));
         return new ConnectorConfig("http", address, options, List.of(protocol), true);
     }
@@ -374,8 +373,8 @@ public class WebSocketHttp2TransportTest {
     private static ConnectorConfig mixedConfig() {
         Map<String, String> options = Map.of("httpVersion", "2");
         InterAddress address = InterAddress.forBinding("http", "127.0.0.1", 0, "default");
-        ProtocolConfig plain = ProtocolTestAccess.config("http", "http", "http", Map.of("contextPath", "/plain"));
-        ProtocolConfig websocket = ProtocolTestAccess.config("websocket", "websocket", "websocket", //
+        ProtocolConfig plain = ProtocolConfig.newConfig("http", "http", Map.of("contextPath", "/plain"));
+        ProtocolConfig websocket = ProtocolConfig.newConfig("websocket", "websocket", //
                 Map.of("contextPath", "/ws", "upgrade", "websocket"));
         return new ConnectorConfig("http", address, options, List.of(plain, websocket), true);
     }

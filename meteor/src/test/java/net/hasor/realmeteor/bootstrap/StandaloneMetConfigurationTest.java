@@ -12,6 +12,7 @@ import java.util.Enumeration;
 import java.util.List;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.MetListenEndpoint;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
@@ -41,7 +42,7 @@ public class StandaloneMetConfigurationTest {
             assertNull(context.getSerializeCoder("Hprose"));
             String hproseClass = "net/hasor/meteor/protocol/hprose/session/HproseProtocol.class";
             assertNull(this.getClass().getClassLoader().getResource(hproseClass));
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
             assertEquals(Collections.singleton("rsf"), context.runProtocols());
             assertFalse(context.isOnline());
         }
@@ -63,9 +64,9 @@ public class StandaloneMetConfigurationTest {
             client.start();
 
             // 使用显式服务端地址走真实 TCP，客户端自身不打开监听。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("remote:value", remote.echo("value"));
-            assertNull(client.bindAddress("rsf"));
+            assertNull(client.getListenAddress("rsf"));
         }
     }
 
@@ -100,8 +101,8 @@ public class StandaloneMetConfigurationTest {
                 thread.setContextClassLoader(unavailable);
                 assertEquals(Collections.singleton("rsf"), context.getSettings().getProtocols());
                 assertEquals("rsf", context.getSettings().getDefaultProtocol());
-                assertEquals(0, context.getSettings().getBindAddressSet("rsf").getPort());
-                assertEquals(1, context.getSettings().getConnectorConfigs().size());
+                ConnectorConfig connector = context.getSettings().getConnectorConfigs().iterator().next();
+                assertEquals(0, connector.address().getPort());
             } finally {
                 thread.setContextClassLoader(original);
             }
@@ -109,7 +110,7 @@ public class StandaloneMetConfigurationTest {
     }
 
     @Test
-    public void settingsExposeEveryMountAndRejectAmbiguousSingleAddressLookup() throws Exception {
+    public void settingsExposeConfiguredConnectorsWithoutRuntimeMountSelectors() throws Exception {
         // 同一逻辑协议配置两个监听端点，第二个挂载使用独立公开地址别名。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("rsfs");
         configuration.connector("tcp").bind("127.0.0.1", 2101).protocol("rsf");
@@ -118,25 +119,16 @@ public class StandaloneMetConfigurationTest {
                 .protocol("rsf").addressScheme("rsfs");
 
         try (MetContext context = configuration.buildContext()) {
-            // 默认别名解析为逻辑协议；复数查询保留两个挂载，端点和别名均可精确选择。
+            // 设置只公开用户配置过的连接器、协议和地址，不提供运行期挂载查询。
             MetSettings settings = context.getSettings();
-            List<InterAddress> addresses = settings.getBindAddressSets("rsf");
+            List<ConnectorConfig> connectors = List.copyOf(settings.getConnectorConfigs());
             assertEquals("rsf", settings.getDefaultProtocol());
-            assertEquals(List.of("rsf", "rsfs"), addresses.stream().map(InterAddress::getSchema).toList());
-            assertEquals(2101, settings.getBindAddressSet("tcp-0", "rsf").getPort());
-            assertEquals(2102, settings.getBindAddressSet("tcp-1", "rsf").getPort());
-            assertEquals(2102, settings.getBindAddressSet("tcp-1", "rsfs").getPort());
-            assertEquals(2102, settings.getBindAddressSet("rsfs").getPort());
-            ConnectorConfig secureEndpoint = List.copyOf(settings.getConnectorConfigs()).get(1);
-            String secureMount = secureEndpoint.protocols().iterator().next().mountId();
-            assertEquals(2102, settings.getBindAddressSet("tcp-1", secureMount).getPort());
-
-            // 旧单值入口不能按配置顺序猜测端点。
-            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
-                settings.getBindAddressSet("rsf");
-            });
-            assertTrue(failure.getMessage().contains("Multiple"));
-            assertTrue(failure.getMessage().contains("rsf"));
+            assertEquals(2, connectors.size());
+            assertEquals(2101, connectors.get(0).address().getPort());
+            assertEquals(2102, connectors.get(1).address().getPort());
+            ProtocolConfig secure = connectors.get(1).protocols().iterator().next();
+            assertEquals("rsf", secure.name());
+            assertEquals("rsfs", secure.scheme());
         }
     }
 
@@ -159,31 +151,24 @@ public class StandaloneMetConfigurationTest {
         try (MetContext context = configuration.buildContext()) {
             context.start();
 
-            // 逻辑协议返回全部运行地址；端点名称和地址别名都能精确选择其中一个。
-            List<InterAddress> addresses = context.bindAddresses("rsf");
-            InterAddress plain = context.bindAddress("tcp-0", "rsf");
-            InterAddress secureDefault = context.bindAddress("tcp-1", "rsf");
-            InterAddress secureAlias = context.bindAddress("tcp-2", "rsf");
+            // 逻辑协议返回全部运行地址；结构化端点说明地址所属连接器和协议。
+            List<InterAddress> addresses = context.getListenAddresses("rsf");
+            List<MetListenEndpoint> endpoints = context.getListenEndpoints();
             assertEquals(3, addresses.size());
             assertEquals(List.of("rsf", "rsf", "rsfs"), addresses.stream().map(InterAddress::getSchema).toList());
-            assertEquals(plain, addresses.get(0));
-            assertEquals(secureDefault, addresses.get(1));
-            assertEquals(secureAlias, addresses.get(2));
-            assertEquals("rsf", secureDefault.getSchema());
-            assertEquals(secureAlias, context.bindAddress("tcp-2", "rsfs"));
-            ConnectorConfig aliasEndpoint = List.copyOf(context.getSettings().getConnectorConfigs()).get(2);
-            String aliasMount = aliasEndpoint.protocols().iterator().next().mountId();
-            assertEquals(secureAlias, context.bindAddress("tcp-2", aliasMount));
-            assertEquals(secureAlias, context.bindAddress("rsfs"));
-            assertNotEquals(plain.getPort(), secureDefault.getPort());
-            assertNotEquals(plain.getPort(), secureAlias.getPort());
-            assertNotEquals(secureDefault.getPort(), secureAlias.getPort());
+            assertEquals(List.of("tcp-0", "tcp-1", "tcp-2"), //
+                    endpoints.stream().map(MetListenEndpoint::getConnectorName).toList());
+            assertEquals(List.of("rsf", "rsf", "rsf"), //
+                    endpoints.stream().map(MetListenEndpoint::getProtocol).toList());
+            assertNotEquals(addresses.get(0).getPort(), addresses.get(1).getPort());
+            assertNotEquals(addresses.get(0).getPort(), addresses.get(2).getPort());
+            assertNotEquals(addresses.get(1).getPort(), addresses.get(2).getPort());
 
-            // 旧单值入口遇到两个 RSF 挂载时明确报告歧义。
+            // 单值入口不能按连接器配置顺序猜测地址。
             IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
-                context.bindAddress("rsf");
+                context.getListenAddress("rsf");
             });
-            assertTrue(failure.getMessage().contains("Ambiguous"));
+            assertTrue(failure.getMessage().contains("Multiple"));
             assertTrue(failure.getMessage().contains("rsf"));
         }
     }
@@ -200,14 +185,11 @@ public class StandaloneMetConfigurationTest {
         try (MetContext context = configuration.buildContext()) {
             context.start();
 
-            // 逻辑协议名全局优先，同名别名只能通过精确 mount 身份查询。
-            InterAddress logical = context.bindAddress("wireb");
-            ConnectorConfig aliasEndpoint = List.copyOf(context.getSettings().getConnectorConfigs()).get(0);
-            String aliasMount = aliasEndpoint.protocols().iterator().next().mountId();
-            InterAddress alias = context.bindAddress("tcp-0", aliasMount);
+            // 查询参数始终是逻辑协议名；公开地址 scheme 不参与协议选择。
+            InterAddress logical = context.getListenAddress("wireb");
+            InterAddress alias = context.getListenAddress("wirea");
             assertEquals("wireb", context.getDefaultProtocol());
             assertEquals("wireb-public", logical.getSchema());
-            assertEquals(context.bindAddress("tcp-1", "wireb"), logical);
             assertEquals("wireb", alias.getSchema());
             assertNotEquals(alias.getPort(), logical.getPort());
         }
@@ -224,13 +206,9 @@ public class StandaloneMetConfigurationTest {
         try (MetContext context = configuration.buildContext()) {
             context.start();
 
-            // selector 的身份由全局协议空间决定，不能在过滤监听端点后退化为别名。
-            MetSettings settings = context.getSettings();
-            assertTrue(settings.getBindAddressSets("wireb").isEmpty());
-            assertNull(settings.getBindAddressSet("tcp-0", "wireb"));
-            ConnectorConfig boundEndpoint = List.copyOf(settings.getConnectorConfigs()).get(0);
-            String exactMount = boundEndpoint.protocols().iterator().next().mountId();
-            assertNotNull(settings.getBindAddressSet("tcp-0", exactMount));
+            // 仅出站的逻辑协议没有监听地址，同名地址 scheme 不会被误认为逻辑协议。
+            assertTrue(context.getListenAddresses("wireb").isEmpty());
+            assertNotNull(context.getListenAddress("wirea"));
         }
     }
 

@@ -39,7 +39,7 @@ public class RsfsAuthenticationScenarioTest {
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
 
             // 认证失败直接结束调用，不能等待业务超时，也不能执行服务。
-            MetFuture call = client.getRsfClient(server.bindAddress("rsfs")) //
+            MetFuture call = client.getRsfClient(server.getListenAddress("rsf", "rsfs")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> call.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
@@ -65,7 +65,7 @@ public class RsfsAuthenticationScenarioTest {
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
 
             // 认证失败直接结束调用，不能等待业务超时，也不能执行服务。
-            MetFuture call = client.getRsfClient(server.bindAddress("rsfs")) //
+            MetFuture call = client.getRsfClient(server.getListenAddress("rsf", "rsfs")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> call.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
@@ -91,7 +91,7 @@ public class RsfsAuthenticationScenarioTest {
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
 
             // 认证失败直接结束调用，不能等待业务超时，也不能执行服务。
-            MetFuture call = client.getRsfClient(server.bindAddress("rsfs")) //
+            MetFuture call = client.getRsfClient(server.getListenAddress("rsf", "rsfs")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> call.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
@@ -117,7 +117,7 @@ public class RsfsAuthenticationScenarioTest {
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
 
             // 认证失败直接结束调用，不能等待业务超时，也不能执行服务。
-            MetFuture call = client.getRsfClient(server.bindAddress("rsfs")) //
+            MetFuture call = client.getRsfClient(server.getListenAddress("rsf", "rsfs")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> call.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
@@ -145,7 +145,7 @@ public class RsfsAuthenticationScenarioTest {
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).register();
 
             // 故意以不匹配的 scheme 访问对端端口，连接必须失败而不是降级。
-            InterAddress bound = server.bindAddress("rsf");
+            InterAddress bound = server.getListenAddress("rsf");
             InterAddress target = new InterAddress("rsfs", bound.getHost(), bound.getPort(), bound.getFormUnit());
             MetFuture call = client.getRsfClient(target) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
@@ -175,7 +175,7 @@ public class RsfsAuthenticationScenarioTest {
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).register();
 
             // 故意以不匹配的 scheme 访问对端端口，连接必须失败而不是降级。
-            InterAddress bound = server.bindAddress("rsfs");
+            InterAddress bound = server.getListenAddress("rsf", "rsfs");
             InterAddress target = new InterAddress("rsf", bound.getHost(), bound.getPort(), bound.getFormUnit());
             MetFuture call = client.getRsfClient(target) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });

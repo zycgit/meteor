@@ -45,7 +45,7 @@ public class WebServicesNotificationTest {
                     .register();
 
             // 原始 SOAP 客户端发送 one-way 请求，HTTP 完成不等待业务方法结束。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/SignalService");
             String action = "urn:hasor:meteor:soap:SignalService/signal";
             HttpRequest request = this.soapRequest(endpoint, action, this.signalEnvelope("notice"));
@@ -94,7 +94,7 @@ public class WebServicesNotificationTest {
                     .register();
 
             // Meteor 代理调用在业务仍阻塞时完成，证明客户端只等待远端入队回执。
-            MetClient caller = client.getRsfClient(server.bindAddress("soap"));
+            MetClient caller = client.getRsfClient(server.getListenAddress("soap"));
             SignalService remote = caller.getRemote(subscribed);
             Future<?> call = invocation.submit(() -> remote.signal("notice"));
             try {

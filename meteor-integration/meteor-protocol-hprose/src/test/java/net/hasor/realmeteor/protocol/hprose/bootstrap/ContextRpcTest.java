@@ -52,7 +52,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
 
             // 连续提交调用，不等待上一条返回，形成并发请求。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             List<MetFuture> calls = new ArrayList<>();
             for (int i = 0; i < 20; i++) {
                 Class<?>[] types = { String.class };
@@ -94,7 +94,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             };
 
             // 发起一次回调调用，验证回调完成了对应的 Future。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             Class<?>[] types = { String.class };
             Object[] arguments = { "callback" };
             remote.callbackInvoke(service, "echo", types, arguments, listener);
@@ -117,7 +117,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).timeout(250).register();
 
             // 调用失败方法，远端业务异常应以 MetException 反馈给调用方。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             MetFuture failed = remote.asyncInvoke(service, "fail", new Class<?>[0], new Object[0]);
             assertTrue(assertFailure(failed) instanceof MetException);
         }
@@ -138,7 +138,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).timeout(250).register();
 
             // 服务执行 1 秒，调用方应先收到请求超时。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             Class<?>[] slowTypes = { int.class };
             Object[] slowArguments = { 1000 };
             MetFuture expired = remote.asyncInvoke(service, "slow", slowTypes, slowArguments);
@@ -159,12 +159,12 @@ public class ContextRpcTest extends BootstrapTestSupport {
 
             server.publisher().rsfService(Echo.class).toProvider(EchoService::new).register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).timeout(250).register();
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             assertEquals("online", remote.getRemote(service).echo("online"));
 
             // 离线关闭监听和既有入站连接，后续调用以连接失败结束。
             server.offline();
-            assertNull(server.bindAddress("rsf"));
+            assertNull(server.getListenAddress("rsf"));
             Class<?>[] types = { String.class };
             MetFuture call = remote.asyncInvoke(service, "echo", types, new Object[] { "offline" });
             assertNotNull(assertFailure(call));
@@ -237,7 +237,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
 
             try {
                 // 接收确认使发送 Future 完成，此时处理方法仍在等待放行。
-                MetClient caller = client.getRsfClient(server.bindAddress("rsf"));
+                MetClient caller = client.getRsfClient(server.getListenAddress("rsf"));
                 Class<?>[] types = { String.class };
                 MetFuture sent = caller.asyncInvoke(service, "accept", types, new Object[] { "message" });
                 sent.getData(5, TimeUnit.SECONDS);
@@ -282,7 +282,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证中文和补充平面字符往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("中文🙂", remote.echo("中文🙂"));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -319,7 +319,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证空字符串往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("", remote.echo(""));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -356,7 +356,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证 null 往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertNull(remote.echo(null));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -393,7 +393,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证基本类型参数往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals(5, remote.add(2, 3));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -430,7 +430,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证数组内容往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertArrayEquals(new int[] { 1, 2, 3 }, remote.array(new int[] { 1, 2, 3 }));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -467,7 +467,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证中文和补充平面字符往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("中文🙂", remote.echo("中文🙂"));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -504,7 +504,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证空字符串往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("", remote.echo(""));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -541,7 +541,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证 null 往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertNull(remote.echo(null));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -578,7 +578,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证基本类型参数往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals(5, remote.add(2, 3));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -615,7 +615,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证数组内容往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertArrayEquals(new int[] { 1, 2, 3 }, remote.array(new int[] { 1, 2, 3 }));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -652,7 +652,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证中文和补充平面字符往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("中文🙂", remote.echo("中文🙂"));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -689,7 +689,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证空字符串往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("", remote.echo(""));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -726,7 +726,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证 null 往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertNull(remote.echo(null));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -763,7 +763,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证基本类型参数往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals(5, remote.add(2, 3));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -800,7 +800,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证数组内容往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertArrayEquals(new int[] { 1, 2, 3 }, remote.array(new int[] { 1, 2, 3 }));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -837,7 +837,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证中文和补充平面字符往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("中文🙂", remote.echo("中文🙂"));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -874,7 +874,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证空字符串往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("", remote.echo(""));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -911,7 +911,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证 null 往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertNull(remote.echo(null));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -948,7 +948,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证基本类型参数往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals(5, remote.add(2, 3));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -985,7 +985,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = subscribed.register();
 
             // 验证数组内容往返保留，并且服务只收到一次调用。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertArrayEquals(new int[] { 1, 2, 3 }, remote.array(new int[] { 1, 2, 3 }));
             assertEquals(1, received.get());
             assertEquals(Collections.singleton("rsf"), server.runProtocols());
@@ -1020,7 +1020,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
 
             // 普通调用和固定地址调用都优先本地实现。
             assertEquals("local", client.getRsfClient().getRemote(service).echo("value"));
-            Echo fixedTarget = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo fixedTarget = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("local", fixedTarget.echo("value"));
         }
     }
@@ -1051,7 +1051,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             };
             MetBindInfo<Echo> service = client.publisher() //
                     .rsfService(Echo.class, localImplementation) //
-                    .bindAddress(server.bindAddress("rsf")) //
+                    .bindAddress(server.getListenAddress("rsf")) //
                     .asDistributedCall() //
                     .register();
 

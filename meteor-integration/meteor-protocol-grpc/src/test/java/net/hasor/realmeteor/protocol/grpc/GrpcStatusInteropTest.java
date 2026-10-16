@@ -52,7 +52,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -103,7 +103,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -158,7 +158,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -213,7 +213,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -268,7 +268,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -323,7 +323,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -378,7 +378,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -433,7 +433,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -488,7 +488,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -543,7 +543,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -598,7 +598,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -653,7 +653,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -708,7 +708,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -763,7 +763,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -818,7 +818,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -873,7 +873,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -928,7 +928,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -983,7 +983,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
                     .register();
 
             // 官方客户端连接实际绑定端口，所有断言均经过网络链路。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();

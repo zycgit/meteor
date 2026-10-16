@@ -48,7 +48,7 @@ public class GrpcSecureInteropTest {
                     .register();
 
             // 官方通道协商 h2，以 gzip 压缩 Protobuf 请求并独立解码服务器的 gzip 响应。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .overrideAuthority("localhost") //
                     .sslContext(GrpcTlsPeer.clientSsl(null)) //
@@ -111,7 +111,7 @@ public class GrpcSecureInteropTest {
                     .register();
 
             // 双方证书验证通过后完成一次普通 Protobuf RPC。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .overrideAuthority("localhost") //
                     .sslContext(GrpcTlsPeer.clientSsl("client")) //
@@ -172,7 +172,7 @@ public class GrpcSecureInteropTest {
                     .register();
 
             // 握手被拒绝必须以连接不可用返回，不能靠业务调用超时冒充认证失败。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .overrideAuthority("localhost") //
                     .sslContext(GrpcTlsPeer.clientSsl(null)) //
@@ -235,7 +235,7 @@ public class GrpcSecureInteropTest {
                     .register();
 
             // JDK TLS 对端显式选择 HTTP/1.1，读取真实 ALPN 结果后提交合法 gRPC 正文。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             var sockets = GrpcTlsPeer.jdkClientContext().getSocketFactory();
             try (SSLSocket peer = (SSLSocket) sockets.createSocket("localhost", port)) {
                 peer.setSoTimeout(5000);
@@ -278,7 +278,7 @@ public class GrpcSecureInteropTest {
                     .register();
 
             // 缺少 h2 协商结果必须拒绝建立可用通道，不允许降级执行 gRPC。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .overrideAuthority("localhost") //
                     .sslContext(GrpcTlsPeer.clientSsl(null)) //
@@ -311,7 +311,7 @@ public class GrpcSecureInteropTest {
                     .register();
 
             // 同一真实 TLS 连接协商 h2，并收取单次调用的数据及终止状态。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             try (GrpcHttp2Peer peer = GrpcHttp2Peer.tls(port)) {
                 assertEquals("h2", peer.applicationProtocol());
                 peer.send(GrpcTlsPeer.grpcBody(Message.of("Netty ALPN h2", 2)));
@@ -343,7 +343,7 @@ public class GrpcSecureInteropTest {
                     .register();
 
             // Upgrade 请求自身承载正文；stream 1 返回初始头、业务数据和成功 trailers。
-            int port = server.bindAddress("grpc").getPort();
+            int port = server.getListenAddress("grpc").getPort();
             try (GrpcHttp2Peer peer = GrpcHttp2Peer.h2cUpgrade(port)) {
                 peer.send(GrpcTlsPeer.grpcBody(Message.of("Netty h2c upgrade", 3)));
                 assertTrue(peer.wasUpgraded());

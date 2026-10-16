@@ -67,8 +67,8 @@ public class GrpcInteropTest {
                     .bindResource(this.resource()) //
                     .register();
 
-            int port = context.bindAddress("grpc").getPort();
-            assertEquals(port, context.bindAddress("hprose").getPort());
+            int port = context.getListenAddress("grpc").getPort();
+            assertEquals(port, context.getListenAddress("hprose").getPort());
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 // 官方客户端的 marshaller 独立使用字段号 7 和 2，验证真实 Protobuf 兼容性。
@@ -108,8 +108,8 @@ public class GrpcInteropTest {
                     .bindResource(this.resource()) //
                     .register();
 
-            int port = context.bindAddress("grpc").getPort();
-            assertEquals(port, context.bindAddress("hprose").getPort());
+            int port = context.getListenAddress("grpc").getPort();
+            assertEquals(port, context.getListenAddress("hprose").getPort());
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 // 业务异常作为 gRPC status 返回，保留错误说明，随后仍能调用。
@@ -150,8 +150,8 @@ public class GrpcInteropTest {
                     .bindResource(this.resource()) //
                     .register();
 
-            int port = context.bindAddress("grpc").getPort();
-            assertEquals(port, context.bindAddress("hprose").getPort());
+            int port = context.getListenAddress("grpc").getPort();
+            assertEquals(port, context.getListenAddress("hprose").getPort());
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 // 错用 HTTP/1 访问 gRPC 挂载时明确拒绝，不能执行一次无有效 gRPC 响应的业务调用。
@@ -259,7 +259,7 @@ public class GrpcInteropTest {
             publication.aliasName("grpc", "example.Echo").serialize("Json").register();
             var subscription = client.publisher().rsfService(Echo.class);
             MetBindInfo<Echo> info = subscription.aliasName("grpc", "example.Echo").serialize("Json").register();
-            var caller = client.getRsfClient(server.bindAddress("grpc"));
+            var caller = client.getRsfClient(server.getListenAddress("grpc"));
             Echo remote = caller.getRemote(info);
 
             // 增量响应结束后才交付普通调用结果。
@@ -291,7 +291,7 @@ public class GrpcInteropTest {
             publication.aliasName("grpc", "example.Echo").serialize("Json").register();
             var subscription = client.publisher().rsfService(Echo.class);
             MetBindInfo<Echo> info = subscription.aliasName("grpc", "example.Echo").serialize("Json").register();
-            var caller = client.getRsfClient(server.bindAddress("grpc"));
+            var caller = client.getRsfClient(server.getListenAddress("grpc"));
             Echo remote = caller.getRemote(info);
 
             // 消息超限仅结束当前调用。
@@ -352,7 +352,7 @@ public class GrpcInteropTest {
             MetBindInfo<Echo> info = subscription.aliasName("grpc", "example.Echo").serialize("Json").register();
 
             // 一次提交多个异步调用，首个调用仍受闩锁阻塞。
-            var remote = client.getRsfClient(server.bindAddress("grpc"));
+            var remote = client.getRsfClient(server.getListenAddress("grpc"));
             List<MetFuture> calls = new ArrayList<>();
             Class<?>[] types = { Message.class };
             for (int i = 0; i < 20; i++) {
@@ -407,7 +407,7 @@ public class GrpcInteropTest {
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").serialize("Json").register();
 
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
             try {
                 // 官方客户端以 JSON 消息调用，检查 Meteor 使用发布时选择的序列化器。
@@ -456,7 +456,7 @@ public class GrpcInteropTest {
                     .timeout(500) //
                     .register();
 
-            var remote = client.getRsfClient(server.bindAddress("grpc"));
+            var remote = client.getRsfClient(server.getListenAddress("grpc"));
             Class<?>[] types = { Message.class };
 
             // 等业务进入阻塞段后取消，确保验证的是在途调用。
@@ -510,7 +510,7 @@ public class GrpcInteropTest {
                     .timeout(500) //
                     .register();
 
-            var remote = client.getRsfClient(server.bindAddress("grpc"));
+            var remote = client.getRsfClient(server.getListenAddress("grpc"));
             Class<?>[] types = { Message.class };
 
             // 等待已进入业务的调用超时，服务端随后返回的结果应被隔离。
@@ -546,7 +546,7 @@ public class GrpcInteropTest {
                     .bindResource(this.resource()) //
                     .register();
 
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();

@@ -42,7 +42,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Json", 7));
             assertEquals("安全调用 Json", response.getValue());
             assertEquals(8, response.getCount());
@@ -72,7 +72,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Json", 7));
             assertEquals("安全调用 Json", response.getValue());
             assertEquals(8, response.getCount());
@@ -102,7 +102,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Json", 7));
             assertEquals("安全调用 Json", response.getValue());
             assertEquals(8, response.getCount());
@@ -135,7 +135,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Protobuf", 7));
             assertEquals("安全调用 Protobuf", response.getValue());
             assertEquals(8, response.getCount());
@@ -168,7 +168,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Protobuf", 7));
             assertEquals("安全调用 Protobuf", response.getValue());
             assertEquals(8, response.getCount());
@@ -201,7 +201,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Protobuf", 7));
             assertEquals("安全调用 Protobuf", response.getValue());
             assertEquals(8, response.getCount());
@@ -231,7 +231,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Java", 7));
             assertEquals("安全调用 Java", response.getValue());
             assertEquals(8, response.getCount());
@@ -261,7 +261,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Java", 7));
             assertEquals("安全调用 Java", response.getValue());
             assertEquals(8, response.getCount());
@@ -291,7 +291,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Java", 7));
             assertEquals("安全调用 Java", response.getValue());
             assertEquals(8, response.getCount());
@@ -321,7 +321,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Hessian", 7));
             assertEquals("安全调用 Hessian", response.getValue());
             assertEquals(8, response.getCount());
@@ -351,7 +351,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Hessian", 7));
             assertEquals("安全调用 Hessian", response.getValue());
             assertEquals(8, response.getCount());
@@ -381,7 +381,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Hessian", 7));
             assertEquals("安全调用 Hessian", response.getValue());
             assertEquals(8, response.getCount());
@@ -411,7 +411,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Hprose", 7));
             assertEquals("安全调用 Hprose", response.getValue());
             assertEquals(8, response.getCount());
@@ -441,7 +441,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Hprose", 7));
             assertEquals("安全调用 Hprose", response.getValue());
             assertEquals(8, response.getCount());
@@ -471,7 +471,7 @@ public class GrpcSecureEncodingTest {
                     .register();
 
             // 通过远端地址调用，检查中文字段和服务端计算后的数值。
-            Echo remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Echo remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
             Message response = remote.echo(Message.of("安全调用 Hprose", 7));
             assertEquals("安全调用 Hprose", response.getValue());
             assertEquals(8, response.getCount());

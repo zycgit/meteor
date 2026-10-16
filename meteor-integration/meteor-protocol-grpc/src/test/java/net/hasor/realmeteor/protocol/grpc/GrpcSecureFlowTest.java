@@ -48,7 +48,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Json") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 读取服务端生成的三条响应，验证结束信号、内容与顺序。
             List<Message> responses = new ArrayList<>();
@@ -81,7 +81,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Json") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 客户端半关闭请求流后，服务端返回完整汇总。
             Message first = Message.of("first", 2);
@@ -114,7 +114,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Json") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 双向流逐条回传请求，并在请求半关闭后正常结束。
             List<Message> requests = List.of(Message.of("第一条", 2), Message.of("第二条", 3));
@@ -153,7 +153,7 @@ public class GrpcSecureFlowTest {
                     .serialize("Protobuf") //
                     .bindResource(resource) //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 读取服务端生成的三条响应，验证结束信号、内容与顺序。
             List<Message> responses = new ArrayList<>();
@@ -189,7 +189,7 @@ public class GrpcSecureFlowTest {
                     .serialize("Protobuf") //
                     .bindResource(resource) //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 客户端半关闭请求流后，服务端返回完整汇总。
             Message first = Message.of("first", 2);
@@ -225,7 +225,7 @@ public class GrpcSecureFlowTest {
                     .serialize("Protobuf") //
                     .bindResource(resource) //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 双向流逐条回传请求，并在请求半关闭后正常结束。
             List<Message> requests = List.of(Message.of("第一条", 2), Message.of("第二条", 3));
@@ -261,7 +261,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Java") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 读取服务端生成的三条响应，验证结束信号、内容与顺序。
             List<Message> responses = new ArrayList<>();
@@ -294,7 +294,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Java") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 客户端半关闭请求流后，服务端返回完整汇总。
             Message first = Message.of("first", 2);
@@ -327,7 +327,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Java") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 双向流逐条回传请求，并在请求半关闭后正常结束。
             List<Message> requests = List.of(Message.of("第一条", 2), Message.of("第二条", 3));
@@ -363,7 +363,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Hessian") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 读取服务端生成的三条响应，验证结束信号、内容与顺序。
             List<Message> responses = new ArrayList<>();
@@ -396,7 +396,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Hessian") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 客户端半关闭请求流后，服务端返回完整汇总。
             Message first = Message.of("first", 2);
@@ -429,7 +429,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Hessian") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 双向流逐条回传请求，并在请求半关闭后正常结束。
             List<Message> requests = List.of(Message.of("第一条", 2), Message.of("第二条", 3));
@@ -465,7 +465,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Hprose") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 读取服务端生成的三条响应，验证结束信号、内容与顺序。
             List<Message> responses = new ArrayList<>();
@@ -498,7 +498,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Hprose") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 客户端半关闭请求流后，服务端返回完整汇总。
             Message first = Message.of("first", 2);
@@ -531,7 +531,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Hprose") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 双向流逐条回传请求，并在请求半关闭后正常结束。
             List<Message> requests = List.of(Message.of("第一条", 2), Message.of("第二条", 3));
@@ -570,7 +570,7 @@ public class GrpcSecureFlowTest {
                     .serialize("Protobuf") //
                     .bindResource(resource) //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 双向流逐条回传请求，并在请求半关闭后正常结束。
             List<Message> requests = List.of(Message.of("第一条", 2), Message.of("第二条", 3));
@@ -606,7 +606,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Json") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 确认远端消息源已订阅，再取消并等待服务端释放生产源。
             Probe probe = new Probe();
@@ -649,7 +649,7 @@ public class GrpcSecureFlowTest {
                     .serialize("Protobuf") //
                     .bindResource(resource) //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 确认远端消息源已订阅，再取消并等待服务端释放生产源。
             Probe probe = new Probe();
@@ -689,7 +689,7 @@ public class GrpcSecureFlowTest {
                     .aliasName("grpc", "example.Messages") //
                     .serialize("Json") //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 消费响应流后，业务错误必须以非成功 gRPC 状态交付给调用方。
             Probe probe = new Probe();
@@ -728,7 +728,7 @@ public class GrpcSecureFlowTest {
                     .serialize("Protobuf") //
                     .bindResource(resource) //
                     .register();
-            Messages remote = client.getRsfClient(server.bindAddress("grpc")).getRemote(info);
+            Messages remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(info);
 
             // 消费响应流后，业务错误必须以非成功 gRPC 状态交付给调用方。
             Probe probe = new Probe();

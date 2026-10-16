@@ -41,9 +41,8 @@ public class EndpointRoutingTest {
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
             endpoint.startInbound();
-            InterAddress shared = endpoint.bindAddress("http");
-            assertEquals(shared, endpoint.bindAddress("a"));
-            assertEquals(shared, endpoint.bindAddress("b"));
+            InterAddress shared = endpoint.getListenAddress("a");
+            assertEquals(shared, endpoint.getListenAddress("b"));
             int port = shared.getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
@@ -76,7 +75,7 @@ public class EndpointRoutingTest {
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
             endpoint.startInbound();
-            int port = endpoint.bindAddress("a").getPort();
+            int port = endpoint.getListenAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 sendHttp(socket, "/a", "first");
@@ -107,7 +106,7 @@ public class EndpointRoutingTest {
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
             endpoint.startInbound();
-            int port = endpoint.bindAddress("a").getPort();
+            int port = endpoint.getListenAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 sendHttp(socket, "/absent", "bad");
@@ -131,7 +130,7 @@ public class EndpointRoutingTest {
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
             endpoint.startInbound();
-            int port = endpoint.bindAddress("a").getPort();
+            int port = endpoint.getListenAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 sendHttp(socket, "/a", "unanswered");
@@ -171,12 +170,12 @@ public class EndpointRoutingTest {
             server.subscribe(serverInbox);
             client.subscribe(clientInbox);
             server.startInbound();
-            int port = server.bindAddress("a").getPort();
+            int port = server.getListenAddress("a").getPort();
             String scheme = "a";
             InterAddress target = new InterAddress(scheme, "127.0.0.1", port, "test");
             MetChannel channel = client.connect(target).get(3, TimeUnit.SECONDS);
             assertEquals(scheme, channel.getRemote().getSchema());
-            assertNull(client.bindAddress(scheme));
+            assertNull(client.getListenAddress(scheme));
 
             // 请求及响应均沿所选协议视图传输，保留调用方请求号。
             RequestPayload request = new RequestPayload();
@@ -207,12 +206,12 @@ public class EndpointRoutingTest {
             server.subscribe(serverInbox);
             client.subscribe(clientInbox);
             server.startInbound();
-            int port = server.bindAddress("b").getPort();
+            int port = server.getListenAddress("b").getPort();
             String scheme = "b";
             InterAddress target = new InterAddress(scheme, "127.0.0.1", port, "test");
             MetChannel channel = client.connect(target).get(3, TimeUnit.SECONDS);
             assertEquals(scheme, channel.getRemote().getSchema());
-            assertNull(client.bindAddress(scheme));
+            assertNull(client.getListenAddress(scheme));
 
             // 请求及响应均沿所选协议视图传输，保留调用方请求号。
             RequestPayload request = new RequestPayload();
@@ -238,7 +237,7 @@ public class EndpointRoutingTest {
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
             endpoint.startInbound();
-            int port = endpoint.bindAddress("wire").getPort();
+            int port = endpoint.getListenAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 socket.getOutputStream().write('B');
@@ -266,7 +265,7 @@ public class EndpointRoutingTest {
         try (ConnectorManager endpoint = rsfManager(config)) {
             endpoint.init();
             endpoint.startInbound();
-            int port = endpoint.bindAddress("rsf").getPort();
+            int port = endpoint.getListenAddress("rsf").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
 
@@ -289,7 +288,7 @@ public class EndpointRoutingTest {
         try (ConnectorManager endpoint = rsfManager(config)) {
             endpoint.init();
             endpoint.startInbound();
-            int port = endpoint.bindAddress("rsf").getPort();
+            int port = endpoint.getListenAddress("rsf").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
 
@@ -311,7 +310,7 @@ public class EndpointRoutingTest {
         try (ConnectorManager endpoint = rsfManager(config)) {
             endpoint.init();
             endpoint.startInbound();
-            int port = endpoint.bindAddress("rsf").getPort();
+            int port = endpoint.getListenAddress("rsf").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(200);
                 socket.getOutputStream().write(request, 0, 1);
@@ -338,7 +337,7 @@ public class EndpointRoutingTest {
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
             endpoint.startInbound();
-            int port = endpoint.bindAddress("a").getPort();
+            int port = endpoint.getListenAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 socket.getOutputStream().write("XX\n".getBytes(StandardCharsets.UTF_8));
@@ -357,7 +356,7 @@ public class EndpointRoutingTest {
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
             endpoint.startInbound();
-            int port = endpoint.bindAddress("wire").getPort();
+            int port = endpoint.getListenAddress("a").getPort();
             // 先绑定服务端，再创建独立的 UDP 客户端。
             try (DatagramSocket peer = new DatagramSocket()) {
                 peer.setSoTimeout(3000);
@@ -386,7 +385,7 @@ public class EndpointRoutingTest {
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
             endpoint.startInbound();
-            int port = endpoint.bindAddress("a").getPort();
+            int port = endpoint.getListenAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 socket.getOutputStream().write("AA\n".getBytes(StandardCharsets.UTF_8));
@@ -405,7 +404,7 @@ public class EndpointRoutingTest {
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
             endpoint.startInbound();
-            int port = endpoint.bindAddress("a").getPort();
+            int port = endpoint.getListenAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 socket.getOutputStream().write(new byte[256]);
@@ -429,10 +428,10 @@ public class EndpointRoutingTest {
             server.subscribe(serverInbox);
             client.subscribe(clientInbox);
             server.startInbound();
-            int port = server.bindAddress("b").getPort();
+            int port = server.getListenAddress("b").getPort();
             InterAddress target = new InterAddress("b", "127.0.0.1", port, "test");
             MetChannel channel = client.connect(target).get(3, TimeUnit.SECONDS);
-            assertNull(client.bindAddress("b"));
+            assertNull(client.getListenAddress("b"));
             channel.sendData(response(1, "first write")).get(3, TimeUnit.SECONDS);
             Delivery firstWrite = serverInbox.take();
             assertEquals("b", firstWrite.channel.getRemote().getSchema());

@@ -40,7 +40,7 @@ public class RsfInvocationTest {
                     .serialize("Java").register();
             server.start();
             client.start();
-            EchoService remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            EchoService remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
 
             // 并发调用同一个远程代理，每个返回值必须属于发起它的请求。
             ExecutorService workers = Executors.newFixedThreadPool(4);

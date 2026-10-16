@@ -220,7 +220,7 @@ public class NetworkConnectorTest {
         }
         InterAddress address = new InterAddress("udp", "127.0.0.1", port, "default");
         Map<String, String> options = Map.of();
-        ProtocolConfig protocol = ProtocolTestAccess.config("udp", "udp", "udp", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("udp", "udp", options);
         ConnectorConfig config = new ConnectorConfig("udp", address, options, List.of(protocol), true);
         ClassLoader loader = this.getClass().getClassLoader();
         TransportRuntimeServices runtimeServices = newRuntimeServices(loader);
@@ -311,7 +311,7 @@ public class NetworkConnectorTest {
         }
         InterAddress address = new InterAddress("udp", "127.0.0.1", port, "default");
         Map<String, String> options = Map.of();
-        ProtocolConfig protocol = ProtocolTestAccess.config("udp", "udp", "udp", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("udp", "udp", options);
         ConnectorConfig config = new ConnectorConfig("udp", address, options, List.of(protocol), true);
         ClassLoader loader = this.getClass().getClassLoader();
         TransportRuntimeServices runtimeServices = newRuntimeServices(loader);
@@ -453,7 +453,7 @@ public class NetworkConnectorTest {
     private ConnectorConfig config(String type) {
         InterAddress address = InterAddress.forBinding(type, "127.0.0.1", 0, "default");
         Map<String, String> options = new HashMap<>();
-        ProtocolConfig protocol = ProtocolTestAccess.config(type, type, type, options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig(type, type, options);
         return new ConnectorConfig(type, address, options, Collections.singletonList(protocol), true);
     }
 

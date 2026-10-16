@@ -229,8 +229,8 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 端口保持共享，标准服务仅发布已启用的 Health。
-            int grpcPort = context.bindAddress("grpc").getPort();
-            int hprosePort = context.bindAddress("hprose").getPort();
+            int grpcPort = context.getListenAddress("grpc").getPort();
+            int hprosePort = context.getListenAddress("hprose").getPort();
             assertEquals(grpcPort, hprosePort);
             assertEquals(1, context.getServiceIDs().size());
             ManagedChannel channel = this.channel(context);
@@ -361,7 +361,7 @@ public class GrpcBuiltinServicesInteropTest {
 
                 // 下线关闭监听和既有入站连接，原 Watch 流随连接一起结束。
                 context.offline();
-                assertNull(context.bindAddress("grpc"));
+                assertNull(context.getListenAddress("grpc"));
                 replies.terminated();
             } finally {
                 // 在关闭 Meteor 上下文前释放官方客户端连接。
@@ -382,7 +382,7 @@ public class GrpcBuiltinServicesInteropTest {
 
             // 完成一次离线和上线后，使用当前监听地址建立新的官方客户端连接。
             context.offline();
-            assertNull(context.bindAddress("grpc"));
+            assertNull(context.getListenAddress("grpc"));
             context.online();
             ManagedChannel channel = this.channel(context);
             try {
@@ -917,7 +917,7 @@ public class GrpcBuiltinServicesInteropTest {
 
     private ManagedChannel channel(MetContext context) {
         // 使用实际绑定的临时端口创建官方明文 HTTP/2 客户端。
-        int port = context.bindAddress("grpc").getPort();
+        int port = context.getListenAddress("grpc").getPort();
         return NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().build();
     }
 

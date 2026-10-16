@@ -45,8 +45,8 @@ public class HproseRsfsSerializationTest {
                     .protocol("rsfs").serialize("Hprose").register();
 
             // 远端地址保持 rsfs，中文及补充字符经过加密连接与通用编码器往返。
-            TextService remote = client.getRsfClient(server.bindAddress("rsfs")).getRemote(service);
-            assertEquals("rsfs", server.bindAddress("rsfs").getSchema());
+            TextService remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
+            assertEquals("rsfs", server.getListenAddress("rsf", "rsfs").getSchema());
             assertEquals("secure:Hprose中文🙂", remote.echo("Hprose中文🙂"));
         }
     }
@@ -86,8 +86,8 @@ public class HproseRsfsSerializationTest {
                     .protocol("rsfs").serialize("Hprose").register();
 
             // 通过 RSFS 远程代理调用，验证双向认证后的业务参数与结果。
-            TextService remote = client.getRsfClient(server.bindAddress("rsfs")).getRemote(service);
-            assertEquals("rsfs", server.bindAddress("rsfs").getSchema());
+            TextService remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
+            assertEquals("rsfs", server.getListenAddress("rsf", "rsfs").getSchema());
             assertEquals("secure:Hprose中文🙂", remote.echo("Hprose中文🙂"));
         }
     }

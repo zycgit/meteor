@@ -50,7 +50,7 @@ public class ServiceContextPathTest extends BootstrapTestSupport {
                     .register();
 
             // 同一服务在默认挂载可调用，附加挂载必须返回协议禁止错误。
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
             byte[] call = this.callFrame("echo_echo", "default");
             HttpRequest allowedRequest = this.post(port, "/hprose", call);
@@ -84,7 +84,7 @@ public class ServiceContextPathTest extends BootstrapTestSupport {
                     .register();
 
             // 附加挂载调用成功，默认挂载的同名函数不能执行该服务。
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
             byte[] call = this.callFrame("echo_echo", "private");
             HttpRequest allowedRequest = this.post(port, "/private", call);
@@ -118,7 +118,7 @@ public class ServiceContextPathTest extends BootstrapTestSupport {
                     .register();
 
             // 两个挂载都能调用同一实现，各自返回本次请求参数。
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
             byte[] defaultCall = this.callFrame("echo_echo", "default");
             HttpRequest defaultsRequest = this.post(port, "/hprose", defaultCall);
@@ -152,7 +152,7 @@ public class ServiceContextPathTest extends BootstrapTestSupport {
                     .register();
 
             // 从两个挂载分别发现函数，返回列表不能泄漏另一挂载的别名。
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
             byte[] discovery = { 'z' };
             HttpRequest defaultsRequest = this.post(port, "/hprose", discovery);
@@ -183,7 +183,7 @@ public class ServiceContextPathTest extends BootstrapTestSupport {
                     .register();
 
             // 默认挂载允许普通子路径，但更具体的子挂载独立执行暴露检查。
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
             byte[] call = this.callFrame("echo_echo", "nested");
             HttpRequest allowedRequest = this.post(port, "/api/child", call);
@@ -216,7 +216,7 @@ public class ServiceContextPathTest extends BootstrapTestSupport {
                     .register();
 
             // 相似前缀不满足路径段边界，不能落入默认挂载。
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
             byte[] call = this.callFrame("echo_echo", "sibling");
             HttpRequest siblingRequest = this.post(port, "/api-private", call);
@@ -267,7 +267,7 @@ public class ServiceContextPathTest extends BootstrapTestSupport {
                     .register();
 
             // 共享同一远端地址发起真实 RPC，每个订阅独立决定发出请求的路径。
-            MetClient remote = client.getRsfClient(server.bindAddress("hprose"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("hprose"));
             assertEquals("private", remote.getRemote(extra).echo("private"));
             assertEquals("default", remote.getRemote(defaults).echo("default"));
             assertEquals("/private", observedPaths.get("private"));

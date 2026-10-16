@@ -18,6 +18,7 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -51,7 +52,7 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
 
             // 等待远程方法开始执行，保证关闭时确实存在未完成的调用。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             try {
                 Class<?>[] parameterTypes = { int.class };
                 Object[] arguments = { 1 };
@@ -113,11 +114,11 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
 
             assertFalse(server.isOnline());
-            assertNull(server.bindAddress("rsf"));
+            assertNull(server.getListenAddress("rsf"));
 
             // 显式上线后才取得监听地址，并通过新连接完成远程调用。
             server.online();
-            MetClient caller = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient caller = client.getRsfClient(server.getListenAddress("rsf"));
             Echo remote = caller.getRemote(service);
             assertEquals("online", remote.echo("online"));
         }
@@ -139,7 +140,7 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
             server.offline();
             server.start();
             assertFalse(server.isOnline());
-            assertNull(server.bindAddress("rsf"));
+            assertNull(server.getListenAddress("rsf"));
         }
     }
 
@@ -154,12 +155,12 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
             client.start();
             server.publisher().rsfService(Echo.class, new EchoService()).register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
-            assertNull(server.bindAddress("rsf"));
+            assertNull(server.getListenAddress("rsf"));
 
             // 首次上线开放监听，重复上线不影响通过新连接发起远程调用。
             server.online();
             server.online();
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("online", remote.echo("online"));
         }
     }
@@ -173,7 +174,7 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
 
             // 离线释放监听资源，但不改变容器内的服务调用能力。
             context.offline();
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
             Echo local = context.getRsfClient().getRemote(service);
             assertEquals("local", local.echo("local"));
         }
@@ -191,8 +192,8 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
 
             // 客户端离线后没有监听地址，但通过新建出站连接仍能调用服务端。
             client.offline();
-            assertNull(client.bindAddress("rsf"));
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            assertNull(client.getListenAddress("rsf"));
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("outbound", remote.echo("outbound"));
         }
     }
@@ -203,14 +204,14 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
         MetConfiguration configuration = this.configuration();
         try (MetContext context = configuration.buildContext()) {
             context.start();
-            int port = context.bindAddress("rsf").getPort();
+            int port = context.getListenAddress("rsf").getPort();
 
             // 重复关闭应保持幂等，不恢复任何监听资源。
             context.close();
             context.close();
 
             // 关闭可重复执行，真实监听端口已经交回操作系统。
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
             assertTrue(context.runProtocols().isEmpty());
             try (ServerSocket rebound = new ServerSocket(port, 1, InetAddress.getLoopbackAddress())) {
                 assertEquals(port, rebound.getLocalPort());
@@ -255,7 +256,7 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
             client.start();
             server.publisher().rsfService(Echo.class, new EchoService()).register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
-            MetClient caller = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient caller = client.getRsfClient(server.getListenAddress("rsf"));
 
             // 客户端关闭后，既有入口发起的新调用也必须失败。
             client.close();
@@ -269,7 +270,8 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
     public void invalidSpiIsRejectedBeforeAnyListenerIsOpened() throws Exception {
         // 缺失 SPI 在构建阶段报错，不得占用监听端口。
         MetConfiguration config = this.configuration(this.port());
-        int firstPort = config.getBindAddressSet("rsf").getPort();
+        ConnectorConfig connector = config.getConnectorConfigs().iterator().next();
+        int firstPort = connector.address().getPort();
         config.connector("missing-factory").protocol("hprose");
         config.setLocalDiskCache(true);
         config.setDataHome(this.temporary.newFolder().toPath());

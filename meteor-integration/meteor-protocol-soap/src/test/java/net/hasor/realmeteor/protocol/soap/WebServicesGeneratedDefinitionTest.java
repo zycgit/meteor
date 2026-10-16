@@ -250,7 +250,7 @@ public class WebServicesGeneratedDefinitionTest {
                     .register();
 
             // 真实 HTTP 往返中的空 XML 集合必须仍是空集合，不能变成 null。
-            CollectionService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(subscribed);
+            CollectionService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscribed);
             List<String> result = remote.echo(List.of());
             List<String> receivedValues = received.get();
             assertNotNull(receivedValues);
@@ -345,7 +345,7 @@ public class WebServicesGeneratedDefinitionTest {
     }
 
     private URI endpoint(MetContext context, String path) {
-        int port = context.bindAddress("soap").getPort();
+        int port = context.getListenAddress("soap").getPort();
         return URI.create("http://127.0.0.1:" + port + path);
     }
 

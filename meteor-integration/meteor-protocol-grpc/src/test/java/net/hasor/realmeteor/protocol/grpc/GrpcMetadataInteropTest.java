@@ -45,7 +45,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .serialize("Json") //
                     .register();
             // 仅构造普通 JSON 正文，协议应在调用服务之前返回 415。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             URI uri = URI.create("http://127.0.0.1:" + port + "/example.Metadata/echo");
             HttpClient peer = HttpClient.newBuilder().version(HttpClient.Version.HTTP_2).build();
             HttpRequest request = HttpRequest.newBuilder(uri) //
@@ -92,7 +92,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .serialize("Json") //
                     .register();
             // 官方客户端连接实际监听地址，验证线上报文的字段顺序和值。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -146,7 +146,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .serialize("Json") //
                     .register();
             // 官方客户端连接实际监听地址，验证线上报文的字段顺序和值。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -197,7 +197,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .serialize("Json") //
                     .register();
             // 官方客户端连接实际监听地址，验证线上报文的字段顺序和值。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -248,7 +248,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .serialize("Json") //
                     .register();
             // 官方客户端连接实际监听地址，验证线上报文的字段顺序和值。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -299,7 +299,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .serialize("Json") //
                     .register();
             // 官方客户端连接实际监听地址，验证线上报文的字段顺序和值。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();

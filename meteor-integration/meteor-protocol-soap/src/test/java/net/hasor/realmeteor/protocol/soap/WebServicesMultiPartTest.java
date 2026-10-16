@@ -38,7 +38,7 @@ public class WebServicesMultiPartTest {
                     .bindResource(new SoapWsdlResource(wsdl)).register();
 
             // 经真实 HTTP 同时验证服务端拆分与客户端重组，名称取自 WSDL part。
-            MultiPartService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(service);
+            MultiPartService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(service);
             Map<String, String> result = remote.describe("Meteor");
             assertEquals(Map.of("greeting", "Hello Meteor", "identity", "Meteor"), result);
         }

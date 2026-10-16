@@ -36,7 +36,7 @@ public class HproseHttpVersionTest {
                     .aliasName("Hprose", "echo") //
                     .register();
 
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             URI uri = URI.create("http://127.0.0.1:" + port + "/api");
 
             // 限定 HTTP/1.1，避免客户端自动升级掩盖该版本的行为。
@@ -76,7 +76,7 @@ public class HproseHttpVersionTest {
                     .aliasName("Hprose", "echo") //
                     .register();
 
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             URI uri = URI.create("http://127.0.0.1:" + port + "/api");
 
             // 限定 HTTP/1.1，避免客户端自动升级掩盖该版本的行为。
@@ -115,7 +115,7 @@ public class HproseHttpVersionTest {
                     .aliasName("Hprose", "echo") //
                     .register();
 
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
 
             // 限定 HTTP/1.1，避免客户端自动升级掩盖该版本的行为。
             HttpClient.Version version = HttpClient.Version.HTTP_1_1;
@@ -152,7 +152,7 @@ public class HproseHttpVersionTest {
                     .aliasName("Hprose", "echo") //
                     .register();
 
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             URI uri = URI.create("http://127.0.0.1:" + port + "/api");
 
             // 明文连接通过 h2c 升级到 HTTP/2，响应版本用于验证升级结果。
@@ -192,7 +192,7 @@ public class HproseHttpVersionTest {
                     .aliasName("Hprose", "echo") //
                     .register();
 
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             URI uri = URI.create("http://127.0.0.1:" + port + "/api");
 
             // 明文连接通过 h2c 升级到 HTTP/2，响应版本用于验证升级结果。
@@ -231,7 +231,7 @@ public class HproseHttpVersionTest {
                     .aliasName("Hprose", "echo") //
                     .register();
 
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
 
             // 明文连接通过 h2c 升级到 HTTP/2，响应版本用于验证升级结果。
             HttpClient.Version version = HttpClient.Version.HTTP_2;

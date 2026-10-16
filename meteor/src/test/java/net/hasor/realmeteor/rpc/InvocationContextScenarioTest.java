@@ -122,7 +122,7 @@ public class InvocationContextScenarioTest {
             client.start();
 
             // 入站请求切换到服务端业务线程后仍具有对应的请求和响应上下文。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             assertEquals("remote:value", this.invoke(remote, service, "value").getData(3, TimeUnit.SECONDS));
             assertNotNull(observedRequest.get());
             assertFalse(observedRequest.get().isLocal());
@@ -151,7 +151,7 @@ public class InvocationContextScenarioTest {
             client.start();
 
             // 出站过滤器读取到的对象就是本次公开客户端调用创建的请求与响应。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             MetFuture invocation = this.invoke(remote, service, "value");
             MetResponse response = invocation.get(3, TimeUnit.SECONDS);
             assertEquals("remote:value", response.getData());

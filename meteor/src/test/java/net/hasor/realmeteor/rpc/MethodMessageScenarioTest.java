@@ -36,7 +36,7 @@ public class MethodMessageScenarioTest {
             assertFalse(service.isMessage());
 
             // 消息方法已经开始且保持阻塞时，入队确认仍应让调用方完成等待。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             try {
                 MetFuture invocation = remote.asyncInvoke(service, "signal", new Class<?>[0], new Object[0]);
                 assertTrue(provider.entered.await(3, TimeUnit.SECONDS));
@@ -72,7 +72,7 @@ public class MethodMessageScenarioTest {
             MetBindInfo<MixedService> service = client.publisher().rsfService(MixedService.class).register();
 
             // 普通方法收到入队回执后仍等待业务结果，不能因同接口的消息注解提前结束。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             MetFuture invocation = remote.asyncInvoke(service, "execute", new Class<?>[0], new Object[0]);
             try {
                 assertTrue(provider.entered.await(3, TimeUnit.SECONDS));

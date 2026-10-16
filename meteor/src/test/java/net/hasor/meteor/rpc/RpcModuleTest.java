@@ -523,7 +523,7 @@ public class RpcModuleTest {
             this.service.setDistributed(true);
             InterAddress peer = new InterAddress("rsf://127.0.0.1:2181/default");
             Map<String, String> endpointOptions = Collections.emptyMap();
-            ProtocolConfig protocol = ProtocolTestAccess.config("rsf", "rsf", "rsf", Collections.emptyMap());
+            ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "rsf", Collections.emptyMap());
             InterAddress local = InterAddress.forBinding("tcp", "127.0.0.1", 0, "default");
             ConnectorConfig endpoint = new ConnectorConfig(//
                     "rpc", local, endpointOptions, Collections.singletonList(protocol), false);
@@ -576,8 +576,6 @@ public class RpcModuleTest {
                         return this.serviceAvailable ? this.service : null;
                     case "getServiceProvider":
                         return (Supplier<Echo>) EchoImpl::new;
-                    case "bindAddress":
-                        return peer;
                     default:
                         throw new AssertionError("Unexpected context access: " + m);
                 }

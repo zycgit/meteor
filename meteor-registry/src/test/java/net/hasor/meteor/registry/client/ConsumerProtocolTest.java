@@ -116,7 +116,7 @@ public class ConsumerProtocolTest {
             context.start();
             context.getUpdater().appendStaticAddress(id, List.of(new InterAddress("rsf://127.0.0.1:19001/default")));
             TargetAdmin target = context.getExtension(TargetAdmin.class);
-            MetServiceAdmin service = target.getServiceAdminByAddress(context.bindAddress("rsf"), id);
+            MetServiceAdmin service = target.getServiceAdminByAddress(context.getListenAddress("rsf"), id);
             MetServiceMember member = service.consumers(null, null).getItems().get(0);
             assertArrayEquals(new String[] { "rsf" }, member.getUsedProtocols());
         }

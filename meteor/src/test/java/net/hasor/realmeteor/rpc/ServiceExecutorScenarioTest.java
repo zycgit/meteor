@@ -45,7 +45,7 @@ public class ServiceExecutorScenarioTest {
             client.start();
 
             // 两个上下文通过网络调用，独立服务不能等待默认池释放。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             MetFuture waiting = remote.asyncInvoke(shared, "execute", new Class<?>[0], new Object[0]);
             try {
                 assertTrue(entered.await(2, TimeUnit.SECONDS));
@@ -80,7 +80,7 @@ public class ServiceExecutorScenarioTest {
             client.start();
 
             // 不依赖线程名判断隔离，直接观察另一服务是否及时返回。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             MetFuture waiting = remote.asyncInvoke(independent, "execute", new Class<?>[0], new Object[0]);
             try {
                 assertTrue(entered.await(2, TimeUnit.SECONDS));
@@ -116,7 +116,7 @@ public class ServiceExecutorScenarioTest {
             client.start();
 
             // 第一个服务保持执行中时，第二个服务仍完成自己的调用。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             MetFuture waiting = remote.asyncInvoke(first, "execute", new Class<?>[0], new Object[0]);
             try {
                 assertTrue(entered.await(2, TimeUnit.SECONDS));
@@ -156,7 +156,7 @@ public class ServiceExecutorScenarioTest {
             client.start();
 
             // 关闭应释放实际创建的独立池，不留下非守护业务线程。
-            MetClient remote = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient remote = client.getRsfClient(server.getListenAddress("rsf"));
             remote.asyncInvoke(service, "execute", new Class<?>[0], new Object[0]);
             assertTrue(entered.await(2, TimeUnit.SECONDS));
             server.close();

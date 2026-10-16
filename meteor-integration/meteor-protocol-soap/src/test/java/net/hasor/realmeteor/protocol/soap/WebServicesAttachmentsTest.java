@@ -49,7 +49,7 @@ public class WebServicesAttachmentsTest {
                     .register();
 
             // 代理只转发原始 HTTP 字节，让测试观察请求和响应的实际 MIME 类型。
-            int serverPort = server.bindAddress("soap").getPort();
+            int serverPort = server.getListenAddress("soap").getPort();
             URI target = URI.create("http://127.0.0.1:" + serverPort + "/services/BinaryService");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(target);
             HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -112,7 +112,7 @@ public class WebServicesAttachmentsTest {
                     .register();
 
             // 代理只转发原始 HTTP 字节，让测试观察请求和响应的实际 MIME 类型。
-            int serverPort = server.bindAddress("soap").getPort();
+            int serverPort = server.getListenAddress("soap").getPort();
             URI target = URI.create("http://127.0.0.1:" + serverPort + "/services/BinaryService");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(target);
             HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -187,7 +187,7 @@ public class WebServicesAttachmentsTest {
                     .register();
 
             // 代理只转发原始 HTTP 字节，让测试观察请求和响应的实际 MIME 类型。
-            int serverPort = server.bindAddress("soap").getPort();
+            int serverPort = server.getListenAddress("soap").getPort();
             URI target = URI.create("http://127.0.0.1:" + serverPort + "/services/BinaryService");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(target);
             HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -250,7 +250,7 @@ public class WebServicesAttachmentsTest {
                     .register();
 
             // 代理只转发原始 HTTP 字节，让测试观察请求和响应的实际 MIME 类型。
-            int serverPort = server.bindAddress("soap").getPort();
+            int serverPort = server.getListenAddress("soap").getPort();
             URI target = URI.create("http://127.0.0.1:" + serverPort + "/services/BinaryService");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(target);
             HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -325,7 +325,7 @@ public class WebServicesAttachmentsTest {
                     .register();
 
             // 代理只转发原始 HTTP 字节，让测试观察请求和响应的实际 MIME 类型。
-            int serverPort = server.bindAddress("soap").getPort();
+            int serverPort = server.getListenAddress("soap").getPort();
             URI target = URI.create("http://127.0.0.1:" + serverPort + "/services/BinaryService");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(target);
             HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -392,7 +392,7 @@ public class WebServicesAttachmentsTest {
                     .register();
 
             // 代理只转发原始 HTTP 字节，让测试观察请求和响应的实际 MIME 类型。
-            int serverPort = server.bindAddress("soap").getPort();
+            int serverPort = server.getListenAddress("soap").getPort();
             URI target = URI.create("http://127.0.0.1:" + serverPort + "/services/BinaryService");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(target);
             HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -471,7 +471,7 @@ public class WebServicesAttachmentsTest {
                     .register();
 
             // 代理只转发原始 HTTP 字节，让测试观察请求和响应的实际 MIME 类型。
-            int serverPort = server.bindAddress("soap").getPort();
+            int serverPort = server.getListenAddress("soap").getPort();
             URI target = URI.create("http://127.0.0.1:" + serverPort + "/services/BinaryService");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(target);
             HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -538,7 +538,7 @@ public class WebServicesAttachmentsTest {
                     .register();
 
             // 代理只转发原始 HTTP 字节，让测试观察请求和响应的实际 MIME 类型。
-            int serverPort = server.bindAddress("soap").getPort();
+            int serverPort = server.getListenAddress("soap").getPort();
             URI target = URI.create("http://127.0.0.1:" + serverPort + "/services/BinaryService");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(target);
             HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

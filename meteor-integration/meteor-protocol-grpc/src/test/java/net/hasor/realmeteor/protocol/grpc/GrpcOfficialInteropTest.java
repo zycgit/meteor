@@ -58,7 +58,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证空消息的一元调用，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -112,7 +112,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证大消息的一元调用，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -166,7 +166,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证客户端连续发送请求消息，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -220,7 +220,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证服务端连续返回响应消息，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -274,7 +274,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证双向流逐条交替收发，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -328,7 +328,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证未发送消息就结束双向流，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -382,7 +382,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证初始和末尾元数据的回送，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -436,7 +436,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证指定状态码与错误消息的传递，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -490,7 +490,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证包含特殊字符的错误消息，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -544,7 +544,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证调用不存在的方法，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -598,7 +598,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证调用不存在的服务，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -652,7 +652,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证发起调用后立即取消，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -706,7 +706,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证收到首条响应后取消，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -760,7 +760,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证服务尚未返回时调用超时，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -814,7 +814,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证带压缩请求的一元调用，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -868,7 +868,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证带压缩请求的客户端流，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -922,7 +922,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证同一通道上的连续调用，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //
@@ -976,7 +976,7 @@ public class GrpcOfficialInteropTest {
                     .register();
 
             // 由官方客户端验证反复创建通道并调用，保留其原有请求大小与断言。
-            String port = Integer.toString(context.bindAddress("grpc").getPort());
+            String port = Integer.toString(context.getListenAddress("grpc").getPort());
             String[] arguments = { //
                     "--server_host=127.0.0.1", //
                     "--server_port=" + port, //

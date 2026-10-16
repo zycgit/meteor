@@ -23,12 +23,13 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.meteor.connector.SoapProtocolTestAccess;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpMessageUtils;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
-import net.hasor.meteor.connector.transport.http.channel.SoapHttpRequestTestAccess;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -666,7 +667,9 @@ public class SoapSessionTest {
 
     private HttpRequest route(MetContext context, HttpRequest request) {
         ProtocolConfig config = context.getSettings().getConnectorConfigs().iterator().next().protocol("soap");
-        return SoapHttpRequestTestAccess.route(request, SoapProtocolTestAccess.selection(config, request.uri()));
+        RouteSelection selection = SoapProtocolTestAccess.selection(config, request.uri());
+        HttpMessageUtils.route(request, selection);
+        return request;
     }
 
     private HttpResponse echoResponse() {

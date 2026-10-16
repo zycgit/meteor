@@ -9,7 +9,6 @@ package net.hasor.meteor.registry.client.support;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -135,9 +134,9 @@ public class ManagementPublicationTest {
             TargetAdmin targets = caller.getExtension(TargetAdmin.class);
             server.start();
             caller.start();
-            MetClient remote = caller.getRsfClient(server.bindAddress("rsf"));
-            MetInstanceAdmin instance = targets.getInstanceAdminByAddress(server.bindAddress("rsf"));
-            MetServiceAdmin service = targets.getServiceAdminByAddress(server.bindAddress("rsf"), id);
+            MetClient remote = caller.getRsfClient(server.getListenAddress("rsf"));
+            MetInstanceAdmin instance = targets.getInstanceAdminByAddress(server.getListenAddress("rsf"));
+            MetServiceAdmin service = targets.getServiceAdminByAddress(server.getListenAddress("rsf"), id);
 
             // 正常业务调用不额外查询管理服务。
             int before = managementLookups.get();
@@ -192,7 +191,7 @@ public class ManagementPublicationTest {
             // 上报后检查管理地址、监听地址及协议支持范围。
             RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
             MetInstanceInfo instance = admin.getInstanceAdmin(context.getInstanceID()).instance();
-            InterAddress httpAddress = context.bindAddress("registry-http");
+            InterAddress httpAddress = context.getListenAddress("registry-http");
             Map<String, String> expected = Map.of("http-0#http", httpAddress.toString());
             assertEquals(expected, instance.getManagementAddress());
             assertEquals(httpAddress.toString(), instance.getListenAddresses().get("http-0#http"));
@@ -227,16 +226,16 @@ public class ManagementPublicationTest {
         ProtocolConfig ordersB = RegistryProtocolTestAccess.config("orders-http", "http", "registry-http", Map.of());
         ConnectorConfig edgeB = new ConnectorConfig("edge-b", InterAddress.forBinding("http", "0.0.0.0", 0, "default"), //
                 Map.of(), List.of(ordersB), true);
-        List<ProtocolConfig> edgeAMounts = List.copyOf(edgeA.protocols());
-        ProtocolConfig edgeBMount = edgeB.protocols().iterator().next();
         InterAddress listenA = new InterAddress("http", "0.0.0.0", 8100, "default");
         InterAddress listenB = new InterAddress("http", "0.0.0.0", 8200, "default");
-        List<String> addressQueries = new ArrayList<>();
+        List<MetListenEndpoint> listenEndpoints = List.of(//
+                new MetListenEndpoint("edge-a", "http", ordersA.name(), edgeA.address(), listenA), new MetListenEndpoint("edge-a", "http", adminA.name(), edgeA.address(), listenA), new MetListenEndpoint("edge-b", "http", ordersB.name(), edgeB.address(), listenB));
+        AtomicInteger endpointQueries = new AtomicInteger();
         MetConfiguration application = new MetConfiguration();
         application.connector("tcp").protocol("rsf");
 
         try (MetContext context = application.buildContext()) {
-            // 只允许按端点和 mount 身份查询，保留真实 Meteor 的服务声明入口。
+            // 连接器配置与运行态监听地址分别通过用户可识别的公开信息提供。
             InvocationHandler settingsView = (proxy, method, args) -> {
                 if (StringUtils.equals(method.getName(), "getConnectorConfigs")) {
                     return List.of(edgeA, edgeB);
@@ -255,19 +254,9 @@ public class ManagementPublicationTest {
                 if (StringUtils.equals(method.getName(), "isOnline")) {
                     return true;
                 }
-                if (StringUtils.equals(method.getName(), "bindAddress")) {
-                    if (args.length != 2) {
-                        throw new AssertionError("Expected endpoint and mount selectors");
-                    }
-                    String connectorName = (String) args[0];
-                    String mountId = (String) args[1];
-                    ConnectorConfig connector = StringUtils.equals("edge-a", connectorName) ? edgeA : //
-                            StringUtils.equals("edge-b", connectorName) ? edgeB : null;
-                    if (connector == null || connector.mount(mountId) == null) {
-                        throw new AssertionError("Unknown exact mount query: " + connectorName + "/" + mountId);
-                    }
-                    addressQueries.add(connectorName + "/" + mountId);
-                    return connector == edgeA ? listenA : listenB;
+                if (StringUtils.equals(method.getName(), "getListenEndpoints")) {
+                    endpointQueries.incrementAndGet();
+                    return listenEndpoints;
                 }
                 try {
                     return method.invoke(context, args);
@@ -279,15 +268,9 @@ public class ManagementPublicationTest {
             ManagementRPCImpl rpc = new ManagementRPCImpl(observed, "127.0.0.1");
             String serviceId = context.publisher().rsfService(Echo.class, value -> value).register().getBindID();
 
-            // 完整快照按 mount 取得地址，实例按 connector#scheme 去重，服务保留每个逻辑挂载。
+            // 完整快照复用结构化监听信息，实例按 connector#scheme 去重，服务保留每个逻辑挂载。
             RegistrationSnapshot snapshot = rpc.snapshot(null);
-            assertEquals(List.of(//
-                    "edge-a/" + edgeAMounts.get(0).mountId(), //
-                    "edge-a/" + edgeAMounts.get(1).mountId(), //
-                    "edge-b/" + edgeBMount.mountId(), //
-                    "edge-a/" + edgeAMounts.get(0).mountId(), //
-                    "edge-a/" + edgeAMounts.get(1).mountId(), //
-                    "edge-b/" + edgeBMount.mountId()), addressQueries);
+            assertEquals(2, endpointQueries.get());
             assertEquals(Map.of("edge-a#http", listenA.toString(), "edge-b#http", listenB.toString()), //
                     snapshot.getInstance().getListenAddresses());
             String publishedA = new InterAddress("http", "127.0.0.1", 8100, "default").toString();
@@ -363,7 +346,7 @@ public class ManagementPublicationTest {
             MetInstanceAdmin instance = admin.getInstanceAdmin(context.getInstanceID());
             assertEquals("orders", instance.instance().getApplicationName());
             MetServiceMember published = member(admin, id);
-            String address = context.bindAddress("rsf").toString();
+            String address = context.getListenAddress("rsf").toString();
             assertArrayEquals(new String[] { address }, published.getAddresses());
             assertEquals(address, published.getEndpoints()[0].getPublishedAddress());
             Map<String, String> management = Map.of("tcp-0#rsf", address);

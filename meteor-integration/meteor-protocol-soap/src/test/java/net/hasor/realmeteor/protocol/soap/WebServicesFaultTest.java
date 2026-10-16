@@ -42,7 +42,7 @@ public class WebServicesFaultTest {
                     .register();
 
             // 使用原始 SOAP 请求触发业务异常。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/EchoService");
             HttpRequest request = HttpRequest.newBuilder(endpoint) //
                     .timeout(Duration.ofSeconds(15)) //
@@ -86,7 +86,7 @@ public class WebServicesFaultTest {
                     .register();
 
             // 通过公开监听地址发起真实 SOAP 请求。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/EchoService");
             HttpRequest request = HttpRequest.newBuilder(endpoint) //
                     .timeout(Duration.ofSeconds(15)) //
@@ -125,7 +125,7 @@ public class WebServicesFaultTest {
                     .register();
 
             // 通过公开监听地址发起真实 SOAP 请求。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/EchoService");
             HttpRequest request = HttpRequest.newBuilder(endpoint) //
                     .timeout(Duration.ofSeconds(15)) //

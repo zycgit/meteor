@@ -54,7 +54,7 @@ public class ContextSpiScenarioTest extends BootstrapTestSupport {
             assertNull(service.getSerializeType());
 
             // 服务未单独指定编码时，调用使用协议配置中的 SPI 默认编码。
-            Echo remote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
+            Echo remote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
             assertEquals("SPI 中文", remote.echo("SPI 中文"));
             assertEquals(5, remote.add(2, 3));
         }

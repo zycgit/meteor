@@ -43,7 +43,7 @@ public class WebServicesSoapGetTest {
                     .aliasName("soap", "Status").protocol("soap").register();
 
             // 字节转发代理观测 HTTP 方法，避免 POST 也能调用成功掩盖 GET 发送路径。
-            int port = server.bindAddress("soap").getPort();
+            int port = server.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/Status");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(endpoint);
             HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -73,7 +73,7 @@ public class WebServicesSoapGetTest {
                     .aliasName("soap", "Status").protocol("soap").register();
 
             // 通过真实 HTTP 入口请求，检查状态与业务是否实际执行。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI address = URI.create("http://127.0.0.1:" + port + "/services/Status?method=status");
             HttpRequest request = HttpRequest.newBuilder(address).timeout(Duration.ofSeconds(15)) //
                     .GET().build();
@@ -99,7 +99,7 @@ public class WebServicesSoapGetTest {
                     .aliasName("soap", "Status").protocol("soap").register();
 
             // 通过真实 HTTP 入口请求，检查状态与业务是否实际执行。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI address = URI.create("http://127.0.0.1:" + port + "/services/Status?method=internalStatus");
             HttpRequest request = HttpRequest.newBuilder(address).timeout(Duration.ofSeconds(15)) //
                     .GET().build();
@@ -120,7 +120,7 @@ public class WebServicesSoapGetTest {
                     .aliasName("soap", "Status").protocol("soap").register();
 
             // 通过真实 HTTP 入口请求，检查状态与业务是否实际执行。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI address = URI.create("http://127.0.0.1:" + port + "/services/Status?method=missing");
             HttpRequest request = HttpRequest.newBuilder(address).timeout(Duration.ofSeconds(15)) //
                     .GET().build();
@@ -141,7 +141,7 @@ public class WebServicesSoapGetTest {
                     .aliasName("soap", "Status").protocol("soap").register();
 
             // 通过真实 HTTP 入口请求，检查状态与业务是否实际执行。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI address = URI.create("http://127.0.0.1:" + port + "/services/Status?method=status");
             HttpRequest request = HttpRequest.newBuilder(address).timeout(Duration.ofSeconds(15)) //
                     .method("HEAD", HttpRequest.BodyPublishers.noBody()).build();
@@ -162,7 +162,7 @@ public class WebServicesSoapGetTest {
                     .aliasName("soap", "Status").protocol("soap").register();
 
             // 通过真实 HTTP 入口请求，检查状态与业务是否实际执行。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI address = URI.create("http://127.0.0.1:" + port + "/services/Status?method=status");
             HttpRequest request = HttpRequest.newBuilder(address).timeout(Duration.ofSeconds(15)) //
                     .GET().build();
@@ -183,7 +183,7 @@ public class WebServicesSoapGetTest {
                     .aliasName("soap", "Status").protocol("soap").register();
 
             // 通过真实 HTTP 入口请求，检查状态与业务是否实际执行。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI address = URI.create("http://127.0.0.1:" + port + "/services/Status?method=status");
             HttpRequest request = HttpRequest.newBuilder(address).timeout(Duration.ofSeconds(15)) //
                     .method("GET", HttpRequest.BodyPublishers.ofString("unexpected")).build();

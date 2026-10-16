@@ -45,7 +45,7 @@ public class WebServicesBootstrapTest {
                     .register();
 
             // 通过公开 MetClient 代理走真实 HTTP，验证 SOAP request-response 往返。
-            MetClient caller = client.getRsfClient(server.bindAddress("soap"));
+            MetClient caller = client.getRsfClient(server.getListenAddress("soap"));
             EchoService remote = caller.getRemote(subscribed);
             assertEquals("hello SOAP", remote.echo("hello SOAP"));
         }

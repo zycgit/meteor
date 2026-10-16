@@ -24,7 +24,10 @@ import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.SendLimitPolicy;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.provider.InstanceAddressProvider;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.ConnectorManager;
+import net.hasor.meteor.connector.MetChannel;
+import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.*;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
@@ -107,8 +110,8 @@ public class MetCallerProtocolSelectionTest {
     public void logicalNameIsNotReinterpretedAfterAddressFiltering() throws Exception {
         // 逻辑协议 https 只挂载在 TCP，gRPC 却使用 https 作为地址别名。
         Map<String, String> endpointOptions = Collections.emptyMap();
-        ProtocolConfig logical = ProtocolTestAccess.config("https", "tcp", "https", Collections.emptyMap());
-        ProtocolConfig alias = ProtocolTestAccess.config("grpc", "https", "grpc", Collections.emptyMap());
+        ProtocolConfig logical = ProtocolConfig.newConfig("https", "tcp", Collections.emptyMap());
+        ProtocolConfig alias = ProtocolConfig.newConfig("grpc", "https", Collections.emptyMap());
         InterAddress local = InterAddress.forBinding("tcp", "127.0.0.1", 8443, "default");
         ConnectorConfig shared = new ConnectorConfig(//
                 "shared", local, endpointOptions, List.of(logical, alias), true);
@@ -177,7 +180,6 @@ public class MetCallerProtocolSelectionTest {
             InterAddress expected = new InterAddress("https://127.0.0.1:8443/default");
             assertEquals(expected, future.getRequest().getRemoteAddress());
             ProtocolConfig selected = shared.protocols().iterator().next();
-            assertEquals(selected.mountId(), host.boundMount.get());
             assertEquals(shared.name(), host.connectedEndpoint.get());
             assertEquals(selected.mountId(), host.connectedMount.get());
             assertTrue(future.cancel(true));
@@ -193,7 +195,7 @@ public class MetCallerProtocolSelectionTest {
         Map<String, String> endpointOptions = Collections.emptyMap();
         List<ProtocolConfig> mounts = new ArrayList<>();
         for (String protocol : protocols) {
-            ProtocolConfig mount = ProtocolTestAccess.config(protocol, scheme, protocol, Collections.emptyMap());
+            ProtocolConfig mount = ProtocolConfig.newConfig(protocol, scheme, Collections.emptyMap());
             mounts.add(mount);
         }
         InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", port, "default");
@@ -217,7 +219,6 @@ public class MetCallerProtocolSelectionTest {
         private final AtomicReference<String> connectedProtocol = new AtomicReference<>();
         private final AtomicReference<String> connectedEndpoint = new AtomicReference<>();
         private final AtomicReference<String> connectedMount    = new AtomicReference<>();
-        private final AtomicReference<String> boundMount        = new AtomicReference<>();
         private final ConnectorManager        manager;
         private final MetCaller               caller;
 
@@ -282,8 +283,6 @@ public class MetCallerProtocolSelectionTest {
                         return null;
                     case "subscribe":
                         return (Cancellable) () -> true;
-                    case "bindAddress":
-                        return this.bindAddress(endpoints, arguments);
                     default:
                         throw new AssertionError("Unexpected context access: " + method);
                 }
@@ -308,6 +307,12 @@ public class MetCallerProtocolSelectionTest {
                 }
 
                 @Override
+                public InterAddress getListenAddress(//
+                        String endpointName, String protocol, String addressScheme) {
+                    return Host.this.listenAddress(endpoints, endpointName, protocol, addressScheme);
+                }
+
+                @Override
                 public Cancellable schedule(Runnable task, long delay) {
                     return () -> true;
                 }
@@ -327,20 +332,18 @@ public class MetCallerProtocolSelectionTest {
             return null;
         }
 
-        private InterAddress bindAddress(List<ConnectorConfig> endpoints, Object[] arguments) {
-            if (arguments.length != 2) {
-                throw new AssertionError("RPC must select a concrete protocol mount");
-            }
-
-            String endpointName = (String) arguments[0];
-            String mountId = (String) arguments[1];
-            this.boundMount.set(mountId);
+        private InterAddress listenAddress(List<ConnectorConfig> endpoints, String endpointName, //
+                String protocolName, String addressScheme) {
             for (ConnectorConfig endpoint : endpoints) {
                 if (!StringUtils.equals(endpoint.name(), endpointName)) {
                     continue;
                 }
-                ProtocolConfig protocol = endpoint.mount(mountId);
-                if (protocol != null) {
+                for (ProtocolConfig protocol : endpoint.protocols()) {
+                    boolean protocolMatched = StringUtils.equals(protocol.name(), protocolName);
+                    boolean schemeMatched = StringUtils.equals(protocol.scheme(), addressScheme);
+                    if (!protocolMatched || !schemeMatched) {
+                        continue;
+                    }
                     InterAddress configured = endpoint.address();
                     return new InterAddress(protocol.scheme(), configured.getHost(), configured.getPort(), //
                             configured.getFormUnit());

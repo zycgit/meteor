@@ -72,7 +72,7 @@ public class WebServicesBoundHeaderFaultTest {
                     .register();
 
             // SOAP mustUnderstand 属性不能破坏应用层 xsd:int 的有效性。
-            MetResponse response = client.getRsfClient(server.bindAddress("soap")) //
+            MetResponse response = client.getRsfClient(server.getListenAddress("soap")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "hello" }) //
                     .get(5, TimeUnit.SECONDS);
             assertEquals("hello", response.getData());
@@ -104,7 +104,7 @@ public class WebServicesBoundHeaderFaultTest {
                     .register();
 
             // 缺少声明的 token 和 receipt 不等于违反 mustUnderstand。
-            Object value = client.getRsfClient(server.bindAddress("soap")) //
+            Object value = client.getRsfClient(server.getListenAddress("soap")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "no headers" }) //
                     .getData(5, TimeUnit.SECONDS);
             assertEquals("no headers", value);
@@ -131,7 +131,7 @@ public class WebServicesBoundHeaderFaultTest {
             // 对端绕过本地出站校验，把非整数文本放进声明为 xsd:int 的 token。
             String envelope = this.envelope("<b:token>invalid-header-number</b:token>", //
                     "<b:echo><message>hello</message></b:echo>");
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/EchoService");
             String contentType = "application/soap+xml; action=\"" + NAMESPACE + ":echo\"";
             HttpRequest request = HttpRequest.newBuilder(endpoint) //
@@ -169,7 +169,7 @@ public class WebServicesBoundHeaderFaultTest {
             // Header 元素允许携带 encodingStyle，但接收方不能忽略未知的编码规则。
             String header = "<b:token s:encodingStyle='urn:unknown'>17</b:token>";
             String envelope = this.envelope(header, "<b:echo><message>hello</message></b:echo>");
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/EchoService");
             String contentType = "application/soap+xml; action=\"" + NAMESPACE + ":echo\"";
             HttpRequest request = HttpRequest.newBuilder(endpoint) //
@@ -249,7 +249,7 @@ public class WebServicesBoundHeaderFaultTest {
                     .register();
 
             // 声明 Fault 的 Schema 校验不应降级错误类型或丢失 Detail。
-            MetFuture invocation = client.getRsfClient(server.bindAddress("soap")) //
+            MetFuture invocation = client.getRsfClient(server.getListenAddress("soap")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "bad" });
             ExecutionException failure = assertThrows(ExecutionException.class, //
                     () -> invocation.getData(5, TimeUnit.SECONDS));

@@ -36,7 +36,7 @@ public class WebServicesDefinitionTest {
                     .register();
 
             // 通过真实 HTTP GET 读取定义页。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = this.endpoint(port, "/services/EchoService");
             HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint + "?wsdl")) //
                     .timeout(Duration.ofSeconds(15)) //
@@ -67,7 +67,7 @@ public class WebServicesDefinitionTest {
                     .register();
 
             // 通过 WSDL 改写后的查询地址读取真实 XSD。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = this.endpoint(port, "/services/EchoService?xsd=echo-types.xsd");
             HttpRequest request = HttpRequest.newBuilder(endpoint) //
                     .timeout(Duration.ofSeconds(15)) //
@@ -98,7 +98,7 @@ public class WebServicesDefinitionTest {
                     .register();
 
             // 对 WSDL 发起真实 HEAD 请求。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = this.endpoint(port, "/services/EchoService?wsdl");
             HttpRequest request = HttpRequest.newBuilder(endpoint) //
                     .timeout(Duration.ofSeconds(15)) //
@@ -128,7 +128,7 @@ public class WebServicesDefinitionTest {
                     .register();
 
             // 请求未绑定的 XSD 名称。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = this.endpoint(port, "/services/EchoService?xsd=missing.xsd");
             HttpRequest request = HttpRequest.newBuilder(endpoint) //
                     .timeout(Duration.ofSeconds(15)) //

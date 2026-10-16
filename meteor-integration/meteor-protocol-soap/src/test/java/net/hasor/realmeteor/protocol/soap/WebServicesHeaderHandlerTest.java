@@ -54,7 +54,7 @@ public class WebServicesHeaderHandlerTest {
                     .register();
 
             // 请求和响应各有一个 mustUnderstand=true 的 Trace block，均经过真实 HTTP。
-            MetResponse response = client.getRsfClient(server.bindAddress("soap")) //
+            MetResponse response = client.getRsfClient(server.getListenAddress("soap")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "hello" }) //
                     .get(5, TimeUnit.SECONDS);
             assertEquals("hello", response.getData());
@@ -91,7 +91,7 @@ public class WebServicesHeaderHandlerTest {
                     .register();
 
             // 接收方声明相应 actor，理解必选 Header 后继续调用业务。
-            MetResponse response = client.getRsfClient(server.bindAddress("soap")) //
+            MetResponse response = client.getRsfClient(server.getListenAddress("soap")) //
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "hello" }) //
                     .get(5, TimeUnit.SECONDS);
             assertEquals("hello", response.getData());
@@ -124,7 +124,7 @@ public class WebServicesHeaderHandlerTest {
                         <s:Body><m:echo xmlns:m="urn:hasor:meteor:soap:EchoService"/></s:Body>
                     </s:Envelope>
                     """;
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/EchoService");
             String contentType = "application/soap+xml; action=\"urn:hasor:meteor:soap:EchoService/echo\"";
             HttpRequest request = HttpRequest.newBuilder(endpoint) //

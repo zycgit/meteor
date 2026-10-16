@@ -50,7 +50,7 @@ public class GrpcFlowInteropTest {
                     .register();
 
             // 官方客户端连接 Meteor 实际绑定的端口。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -87,7 +87,7 @@ public class GrpcFlowInteropTest {
                     .register();
 
             // 官方客户端连接 Meteor 实际绑定的端口。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -125,7 +125,7 @@ public class GrpcFlowInteropTest {
                     .register();
 
             // 官方客户端连接 Meteor 实际绑定的端口。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();
@@ -164,7 +164,7 @@ public class GrpcFlowInteropTest {
                     .register();
 
             // 官方客户端连接 Meteor 实际绑定的端口。
-            int port = context.bindAddress("grpc").getPort();
+            int port = context.getListenAddress("grpc").getPort();
             ManagedChannel peer = NettyChannelBuilder.forAddress("127.0.0.1", port) //
                     .usePlaintext() //
                     .build();

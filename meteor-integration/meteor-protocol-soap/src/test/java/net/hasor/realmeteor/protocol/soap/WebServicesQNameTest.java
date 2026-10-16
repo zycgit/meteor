@@ -48,7 +48,7 @@ public class WebServicesQNameTest {
                     .register();
 
             // 公开客户端经过真实 HTTP 往返，验证请求参数和返回 ref 均使用契约 QName。
-            MetClient caller = client.getRsfClient(server.bindAddress("soap"));
+            MetClient caller = client.getRsfClient(server.getListenAddress("soap"));
             FieldService remote = caller.getRemote(subscribed);
             assertEquals("plain:qualified", remote.combine("plain", "qualified"));
         }
@@ -69,7 +69,7 @@ public class WebServicesQNameTest {
                     .register();
 
             // 使用相同 localName、错误命名空间发送 plain 参数。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/FieldService");
             HttpRequest request = HttpRequest.newBuilder(endpoint) //
                     .timeout(Duration.ofSeconds(15)) //

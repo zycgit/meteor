@@ -42,7 +42,7 @@ public class ConfigurationApplicationTest {
 
             // 直连写入只处理指定键，保留应用已有元信息。
             String id = service.getBindID();
-            MetServiceAdmin direct = targets.getServiceAdminByAddress(context.bindAddress("rsf"), id);
+            MetServiceAdmin direct = targets.getServiceAdminByAddress(context.getListenAddress("rsf"), id);
             service.setMetaData("application", "local");
             other.setMetaData("local", "untouched");
             direct.putMeta("managed", "direct");
@@ -155,7 +155,7 @@ public class ConfigurationApplicationTest {
 
             // 应用自行更新规则后，直连查询读取当前真实正文。
             String id = service.getBindID();
-            MetServiceAdmin direct = targets.getServiceAdminByAddress(context.bindAddress("rsf"), id);
+            MetServiceAdmin direct = targets.getServiceAdminByAddress(context.getListenAddress("rsf"), id);
             String changed = "<route><!-- override --><return value='addresses'/></route>";
             context.getUpdater().updateServiceRoute(id, changed);
             assertEquals(changed, direct.fetchRule(MetRuleType.SERVICE_ROUTE));

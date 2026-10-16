@@ -35,7 +35,7 @@ public class WebServicesEncodedDataTest {
                     .aliasName("soap", "EncodedData").protocol("soap").register();
             MetBindInfo<EncodedDataService> service = client.publisher().rsfService(EncodedDataService.class) //
                     .aliasName("soap", "EncodedData").protocol("soap").register();
-            EncodedDataService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(service);
+            EncodedDataService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(service);
 
             // 一个请求同时包含共享节点和指回根的环，返回结果必须保持同一张图。
             EncodedGraphNode root = new EncodedGraphNode();
@@ -72,7 +72,7 @@ public class WebServicesEncodedDataTest {
                     .aliasName("soap", "EncodedData").protocol("soap").register();
             MetBindInfo<EncodedDataService> service = client.publisher().rsfService(EncodedDataService.class) //
                     .aliasName("soap", "EncodedData").protocol("soap").register();
-            EncodedDataService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(service);
+            EncodedDataService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(service);
 
             // 一个请求同时包含共享节点和指回根的环，返回结果必须保持同一张图。
             EncodedGraphNode root = new EncodedGraphNode();
@@ -109,7 +109,7 @@ public class WebServicesEncodedDataTest {
                     .aliasName("soap", "EncodedData").protocol("soap").register();
             MetBindInfo<EncodedDataService> service = client.publisher().rsfService(EncodedDataService.class) //
                     .aliasName("soap", "EncodedData").protocol("soap").register();
-            EncodedDataService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(service);
+            EncodedDataService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(service);
 
             // 一个请求同时包含共享节点和指回根的环，返回结果必须保持同一张图。
             EncodedGraphNode root = new EncodedGraphNode();
@@ -146,7 +146,7 @@ public class WebServicesEncodedDataTest {
                     .aliasName("soap", "EncodedData").protocol("soap").register();
             MetBindInfo<EncodedDataService> service = client.publisher().rsfService(EncodedDataService.class) //
                     .aliasName("soap", "EncodedData").protocol("soap").register();
-            EncodedDataService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(service);
+            EncodedDataService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(service);
 
             // 一个请求同时包含共享节点和指回根的环，返回结果必须保持同一张图。
             EncodedGraphNode root = new EncodedGraphNode();
@@ -183,7 +183,7 @@ public class WebServicesEncodedDataTest {
                     .aliasName("soap", "EncodedData").protocol("soap").register();
             MetBindInfo<EncodedDataService> service = client.publisher().rsfService(EncodedDataService.class) //
                     .aliasName("soap", "EncodedData").protocol("soap").register();
-            EncodedDataService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(service);
+            EncodedDataService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(service);
 
             // 矩形多维数组通过标准 Encoding 的维度信息往返，不转换为文本集合。
             String[][] input = { { "one", "two" }, { "three", "four" } };
@@ -213,7 +213,7 @@ public class WebServicesEncodedDataTest {
                     .aliasName("soap", "EncodedData").protocol("soap").register();
             MetBindInfo<EncodedDataService> service = client.publisher().rsfService(EncodedDataService.class) //
                     .aliasName("soap", "EncodedData").protocol("soap").register();
-            EncodedDataService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(service);
+            EncodedDataService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(service);
 
             // 矩形多维数组通过标准 Encoding 的维度信息往返，不转换为文本集合。
             String[][] input = { { "one", "two" }, { "three", "four" } };

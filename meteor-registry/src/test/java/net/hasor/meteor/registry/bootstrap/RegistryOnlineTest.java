@@ -56,7 +56,7 @@ public class RegistryOnlineTest {
             caller.getExtension(RegistryClient.class).pushSync().get(5, TimeUnit.SECONDS);
 
             // 本地也发布管理 RPC；直连入口仍然访问指定远端，并且不打开管理存储会话。
-            MetInstanceAdmin instance = targets.getInstanceAdminByAddress(target.bindAddress("rsf"));
+            MetInstanceAdmin instance = targets.getInstanceAdminByAddress(target.getListenAddress("rsf"));
             assertEquals(target.getInstanceID(), instance.instance().getInstanceId());
             assertTrue(caller.getServiceInfo(ManagementRPC.class).isShadow());
             assertTrue(caller.getServiceInfo(ManagementRPC.class).isDistributedCall());
@@ -114,7 +114,7 @@ public class RegistryOnlineTest {
 
             // 启动不产生监听器，也不提供注册中心管理端和客户端。
             caller.start();
-            assertNull(caller.bindAddress("rsf"));
+            assertNull(caller.getListenAddress("rsf"));
             assertNotNull(caller.getServiceInfo(ManagementRPC.class));
             assertNull(caller.getExtension(RegistryAdmin.class));
             assertNull(caller.getExtension(RegistryClient.class));

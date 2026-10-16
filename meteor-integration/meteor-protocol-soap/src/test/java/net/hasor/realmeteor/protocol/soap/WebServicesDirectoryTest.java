@@ -533,7 +533,7 @@ public class WebServicesDirectoryTest {
     }
 
     private URI endpoint(MetContext context, String path) {
-        return URI.create("http://127.0.0.1:" + context.bindAddress("soap").getPort() + path);
+        return URI.create("http://127.0.0.1:" + context.getListenAddress("soap").getPort() + path);
     }
 
     private HttpClient http() {

@@ -270,7 +270,7 @@ public class WebServicesSoap11EnvelopeTest {
     }
 
     private URI endpoint(MetContext context) {
-        int port = context.bindAddress("soap").getPort();
+        int port = context.getListenAddress("soap").getPort();
         return URI.create("http://127.0.0.1:" + port + "/services/EchoService");
     }
 

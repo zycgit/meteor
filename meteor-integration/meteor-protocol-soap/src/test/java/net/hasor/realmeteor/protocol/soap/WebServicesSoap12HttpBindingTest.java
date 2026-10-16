@@ -767,7 +767,7 @@ public class WebServicesSoap12HttpBindingTest {
                     .register();
 
             // 独立上下文之间通过绑定端口执行真实 SOAP HTTP 请求。
-            EchoService remote = client.getRsfClient(server.bindAddress("soap")).getRemote(service);
+            EchoService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(service);
             assertEquals("双向 SOAP 1.2", remote.echo("双向 SOAP 1.2"));
         }
     }
@@ -783,7 +783,7 @@ public class WebServicesSoap12HttpBindingTest {
     }
 
     private URI endpoint(MetContext context) {
-        int port = context.bindAddress("soap").getPort();
+        int port = context.getListenAddress("soap").getPort();
         return URI.create("http://127.0.0.1:" + port + "/services/EchoService");
     }
 

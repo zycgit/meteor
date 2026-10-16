@@ -24,7 +24,7 @@ public class ConnectorAssemblyTest {
 
             // 初始化已编译配置的协议计划，但不会打开监听器。
             assertTrue(manager.isInitialized());
-            assertNull(manager.bindAddress("rsf"));
+            assertNull(manager.getListenAddress("rsf"));
             assertEquals(List.of("rsf"), List.copyOf(manager.protocols()));
         }
     }
@@ -38,7 +38,7 @@ public class ConnectorAssemblyTest {
             manager.startInbound();
 
             // 公开地址使用挂载协议和实际 TCP 监听端口。
-            InterAddress address = manager.bindAddress("rsf");
+            InterAddress address = manager.getListenAddress("rsf");
             assertNotNull(address);
             assertEquals("rsf", address.getSchema());
             assertTrue(address.getPort() > 0);

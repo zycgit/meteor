@@ -32,7 +32,7 @@ public class ContextAddressTest extends BootstrapTestSupport {
             server.publisher().rsfService(Echo.class).toInstance(new EchoService()).register();
 
             server.start();
-            InterAddress target = server.bindAddress("rsf");
+            InterAddress target = server.getListenAddress("rsf");
             MetBindInfo<Echo> service = client.publisher() //
                     .rsfService(Echo.class).bindAddress(target).register();
             client.start();
@@ -74,9 +74,9 @@ public class ContextAddressTest extends BootstrapTestSupport {
             try (MetContext client = config.buildContext()) {
                 MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
                 String id = service.getBindID();
-                List<InterAddress> providers = List.of(first.bindAddress("rsf"), second.bindAddress("rsf"));
+                List<InterAddress> providers = List.of(first.getListenAddress("rsf"), second.getListenAddress("rsf"));
                 client.getUpdater().appendAddress(id, providers);
-                int secondPort = second.bindAddress("rsf").getPort();
+                int secondPort = second.getListenAddress("rsf").getPort();
 
                 // 服务路由只保留第二个实例的端口。
                 String serviceRule = """
@@ -126,14 +126,14 @@ public class ContextAddressTest extends BootstrapTestSupport {
             try (MetContext client = config.buildContext()) {
                 MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class).register();
                 String id = service.getBindID();
-                List<InterAddress> providers = List.of(first.bindAddress("rsf"), second.bindAddress("rsf"));
+                List<InterAddress> providers = List.of(first.getListenAddress("rsf"), second.getListenAddress("rsf"));
                 client.getUpdater().appendAddress(id, providers);
-                int secondPort = second.bindAddress("rsf").getPort();
+                int secondPort = second.getListenAddress("rsf").getPort();
 
                 // 启动后设置参数路由，特殊参数选第一个实例，其他参数选第二个。
                 client.start();
                 Echo remote = client.getRsfClient().getRemote(service);
-                int firstPort = first.bindAddress("rsf").getPort();
+                int firstPort = first.getListenAddress("rsf").getPort();
                 String argsRule = """
                         <route>
                             <bind name="port" value="%d"/>

@@ -34,7 +34,7 @@ public class WebSocketNotificationWriteTest {
         MetConfiguration configuration = new MetConfiguration();
         try (MetContext context = configuration.buildContext()) {
             ControlledConnection connection = new ControlledConnection();
-            ProtocolConfig config = ProtocolTestAccess.config("jsonws", "jsonws", "jsonws", //
+            ProtocolConfig config = ProtocolConfig.newConfig("jsonws", "jsonws", //
                     Map.of("contextPath", "/ws"));
             ProtocolSessionContext protocolContext = ProtocolTestAccess.context(context, null, null, true);
             AtomicInteger delivered = new AtomicInteger();

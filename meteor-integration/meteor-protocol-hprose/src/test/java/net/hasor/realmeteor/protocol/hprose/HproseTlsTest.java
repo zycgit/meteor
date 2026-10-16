@@ -50,7 +50,7 @@ public class HproseTlsTest {
                     .register();
 
             // 从公开客户端取得代理，动态监听地址保证调用经过真实网络。
-            TextService remote = client.getRsfClient(server.bindAddress("hprose")).getRemote(service);
+            TextService remote = client.getRsfClient(server.getListenAddress("hprose")).getRemote(service);
             assertEquals("中文🙂", remote.echo("中文🙂"));
         }
     }
@@ -94,7 +94,7 @@ public class HproseTlsTest {
                     .register();
 
             // 从公开客户端取得代理，动态监听地址保证调用经过真实网络。
-            TextService remote = client.getRsfClient(server.bindAddress("hprose")).getRemote(service);
+            TextService remote = client.getRsfClient(server.getListenAddress("hprose")).getRemote(service);
             assertEquals("中文🙂", remote.echo("中文🙂"));
         }
     }
@@ -138,7 +138,7 @@ public class HproseTlsTest {
                     .register();
 
             // 从公开客户端取得代理，动态监听地址保证调用经过真实网络。
-            TextService remote = client.getRsfClient(server.bindAddress("hprose")).getRemote(service);
+            TextService remote = client.getRsfClient(server.getListenAddress("hprose")).getRemote(service);
             assertEquals("中文🙂", remote.echo("中文🙂"));
         }
     }
@@ -185,7 +185,7 @@ public class HproseTlsTest {
                     .register();
 
             // 从公开客户端取得代理，动态监听地址保证调用经过真实网络。
-            TextService remote = client.getRsfClient(server.bindAddress("hprose")).getRemote(service);
+            TextService remote = client.getRsfClient(server.getListenAddress("hprose")).getRemote(service);
             assertEquals("中文🙂", remote.echo("中文🙂"));
         }
     }
@@ -232,7 +232,7 @@ public class HproseTlsTest {
                     .register();
 
             // 从公开客户端取得代理，动态监听地址保证调用经过真实网络。
-            TextService remote = client.getRsfClient(server.bindAddress("hprose")).getRemote(service);
+            TextService remote = client.getRsfClient(server.getListenAddress("hprose")).getRemote(service);
             assertEquals("中文🙂", remote.echo("中文🙂"));
         }
     }
@@ -270,7 +270,7 @@ public class HproseTlsTest {
                     .version(HttpClient.Version.HTTP_1_1) //
                     .connectTimeout(Duration.ofSeconds(5)) //
                     .build();
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             URI uri = URI.create("https://127.0.0.1:" + port + "/rpc");
             String call = "Cs9\"echo_echo\"a1{s5\"hello\"}z";
             HttpRequest request = HttpRequest.newBuilder(uri) //
@@ -320,7 +320,7 @@ public class HproseTlsTest {
                     .version(HttpClient.Version.HTTP_2) //
                     .connectTimeout(Duration.ofSeconds(5)) //
                     .build();
-            int port = server.bindAddress("hprose").getPort();
+            int port = server.getListenAddress("hprose").getPort();
             URI uri = URI.create("https://127.0.0.1:" + port + "/rpc");
             String call = "Cs9\"echo_echo\"a1{s5\"hello\"}z";
             HttpRequest request = HttpRequest.newBuilder(uri) //

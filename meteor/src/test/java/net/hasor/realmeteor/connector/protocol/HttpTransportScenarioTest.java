@@ -34,7 +34,7 @@ public class HttpTransportScenarioTest {
             server.start();
 
             // 外部对端将分块请求拆成三字节片段，必须实际经过网络增量解码。
-            int port = server.bindAddress("textprotocol").getPort();
+            int port = server.getListenAddress("textprotocol").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 String headers = "POST / HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n";

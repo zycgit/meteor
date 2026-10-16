@@ -65,7 +65,7 @@ public class ExtensionLifecycleTest {
         try (MetContext context = config.buildContext()) {
             Recording extension = context.getExtension(Recording.class);
             assertEquals(List.of("create"), extension.calls);
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
             context.publisher().rsfService(Echo.class, value -> value).register();
 
             // 首次启动按顺序通知扩展，重复启动不重复执行钩子。
@@ -224,7 +224,7 @@ public class ExtensionLifecycleTest {
             // 启动错误直接返回给调用者，并执行完整的失败回收。
             IllegalStateException failure = assertThrows(IllegalStateException.class, context::start);
             assertSame(expected, failure.getCause());
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
             assertEquals(List.of("create", "beforeStart", "close"), installed.get(0).calls);
             assertEquals(List.of("create", "close"), installed.get(1).calls);
         }
@@ -258,7 +258,7 @@ public class ExtensionLifecycleTest {
             assertSame(cleanup, suppressedCleanup);
             assertEquals(List.of("create", "beforeStart", "close"), tail.get().calls);
             assertTrue(port.get() > 0);
-            assertNull(context.bindAddress("rsf"));
+            assertNull(context.getListenAddress("rsf"));
 
             // 使用独立套接字重新绑定实际监听端口，证明底层监听已经释放。
             try (ServerSocket available = new ServerSocket(port.get())) {
@@ -371,7 +371,7 @@ public class ExtensionLifecycleTest {
         public void beforeStart() throws Exception {
             // 记录启动前的锁和监听边界，再按场景需要阻塞或注入失败。
             assertFalse(Thread.holdsLock(this.context));
-            assertNull(this.context.bindAddress("rsf"));
+            assertNull(this.context.getListenAddress("rsf"));
             this.calls.add("beforeStart");
             if (this.entered != null) {
                 this.entered.countDown();
@@ -388,7 +388,7 @@ public class ExtensionLifecycleTest {
             assertFalse(Thread.holdsLock(this.context));
             this.calls.add("afterStart");
             if (this.boundPort != null) {
-                this.boundPort.set(this.context.bindAddress("rsf").getPort());
+                this.boundPort.set(this.context.getListenAddress("rsf").getPort());
             }
             if (this.afterFailure != null) {
                 throw this.afterFailure;

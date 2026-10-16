@@ -259,7 +259,7 @@ public class TcpExtensionTest {
         Map<String, String> options = new HashMap<>(extensions);
         options.put("workerThread", "1");
         InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "default");
-        ProtocolConfig mount = ProtocolTestAccess.config("mux", "mux", "mux", options);
+        ProtocolConfig mount = ProtocolConfig.newConfig("mux", "mux", options);
         return new ConnectorConfig("mux", address, options, List.of(mount), true);
     }
 

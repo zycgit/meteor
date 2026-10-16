@@ -47,7 +47,7 @@ public class WebServicesSoap12InteropTest {
                     .aliasName("soap", "EchoService").protocol("soap").register();
 
             // Metro 从线上 WSDL 选择 SOAP 1.2 port，并按契约发送标准消息。
-            int port = context.bindAddress("soap").getPort();
+            int port = context.getListenAddress("soap").getPort();
             URL wsdl = URI.create("http://127.0.0.1:" + port + "/services/EchoService?wsdl").toURL();
             Service service = Service.create(wsdl, new QName(NAMESPACE, "EchoService"));
             QName portName = new QName(NAMESPACE, "EchoServicePort");

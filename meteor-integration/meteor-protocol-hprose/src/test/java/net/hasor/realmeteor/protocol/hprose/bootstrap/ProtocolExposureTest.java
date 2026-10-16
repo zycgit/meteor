@@ -59,8 +59,8 @@ public class ProtocolExposureTest extends BootstrapTestSupport {
             assertNull(service.getSerializeType());
 
             // 强制使用目标地址，确认两次都经过真实网络且按协议补齐默认值。
-            TextService tcpRemote = client.getRsfClient(server.bindAddress("rsf")).getRemote(service);
-            TextService httpRemote = client.getRsfClient(server.bindAddress("hprose")).getRemote(service);
+            TextService tcpRemote = client.getRsfClient(server.getListenAddress("rsf")).getRemote(service);
+            TextService httpRemote = client.getRsfClient(server.getListenAddress("hprose")).getRemote(service);
             assertEquals("tcp", tcpRemote.echo("tcp"));
             assertEquals("http", httpRemote.echo("http"));
             assertEquals("Java", observed.get("tcp"));
@@ -101,7 +101,7 @@ public class ProtocolExposureTest extends BootstrapTestSupport {
             MetBindInfo<TextService> http = httpConsumer.aliasName("Hprose", "httpEcho").register();
 
             // 正常 RSF 调用先成功，再用同一客户端访问禁止的服务。
-            MetClient tcpClient = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient tcpClient = client.getRsfClient(server.getListenAddress("rsf"));
             Class<?>[] parameterTypes = { String.class };
             Object[] deniedArguments = { "denied" };
             assertEquals("allowed", tcpClient.getRemote(tcp).echo("allowed"));
@@ -152,7 +152,7 @@ public class ProtocolExposureTest extends BootstrapTestSupport {
             // 正常 Hprose 调用先成功，再验证 RSF 专属服务被拒绝。
             Class<?>[] parameterTypes = { String.class };
             Object[] deniedArguments = { "denied" };
-            MetClient httpClient = client.getRsfClient(server.bindAddress("hprose"));
+            MetClient httpClient = client.getRsfClient(server.getListenAddress("hprose"));
             assertEquals("http", httpClient.getRemote(http).echo("http"));
             MetFuture deniedHttp = httpClient.asyncInvoke(tcp, "echo", parameterTypes, deniedArguments);
             var httpFailure = assertThrows(ExecutionException.class, () -> deniedHttp.get(5, TimeUnit.SECONDS));
@@ -187,7 +187,7 @@ public class ProtocolExposureTest extends BootstrapTestSupport {
             };
             Class<?>[] parameterTypes = { String.class };
             Object[] deniedArguments = { "denied" };
-            MetClient tcpClient = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient tcpClient = client.getRsfClient(server.getListenAddress("rsf"));
             // 单向消息也要在 Accept 前拒绝，不能把未执行误报为接收成功。
             server.publisher() //
                     .rsfService(TextService.class, implementation) //
@@ -248,7 +248,7 @@ public class ProtocolExposureTest extends BootstrapTestSupport {
             MetBindInfo<TextService> explicit = override.serialize("Java").register();
 
             // 同一接入点下，一个服务继承协议默认值，另一个显式选择 Java。
-            MetClient caller = client.getRsfClient(server.bindAddress("rsf"));
+            MetClient caller = client.getRsfClient(server.getListenAddress("rsf"));
             assertEquals("json", caller.getRemote(implicit).echo("json"));
             assertEquals("java", caller.getRemote(explicit).echo("java"));
             assertEquals("jSoN", observed.get("json"));
