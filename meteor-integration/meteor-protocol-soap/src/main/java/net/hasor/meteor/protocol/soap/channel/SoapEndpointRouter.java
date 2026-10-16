@@ -25,9 +25,10 @@ import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.protocol.soap.codec.SoapInboundResult;
 import net.hasor.meteor.protocol.soap.codec.SoapMessageCodec;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionResource;
+import net.hasor.meteor.utils.ContextPathUtils;
 
-/** SOAP 目录、服务端点和定义资源的 HTTP 路由。 */
-final class SoapEndpointRouter {
+/** SOAP 目录、服务端点和定义资源的内部 HTTP 路由；公开路径查询用于协议入口组装。 */
+public final class SoapEndpointRouter {
     private final ProtocolConfig                                   config;
     private final MetContext                                       context;
     private final InterAddress                                     bindAddress;
@@ -42,7 +43,46 @@ final class SoapEndpointRouter {
         this.bindAddress = bindAddress;
         this.codec = codec;
         this.resources = resources;
-        this.directoryPath = SoapProtocol.directoryPath(config);
+        this.directoryPath = SoapEndpointRouter.directoryPath(config);
+    }
+
+    /** 解析目录地址，供协议入口校验和内部路由共同使用。 */
+    public static String directoryPath(ProtocolConfig config) {
+        boolean enabled = Boolean.parseBoolean(config.option("directoryEnabled", "false"));
+        String path = config.option("directoryPath", null);
+        if (!enabled || StringUtils.isBlank(path)) {
+            return null;
+        }
+
+        String configured = ContextPathUtils.exactPath(path);
+        if (config.matchContext(configured) == null) {
+            throw new IllegalArgumentException("SOAP directoryPath must be inside a SOAP context: " + configured);
+        }
+        return configured;
+    }
+
+    /** 列出服务端点，供协议入口校验和内部路由共同使用。 */
+    public static List<String> serviceEndpoints(ProtocolConfig config, MetBindInfo<?> service) {
+        if (service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
+            return List.of();
+        }
+        String alias = service.getAliasName("soap");
+        if (!config.accepts(service.getBindProtocols()) || StringUtils.isBlank(alias)) {
+            return List.of();
+        }
+
+        Set<String> exact = config.exactPaths(service);
+        if (!exact.isEmpty()) {
+            return List.copyOf(exact);
+        }
+        List<String> paths = new ArrayList<>();
+        for (RouteMount mount : config.mountIndex().mounts()) {
+            String endpoint = mount.prefix() + alias;
+            if (config.accepts(service, mount) && config.matchContext(endpoint) == mount) {
+                paths.add(endpoint);
+            }
+        }
+        return paths;
     }
 
     SoapInboundResult route(HttpRequest request, long requestId, int requestTimeout) throws Exception {
@@ -174,7 +214,7 @@ final class SoapEndpointRouter {
                 continue;
             }
             Map<String, String> selected = this.config.exactPaths(service).isEmpty() ? services : exactServices;
-            for (String endpoint : SoapProtocol.serviceEndpoints(this.config, service)) {
+            for (String endpoint : SoapEndpointRouter.serviceEndpoints(this.config, service)) {
                 selected.put(endpoint, service.getAliasName("soap"));
             }
         }

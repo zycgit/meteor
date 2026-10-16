@@ -33,8 +33,8 @@ import net.hasor.meteor.protocol.soap.codec.SoapInboundResult;
 import net.hasor.meteor.protocol.soap.codec.SoapMessageCodec;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionResource;
 
-/** 一个 HTTP 连接上的 SOAP 请求、响应和定义资源通道。 */
-final class SoapSession implements ProtocolSession<HttpExchange> {
+/** 一个 HTTP 连接上的 SOAP 内部通道；公开构造仅用于协议入口组装。 */
+public final class SoapSession implements ProtocolSession<HttpExchange> {
     private final NetworkChannel<HttpExchange>                     connection;
     private final MetContext                                       context;
     private final SoapMessageCodec                                 codec;
@@ -46,7 +46,7 @@ final class SoapSession implements ProtocolSession<HttpExchange> {
     private final Map<Long, SoapPendingExchange>                   pending = new HashMap<>();
     private       long                                             incomingId;
 
-    SoapSession(ProtocolConfig config, ProtocolSessionContext context, NetworkChannel<HttpExchange> connection, //
+    public SoapSession(ProtocolConfig config, ProtocolSessionContext context, NetworkChannel<HttpExchange> connection, //
             ObjLongConsumer<Payload> messages, SoapMessageCodec codec, //
             Function<MetBindInfo<?>, SoapDefinitionResource> resources) {
         this.connection = connection;

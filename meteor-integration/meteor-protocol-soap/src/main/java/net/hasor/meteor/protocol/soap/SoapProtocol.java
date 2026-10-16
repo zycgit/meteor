@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.protocol.soap.channel;
+package net.hasor.meteor.protocol.soap;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
@@ -20,15 +20,13 @@ import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.MetRuntimeUtils;
-import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.payload.Payload;
-import net.hasor.meteor.protocol.soap.SoapGet;
-import net.hasor.meteor.protocol.soap.SoapHeaderHandler;
+import net.hasor.meteor.protocol.soap.channel.SoapEndpointRouter;
+import net.hasor.meteor.protocol.soap.channel.SoapSession;
 import net.hasor.meteor.protocol.soap.codec.SoapMessageCodec;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionResource;
 import net.hasor.meteor.protocol.soap.definition.SoapOperation;
 import net.hasor.meteor.protocol.soap.definition.SoapPart;
-import net.hasor.meteor.utils.ContextPathUtils;
 
 /** SOAP 1.1/1.2 协议入口及 Java 服务映射校验。 */
 public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
@@ -142,54 +140,17 @@ public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
     }
 
     private void validateDirectoryPath(ProtocolConfig config, MetBindInfo<?> service) {
-        String directory = SoapProtocol.directoryPath(config);
+        String directory = SoapEndpointRouter.directoryPath(config);
         if (directory == null) {
             return;
         }
 
         // 目录与业务服务使用不同的入口，避免打开目录后遮蔽已有服务。
-        for (String endpoint : SoapProtocol.serviceEndpoints(config, service)) {
+        for (String endpoint : SoapEndpointRouter.serviceEndpoints(config, service)) {
             if (StringUtils.equals(directory, endpoint)) {
                 throw new IllegalArgumentException("SOAP service endpoint conflicts with directoryPath: " + directory);
             }
         }
-    }
-
-    static String directoryPath(ProtocolConfig config) {
-        boolean enabled = Boolean.parseBoolean(config.option("directoryEnabled", "false"));
-        String path = config.option("directoryPath", null);
-        if (!enabled || StringUtils.isBlank(path)) {
-            return null;
-        }
-
-        String configured = ContextPathUtils.exactPath(path);
-        if (config.matchContext(configured) == null) {
-            throw new IllegalArgumentException("SOAP directoryPath must be inside a SOAP context: " + configured);
-        }
-        return configured;
-    }
-
-    static List<String> serviceEndpoints(ProtocolConfig config, MetBindInfo<?> service) {
-        if (service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
-            return List.of();
-        }
-        String alias = service.getAliasName("soap");
-        if (!config.accepts(service.getBindProtocols()) || StringUtils.isBlank(alias)) {
-            return List.of();
-        }
-
-        Set<String> exact = config.exactPaths(service);
-        if (!exact.isEmpty()) {
-            return List.copyOf(exact);
-        }
-        List<String> paths = new ArrayList<>();
-        for (RouteMount mount : config.mountIndex().mounts()) {
-            String endpoint = mount.prefix() + alias;
-            if (config.accepts(service, mount) && config.matchContext(endpoint) == mount) {
-                paths.add(endpoint);
-            }
-        }
-        return paths;
     }
 
     private void requirePartTypes(List<SoapPart> parts, Type[] types, String method) {

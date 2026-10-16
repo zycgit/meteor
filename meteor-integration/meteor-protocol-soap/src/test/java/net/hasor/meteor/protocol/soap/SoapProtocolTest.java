@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.protocol.soap.channel;
+package net.hasor.meteor.protocol.soap;
 import java.net.URL;
 import java.util.Map;
 import java.util.ServiceLoader;
@@ -16,7 +16,6 @@ import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolFactory;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.ServiceDomain;
-import net.hasor.meteor.protocol.soap.SoapGet;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import org.junit.Test;
 import static org.junit.Assert.*;
