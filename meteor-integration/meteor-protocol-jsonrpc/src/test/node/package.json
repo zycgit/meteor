@@ -1,0 +1,10 @@
+{
+  "name": "meteor-jsonrpc-interop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Independent JSON-RPC 2.0 peers for Meteor protocol tests",
+  "dependencies": {
+    "jayson": "5.0.0",
+    "ws": "8.22.0"
+  }
+}

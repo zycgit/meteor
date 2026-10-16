@@ -1,0 +1,35 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+description = 'JSON-RPC 2.0 protocol over HTTP and WebSocket'
+
+dependencies {
+    api project(':meteor')
+    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+    testRuntimeOnly project(':meteor-protocol-hprose')
+}
+
+// 命名参数示例保留 Java 接口中的真实参数名。
+tasks.named('compileTestJava') {
+    options.compilerArgs += '-parameters'
+}
+
+// 独立 JSON-RPC 实现仅供互通测试，不进入生产依赖。
+tasks.register('prepareJsonRpcPeer', Sync) {
+    from 'src/test/node'
+    into layout.buildDirectory.dir('jsonrpc-peer')
+    preserve { include 'node_modules/**' }
+}
+tasks.register('installJsonRpcPeer', Exec) {
+    dependsOn 'prepareJsonRpcPeer'
+    workingDir layout.buildDirectory.dir('jsonrpc-peer')
+    commandLine 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+    inputs.files('src/test/node/package.json', 'src/test/node/package-lock.json')
+    outputs.dir layout.buildDirectory.dir('jsonrpc-peer/node_modules')
+}
+tasks.named('test') {
+    dependsOn 'installJsonRpcPeer'
+    systemProperty 'jsonrpc.peer.dir', layout.buildDirectory.dir('jsonrpc-peer').get().asFile.absolutePath
+}
