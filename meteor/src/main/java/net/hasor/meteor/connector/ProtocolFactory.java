@@ -6,7 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector;
-import java.util.function.BiConsumer;
+import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.payload.Payload;
@@ -29,5 +29,5 @@ public interface ProtocolFactory<M> {
     RouteProbeResult probe(ProtocolConfig config, M message);
 
     ProtocolSession<M> createSession(ProtocolConfig config, ProtocolSessionContext context, //
-            NetworkChannel<M> connection, BiConsumer<Long, Payload> messages);
+            NetworkChannel<M> connection, ObjLongConsumer<Payload> messages);
 }

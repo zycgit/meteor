@@ -165,7 +165,7 @@ final class ConnectorChannel<M> implements MetChannel, ChannelListener<M> {
         return sent;
     }
 
-    private void publishMessage(long id, Payload payload) {
+    private void publishMessage(Payload payload, long id) {
         this.owner.publishMessage(this, id, payload);
     }
 

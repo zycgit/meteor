@@ -12,11 +12,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
-import net.hasor.cobble.ExceptionUtils;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
@@ -41,23 +37,24 @@ import net.hasor.neta.codec.ssl.SslHandshakePhaseEnum;
 
 /** HTTP/2 完整消息通道；Neta 管理帧、流控和 stream，业务关联仅保留在 HttpExchange 中。 */
 final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject, HttpObject> {
-    private final    NetChannel                                                             socket;
-    private final    InterAddress                                                           remote;
-    private final    boolean                                                                server;
-    private final    String                                                                 scheme;
-    private final    boolean                                                                upgrades;
-    private final    BiFunction<HttpUpgradeCoordinator, ProtoInitializer, ProtoInitializer> application;
-    private final    BasicFuture<Void>                                                      remoteSettings = new BasicFuture<>();
-    private final    Map<Long, HttpExchange>                                                pending        = new ConcurrentHashMap<>();
-    private final    Map<HttpExchange, Long>                                                streams        = new IdentityHashMap<>();
-    private volatile boolean                                                                selected;
-    private          long                                                                   nextStreamId   = 1;
-    private volatile boolean                                                                accepting      = true;
-    private volatile Throwable                                                              closeCause;
+    private final    NetChannel                 socket;
+    private final    InterAddress               remote;
+    private final    boolean                    server;
+    private final    String                     scheme;
+    private final    boolean                    upgrades;
+    private final    HttpApplicationInitializer application;
+    private final    BasicFuture<Void>          remoteSettings = new BasicFuture<>();
+    private final    Map<Long, HttpExchange>    pending        = new ConcurrentHashMap<>();
+    private final    Map<HttpExchange, Long>    streams        = new IdentityHashMap<>();
+    private volatile boolean                    selected;
+    private          long                       nextStreamId   = 1;
+    private volatile boolean                    accepting      = true;
+    private volatile Throwable                  closeCause;
 
     Http2Channel(TransportConfig config, SocketRuntime transport, //
             NetChannel socket, InterAddress remote, Executor executor, //
-            RouteTable<HttpExchange> routes, String initialMountId, boolean server, String scheme, boolean upgrades, BiFunction<HttpUpgradeCoordinator, ProtoInitializer, ProtoInitializer> application) {
+            RouteTable<HttpExchange> routes, String initialMountId, boolean server, String scheme, boolean upgrades,
+            HttpApplicationInitializer application) {
         super(config, transport, executor, routes, initialMountId);
         this.socket = socket;
         this.remote = remote;
@@ -116,12 +113,8 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
                                     this, this.socket, this.server, 2, id, //
                                     request -> this.upgraded(id, request), () -> this.closeUpgrade(id), //
                                     this::isOpen, failure -> this.failUpgrade(id, failure));
-                            try {
-                                ProtoInitializer body = branch -> this.initializeBody(branch, limit);
-                                this.application.apply(upgradeCoordinator, body).config(context);
-                            } catch (Exception failure) {
-                                throw ExceptionUtils.toRuntime(failure);
-                            }
+                            ProtoInitializer body = branch -> this.initializeBody(branch, limit);
+                            this.application.initialize(context, upgradeCoordinator, body);
                         }
                     });
                 }).config(stack);
@@ -196,25 +189,13 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
 
         ProtoHelper.standard().nextRouteAsStatic("body-mode", selector, routing -> {
             routing.branchByInitializer("stream", branch -> {
-                Http2InboundBodyHandler handler = new Http2InboundBodyHandler((id, request) -> {
-                    HttpMessageUtils.route(request, selectedRoute.get());
-                    this.execute(() -> this.request(id, request));
-                }, (id, response) -> {
-                    this.execute(() -> this.response(id, response));
-                }, (id, failure) -> {
-                    this.invalidMessage(id, failure.getMessage());
-                });
+                Http2InboundBodyHandler handler = new Http2InboundBodyHandler(this, selectedRoute::get);
                 branch.addLastDecoder("body", handler);
             });
             routing.branchByInitializer("complete", branch -> {
                 if (this.server) {
                     branch.addLastDecoder("aggregate", new HttpRequestAggregator(limit));
-                    Supplier<RouteSelection> routes = selectedRoute::get;
-                    BiConsumer<Long, HttpRequest> received = (id, request) -> {
-                        this.execute(() -> this.request(id, request));
-                    };
-                    Http2BufferedRequestHandler handler = new Http2BufferedRequestHandler(//
-                            routes, received, this::invalidMessage);
+                    Http2BufferedRequestHandler handler = new Http2BufferedRequestHandler(this, selectedRoute::get);
                     branch.addLastDecoder("messages", handler);
                 } else {
                     branch.addLastDecoder("aggregate", new HttpResponseAggregator(limit));
@@ -440,6 +421,23 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
             }
             this.closeAfterGoaway();
         }));
+    }
+
+    void receiveRequest(long id, HttpRequest request, RouteSelection selectedRoute) {
+        HttpMessageUtils.route(request, selectedRoute);
+        this.execute(() -> this.request(id, request));
+    }
+
+    void receiveResponse(long id, HttpResponse response) {
+        this.execute(() -> this.response(id, response));
+    }
+
+    void rejectMessage(long id, Throwable failure) {
+        this.invalidMessage(id, failure.getMessage());
+    }
+
+    void rejectMessage(long id, String reason) {
+        this.invalidMessage(id, reason);
     }
 
     private void invalidMessage(long id, String reason) {

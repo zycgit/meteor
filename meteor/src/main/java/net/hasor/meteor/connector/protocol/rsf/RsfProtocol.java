@@ -6,7 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.protocol.rsf;
-import java.util.function.BiConsumer;
+import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
@@ -52,7 +52,7 @@ public final class RsfProtocol implements ProtocolFactory<byte[]> {
 
     @Override
     public ProtocolSession<byte[]> createSession(ProtocolConfig config, ProtocolSessionContext manager, //
-            NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
+            NetworkChannel<byte[]> connection, ObjLongConsumer<Payload> messages) {
         return new RsfSession(config, manager, connection, messages);
     }
 }

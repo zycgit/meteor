@@ -6,13 +6,15 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.transport.http.http2;
-import net.hasor.meteor.connector.transport.http.channel.*;
-import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
-import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.BiConsumer;
+import java.util.function.Supplier;
+import net.hasor.meteor.connector.RouteSelection;
+import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
+import net.hasor.meteor.connector.transport.http.channel.HttpMessageUtils;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.neta.channel.ProtoContext;
 import net.hasor.neta.channel.ProtoHandler;
 import net.hasor.neta.channel.ProtoStatus;
@@ -22,22 +24,19 @@ import net.hasor.neta.codec.http.*;
 
 /** 每个 HTTP/2 stream 独立收集头部，正文交付后由应用消费并归还流控额度。 */
 final class Http2InboundBodyHandler implements ProtoHandler<HttpObject, HttpObject> {
-    private final BiConsumer<Long, HttpRequest>  requests;
-    private final BiConsumer<Long, HttpResponse> responses;
-    private final BiConsumer<Long, Throwable>    failures;
-    private final HttpBodyStream bodyStream     = new HttpBodyStream(65535);
-    private final Map<String, List<String>>      headers  = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    private final Map<String, List<String>>      trailers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    private       String                         method;
-    private       String                         uri;
-    private       int                            status;
-    private       boolean                        published;
+    private final Http2Channel              channel;
+    private final Supplier<RouteSelection>  selectedRoute;
+    private final HttpBodyStream            bodyStream = new HttpBodyStream(65535);
+    private final Map<String, List<String>> headers    = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    private final Map<String, List<String>> trailers   = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    private       String                    method;
+    private       String                    uri;
+    private       int                       status;
+    private       boolean                   published;
 
-    Http2InboundBodyHandler(BiConsumer<Long, HttpRequest> requests, BiConsumer<Long, HttpResponse> responses, //
-            BiConsumer<Long, Throwable> failures) {
-        this.requests = requests;
-        this.responses = responses;
-        this.failures = failures;
+    Http2InboundBodyHandler(Http2Channel channel, Supplier<RouteSelection> selectedRoute) {
+        this.channel = channel;
+        this.selectedRoute = selectedRoute;
     }
 
     public ProtoStatus onMessage(ProtoContext context, ProtoRcvQueue<HttpObject> source, //
@@ -76,11 +75,11 @@ final class Http2InboundBodyHandler implements ProtoHandler<HttpObject, HttpObje
                     if (this.method != null) {
                         HttpRequest request = HttpRequest.newStreaming(this.method, this.uri, //
                                 this.headers, this.bodyStream, 2);
-                        this.requests.accept(message.streamId(), request);
+                        this.channel.receiveRequest(message.streamId(), request, this.selectedRoute.get());
                     } else {
                         HttpResponse response = HttpResponse.newStreaming(this.status, //
                                 this.headers, this.bodyStream, Map.of());
-                        this.responses.accept(message.streamId(), response);
+                        this.channel.receiveResponse(message.streamId(), response);
                     }
                 }
 
@@ -94,7 +93,7 @@ final class Http2InboundBodyHandler implements ProtoHandler<HttpObject, HttpObje
                 }
             } catch (Exception failure) {
                 this.bodyStream.fail(failure);
-                this.failures.accept(message.streamId(), failure);
+                this.channel.rejectMessage(message.streamId(), failure);
             } finally {
                 if (!retained) {
                     message.release();

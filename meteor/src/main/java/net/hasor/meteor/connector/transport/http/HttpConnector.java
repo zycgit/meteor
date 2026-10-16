@@ -7,7 +7,7 @@
  */
 package net.hasor.meteor.connector.transport.http;
 import java.util.Map;
-import java.util.function.BiFunction;
+import net.hasor.cobble.ExceptionUtils;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
@@ -16,6 +16,7 @@ import net.hasor.meteor.connector.transport.ChannelListenerFactory;
 import net.hasor.meteor.connector.transport.SocketConnector;
 import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.TransportPipeline;
+import net.hasor.meteor.connector.transport.http.channel.HttpApplicationInitializer;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpUpgradeCoordinator;
 import net.hasor.meteor.connector.transport.http.http1.Http1Pipeline;
@@ -41,13 +42,15 @@ final class HttpConnector extends SocketConnector<HttpExchange> {
         super(config, pipeline, loader, socketConfig(config), false);
         this.webSocket = hasWebSocketRoute(config) ? new WebSocketPipeline() : null;
 
-        BiFunction<HttpUpgradeCoordinator, ProtoInitializer, ProtoInitializer> application = this::decorateApplication;
+        HttpApplicationInitializer application = this::initializeApplication;
         this.http1 = new Http1Pipeline(config, this.transport, application, this::requireHttps);
-        this.http2 = new Http2Pipeline(config, this.transport, httpScheme(config), this.webSocket != null, application);
+        this.http2 = new Http2Pipeline(config, this.transport, httpScheme(config), this.webSocket != null,
+                application);
     }
 
     @Override
-    protected void initialize(ProtoBuildContext stack, InterAddress target, RouteTable<HttpExchange> routes, String initialMountId, ChannelListenerFactory<HttpExchange> factory) throws Exception {
+    protected void initialize(ProtoBuildContext stack, InterAddress target, RouteTable<HttpExchange> routes, //
+            String initialMountId, ChannelListenerFactory<HttpExchange> factory) throws Exception {
         this.requireHttps(stack);
 
         boolean server = !stack.getChannel().isClient();
@@ -66,22 +69,25 @@ final class HttpConnector extends SocketConnector<HttpExchange> {
             return cleartext.route(context, source, targetQueue);
         };
 
-        ProtoHelper.standard().nextDecoder("http-probe", new HttpRouteDecoder()).nextRouteAsStatic("http-version", selector, routing -> {
-            routing.branchByInitializer(HttpRouteKey.BRANCH_H1, branch -> {
-                this.http1.initializeServer(branch, routes, factory);
-            });
-            routing.branchByInitializer(HttpRouteKey.BRANCH_H2, branch -> {
-                this.http2.initialize(branch, target, routes, null, factory, true, routing.control());
-            });
-            routing.branchByInitializer(HttpRouteKey.BRANCH_H2C, branch -> {
-                branch.addLast("http", new HttpServerDuplex());
-                branch.addLast("upgrade", new H2CUpgradeServerDuplex(routing.control()));
-            });
-        }).config(stack);
+        ProtoHelper.standard()//
+                .nextDecoder("http-probe", new HttpRouteDecoder())//
+                .nextRouteAsStatic("http-version", selector, routing -> {
+                    routing.branchByInitializer(HttpRouteKey.BRANCH_H1, branch -> {
+                        this.http1.initializeServer(branch, routes, factory);
+                    });
+                    routing.branchByInitializer(HttpRouteKey.BRANCH_H2, branch -> {
+                        this.http2.initialize(branch, target, routes, null, factory, true, routing.control());
+                    });
+                    routing.branchByInitializer(HttpRouteKey.BRANCH_H2C, branch -> {
+                        branch.addLast("http", new HttpServerDuplex());
+                        branch.addLast("upgrade", new H2CUpgradeServerDuplex(routing.control()));
+                    });
+                }).config(stack);
     }
 
     @Override
-    public Future<Void> connect(InterAddress target, RouteTable<HttpExchange> routes, String initialMountId, ChannelListenerFactory<HttpExchange> factory) {
+    public Future<Void> connect(InterAddress target, RouteTable<HttpExchange> routes, String initialMountId, //
+            ChannelListenerFactory<HttpExchange> factory) {
         if (this.config.integer("httpVersion", 1) == 2) {
             return super.connect(target, routes, initialMountId, factory);
         }
@@ -97,11 +103,17 @@ final class HttpConnector extends SocketConnector<HttpExchange> {
         }
     }
 
-    private ProtoInitializer decorateApplication(HttpUpgradeCoordinator coordinator, ProtoInitializer ordinary) {
-        if (this.webSocket == null) {
-            return ordinary;
+    private void initializeApplication(ProtoBuildContext stack, HttpUpgradeCoordinator coordinator, ProtoInitializer ordinary) {
+        ProtoInitializer application = ordinary;
+        if (this.webSocket != null) {
+            application = branch -> this.webSocket.initializeHttp(this.config, branch, coordinator, ordinary);
         }
-        return stack -> this.webSocket.initializeHttp(this.config, stack, coordinator, ordinary);
+
+        try {
+            application.config(stack);
+        } catch (Exception failure) {
+            throw ExceptionUtils.toRuntime(failure);
+        }
     }
 
     private static boolean hasWebSocketRoute(TransportConfig config) {

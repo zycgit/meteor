@@ -8,7 +8,6 @@
 package net.hasor.meteor.connector.transport.http.http2;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.meteor.connector.transport.http.channel.HttpMessageUtils;
@@ -23,14 +22,12 @@ import net.hasor.neta.codec.http.HttpObject;
 
 /** 将聚合后的 HTTP/2 请求复制并交付给对应 stream。 */
 final class Http2BufferedRequestHandler implements ProtoHandler<HttpObject, Object> {
-    private final Supplier<RouteSelection>      selectedRoute;
-    private final BiConsumer<Long, HttpRequest> received;
-    private final BiConsumer<Long, String>      failed;
+    private final Http2Channel             channel;
+    private final Supplier<RouteSelection> selectedRoute;
 
-    Http2BufferedRequestHandler(Supplier<RouteSelection> selectedRoute, BiConsumer<Long, HttpRequest> received, BiConsumer<Long, String> failed) {
+    Http2BufferedRequestHandler(Http2Channel channel, Supplier<RouteSelection> selectedRoute) {
+        this.channel = channel;
         this.selectedRoute = selectedRoute;
-        this.received = received;
-        this.failed = failed;
     }
 
     @Override
@@ -40,11 +37,11 @@ final class Http2BufferedRequestHandler implements ProtoHandler<HttpObject, Obje
             HttpObject message = source.takeMessage();
             try {
                 if (!(message instanceof FullHttpRequest request)) {
-                    this.failed.accept(0L, "HTTP/2 request is not complete");
+                    this.channel.rejectMessage(0L, "HTTP/2 request is not complete");
                     continue;
                 }
                 if (request.isBad()) {
-                    this.failed.accept(request.streamId(), request.badReason());
+                    this.channel.rejectMessage(request.streamId(), request.badReason());
                     continue;
                 }
 
@@ -58,8 +55,7 @@ final class Http2BufferedRequestHandler implements ProtoHandler<HttpObject, Obje
 
                 int version = request.protocolVersion().majorVersion();
                 HttpRequest copy = HttpRequest.newBuffered(method, request.uri(), headers, content, version, trailers);
-                HttpMessageUtils.route(copy, this.selectedRoute.get());
-                this.received.accept(request.streamId(), copy);
+                this.channel.receiveRequest(request.streamId(), copy, this.selectedRoute.get());
             } finally {
                 message.release();
             }

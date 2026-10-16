@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
+import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
@@ -35,7 +35,7 @@ import net.hasor.meteor.domain.payload.ThrowPayload;
 final class RsfSession implements ProtocolSession<byte[]> {
     private final ProtocolSessionContext          sessionContext;
     private final NetworkChannel<byte[]>          networkChannel;
-    private final BiConsumer<Long, Payload>       messageConsumer;
+    private final ObjLongConsumer<Payload>        messageConsumer;
     private final RsfV1Codec                      codec;
     private final RsfV1FrameDecoder               decoder;
     private final int                             maxFrameSizeBytes;
@@ -48,7 +48,7 @@ final class RsfSession implements ProtocolSession<byte[]> {
     private       boolean                         closed;
 
     RsfSession(ProtocolConfig config, ProtocolSessionContext sessionContext, //
-            NetworkChannel<byte[]> networkChannel, BiConsumer<Long, Payload> messageConsumer) {
+            NetworkChannel<byte[]> networkChannel, ObjLongConsumer<Payload> messageConsumer) {
         this.sessionContext = sessionContext;
         this.networkChannel = networkChannel;
         this.messageConsumer = messageConsumer;
@@ -163,7 +163,7 @@ final class RsfSession implements ProtocolSession<byte[]> {
         if (this.outboundRequests.size() >= this.maxPendingRequests || this.outboundRequests.containsKey(id)) {
             IOException error = new IOException("Duplicate RSF request ID or pending limit reached");
             sent.failed(error);
-            this.messageConsumer.accept(id, new ThrowPayload(error));
+            this.messageConsumer.accept(new ThrowPayload(error), id);
             return sent;
         }
 
@@ -196,7 +196,7 @@ final class RsfSession implements ProtocolSession<byte[]> {
             boolean removed = this.outboundRequests.remove(id, requestState);
             requestState.sent().failed(error);
             if (removed) {
-                this.messageConsumer.accept(id, new ThrowPayload(error));
+                this.messageConsumer.accept(new ThrowPayload(error), id);
             }
         }
     }
@@ -244,7 +244,7 @@ final class RsfSession implements ProtocolSession<byte[]> {
         request.completion().onFinal(done -> {
             this.networkChannel.execute(() -> this.inboundRequests.remove(id, request));
         });
-        this.messageConsumer.accept(id, request);
+        this.messageConsumer.accept(request, id);
     }
 
     private void receiveResponse(ResponsePayload response) {
@@ -259,7 +259,7 @@ final class RsfSession implements ProtocolSession<byte[]> {
             requestState.request().complete(null);
         }
 
-        this.messageConsumer.accept(id, response);
+        this.messageConsumer.accept(response, id);
     }
 
     @Override
@@ -289,7 +289,7 @@ final class RsfSession implements ProtocolSession<byte[]> {
         for (OutboundRequestState requestState : outgoingRequests) {
             requestState.request().complete(error);
             requestState.sent().failed(error);
-            this.messageConsumer.accept(requestState.request().getRequestID(), new ThrowPayload(error));
+            this.messageConsumer.accept(new ThrowPayload(error), requestState.request().getRequestID());
         }
 
         for (RequestPayload request : incomingRequests) {

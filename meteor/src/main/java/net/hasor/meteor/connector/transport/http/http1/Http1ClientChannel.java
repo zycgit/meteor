@@ -11,7 +11,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
@@ -33,7 +32,7 @@ import net.hasor.neta.codec.http.*;
  */
 final class Http1ClientChannel extends HttpChannel {
     private final    InterAddress                                      remote;
-    private final    BiConsumer<ProtoBuildContext, Http1ClientChannel> pipeline;
+    private final    Http1Pipeline                                    pipeline;
     private final    Deque<Http1ClientExchangeState>                   pendingExchanges = new ArrayDeque<>();
     private volatile boolean                                           closed;
     private volatile NetChannel                                        channel;
@@ -42,7 +41,7 @@ final class Http1ClientChannel extends HttpChannel {
 
     Http1ClientChannel(TransportConfig config, SocketRuntime transport, InterAddress remote, Executor loop, //
             RouteTable<HttpExchange> routes, String initialMountId, //
-            BiConsumer<ProtoBuildContext, Http1ClientChannel> pipeline) {
+            Http1Pipeline pipeline) {
         super(config, transport, loop, routes, initialMountId);
         this.pipeline = pipeline;
         this.remote = remote;
@@ -155,7 +154,7 @@ final class Http1ClientChannel extends HttpChannel {
     private void openSocket() {
         try {
             this.connecting = this.transport.connect(this.getRemote(), stack -> {
-                this.pipeline.accept(stack, this);
+                this.pipeline.initializeClient(stack, this);
             });
 
             this.connecting.onFinal(done -> {
