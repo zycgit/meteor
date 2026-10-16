@@ -78,8 +78,17 @@ public interface MetContext extends OnlineStatus, AutoCloseable {
     /**获取默认协议*/
     String getDefaultProtocol();
 
-    /** 获取RSF运行的地址。 */
-    InterAddress bindAddress(String protocol);
+    /** 获取逻辑协议唯一的当前监听地址；匹配多个地址时抛出 IllegalArgumentException。 */
+    InterAddress getListenAddress(String protocol);
+
+    /** 获取逻辑协议对应的全部当前监听地址。 */
+    List<InterAddress> getListenAddresses(String protocol);
+
+    /** 获取逻辑协议在指定公开地址 scheme 下的唯一当前监听地址。 */
+    InterAddress getListenAddress(String protocol, String addressScheme);
+
+    /** 获取指定连接器、逻辑协议和公开地址 scheme 对应的当前监听地址。 */
+    InterAddress getListenAddress(String connectorName, String protocol, String addressScheme);
 
     /**获取RSF配置*/
     MetSettings getSettings();

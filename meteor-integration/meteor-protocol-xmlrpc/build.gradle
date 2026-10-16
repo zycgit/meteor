@@ -1,0 +1,17 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+description = 'XML-RPC protocol over HTTP and HTTPS'
+
+dependencies {
+    api project(':meteor')
+    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+    testRuntimeOnly project(':meteor-protocol-jsonrpc')
+}
+
+// Python 标准库只作为独立互通对端，不进入生产依赖。
+tasks.named('test') {
+    systemProperty 'xmlrpc.peer.script', file('src/test/python/peer.py').absolutePath
+}

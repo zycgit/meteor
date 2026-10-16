@@ -9,7 +9,6 @@ package net.hasor.meteor;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Set;
-import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 
 /**
@@ -71,9 +70,6 @@ public interface MetSettings {
 
     /**可使用的协议名集合*/
     Set<String> getProtocols();
-
-    /**获取本地服务绑定地址*/
-    InterAddress getBindAddressSet(String protocolName);
 
     /**获取已解析的连接器配置及其专属选项。*/
     Collection<ConnectorConfig> getConnectorConfigs();

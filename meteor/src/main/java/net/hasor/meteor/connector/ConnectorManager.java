@@ -628,24 +628,25 @@ public class ConnectorManager implements AutoCloseable {
     // Queries and shared resources
     //
 
-    /** Active listener address selected by logical protocol first, then by address scheme alias. */
-    public synchronized InterAddress bindAddress(String protocol) {
-        List<InterAddress> addresses = this.bindAddresses(protocol);
+    /** Returns the unique active listener address for one logical protocol. */
+    public synchronized InterAddress getListenAddress(String protocol) {
+        List<InterAddress> addresses = this.getListenAddresses(protocol);
         if (addresses.isEmpty()) {
             return null;
         }
         if (addresses.size() > 1) {
-            throw new IllegalArgumentException("Ambiguous bound protocol address: " + protocol);
+            throw new IllegalArgumentException("Multiple listener addresses match protocol: " + protocol);
         }
         return addresses.get(0);
     }
 
-    /** All active listener addresses selected by logical protocol first, then by address scheme alias. */
-    public synchronized List<InterAddress> bindAddresses(String protocol) {
-        List<ResolvedMount> targets = this.findBoundMounts(protocol);
+    /** Returns all active listener addresses for one logical protocol. */
+    public synchronized List<InterAddress> getListenAddresses(String protocol) {
+        Objects.requireNonNull(protocol, "protocol");
+        List<ResolvedMount> targets = this.findBoundMountsByProtocol(protocol);
         Map<String, InterAddress> addresses = new LinkedHashMap<>();
         for (ResolvedMount target : targets) {
-            InterAddress address = this.bindAddressByMount(target.endpoint().name(), target.mount().mountId());
+            InterAddress address = this.getListenAddressByMount(target.endpoint().name(), target.mount().mountId());
             if (address != null) {
                 String key = target.endpoint().name() + "\u0000" + target.mount().scheme();
                 addresses.putIfAbsent(key, address);
@@ -654,39 +655,48 @@ public class ConnectorManager implements AutoCloseable {
         return List.copyOf(addresses.values());
     }
 
-    /** Active listener address on one endpoint, selected by mount identity, logical protocol or scheme alias. */
-    public synchronized InterAddress bindAddress(String endpointName, String protocol) {
-        ConnectorEndpoint<?> endpoint = this.endpoints.get(endpointName);
-        if (endpoint == null) {
+    /** Returns the unique active listener address for a logical protocol and its public address scheme. */
+    public synchronized InterAddress getListenAddress(String protocol, String addressScheme) {
+        Objects.requireNonNull(addressScheme, "addressScheme");
+        List<InterAddress> addresses = new ArrayList<>();
+        for (InterAddress address : this.getListenAddresses(protocol)) {
+            if (StringUtils.equalsIgnoreCase(address.getSchema(), addressScheme)) {
+                addresses.add(address);
+            }
+        }
+        if (addresses.isEmpty()) {
             return null;
         }
-
-        ProtocolConfig exact = endpoint.config().mount(protocol);
-        if (exact != null) {
-            return this.bindAddressByMount(endpointName, exact.mountId());
-        }
-
-        List<ResolvedMount> available = new ArrayList<>();
-        for (ProtocolConfig mount : endpoint.config().protocols()) {
-            available.add(new ResolvedMount(endpoint.config(), mount));
-        }
-        List<ResolvedMount> selected = this.selectMounts(available, protocol);
-        if (selected.isEmpty()) {
-            return null;
-        }
-        Map<String, ResolvedMount> schemes = new LinkedHashMap<>();
-        for (ResolvedMount target : selected) {
-            schemes.putIfAbsent(target.mount().scheme(), target);
-        }
-        if (schemes.size() > 1) {
-            String message = "Ambiguous protocol mount on endpoint " + endpointName + ": " + protocol;
+        if (addresses.size() > 1) {
+            String message = "Multiple listener addresses match protocol " + protocol + " and scheme " + addressScheme;
             throw new IllegalArgumentException(message);
         }
-        ResolvedMount target = schemes.values().iterator().next();
-        return this.bindAddressByMount(endpointName, target.mount().mountId());
+        return addresses.get(0);
     }
 
-    private InterAddress bindAddressByMount(String endpointName, String mountId) {
+    /** Returns an active listener selected by its configured connector, logical protocol and public scheme. */
+    public synchronized InterAddress getListenAddress(//
+            String connectorName, String protocol, String addressScheme) {
+        Objects.requireNonNull(connectorName, "connectorName");
+        Objects.requireNonNull(protocol, "protocol");
+        Objects.requireNonNull(addressScheme, "addressScheme");
+        ConnectorEndpoint<?> endpoint = this.endpoints.get(connectorName);
+        InterAddress actual = endpoint == null ? null : endpoint.getBindAddress();
+        if (actual == null) {
+            return null;
+        }
+        for (ProtocolConfig mount : endpoint.config().protocols()) {
+            boolean protocolMatched = StringUtils.equalsIgnoreCase(mount.name(), protocol);
+            boolean schemeMatched = StringUtils.equalsIgnoreCase(mount.scheme(), addressScheme);
+            if (protocolMatched && schemeMatched) {
+                return new InterAddress(mount.scheme(), actual.getHost(), actual.getPort(), actual.getFormUnit());
+            }
+        }
+        return null;
+    }
+
+    /** Internal exact lookup used after protocol routing has already selected a mount. */
+    private InterAddress getListenAddressByMount(String endpointName, String mountId) {
         ConnectorEndpoint<?> endpoint = this.endpoints.get(endpointName);
         ProtocolConfig mount = endpoint == null ? null : endpoint.config().mount(mountId);
         if (mount == null) {
@@ -699,17 +709,19 @@ public class ConnectorManager implements AutoCloseable {
         return new InterAddress(mount.scheme(), actual.getHost(), actual.getPort(), actual.getFormUnit());
     }
 
-    private List<ResolvedMount> findBoundMounts(String selector) {
+    private List<ResolvedMount> findBoundMountsByProtocol(String protocol) {
         List<ResolvedMount> available = new ArrayList<>();
         for (ConnectorEndpoint<?> endpoint : this.endpoints.values()) {
             if (endpoint.getBindAddress() == null) {
                 continue;
             }
             for (ProtocolConfig mount : endpoint.config().protocols()) {
-                available.add(new ResolvedMount(endpoint.config(), mount));
+                if (StringUtils.equalsIgnoreCase(mount.name(), protocol)) {
+                    available.add(new ResolvedMount(endpoint.config(), mount));
+                }
             }
         }
-        return this.selectMounts(available, selector);
+        return available;
     }
 
     public synchronized Set<String> protocols() {

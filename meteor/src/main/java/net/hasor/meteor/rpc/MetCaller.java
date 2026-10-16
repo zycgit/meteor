@@ -273,7 +273,8 @@ public final class MetCaller implements AutoCloseable {
         }
 
         ProtocolCandidate selected = candidates.get(0);
-        InterAddress bindAddress = this.context.bindAddress(selected.endpoint.name(), selected.mount.mountId());
+        InterAddress bindAddress = this.connectors.getListenAddress(//
+                selected.endpoint.name(), selected.mount.name(), selected.mount.scheme());
         return new ProtocolSelection(//
                 selected.endpoint.name(), selected.mount.mountId(), selected.mount.name(), bindAddress);
     }
