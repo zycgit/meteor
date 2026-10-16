@@ -6,19 +6,16 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.transport.udp;
-import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ConnectorManager;
-import net.hasor.meteor.connector.ConnectorSubscriber;
-import net.hasor.meteor.connector.MetChannel;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
-import net.hasor.meteor.connector.SocketTestSupport;
 import org.junit.Test;
 import static net.hasor.example.connector.protocol.UdpTestProtocol.request;
 import static net.hasor.example.connector.protocol.UdpTestProtocol.response;
@@ -246,63 +243,54 @@ public class UdpDtlsTransportTest {
     }
 
     private ConnectorConfig serverConfig(int port, boolean mutualAuthentication, String observation) {
-        MetConfiguration configuration = new MetConfiguration();
-        MetConfiguration.ConnectorSettings connector = configuration.connector("udp") //
-                .bind("127.0.0.1", port) //
-                .option("workerThread", 1) //
-                .option("tlsEnabled", true) //
-                .option("tlsKeyStore", SERVER_STORE) //
-                .option("tlsKeyStorePassword", PASSWORD) //
-                .option("transportPipeline", UdpDtlsObservationPipeline.class.getName()) //
-                .option("dtlsObservation", observation);
+        Map<String, String> options = this.endpointOptions(observation);
+        options.put("tlsKeyStore", SERVER_STORE);
+        options.put("tlsKeyStorePassword", PASSWORD);
         if (mutualAuthentication) {
-            connector.option("tlsClientAuth", "REQUIRE") //
-                    .option("tlsTrustStore", TRUST_STORE) //
-                    .option("tlsTrustStorePassword", PASSWORD);
+            options.put("tlsClientAuth", "REQUIRE");
+            options.put("tlsTrustStore", TRUST_STORE);
+            options.put("tlsTrustStorePassword", PASSWORD);
         }
-        connector.protocol("testprotocol");
-        return onlyConnector(configuration);
+        return this.endpoint(port, true, options);
     }
 
     private ConnectorConfig clientConfig(boolean mutualAuthentication, String observation) {
-        MetConfiguration configuration = new MetConfiguration();
-        MetConfiguration.ConnectorSettings connector = this.clientSettings(configuration, observation);
-        if (mutualAuthentication) {
-            connector.option("tlsKeyStore", CLIENT_STORE) //
-                    .option("tlsKeyStorePassword", PASSWORD);
-        }
-        connector.protocol("testprotocol");
-        return onlyConnector(configuration);
+        return this.endpoint(0, false, this.clientOptions(mutualAuthentication, observation));
     }
 
     private ConnectorConfig handshakeClientConfig(boolean mutualAuthentication, String observation, //
             int retryTimeout, int handshakeTimeout) {
-        MetConfiguration configuration = new MetConfiguration();
-        MetConfiguration.ConnectorSettings connector = this.clientSettings(configuration, observation) //
-                .option("dtlsRetransmitTimeout", retryTimeout) //
-                .option("dtlsHandshakeTimeout", handshakeTimeout);
+        Map<String, String> options = this.clientOptions(mutualAuthentication, observation);
+        options.put("dtlsRetransmitTimeout", Integer.toString(retryTimeout));
+        options.put("dtlsHandshakeTimeout", Integer.toString(handshakeTimeout));
+        return this.endpoint(0, false, options);
+    }
+
+    private Map<String, String> clientOptions(boolean mutualAuthentication, String observation) {
+        Map<String, String> options = this.endpointOptions(observation);
+        options.put("tlsTrustStore", TRUST_STORE);
+        options.put("tlsTrustStorePassword", PASSWORD);
         if (mutualAuthentication) {
-            connector.option("tlsKeyStore", CLIENT_STORE) //
-                    .option("tlsKeyStorePassword", PASSWORD);
+            options.put("tlsKeyStore", CLIENT_STORE);
+            options.put("tlsKeyStorePassword", PASSWORD);
         }
-        connector.protocol("testprotocol");
-        return onlyConnector(configuration);
+        return options;
     }
 
-    private MetConfiguration.ConnectorSettings clientSettings(MetConfiguration configuration, String observation) {
-        return configuration.connector("udp") //
-                .option("workerThread", 1) //
-                .option("tlsEnabled", true) //
-                .option("tlsTrustStore", TRUST_STORE) //
-                .option("tlsTrustStorePassword", PASSWORD) //
-                .option("transportPipeline", UdpDtlsObservationPipeline.class.getName()) //
-                .option("dtlsObservation", observation);
+    private Map<String, String> endpointOptions(String observation) {
+        Map<String, String> options = new LinkedHashMap<>();
+        options.put("workerThread", "1");
+        options.put("connectTimeout", "3000");
+        options.put("tlsEnabled", "true");
+        options.put("transportPipeline", UdpDtlsObservationPipeline.class.getName());
+        options.put("dtlsObservation", observation);
+        return options;
     }
 
-    private static ConnectorConfig onlyConnector(MetConfiguration configuration) {
-        Collection<ConnectorConfig> connectors = configuration.getConnectorConfigs();
-        assertEquals(1, connectors.size());
-        return connectors.iterator().next();
+    private ConnectorConfig endpoint(int port, boolean bindEnabled, Map<String, String> options) {
+        InterAddress address = InterAddress.forBinding("udp", "127.0.0.1", port, "default");
+        ProtocolConfig protocol = ProtocolConfig.newConfig("testprotocol", null, Map.of());
+        return new ConnectorConfig("udp-0", address, options, List.of(protocol), bindEnabled);
     }
 
     private static final class Delivery {

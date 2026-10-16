@@ -18,7 +18,6 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -270,8 +269,7 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
     public void invalidSpiIsRejectedBeforeAnyListenerIsOpened() throws Exception {
         // 缺失 SPI 在构建阶段报错，不得占用监听端口。
         MetConfiguration config = this.configuration(this.port());
-        ConnectorConfig connector = config.getConnectorConfigs().iterator().next();
-        int firstPort = connector.address().getPort();
+        int firstPort = config.getConnectors().get(0).getPort();
         config.connector("missing-factory").protocol("hprose");
         config.setLocalDiskCache(true);
         config.setDataHome(this.temporary.newFolder().toPath());

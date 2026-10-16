@@ -236,15 +236,15 @@ public class MetConfigurationTest extends BootstrapTestSupport {
     @Test
     public void defaultsDescribeConfigurationWithoutStartingResources() throws Exception {
         // 仅读取默认配置，不创建上下文、监听器或线程池。
-        MetSettings settings = new MetConfiguration();
+        MetConfiguration settings = new MetConfiguration();
         assertEquals("default", settings.getDefaultGroup());
         assertEquals("1.0.0", settings.getDefaultVersion());
         assertEquals(6000, settings.getDefaultTimeout());
         assertEquals(200, settings.getMaximumRequest());
         assertEquals(Paths.get("meteor-data"), settings.getDataHome());
-        assertEquals(Collections.singleton("rsf"), settings.getProtocols());
-        ConnectorConfig connector = settings.getConnectorConfigs().iterator().next();
-        assertEquals("tcp://127.0.0.1:2181/default", connector.address().toHostSchema());
+        assertNull(settings.getDefaultProtocol());
+        assertEquals(0, settings.getRequestTimeout());
+        assertTrue(settings.getConnectors().isEmpty());
         assertFalse(settings.isLocalDiskCache());
         assertTrue(settings.isAutomaticOnline());
     }

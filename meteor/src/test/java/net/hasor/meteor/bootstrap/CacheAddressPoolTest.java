@@ -31,7 +31,7 @@ public class CacheAddressPoolTest {
     public void poolUpdaterAndProvidersShareAddressChangesBeforeStart() throws Exception {
         // 启动前通过更新器准备动态地址，固定地址提供器独立于服务桶。
         MetConfiguration configuration = this.settings();
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             MetUpdater updater = pool;
             AddressProvider provider = pool.getProvider();
             InterAddress pooled = new InterAddress("rsf://127.0.0.1:2111/default");
@@ -55,7 +55,7 @@ public class CacheAddressPoolTest {
     public void connectionFailureInvalidatesDynamicAddressesButPreservesStaticOnes() throws Exception {
         // 同一服务同时包含动态和静态地址，连接失败只使动态地址失效。
         MetConfiguration configuration = this.settings();
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             InterAddress dynamic = new InterAddress("rsf://127.0.0.1:2111/default");
             InterAddress fixed = new InterAddress("rsf://127.0.0.1:2112/default");
             pool.appendAddress("service", Collections.singletonList(dynamic));
@@ -74,7 +74,7 @@ public class CacheAddressPoolTest {
         // 重复启动同一个地址池，只安排一个维护任务。
         MetConfiguration configuration = this.settings();
         ManualScheduler scheduler = new ManualScheduler();
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             pool.start(scheduler);
             pool.start(scheduler);
             assertEquals(1, scheduler.tasks.size());
@@ -94,7 +94,7 @@ public class CacheAddressPoolTest {
         ManualScheduler scheduler = new ManualScheduler();
         Cancellable unrelated = scheduler.apply(() -> {
         }, 10L);
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             pool.start(scheduler);
             scheduler.tasks.get(1).action.run();
             ScheduledTask next = scheduler.tasks.get(2);
@@ -120,7 +120,7 @@ public class CacheAddressPoolTest {
         CountDownLatch release = new CountDownLatch(1);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         MetConfiguration configuration = this.settings();
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             InterAddress address = new InterAddress("rsf://127.0.0.1:2111/default");
             pool.appendAddress("service", Collections.singletonList(address));
             pool.getBucket("service").addObserver((source, event) -> {
@@ -154,7 +154,7 @@ public class CacheAddressPoolTest {
     public void closeBeforeStartCannotBeReversed() {
         // 尚未启动的地址池关闭后，不能通过启动恢复。
         MetConfiguration configuration = this.settings();
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             pool.close();
             assertThrows(IllegalStateException.class, () -> pool.start(new ManualScheduler()));
         }
@@ -165,7 +165,7 @@ public class CacheAddressPoolTest {
         // 非正刷新间隔在启动阶段拒绝，并使地址池进入已关闭状态。
         MetConfiguration configuration = this.settings();
         configuration.setRefreshCacheTime(0);
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             assertThrows(IllegalArgumentException.class, () -> pool.start(new ManualScheduler()));
             assertThrows(IllegalStateException.class, () -> pool.start(new ManualScheduler()));
         }
@@ -176,7 +176,7 @@ public class CacheAddressPoolTest {
         // 外部调度器拒绝任务时保留原异常，启动失败不能再次启动。
         MetConfiguration configuration = this.settings();
         RejectedExecutionException rejection = new RejectedExecutionException("scheduler unavailable");
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             RejectedExecutionException failure = assertThrows(RejectedExecutionException.class, () -> {
                 pool.start((task, delay) -> {
                     throw rejection;
@@ -192,7 +192,7 @@ public class CacheAddressPoolTest {
         // 先生成磁盘快照，再用独立地址池验证启动恢复。
         MetConfiguration configuration = this.settings();
         InterAddress address = new InterAddress("rsf://127.0.0.1:2111/default");
-        try (CacheAddressPool seed = new CacheAddressPool(configuration); //
+        try (CacheAddressPool seed = new CacheAddressPool(this.snapshot(configuration)); //
              DiskCache cache = new DiskCache(seed, this.temporary.getRoot(), 60000, 3600000)) {
             seed.appendAddress("service", address);
             cache.storeConfig();
@@ -200,7 +200,7 @@ public class CacheAddressPoolTest {
 
         // 启用磁盘缓存时启动同步恢复地址，并由缓存自身维护，不借用调度器。
         configuration.setLocalDiskCache(true);
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             pool.appendAddress("service", Collections.emptyList());
             RouteContext request = new RouteContext("service", "echo", new Object[0]);
             AddressProvider provider = pool.getProvider();
@@ -217,7 +217,7 @@ public class CacheAddressPoolTest {
         // 磁盘上存在快照，但未启用磁盘缓存的地址池仍从空地址集启动。
         MetConfiguration configuration = this.settings();
         InterAddress address = new InterAddress("rsf://127.0.0.1:2111/default");
-        try (CacheAddressPool seed = new CacheAddressPool(configuration); //
+        try (CacheAddressPool seed = new CacheAddressPool(this.snapshot(configuration)); //
              DiskCache cache = new DiskCache(seed, this.temporary.getRoot(), 60000, 3600000)) {
             seed.appendAddress("service", address);
             cache.storeConfig();
@@ -225,7 +225,7 @@ public class CacheAddressPoolTest {
 
         // 内存模式不读取快照，并向提供的调度器安排一次维护任务。
         ManualScheduler scheduler = new ManualScheduler();
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             pool.appendAddress("service", Collections.emptyList());
             pool.start(scheduler);
             RouteContext request = new RouteContext("service", "echo", new Object[0]);
@@ -238,7 +238,7 @@ public class CacheAddressPoolTest {
     public void xmlRouteReadsActualArguments() throws Exception {
         // 地址池按请求的实际参数执行 XML 路由筛选。
         MetConfiguration configuration = this.settings();
-        try (CacheAddressPool pool = new CacheAddressPool(configuration)) {
+        try (CacheAddressPool pool = new CacheAddressPool(this.snapshot(configuration))) {
             InterAddress first = new InterAddress("rsf://127.0.0.1:2111/default");
             InterAddress second = new InterAddress("rsf://127.0.0.1:2112/default");
             pool.appendAddress("service", Arrays.asList(first, second));
@@ -265,6 +265,11 @@ public class CacheAddressPoolTest {
         settings.setDiskCacheTimeInterval(3600000);
         settings.setDataHome(this.temporary.getRoot().toPath());
         return settings;
+    }
+
+    private MetSettingsImpl snapshot(MetConfiguration configuration) {
+        // 地址池单测只使用缓存参数，不需要连接器或运行上下文。
+        return new MetSettingsImpl(configuration, configuration.getBindAddress(), "rsf", List.of());
     }
 
     private static final class ManualScheduler implements BiFunction<Runnable, Long, Cancellable> {

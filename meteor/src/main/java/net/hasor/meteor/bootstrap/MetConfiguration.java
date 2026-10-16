@@ -7,88 +7,52 @@
  */
 package net.hasor.meteor.bootstrap;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.InetAddress;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import net.hasor.cobble.NetworkUtils;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.*;
-import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.EndpointConnectorFactory;
+import net.hasor.meteor.MetContext;
+import net.hasor.meteor.MetExtensionFactory;
+import net.hasor.meteor.MetOptionSet;
+import net.hasor.meteor.SendLimitPolicy;
 import net.hasor.meteor.domain.OptionInfo;
 import net.hasor.meteor.utils.ContextPathUtils;
 
-/** Configures RSF components and creates a context ready for service registration. */
-public final class MetConfiguration implements MetSettings {
+/** Editable configuration inputs; address resolution and component assembly run only when building a context. */
+public final class MetConfiguration {
     // 服务默认值
-    private       int                          defaultTimeout        = 6000;
-    private       String                       defaultGroup          = "default";
-    private       String                       defaultVersion        = "1.0.0";
+    private       int                       defaultTimeout        = 6000;
+    private       String                    defaultGroup          = "default";
+    private       String                    defaultVersion        = "1.0.0";
     // 连接与协议
-    private       String                       bindAddress           = "127.0.0.1";
-    private       String                       defaultProtocol       = null;
-    private final List<ConnectorSettings>      connectors            = new ArrayList<>();
+    private       String                    bindAddress           = "127.0.0.1";
+    private       String                    defaultProtocol       = null;
+    private final List<ConnectorSettings>   connectors            = new ArrayList<>();
     // 请求与响应
-    private       int                          requestTimeout        = 0;
-    private       int                          maximumRequest        = 200;
-    private       SendLimitPolicy              sendLimitPolicy       = SendLimitPolicy.Reject;
-    private       int                          connectTimeout        = 3000;
-    private final OptionInfo                   requestOptions        = new OptionInfo();
-    private final OptionInfo                   responseOptions       = new OptionInfo();
+    private       int                       requestTimeout        = 0;
+    private       int                       maximumRequest        = 200;
+    private       SendLimitPolicy           sendLimitPolicy       = SendLimitPolicy.Reject;
+    private       int                       connectTimeout        = 3000;
+    private final OptionInfo                requestOptions        = new OptionInfo();
+    private final OptionInfo                responseOptions       = new OptionInfo();
     // 处理调用
-    private       int                          queueMaxSize          = 4096;
-    private       int                          queueMinPoolSize      = 1;
-    private       int                          queueMaxPoolSize      = 4;
-    private       long                         queueKeepAliveTime    = 300L;
+    private       int                       queueMaxSize          = 4096;
+    private       int                       queueMinPoolSize      = 1;
+    private       int                       queueMaxPoolSize      = 4;
+    private       long                      queueKeepAliveTime    = 300L;
     // 地址缓存与路由
-    private       String                       unitName              = "default";
-    private       Path                         dataHome              = Paths.get("meteor-data");
-    private       long                         invalidWaitTime       = 120000L;
-    private       long                         refreshCacheTime      = 60000L;
-    private       boolean                      localDiskCache        = false;
-    private       long                         diskCacheTimeInterval = 3600000L;
+    private       String                    unitName              = "default";
+    private       Path                      dataHome              = Paths.get("meteor-data");
+    private       long                      invalidWaitTime       = 120000L;
+    private       long                      refreshCacheTime      = 60000L;
+    private       boolean                   localDiskCache        = false;
+    private       long                      diskCacheTimeInterval = 3600000L;
     // 实例配置
-    private       String                       applicationName       = "application";
-    private       boolean                      automaticOnline       = true;
-    /** Connector configurations prepared for a context; editable configurations derive them on demand. */
-    private final Map<String, ConnectorConfig> connectorConfigs;
-    private final List<MetExtensionFactory>    extensionFactory      = new ArrayList<>();
+    private       String                    applicationName       = "application";
+    private       boolean                   automaticOnline       = true;
+    private final List<MetExtensionFactory> extensionFactory      = new ArrayList<>();
 
     public MetConfiguration() {
-        this.connectorConfigs = null;
-    }
-
-    private MetConfiguration(MetConfiguration source, EndpointConnectorFactory factory) throws IOException {
-        this.defaultTimeout = source.defaultTimeout;
-        this.defaultGroup = source.defaultGroup;
-        this.defaultVersion = source.defaultVersion;
-        this.bindAddress = source.bindAddress;
-        this.defaultProtocol = source.defaultProtocol;
-        this.requestTimeout = source.requestTimeout;
-        this.maximumRequest = source.maximumRequest;
-        this.sendLimitPolicy = source.sendLimitPolicy;
-        this.connectTimeout = source.connectTimeout;
-        this.queueMaxSize = source.queueMaxSize;
-        this.queueMinPoolSize = source.queueMinPoolSize;
-        this.queueMaxPoolSize = source.queueMaxPoolSize;
-        this.queueKeepAliveTime = source.queueKeepAliveTime;
-        this.unitName = source.unitName;
-        this.dataHome = source.dataHome;
-        this.invalidWaitTime = source.invalidWaitTime;
-        this.refreshCacheTime = source.refreshCacheTime;
-        this.localDiskCache = source.localDiskCache;
-        this.diskCacheTimeInterval = source.diskCacheTimeInterval;
-        this.applicationName = source.applicationName;
-        this.automaticOnline = source.automaticOnline;
-        this.requestOptions.addOptionMap(source.requestOptions);
-        this.responseOptions.addOptionMap(source.responseOptions);
-        this.bindAddress = this.resolveBindAddress();
-        this.connectorConfigs = source.createConnectorConfigs(factory);
-        this.defaultProtocol = this.resolveDefaultProtocol(this.connectorConfigs);
     }
 
     // 服务默认值与序列化器
@@ -229,261 +193,120 @@ public final class MetConfiguration implements MetSettings {
 
     /** Builds the components; start() on the returned context opens its listeners. */
     public MetContext buildContext() throws IOException {
-        ClassLoader loader = Thread.currentThread().getContextClassLoader();
-        return this.buildContext(loader == null ? MetConfiguration.class.getClassLoader() : loader);
+        return MetContextFactory.create(this);
     }
 
     public MetContext buildContext(ClassLoader classLoader) throws IOException {
-        Objects.requireNonNull(classLoader, "classLoader");
-        EndpointConnectorFactory factory = new EndpointConnectorFactory();
-        factory.listenTypes(classLoader);
-
-        MetConfiguration settings = new MetConfiguration(this, factory);
-        MetContextImpl context = new MetContextImpl(settings, classLoader);
-        context.init(factory, this.extensionFactory);
-        return context;
+        return MetContextFactory.create(this, classLoader);
     }
 
-    //
-    //
-    //
-
     // 服务默认值与序列化器
-    @Override
     public int getDefaultTimeout() {
         return this.defaultTimeout;
     }
 
-    @Override
     public String getDefaultGroup() {
         return this.defaultGroup;
     }
 
-    @Override
     public String getDefaultVersion() {
         return this.defaultVersion;
     }
 
     // 处理调用
-    @Override
     public MetOptionSet getResponseOptions() {
         return this.responseOptions;
     }
 
-    @Override
     public int getQueueMaxSize() {
         return this.queueMaxSize;
     }
 
-    @Override
     public int getQueueMinPoolSize() {
         return this.queueMinPoolSize;
     }
 
-    @Override
     public int getQueueMaxPoolSize() {
         return this.queueMaxPoolSize;
     }
 
-    @Override
     public long getQueueKeepAliveTime() {
         return this.queueKeepAliveTime;
     }
 
     // 连接与协议
-    @Override
     public String getBindAddress() {
         return this.bindAddress;
     }
 
-    @Override
+    /** 原始协议选择；null 表示由构建阶段选择第一个挂载协议。 */
     public String getDefaultProtocol() {
-        return this.resolveDefaultProtocol(this.configuredConnectors());
+        return this.defaultProtocol;
     }
 
-    @Override
-    public Set<String> getProtocols() {
-        Set<String> protocols = new LinkedHashSet<>();
-        for (ConnectorConfig endpoint : this.configuredConnectors().values()) {
-            for (ProtocolConfig protocol : endpoint.protocols()) {
-                protocols.add(protocol.name());
-            }
-        }
-        return Collections.unmodifiableSet(protocols);
+    /** 用户声明的端点；未声明时返回空列表，默认端点在构建时补齐。 */
+    public List<ConnectorSettings> getConnectors() {
+        return Collections.unmodifiableList(this.connectors);
     }
 
-    @Override
-    public InterAddress getBindAddressSet(String protocolName) {
-        for (ConnectorConfig config : this.configuredConnectors().values()) {
-            if (!config.bindEnabled()) {
-                continue;
-            }
-            ProtocolConfig protocol = config.protocol(protocolName);
-            if (protocol == null) {
-                for (ProtocolConfig candidate : config.protocols()) {
-                    if (StringUtils.equalsIgnoreCase(candidate.name(), protocolName)) {
-                        protocol = candidate;
-                        break;
-                    }
-                }
-            }
-            if (protocol != null) {
-                InterAddress address = config.address();
-                return InterAddress.forBinding(protocol.scheme(), address.getHost(), address.getPort(), address.getFormUnit());
-            }
-        }
-        return null;
-    }
-
-    @Override
-    public Collection<ConnectorConfig> getConnectorConfigs() {
-        return Collections.unmodifiableCollection(this.configuredConnectors().values());
+    List<MetExtensionFactory> getExtensionFactories() {
+        return Collections.unmodifiableList(this.extensionFactory);
     }
 
     // 发起调用
-    @Override
     public MetOptionSet getRequestOptions() {
         return this.requestOptions;
     }
 
-    @Override
+    /** 原始调用超时；非正数在构建时回退到 defaultTimeout。 */
     public int getRequestTimeout() {
-        if (this.requestTimeout > 0) {
-            return this.requestTimeout;
-        }
-        return this.defaultTimeout;
+        return this.requestTimeout;
     }
 
-    @Override
     public int getMaximumRequest() {
         return this.maximumRequest;
     }
 
-    @Override
     public SendLimitPolicy getSendLimitPolicy() {
         return this.sendLimitPolicy;
     }
 
-    @Override
     public int getConnectTimeout() {
         return this.connectTimeout;
     }
 
     // 地址缓存与路由
-    @Override
     public long getInvalidWaitTime() {
         return this.invalidWaitTime;
     }
 
-    @Override
     public long getRefreshCacheTime() {
         return this.refreshCacheTime;
     }
 
-    @Override
     public boolean isLocalDiskCache() {
         return this.localDiskCache;
     }
 
-    @Override
     public long getDiskCacheTimeInterval() {
         return this.diskCacheTimeInterval;
     }
 
     // 实例配置
-    @Override
     public String getApplicationName() {
         return this.applicationName;
     }
 
-    @Override
     public String getUnitName() {
         return this.unitName;
     }
 
-    @Override
     public Path getDataHome() {
         return this.dataHome;
     }
 
-    @Override
     public boolean isAutomaticOnline() {
         return this.automaticOnline;
-    }
-
-    private Map<String, ConnectorConfig> configuredConnectors() {
-        if (this.connectorConfigs != null) {
-            return this.connectorConfigs;
-        }
-        try {
-            ClassLoader loader = Thread.currentThread().getContextClassLoader();
-            EndpointConnectorFactory factory = new EndpointConnectorFactory();
-            factory.listenTypes(loader == null ? MetConfiguration.class.getClassLoader() : loader);
-            return this.createConnectorConfigs(factory);
-        } catch (IOException failure) {
-            throw new UncheckedIOException(failure);
-        }
-    }
-
-    private String resolveBindAddress() throws IOException {
-        if (StringUtils.equalsIgnoreCase("local", this.bindAddress)) {
-            List<String> addresses = NetworkUtils.localAddrForIPv4();
-            Collections.sort(addresses);
-            return addresses.isEmpty() ? InetAddress.getLocalHost().getHostAddress() : addresses.get(0);
-        }
-        return InetAddress.getByName(this.bindAddress).getHostAddress();
-    }
-
-    private Map<String, ConnectorConfig> createConnectorConfigs(EndpointConnectorFactory factory) throws IOException {
-        List<ConnectorSettings> endpoints = this.connectors;
-        if (endpoints.isEmpty()) {
-            ConnectorSettings defaults = new ConnectorSettings("tcp");
-            defaults.bind(this.bindAddress, 2181);
-            defaults.option("workerThread", 2);
-            defaults.option("taskThread", 2);
-            defaults.protocol("rsf");
-            endpoints = Collections.singletonList(defaults);
-        }
-
-        Map<String, ConnectorConfig> configured = new LinkedHashMap<>();
-        Set<String> schemes = new HashSet<>();
-        for (ConnectorSettings endpoint : endpoints) {
-            // 先解析协议挂载，确保每种地址协议只属于一个端点。
-            List<ProtocolConfig> protocols = new ArrayList<>();
-            for (ProtocolSettings selection : endpoint.protocols) {
-                ProtocolConfig protocol = factory.protocol(selection.name, selection.options);
-                if (!schemes.add(protocol.scheme())) {
-                    throw new IllegalArgumentException("Protocol scheme belongs to multiple mounts: " + protocol.scheme());
-                }
-                protocols.add(protocol);
-            }
-
-            // 合并连接参数，再由工厂校验传输层与协议的组合。
-            Map<String, String> options = new LinkedHashMap<>(endpoint.options);
-            options.put("listenType", endpoint.type);
-            options.putIfAbsent("connectTimeout", Integer.toString(this.connectTimeout));
-            String host = endpoint.host == null ? this.resolveBindAddress() : endpoint.host;
-            InterAddress address = InterAddress.forBinding(endpoint.type, host, endpoint.port, this.unitName);
-            String id = endpoint.type + "-" + configured.size();
-            ConnectorConfig config = new ConnectorConfig(id, address, options, protocols, endpoint.host != null);
-            factory.prepare(config);
-            configured.put(id, config);
-        }
-        this.resolveDefaultProtocol(configured);
-        return Collections.unmodifiableMap(configured);
-    }
-
-    private String resolveDefaultProtocol(Map<String, ConnectorConfig> configured) {
-        for (ConnectorConfig endpoint : configured.values()) {
-            for (ProtocolConfig protocol : endpoint.protocols()) {
-                boolean matchesName = StringUtils.equalsIgnoreCase(this.defaultProtocol, protocol.name());
-                boolean matchesScheme = StringUtils.equalsIgnoreCase(this.defaultProtocol, protocol.scheme());
-                if (this.defaultProtocol == null || matchesName || matchesScheme) {
-                    return protocol.name();
-                }
-            }
-        }
-        throw new IllegalArgumentException("Default protocol is not configured: " + this.defaultProtocol);
     }
 
     private static String selection(String name) {
@@ -494,7 +317,7 @@ public final class MetConfiguration implements MetSettings {
     }
 
     private static void option(Map<String, String> options, String name, Object value) {
-        Set<String> identityOptions = Set.of("name", "listentype", "factory", "scheme", "protocol", "localport");
+        Set<String> identityOptions = Set.of("name", "transporttype", "factory", "scheme", "protocol", "localport");
         boolean reserved = name != null && identityOptions.contains(name.toLowerCase(Locale.ROOT));
         if (StringUtils.isBlank(name) || reserved) {
             throw new IllegalArgumentException("Option cannot redefine connector or protocol identity: " + name);
@@ -512,6 +335,26 @@ public final class MetConfiguration implements MetSettings {
 
         private ConnectorSettings(String type) {
             this.type = selection(type);
+        }
+
+        public String getType() {
+            return this.type;
+        }
+
+        public String getHost() {
+            return this.host;
+        }
+
+        public int getPort() {
+            return this.port;
+        }
+
+        public Map<String, String> getOptions() {
+            return Collections.unmodifiableMap(this.options);
+        }
+
+        public List<ProtocolSettings> getProtocols() {
+            return Collections.unmodifiableList(this.protocols);
         }
 
         public ConnectorSettings bind(String host, int port) {
@@ -535,16 +378,38 @@ public final class MetConfiguration implements MetSettings {
         }
     }
 
-    /** Editable protocol options; its name, scheme and required transport are owned by the SPI. */
+    /** Editable protocol mount options. The SPI name and public address scheme are configured separately. */
     public static final class ProtocolSettings {
         private final String              name;
+        private       String              addressScheme;
         private final Map<String, String> options = new LinkedHashMap<>();
 
         private ProtocolSettings(String name) {
             this.name = selection(name);
         }
 
+        public String getName() {
+            return this.name;
+        }
+
+        public String getAddressScheme() {
+            return this.addressScheme;
+        }
+
+        public Map<String, String> getOptions() {
+            return Collections.unmodifiableMap(this.options);
+        }
+
+        /** 设置该挂载发布和直连时使用的地址 scheme，不改变协议 SPI 身份。 */
+        public ProtocolSettings addressScheme(String scheme) {
+            this.addressScheme = selection(scheme);
+            return this;
+        }
+
         public ProtocolSettings option(String name, Object value) {
+            if (transportSecurityOption(name)) {
+                throw new IllegalArgumentException("Transport security option belongs to connector: " + name);
+            }
             MetConfiguration.option(this.options, name, value);
             return this;
         }
@@ -560,5 +425,11 @@ public final class MetConfiguration implements MetSettings {
             ContextPathUtils.addContextPath(this.options, path);
             return this;
         }
+    }
+
+    private static boolean transportSecurityOption(String name) {
+        String normalized = StringUtils.defaultIfBlank(name, "").toLowerCase(Locale.ROOT);
+        return normalized.startsWith("tls") || normalized.startsWith("dtls") || //
+                StringUtils.equalsIgnoreCase(normalized, "maxDatagramSize");
     }
 }

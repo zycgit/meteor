@@ -117,6 +117,7 @@ public class NacosSyncMain extends AbstractNacosExample {
         NacosRegistryConfiguration registry = this.createRegistryConfiguration();
         MetConfiguration administration = new MetConfiguration().addExtension(registry);
         MetConfiguration consumer = this.createConsumerConfiguration(registry);
+        consumer.setRequestOption("marker", "local");
         try (MetContext administrationContext = administration.buildContext(); //
              StorageAccess observer = registry.openStorage(); //
              MetContext context = consumer.buildContext()) {
@@ -160,7 +161,6 @@ public class NacosSyncMain extends AbstractNacosExample {
             // 单服务推送只上报登记，不重新应用治理或改写无关记录。
             first.setMetaData("marker", "local");
             other.setMetaData("marker", "local");
-            context.getSettings().getRequestOptions().addOption("marker", "local");
 
             client.pushSync(firstId).get(20, TimeUnit.SECONDS);
             assertEquals("local", first.getMetaData("marker"));
@@ -181,6 +181,7 @@ public class NacosSyncMain extends AbstractNacosExample {
         NacosRegistryConfiguration registry = this.createRegistryConfiguration();
         MetConfiguration administration = new MetConfiguration().addExtension(registry);
         MetConfiguration consumer = this.createConsumerConfiguration(registry);
+        consumer.setRequestOption("marker", "local");
         try (MetContext administrationContext = administration.buildContext(); //
              StorageAccess observer = registry.openStorage(); //
              MetContext context = consumer.buildContext()) {
@@ -224,7 +225,6 @@ public class NacosSyncMain extends AbstractNacosExample {
             // 单服务拉取只恢复目标服务，实例设置和其他服务均保持本地值。
             first.setMetaData("marker", "local");
             other.setMetaData("marker", "local");
-            context.getSettings().getRequestOptions().addOption("marker", "local");
 
             client.pullSync(firstId).get(20, TimeUnit.SECONDS);
             assertEquals("managed", first.getMetaData("marker"));

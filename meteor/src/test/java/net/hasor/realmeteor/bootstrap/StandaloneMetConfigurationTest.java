@@ -251,34 +251,45 @@ public class StandaloneMetConfigurationTest {
     }
 
     @Test
-    public void editingRequestOptionsDoesNotMutateTheBuilderOrAnotherContext() throws Exception {
+    public void contextRequestOptionsRejectEditsAndRemainIndependentOfTheSource() throws Exception {
         // 同一配置创建两个带有初始请求选项的上下文。
         MetConfiguration source = new MetConfiguration();
         source.setRequestOption("trace", "initial");
         try (MetContext first = source.buildContext(); //
              MetContext second = source.buildContext()) {
-            // 修改第一个上下文的请求选项不会串改配置和第二个上下文。
-            first.getSettings().getRequestOptions().addOption("trace", "first");
+            // Context 暴露只读选项，不能修改其构建结果。
+            assertThrows(UnsupportedOperationException.class, () -> {
+                first.getSettings().getRequestOptions().addOption("trace", "first");
+            });
+            assertEquals("initial", first.getSettings().getRequestOptions().getOption("trace"));
             assertEquals("initial", source.getRequestOptions().getOption("trace"));
             assertEquals("initial", second.getSettings().getRequestOptions().getOption("trace"));
 
             // 之后修改原配置也不影响两个上下文各自的请求选项。
             source.setRequestOption("trace", "later");
-            assertEquals("first", first.getSettings().getRequestOptions().getOption("trace"));
+            assertEquals("initial", first.getSettings().getRequestOptions().getOption("trace"));
             assertEquals("initial", second.getSettings().getRequestOptions().getOption("trace"));
         }
     }
 
     @Test
-    public void removingResponseOptionDoesNotMutateTheBuilderOrAnotherContext() throws Exception {
-        // 响应选项同样归各上下文所有，删除只对目标上下文生效。
+    public void contextResponseOptionsRejectRemovalAndRemainIndependentOfTheSource() throws Exception {
+        // 同一配置构建两个上下文，各自保存只读响应选项。
         MetConfiguration source = new MetConfiguration();
         source.setResponseOption("tag", "initial");
         try (MetContext first = source.buildContext(); //
              MetContext second = source.buildContext()) {
-            first.getSettings().getResponseOptions().removeOption("tag");
-            assertNull(first.getSettings().getResponseOptions().getOption("tag"));
+            // 删除操作明确失败，原配置和两个上下文的值均保持不变。
+            assertThrows(UnsupportedOperationException.class, () -> {
+                first.getSettings().getResponseOptions().removeOption("tag");
+            });
+            assertEquals("initial", first.getSettings().getResponseOptions().getOption("tag"));
             assertEquals("initial", source.getResponseOptions().getOption("tag"));
+            assertEquals("initial", second.getSettings().getResponseOptions().getOption("tag"));
+
+            // 原配置继续可编辑，移除选项只影响下一次构建。
+            source.getResponseOptions().removeOption("tag");
+            assertEquals("initial", first.getSettings().getResponseOptions().getOption("tag"));
             assertEquals("initial", second.getSettings().getResponseOptions().getOption("tag"));
         }
     }

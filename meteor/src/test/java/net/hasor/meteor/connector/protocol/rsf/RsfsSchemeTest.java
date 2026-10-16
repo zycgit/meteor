@@ -9,13 +9,13 @@ package net.hasor.meteor.connector.protocol.rsf;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.TransportPlan;
 import net.hasor.meteor.connector.transport.tcp.TcpTransportFactory;
-import net.hasor.meteor.connector.SocketTestSupport;
 import org.junit.Test;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newRuntimeServices;
@@ -44,28 +44,30 @@ public class RsfsSchemeTest {
     }
 
     @Test
-    public void secureRsfEndpointKeepsTheTcpTransportIdentity() {
+    public void secureRsfEndpointKeepsTheTcpTransportIdentity() throws Exception {
         // 用户只选择 TCP 和 RSF，TLS 由端点选项启用。
         MetConfiguration configuration = new MetConfiguration();
         configuration.connector("tcp") //
                 .option("tlsEnabled", true) //
                 .protocol("rsf").addressScheme("rsfs");
 
-        // 构建后的公开地址为 rsfs，内部仍由 tcp 与 RsfProtocol 处理。
-        Collection<ConnectorConfig> connectors = configuration.getConnectorConfigs();
-        ConnectorConfig connector = connectors.iterator().next();
-        ProtocolConfig protocol = connector.protocol("rsfs");
-        assertEquals("tcp", connector.transportType());
-        assertEquals("true", connector.options().get("tlsEnabled"));
-        assertNotNull(protocol);
-        assertEquals("rsf", protocol.name());
-        assertEquals("rsfs", protocol.scheme());
-        assertEquals("rsf", protocol.factoryName());
-        assertEquals("rsf", configuration.getDefaultProtocol());
+        try (MetContext context = configuration.buildContext()) {
+            // 构建后的公开地址为 rsfs，内部仍由 tcp 与 RsfProtocol 处理。
+            Collection<ConnectorConfig> connectors = context.getSettings().getConnectorConfigs();
+            ConnectorConfig connector = connectors.iterator().next();
+            ProtocolConfig protocol = connector.protocol("rsfs");
+            assertEquals("tcp", connector.transportType());
+            assertEquals("true", connector.options().get("tlsEnabled"));
+            assertNotNull(protocol);
+            assertEquals("rsf", protocol.name());
+            assertEquals("rsfs", protocol.scheme());
+            assertEquals("rsf", protocol.factoryName());
+            assertEquals("rsf", context.getDefaultProtocol());
+        }
     }
 
     @Test
-    public void secureRsfRemainsTheDefaultWhenPlainAndTlsEndpointsCoexist() {
+    public void secureRsfRemainsTheDefaultWhenPlainAndTlsEndpointsCoexist() throws Exception {
         // 同时配置明文和 TLS 端点，默认协议使用公开地址名称选择安全端点。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("rsfs");
         configuration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
@@ -73,15 +75,17 @@ public class RsfsSchemeTest {
                 .option("tlsEnabled", true) //
                 .protocol("rsf").addressScheme("rsfs");
 
-        // 默认协议规范化为逻辑名；配置快照保留安全端点的公开地址 scheme。
-        assertEquals("rsf", configuration.getDefaultProtocol());
-        List<ConnectorConfig> connectors = List.copyOf(configuration.getConnectorConfigs());
-        ProtocolConfig secure = connectors.get(1).protocols().iterator().next();
-        assertEquals("rsfs", secure.scheme());
+        try (MetContext context = configuration.buildContext()) {
+            // 默认协议规范化为逻辑名；配置快照保留安全端点的公开地址 scheme。
+            assertEquals("rsf", context.getDefaultProtocol());
+            List<ConnectorConfig> connectors = List.copyOf(context.getSettings().getConnectorConfigs());
+            ProtocolConfig secure = connectors.get(1).protocols().iterator().next();
+            assertEquals("rsfs", secure.scheme());
+        }
     }
 
     @Test
-    public void plainRsfCanBeSelectedWhenTheTlsEndpointWasConfiguredFirst() {
+    public void plainRsfCanBeSelectedWhenTheTlsEndpointWasConfiguredFirst() throws Exception {
         // 端点顺序不能让安全地址覆盖显式选择的明文 RSF。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("rsf");
         configuration.connector("tcp").bind("127.0.0.1", 0) //
@@ -89,11 +93,13 @@ public class RsfsSchemeTest {
                 .protocol("rsf").addressScheme("rsfs");
         configuration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
 
-        // 默认值保留逻辑名；配置快照仍保持端点及其地址 scheme 的顺序。
-        assertEquals("rsf", configuration.getDefaultProtocol());
-        List<ConnectorConfig> connectors = List.copyOf(configuration.getConnectorConfigs());
-        ProtocolConfig plain = connectors.get(1).protocols().iterator().next();
-        assertEquals("rsf", plain.scheme());
+        try (MetContext context = configuration.buildContext()) {
+            // 默认值保留逻辑名；配置快照仍保持端点及其地址 scheme 的顺序。
+            assertEquals("rsf", context.getDefaultProtocol());
+            List<ConnectorConfig> connectors = List.copyOf(context.getSettings().getConnectorConfigs());
+            ProtocolConfig plain = connectors.get(1).protocols().iterator().next();
+            assertEquals("rsf", plain.scheme());
+        }
     }
 
     @Test

@@ -102,11 +102,12 @@ public class AddressMaintenanceScenarioTest extends BootstrapTestSupport {
         try (MetContext runtime = configuration.buildContext()) {
             MetBindInfo<Echo> service = runtime.publisher().rsfService(Echo.class).register();
             serviceId = service.getBindID();
-        }
-        try (CacheAddressPool seed = new CacheAddressPool(configuration); //
-             DiskCache cache = new DiskCache(seed, home, 60000, 3600000)) {
-            seed.appendAddress(serviceId, new InterAddress("rsf://127.0.0.1:2211/default"));
-            cache.storeConfig();
+            InterAddress address = new InterAddress("rsf://127.0.0.1:2211/default");
+            runtime.getUpdater().appendAddress(serviceId, Collections.singletonList(address));
+            AddressPool seed = (AddressPool) runtime.getUpdater();
+            try (DiskCache cache = new DiskCache(seed, home, 60000, 3600000)) {
+                cache.storeConfig();
+            }
         }
         assertTrue(new File(home, "snapshot/address.index").isFile());
 

@@ -12,7 +12,7 @@ import java.util.Set;
 import net.hasor.meteor.connector.ConnectorConfig;
 
 /**
- * RSF 配置。
+ * Context 构建完成后的只读配置；与可编辑的 MetConfiguration 输入独立。
  * @version : 2014年11月18日
  * @author 赵永春 (zyc@hasor.net)
  */
@@ -32,10 +32,10 @@ public interface MetSettings {
     /**获取默认超时时间。*/
     String getDefaultVersion();
 
-    /**获取默认附加到响应中的选项。*/
+    /** 获取默认附加到响应中的只读选项；修改操作抛出 UnsupportedOperationException。 */
     MetOptionSet getResponseOptions();
 
-    /**获取默认附加到请求中的选项。*/
+    /** 获取默认附加到请求中的只读选项；修改操作抛出 UnsupportedOperationException。 */
     MetOptionSet getRequestOptions();
 
     /**处理任务队列的最大大小，作为服务端当队列满了之后所有新进来的请求都会被回应 ChooseOther*/
@@ -71,7 +71,7 @@ public interface MetSettings {
     /**可使用的协议名集合*/
     Set<String> getProtocols();
 
-    /**获取已解析的连接器配置及其专属选项。*/
+    /** 获取构建时已解析的连接器配置及其专属选项，返回只读集合。 */
     Collection<ConnectorConfig> getConnectorConfigs();
 
     /**获取本机所属单元*/
