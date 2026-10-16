@@ -5,5 +5,5 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-/** gRPC 协议 SPI、请求会话、流控制和客户端重试实现。 */
+/** gRPC 请求会话、流控制、客户端重试及 gRPC-Web HTTP 交换适配。 */
 package net.hasor.meteor.protocol.grpc.session;

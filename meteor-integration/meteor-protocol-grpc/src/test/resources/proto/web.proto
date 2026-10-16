@@ -1,0 +1,16 @@
+// Copyright 2015-2026 the original author or authors.
+// Licensed under the Apache License, Version 2.0.
+syntax = "proto3";
+package web;
+
+message Message {
+  string value = 7;
+  int32 count = 2;
+}
+
+service Echo {
+  rpc echo(Message) returns (Message);
+  rpc list(Message) returns (stream Message);
+  rpc fail(Message) returns (Message);
+  rpc broken(Message) returns (stream Message);
+}

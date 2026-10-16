@@ -3,7 +3,7 @@ plugins {
     id 'maven-publish'
 }
 
-description = 'gRPC protocol adapter for ordinary Meteor Java services'
+description = 'gRPC and gRPC-Web protocol adapters for Meteor Java services'
 
 dependencies {
     api project(':meteor')
@@ -22,10 +22,41 @@ dependencies {
         exclude group: 'dev.cel'
     }
     testImplementation project(':meteor-protocol-hprose')
+    testRuntimeOnly project(':meteor-protocol-hessian')
     testImplementation "org.hprose:hprose-java:${property('lib.hprose')}"
 }
 
 // 同端口互通测试包含 Hprose bean 反序列化。
 tasks.named('test') {
     jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+}
+
+// 官方 gRPC-Web 客户端与 Chromium 仅参与互通测试。
+tasks.register('prepareGrpcWebPeer', Sync) {
+    from 'src/test/node/grpcweb'
+    into layout.buildDirectory.dir('grpcweb-peer')
+    preserve { include 'node_modules/**' }
+}
+tasks.register('installGrpcWebPeer', Exec) {
+    dependsOn 'prepareGrpcWebPeer'
+    workingDir layout.buildDirectory.dir('grpcweb-peer')
+    commandLine 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+    inputs.files('src/test/node/grpcweb/package.json', 'src/test/node/grpcweb/package-lock.json')
+    outputs.dir layout.buildDirectory.dir('grpcweb-peer/node_modules')
+}
+tasks.register('buildGrpcWebPeer', Exec) {
+    dependsOn 'installGrpcWebPeer'
+    workingDir layout.buildDirectory.dir('grpcweb-peer')
+    commandLine 'node', 'build.js'
+    inputs.dir('src/test/node/grpcweb')
+    outputs.file layout.buildDirectory.file('grpcweb-peer/browser.bundle.js')
+}
+tasks.register('installGrpcWebBrowser', Exec) {
+    dependsOn 'installGrpcWebPeer'
+    workingDir layout.buildDirectory.dir('grpcweb-peer')
+    commandLine 'node', 'node_modules/playwright/cli.js', 'install', 'chromium'
+}
+tasks.named('test') {
+    dependsOn 'buildGrpcWebPeer', 'installGrpcWebBrowser'
+    systemProperty 'grpcweb.peer.dir', layout.buildDirectory.dir('grpcweb-peer').get().asFile.absolutePath
 }

@@ -1,1 +1,2 @@
-net.hasor.meteor.protocol.grpc.session.GrpcProtocol
+net.hasor.meteor.protocol.grpc.GrpcProtocol
+net.hasor.meteor.protocol.grpc.GrpcWebProtocol

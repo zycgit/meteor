@@ -33,7 +33,7 @@ import net.hasor.meteor.protocol.grpc.codec.GrpcMethodShape;
 /**
  * Maps RPC requests to HTTP exchanges; the underlying channel owns HTTP wire ordering.
  */
-final class GrpcSession implements ProtocolSession<HttpExchange> {
+public final class GrpcSession implements ProtocolSession<HttpExchange> {
     private final NetworkChannel<HttpExchange> connection;
     private final GrpcHttpCodec                codec;
     private final ObjLongConsumer<Payload>     messages;
@@ -48,7 +48,8 @@ final class GrpcSession implements ProtocolSession<HttpExchange> {
     private       boolean                      closed;
     private       Throwable                    closeCause;
 
-    GrpcSession( //
+    /** Internal protocol assembly entry; instances are owned by their connector channel. */
+    public GrpcSession( //
             ProtocolSessionContext context, NetworkChannel<HttpExchange> connection, //
             ObjLongConsumer<Payload> messages, GrpcMountRuntime runtime) {
         this.connection = connection;

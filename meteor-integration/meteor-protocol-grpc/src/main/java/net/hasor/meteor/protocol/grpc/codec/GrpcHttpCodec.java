@@ -89,7 +89,7 @@ public final class GrpcHttpCodec {
         if (parts.length != 2) {
             throw new IllegalArgumentException("Expected /service/method");
         }
-        MetBindInfo<?> service = this.context.getServiceInfo("grpc", parts[0]);
+        MetBindInfo<?> service = this.context.getServiceInfo(this.config.name(), parts[0]);
         if (service == null || service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
             throw new UnsupportedOperationException("Unknown gRPC service: " + parts[0]);
         }
@@ -133,7 +133,7 @@ public final class GrpcHttpCodec {
         String path = input.uri();
         int separator = path.indexOf('/', 1);
         if (path.startsWith("/") && separator > 1) {
-            MetBindInfo<?> service = this.context.getServiceInfo("grpc", path.substring(1, separator));
+            MetBindInfo<?> service = this.context.getServiceInfo(this.config.name(), path.substring(1, separator));
             if (service != null && this.config.exactPaths(service).contains(path)) {
                 return RouteMount.exact(path);
             }
@@ -609,9 +609,9 @@ public final class GrpcHttpCodec {
     }
 
     private String alias(MetBindInfo<?> service) {
-        String name = service.getAliasName("grpc");
+        String name = service.getAliasName(this.config.name());
         if (StringUtils.isBlank(name)) {
-            throw new IllegalArgumentException("Service must declare its grpc alias");
+            throw new IllegalArgumentException("Service must declare its " + this.config.name() + " alias");
         }
         return name;
     }

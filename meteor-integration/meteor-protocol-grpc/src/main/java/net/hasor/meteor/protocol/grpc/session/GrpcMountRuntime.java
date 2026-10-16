@@ -11,8 +11,8 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.protocol.grpc.codec.GrpcHttpCodec;
 
-/** One protocol mount's bounded blocking-worker runtime, retained by its active sessions. */
-final class GrpcMountRuntime {
+/** Internal mount lifecycle shared by the root protocol factory and its active sessions. */
+public final class GrpcMountRuntime {
     private final ProtocolConfig        config;
     private final GrpcClientRetryPolicy policy;
     private final int                   messageLimit;
@@ -20,13 +20,13 @@ final class GrpcMountRuntime {
     private       ExecutorService       workers;
     private       int                   sessions;
 
-    GrpcMountRuntime(ProtocolConfig config) {
+    public GrpcMountRuntime(ProtocolConfig config) {
         this.config = config;
         this.policy = new GrpcClientRetryPolicy(config);
         this.messageLimit = config.integer("maxMessageSize", 4 * 1024 * 1024);
     }
 
-    synchronized GrpcMountRuntime retain(MetContext context) {
+    public synchronized GrpcMountRuntime retain(MetContext context) {
         if (this.sessions == 0) {
             this.codec = new GrpcHttpCodec(this.config, context);
             this.workers = this.createWorkers(context.getClassLoader());
@@ -62,7 +62,7 @@ final class GrpcMountRuntime {
         return this.workers;
     }
 
-    synchronized void release() {
+    public synchronized void release() {
         if (this.sessions == 0) {
             return;
         }

@@ -5,5 +5,5 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-/** gRPC 的 HTTP 映射、消息帧、压缩、元数据与 Java 值编解码实现。 */
+/** gRPC 的消息映射、压缩与 Java 值编解码，以及 gRPC-Web 文本、尾帧和浏览器头部处理。 */
 package net.hasor.meteor.protocol.grpc.codec;
