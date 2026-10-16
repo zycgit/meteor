@@ -32,7 +32,6 @@ import net.hasor.meteor.rpc.MetRequestLocal;
 import net.hasor.meteor.rpc.MetResponseLocal;
 import net.hasor.meteor.serialize.SerializeCoder;
 import net.hasor.meteor.serialize.SerializeFactory;
-import net.hasor.meteor.serialize.coder.HessianSerializeCoder;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import net.hasor.meteor.serialize.coder.JsonSerializeCoder;
 import org.junit.Test;
@@ -48,7 +47,6 @@ public class BootstrapBoundaryTest {
         types.addAll(List.of(SerializeCoder.class, SerializeFactory.class));
         types.add(JavaSerializeCoder.class);
         types.add(JsonSerializeCoder.class);
-        types.add(HessianSerializeCoder.class);
 
         // 地址存储、提供者与 XML 规则解析。
         types.addAll(List.of(AddressPool.class, DiskCache.class, InterAddress.class, XmlRuleParser.class));

@@ -39,6 +39,7 @@ import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
+import net.hasor.meteor.protocol.hprose.HproseProtocol;
 import net.hasor.meteor.protocol.hprose.codec.HproseHttpCodec;
 import org.junit.Test;
 import static org.junit.Assert.*;

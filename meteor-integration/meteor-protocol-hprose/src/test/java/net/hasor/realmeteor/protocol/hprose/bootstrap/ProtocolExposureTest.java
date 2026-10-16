@@ -63,7 +63,7 @@ public class ProtocolExposureTest extends BootstrapTestSupport {
             TextService httpRemote = client.getRsfClient(server.getListenAddress("hprose")).getRemote(service);
             assertEquals("tcp", tcpRemote.echo("tcp"));
             assertEquals("http", httpRemote.echo("http"));
-            assertEquals("Java", observed.get("tcp"));
+            assertEquals("Json", observed.get("tcp"));
             assertEquals("Hprose", observed.get("http"));
         }
     }

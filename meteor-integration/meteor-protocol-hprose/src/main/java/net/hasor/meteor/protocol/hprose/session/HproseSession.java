@@ -32,7 +32,7 @@ import net.hasor.meteor.protocol.hprose.codec.HproseHttpCodec;
 /**
  * Maps RPC requests to HTTP exchanges; the underlying channel owns HTTP wire ordering.
  */
-final class HproseSession implements ProtocolSession<HttpExchange> {
+public final class HproseSession implements ProtocolSession<HttpExchange> {
     private final NetworkChannel<HttpExchange> channel;
     private final HproseHttpCodec              codec;
     private final boolean                      outbound;
@@ -41,7 +41,8 @@ final class HproseSession implements ProtocolSession<HttpExchange> {
     private final Map<Long, HprosePendingCall> pending = new HashMap<>();
     private       long                         incomingId;
 
-    HproseSession( //
+    /** Internal protocol assembly entry; instances are owned by their connector channel. */
+    public HproseSession( //
             ProtocolSessionContext context, NetworkChannel<HttpExchange> channel, //
             ObjLongConsumer<Payload> messages, HproseHttpCodec codec) {
         this.channel = channel;

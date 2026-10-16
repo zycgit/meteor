@@ -1,1 +1,1 @@
-net.hasor.meteor.protocol.hprose.session.HproseProtocol
+net.hasor.meteor.protocol.hprose.HproseProtocol

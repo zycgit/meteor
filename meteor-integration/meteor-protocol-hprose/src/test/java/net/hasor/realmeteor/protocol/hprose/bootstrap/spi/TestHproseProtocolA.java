@@ -12,7 +12,7 @@ import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.payload.Payload;
-import net.hasor.meteor.protocol.hprose.session.HproseProtocol;
+import net.hasor.meteor.protocol.hprose.HproseProtocol;
 
 /** 使用独立 SPI 名称验证共享 HTTP 挂载，编解码仍委托真实 Hprose 实现。 */
 public class TestHproseProtocolA implements ProtocolFactory<HttpExchange> {

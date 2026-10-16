@@ -15,7 +15,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import net.hasor.meteor.protocol.hprose.session.HproseProtocol;
+import net.hasor.meteor.protocol.hprose.HproseProtocol;
 import net.hasor.meteor.serialize.SerializeCoder;
 import net.hasor.meteor.serialize.SerializeFactory;
 import org.junit.Test;
