@@ -5,14 +5,20 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport.http;
+package net.hasor.meteor.connector.transport.http.channel;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.codec.http.HttpHeaders;
 import net.hasor.neta.codec.http.HttpVersion;
 
-class HttpMessages {
+public final class HttpMessageUtils {
+    private HttpMessageUtils() {
+    }
+
     public static boolean keepAlive(HttpVersion version, HttpHeaders headers) {
         boolean keep = version.isKeepAliveDefault();
         for (String value : headers.getValues("Connection")) {
@@ -46,13 +52,13 @@ class HttpMessages {
         return Collections.unmodifiableMap(copy);
     }
 
-    static void append(Map<String, List<String>> target, HttpHeaders source) {
+    public static void append(Map<String, List<String>> target, HttpHeaders source) {
         for (String name : source.headerNames()) {
             target.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(source.getValues(name));
         }
     }
 
-    static void write(Map<String, List<String>> source, HttpHeaders target) {
+    public static void write(Map<String, List<String>> source, HttpHeaders target) {
         source.forEach((name, values) -> {
             for (String value : values) {
                 target.addHeader(name, value);
@@ -65,7 +71,7 @@ class HttpMessages {
         return values == null || values.isEmpty() ? null : values.get(0);
     }
 
-    static int expectation(HttpRequest request) {
+    public static int expectation(HttpRequest request) {
         if (request.stream() == null) {
             return 0;
         }
@@ -86,5 +92,13 @@ class HttpMessages {
         byte[] bytes = new byte[source.readableBytes()];
         source.getBytes(source.readerIndex(), bytes);
         return bytes;
+    }
+
+    public static Throwable writeFailure(Future<?> future) {
+        return future.isCancelled() ? new CancellationException("HTTP write cancelled") : future.getCause();
+    }
+
+    public static void route(HttpRequest request, RouteSelection route) {
+        request.route(route);
     }
 }

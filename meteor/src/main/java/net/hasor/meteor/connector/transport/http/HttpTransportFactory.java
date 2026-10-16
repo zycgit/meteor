@@ -9,12 +9,13 @@ package net.hasor.meteor.connector.transport.http;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.transport.NetworkConnector;
-import net.hasor.meteor.connector.transport.NetworkConnectorFactory;
+import net.hasor.meteor.connector.transport.TransportConfig;
+import net.hasor.meteor.connector.transport.TransportFactory;
+import net.hasor.meteor.connector.transport.TransportPlan;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.utils.ContextPathUtils;
 
-public final class HttpConnectorFactory implements NetworkConnectorFactory<HttpExchange> {
+public final class HttpTransportFactory implements TransportFactory<HttpExchange> {
     public void configRoutes(Map<String, Map<String, String>> routes) {
         Set<String> paths = new HashSet<>();
         for (Map.Entry<String, Map<String, String>> route : routes.entrySet()) {
@@ -43,7 +44,9 @@ public final class HttpConnectorFactory implements NetworkConnectorFactory<HttpE
         return HttpExchange.class;
     }
 
-    public NetworkConnector<HttpExchange> create(ConnectorConfig config, ClassLoader loader) {
-        return new HttpConnector(config, loader);
+    public TransportPlan<HttpExchange> prepare(TransportConfig config, ClassLoader loader) {
+        return TransportPlan.withPipeline(config, loader, (pipeline, services) -> {
+            return new HttpConnector(config, pipeline, services.classLoader());
+        });
     }
 }

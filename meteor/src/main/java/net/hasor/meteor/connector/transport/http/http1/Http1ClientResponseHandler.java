@@ -5,21 +5,22 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport.http;
+package net.hasor.meteor.connector.transport.http.http1;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.channel.data.ProtoRcvQueue;
 import net.hasor.neta.channel.data.ProtoSndQueue;
 import net.hasor.neta.codec.http.FullHttpResponse;
-import static net.hasor.meteor.connector.transport.http.HttpMessages.*;
+import static net.hasor.meteor.connector.transport.http.channel.HttpMessageUtils.*;
 
-final class HttpClientHandler implements ProtoHandler<FullHttpResponse, Object> {
-    private final HttpClientChannel channel;
-    private final NetChannel        socket;
+final class Http1ClientResponseHandler implements ProtoHandler<FullHttpResponse, Object> {
+    private final Http1ClientChannel channel;
+    private final NetChannel         socket;
 
-    public HttpClientHandler(HttpClientChannel channel, NetChannel socket) {
+    Http1ClientResponseHandler(Http1ClientChannel channel, NetChannel socket) {
         this.channel = channel;
         this.socket = socket;
     }
@@ -43,7 +44,7 @@ final class HttpClientHandler implements ProtoHandler<FullHttpResponse, Object> 
 
                 HttpResponse copy = HttpResponse.newBuffered(status, responseHeaders, content, trailers);
                 boolean keep = keepAlive(response.protocolVersion(), response);
-                dst.offerMessage(new HttpInboundResponse(copy, keep));
+                dst.offerMessage(new Http1InboundResponse(copy, keep));
             } finally {
                 response.release();
             }

@@ -5,34 +5,35 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport.http;
-import net.hasor.meteor.connector.ContextRoutes;
+package net.hasor.meteor.connector.transport.http.http1;
+import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.ProtoContext;
 import net.hasor.neta.codec.http.*;
-import net.hasor.neta.codec.http.HttpRequest;
 
 /** 让 Neta 的请求生命周期同时持有头部阶段选定的路由。 */
-final class Http1RequestAggregator extends HttpRequestAggregator {
-    Http1RequestAggregator(int maxContentLength) {
+final class Http1RoutedRequestAggregator extends HttpRequestAggregator {
+    Http1RoutedRequestAggregator(int maxContentLength) {
         super(maxContentLength);
     }
 
     @Override
-    protected HttpObject newFullMessage(ProtoContext context, HttpRequest request, DefaultHttpHeaders headers, DefaultTrailerHttpHeaders trailers, ByteBuf content) {
-        if (!(headers instanceof RouteHeaders routed)) {
+    protected HttpObject newFullMessage(ProtoContext context, HttpRequest request, //
+            DefaultHttpHeaders headers, DefaultTrailerHttpHeaders trailers, ByteBuf content) {
+        if (!(headers instanceof RoutedHeaders routed)) {
             throw new IllegalStateException("HTTP/1 request has no header route selection");
         }
-        ContextRoutes.Route route = routed.route;
+
+        RouteSelection route = routed.route;
         FullHttpRequest full = (FullHttpRequest) super.newFullMessage(context, request, headers, trailers, content);
         return new RoutedRequest(full, route);
     }
 
     /** 不包含内部网络字段；后续真实头由 Neta 合并进这个首个头对象。 */
-    static final class RouteHeaders extends DefaultHttpHeaders {
-        private ContextRoutes.Route route;
+    static final class RoutedHeaders extends DefaultHttpHeaders {
+        private RouteSelection route;
 
-        RouteHeaders(ContextRoutes.Route route) {
+        RoutedHeaders(RouteSelection route) {
             this.route = route;
         }
 
@@ -45,10 +46,10 @@ final class Http1RequestAggregator extends HttpRequestAggregator {
 
     /** 聚合后才包装，保留 Neta 原始请求行上的自动应答顺序信息。 */
     static final class RoutedRequest extends AbstractHttpObject<RoutedRequest> {
-        private FullHttpRequest     request;
-        private ContextRoutes.Route route;
+        private FullHttpRequest request;
+        private RouteSelection  route;
 
-        RoutedRequest(FullHttpRequest request, ContextRoutes.Route route) {
+        RoutedRequest(FullHttpRequest request, RouteSelection route) {
             this.request = request;
             this.route = route;
             this.inheritHttpObjectState(request);
@@ -58,7 +59,7 @@ final class Http1RequestAggregator extends HttpRequestAggregator {
             return this.request;
         }
 
-        ContextRoutes.Route route() {
+        RouteSelection route() {
             return this.route;
         }
 

@@ -5,7 +5,10 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport.http;
+package net.hasor.meteor.connector.transport.http.http2;
+import net.hasor.meteor.connector.transport.http.channel.*;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -18,11 +21,11 @@ import net.hasor.neta.channel.data.ProtoSndQueue;
 import net.hasor.neta.codec.http.*;
 
 /** 每个 HTTP/2 stream 独立收集头部，正文交付后由应用消费并归还流控额度。 */
-final class Http2BodyHandler implements ProtoHandler<HttpObject, HttpObject> {
+final class Http2InboundBodyHandler implements ProtoHandler<HttpObject, HttpObject> {
     private final BiConsumer<Long, HttpRequest>  requests;
     private final BiConsumer<Long, HttpResponse> responses;
     private final BiConsumer<Long, Throwable>    failures;
-    private final HttpBody                       body     = new HttpBody(65535);
+    private final HttpBodyStream bodyStream     = new HttpBodyStream(65535);
     private final Map<String, List<String>>      headers  = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private final Map<String, List<String>>      trailers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private       String                         method;
@@ -30,13 +33,15 @@ final class Http2BodyHandler implements ProtoHandler<HttpObject, HttpObject> {
     private       int                            status;
     private       boolean                        published;
 
-    public Http2BodyHandler(BiConsumer<Long, HttpRequest> requests, BiConsumer<Long, HttpResponse> responses, BiConsumer<Long, Throwable> failures) {
+    Http2InboundBodyHandler(BiConsumer<Long, HttpRequest> requests, BiConsumer<Long, HttpResponse> responses, //
+            BiConsumer<Long, Throwable> failures) {
         this.requests = requests;
         this.responses = responses;
         this.failures = failures;
     }
 
-    public ProtoStatus onMessage(ProtoContext context, ProtoRcvQueue<HttpObject> source, ProtoSndQueue<HttpObject> target) {
+    public ProtoStatus onMessage(ProtoContext context, ProtoRcvQueue<HttpObject> source, //
+            ProtoSndQueue<HttpObject> target) {
         while (source.hasMore()) {
             HttpObject message = source.takeMessage();
             boolean retained = false;
@@ -57,7 +62,7 @@ final class Http2BodyHandler implements ProtoHandler<HttpObject, HttpObject> {
                     if (message instanceof TrailerHttpHeaders) {
                         destination = this.trailers;
                     }
-                    HttpMessages.append(destination, fields);
+                    HttpMessageUtils.append(destination, fields);
                 }
 
                 // 在完整头部到达时发布交换，不等待正文结束。
@@ -69,24 +74,26 @@ final class Http2BodyHandler implements ProtoHandler<HttpObject, HttpObject> {
 
                     this.published = true;
                     if (this.method != null) {
-                        HttpRequest request = HttpRequest.newStreaming(this.method, this.uri, this.headers, this.body, 2);
+                        HttpRequest request = HttpRequest.newStreaming(this.method, this.uri, //
+                                this.headers, this.bodyStream, 2);
                         this.requests.accept(message.streamId(), request);
                     } else {
-                        HttpResponse response = HttpResponse.newStreaming(this.status, this.headers, this.body, Map.of());
+                        HttpResponse response = HttpResponse.newStreaming(this.status, //
+                                this.headers, this.bodyStream, Map.of());
                         this.responses.accept(message.streamId(), response);
                     }
                 }
 
                 if (message instanceof HttpContent content && content.content().readableBytes() > 0) {
-                    this.body.offer(HttpMessages.body(content.content()), content::release);
+                    this.bodyStream.offer(HttpMessageUtils.body(content.content()), content::release);
                     retained = true;
                 }
 
                 if (message instanceof LastHttpContent && this.published) {
-                    this.body.finish(this.trailers);
+                    this.bodyStream.finish(this.trailers);
                 }
             } catch (Exception failure) {
-                this.body.fail(failure);
+                this.bodyStream.fail(failure);
                 this.failures.accept(message.streamId(), failure);
             } finally {
                 if (!retained) {

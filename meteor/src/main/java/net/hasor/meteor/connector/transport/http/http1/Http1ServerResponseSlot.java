@@ -5,21 +5,22 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport.http;
+package net.hasor.meteor.connector.transport.http.http1;
 import net.hasor.cobble.concurrent.future.BasicFuture;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 
 /**
  * A response position in one HTTP/1 connection.
  */
-final class HttpReply {
+final class Http1ServerResponseSlot {
     private final boolean           keepAlive;
     private final HttpExchange      exchange;
     private       HttpResponse      response;
     private       BasicFuture<Void> sent;
+    private       boolean           continuePending;
 
-    private boolean continuePending;
-
-    public HttpReply(boolean keepAlive, HttpExchange exchange, boolean continuePending) {
+    Http1ServerResponseSlot(boolean keepAlive, HttpExchange exchange, boolean continuePending) {
         this.keepAlive = keepAlive;
         this.exchange = exchange;
         this.continuePending = continuePending;
@@ -31,23 +32,23 @@ final class HttpReply {
         return pending;
     }
 
-    public boolean keepAlive() {
+    boolean keepAlive() {
         return this.keepAlive;
     }
 
-    public HttpExchange exchange() {
+    HttpExchange exchange() {
         return this.exchange;
     }
 
-    public HttpResponse response() {
+    HttpResponse response() {
         return this.response;
     }
 
-    public BasicFuture<Void> sent() {
+    BasicFuture<Void> sent() {
         return this.sent;
     }
 
-    public void prepareResponse(HttpResponse response, BasicFuture<Void> sent) {
+    void prepareResponse(HttpResponse response, BasicFuture<Void> sent) {
         this.response = response;
         this.sent = sent;
     }

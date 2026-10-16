@@ -5,26 +5,28 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport.http;
+package net.hasor.meteor.connector.transport.http.http1;
 import net.hasor.cobble.concurrent.future.BasicFuture;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 
-class HttpCall {
-    private final HttpExchange      request;
+final class Http1ClientExchangeState {
+    private final HttpExchange      exchange;
     private final BasicFuture<Void> sent;
     private       boolean           failed;
     private       HttpResponse      response;
     private       boolean           keepAlive;
 
-    public HttpCall(HttpExchange request, BasicFuture<Void> sent) {
-        this.request = request;
+    Http1ClientExchangeState(HttpExchange exchange, BasicFuture<Void> sent) {
+        this.exchange = exchange;
         this.sent = sent;
     }
 
-    public HttpExchange request() {
-        return this.request;
+    HttpExchange exchange() {
+        return this.exchange;
     }
 
-    public BasicFuture<Void> sent() {
+    BasicFuture<Void> sent() {
         return this.sent;
     }
 
@@ -41,7 +43,7 @@ class HttpCall {
         return this.keepAlive;
     }
 
-    public boolean markFailed() {
+    boolean markFailed() {
         if (this.failed) {
             return false;
         }

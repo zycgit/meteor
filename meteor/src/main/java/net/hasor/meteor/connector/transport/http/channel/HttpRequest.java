@@ -5,13 +5,11 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport.http;
+package net.hasor.meteor.connector.transport.http.channel;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import net.hasor.cobble.ObjectUtils;
-import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.connector.ContextRoutes;
+import net.hasor.meteor.connector.RouteSelection;
 
 /** HTTP 头及完整或增量正文；流式正文由消费方负责关闭。 */
 public final class HttpRequest {
@@ -21,16 +19,17 @@ public final class HttpRequest {
     private final byte[]                    body;
     private final int                       version;
     private final Map<String, List<String>> trailers;
-    private final HttpBody                  stream;
-    private       ContextRoutes.Route       route;
+    private final HttpBodyStream            stream;
+    private       RouteSelection            route;
 
-    private HttpRequest(String method, String uri, Map<String, List<String>> headers, byte[] body, int version, HttpBody stream, Map<String, List<String>> trailers) {
+    private HttpRequest(String method, String uri, Map<String, List<String>> headers, //
+            byte[] body, int version, HttpBodyStream stream, Map<String, List<String>> trailers) {
         this.method = Objects.requireNonNull(method);
         this.uri = Objects.requireNonNull(uri);
-        this.headers = HttpMessages.copy(headers);
+        this.headers = HttpMessageUtils.copy(headers);
         this.body = body.clone();
         this.version = version;
-        this.trailers = HttpMessages.copy(trailers);
+        this.trailers = HttpMessageUtils.copy(trailers);
         this.stream = stream;
     }
 
@@ -49,7 +48,7 @@ public final class HttpRequest {
 
     /** 返回首个字段值；需要全部值时使用 headers()。 */
     public String header(String name) {
-        return HttpMessages.first(this.headers, name);
+        return HttpMessageUtils.first(this.headers, name);
     }
 
     public byte[] body() {
@@ -68,43 +67,17 @@ public final class HttpRequest {
         return this.trailers;
     }
 
-    public HttpBody stream() {
+    public HttpBodyStream stream() {
         return this.stream;
     }
 
     /** 已选中的协议路由；尚未匹配或没有路由时返回 null。 */
-    public ContextRoutes.Route route() {
+    public RouteSelection route() {
         return this.route;
     }
 
-    void route(ContextRoutes.Route route) {
+    void route(RouteSelection route) {
         this.route = route;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (!(obj instanceof HttpRequest other)) {
-            return false;
-        }
-        boolean sameTarget = StringUtils.equals(this.method, other.method) && StringUtils.equals(this.uri, other.uri);
-        boolean sameHeaders = ObjectUtils.equals(this.headers, other.headers);
-        boolean sameTrailers = ObjectUtils.equals(this.trailers, other.trailers);
-        boolean sameBody = this.body == other.body && ObjectUtils.equals(this.stream, other.stream);
-        return sameTarget && sameHeaders && sameTrailers && sameBody && this.version == other.version;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = ObjectUtils.hashCode(this.method);
-        result = 31 * result + ObjectUtils.hashCode(this.uri);
-        result = 31 * result + ObjectUtils.hashCode(this.headers);
-        result = 31 * result + ObjectUtils.hashCode(this.body);
-        result = 31 * result + Integer.hashCode(this.version);
-        result = 31 * result + ObjectUtils.hashCode(this.trailers);
-        return 31 * result + ObjectUtils.hashCode(this.stream);
     }
 
     @Override
@@ -115,12 +88,14 @@ public final class HttpRequest {
     }
 
     /** 创建正文已完整缓冲的请求，version 指定 HTTP 主版本号。 */
-    public static HttpRequest newBuffered(String method, String uri, Map<String, List<String>> headers, byte[] body, int version, Map<String, List<String>> trailers) {
+    public static HttpRequest newBuffered(String method, String uri, //
+            Map<String, List<String>> headers, byte[] body, int version, Map<String, List<String>> trailers) {
         return new HttpRequest(method, uri, headers, body, version, null, trailers);
     }
 
     /** 创建正文按需消费的请求，version 指定 HTTP 主版本号。 */
-    public static HttpRequest newStreaming(String method, String uri, Map<String, List<String>> headers, HttpBody stream, int version) {
+    public static HttpRequest newStreaming(String method, String uri, //
+            Map<String, List<String>> headers, HttpBodyStream stream, int version) {
         return new HttpRequest(method, uri, headers, new byte[0], version, stream, Map.of());
     }
 }

@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport.http;
+package net.hasor.meteor.connector.transport.http.channel;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
@@ -15,7 +15,7 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 
 /** 有界的增量 HTTP 正文；读写可阻塞，必须在业务线程执行，不能进入网络回调。 */
-public final class HttpBody extends InputStream {
+public final class HttpBodyStream extends InputStream {
     private final int                       capacity;
     private final ArrayDeque<Chunk>         chunks     = new ArrayDeque<>();
     private final BasicFuture<Void>         completion = new BasicFuture<>();
@@ -28,7 +28,7 @@ public final class HttpBody extends InputStream {
     private       Runnable                  readable   = () -> {
     };
 
-    public HttpBody(int capacity) {
+    public HttpBodyStream(int capacity) {
         if (capacity <= 0) {
             throw new IllegalArgumentException("HTTP body capacity must be positive");
         }
@@ -52,7 +52,7 @@ public final class HttpBody extends InputStream {
             }
 
             this.ended = true;
-            this.trailers = HttpMessages.copy(trailers);
+            this.trailers = HttpMessageUtils.copy(trailers);
             this.notifyAll();
             notify = this.readable;
         }
@@ -69,15 +69,15 @@ public final class HttpBody extends InputStream {
             public void write(byte[] bytes, int offset, int length) throws IOException {
                 Objects.checkFromIndexSize(offset, length, bytes.length);
                 while (length > 0) {
-                    int count = Math.min(length, Math.min(16384, HttpBody.this.capacity));
-                    HttpBody.this.put(Arrays.copyOfRange(bytes, offset, offset + count));
+                    int count = Math.min(length, Math.min(16384, HttpBodyStream.this.capacity));
+                    HttpBodyStream.this.put(Arrays.copyOfRange(bytes, offset, offset + count));
                     offset += count;
                     length -= count;
                 }
             }
 
             public void close() {
-                HttpBody.this.finish(Map.of());
+                HttpBodyStream.this.finish(Map.of());
             }
         };
     }
@@ -103,7 +103,7 @@ public final class HttpBody extends InputStream {
     }
 
     /** 接收回调不等待；持有的网络额度在应用消费该块之后归还。 */
-    void offer(byte[] bytes, Runnable release) throws IOException {
+    public void offer(byte[] bytes, Runnable release) throws IOException {
         Runnable notify;
         synchronized (this) {
             this.checkFailure();
@@ -219,11 +219,11 @@ public final class HttpBody extends InputStream {
         return this.ended && this.buffered == 0;
     }
 
-    synchronized boolean inputEnded() {
+    public synchronized boolean inputEnded() {
         return this.ended;
     }
 
-    synchronized int writableBytes() throws IOException {
+    public synchronized int writableBytes() throws IOException {
         this.checkFailure();
         return this.capacity - this.buffered;
     }
@@ -238,6 +238,21 @@ public final class HttpBody extends InputStream {
         this.completion.completed(null);
     }
 
-    record Chunk(byte[] bytes, Runnable release) {
+    static final class Chunk {
+        private final byte[]   bytes;
+        private final Runnable release;
+
+        private Chunk(byte[] bytes, Runnable release) {
+            this.bytes = bytes;
+            this.release = release;
+        }
+
+        byte[] bytes() {
+            return this.bytes;
+        }
+
+        Runnable release() {
+            return this.release;
+        }
     }
 }

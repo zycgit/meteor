@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector.transport.http;
+package net.hasor.meteor.connector.transport.http.channel;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -17,26 +17,28 @@ import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.codec.http.*;
 
 /** 每次只提交一块正文，物理写入完成后继续，避免阻塞连接执行器。 */
-final class HttpBodyWriter {
+final class HttpStreamingBodyWriter {
     private final Map<String, List<String>>   trailers;
     private final long                        id;
-    private final HttpBody                    body;
+    private final HttpBodyStream              bodyStream;
     private final Consumer<Runnable>          execute;
     private final Function<Object, Future<?>> write;
     private final BasicFuture<Void>           sent;
     private       boolean                     writing;
 
-    public HttpBodyWriter(long id, HttpBody body, Map<String, List<String>> trailers, Consumer<Runnable> execute, Function<Object, Future<?>> write, BasicFuture<Void> sent) {
+    HttpStreamingBodyWriter(long id, HttpBodyStream bodyStream, Map<String, List<String>> trailers, //
+            Consumer<Runnable> execute, //
+            Function<Object, Future<?>> write, BasicFuture<Void> sent) {
         this.id = id;
         this.trailers = trailers;
-        this.body = body;
+        this.bodyStream = bodyStream;
         this.execute = execute;
         this.write = write;
         this.sent = sent;
     }
 
-    public void start() {
-        this.body.onReadable(() -> this.execute.accept(this::next));
+    void start() {
+        this.bodyStream.onReadable(() -> this.execute.accept(this::next));
         this.next();
     }
 
@@ -46,9 +48,9 @@ final class HttpBodyWriter {
         }
 
         try {
-            HttpBody.Chunk chunk = this.body.poll();
+            HttpBodyStream.Chunk chunk = this.bodyStream.poll();
             if (chunk == null) {
-                if (this.body.ended()) {
+                if (this.bodyStream.ended()) {
                     this.finish();
                 }
                 return;
@@ -59,23 +61,23 @@ final class HttpBodyWriter {
             try {
                 submitted = this.writeChunk(chunk);
             } catch (Throwable failure) {
-                this.body.consumed(chunk);
+                this.bodyStream.consumed(chunk);
                 throw failure;
             }
             submitted.onFinal(done -> this.execute.accept(() -> {
-                this.body.consumed(chunk);
+                this.bodyStream.consumed(chunk);
                 this.writing = false;
                 if (this.success(done)) {
                     this.next();
                 }
             }));
         } catch (Throwable failure) {
-            this.body.fail(failure);
+            this.bodyStream.fail(failure);
             this.sent.failed(failure);
         }
     }
 
-    private Future<?> writeChunk(HttpBody.Chunk chunk) {
+    private Future<?> writeChunk(HttpBodyStream.Chunk chunk) {
         // HTTP/2 窗口不足时，sendData 完成只代表本轮已编码的数据写完，正文可能仍留在编码队列。
         BasicFuture<Void> encoded = new BasicFuture<>();
         HttpContent content = new DefaultHttpContent(ByteBuf.wrap(chunk.bytes())) {
@@ -121,17 +123,17 @@ final class HttpBodyWriter {
         LastHttpContent last = new DefaultLastHttpContent(ByteBuf.EMPTY);
         last.streamId(this.id);
         Object end = last;
-        if (!this.trailers.isEmpty() || !this.body.trailers().isEmpty()) {
+        if (!this.trailers.isEmpty() || !this.bodyStream.trailers().isEmpty()) {
             TrailerHttpHeaders trailers = new DefaultTrailerHttpHeaders();
             trailers.streamId(this.id);
-            HttpMessages.write(this.trailers, trailers);
-            HttpMessages.write(this.body.trailers(), trailers);
+            HttpMessageUtils.write(this.trailers, trailers);
+            HttpMessageUtils.write(this.bodyStream.trailers(), trailers);
             end = new Object[] { trailers, last };
         }
 
         this.write.apply(end).onFinal(done -> this.execute.accept(() -> {
             if (this.success(done)) {
-                this.body.sent();
+                this.bodyStream.sent();
                 this.sent.completed(null);
             }
         }));
@@ -146,7 +148,7 @@ final class HttpBodyWriter {
             return true;
         }
 
-        this.body.fail(failure);
+        this.bodyStream.fail(failure);
         this.sent.failed(failure);
         return false;
     }
