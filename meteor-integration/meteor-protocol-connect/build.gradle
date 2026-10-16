@@ -1,0 +1,32 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+description = 'Connect RPC over HTTP and HTTPS for ordinary and Flow-based Meteor services'
+
+dependencies {
+    api project(':meteor-protocol-grpc')
+    implementation 'com.google.protobuf:protobuf-java-util:3.25.9'
+
+}
+
+// 官方 Connect Node 客户端与服务端只参与插件互通测试。
+tasks.register('prepareConnectPeer', Sync) {
+    from('src/test/node/connect') {
+        exclude 'node_modules/**'
+    }
+    into layout.buildDirectory.dir('connect-peer')
+    preserve { include 'node_modules/**' }
+}
+tasks.register('installConnectPeer', Exec) {
+    dependsOn 'prepareConnectPeer'
+    workingDir layout.buildDirectory.dir('connect-peer')
+    commandLine 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+    inputs.files('src/test/node/connect/package.json', 'src/test/node/connect/package-lock.json')
+    outputs.dir layout.buildDirectory.dir('connect-peer/node_modules')
+}
+tasks.named('test') {
+    dependsOn 'installConnectPeer'
+    systemProperty 'connect.peer.dir', layout.buildDirectory.dir('connect-peer').get().asFile.absolutePath
+}

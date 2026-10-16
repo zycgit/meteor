@@ -1,0 +1,25 @@
+syntax = "proto3";
+package meteor.connect.demo;
+
+message EchoRequest {
+  string text = 1;
+  int32 number = 2;
+}
+message EchoReply {
+  string text = 1;
+  int32 number = 2;
+}
+
+service ConnectDemoService {
+  rpc echo(EchoRequest) returns (EchoReply);
+  rpc safeEcho(EchoRequest) returns (EchoReply) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc slow(EchoRequest) returns (EchoReply);
+  rpc fail(EchoRequest) returns (EchoReply);
+  rpc count(EchoRequest) returns (stream EchoReply);
+  rpc collect(stream EchoRequest) returns (EchoReply);
+  rpc chat(stream EchoRequest) returns (stream EchoReply);
+  rpc never(EchoRequest) returns (stream EchoReply);
+  rpc broken(EchoRequest) returns (stream EchoReply);
+}
