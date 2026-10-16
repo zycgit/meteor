@@ -45,7 +45,12 @@ public final class TestSocketRuntime implements AutoCloseable {
         this.transport.close();
     }
 
-    private record PipelineCapture(TransportPipeline pipeline) implements NetworkConnector<Object> {
+    private static final class PipelineCapture implements NetworkConnector<Object> {
+        private final TransportPipeline pipeline;
+
+        private PipelineCapture(TransportPipeline pipeline) {
+            this.pipeline = pipeline;
+        }
 
         @Override
         public NetworkListen bind(InterAddress address, RouteTable<Object> routes, //

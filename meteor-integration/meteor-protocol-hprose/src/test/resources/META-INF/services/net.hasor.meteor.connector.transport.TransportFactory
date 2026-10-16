@@ -1,2 +1,2 @@
-net.hasor.meteor.protocol.hprose.unit.bootstrap.ConnectorSpiTest$CustomTransport
-net.hasor.meteor.protocol.hprose.unit.bootstrap.ConnectorSpiTest$FailingTransport
+net.hasor.meteor.bootstrap.ConnectorSpiTest$CustomTransport
+net.hasor.meteor.bootstrap.ConnectorSpiTest$FailingTransport
