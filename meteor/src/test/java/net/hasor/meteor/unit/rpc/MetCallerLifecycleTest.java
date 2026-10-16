@@ -12,10 +12,12 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
@@ -23,15 +25,14 @@ import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.provider.InstanceAddressProvider;
-import net.hasor.meteor.connector.ConnectorManager;
-import net.hasor.meteor.connector.MetChannel;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.domain.*;
+import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.rpc.MetCaller;
 import net.hasor.meteor.rpc.RpcTestAccess;
-import net.hasor.meteor.unit.rpc.support.UnusedConnectorFactory;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -39,7 +40,18 @@ public class MetCallerLifecycleTest {
     public interface Echo {
         String echo(String value);
 
+        @MetMessage
         MetResult notify(String value);
+
+        String notify(int value);
+    }
+
+    public interface InheritedEcho extends Echo {
+    }
+
+    @MetMessage
+    public interface MessageService {
+        void signal(String value);
     }
 
     @Test
@@ -76,6 +88,142 @@ public class MetCallerLifecycleTest {
     }
 
     @Test
+    public void methodAnnotationResolvesMessageBeforeFilters() throws Exception {
+        // 同一接口只有 notify 方法声明消息模式，服务本身保持普通调用配置。
+        try (Host host = new Host(1)) {
+            InstanceAddressProvider target = new InstanceAddressProvider(host.peer);
+            Class<?>[] types = { String.class };
+            Object[] arguments = { "value" };
+
+            // createRequest 在过滤器执行前解析逐方法调用模式。
+            MetRequestObject request = host.caller.createRequest(target, host.service, "notify", types, arguments);
+            assertTrue(request.isMessage());
+            assertFalse(host.service.isMessage());
+        }
+    }
+
+    @Test
+    public void ordinaryMethodInMixedServiceRemainsRequestResponse() throws Exception {
+        // notify 上的消息注解不能改变同一接口中 echo 方法的调用模式。
+        try (Host host = new Host(1)) {
+            InstanceAddressProvider target = new InstanceAddressProvider(host.peer);
+            Class<?>[] types = { String.class };
+            Object[] arguments = { "value" };
+
+            // 普通方法仍创建等待业务结果的请求。
+            MetRequestObject request = host.caller.createRequest(target, host.service, "echo", types, arguments);
+            assertFalse(request.isMessage());
+        }
+    }
+
+    @Test
+    public void methodAnnotationAlsoAppliesToSoapTargets() throws Exception {
+        // 方法的消息声明对 SOAP 地址同样生效，无需绑定资源提供模式解析。
+        try (Host host = new Host(1)) {
+            InterAddress address = new InterAddress("soap://127.0.0.1:2181/services/EchoService");
+            InstanceAddressProvider target = new InstanceAddressProvider(address);
+            Class<?>[] types = { String.class };
+            Object[] arguments = { "value" };
+
+            // 目标协议只决定通信方式，不改变注解声明的调用模式。
+            MetRequestObject request = host.caller.createRequest(target, host.service, "notify", types, arguments);
+            assertTrue(request.isMessage());
+        }
+    }
+
+    @Test
+    public void unannotatedOverloadRemainsRequestResponse() throws Exception {
+        // 同名重载按参数签名区分，只有 String 参数的方法声明了消息模式。
+        try (Host host = new Host(1)) {
+            InstanceAddressProvider target = new InstanceAddressProvider(host.peer);
+            Class<?>[] types = { int.class };
+            Object[] arguments = { 1 };
+
+            // int 参数的重载继续等待业务响应。
+            MetRequestObject request = host.caller.createRequest(target, host.service, "notify", types, arguments);
+            assertFalse(request.isMessage());
+        }
+    }
+
+    @Test
+    public void typeAnnotationStillMarksUnannotatedMethodsAsMessages() throws Exception {
+        // 接口级注解保持原有语义，方法本身无需重复声明。
+        try (Host host = new Host(1)) {
+            ServiceDomain<MessageService> service = new ServiceDomain<>(MessageService.class);
+            InstanceAddressProvider target = new InstanceAddressProvider(host.peer);
+            Class<?>[] types = { String.class };
+            Object[] arguments = { "value" };
+
+            // 使用同一创建入口，确认类型上的声明被带入请求。
+            MetRequestObject request = host.caller.createRequest(target, service, "signal", types, arguments);
+            assertTrue(request.isMessage());
+        }
+    }
+
+    @Test
+    public void serviceMessageSettingStillAppliesToUnannotatedMethods() throws Exception {
+        // asMessage 对应的服务级设置继续作用于所有方法。
+        try (Host host = new Host(1)) {
+            host.service.setMessage(true);
+            InstanceAddressProvider target = new InstanceAddressProvider(host.peer);
+            Class<?>[] types = { String.class };
+            Object[] arguments = { "value" };
+
+            // 未标注消息注解的 echo 也继承服务级消息模式。
+            MetRequestObject request = host.caller.createRequest(target, host.service, "echo", types, arguments);
+            assertTrue(request.isMessage());
+        }
+    }
+
+    @Test
+    public void inheritedMethodKeepsItsMessageAnnotation() throws Exception {
+        // 子接口直接继承父接口声明的消息方法。
+        try (Host host = new Host(1)) {
+            ServiceDomain<InheritedEcho> service = new ServiceDomain<>(InheritedEcho.class);
+            InstanceAddressProvider target = new InstanceAddressProvider(host.peer);
+            Class<?>[] types = { String.class };
+            Object[] arguments = { "value" };
+
+            // 方法查找保留原声明上的注解，子接口不需要重复标注。
+            MetRequestObject request = host.caller.createRequest(target, service, "notify", types, arguments);
+            assertTrue(request.isMessage());
+        }
+    }
+
+    @Test
+    public void messageFilterCanCompleteLocallyWithOrdinarySuccess() throws Exception {
+        // 过滤器提前完成一个由方法注解声明的消息调用。
+        try (Host host = new Host(1)) {
+            host.filter = (request, response, chain) -> response.sendData(null);
+            InstanceAddressProvider target = new InstanceAddressProvider(host.peer);
+            Class<?>[] types = { String.class };
+            Object[] arguments = { "value" };
+            MetRequestObject request = host.caller.createRequest(target, host.service, "notify", types, arguments);
+
+            // 本地处理已经完成，OK 直接完成 Future，无需等待远端的入队回执。
+            MetFuture call = host.caller.invoke(request);
+            MetResponse response = call.get(2, TimeUnit.SECONDS);
+            assertEquals(ProtocolStatus.OK, response.getStatus());
+            assertNull(response.getData());
+            assertTrue(host.sent.isEmpty());
+        }
+    }
+
+    @Test
+    public void messageFilterCanCompleteWithAcceptance() throws Exception {
+        // 消息处理过滤器直接确认受理，继续支持已有的 Accept 完成方式。
+        try (Host host = new Host(1)) {
+            host.service.setMessage(true);
+            host.filter = (request, response, chain) -> response.sendStatus(ProtocolStatus.Accept);
+
+            // 确认受理后完成 Future，不继续发送网络请求。
+            MetFuture call = host.invoke();
+            assertEquals(ProtocolStatus.Accept, call.get(2, TimeUnit.SECONDS).getStatus());
+            assertTrue(host.sent.isEmpty());
+        }
+    }
+
+    @Test
     public void rejectedMessagePreservesStatusAndDescriptionAndReleasesCapacity() throws Exception {
         // 将服务配置为消息调用，等待远端拒绝接收。
         try (Host host = new Host(1)) {
@@ -87,7 +235,7 @@ public class MetCallerLifecycleTest {
             response.addOption("message", "message was not accepted");
 
             // 拒绝状态与描述传给调用方，并归还唯一名额。
-            host.manager.onResponse(host.channel, response.getRequestID(), response);
+            host.manager.deliver(host.channel, response.getRequestID(), response);
             MetException failure = (MetException) assertFailure(call, MetException.class);
             assertEquals(ProtocolStatus.Forbidden, failure.getStatus());
             assertTrue(failure.getMessage().contains("message was not accepted"));
@@ -110,7 +258,7 @@ public class MetCallerLifecycleTest {
             response.addOption("message", "message was not accepted");
 
             // 保留不匹配的状态和远端描述，并归还唯一名额。
-            host.manager.onResponse(host.channel, response.getRequestID(), response);
+            host.manager.deliver(host.channel, response.getRequestID(), response);
             MetException failure = (MetException) assertFailure(call, MetException.class);
             assertEquals(ProtocolStatus.OK, failure.getStatus());
             assertTrue(failure.getMessage().contains("message was not accepted"));
@@ -132,7 +280,7 @@ public class MetCallerLifecycleTest {
             response.addOption("trace", "server-trace");
 
             // 同一次成功响应保留空返回值、成功状态与附带选项。
-            host.manager.onResponse(host.channel, response.getRequestID(), response);
+            host.manager.deliver(host.channel, response.getRequestID(), response);
             MetResponse result = call.get(2, TimeUnit.SECONDS);
             assertNull(result.getData());
             assertEquals(ProtocolStatus.OK, result.getStatus());
@@ -229,9 +377,9 @@ public class MetCallerLifecycleTest {
             response.setReturnData("reply");
 
             // 信封 ID 不匹配时忽略响应，正确 ID 仍可完成原请求。
-            host.manager.onResponse(host.channel, requestId + 1, response);
+            host.manager.deliver(host.channel, requestId + 1, response);
             assertFalse(call.isDone());
-            host.manager.onResponse(host.channel, requestId, response);
+            host.manager.deliver(host.channel, requestId, response);
             assertEquals("reply", call.getData());
             MetFuture available = host.invoke();
             assertFalse("Slot must be reusable", available.isDone());
@@ -252,7 +400,7 @@ public class MetCallerLifecycleTest {
             response.setReturnData("reply");
 
             // 没有过滤器时仍交付响应结果，并释放名额。
-            host.manager.onResponse(host.channel, response.getRequestID(), response);
+            host.manager.deliver(host.channel, response.getRequestID(), response);
             assertEquals("reply", call.getData());
             MetFuture available = host.invoke();
             assertFalse("Slot must be reusable", available.isDone());
@@ -271,7 +419,7 @@ public class MetCallerLifecycleTest {
             long requestId = failed.getRequest().getRequestID();
 
             // 传输异常原样传给调用方，失败后唯一名额可再次使用。
-            host.manager.onFailure(host.channel, requestId, new ThrowPayload(cause));
+            host.manager.deliver(host.channel, requestId, new ThrowPayload(cause));
             assertSame(cause, assertFailure(failed, IllegalStateException.class));
             MetFuture available = host.invoke();
             assertFalse("Slot must be reusable", available.isDone());
@@ -690,7 +838,7 @@ public class MetCallerLifecycleTest {
                     assertTrue(start.await(3, TimeUnit.SECONDS));
                     long requestId = future.getRequest().getRequestID();
                     ThrowPayload failure = new ThrowPayload(new IllegalStateException("send failed"));
-                    host.manager.onFailure(host.channel, requestId, failure);
+                    host.manager.deliver(host.channel, requestId, failure);
                     return null;
                 });
 
@@ -1081,7 +1229,7 @@ public class MetCallerLifecycleTest {
         final                BlockingQueue<Runnable>                timers       = new LinkedBlockingQueue<>();
         final                BlockingQueue<BasicFuture<MetChannel>> callbacks    = new LinkedBlockingQueue<>();
         final                CountDownLatch                         limitReached = new CountDownLatch(1);
-        final                ConnectorManager                       manager;
+        final                TestConnectorManager                   manager;
         final                MetChannel                             channel;
         final                MetCaller                              caller;
         volatile             SendLimitPolicy                        policy       = SendLimitPolicy.Reject;
@@ -1101,10 +1249,19 @@ public class MetCallerLifecycleTest {
             this.service.setBindName("Echo");
             this.service.setSerializeType("Java");
             this.service.setClientTimeout(6000);
+            this.service.setDistributed(true);
+            Map<String, String> endpointOptions = Map.of();
+            ProtocolConfig protocol = ProtocolTestAccess.config("rsf", "rsf", "rsf", Collections.emptyMap());
+            InterAddress local = InterAddress.forBinding("tcp", "127.0.0.1", 0, "default");
+            ConnectorConfig endpoint = new ConnectorConfig(//
+                    "rpc", local, endpointOptions, Collections.singletonList(protocol), false);
+            AtomicReference<List<ConnectorConfig>> configured = new AtomicReference<>(Collections.emptyList());
             MetSettings settings = proxy(MetSettings.class, (p, m, args) -> {
                 switch (m.getName()) {
                     case "getConnectorConfigs":
-                        return Collections.emptySet();
+                        return configured.get();
+                    case "getDefaultProtocol":
+                        return "rsf";
                     case "getQueueMaxSize":
                         return 16;
                     case "getQueueMinPoolSize":
@@ -1134,12 +1291,16 @@ public class MetCallerLifecycleTest {
                 switch (m.getName()) {
                     case "getApplicationName":
                         return "application";
+                    case "getDefaultProtocol":
+                        return "rsf";
                     case "getSettings":
                         return settings;
                     case "getClassLoader":
                         return this.getClass().getClassLoader();
                     case "subscribe":
                         return (Cancellable) () -> true;
+                    case "bindAddress":
+                        return this.peer;
                     default:
                         throw new AssertionError("Unexpected context access: " + m);
                 }
@@ -1160,9 +1321,10 @@ public class MetCallerLifecycleTest {
             });
 
             // 连接直接返回传输替身，调度器保存任务供测试确定性触发。
-            this.manager = new ConnectorManager(context, new UnusedConnectorFactory()) {
+            this.manager = new TestConnectorManager(context) {
                 @Override
-                public BasicFuture<MetChannel> connect(InterAddress address) {
+                public BasicFuture<MetChannel> connect(//
+                        String endpointName, String protocol, InterAddress address) {
                     return new BasicFuture<>(Host.this.channel);
                 }
 
@@ -1179,6 +1341,7 @@ public class MetCallerLifecycleTest {
                 }
             };
             this.manager.init();
+            configured.set(Collections.singletonList(endpoint));
 
             // 仍由真实调用器执行请求准入、响应分发和资源回收。
             this.caller = new MetCaller(this.manager, id -> {
@@ -1244,17 +1407,36 @@ public class MetCallerLifecycleTest {
             response.setRequestID(future.getRequest().getRequestID());
             response.setStatus(status);
             response.setReturnData("done");
-            this.manager.onResponse(this.channel, response.getRequestID(), response);
+            this.manager.deliver(this.channel, response.getRequestID(), response);
         }
 
         @Override
         public void close() {
-            // 调用器关闭失败时仍关闭连接管理器，避免线程池残留。
+            // Host 创建并持有两者；先关闭连接，再释放调用器自己的资源。
+            this.caller.stopAdmission();
             try {
-                this.caller.close();
-            } finally {
                 this.manager.close();
+            } finally {
+                this.caller.close();
             }
+        }
+    }
+
+    private static class TestConnectorManager extends ConnectorManager {
+        private ConnectorSubscriber subscriber;
+
+        private TestConnectorManager(MetContext context) {
+            super(context);
+        }
+
+        @Override
+        public void subscribe(ConnectorSubscriber subscriber) {
+            super.subscribe(subscriber);
+            this.subscriber = subscriber;
+        }
+
+        private void deliver(MetChannel channel, long requestId, Payload payload) {
+            this.subscriber.onMessage(channel, requestId, payload);
         }
     }
 

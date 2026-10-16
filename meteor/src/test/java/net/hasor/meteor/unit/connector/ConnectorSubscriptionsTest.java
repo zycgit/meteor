@@ -6,370 +6,159 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.unit.connector;
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import net.hasor.cobble.concurrent.future.BasicFuture;
-import net.hasor.meteor.MetContext;
+import java.util.concurrent.atomic.AtomicReference;
+import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
-import net.hasor.meteor.domain.payload.ThrowPayload;
+import net.hasor.meteor.support.connector.protocol.SocketTestSupport;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
+/** 通过公开管理器、传输 SPI 和协议 SPI 验证消息订阅边界。 */
 public class ConnectorSubscriptionsTest {
-    @Test
-    public void dispatchesRequestInRegistrationOrderWithoutManagerLock() {
-        // 注册两个订阅者，保留原始请求对象、来源通道和分发线程。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
+    @Test(timeout = 10000)
+    public void inboundPayloadIsDeliveredInRegistrationOrder() throws Exception {
+        // 启动真实 TCP 端点，并按顺序注册两个统一消息订阅者。
+        ConnectorConfig config = this.config();
+        try (ConnectorManager manager = SocketTestSupport.manager(config)) {
             manager.init();
-            RequestPayload payload = new RequestPayload();
-            MetChannel source = new TestChannel();
-            List<String> received = new ArrayList<>();
-            Thread deliveryThread = Thread.currentThread();
-            manager.subscribe((channel, id, delivered) -> {
-                // 回调必须收到原始对象，且执行时不持有管理器监视器。
-                assertSame(source, channel);
-                assertEquals(42, id);
-                assertSame(payload, delivered);
-                assertSame(deliveryThread, Thread.currentThread());
-                assertFalse(Thread.holdsLock(manager));
-                received.add("first");
+            List<String> deliveries = new CopyOnWriteArrayList<>();
+            AtomicReference<Delivery> first = new AtomicReference<>();
+            CountDownLatch delivered = new CountDownLatch(2);
+            manager.subscribe((channel, requestId, payload) -> {
+                first.set(new Delivery(channel, requestId, payload));
+                deliveries.add("first");
+                delivered.countDown();
             });
-            manager.subscribe((channel, id, delivered) -> received.add("second"));
-
-            // 只分发一次请求，订阅者按注册顺序同步执行。
-            manager.onRequest(source, 42, payload);
-            assertEquals(Arrays.asList("first", "second"), received);
-        }
-    }
-
-    @Test
-    public void dispatchesResponseInRegistrationOrderWithoutManagerLock() {
-        // 注册两个订阅者，保留原始响应对象、来源通道和分发线程。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            manager.init();
-            ResponsePayload payload = new ResponsePayload();
-            MetChannel source = new TestChannel();
-            List<String> received = new ArrayList<>();
-            Thread deliveryThread = Thread.currentThread();
-            manager.subscribe((channel, id, delivered) -> {
-                // 回调必须收到原始对象，且执行时不持有管理器监视器。
-                assertSame(source, channel);
-                assertEquals(42, id);
-                assertSame(payload, delivered);
-                assertSame(deliveryThread, Thread.currentThread());
-                assertFalse(Thread.holdsLock(manager));
-                received.add("first");
+            manager.subscribe((channel, requestId, payload) -> {
+                deliveries.add("second");
+                delivered.countDown();
             });
-            manager.subscribe((channel, id, delivered) -> received.add("second"));
+            manager.startInbound();
 
-            // 只分发一次响应，订阅者按注册顺序同步执行。
-            manager.onResponse(source, 42, payload);
-            assertEquals(Arrays.asList("first", "second"), received);
+            // 原始报文经传输选路和协议解析后进入统一订阅入口。
+            this.send(manager.bindAddress("a"), "AArequest\n");
+            assertTrue(delivered.await(3, TimeUnit.SECONDS));
+            assertEquals(List.of("first", "second"), deliveries);
+
+            // 回调保留协议通道、协议请求标识及解析后的负载。
+            Delivery delivery = first.get();
+            assertNotNull(delivery);
+            assertEquals("a", delivery.channel.getProtocol());
+            assertEquals(1, delivery.requestId);
+            assertTrue(delivery.payload instanceof RequestPayload);
         }
     }
 
-    @Test
-    public void dispatchesFailureInRegistrationOrderWithoutManagerLock() {
-        // 注册两个订阅者，保留原始失败对象、来源通道和分发线程。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
+    @Test(timeout = 10000)
+    public void subscriberFailureDoesNotPreventFollowingDelivery() throws Exception {
+        // 第一个订阅者故障，第二个订阅者观察同一条真实入站消息。
+        ConnectorConfig config = this.config();
+        try (ConnectorManager manager = SocketTestSupport.manager(config)) {
             manager.init();
-            ThrowPayload payload = new ThrowPayload(new IOException("disconnected"));
-            MetChannel source = new TestChannel();
-            List<String> received = new ArrayList<>();
-            Thread deliveryThread = Thread.currentThread();
-            manager.subscribe((channel, id, delivered) -> {
-                // 回调必须收到原始对象，且执行时不持有管理器监视器。
-                assertSame(source, channel);
-                assertEquals(42, id);
-                assertSame(payload, delivered);
-                assertSame(deliveryThread, Thread.currentThread());
-                assertFalse(Thread.holdsLock(manager));
-                received.add("first");
+            CountDownLatch delivered = new CountDownLatch(1);
+            AtomicReference<Payload> received = new AtomicReference<>();
+            manager.subscribe((channel, requestId, payload) -> {
+                throw new IllegalStateException("observer failure");
             });
-            manager.subscribe((channel, id, delivered) -> received.add("second"));
-
-            // 只分发一次失败，订阅者按注册顺序同步执行。
-            manager.onFailure(source, 42, payload);
-            assertEquals(Arrays.asList("first", "second"), received);
-        }
-    }
-
-    @Test
-    public void repeatedRegistrationDeliversOncePerEntry() {
-        // 同一订阅对象注册两次，每个注册项都接收一次通知。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            manager.init();
-            AtomicInteger received = new AtomicInteger();
-            ConnectorSubscriber subscriber = (channel, id, payload) -> received.incrementAndGet();
-            manager.subscribe(subscriber);
-            manager.subscribe(subscriber);
-
-            // 单条响应触发两个注册项，不能按对象身份去重。
-            manager.onResponse(new TestChannel(), 1, new ResponsePayload());
-            assertEquals(2, received.get());
-        }
-    }
-
-    @Test
-    public void subscriberExceptionDoesNotPreventRequestDeliveryToPeers() {
-        // 第一个订阅者抛错，第二个订阅者记录请求通知。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            manager.init();
-            AtomicInteger received = new AtomicInteger();
-            manager.subscribe((channel, id, payload) -> {
-                throw new IllegalStateException("observer");
+            manager.subscribe((channel, requestId, payload) -> {
+                received.set(payload);
+                delivered.countDown();
             });
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
+            manager.startInbound();
 
-            // 订阅者故障不截断同一条通知向后续注册项的分发。
-            RequestPayload payload = new RequestPayload();
-            manager.onRequest(new TestChannel(), 1, payload);
-            assertEquals(1, received.get());
+            // 单个观察者异常不能截断后续订阅者。
+            this.send(manager.bindAddress("a"), "AArequest\n");
+            assertTrue(delivered.await(3, TimeUnit.SECONDS));
+            assertTrue(received.get() instanceof RequestPayload);
         }
     }
 
-    @Test
-    public void subscriberExceptionDoesNotPreventResponseDeliveryToPeers() {
-        // 第一个订阅者抛错，第二个订阅者记录响应通知。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
+    @Test(timeout = 10000)
+    public void subscriberCanCloseManagerAfterSubmittingReply() throws Exception {
+        // 启动单协议线程端点；订阅回调与应答写入使用同一个有序执行器。
+        ConnectorConfig config = this.config();
+        try (ConnectorManager manager = SocketTestSupport.manager(config)) {
             manager.init();
-            AtomicInteger received = new AtomicInteger();
-            manager.subscribe((channel, id, payload) -> {
-                throw new IllegalStateException("observer");
-            });
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
-
-            // 订阅者故障不截断同一条通知向后续注册项的分发。
-            ResponsePayload payload = new ResponsePayload();
-            manager.onResponse(new TestChannel(), 1, payload);
-            assertEquals(1, received.get());
-        }
-    }
-
-    @Test
-    public void subscriberExceptionDoesNotPreventFailureDeliveryToPeers() {
-        // 第一个订阅者抛错，第二个订阅者记录失败通知。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            manager.init();
-            AtomicInteger received = new AtomicInteger();
-            manager.subscribe((channel, id, payload) -> {
-                throw new IllegalStateException("observer");
-            });
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
-
-            // 订阅者故障不截断同一条通知向后续注册项的分发。
-            ThrowPayload payload = new ThrowPayload(new IOException("disconnected"));
-            manager.onFailure(new TestChannel(), 1, payload);
-            assertEquals(1, received.get());
-        }
-    }
-
-    @Test
-    public void registrationInsideCallbackOnlyAffectsFollowingNotifications() {
-        // 回调期间注册第三个订阅者，用两次通知检查订阅快照边界。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            manager.init();
-            List<String> received = new ArrayList<>();
-            manager.subscribe((channel, id, response) -> {
-                received.add("first");
-                manager.subscribe((nextChannel, nextId, next) -> received.add("new"));
-            });
-            manager.subscribe((channel, id, response) -> received.add("second"));
-
-            // 当前通知只使用开始分发时的订阅快照。
-            manager.onResponse(new TestChannel(), 1, new ResponsePayload());
-            assertEquals(Arrays.asList("first", "second"), received);
-
-            // 新订阅者从下一次通知开始接收，原顺序保持不变。
-            manager.onResponse(new TestChannel(), 1, new ResponsePayload());
-            List<String> expected = Arrays.asList("first", "second", "first", "second", "new");
-            assertEquals(expected, received);
-        }
-    }
-
-    @Test
-    public void shutdownResponseRemainsDeliverableUntilCleanupFinishes() throws Exception {
-        // 在真实连接器清理钩子中发送响应，随后模拟清理失败。
-        ConnectorConfig config = EndpointFixture.config("closing");
-        MetContext context = ConnectorTestSupport.sharedContext(config);
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            List<Payload> received = new ArrayList<>();
-            ResponsePayload payload = new ResponsePayload();
-            manager.prepare(config, (cfg, owner) -> new EndpointFixture.Endpoint(cfg, owner, new ArrayList<>()) {
-                @Override
-                protected void doClose() {
-                    this.manager.onResponse(new TestChannel(), 1, payload);
-                    throw new IllegalStateException("cleanup failure");
+            CountDownLatch closeReturned = new CountDownLatch(1);
+            AtomicReference<Future<MetChannel>> submitted = new AtomicReference<>();
+            AtomicReference<Throwable> callbackFailure = new AtomicReference<>();
+            manager.subscribe((channel, requestId, payload) -> {
+                try {
+                    ResponsePayload response = new ResponsePayload();
+                    response.setRequestID(requestId);
+                    response.setReturnData("reply");
+                    submitted.set(channel.sendData(response));
+                    manager.close();
+                } catch (Throwable failure) {
+                    callbackFailure.set(failure);
+                } finally {
+                    closeReturned.countDown();
                 }
             });
-            manager.init();
-            manager.subscribe((channel, id, delivered) -> received.add(delivered));
-            manager.bind(config.name()).get(5, TimeUnit.SECONDS);
+            manager.startInbound();
 
-            // 清理尚未结束时仍分发终结通知，即使清理钩子随后抛错。
-            manager.close();
-            assertEquals(Collections.singletonList(payload), received);
+            // close 必须先让出协议线程，外部重复 close 则等待同一关闭屏障完成。
+            InterAddress address = manager.bindAddress("a");
+            try (Socket socket = new Socket(address.getHost(), address.getPort())) {
+                socket.setSoTimeout(3000);
+                socket.getOutputStream().write("AArequest\n".getBytes(StandardCharsets.UTF_8));
+                socket.getOutputStream().flush();
+                assertTrue(closeReturned.await(3, TimeUnit.SECONDS));
+                manager.close();
 
-            // 清理完成后订阅已移除，迟到通知不能再次进入旧订阅者。
-            manager.onResponse(new TestChannel(), 1, payload);
-            assertEquals(1, received.size());
+                // 已在回调中受理的应答先完成，随后传输关闭并向对端交付 EOF。
+                assertNull(callbackFailure.get());
+                Future<MetChannel> writing = submitted.get();
+                assertNotNull(writing);
+                writing.get(3, TimeUnit.SECONDS);
+                byte[] received = socket.getInputStream().readAllBytes();
+                assertEquals("AAreply\n", new String(received, StandardCharsets.UTF_8));
+            }
         }
     }
 
     @Test
-    public void shutdownFailureRemainsDeliverableUntilCleanupFinishes() throws Exception {
-        // 在真实连接器清理钩子中发送失败，随后模拟清理失败。
-        ConnectorConfig config = EndpointFixture.config("closing");
-        MetContext context = ConnectorTestSupport.sharedContext(config);
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            List<Payload> received = new ArrayList<>();
-            ThrowPayload payload = new ThrowPayload(new IOException("disconnected"));
-            manager.prepare(config, (cfg, owner) -> new EndpointFixture.Endpoint(cfg, owner, new ArrayList<>()) {
-                @Override
-                protected void doClose() {
-                    this.manager.onFailure(new TestChannel(), 1, payload);
-                    throw new IllegalStateException("cleanup failure");
-                }
-            });
-            manager.init();
-            manager.subscribe((channel, id, delivered) -> received.add(delivered));
-            manager.bind(config.name()).get(5, TimeUnit.SECONDS);
-
-            // 清理尚未结束时仍分发终结通知，即使清理钩子随后抛错。
-            manager.close();
-            assertEquals(Collections.singletonList(payload), received);
-
-            // 清理完成后订阅已移除，迟到通知不能再次进入旧订阅者。
-            manager.onFailure(new TestChannel(), 1, payload);
-            assertEquals(1, received.size());
-        }
-    }
-
-    @Test
-    public void closedManagerDoesNotDeliverLateRequest() {
-        // 三个订阅项在关闭后均移除，重复初始化不改变它们的生命周期。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            manager.init();
-            AtomicInteger received = new AtomicInteger();
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
+    public void closedManagerCannotBeReinitialized() {
+        // 初始化并关闭管理器，close 是该运行时对象的终态。
+        ConnectorConfig config = this.config();
+        try (ConnectorManager manager = SocketTestSupport.manager(config)) {
             manager.init();
             manager.close();
 
-            // 迟到的请求不能调用任何已关闭的订阅项。
-            RequestPayload payload = new RequestPayload();
-            manager.onRequest(new TestChannel(), 1, payload);
-            assertEquals(0, received.get());
+            // 已释放的对象不能创建第二套定时器和网络资源。
+            IllegalStateException failure = assertThrows(IllegalStateException.class, manager::init);
+            assertEquals("Connector manager is closed", failure.getMessage());
         }
     }
 
-    @Test
-    public void closedManagerDoesNotDeliverLateResponse() {
-        // 三个订阅项在关闭后均移除，重复初始化不改变它们的生命周期。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            manager.init();
-            AtomicInteger received = new AtomicInteger();
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
-            manager.init();
-            manager.close();
+    private ConnectorConfig config() {
+        Map<String, String> options = new HashMap<>();
+        options.put("workerThread", "1");
+        ProtocolConfig protocol = ProtocolTestAccess.config("a", "a", "wirea", Collections.emptyMap());
+        InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "test");
+        return new ConnectorConfig("subscriptions", address, options, List.of(protocol), true);
+    }
 
-            // 迟到的响应不能调用任何已关闭的订阅项。
-            ResponsePayload payload = new ResponsePayload();
-            manager.onResponse(new TestChannel(), 1, payload);
-            assertEquals(0, received.get());
+    private void send(InterAddress address, String text) throws Exception {
+        try (Socket socket = new Socket(address.getHost(), address.getPort())) {
+            socket.getOutputStream().write(text.getBytes(StandardCharsets.UTF_8));
+            socket.getOutputStream().flush();
         }
     }
 
-    @Test
-    public void closedManagerDoesNotDeliverLateFailure() {
-        // 三个订阅项在关闭后均移除，重复初始化不改变它们的生命周期。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            manager.init();
-            AtomicInteger received = new AtomicInteger();
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
-            manager.subscribe((channel, id, payload) -> received.incrementAndGet());
-            manager.init();
-            manager.close();
-
-            // 迟到的失败不能调用任何已关闭的订阅项。
-            ThrowPayload payload = new ThrowPayload(new IOException("late failure"));
-            manager.onFailure(new TestChannel(), 1, payload);
-            assertEquals(0, received.get());
-        }
-    }
-
-    @Test
-    public void restartedManagerRequiresFreshSubscriptions() {
-        // 重启前注册的订阅者应随关闭一起清除。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (TestConnectorManager manager = new TestConnectorManager(context)) {
-            manager.init();
-            AtomicInteger previous = new AtomicInteger();
-            manager.subscribe((channel, id, payload) -> previous.incrementAndGet());
-            manager.close();
-
-            // 重启后显式注册新订阅者，只向新注册项分发。
-            manager.init();
-            AtomicInteger fresh = new AtomicInteger();
-            manager.subscribe((channel, id, payload) -> fresh.incrementAndGet());
-            manager.onResponse(new TestChannel(), 1, new ResponsePayload());
-            assertEquals(0, previous.get());
-            assertEquals(1, fresh.get());
-        }
-    }
-
-    private static final class TestChannel implements MetChannel {
-        public MetConnector getConnector() {
-            throw new UnsupportedOperationException();
-        }
-
-        public long getChannelId() {
-            return 1;
-        }
-
-        public InterAddress getLocal() {
-            throw new UnsupportedOperationException();
-        }
-
-        public InterAddress getRemote() {
-            throw new UnsupportedOperationException();
-        }
-
-        public boolean isActive() {
-            return true;
-        }
-
-        public BasicFuture<MetChannel> sendData(Payload payload) {
-            return new BasicFuture<>(this);
-        }
-
-        public BasicFuture<MetChannel> close() {
-            return new BasicFuture<>(this);
-        }
-
-        public BasicFuture<MetChannel> drainAndClose() {
-            return this.close();
-        }
+    private record Delivery(MetChannel channel, long requestId, Payload payload) {
     }
 }

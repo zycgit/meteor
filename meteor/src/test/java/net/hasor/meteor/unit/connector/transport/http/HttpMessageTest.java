@@ -12,10 +12,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
-import net.hasor.meteor.connector.transport.http.HttpBody;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
+import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -59,7 +59,7 @@ public class HttpMessageTest {
         // 正文结束时保存尾部字段，不继续引用生产者的集合。
         List<String> values = new ArrayList<>(List.of("first", "second,third"));
         Map<String, List<String>> fields = this.repeatedFields(values);
-        try (HttpBody body = new HttpBody(16)) {
+        try (HttpBodyStream body = new HttpBodyStream(16)) {
             body.finish(fields);
 
             // 后续集合修改不会影响大小写无关的尾部查询。
@@ -74,7 +74,7 @@ public class HttpMessageTest {
     public void boundedBodyBlocksItsProducerAndCloseReleasesTheWaiter() throws Exception {
         // 有界正文故意小于待写入数据，生产者必须等待消费。
         ExecutorService producer = Executors.newSingleThreadExecutor();
-        try (HttpBody body = new HttpBody(4)) {
+        try (HttpBodyStream body = new HttpBodyStream(4)) {
             CountDownLatch started = new CountDownLatch(1);
             var writing = producer.submit(() -> {
                 started.countDown();
@@ -97,7 +97,7 @@ public class HttpMessageTest {
     @Test
     public void failureBeforeAdmissionAlsoClosesTheRequestBody() {
         // 交换进入传输层之前失败，同样必须释放请求正文。
-        try (HttpBody body = new HttpBody(16)) {
+        try (HttpBodyStream body = new HttpBodyStream(16)) {
             HttpRequest request = HttpRequest.newStreaming("POST", "/", Map.of(), body, 1);
             HttpExchange exchange = new HttpExchange(request);
             IOException failure = new IOException("connection unavailable");

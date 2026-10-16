@@ -119,6 +119,45 @@ public class ExtensionLifecycleTest {
     }
 
     @Test
+    public void reentrantCloseReleasesExtensionsAfterClosedEventDelivery() throws Exception {
+        // 手动上线期间由首个 ONLINE 监听器重入关闭上下文。
+        List<String> order = new ArrayList<>();
+        MetConfiguration config = configuration(false);
+        config.setAutomaticOnline(false);
+        config.addExtension(context -> new CloseOrderExtension(order));
+        try (MetContext context = config.buildContext()) {
+            context.subscribe(event -> {
+                if (event.getType() == MetContextEventType.ONLINE) {
+                    order.add("online-first");
+                    try {
+                        context.close();
+                    } catch (Exception failure) {
+                        throw new AssertionError(failure);
+                    }
+                    order.add("close-returned");
+                } else if (event.getType() == MetContextEventType.CLOSED) {
+                    order.add("closed-first");
+                }
+            });
+            context.subscribe(event -> {
+                if (event.getType() == MetContextEventType.ONLINE) {
+                    order.add("online-second");
+                } else if (event.getType() == MetContextEventType.CLOSED) {
+                    order.add("closed-second");
+                }
+            });
+
+            // 重入 close 先返回，当前 ONLINE 和排队的 CLOSED 均完成后才关闭扩展。
+            context.start();
+            context.online();
+            List<String> expected = List.of( //
+                    "online-first", "close-returned", "online-second", //
+                    "closed-first", "closed-second", "extension-close");
+            assertEquals(expected, order);
+        }
+    }
+
+    @Test
     public void reusableConfigurationCreatesIndependentRuntimeObjects() throws Exception {
         // 复用配置构建两个上下文，每个上下文创建自己的扩展实例。
         MetConfiguration config = configuration(false);
@@ -364,6 +403,27 @@ public class ExtensionLifecycleTest {
             if (this.closeFailure != null) {
                 throw this.closeFailure;
             }
+        }
+    }
+
+    private record CloseOrderExtension(List<String> order) implements MetExtension {
+
+        @Override
+        public <T> T getService(Class<T> type) {
+            return null;
+        }
+
+        @Override
+        public void beforeStart() {
+        }
+
+        @Override
+        public void afterStart() {
+        }
+
+        @Override
+        public void close() {
+            this.order.add("extension-close");
         }
     }
 }

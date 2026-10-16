@@ -8,14 +8,12 @@
 package net.hasor.meteor.scenario.bootstrap;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.*;
-import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.domain.MetServiceType;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -25,27 +23,27 @@ public class MetContextEventTest {
     }
 
     @Test
-    public void startedSubscriberCanTakeContextOfflineFromAnotherThread() throws Exception {
-        // 启动事件回调等待另一线程切换上下线，验证通知不占用生命周期锁。
+    public void startedSubscriberCanRequestOfflineFromAnotherThread() throws Exception {
+        // 工作线程等待启动事件，再执行回调安排的下线操作。
         MetConfiguration configuration = new MetConfiguration();
         ExecutorService worker = Executors.newSingleThreadExecutor();
+        CountDownLatch requestOffline = new CountDownLatch(1);
         AtomicInteger completed = new AtomicInteger();
         try (MetContext context = configuration.buildContext()) {
+            Future<?> transition = worker.submit(() -> {
+                await(requestOffline);
+                context.offline();
+                completed.incrementAndGet();
+            });
             context.subscribe(event -> {
-                if (event.getType() != MetContextEventType.STARTED) {
-                    return;
-                }
-                try {
-                    // 有界等待其他线程完成操作，互相等待锁会使本场景失败。
-                    worker.submit(context::offline).get(5, TimeUnit.SECONDS);
-                    completed.incrementAndGet();
-                } catch (Exception failure) {
-                    throw new AssertionError(failure);
+                if (event.getType() == MetContextEventType.STARTED) {
+                    requestOffline.countDown();
                 }
             });
 
-            // 启动返回时，事件中的下线操作已经完成。
+            // 监听器不占用生命周期锁，工作线程最终完成下线及事件投递。
             context.start();
+            transition.get(5, TimeUnit.SECONDS);
             assertFalse(context.isOnline());
             assertEquals(1, completed.get());
         } finally {
@@ -65,7 +63,7 @@ public class MetContextEventTest {
                     return;
                 }
                 try {
-                    // 关闭回调中的跨线程调用也必须在期限内结束。
+                    // 已进入 CLOSED 后，重复关闭保持幂等并立即返回。
                     worker.submit(() -> {
                         context.close();
                         return null;
@@ -156,6 +154,93 @@ public class MetContextEventTest {
     }
 
     @Test
+    public void lifecycleListenerTransitionsAreDeliveredAfterTheCurrentEvent() throws Exception {
+        // 手动上线后，第一个监听者在 ONLINE 回调中立即发起下线。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("tcp").protocol("rsf");
+        configuration.setAutomaticOnline(false);
+        try (MetContext context = configuration.buildContext()) {
+            List<MetContextEventType> observed = new ArrayList<>();
+            context.subscribe(event -> {
+                if (event.getType() == MetContextEventType.ONLINE) {
+                    context.offline();
+                }
+            });
+            context.subscribe(event -> {
+                if (event.getType() == MetContextEventType.ONLINE || event.getType() == MetContextEventType.OFFLINE) {
+                    observed.add(event.getType());
+                }
+            });
+
+            // 当前 ONLINE 事件必须先完成全部投递，再投递回调中提交的 OFFLINE。
+            context.start();
+            context.online();
+            assertFalse(context.isOnline());
+            assertEquals(List.of(MetContextEventType.ONLINE, MetContextEventType.OFFLINE), observed);
+        }
+    }
+
+    @Test
+    public void concurrentLifecycleCallWaitsForItsEventDelivery() throws Exception {
+        // ONLINE 投递线程停在监听器中，另一线程在此期间提交 OFFLINE。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("tcp").protocol("rsf");
+        configuration.setAutomaticOnline(false);
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        CountDownLatch onlineEntered = new CountDownLatch(1);
+        CountDownLatch releaseOnline = new CountDownLatch(1);
+        CountDownLatch offlineEntered = new CountDownLatch(1);
+        CountDownLatch releaseOffline = new CountDownLatch(1);
+        CountDownLatch offlineReturned = new CountDownLatch(1);
+        try (MetContext context = configuration.buildContext()) {
+            try {
+                List<MetContextEventType> observed = new ArrayList<>();
+                context.subscribe(event -> {
+                    if (event.getType() == MetContextEventType.ONLINE) {
+                        observed.add(event.getType());
+                        onlineEntered.countDown();
+                        await(releaseOnline);
+                    } else if (event.getType() == MetContextEventType.OFFLINE) {
+                        observed.add(event.getType());
+                        offlineEntered.countDown();
+                        await(releaseOffline);
+                    }
+                });
+                context.start();
+
+                Future<?> onlineCall = workers.submit(context::online);
+                assertTrue(onlineEntered.await(5, TimeUnit.SECONDS));
+                assertFalse(onlineCall.isDone());
+                Future<?> offlineCall = workers.submit(() -> {
+                    context.offline();
+                    offlineReturned.countDown();
+                });
+
+                // OFFLINE 已提交，但其调用线程必须等待当前 ONLINE 投递结束。
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                while (context.isOnline() && System.nanoTime() < deadline) {
+                    Thread.onSpinWait();
+                }
+                assertFalse(context.isOnline());
+                assertFalse(offlineReturned.await(200, TimeUnit.MILLISECONDS));
+
+                // OFFLINE 回调本身未完成时，提交它的线程仍不能提前返回。
+                releaseOnline.countDown();
+                assertTrue(offlineEntered.await(5, TimeUnit.SECONDS));
+                assertFalse(offlineReturned.await(200, TimeUnit.MILLISECONDS));
+                releaseOffline.countDown();
+                onlineCall.get(5, TimeUnit.SECONDS);
+                offlineCall.get(5, TimeUnit.SECONDS);
+                assertEquals(List.of(MetContextEventType.ONLINE, MetContextEventType.OFFLINE), observed);
+            } finally {
+                releaseOnline.countDown();
+                releaseOffline.countDown();
+                workers.shutdownNow();
+            }
+        }
+    }
+
+    @Test
     public void failingListenerDoesNotPreventLaterListenerDelivery() throws Exception {
         // 先订阅抛异常的监听器，再订阅正常监听器。
         MetConfiguration configuration = new MetConfiguration();
@@ -232,6 +317,17 @@ public class MetContextEventTest {
             second.publisher().rsfService(Echo.class).register();
             assertEquals(1, secondEvents.size());
             assertEquals(2, firstEvents.size());
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("Timed out waiting for lifecycle event coordination");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(e);
         }
     }
 

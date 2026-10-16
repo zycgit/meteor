@@ -8,29 +8,26 @@
 package net.hasor.meteor.unit.connector.transport;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.transport.ChannelFactory;
-import net.hasor.meteor.connector.transport.ChannelListener;
-import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.NetworkConnector;
-import net.hasor.meteor.connector.transport.NetworkConnectorFactory;
-import net.hasor.meteor.connector.transport.NetworkListen;
-import net.hasor.meteor.connector.transport.http.HttpConnector;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
-import net.hasor.meteor.connector.transport.tcp.TcpConnectorFactory;
-import net.hasor.meteor.connector.transport.udp.UdpConnectorFactory;
+import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.connector.transport.tcp.TcpTransportFactory;
+import net.hasor.meteor.connector.transport.udp.UdpTransportFactory;
 import org.junit.Test;
+import static net.hasor.meteor.connector.TransportTestConfigs.transport;
+import static net.hasor.meteor.connector.transport.TransportTestServices.newRuntimeServices;
+import static net.hasor.meteor.connector.transport.http.HttpConnectorTestAccess.newConnector;
 import static org.junit.Assert.*;
 
 /**
@@ -40,9 +37,10 @@ public class NetworkConnectorTest {
     @Test
     public void transportSpiIsAvailableWithoutProtocolModule() throws Exception {
         // 发现内核提供的全部传输 SPI，并校验名称不会冲突。
-        Map<String, NetworkConnectorFactory<?>> factories = new HashMap<>();
+        Map<String, TransportFactory<?>> factories = new HashMap<>();
         ClassLoader loader = this.getClass().getClassLoader();
-        for (NetworkConnectorFactory<?> factory : ServiceLoader.load(NetworkConnectorFactory.class, loader)) {
+        TransportRuntimeServices runtimeServices = newRuntimeServices(loader);
+        for (TransportFactory<?> factory : ServiceLoader.load(TransportFactory.class, loader)) {
             assertNull(factories.put(factory.name(), factory));
         }
         // 每种传输的消息类型和创建契约不依赖协议插件。
@@ -50,8 +48,9 @@ public class NetworkConnectorTest {
         assertEquals(byte[].class, factories.get("tcp").messageType());
         assertEquals(byte[].class, factories.get("udp").messageType());
         assertEquals(HttpExchange.class, factories.get("http").messageType());
-        for (NetworkConnectorFactory<?> factory : factories.values()) {
-            try (NetworkConnector<?> network = factory.create(this.config(factory.name()), loader)) {
+        for (TransportFactory<?> factory : factories.values()) {
+            ConnectorConfig config = this.config(factory.name());
+            try (NetworkConnector<?> network = this.createConnector(factory, config, runtimeServices)) {
                 assertNotNull(network);
             }
         }
@@ -62,13 +61,15 @@ public class NetworkConnectorTest {
         // 仅配置 TCP 传输，直接验证 SPI 的监听器退出契约。
         ConnectorConfig config = this.config("tcp");
         ClassLoader loader = this.getClass().getClassLoader();
-        NetworkConnectorFactory<byte[]> factory = new TcpConnectorFactory();
-        try (NetworkConnector<byte[]> server = factory.create(config, loader); //
-             NetworkConnector<byte[]> client = factory.create(config, loader)) {
+        TransportRuntimeServices runtimeServices = newRuntimeServices(loader);
+        TransportFactory<byte[]> factory = new TcpTransportFactory();
+        try (NetworkConnector<byte[]> server = this.createConnector(factory, config, runtimeServices); //
+             NetworkConnector<byte[]> client = this.createConnector(factory, config, runtimeServices)) {
             // 监听和连接均使用真实套接字，接收端原样回送字节。
             BasicFuture<NetworkChannel<byte[]>> connected = new BasicFuture<>();
             BlockingQueue<byte[]> received = new LinkedBlockingQueue<>();
-            NetworkListen listen = server.bind(config.address(), channel -> new ChannelListener<byte[]>() {
+            RouteTable<byte[]> routes = this.routePlan(config);
+            NetworkListen listen = server.bind(config.address(), routes, channel -> new ChannelListener<byte[]>() {
 
                 public void connected() {
                 }
@@ -80,7 +81,7 @@ public class NetworkConnectorTest {
                 public void closed(Throwable cause) {
                 }
             });
-            client.connect(listen.getAddress(), channel -> new ChannelListener<byte[]>() {
+            client.connect(listen.getAddress(), routes, this.mountId(config), channel -> new ChannelListener<byte[]>() {
 
                 public void connected() {
                     connected.completed(channel);
@@ -111,6 +112,107 @@ public class NetworkConnectorTest {
     }
 
     @Test(timeout = 10000)
+    public void tcpListenerFactoryFailureClosesConstructingChannel() throws Exception {
+        // 建立真实 TCP 对端，让失败发生在物理连接已经创建、监听器仍在装配的窗口。
+        ConnectorConfig config = this.config("tcp");
+        AtomicReference<NetworkChannel<byte[]>> exposed = new AtomicReference<>();
+        ClassLoader loader = this.getClass().getClassLoader();
+        TransportRuntimeServices runtimeServices = newRuntimeServices(loader);
+        try (ServerSocket peer = new ServerSocket(0); //
+             NetworkConnector<byte[]> client = this.createConnector(//
+                     new TcpTransportFactory(), config, runtimeServices)) {
+            InterAddress target = new InterAddress("tcp", "127.0.0.1", peer.getLocalPort(), "default");
+            RouteTable<byte[]> routes = this.routePlan(config);
+
+            // 工厂看到通道后立即失败，connect Future 必须结束且通道关闭 Future 不能悬挂。
+            var connecting = client.connect(target, routes, this.mountId(config), channel -> {
+                exposed.set(channel);
+                throw new IllegalStateException("listener construction failed");
+            });
+            ExecutionException failure = assertThrows(ExecutionException.class, () -> {
+                connecting.get(3, TimeUnit.SECONDS);
+            });
+            assertTrue(failure.getCause() instanceof IllegalStateException);
+            NetworkChannel<byte[]> channel = exposed.get();
+            assertNotNull(channel);
+            channel.close().get(3, TimeUnit.SECONDS);
+            assertFalse(channel.isOpen());
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void suspendingBetweenFactoryAndConnectedClosesTheAcceptedRoutedSocket() throws Exception {
+        // 接收器装配发生在 connected 回调之前，用闩锁固定这段所有权窗口。
+        ConnectorConfig config = this.config("tcp");
+        CountDownLatch attaching = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicBoolean connected = new AtomicBoolean();
+        CountDownLatch delivered = new CountDownLatch(1);
+        BlockingQueue<byte[]> received = new LinkedBlockingQueue<>();
+        ChannelListenerFactory<byte[]> factory = channel -> this.blockingReceiver(//
+                attaching, resume, connected, delivered, received);
+        RouteTable<byte[]> routes = this.routePlan(config);
+
+        ClassLoader loader = this.getClass().getClassLoader();
+        TransportRuntimeServices runtimeServices = newRuntimeServices(loader);
+        try (NetworkConnector<byte[]> server = this.createConnector(//
+                new TcpTransportFactory(), config, runtimeServices); //
+             NetworkListen listen = server.bind(config.address(), routes, factory); //
+             Socket socket = new Socket("127.0.0.1", listen.getAddress().getPort())) {
+            socket.setSoTimeout(3000);
+            try {
+                assertTrue(attaching.await(3, TimeUnit.SECONDS));
+
+                // suspend 先于 connected 赢得所有权移交，必须关闭 raw socket 并抑制迟到回调。
+                listen.suspend();
+            } finally {
+                resume.countDown();
+            }
+            assertEquals(-1, socket.getInputStream().read());
+            assertFalse(connected.get());
+            assertEquals(1L, delivered.getCount());
+            assertTrue(received.isEmpty());
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void closingBetweenFactoryAndConnectedKeepsTheAcceptedRoutedSocket() throws Exception {
+        // close 只关闭监听入口；已 accept 的连接即使仍在建立上层接收器，也应继续完成交付。
+        ConnectorConfig config = this.config("tcp");
+        CountDownLatch attaching = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicBoolean connected = new AtomicBoolean();
+        CountDownLatch delivered = new CountDownLatch(1);
+        BlockingQueue<byte[]> received = new LinkedBlockingQueue<>();
+        ChannelListenerFactory<byte[]> factory = channel -> this.blockingReceiver(//
+                attaching, resume, connected, delivered, received);
+        RouteTable<byte[]> routes = this.routePlan(config);
+
+        ClassLoader loader = this.getClass().getClassLoader();
+        TransportRuntimeServices runtimeServices = newRuntimeServices(loader);
+        try (NetworkConnector<byte[]> server = this.createConnector(//
+                new TcpTransportFactory(), config, runtimeServices); //
+             NetworkListen listen = server.bind(config.address(), routes, factory); //
+             Socket socket = new Socket("127.0.0.1", listen.getAddress().getPort())) {
+            try {
+                assertTrue(attaching.await(3, TimeUnit.SECONDS));
+
+                // close 与 suspend 的连接处置不同，恢复初始化后应完成 connected 回调。
+                listen.close();
+            } finally {
+                resume.countDown();
+            }
+            assertTrue(delivered.await(3, TimeUnit.SECONDS));
+            assertTrue(connected.get());
+
+            // 已交付连接继续接收数据，证明关闭监听没有误关物理通道。
+            socket.getOutputStream().write(new byte[] { 7 });
+            socket.getOutputStream().flush();
+            assertArrayEquals(new byte[] { 7 }, received.poll(3, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test(timeout = 10000)
     public void udpIsUsableWithoutRsf() throws Exception {
         // 通过 JDK 临时套接字选择 UDP 端口，再向传输 SPI 显式传入非零监听端口。
         int port;
@@ -118,17 +220,19 @@ public class NetworkConnectorTest {
             port = available.getLocalPort();
         }
         InterAddress address = new InterAddress("udp", "127.0.0.1", port, "default");
-        Map<String, String> options = Map.of("listenType", "udp");
-        ProtocolConfig protocol = new ProtocolConfig("udp", "udp", "udp", options);
+        Map<String, String> options = Map.of();
+        ProtocolConfig protocol = ProtocolTestAccess.config("udp", "udp", "udp", options);
         ConnectorConfig config = new ConnectorConfig("udp", address, options, List.of(protocol), true);
         ClassLoader loader = this.getClass().getClassLoader();
-        NetworkConnectorFactory<byte[]> factory = new UdpConnectorFactory();
-        try (NetworkConnector<byte[]> server = factory.create(config, loader); //
-             NetworkConnector<byte[]> client = factory.create(config, loader)) {
+        TransportRuntimeServices runtimeServices = newRuntimeServices(loader);
+        TransportFactory<byte[]> factory = new UdpTransportFactory();
+        try (NetworkConnector<byte[]> server = this.createConnector(factory, config, runtimeServices); //
+             NetworkConnector<byte[]> client = this.createConnector(factory, config, runtimeServices)) {
             // 监听和连接均使用真实套接字，接收端原样回送字节。
             BasicFuture<NetworkChannel<byte[]>> connected = new BasicFuture<>();
             BlockingQueue<byte[]> received = new LinkedBlockingQueue<>();
-            NetworkListen listen = server.bind(config.address(), channel -> new ChannelListener<byte[]>() {
+            RouteTable<byte[]> routes = this.routePlan(config);
+            NetworkListen listen = server.bind(config.address(), routes, channel -> new ChannelListener<byte[]>() {
 
                 public void connected() {
                 }
@@ -140,7 +244,7 @@ public class NetworkConnectorTest {
                 public void closed(Throwable cause) {
                 }
             });
-            client.connect(listen.getAddress(), channel -> new ChannelListener<byte[]>() {
+            client.connect(listen.getAddress(), routes, this.mountId(config), channel -> new ChannelListener<byte[]>() {
 
                 public void connected() {
                     connected.completed(channel);
@@ -166,6 +270,35 @@ public class NetworkConnectorTest {
             channel.write(new byte[] { 4, 5 }).get(2, TimeUnit.SECONDS);
             assertArrayEquals(new byte[] { 4, 5 }, received.poll(2, TimeUnit.SECONDS));
             channel.drainAndClose().get(2, TimeUnit.SECONDS);
+            assertFalse(channel.isOpen());
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void udpListenerFactoryFailureClosesConstructingChannel() throws Exception {
+        // UDP 不等待远端应答，直接固定监听器装配失败后的连接终态。
+        ConnectorConfig config = this.config("udp");
+        AtomicReference<NetworkChannel<byte[]>> exposed = new AtomicReference<>();
+        ClassLoader loader = this.getClass().getClassLoader();
+        TransportRuntimeServices runtimeServices = newRuntimeServices(loader);
+        try (DatagramSocket peer = new DatagramSocket(); //
+             NetworkConnector<byte[]> client = this.createConnector(//
+                     new UdpTransportFactory(), config, runtimeServices)) {
+            InterAddress target = new InterAddress("udp", "127.0.0.1", peer.getLocalPort(), "default");
+            RouteTable<byte[]> routes = this.routePlan(config);
+
+            // 工厂失败必须同步反映到连接 Future，并由已经安装的 close 通知结束通道 Future。
+            var connecting = client.connect(target, routes, this.mountId(config), channel -> {
+                exposed.set(channel);
+                throw new IllegalStateException("listener construction failed");
+            });
+            ExecutionException failure = assertThrows(ExecutionException.class, () -> {
+                connecting.get(3, TimeUnit.SECONDS);
+            });
+            assertTrue(failure.getCause() instanceof IllegalStateException);
+            NetworkChannel<byte[]> channel = exposed.get();
+            assertNotNull(channel);
+            channel.close().get(3, TimeUnit.SECONDS);
             assertFalse(channel.isOpen());
         }
     }
@@ -178,27 +311,30 @@ public class NetworkConnectorTest {
             port = available.getLocalPort();
         }
         InterAddress address = new InterAddress("udp", "127.0.0.1", port, "default");
-        Map<String, String> options = Map.of("listenType", "udp");
-        ProtocolConfig protocol = new ProtocolConfig("udp", "udp", "udp", options);
+        Map<String, String> options = Map.of();
+        ProtocolConfig protocol = ProtocolTestAccess.config("udp", "udp", "udp", options);
         ConnectorConfig config = new ConnectorConfig("udp", address, options, List.of(protocol), true);
         ClassLoader loader = this.getClass().getClassLoader();
-        try (NetworkConnector<byte[]> server = new UdpConnectorFactory().create(config, loader)) {
+        TransportRuntimeServices runtimeServices = newRuntimeServices(loader);
+        try (NetworkConnector<byte[]> server = this.createConnector(//
+                new UdpTransportFactory(), config, runtimeServices)) {
             AtomicBoolean peerCreated = new AtomicBoolean();
-            ChannelFactory<byte[]> receiver = channel -> {
+            ChannelListenerFactory<byte[]> receiver = channel -> {
                 peerCreated.set(true);
                 throw new AssertionError("Binding alone must not create a peer channel");
             };
 
             // 校验实际绑定参数，直接拒绝零端口且不创建对端通道。
             InterAddress zeroPort = InterAddress.forBinding("udp", "127.0.0.1", 0, "default");
+            RouteTable<byte[]> routes = this.routePlan(config);
             IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> {
-                server.bind(zeroPort, receiver);
+                server.bind(zeroPort, routes, receiver);
             });
             assertEquals("UDP listen port must be between 1 and 65535", error.getMessage());
             assertFalse(peerCreated.get());
 
             // 参数错误不会破坏连接器，随后可按合法地址正常监听和关闭。
-            NetworkListen listen = server.bind(address, receiver);
+            NetworkListen listen = server.bind(address, routes, receiver);
             try (listen) {
                 assertTrue(listen.isOpen());
                 assertEquals(address, listen.getAddress());
@@ -213,40 +349,44 @@ public class NetworkConnectorTest {
         // 使用 HTTP 传输 SPI，不安装应用协议。
         ConnectorConfig config = this.config("http");
         ClassLoader loader = this.getClass().getClassLoader();
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader)) {
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader)) {
             BlockingQueue<HttpRequest> requests = new LinkedBlockingQueue<>();
-            NetworkListen listen = server.bind(config.address(), channel -> new ChannelListener<HttpExchange>() {
+            RouteTable<HttpExchange> routes = this.routePlan(config);
+            NetworkListen listen = server.bind(config.address(), routes, //
+                    channel -> new ChannelListener<HttpExchange>() {
 
-                public void connected() {
-                }
+                        public void connected() {
+                        }
 
-                public void receive(HttpExchange exchange) {
-                    requests.add(exchange.request());
-                    Map<String, List<String>> headers = Map.of("X-Reply", List.of("received"));
-                    HttpResponse response = HttpResponse.newBuffered(201, headers, exchange.request().body(), Map.of());
-                    exchange.respond(response);
-                    channel.write(exchange);
-                }
+                        public void receive(HttpExchange exchange) {
+                            requests.add(exchange.request());
+                            Map<String, List<String>> headers = Map.of("X-Reply", List.of("received"));
+                            HttpResponse response = HttpResponse.newBuffered(//
+                                    201, headers, exchange.request().body(), Map.of());
+                            exchange.respond(response);
+                            channel.write(exchange);
+                        }
 
-                public void closed(Throwable cause) {
-                }
-            });
+                        public void closed(Throwable cause) {
+                        }
+                    });
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), channel -> new ChannelListener<HttpExchange>() {
+            client.connect(listen.getAddress(), routes, this.mountId(config), //
+                    channel -> new ChannelListener<HttpExchange>() {
 
-                public void connected() {
-                    connected.completed(channel);
-                }
+                        public void connected() {
+                            connected.completed(channel);
+                        }
 
-                public void receive(HttpExchange message) {
-                    fail("Client responses belong to their exchange");
-                }
+                        public void receive(HttpExchange message) {
+                            fail("Client responses belong to their exchange");
+                        }
 
-                public void closed(Throwable cause) {
-                    connected.failed(cause);
-                }
-            }).get(2, TimeUnit.SECONDS);
+                        public void closed(Throwable cause) {
+                            connected.failed(cause);
+                        }
+                    }).get(2, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(2, TimeUnit.SECONDS);
 
             // 同一个连接连续发送两条独立 HTTP 消息，响应分别归属自己的交换对象。
@@ -280,12 +420,14 @@ public class NetworkConnectorTest {
     public void closingHttpConnectorClosesUnusedLogicalChannel() throws Exception {
         // 使用 HTTP 传输 SPI，不安装应用协议。
         ConnectorConfig config = this.config("http");
-        HttpConnector client = new HttpConnector(config, this.getClass().getClassLoader());
+        ClassLoader loader = this.getClass().getClassLoader();
+        NetworkConnector<HttpExchange> client = newConnector(transport(config), loader);
         BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
         BasicFuture<Void> closed = new BasicFuture<>();
         try {
             InterAddress unusedRemote = new InterAddress("http", "127.0.0.1", 1, "default");
-            client.connect(unusedRemote, channel -> new ChannelListener<HttpExchange>() {
+            RouteTable<HttpExchange> routes = this.routePlan(config);
+            client.connect(unusedRemote, routes, this.mountId(config), channel -> new ChannelListener<HttpExchange>() {
 
                 public void connected() {
                     connected.completed(channel);
@@ -311,8 +453,65 @@ public class NetworkConnectorTest {
 
     private ConnectorConfig config(String type) {
         InterAddress address = InterAddress.forBinding(type, "127.0.0.1", 0, "default");
-        Map<String, String> options = Collections.singletonMap("listenType", type);
-        ProtocolConfig protocol = new ProtocolConfig(type, type, type, options);
+        Map<String, String> options = new HashMap<>();
+        ProtocolConfig protocol = ProtocolTestAccess.config(type, type, type, options);
         return new ConnectorConfig(type, address, options, Collections.singletonList(protocol), true);
+    }
+
+    private <M> NetworkConnector<M> createConnector(TransportFactory<M> factory, ConnectorConfig config, //
+            TransportRuntimeServices runtimeServices) {
+        TransportConfig transportConfig = transport(config);
+        return factory.prepare(transportConfig, runtimeServices.classLoader()).create(runtimeServices);
+    }
+
+    private RouteReceiver<byte[]> blockingReceiver(//
+            CountDownLatch attaching, CountDownLatch resume, AtomicBoolean connected, //
+            CountDownLatch delivered, BlockingQueue<byte[]> received) {
+        // 在接收器装配阶段暂停，固定 factory 已调用但 connected 尚未交付的窗口。
+        attaching.countDown();
+        try {
+            if (!resume.await(3, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Receiver initialization was not released");
+            }
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(failure);
+        }
+
+        return new RouteReceiver<>() {
+            @Override
+            public void connected() {
+                connected.set(true);
+                delivered.countDown();
+            }
+
+            @Override
+            public void receive(String route, byte[] message) {
+                received.add(message);
+            }
+
+            @Override
+            public void receive(byte[] message) {
+                throw new AssertionError("Routed receiver must receive the selected route");
+            }
+
+            @Override
+            public void closed(Throwable cause) {
+            }
+        };
+    }
+
+    private <M> RouteTable<M> routePlan(ConnectorConfig config) {
+        Map<String, RouteDefinition<M>> routes = new LinkedHashMap<>();
+        for (ProtocolConfig protocol : config.protocols()) {
+            RouteDefinition<M> route = RouteTestAccess.definition(//
+                    protocol.options(), protocol.mountIndex(), message -> RouteProbeResult.MATCH);
+            routes.put(protocol.mountId(), route);
+        }
+        return RouteTestAccess.activate(routes, null);
+    }
+
+    private String mountId(ConnectorConfig config) {
+        return config.protocols().iterator().next().mountId();
     }
 }

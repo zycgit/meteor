@@ -8,7 +8,7 @@
 package net.hasor.meteor.support.connector.protocol;
 import java.io.IOException;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 
 /** HTTP 传输测试使用的协议夹具。 */
 public class AcknowledgementProtocol extends TextProtocol {

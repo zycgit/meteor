@@ -10,24 +10,24 @@ import java.util.*;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.ProtocolTestAccess;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ConnectorConfigTest {
     @Test
-    public void connectorOptionsSnapshotIsDetachedFromItsBuilder() {
-        // 使用可变选项构建连接器配置快照。
+    public void transportTypeComesFromEndpointAddress() {
+        // 端点地址声明底层传输，普通选项不再携带连接器身份。
         Map<String, String> options = new HashMap<>();
-        options.put("listenType", "TCP");
-        options.put("connectTimeout", "1200");
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", "rsf", Collections.emptyMap());
+        options.put("workerThread", "1");
+        ProtocolConfig protocol = ProtocolTestAccess.config("rsf", "rsf", "rsf", Collections.emptyMap());
         InterAddress address = EndpointFixture.address("tcp");
         List<ProtocolConfig> protocols = Collections.singletonList(protocol);
         ConnectorConfig config = new ConnectorConfig("endpoint", address, options, protocols, false);
 
-        // 修改构建选项不会改变快照中的连接超时。
-        options.put("connectTimeout", "2400");
-        assertEquals(1200, config.connectTimeout());
+        // 修改普通选项不会改变从地址固化的传输类型。
+        options.put("workerThread", "2");
+        assertEquals("tcp", config.transportType());
     }
 
     @Test
@@ -35,9 +35,9 @@ public class ConnectorConfigTest {
         // 挂载协议复制可变选项，再加入连接器配置。
         Map<String, String> protocolOptions = new HashMap<>();
         protocolOptions.put("maxFrameSize", "1024");
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "RSF", "rsf", protocolOptions);
+        ProtocolConfig protocol = ProtocolTestAccess.config("rsf", "RSF", "rsf", protocolOptions);
         InterAddress address = EndpointFixture.address("tcp");
-        Map<String, String> options = Map.of("listenType", "TCP");
+        Map<String, String> options = Map.of();
         List<ProtocolConfig> protocols = Collections.singletonList(protocol);
         ConnectorConfig config = new ConnectorConfig("endpoint", address, options, protocols, false);
 
@@ -50,38 +50,25 @@ public class ConnectorConfigTest {
     @Test
     public void mountedProtocolsSnapshotIsDetachedFromItsBuilder() {
         // 使用可变列表提供协议挂载。
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", "rsf", Collections.emptyMap());
+        ProtocolConfig protocol = ProtocolTestAccess.config("rsf", "rsf", "rsf", Collections.emptyMap());
         List<ProtocolConfig> protocols = new ArrayList<>(Collections.singletonList(protocol));
         InterAddress address = EndpointFixture.address("tcp");
-        Map<String, String> options = Map.of("listenType", "TCP");
+        Map<String, String> options = Map.of();
         ConnectorConfig config = new ConnectorConfig("endpoint", address, options, protocols, false);
 
         // 清空原列表后，连接器仍保留构建时的挂载。
         protocols.clear();
         assertEquals(1, config.protocols().size());
-        assertSame(protocol, config.protocol("rsf"));
-    }
-
-    @Test
-    public void connectorOptionsAreReadOnly() {
-        // 配置快照公开自己的选项视图。
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", "rsf", Collections.emptyMap());
-        InterAddress address = EndpointFixture.address("tcp");
-        Map<String, String> options = Map.of("listenType", "TCP");
-        List<ProtocolConfig> protocols = Collections.singletonList(protocol);
-        ConnectorConfig config = new ConnectorConfig("endpoint", address, options, protocols, false);
-        Map<String, String> exposed = config.options();
-
-        // 选项视图禁止调用方删除配置。
-        assertThrows(UnsupportedOperationException.class, exposed::clear);
+        assertNotSame(protocol, config.protocol("rsf"));
+        assertEquals("rsf", config.protocol("rsf").name());
     }
 
     @Test
     public void mountedProtocolsAreReadOnly() {
         // 配置快照公开协议挂载集合。
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", "rsf", Collections.emptyMap());
+        ProtocolConfig protocol = ProtocolTestAccess.config("rsf", "rsf", "rsf", Collections.emptyMap());
         InterAddress address = EndpointFixture.address("tcp");
-        Map<String, String> options = Map.of("listenType", "TCP");
+        Map<String, String> options = Map.of();
         List<ProtocolConfig> protocols = Collections.singletonList(protocol);
         ConnectorConfig config = new ConnectorConfig("endpoint", address, options, protocols, false);
         Collection<ProtocolConfig> exposed = config.protocols();
@@ -94,7 +81,7 @@ public class ConnectorConfigTest {
     public void protocolOptionsAreReadOnly() {
         // 协议配置公开自己的选项快照。
         Map<String, String> options = Map.of("maxFrameSize", "1024");
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "RSF", "rsf", options);
+        ProtocolConfig protocol = ProtocolTestAccess.config("rsf", "RSF", "rsf", options);
         Map<String, String> exposed = protocol.options();
 
         // 协议选项禁止调用方直接修改。
@@ -102,10 +89,10 @@ public class ConnectorConfigTest {
     }
 
     @Test
-    public void emptyProtocolMountsAreRejected() {
+    public void emptyRouteProtocolsAreRejected() {
         // 端点配置没有任何协议挂载。
         InterAddress address = EndpointFixture.address("tcp");
-        Map<String, String> options = Map.of("listenType", "tcp");
+        Map<String, String> options = Map.of();
         List<ProtocolConfig> protocols = Collections.emptyList();
 
         // 构建阶段明确报告至少需要一个协议。
@@ -116,18 +103,65 @@ public class ConnectorConfigTest {
     }
 
     @Test
-    public void caseInsensitiveDuplicateProtocolMountsAreRejected() {
-        // 两个挂载使用仅大小写不同的 scheme。
-        ProtocolConfig first = new ProtocolConfig("first", "rsf", "rsf", Collections.emptyMap());
-        ProtocolConfig second = new ProtocolConfig("second", "RSF", "rsf", Collections.emptyMap());
+    public void duplicatePublishedSchemesReceiveIndependentMounts() {
+        // 同一个端点可以通过完整路由区分具有相同公开 scheme 的协议挂载。
+        ProtocolConfig first = ProtocolTestAccess.config("first", "rsf", "rsf", Collections.emptyMap());
+        ProtocolConfig second = ProtocolTestAccess.config("second", "RSF", "rsf", Collections.emptyMap());
         List<ProtocolConfig> protocols = Arrays.asList(first, second);
         InterAddress address = EndpointFixture.address("tcp");
-        Map<String, String> options = Map.of("listenType", "tcp");
+        Map<String, String> options = Map.of();
 
-        // 构建阶段拒绝歧义路由，异常明确说明重复挂载。
+        // 端点为两个挂载分配不同的不透明 ID，不再把 scheme 当作内部主键。
+        ConnectorConfig config = new ConnectorConfig("endpoint", address, options, protocols, true);
+        List<ProtocolConfig> mounted = List.copyOf(config.protocols());
+        assertEquals(2, mounted.size());
+        assertNotEquals(mounted.get(0).mountId(), mounted.get(1).mountId());
+        assertEquals(Set.of("rsf"), new HashSet<>(mounted.stream().map(ProtocolConfig::scheme).toList()));
+    }
+
+    @Test
+    public void duplicateLogicalProtocolsOnOneEndpointAreRejected() {
+        // 一个协议挂载已经可以声明多个 HTTP 上下文，同一端点无需重复挂载同一逻辑协议。
+        ProtocolConfig first = ProtocolTestAccess.config("orders", "http", "httpa", Collections.emptyMap());
+        ProtocolConfig second = ProtocolTestAccess.config("ORDERS", "https", "httpa", Collections.emptyMap());
+        InterAddress address = EndpointFixture.address("http");
+        Map<String, String> options = Map.of();
+
+        // 大小写不同也属于同一逻辑协议，构建端点时立即拒绝含糊配置。
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
-            new ConnectorConfig("endpoint", address, options, protocols, true);
+            new ConnectorConfig("endpoint", address, options, List.of(first, second), true);
         });
-        assertTrue(failure.getMessage().contains("Duplicate"));
+        assertTrue(failure.getMessage().contains("Duplicate logical protocol"));
+        assertTrue(failure.getMessage().contains("ORDERS"));
+    }
+
+    @Test
+    public void ambiguousPublishedSchemeDoesNotSelectAMountByOrder() {
+        // 两个挂载共享同一个公开 scheme，但分别属于不同逻辑协议。
+        ProtocolConfig first = ProtocolTestAccess.config("first", "shared", "rsf", Collections.emptyMap());
+        ProtocolConfig second = ProtocolTestAccess.config("second", "shared", "rsf", Collections.emptyMap());
+        InterAddress address = EndpointFixture.address("tcp");
+        Map<String, String> options = Map.of();
+        ConnectorConfig config = new ConnectorConfig("endpoint", address, options, List.of(first, second), true);
+
+        // scheme 兼容查询存在歧义时必须显式失败，调用方可以改用 mountId。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+            config.protocol("shared");
+        });
+        assertTrue(failure.getMessage().contains("Ambiguous"));
+    }
+
+    @Test
+    public void exactMountIdentityResolvesSharedPublishedScheme() {
+        // 两个逻辑协议共享公开 scheme，端点仍为每个挂载保留唯一身份。
+        ProtocolConfig first = ProtocolTestAccess.config("first", "shared", "rsf", Collections.emptyMap());
+        ProtocolConfig second = ProtocolTestAccess.config("second", "shared", "rsf", Collections.emptyMap());
+        InterAddress address = EndpointFixture.address("tcp");
+        Map<String, String> options = Map.of();
+        ConnectorConfig config = new ConnectorConfig("endpoint", address, options, List.of(first, second), true);
+        ProtocolConfig expected = config.protocols().iterator().next();
+
+        // 精确 mountId 跳过别名歧义并返回对应挂载。
+        assertSame(expected, config.protocol(expected.mountId()));
     }
 }

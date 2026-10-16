@@ -6,7 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.support.connector.protocol;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 
 public interface TestHttpResponseEncoder {

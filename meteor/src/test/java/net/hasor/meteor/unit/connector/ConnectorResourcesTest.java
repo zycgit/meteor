@@ -9,18 +9,18 @@ package net.hasor.meteor.unit.connector;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.ConnectorManager;
 import org.junit.Test;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
-/** 管理器计时器及连接编号的生命周期契约。 */
+/** 连接管理器定时器的所有权与生命周期。 */
 public class ConnectorResourcesTest {
     @Test
     public void timerRejectsSchedulingBeforeInitialization() {
-        // 未初始化的管理器不接受任务，失败后仍由资源块负责关闭。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (ConnectorManager manager = new ConnectorManager(context, new TestConnectorManager.MemoryFactory())) {
+        // 创建空管理器，但不初始化它持有的定时器。
+        try (ConnectorManager manager = EndpointFixture.manager()) {
+            // 初始化前调度会明确失败，不能静默丢弃任务。
             assertThrows(RejectedExecutionException.class, () -> manager.schedule(() -> {
             }, 1));
         }
@@ -28,44 +28,27 @@ public class ConnectorResourcesTest {
 
     @Test
     public void initializedTimerExecutesScheduledTask() throws Exception {
-        // 初始化计时器后提交任务，通过完成信号等待执行。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (ConnectorManager manager = new ConnectorManager(context, new TestConnectorManager.MemoryFactory())) {
+        // 先初始化管理器持有的定时器，再提交调度任务。
+        try (ConnectorManager manager = EndpointFixture.manager()) {
             manager.init();
             CountDownLatch fired = new CountDownLatch(1);
             manager.schedule(fired::countDown, 1);
 
-            // 在有界时间内收到任务回调。
+            // 通过有界完成信号观察任务执行结果。
             assertTrue(fired.await(2, TimeUnit.SECONDS));
         }
     }
 
     @Test
     public void timerRejectsSchedulingAfterClose() {
-        // 关闭已初始化的管理器，计时器停止接收新任务。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (ConnectorManager manager = new ConnectorManager(context, new TestConnectorManager.MemoryFactory())) {
+        // 初始化并关闭管理器，释放它持有的定时器。
+        try (ConnectorManager manager = EndpointFixture.manager()) {
             manager.init();
             manager.close();
 
-            // 关闭后的错误保持为调度拒绝，而不是静默丢失任务。
+            // 关闭后提交调度任务会被管理器生命周期边界拒绝。
             assertThrows(RejectedExecutionException.class, () -> manager.schedule(() -> {
             }, 1));
-        }
-    }
-
-    @Test
-    public void idsAreUniqueAcrossManagerRestart() {
-        // 先取一个连接编号，再关闭同一管理器。
-        MetContext context = ConnectorTestSupport.sharedContext();
-        try (ConnectorManager manager = new ConnectorManager(context, new TestConnectorManager.MemoryFactory())) {
-            manager.init();
-            long first = manager.nextConnectionId();
-            manager.close();
-
-            // 重启不重置编号，避免已关闭连接与新连接冲突。
-            manager.init();
-            assertTrue(manager.nextConnectionId() > first);
         }
     }
 }

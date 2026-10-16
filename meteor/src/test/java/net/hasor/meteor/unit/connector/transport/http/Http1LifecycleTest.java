@@ -26,29 +26,59 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.transport.ChannelFactory;
-import net.hasor.meteor.connector.transport.ChannelListener;
-import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.NetworkListen;
-import net.hasor.meteor.connector.transport.http.HttpBody;
-import net.hasor.meteor.connector.transport.http.HttpConnector;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
+import net.hasor.meteor.connector.ProtocolTestAccess;
+import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import org.junit.Test;
 import static java.net.http.HttpRequest.newBuilder;
+import static net.hasor.meteor.connector.TransportTestConfigs.transport;
+import static net.hasor.meteor.connector.transport.http.HttpConnectorTestAccess.newConnector;
+import static net.hasor.meteor.support.connector.transport.http.HttpTransportPlans.routes;
 import static org.junit.Assert.*;
 
 /** 在真实连接上验证 HTTP/1 传输 SPI 的正文与关闭契约。 */
 public class Http1LifecycleTest {
+    @Test(timeout = 15000)
+    public void headResponsePreservesExplicitRepresentationLength() throws Exception {
+        // 启动真实 HTTP/1 监听，并发送关闭连接的 HEAD 请求以便观察响应结束位置。
+        ConnectorConfig config = config(false);
+        BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
+        LinkedBlockingQueue<HttpExchange> requests = new LinkedBlockingQueue<>();
+        ClassLoader loader = this.getClass().getClassLoader();
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), receiver(connected, requests)); //
+             Socket peer = new Socket("127.0.0.1", listen.getAddress().getPort())) {
+            peer.setSoTimeout(3000);
+            send(peer, "HEAD /definition HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+            HttpExchange exchange = requests.poll(3, TimeUnit.SECONDS);
+            assertNotNull(exchange);
+            NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
+
+            // HEAD 的空正文仍声明对应 GET 表示的实体长度。
+            Map<String, List<String>> headers = Map.of("Content-Length", List.of("128"));
+            exchange.respond(HttpResponse.newBuffered(200, headers, new byte[0], Map.of()));
+            channel.write(exchange).get(3, TimeUnit.SECONDS);
+
+            // 线级响应保留实体长度，同时连接在头部后结束，没有发送正文。
+            InputStream input = peer.getInputStream();
+            assertEquals("HTTP/1.1 200 OK", line(input));
+            assertEquals("128", header(input, "Content-Length"));
+            assertEquals(-1, input.read());
+        }
+    }
+
     @Test(timeout = 15000)
     public void pipelinedResponseCannotOvertakeAnIncrementalBody() throws Exception {
         // 配置普通请求接收，使用原始对端在同一连接发送两个流水线请求。
         ConnectorConfig config = config(false);
         BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
         LinkedBlockingQueue<HttpExchange> requests = new LinkedBlockingQueue<>();
-        try (HttpConnector server = new HttpConnector(config, this.getClass().getClassLoader()); //
-             NetworkListen listen = server.bind(config.address(), receiver(connected, requests)); //
+        ClassLoader loader = this.getClass().getClassLoader();
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), receiver(connected, requests)); //
              Socket peer = new Socket("127.0.0.1", listen.getAddress().getPort())) {
             peer.setSoTimeout(3000);
             String firstRequest = "GET /first HTTP/1.1\r\nHost: localhost\r\n\r\n";
@@ -63,7 +93,7 @@ public class Http1LifecycleTest {
             // 第二个响应先准备好，也必须等待前一个增量响应的 EOF。
             second.respond(HttpResponse.newBuffered(200, Map.of(), new byte[] { 9 }, Map.of()));
             var secondWrite = channel.write(second);
-            HttpBody body = new HttpBody(16);
+            HttpBodyStream body = new HttpBodyStream(16);
             Map<String, List<String>> trailers = Map.of("x-final", List.of("one", "two"));
             first.respond(HttpResponse.newStreaming(200, Map.of(), body, trailers));
             var firstWrite = channel.write(first);
@@ -98,14 +128,15 @@ public class Http1LifecycleTest {
     public void jdkExpectContinueClientCanUploadWithoutWaitingForEof() throws Exception {
         // 以流式 SPI 回传上传正文，JDK 对端须先收到 100 Continue 才会发送正文。
         ConnectorConfig config = config(true);
-        try (HttpConnector server = new HttpConnector(config, this.getClass().getClassLoader()); //
-             NetworkListen listen = server.bind(config.address(), channel -> new ChannelListener<>() {
+        ClassLoader loader = this.getClass().getClassLoader();
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), channel -> new ChannelListener<>() {
                  public void connected() {
                  }
 
                  public void receive(HttpExchange exchange) {
                      // 头部已分发但上传尚未 EOF，响应直接使用正在接收的正文。
-                     HttpBody body = exchange.request().stream();
+                     HttpBodyStream body = exchange.request().stream();
                      assertNotNull(body);
                      exchange.respond(HttpResponse.newStreaming(200, Map.of(), body, Map.of()));
                      channel.write(exchange);
@@ -132,8 +163,9 @@ public class Http1LifecycleTest {
         ConnectorConfig config = config(true);
         BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
         LinkedBlockingQueue<HttpExchange> requests = new LinkedBlockingQueue<>();
-        try (HttpConnector server = new HttpConnector(config, this.getClass().getClassLoader()); //
-             NetworkListen listen = server.bind(config.address(), receiver(connected, requests)); //
+        ClassLoader loader = this.getClass().getClassLoader();
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), receiver(connected, requests)); //
              Socket peer = new Socket("127.0.0.1", listen.getAddress().getPort())) {
             peer.setSoTimeout(3000);
             String request = "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 4\r\nExpect: unknown\r\n\r\n";
@@ -154,8 +186,9 @@ public class Http1LifecycleTest {
         ConnectorConfig config = config(true);
         ExecutorService io = Executors.newFixedThreadPool(2);
         CountDownLatch closePeer = new CountDownLatch(1);
+        ClassLoader loader = this.getClass().getClassLoader();
         try (ServerSocket listener = new ServerSocket(0); //
-             HttpConnector client = new HttpConnector(config, this.getClass().getClassLoader())) {
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader)) {
             listener.setSoTimeout(3000);
             var peer = io.submit(() -> {
                 try (Socket socket = listener.accept()) {
@@ -170,7 +203,8 @@ public class Http1LifecycleTest {
             });
             InterAddress target = new InterAddress("http", "127.0.0.1", listener.getLocalPort(), "default");
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(target, receiver(connected, new LinkedBlockingQueue<>())).get(3, TimeUnit.SECONDS);
+            client.connect(target, routes(config), null, receiver(connected, new LinkedBlockingQueue<>())) //
+                    .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
 
             // 消费全部已声明正文，此时尚未允许对端主动关闭。
@@ -178,7 +212,7 @@ public class Http1LifecycleTest {
             HttpExchange exchange = new HttpExchange(request);
             channel.write(exchange).get(3, TimeUnit.SECONDS);
             HttpResponse response = exchange.response().get(3, TimeUnit.SECONDS);
-            HttpBody body = response.stream();
+            HttpBodyStream body = response.stream();
             assertNotNull(body);
             var reading = io.submit(() -> body.readNBytes(4));
             byte[] received = reading.get(3, TimeUnit.SECONDS);
@@ -203,8 +237,9 @@ public class Http1LifecycleTest {
         ConnectorConfig config = config(true);
         ExecutorService io = Executors.newFixedThreadPool(2);
         CountDownLatch closePeer = new CountDownLatch(1);
+        ClassLoader loader = this.getClass().getClassLoader();
         try (ServerSocket listener = new ServerSocket(0); //
-             HttpConnector client = new HttpConnector(config, this.getClass().getClassLoader())) {
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader)) {
             listener.setSoTimeout(3000);
             var peer = io.submit(() -> {
                 try (Socket socket = listener.accept()) {
@@ -219,7 +254,8 @@ public class Http1LifecycleTest {
             });
             InterAddress target = new InterAddress("http", "127.0.0.1", listener.getLocalPort(), "default");
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(target, receiver(connected, new LinkedBlockingQueue<>())).get(3, TimeUnit.SECONDS);
+            client.connect(target, routes(config), null, receiver(connected, new LinkedBlockingQueue<>())) //
+                    .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
 
             // 先消费已经收到的四字节，确保失败源自截断而非未收到响应。
@@ -227,7 +263,7 @@ public class Http1LifecycleTest {
             HttpExchange exchange = new HttpExchange(request);
             channel.write(exchange).get(3, TimeUnit.SECONDS);
             HttpResponse response = exchange.response().get(3, TimeUnit.SECONDS);
-            HttpBody body = response.stream();
+            HttpBodyStream body = response.stream();
             assertNotNull(body);
             var reading = io.submit(() -> body.readNBytes(4));
             byte[] received = reading.get(3, TimeUnit.SECONDS);
@@ -259,13 +295,14 @@ public class Http1LifecycleTest {
         BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
         LinkedBlockingQueue<HttpExchange> requests = new LinkedBlockingQueue<>();
         ExecutorService consumer = Executors.newSingleThreadExecutor();
-        try (HttpConnector server = new HttpConnector(config, this.getClass().getClassLoader()); //
-             NetworkListen listen = server.bind(config.address(), receiver(connected, requests)); //
+        ClassLoader loader = this.getClass().getClassLoader();
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), receiver(connected, requests)); //
              Socket peer = new Socket("127.0.0.1", listen.getAddress().getPort())) {
             send(peer, "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 20\r\n\r\nab");
             HttpExchange exchange = requests.poll(3, TimeUnit.SECONDS);
             assertNotNull(exchange);
-            HttpBody body = exchange.request().stream();
+            HttpBodyStream body = exchange.request().stream();
             assertNotNull(body);
             var reading = consumer.submit(() -> body.readNBytes(2));
             byte[] received = reading.get(3, TimeUnit.SECONDS);
@@ -284,7 +321,7 @@ public class Http1LifecycleTest {
         }
     }
 
-    private static ChannelFactory<HttpExchange> receiver(BasicFuture<NetworkChannel<HttpExchange>> connected, //
+    private static ChannelListenerFactory<HttpExchange> receiver(BasicFuture<NetworkChannel<HttpExchange>> connected, //
             LinkedBlockingQueue<HttpExchange> requests) {
         return channel -> new ChannelListener<>() {
             public void connected() {
@@ -303,8 +340,8 @@ public class Http1LifecycleTest {
 
     private static ConnectorConfig config(boolean streaming) {
         InterAddress address = InterAddress.forBinding("http", "127.0.0.1", 0, "default");
-        Map<String, String> options = Map.of("listenType", "http", "streamBody", String.valueOf(streaming));
-        ProtocolConfig protocol = new ProtocolConfig("http", "http", "http", Map.of("contextPath", "/"));
+        Map<String, String> options = Map.of("streamBody", String.valueOf(streaming));
+        ProtocolConfig protocol = ProtocolTestAccess.config("http", "http", "http", Map.of("contextPath", "/"));
         return new ConnectorConfig("http", address, options, List.of(protocol), true);
     }
 
@@ -331,5 +368,17 @@ public class Http1LifecycleTest {
         while (!StringUtils.equals("", line(input))) {
             // 只跳过本场景无关的普通字段，正文和 trailers 在调用方逐项断言。
         }
+    }
+
+    private static String header(InputStream input, String name) throws IOException {
+        String selected = null;
+        String line;
+        while (!StringUtils.equals("", line = line(input))) {
+            int separator = line.indexOf(':');
+            if (separator > 0 && StringUtils.equalsIgnoreCase(name, line.substring(0, separator))) {
+                selected = line.substring(separator + 1).trim();
+            }
+        }
+        return selected;
     }
 }

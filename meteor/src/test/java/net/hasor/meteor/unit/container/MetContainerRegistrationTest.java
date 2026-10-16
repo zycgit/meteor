@@ -9,22 +9,16 @@ package net.hasor.meteor.unit.container;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetPublisher;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.container.MetContainer;
+import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.unit.container.ContainerFixtures.AnnotatedEcho;
 import net.hasor.meteor.unit.container.ContainerFixtures.Echo;
 import net.hasor.meteor.unit.container.ContainerFixtures.EchoImpl;
-import net.hasor.meteor.domain.MetServiceType;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -47,6 +41,7 @@ public class MetContainerRegistrationTest {
         assertNull(service.getSerializeType());
         assertEquals(3000, service.getClientTimeout());
         assertEquals(MetServiceType.Consumer, service.getServiceType());
+        assertFalse(service.isDistributedCall());
 
         // 类型、坐标和 ID 列表都能找到同一消费者。
         assertEquals(service.getBindID(), this.container.getRsfBindInfo(Echo.class).getBindID());
@@ -92,21 +87,21 @@ public class MetContainerRegistrationTest {
     }
 
     @Test
-    public void builderRetainsSelectedProtocols() {
-        // 多个协议选择完整保留在发布后的服务信息中。
-        var builder = this.publisher.rsfService(Echo.class);
-        builder.protocol("RSF/1.0", "Http/Hprose");
-        MetBindInfo<Echo> service = builder.register();
-        assertEquals(Set.of("RSF/1.0", "Http/Hprose"), service.getBindProtocols());
-    }
-
-    @Test
     public void builderRetainsMessageMode() {
         // 消息模式在发布后保持生效。
         var builder = this.publisher.rsfService(Echo.class);
         builder.asMessage();
         MetBindInfo<Echo> service = builder.register();
         assertTrue(service.isMessage());
+    }
+
+    @Test
+    public void builderRetainsDistributedMode() {
+        // 强制分布式模式在发布后关闭本地优先。
+        var builder = this.publisher.rsfService(Echo.class);
+        builder.asDistributedCall();
+        MetBindInfo<Echo> service = builder.register();
+        assertTrue(service.isDistributedCall());
     }
 
     @Test

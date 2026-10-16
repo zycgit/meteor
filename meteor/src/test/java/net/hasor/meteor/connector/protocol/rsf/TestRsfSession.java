@@ -6,10 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.protocol.rsf;
-import java.util.function.BiConsumer;
+import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.ProtocolContext;
-import net.hasor.meteor.connector.protocol.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.payload.Payload;
 
@@ -18,9 +18,9 @@ public final class TestRsfSession {
     private TestRsfSession() {
     }
 
-    public static ProtocolSession<byte[]> create( //
-            ProtocolConfig config, ProtocolContext context, //
-            NetworkChannel<byte[]> connection, BiConsumer<Long, Payload> messages) {
+    public static ProtocolSession<byte[]> createSession( //
+            ProtocolConfig config, ProtocolSessionContext context, //
+            NetworkChannel<byte[]> connection, ObjLongConsumer<Payload> messages) {
         return new RsfSession(config, context, connection, messages);
     }
 }

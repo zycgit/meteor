@@ -8,7 +8,9 @@
 package net.hasor.meteor.unit.rpc;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -22,18 +24,17 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.dsl.RouteContext;
 import net.hasor.meteor.address.provider.AddressProvider;
 import net.hasor.meteor.address.provider.InstanceAddressProvider;
-import net.hasor.meteor.connector.ConnectorManager;
-import net.hasor.meteor.connector.MetChannel;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.OptionInfo;
 import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.rpc.MetCaller;
 import net.hasor.meteor.rpc.MetClientImpl;
 import net.hasor.meteor.rpc.MetFilterProvider;
-import net.hasor.meteor.unit.rpc.support.UnusedConnectorFactory;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -506,8 +507,8 @@ public class RpcModuleTest {
         final AtomicInteger                 localFilters  = new AtomicInteger();
         final AtomicInteger                 remoteFilters = new AtomicInteger();
         final AtomicInteger                 localTimeout  = new AtomicInteger();
-        final ConnectorManager              callerManager;
-        final ConnectorManager              serverManager;
+        final ControlledManager             callerManager;
+        final ControlledManager             serverManager;
         final MetCaller                     caller;
         final MetCaller                     server;
         final MetClientImpl                 client;
@@ -521,12 +522,21 @@ public class RpcModuleTest {
             this.service.setBindName("Echo");
             this.service.setServiceType(MetServiceType.Provider);
             this.service.setSerializeType("Java");
+            this.service.setDistributed(true);
             InterAddress peer = new InterAddress("rsf://127.0.0.1:2181/default");
+            Map<String, String> endpointOptions = Collections.emptyMap();
+            ProtocolConfig protocol = ProtocolTestAccess.config("rsf", "rsf", "rsf", Collections.emptyMap());
+            InterAddress local = InterAddress.forBinding("tcp", "127.0.0.1", 0, "default");
+            ConnectorConfig endpoint = new ConnectorConfig(//
+                    "rpc", local, endpointOptions, Collections.singletonList(protocol), false);
+            AtomicReference<Collection<ConnectorConfig>> configured = new AtomicReference<>(Collections.emptyList());
             // 配置公开宿主契约，测试不创建真实连接器。
             MetSettings settings = proxy(MetSettings.class, (p, m, args) -> {
                 switch (m.getName()) {
                     case "getConnectorConfigs":
-                        return Collections.emptySet();
+                        return configured.get();
+                    case "getDefaultProtocol":
+                        return "rsf";
                     case "getQueueMaxSize":
                         return 16;
                     case "getQueueMinPoolSize":
@@ -554,6 +564,8 @@ public class RpcModuleTest {
                 switch (m.getName()) {
                     case "getApplicationName":
                         return "application";
+                    case "getDefaultProtocol":
+                        return "rsf";
                     case "getSettings":
                         return settings;
                     case "getSerializeCoder":
@@ -566,6 +578,8 @@ public class RpcModuleTest {
                         return this.serviceAvailable ? this.service : null;
                     case "getServiceProvider":
                         return (Supplier<Echo>) EchoImpl::new;
+                    case "bindAddress":
+                        return peer;
                     default:
                         throw new AssertionError("Unexpected context access: " + m);
                 }
@@ -586,10 +600,17 @@ public class RpcModuleTest {
             };
             // 受控通道仅交付真实调用器产生的报文，并可注入取消写入。
             this.incoming = proxy(MetChannel.class, (object, method, arguments) -> {
-                if (StringUtils.equals("getRemote", method.getName())) {
+                String methodName = method.getName();
+                if (StringUtils.equals("getProtocol", methodName)) {
+                    return "rsf";
+                }
+                if (StringUtils.equals("getLocal", methodName) || StringUtils.equals("getRemote", methodName)) {
                     return peer;
                 }
-                if (StringUtils.equals("sendData", method.getName())) {
+                if (StringUtils.equals("isActive", methodName)) {
+                    return true;
+                }
+                if (StringUtils.equals("sendData", methodName)) {
                     ResponsePayload response = (ResponsePayload) arguments[0];
                     this.deliverResponse(response);
                     return new BasicFuture<>((MetChannel) object);
@@ -597,7 +618,17 @@ public class RpcModuleTest {
                 throw new AssertionError("Unexpected incoming channel access: " + method);
             });
             this.outgoing = proxy(MetChannel.class, (object, method, arguments) -> {
-                if (StringUtils.equals("sendData", method.getName())) {
+                String methodName = method.getName();
+                if (StringUtils.equals("getProtocol", methodName)) {
+                    return "rsf";
+                }
+                if (StringUtils.equals("getLocal", methodName) || StringUtils.equals("getRemote", methodName)) {
+                    return peer;
+                }
+                if (StringUtils.equals("isActive", methodName)) {
+                    return true;
+                }
+                if (StringUtils.equals("sendData", methodName)) {
                     RequestPayload request = (RequestPayload) arguments[0];
                     request.setReceiveTime(System.currentTimeMillis());
                     this.sent.add(request);
@@ -615,9 +646,10 @@ public class RpcModuleTest {
                 throw new AssertionError("Unexpected outgoing channel access: " + method);
             });
             // 管理器保留真实初始化和关闭流程，只替换传输连接与定时调度。
-            this.callerManager = new ConnectorManager(context, new UnusedConnectorFactory()) {
+            this.callerManager = new ControlledManager(context) {
                 @Override
-                public BasicFuture<MetChannel> connect(InterAddress address) {
+                public BasicFuture<MetChannel> connect(//
+                        String endpointName, String protocol, InterAddress address) {
                     Host.this.targets.add(address);
                     return new BasicFuture<>(Host.this.outgoing);
                 }
@@ -628,20 +660,21 @@ public class RpcModuleTest {
                     return () -> true;
                 }
             };
-            this.serverManager = new ConnectorManager(context, new UnusedConnectorFactory());
+            this.serverManager = new ControlledManager(context);
             this.callerManager.init();
             this.serverManager.init();
+            configured.set(Collections.singletonList(endpoint));
             this.server = new MetCaller(this.serverManager, filters);
             this.caller = new MetCaller(this.callerManager, filters);
             this.client = new MetClientImpl(this.caller, new InstanceAddressProvider(peer));
         }
 
         private void deliverRequest(RequestPayload request) {
-            this.serverManager.onRequest(this.incoming, request.getRequestID(), request);
+            this.serverManager.deliver(this.incoming, request.getRequestID(), request);
         }
 
         private void deliverResponse(ResponsePayload response) {
-            this.callerManager.onResponse(this.outgoing, response.getRequestID(), response);
+            this.callerManager.deliver(this.outgoing, response.getRequestID(), response);
         }
 
         MetFuture invoke() {
@@ -650,13 +683,33 @@ public class RpcModuleTest {
         }
 
         public void close() {
+            this.caller.stopAdmission();
+            this.server.stopAdmission();
             try {
-                this.caller.close();
-                this.server.close();
-            } finally {
                 this.callerManager.close();
                 this.serverManager.close();
+            } finally {
+                this.caller.close();
+                this.server.close();
             }
+        }
+    }
+
+    private static class ControlledManager extends ConnectorManager {
+        private ConnectorSubscriber subscriber;
+
+        private ControlledManager(MetContext context) {
+            super(context);
+        }
+
+        @Override
+        public void subscribe(ConnectorSubscriber subscriber) {
+            super.subscribe(subscriber);
+            this.subscriber = subscriber;
+        }
+
+        private void deliver(MetChannel channel, long requestId, Payload payload) {
+            this.subscriber.onMessage(channel, requestId, payload);
         }
     }
 

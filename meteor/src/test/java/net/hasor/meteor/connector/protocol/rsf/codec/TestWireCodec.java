@@ -13,13 +13,13 @@ public final class TestWireCodec {
     private TestWireCodec() {
     }
 
-    public static byte[] reencodeResponse(byte[] frame) throws IOException {
+    public static byte[] reencodeBody(byte[] frame) throws IOException {
         // 按原始结构重新编码，始终释放解码得到的数据池。
-        RpcResponseProtocolV1 protocol = new RpcResponseProtocolV1();
-        ResponseBlock response = protocol.decode(WireBuffer.input(frame));
+        RsfV1ResponseCodec codec = new RsfV1ResponseCodec();
+        RsfV1ResponseFrame response = codec.decode(RsfV1WireBuffer.input(frame));
         try {
-            WireBuffer output = WireBuffer.output();
-            protocol.encode(response, output);
+            RsfV1WireBuffer output = RsfV1WireBuffer.output();
+            codec.encode(response, output);
             return output.toByteArray();
         } finally {
             response.release();
@@ -27,48 +27,48 @@ public final class TestWireCodec {
     }
 
     public static int returnDataSize(byte[] frame) throws IOException {
-        ResponseBlock response = new RpcResponseProtocolV1().decode(WireBuffer.input(frame));
+        RsfV1ResponseFrame response = new RsfV1ResponseCodec().decode(RsfV1WireBuffer.input(frame));
         try {
-            return response.readPool(response.getReturnData()).length;
+            return response.getValue(response.getReturnDataIndex()).length;
         } finally {
             response.release();
         }
     }
 
     public static byte[] poolWithLength(int length) {
-        WireBuffer output = WireBuffer.output();
+        RsfV1WireBuffer output = RsfV1WireBuffer.output();
         output.writeShort(1).writeInt(length);
         return output.toByteArray();
     }
 
     public static final class Pool implements AutoCloseable {
-        private final PoolBlock block = new PoolBlock();
+        private final RsfV1AttributePool pool = new RsfV1AttributePool();
 
         public void push(byte[] data) {
-            this.block.pushData(data);
+            this.pool.addValue(data);
         }
 
         public byte[] read(short index) {
-            return this.block.readPool(index);
+            return this.pool.getValue(index);
         }
 
         public byte[] encode() {
-            WireBuffer output = WireBuffer.output();
-            this.block.fillTo(output);
+            RsfV1WireBuffer output = RsfV1WireBuffer.output();
+            this.pool.writeTo(output);
             return output.toByteArray();
         }
 
         public void decode(byte[] data) {
-            this.block.fillFrom(WireBuffer.input(data));
+            this.pool.readFrom(RsfV1WireBuffer.input(data));
         }
 
         public void release() {
-            this.block.release();
+            this.pool.release();
         }
 
         @Override
         public void close() {
-            this.block.release();
+            this.pool.release();
         }
     }
 }

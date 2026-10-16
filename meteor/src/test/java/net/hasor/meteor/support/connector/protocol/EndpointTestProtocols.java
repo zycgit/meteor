@@ -10,21 +10,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.BiConsumer;
-import net.hasor.cobble.StringUtils;
+import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.ProtocolContext;
-import net.hasor.meteor.connector.protocol.ProtocolFactory;
-import net.hasor.meteor.connector.protocol.ProtocolSession;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.RouteMatch;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -36,9 +31,12 @@ public final class EndpointTestProtocols {
     }
 
     public static class IncompleteProbe extends WireA {
-        public RouteMatch probe(ProtocolConfig config, byte[] prefix) {
-            return RouteMatch.NEED_MORE;
+        public RouteProbeResult probe(ProtocolConfig config, byte[] prefix) {
+            return RouteProbeResult.NEED_MORE;
         }
+    }
+
+    public static class IncompleteProbeB extends IncompleteProbe {
     }
 
     private static ResponsePayload response(long id, String value) {
@@ -51,20 +49,15 @@ public final class EndpointTestProtocols {
 
     public static class HttpA implements ProtocolFactory<HttpExchange>, TestHttpCodec {
         @Override
-        public String scheme() {
-            return this.name();
-        }
-
-        @Override
-        public RouteMatch probe(ProtocolConfig config, HttpExchange message) {
-            return RouteMatch.REJECT;
+        public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
+            return RouteProbeResult.REJECT;
         }
 
         public String defaultSerializeType() {
             return "Java";
         }
 
-        public String transport() {
+        public String transportType() {
             return "http";
         }
 
@@ -87,11 +80,11 @@ public final class EndpointTestProtocols {
             return "A";
         }
 
-        public ProtocolSession<HttpExchange> create( //
+        public ProtocolSession<HttpExchange> createSession( //
                 ProtocolConfig config, //
-                ProtocolContext context, //
+                ProtocolSessionContext context, //
                 NetworkChannel<HttpExchange> connection, //
-                BiConsumer<Long, Payload> messages) {
+                ObjLongConsumer<Payload> messages) {
             // 每个连接使用独立的请求序号与挂载路径。
             HttpA adapter = this instanceof HttpB ? new HttpB() : new HttpA();
             adapter.path = config.option("contextPath", "/");
@@ -130,16 +123,11 @@ public final class EndpointTestProtocols {
     }
 
     public static class WireA implements ProtocolFactory<byte[]> {
-        @Override
-        public String scheme() {
-            return this.name();
-        }
-
         public String defaultSerializeType() {
             return "Java";
         }
 
-        public String transport() {
+        public String transportType() {
             return "tcp";
         }
 
@@ -159,20 +147,25 @@ public final class EndpointTestProtocols {
             return "AA";
         }
 
-        public RouteMatch probe(ProtocolConfig config, byte[] prefix) {
-            if (prefix.length < 2) {
-                return RouteMatch.NEED_MORE;
+        public RouteProbeResult probe(ProtocolConfig config, byte[] prefix) {
+            byte[] marker = this.marker().getBytes(StandardCharsets.US_ASCII);
+            int compared = Math.min(prefix.length, marker.length);
+            for (int i = 0; i < compared; i++) {
+                if (prefix[i] != marker[i]) {
+                    return RouteProbeResult.REJECT;
+                }
             }
-            String receivedMarker = new String(prefix, 0, 2, StandardCharsets.US_ASCII);
-            boolean matches = StringUtils.equals(this.marker(), receivedMarker);
-            return matches ? RouteMatch.MATCH : RouteMatch.REJECT;
+            if (prefix.length < marker.length) {
+                return RouteProbeResult.NEED_MORE;
+            }
+            return RouteProbeResult.MATCH;
         }
 
-        public ProtocolSession<byte[]> create( //
+        public ProtocolSession<byte[]> createSession( //
                 ProtocolConfig config, //
-                ProtocolContext context, //
+                ProtocolSessionContext context, //
                 NetworkChannel<byte[]> network, //
-                BiConsumer<Long, Payload> messages) {
+                ObjLongConsumer<Payload> messages) {
             return new WireSession(this.marker(), network, messages);
         }
     }
@@ -183,29 +176,52 @@ public final class EndpointTestProtocols {
         }
     }
 
+    public static class WireAliasB extends WireB {
+        @Override
+        protected String marker() {
+            return "AA";
+        }
+    }
+
+    public static class RsfDelayedCandidate extends WireA {
+        @Override
+        public RouteProbeResult probe(ProtocolConfig config, byte[] prefix) {
+            if (prefix.length == 0) {
+                return RouteProbeResult.NEED_MORE;
+            }
+            if ((prefix[0] & 0xff) != 0x91) {
+                return RouteProbeResult.REJECT;
+            }
+            if (prefix.length == 1) {
+                return RouteProbeResult.NEED_MORE;
+            }
+            return (prefix[1] & 0xff) == 0x7f ? RouteProbeResult.MATCH : RouteProbeResult.REJECT;
+        }
+    }
+
     public static class DatagramWireA extends WireA {
-        public String transport() {
+        public String transportType() {
             return "udp";
         }
 
     }
 
     public static class DatagramWireB extends WireB {
-        public String transport() {
+        public String transportType() {
             return "udp";
         }
 
     }
 
     private static final class WireSession implements ProtocolSession<byte[]> {
-        private final String                    marker;
-        private final NetworkChannel<byte[]>    network;
-        private final BiConsumer<Long, Payload> messages;
-        private final BasicFuture<Void>         ready = new BasicFuture<>((Void) null);
-        private final StringBuilder             text  = new StringBuilder();
-        private       long                      ids;
+        private final String                   marker;
+        private final NetworkChannel<byte[]>   network;
+        private final ObjLongConsumer<Payload> messages;
+        private final BasicFuture<Void>        ready = new BasicFuture<>((Void) null);
+        private final StringBuilder            text  = new StringBuilder();
+        private       long                     ids;
 
-        WireSession(String marker, NetworkChannel<byte[]> network, BiConsumer<Long, Payload> messages) {
+        WireSession(String marker, NetworkChannel<byte[]> network, ObjLongConsumer<Payload> messages) {
             this.marker = marker;
             this.network = network;
             this.messages = messages;
@@ -225,7 +241,7 @@ public final class EndpointTestProtocols {
             while ((end = this.text.indexOf("\n")) >= 0) {
                 RequestPayload payload = new RequestPayload();
                 payload.setRequestID(++this.ids);
-                this.messages.accept(payload.getRequestID(), payload);
+                this.messages.accept(payload, payload.getRequestID());
                 this.text.delete(0, end + 1);
             }
         }

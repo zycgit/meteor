@@ -10,15 +10,15 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
-import java.util.function.BiConsumer;
+import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.connector.protocol.ProtocolContext;
-import net.hasor.meteor.connector.protocol.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -33,18 +33,18 @@ public final class TestHttpSession implements ProtocolSession<HttpExchange> {
     private final NetworkChannel<HttpExchange>      connection;
     private final TestHttpCodec                     protocol;
     private final boolean                           outbound;
-    private final BiConsumer<Long, Payload>         messages;
+    private final ObjLongConsumer<Payload>          messages;
     private final BasicFuture<Void>                 ready   = new BasicFuture<>();
     private final Map<Long, TestHttpPendingRequest> pending = new HashMap<>();
 
     public TestHttpSession( //
             TestHttpCodec codec, //
-            ProtocolContext context, //
+            ProtocolSessionContext context, //
             NetworkChannel<HttpExchange> connection, //
-            BiConsumer<Long, Payload> messages) {
+            ObjLongConsumer<Payload> messages) {
         this.connection = connection;
         this.protocol = codec;
-        this.outbound = context.outbound();
+        this.outbound = context.isOutbound();
         this.messages = messages;
     }
 
@@ -95,7 +95,7 @@ public final class TestHttpSession implements ProtocolSession<HttpExchange> {
                 });
             });
             exchange.completion().onFinal(done -> request.complete(done.getCause()));
-            this.messages.accept(id, request);
+            this.messages.accept(request, id);
         } catch (Exception error) {
             this.reply(exchange, this.protocol.error(error));
         }
@@ -142,15 +142,15 @@ public final class TestHttpSession implements ProtocolSession<HttpExchange> {
                 try {
                     if (done.getCause() != null) {
                         request.complete(done.getCause());
-                        this.messages.accept(request.getRequestID(), new ThrowPayload(done.getCause()));
+                        this.messages.accept(new ThrowPayload(done.getCause()), request.getRequestID());
                         return;
                     }
                     ResponsePayload response = this.protocol.decode(request.getRequestID(), done.getResult());
-                    this.messages.accept(response.getRequestID(), response);
+                    this.messages.accept(response, response.getRequestID());
                     request.complete(null);
                 } catch (Exception error) {
                     request.complete(error);
-                    this.messages.accept(request.getRequestID(), new ThrowPayload(error));
+                    this.messages.accept(new ThrowPayload(error), request.getRequestID());
                 }
             });
         });

@@ -9,8 +9,10 @@ package net.hasor.meteor.unit.connector.transport.http;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.hasor.meteor.connector.ContextPaths;
-import net.hasor.meteor.connector.transport.http.HttpConnectorFactory;
+import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.ProtocolTestAccess;
+import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.transport.http.HttpTransportFactory;
 import net.hasor.meteor.utils.ContextPathUtils;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -21,7 +23,7 @@ public class HttpContextRoutingTest {
         // 额外挂载不构成新的协议，不应将原来的根默认路径改为协议名。
         Map<String, String> options = new LinkedHashMap<>();
         ContextPathUtils.addContextPath(options, "/internal");
-        new HttpConnectorFactory().configRoutes(Map.of("grpc", options));
+        new HttpTransportFactory().configRoutes(Map.of("grpc", options));
 
         // 默认路径保持在前，额外路径仅作为另一个入口。
         assertEquals("/", options.get("contextPath"));
@@ -29,7 +31,7 @@ public class HttpContextRoutingTest {
     }
 
     @Test
-    public void extraContextCannotOccupyAnotherProtocolMount() {
+    public void extraContextCannotOccupyAnotherRouteProtocol() {
         // 同一端口的两个协议不能占用规范化后相同的路径。
         Map<String, String> grpc = new LinkedHashMap<>();
         grpc.put("contextPath", "/rpc");
@@ -38,7 +40,7 @@ public class HttpContextRoutingTest {
         hprose.put("contextPath", "/shared");
 
         // 冲突在配置阶段报告，不等待首个请求才暴露路由歧义。
-        var factory = new HttpConnectorFactory();
+        var factory = new HttpTransportFactory();
         var failure = assertThrows(IllegalArgumentException.class, () -> {
             factory.configRoutes(Map.of("grpc", grpc, "hprose", hprose));
         });
@@ -52,10 +54,10 @@ public class HttpContextRoutingTest {
         options.put("contextPath", "/");
         ContextPathUtils.addContextPath(options, "/rpc");
         ContextPathUtils.addContextPath(options, "/rpc/internal");
-        ContextPaths contexts = new ContextPaths(options);
+        ProtocolConfig protocol = ProtocolTestAccess.config("grpc", "grpc", "grpc", options);
 
         // 按最长路径选择，查询参数不改变挂载匹配。
-        ContextPaths.Mount selected = contexts.match("/rpc/internal/example.Echo/echo?source=test");
+        RouteMount selected = protocol.matchContext("/rpc/internal/example.Echo/echo?source=test");
         assertNotNull(selected);
         assertEquals("/rpc/internal", selected.path());
     }
@@ -64,10 +66,10 @@ public class HttpContextRoutingTest {
     public void contextMatchingRequiresACompletePathSegment() {
         // /rpc 不能抢占 /rpcOther 下的请求。
         Map<String, String> options = Map.of("contextPath", "/rpc");
-        ContextPaths contexts = new ContextPaths(options);
+        ProtocolConfig protocol = ProtocolTestAccess.config("grpc", "grpc", "grpc", options);
 
         // 未匹配的请求保持无路由，不回退到默认 context。
-        assertNull(contexts.match("/rpcOther/example.Echo/echo"));
+        assertNull(protocol.matchContext("/rpcOther/example.Echo/echo"));
     }
 
     @Test
@@ -106,7 +108,7 @@ public class HttpContextRoutingTest {
         options.put("contextPaths", "[\"/rpc\",42]");
 
         // 启动前拒绝错误配置，不将数字强制转成一个路径。
-        var factory = new HttpConnectorFactory();
+        var factory = new HttpTransportFactory();
         assertThrows(IllegalArgumentException.class, () -> factory.configRoutes(Map.of("grpc", options)));
     }
 }

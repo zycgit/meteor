@@ -11,18 +11,14 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
+import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.ProtocolContext;
-import net.hasor.meteor.connector.protocol.ProtocolFactory;
-import net.hasor.meteor.connector.protocol.ProtocolSession;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.RouteMatch;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -30,20 +26,15 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
 /** HTTP 传输测试使用的协议夹具。 */
 public class TextProtocol implements TestHttpCodec, ProtocolFactory<HttpExchange> {
     @Override
-    public String scheme() {
-        return this.name();
-    }
-
-    @Override
-    public RouteMatch probe(ProtocolConfig config, HttpExchange message) {
-        return RouteMatch.REJECT;
+    public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
+        return RouteProbeResult.REJECT;
     }
 
     public String defaultSerializeType() {
         return "Java";
     }
 
-    public String transport() {
+    public String transportType() {
         return "http";
     }
 
@@ -61,11 +52,11 @@ public class TextProtocol implements TestHttpCodec, ProtocolFactory<HttpExchange
 
     private final AtomicLong requestIds = new AtomicLong();
 
-    public ProtocolSession<HttpExchange> create( //
+    public ProtocolSession<HttpExchange> createSession( //
             ProtocolConfig config, //
-            ProtocolContext context, //
+            ProtocolSessionContext context, //
             NetworkChannel<HttpExchange> connection, //
-            BiConsumer<Long, Payload> messages) {
+            ObjLongConsumer<Payload> messages) {
         return new TestHttpSession(this, context, connection, messages);
     }
 

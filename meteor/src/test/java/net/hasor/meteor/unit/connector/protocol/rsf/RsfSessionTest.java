@@ -17,23 +17,25 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.ProtocolContext;
-import net.hasor.meteor.connector.protocol.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.ProtocolTestAccess;
 import net.hasor.meteor.connector.protocol.rsf.TestRsfSession;
-import net.hasor.meteor.connector.protocol.rsf.codec.CodecAdapterForV1;
+import net.hasor.meteor.connector.protocol.rsf.codec.RsfV1Codec;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.OptionInfo;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 import org.junit.Test;
-import static net.hasor.meteor.unit.connector.protocol.rsf.support.RsfFixtures.*;
+import static net.hasor.meteor.unit.connector.protocol.rsf.support.RsfFixtures.fixture;
+import static net.hasor.meteor.unit.connector.protocol.rsf.support.RsfFixtures.serializationContext;
 import static org.junit.Assert.*;
 
 /** 使用可控时钟和内存通道验证会话状态，不代表用户网络调用。 */
 public class RsfSessionTest {
-    private final Context           context = new Context();
-    private final CodecAdapterForV1 codec   = new CodecAdapterForV1(this.context.runtime);
+    private final Context    context = new Context();
+    private final RsfV1Codec codec   = new RsfV1Codec(this.context.runtime);
 
     @Test
     public void fragmentedHandshakeCompletesOnlyAfterTheLastByte() throws Exception {
@@ -320,9 +322,10 @@ public class RsfSessionTest {
     public void outboundHandshakeDoesNotAdvertiseAnUnboundServiceAddress() throws Exception {
         // 出站端点没有监听地址，握手不得宣告虚构服务地址。
         Connection connection = new Connection();
-        ProtocolContext outbound = new ProtocolContext(this.context.runtime, this.context::schedule, null, true);
+        ProtocolSessionContext outbound = ProtocolTestAccess.context( //
+                this.context.runtime, this.context::schedule, null, true);
         ProtocolConfig config = config(Collections.emptyMap());
-        ProtocolSession<byte[]> session = TestRsfSession.create(config, outbound, connection, (id, payload) -> {
+        ProtocolSession<byte[]> session = TestRsfSession.createSession(config, outbound, connection, (payload, id) -> {
         });
         session.connected();
 
@@ -337,14 +340,15 @@ public class RsfSessionTest {
             Connection connection, List<OptionInfo> messages, //
             Map<String, String> options) throws Exception {
         InterAddress address = new InterAddress("rsf", "127.0.0.1", 2181, "default");
-        ProtocolContext protocol = new ProtocolContext(this.context.runtime, this.context::schedule, address, false);
-        return TestRsfSession.create(config(options), protocol, connection, (id, payload) -> messages.add(payload));
+        ProtocolSessionContext protocol = ProtocolTestAccess.context( //
+                this.context.runtime, this.context::schedule, address, false);
+        return TestRsfSession.createSession( //
+                config(options), protocol, connection, (payload, id) -> messages.add(payload));
     }
 
     private ProtocolConfig config(Map<String, String> options) {
         Map<String, String> configured = new HashMap<>(options);
-        configured.put("listenType", "tcp");
-        return new ProtocolConfig("rsf", "rsf", "rsf", configured);
+        return ProtocolTestAccess.config("rsf", "rsf", "rsf", configured);
     }
 
     private static final class Connection implements NetworkChannel<byte[]> {

@@ -8,132 +8,110 @@
 package net.hasor.meteor.unit.connector.protocol;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ConnectorManager;
 import net.hasor.meteor.connector.MetChannel;
-import net.hasor.meteor.connector.MetConnector;
-import net.hasor.meteor.connector.MetListen;
+import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.support.connector.protocol.RawSocketTestProtocol;
 import net.hasor.meteor.support.connector.protocol.SocketTestSupport;
-import net.hasor.meteor.domain.payload.RequestPayload;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-/** 以真实 TCP 对端验证连接器 SPI 的写入、排空和监听生命周期。 */
+/** 以真实 TCP 对端验证管理器对物理写入、入站接纳和连接关闭的编排。 */
 public class SocketLifecycleTest {
     @Test(timeout = 15000)
-    public void cancelledSendStillDrainsItsPhysicalWrite() throws Exception {
+    public void managerCloseDrainsCancelledPhysicalWrite() throws Exception {
         // 用大报文制造尚未完成的物理写入，对端先只读取一个字节。
         ConnectorConfig config = SocketTestSupport.tcpConfig();
         try (ServerSocket listener = new ServerSocket(0); //
              ConnectorManager manager = SocketTestSupport.manager(config)) {
             manager.init();
             listener.setSoTimeout(3000);
-            InterAddress target = this.address(listener.getLocalPort());
-            MetChannel channel = manager.connect(target).get(3, TimeUnit.SECONDS);
+            MetChannel channel = manager.connect(this.address(listener.getLocalPort())).get(3, TimeUnit.SECONDS);
             try (Socket peer = listener.accept()) {
                 peer.setSoTimeout(5000);
                 Future<MetChannel> sent = channel.sendData(this.largeRequest());
                 assertEquals(37, peer.getInputStream().read());
                 assertFalse(sent.isDone());
 
-                // 取消调用方等待后开始排空，已提交字节仍须写完，新写入必须拒绝。
+                // 取消调用方等待不会撤回已提交字节，管理器关闭负责排空后释放连接。
                 assertTrue(sent.cancel());
-                Future<MetChannel> closed = channel.drainAndClose();
-                assertFalse(closed.isDone());
-                ExecutionException rejected = assertThrows(ExecutionException.class, () -> {
-                    channel.sendData(this.largeRequest()).get(1, TimeUnit.SECONDS);
-                });
-                assertTrue(rejected.getCause() instanceof IllegalStateException);
+                ExecutorService lifecycle = Executors.newSingleThreadExecutor();
+                try {
+                    FutureTask<Void> closing = new FutureTask<>(manager::close, null);
+                    lifecycle.execute(closing);
+                    this.awaitStopped(manager);
+                    ExecutionException rejected = assertThrows(ExecutionException.class, () -> {
+                        channel.sendData(this.largeRequest()).get(1, TimeUnit.SECONDS);
+                    });
+                    assertTrue(rejected.getCause() instanceof IllegalStateException);
 
-                // 对端读到 EOF 证明物理写入已排空，关闭 Future 保持同一身份。
-                byte[] buffer = new byte[65536];
-                int total = 1;
-                int count;
-                while ((count = peer.getInputStream().read(buffer)) != -1) {
-                    total += count;
+                    // 对端读到完整报文和 EOF，证明关闭过程排空了已经提交的写入。
+                    byte[] buffer = new byte[65536];
+                    int total = 1;
+                    int count;
+                    while ((count = peer.getInputStream().read(buffer)) != -1) {
+                        total += count;
+                    }
+                    assertEquals(RawSocketTestProtocol.WRITE_SIZE, total);
+                    closing.get(3, TimeUnit.SECONDS);
+                } finally {
+                    lifecycle.shutdownNow();
                 }
-                assertEquals(RawSocketTestProtocol.WRITE_SIZE, total);
-                assertSame(channel, closed.get(3, TimeUnit.SECONDS));
-                assertSame(closed, channel.close());
-                assertFalse(channel.isActive());
             }
         }
     }
 
     @Test(timeout = 10000)
-    public void hardCloseInterruptsWriteWithoutWaitingForPeerToRead() throws Exception {
-        // 对端保留未读取的大报文，让硬关闭作用于未完成的物理写入。
-        ConnectorConfig config = SocketTestSupport.tcpConfig();
-        try (ServerSocket listener = new ServerSocket(0); //
-             ConnectorManager manager = SocketTestSupport.manager(config)) {
-            manager.init();
-            listener.setSoTimeout(3000);
-            InterAddress target = this.address(listener.getLocalPort());
-            MetChannel channel = manager.connect(target).get(3, TimeUnit.SECONDS);
-            try (Socket peer = listener.accept()) {
-                peer.setSoTimeout(3000);
-                Future<MetChannel> sent = channel.sendData(this.largeRequest());
-                assertEquals(37, peer.getInputStream().read());
-                assertFalse(sent.isDone());
-
-                // 无需对端继续读取，硬关闭即完成，后续排空返回同一个关闭结果。
-                Future<MetChannel> closed = channel.close();
-                assertSame(channel, closed.get(3, TimeUnit.SECONDS));
-                assertSame(closed, channel.drainAndClose());
-                ExecutionException failure = assertThrows(ExecutionException.class, () -> {
-                    sent.get(3, TimeUnit.SECONDS);
-                });
-                assertNotNull(failure.getCause());
-                assertFalse(channel.isActive());
-            }
-        }
-    }
-
-    @Test(timeout = 10000)
-    public void closeBindLeavesExistingConnectionsUsable() throws Exception {
-        // 两个连接器通过真实 TCP 建立连接，之后只停止服务端接纳新连接。
+    public void stopInboundClosesAcceptedConnectionAndHidesListener() throws Exception {
+        // 启动监听并通过真实 TCP 建立一条已接纳连接。
         ConnectorConfig serverConfig = SocketTestSupport.tcpConfig();
         ConnectorConfig clientConfig = SocketTestSupport.tcpConfig();
         try (ConnectorManager server = SocketTestSupport.manager(serverConfig); //
              ConnectorManager client = SocketTestSupport.manager(clientConfig)) {
             server.init();
             client.init();
-            MetListen listen = server.bind(serverConfig.name()).get(3, TimeUnit.SECONDS);
-            MetChannel channel = client.connect(listen.getBindAddress()).get(3, TimeUnit.SECONDS);
-            MetConnector connector = server.find(serverConfig.name());
+            server.startInbound();
+            InterAddress address = server.bindAddress("raw");
+            MetChannel channel = client.connect(address).get(3, TimeUnit.SECONDS);
 
-            // 关闭监听不关闭已有连接，已有通道仍可提交一次物理写入。
-            connector.closeBind();
-            assertFalse(listen.isActive());
-            assertTrue(connector.getListenList().isEmpty());
-            Future<MetChannel> sent = channel.sendData(new RequestPayload());
-            assertSame(channel, sent.get(3, TimeUnit.SECONDS));
-            assertTrue(channel.isActive());
+            // 停止入站会关闭服务端已接纳连接，并撤下公开监听地址。
+            server.stopInbound();
+            assertNull(server.bindAddress("raw"));
         }
     }
 
     @Test(timeout = 10000)
-    public void closeBindPreventsRebinding() throws Exception {
-        // 先真实绑定端口，再永久停止该连接器的监听接纳。
+    public void startInboundResumesConfiguredListener() throws Exception {
+        // 停止后重新启动入站，端点继续使用原公开地址接纳新连接。
         ConnectorConfig config = SocketTestSupport.tcpConfig();
-        try (ConnectorManager server = SocketTestSupport.manager(config)) {
+        try (ConnectorManager server = SocketTestSupport.manager(config); //
+             ConnectorManager client = SocketTestSupport.manager(config)) {
             server.init();
-            MetListen listen = server.bind(config.name()).get(3, TimeUnit.SECONDS);
-            MetConnector connector = server.find(config.name());
-            connector.closeBind();
-            assertFalse(listen.isActive());
-            assertTrue(connector.getListenList().isEmpty());
+            client.init();
+            server.startInbound();
+            InterAddress address = server.bindAddress("raw");
+            server.stopInbound();
+            assertNull(server.bindAddress("raw"));
 
-            // 同一个连接器不能通过再次 bind 恢复监听。
-            ExecutionException failure = assertThrows(ExecutionException.class, () -> {
-                server.bind(config.name()).get(3, TimeUnit.SECONDS);
-            });
-            assertTrue(failure.getCause() instanceof IllegalStateException);
+            // 恢复监听后可通过同一公开地址重新发起连接。
+            server.startInbound();
+            InterAddress resumed = server.bindAddress("raw");
+            assertEquals(address, resumed);
+            MetChannel channel = client.connect(resumed).get(3, TimeUnit.SECONDS);
+        }
+    }
+
+    private void awaitStopped(ConnectorManager manager) throws InterruptedException, TimeoutException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (manager.isInitialized() && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        if (manager.isInitialized()) {
+            throw new TimeoutException("Connector manager did not begin closing");
         }
     }
 

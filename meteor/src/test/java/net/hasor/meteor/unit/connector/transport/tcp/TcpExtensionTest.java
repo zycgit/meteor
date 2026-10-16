@@ -16,18 +16,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.transport.ChannelListener;
-import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.SocketTransport;
-import net.hasor.meteor.connector.transport.TransportPipeline;
-import net.hasor.meteor.connector.transport.tcp.TcpConnection;
+import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.connector.transport.tcp.TcpChannelTestAccess;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.channel.data.ProtoRcvQueue;
 import net.hasor.neta.channel.data.ProtoSndQueue;
 import org.junit.Test;
+import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static org.junit.Assert.*;
 
 /** A small test-only multiplexed protocol; no Payload, MetChannel or RPC runtime. */
@@ -38,8 +35,8 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(Map.of());
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (SocketTransport server = new SocketTransport(config, loader, SoConfig.TCP()); //
-             SocketTransport client = new SocketTransport(config, loader, SoConfig.TCP())) {
+        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
+             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
             NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
@@ -71,8 +68,8 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(Map.of());
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (SocketTransport server = new SocketTransport(config, loader, SoConfig.TCP()); //
-             SocketTransport client = new SocketTransport(config, loader, SoConfig.TCP())) {
+        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
+             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
             NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
@@ -104,8 +101,8 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(Map.of());
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (SocketTransport server = new SocketTransport(config, loader, SoConfig.TCP()); //
-             SocketTransport client = new SocketTransport(config, loader, SoConfig.TCP())) {
+        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
+             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
             NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
@@ -140,8 +137,8 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(extensions);
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (SocketTransport server = new SocketTransport(config, loader, SoConfig.TCP()); //
-             SocketTransport client = new SocketTransport(config, loader, SoConfig.TCP())) {
+        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
+             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
             NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
@@ -184,8 +181,8 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(extensions);
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (SocketTransport server = new SocketTransport(config, loader, SoConfig.TCP()); //
-             SocketTransport client = new SocketTransport(config, loader, SoConfig.TCP())) {
+        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
+             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
             NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
@@ -228,8 +225,8 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(extensions);
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (SocketTransport server = new SocketTransport(config, loader, SoConfig.TCP()); //
-             SocketTransport client = new SocketTransport(config, loader, SoConfig.TCP())) {
+        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
+             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
             NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
@@ -261,25 +258,26 @@ public class TcpExtensionTest {
 
     private ConnectorConfig config(Map<String, String> extensions) {
         Map<String, String> options = new HashMap<>(extensions);
-        options.put("listenType", "tcp");
         options.put("workerThread", "1");
-        InterAddress address = InterAddress.forBinding("mux", "127.0.0.1", 0, "default");
-        ProtocolConfig mount = new ProtocolConfig("mux", "mux", "mux", options);
+        InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "default");
+        ProtocolConfig mount = ProtocolTestAccess.config("mux", "mux", "mux", options);
         return new ConnectorConfig("mux", address, options, List.of(mount), true);
     }
 
     private void attach( //
             ProtoBuildContext stack, //
             InterAddress address, //
-            SocketTransport transport, //
+            TestSocketRuntime transport, //
             boolean server, //
             AtomicReference<MuxSession> session) {
         try {
-            TcpConnection.attach(stack, address, transport.nextExecutor(), 256, connection -> {
-                MuxSession created = new MuxSession(connection, server);
-                session.set(created);
-                return created;
-            });
+            RouteTable<byte[]> routeTable = RouteTestAccess.activate(Collections.emptyMap(), null);
+            TcpChannelTestAccess.attach(stack, address, transport.nextExecutor(), 256, //
+                    routeTable, null, connection -> {
+                        MuxSession created = new MuxSession(connection, server);
+                        session.set(created);
+                        return created;
+                    });
         } catch (Exception error) {
             throw new IllegalStateException(error);
         }
@@ -393,7 +391,7 @@ public class TcpExtensionTest {
         private static final AtomicInteger reads   = new AtomicInteger();
         private static final AtomicInteger writes  = new AtomicInteger();
 
-        public void initialize(ConnectorConfig config, ProtoBuildContext stack) {
+        public void initialize(TransportConfig config, ProtoBuildContext stack) {
             AtomicInteger connections = servers;
             if (stack.getChannel().isClient()) {
                 connections = clients;

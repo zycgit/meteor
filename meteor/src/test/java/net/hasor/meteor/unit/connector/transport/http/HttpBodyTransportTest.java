@@ -19,18 +19,18 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.transport.ChannelFactory;
-import net.hasor.meteor.connector.transport.ChannelListener;
-import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.NetworkListen;
-import net.hasor.meteor.connector.transport.http.HttpBody;
-import net.hasor.meteor.connector.transport.http.HttpConnector;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
+import net.hasor.meteor.connector.ProtocolTestAccess;
+import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import static net.hasor.meteor.connector.TransportTestConfigs.transport;
+import static net.hasor.meteor.connector.transport.http.HttpConnectorTestAccess.newConnector;
+import static net.hasor.meteor.support.connector.transport.http.HttpTransportPlans.routes;
 import static org.junit.Assert.*;
 
 /** 同一组消息契约分别通过真实 HTTP/1 和 HTTP/2 连接验证。 */
@@ -54,13 +54,13 @@ public class HttpBodyTransportTest {
         Recorder serverReceiver = new Recorder();
         Recorder clientReceiver = new Recorder();
         ClassLoader loader = this.getClass().getClassLoader();
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader); //
-             NetworkListen listen = server.bind(config.address(), serverReceiver)) {
-            client.connect(listen.getAddress(), clientReceiver).get(3, TimeUnit.SECONDS);
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
+            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
-            HttpBody output = new HttpBody(16384);
+            HttpBodyStream output = new HttpBodyStream(16384);
             Map<String, List<String>> headers = Map.of("x-tag", List.of("first", "second"));
             HttpRequest request = HttpRequest.newStreaming("POST", "/stream", headers, output, this.version);
             HttpExchange outgoing = new HttpExchange(request);
@@ -70,7 +70,7 @@ public class HttpBodyTransportTest {
             HttpExchange incoming = serverReceiver.requests.poll(3, TimeUnit.SECONDS);
             assertNotNull(incoming);
             assertEquals(List.of("first", "second"), incoming.request().headers().get("X-TAG"));
-            HttpBody received = incoming.request().stream();
+            HttpBodyStream received = incoming.request().stream();
             assertNotNull(received);
             List<String> cookieValues = List.of("a=1; Expires=Wed, 21 Oct 2030 07:28:00 GMT", "b=2; Path=/");
             Map<String, List<String>> cookies = Map.of("set-cookie", cookieValues);
@@ -117,20 +117,20 @@ public class HttpBodyTransportTest {
         Recorder serverReceiver = new Recorder();
         Recorder clientReceiver = new Recorder();
         ClassLoader loader = this.getClass().getClassLoader();
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader); //
-             NetworkListen listen = server.bind(config.address(), serverReceiver)) {
-            client.connect(listen.getAddress(), clientReceiver).get(3, TimeUnit.SECONDS);
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
+            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
             // 服务端将收到的正文直接作为响应生产源，双方必须同时推进窗口。
-            HttpBody output = new HttpBody(16384);
+            HttpBodyStream output = new HttpBodyStream(16384);
             HttpRequest request = HttpRequest.newStreaming("POST", "/large", Map.of(), output, this.version);
             HttpExchange outgoing = new HttpExchange(request);
             Future<Void> writing = outgoingChannel.write(outgoing);
             HttpExchange incoming = serverReceiver.requests.poll(3, TimeUnit.SECONDS);
             assertNotNull(incoming);
-            HttpBody received = incoming.request().stream();
+            HttpBodyStream received = incoming.request().stream();
             assertNotNull(received);
             incoming.respond(HttpResponse.newStreaming(200, Map.of(), received, Map.of()));
             Future<Void> replying = serverReceiver.connected.get(3, TimeUnit.SECONDS).write(incoming);
@@ -169,10 +169,10 @@ public class HttpBodyTransportTest {
         Recorder serverReceiver = new Recorder();
         Recorder clientReceiver = new Recorder();
         ClassLoader loader = this.getClass().getClassLoader();
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader); //
-             NetworkListen listen = server.bind(config.address(), serverReceiver)) {
-            client.connect(listen.getAddress(), clientReceiver).get(3, TimeUnit.SECONDS);
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
+            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
             Map<String, List<String>> headers = Map.of("x-tag", List.of("first", "second"));
@@ -208,10 +208,10 @@ public class HttpBodyTransportTest {
         Recorder serverReceiver = new Recorder();
         Recorder clientReceiver = new Recorder();
         ClassLoader loader = this.getClass().getClassLoader();
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader); //
-             NetworkListen listen = server.bind(config.address(), serverReceiver)) {
-            client.connect(listen.getAddress(), clientReceiver).get(3, TimeUnit.SECONDS);
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
+            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
             byte[] emptyBody = new byte[0];
@@ -221,12 +221,12 @@ public class HttpBodyTransportTest {
             outgoingChannel.write(outgoing).get(3, TimeUnit.SECONDS);
             HttpExchange incoming = serverReceiver.requests.poll(3, TimeUnit.SECONDS);
             assertNotNull(incoming);
-            HttpBody requestBody = incoming.request().stream();
+            HttpBodyStream requestBody = incoming.request().stream();
             byte[] receivedBody = consumer.submit(requestBody::readAllBytes).get(3, TimeUnit.SECONDS);
             assertEquals(0, receivedBody.length);
 
             // 缓冲请求结束后，响应逐块产生，静态和动态尾部字段共同保留。
-            HttpBody body = new HttpBody(16);
+            HttpBodyStream body = new HttpBodyStream(16);
             Map<String, List<String>> staticTrailers = Map.of("x-static", List.of("a", "b"));
             incoming.respond(HttpResponse.newStreaming(200, Map.of(), body, staticTrailers));
             var writing = serverReceiver.connected.get(3, TimeUnit.SECONDS).write(incoming);
@@ -263,10 +263,10 @@ public class HttpBodyTransportTest {
         Recorder serverReceiver = new Recorder();
         Recorder clientReceiver = new Recorder();
         ClassLoader loader = this.getClass().getClassLoader();
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader); //
-             NetworkListen listen = server.bind(config.address(), serverReceiver)) {
-            client.connect(listen.getAddress(), clientReceiver).get(3, TimeUnit.SECONDS);
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
+            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
             byte[] emptyBody = new byte[0];
@@ -276,17 +276,17 @@ public class HttpBodyTransportTest {
             outgoingChannel.write(outgoing).get(3, TimeUnit.SECONDS);
             HttpExchange incoming = serverReceiver.requests.poll(3, TimeUnit.SECONDS);
             assertNotNull(incoming);
-            HttpBody requestBody = incoming.request().stream();
+            HttpBodyStream requestBody = incoming.request().stream();
             byte[] receivedBody = consumer.submit(requestBody::readAllBytes).get(3, TimeUnit.SECONDS);
             assertEquals(0, receivedBody.length);
 
             // 首块已到应用后再让生产者失败，读取者收到异常，不能把中断误作 EOF。
-            HttpBody body = new HttpBody(16);
+            HttpBodyStream body = new HttpBodyStream(16);
             incoming.respond(HttpResponse.newStreaming(200, Map.of(), body, Map.of()));
             var writing = serverReceiver.connected.get(3, TimeUnit.SECONDS).write(incoming);
             body.output().write(7);
             HttpResponse published = outgoing.response().get(3, TimeUnit.SECONDS);
-            HttpBody response = published.stream();
+            HttpBodyStream response = published.stream();
             var firstRead = consumer.submit(() -> {
                 return response.read();
             });
@@ -320,13 +320,13 @@ public class HttpBodyTransportTest {
         Recorder serverReceiver = new Recorder();
         Recorder clientReceiver = new Recorder();
         ClassLoader loader = this.getClass().getClassLoader();
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader); //
-             NetworkListen listen = server.bind(config.address(), serverReceiver)) {
-            client.connect(listen.getAddress(), clientReceiver).get(3, TimeUnit.SECONDS);
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
+            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
-            HttpBody output = new HttpBody(16384);
+            HttpBodyStream output = new HttpBodyStream(16384);
             HttpRequest request = HttpRequest.newStreaming("POST", "/cancel", Map.of(), output, this.version);
             HttpExchange outgoing = new HttpExchange(request);
             Future<Void> writing = outgoingChannel.write(outgoing);
@@ -347,7 +347,7 @@ public class HttpBodyTransportTest {
             assertThrows(ExecutionException.class, () -> outgoing.completion().get(3, TimeUnit.SECONDS));
 
             // HTTP/1 重建物理连接，HTTP/2 保留连接并分配新 stream；调用者都能继续使用通道。
-            HttpBody nextBody = new HttpBody(16);
+            HttpBodyStream nextBody = new HttpBodyStream(16);
             nextBody.output().write(7);
             nextBody.finish(Map.of());
             HttpRequest next = HttpRequest.newStreaming("POST", "/next", Map.of(), nextBody, this.version);
@@ -355,7 +355,7 @@ public class HttpBodyTransportTest {
             outgoingChannel.write(following).get(3, TimeUnit.SECONDS);
             HttpExchange arrival = serverReceiver.requests.poll(3, TimeUnit.SECONDS);
             assertNotNull(arrival);
-            HttpBody nextRequest = arrival.request().stream();
+            HttpBodyStream nextRequest = arrival.request().stream();
             byte[] arrived = consumer.submit(nextRequest::readAllBytes).get(3, TimeUnit.SECONDS);
             assertArrayEquals(new byte[] { 7 }, arrived);
             arrival.respond(HttpResponse.newBuffered(200, Map.of(), new byte[0], Map.of()));
@@ -372,20 +372,19 @@ public class HttpBodyTransportTest {
 
     private ConnectorConfig config(boolean streaming) {
         Map<String, String> values = new HashMap<>();
-        values.put("listenType", "http");
         values.put("httpVersion", String.valueOf(this.version));
         values.put("streamBody", String.valueOf(streaming));
         InterAddress address = InterAddress.forBinding("http", "127.0.0.1", 0, "default");
-        ProtocolConfig protocol = new ProtocolConfig("http", "http", "http", Map.of("contextPath", "/"));
+        ProtocolConfig protocol = ProtocolTestAccess.config("http", "http", "http", Map.of("contextPath", "/"));
         return new ConnectorConfig("http", address, values, List.of(protocol), true);
     }
 
-    private static final class Recorder implements ChannelFactory<HttpExchange> {
+    private static final class Recorder implements ChannelListenerFactory<HttpExchange> {
         private final BasicFuture<NetworkChannel<HttpExchange>>     connected = new BasicFuture<>();
         private final AtomicReference<NetworkChannel<HttpExchange>> latest    = new AtomicReference<>();
         private final LinkedBlockingQueue<HttpExchange>             requests  = new LinkedBlockingQueue<>();
 
-        public ChannelListener<HttpExchange> create(NetworkChannel<HttpExchange> channel) {
+        public ChannelListener<HttpExchange> createListener(NetworkChannel<HttpExchange> channel) {
             return new ChannelListener<HttpExchange>() {
                 public void connected() {
                     Recorder.this.latest.set(channel);

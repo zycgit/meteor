@@ -12,6 +12,7 @@ import java.lang.reflect.Proxy;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
@@ -29,10 +30,10 @@ import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
-import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import net.hasor.meteor.rpc.MetCaller;
 import net.hasor.meteor.rpc.MetClientImpl;
 import net.hasor.meteor.rpc.MetFilterProvider;
+import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -40,6 +41,64 @@ import static org.junit.Assert.*;
 public class MetCallerTest {
     public interface Echo {
         String echo(String value);
+    }
+
+    @Test
+    public void localProviderBypassesRpcFiltersAndNetwork() throws Exception {
+        // 默认服务恢复本地优先，并用工厂计数本地实例的获取次数。
+        try (Host client = new Host(10000, "normal")) {
+            client.service.setDistributed(false);
+            AtomicInteger instances = new AtomicInteger();
+            client.serviceProvider = () -> {
+                instances.incrementAndGet();
+                return value -> value + "-local";
+            };
+
+            // 固定目标地址不改变本地优先，调用直接在当前进程完成。
+            MetFuture call = client.invoke(client.address);
+            assertEquals("hello-local", call.getData(2, TimeUnit.SECONDS));
+            assertTrue(call.isDone());
+            assertEquals(1, instances.get());
+            assertEquals(0, client.filterLookups.get());
+            assertEquals(0, client.localFilters.get());
+            assertNull(client.connector());
+        }
+    }
+
+    @Test
+    public void localBusinessFailureDoesNotFallBackToRpcFilters() throws Exception {
+        // 本地实现抛出一个可识别的业务异常。
+        try (Host client = new Host(10000, "normal")) {
+            client.service.setDistributed(false);
+            IllegalStateException cause = new IllegalStateException("business failure");
+            client.serviceProvider = () -> value -> {
+                throw cause;
+            };
+
+            // Future 保留原始异常，失败后不再进入 Filter 或网络调用链。
+            Throwable failure = failure(client.invoke(client.address));
+            assertSame(cause, failure);
+            assertEquals(0, client.filterLookups.get());
+            assertEquals(0, client.localFilters.get());
+            assertNull(client.connector());
+        }
+    }
+
+    @Test
+    public void nullLocalInstanceContinuesThroughRpcFiltersAndNetwork() throws Exception {
+        // 调用端的服务工厂本次没有提供本地实例，对端仍发布同一个服务。
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
+            server.bind();
+            client.service.setDistributed(false);
+            client.serviceProvider = () -> null;
+
+            // 本地未命中后继续执行 Filter，并通过连接器访问对端。
+            assertEquals("hello", client.invoke(server.address).getData(2, TimeUnit.SECONDS));
+            assertEquals(1, client.filterLookups.get());
+            assertEquals(1, client.localFilters.get());
+            assertEquals(1, server.remoteFilters.get());
+        }
     }
 
     @Test
@@ -391,7 +450,7 @@ public class MetCallerTest {
             MemoryChannel channel = client.connector().outgoing;
             RequestPayload request = channel.sent.remove();
             ResponsePayload response = response(request, ProtocolStatus.OK);
-            client.manager.onResponse(channel, request.getRequestID(), response);
+            client.manager.deliver(channel, request.getRequestID(), response);
             assertEquals(1, callbacks.get());
             MetFuture next = client.invoke(server.address);
             assertFalse(next.isDone());
@@ -654,7 +713,7 @@ public class MetCallerTest {
 
             // 当前通道的匹配终态响应才会完成请求并回收超时任务。
             ResponsePayload completed = response(request, ProtocolStatus.OK);
-            client.manager.onResponse(source, request.getRequestID(), completed);
+            client.manager.deliver(source, request.getRequestID(), completed);
             assertEquals("reply", call.getData(2, TimeUnit.SECONDS));
             assertEquals(1, client.cancelledTimers.get());
         }
@@ -677,12 +736,12 @@ public class MetCallerTest {
             // 相同请求标识的响应来自另一条连接，必须忽略。
             MetChannel other = client.manager.connect(server.address).get(2, TimeUnit.SECONDS);
             ResponsePayload wrongSource = response(request, ProtocolStatus.OK);
-            client.manager.onResponse(other, request.getRequestID(), wrongSource);
+            client.manager.deliver(other, request.getRequestID(), wrongSource);
             assertFalse(call.isDone());
 
             // 当前通道的匹配终态响应才会完成请求并回收超时任务。
             ResponsePayload completed = response(request, ProtocolStatus.OK);
-            client.manager.onResponse(source, request.getRequestID(), completed);
+            client.manager.deliver(source, request.getRequestID(), completed);
             assertEquals("reply", call.getData(2, TimeUnit.SECONDS));
             assertEquals(1, client.cancelledTimers.get());
         }
@@ -705,12 +764,12 @@ public class MetCallerTest {
             // 相同请求标识的失败来自另一条连接，必须忽略。
             MetChannel other = client.manager.connect(server.address).get(2, TimeUnit.SECONDS);
             ThrowPayload wrongSource = new ThrowPayload(new IOException("wrong source"));
-            client.manager.onFailure(other, request.getRequestID(), wrongSource);
+            client.manager.deliver(other, request.getRequestID(), wrongSource);
             assertFalse(call.isDone());
 
             // 当前通道的匹配终态响应才会完成请求并回收超时任务。
             ResponsePayload completed = response(request, ProtocolStatus.OK);
-            client.manager.onResponse(source, request.getRequestID(), completed);
+            client.manager.deliver(source, request.getRequestID(), completed);
             assertEquals("reply", call.getData(2, TimeUnit.SECONDS));
             assertEquals(1, client.cancelledTimers.get());
         }
@@ -732,12 +791,12 @@ public class MetCallerTest {
 
             // 当前连接上的未知请求标识不会结束现有调用。
             ResponsePayload unknown = response(request, ProtocolStatus.OK);
-            client.manager.onResponse(source, request.getRequestID() + 1, unknown);
+            client.manager.deliver(source, request.getRequestID() + 1, unknown);
             assertFalse(call.isDone());
 
             // 当前通道的匹配终态响应才会完成请求并回收超时任务。
             ResponsePayload completed = response(request, ProtocolStatus.OK);
-            client.manager.onResponse(source, request.getRequestID(), completed);
+            client.manager.deliver(source, request.getRequestID(), completed);
             assertEquals("reply", call.getData(2, TimeUnit.SECONDS));
             assertEquals(1, client.cancelledTimers.get());
         }
@@ -759,12 +818,12 @@ public class MetCallerTest {
 
             // 接受状态只表示对端接收成功，不是最终业务结果。
             ResponsePayload accepted = response(request, ProtocolStatus.Accept);
-            client.manager.onResponse(source, request.getRequestID(), accepted);
+            client.manager.deliver(source, request.getRequestID(), accepted);
             assertFalse(call.isDone());
 
             // 当前通道的匹配终态响应才会完成请求并回收超时任务。
             ResponsePayload completed = response(request, ProtocolStatus.OK);
-            client.manager.onResponse(source, request.getRequestID(), completed);
+            client.manager.deliver(source, request.getRequestID(), completed);
             assertEquals("reply", call.getData(2, TimeUnit.SECONDS));
             assertEquals(1, client.cancelledTimers.get());
         }
@@ -780,7 +839,7 @@ public class MetCallerTest {
             MetFuture first = client.invoke(server.address);
             MemoryChannel source = client.connector().outgoing;
             IOException failure = new IOException("connection lost", new IllegalArgumentException("original cause"));
-            client.manager.onFailure(source, first.getRequest().getRequestID(), new ThrowPayload(failure));
+            client.manager.deliver(source, first.getRequest().getRequestID(), new ThrowPayload(failure));
             assertSame(failure, failure(first));
 
             // 保留异常对象后释放请求容量，后续调用仍可等待。
@@ -806,7 +865,7 @@ public class MetCallerTest {
             response.setRequestID(requestId);
             response.setStatus(ProtocolStatus.OK);
             response.setReturnData("too early");
-            client.manager.onResponse(null, requestId, response);
+            client.manager.deliver(null, requestId, response);
             assertFalse(call.isDone());
 
             // 连接交付之后，正常响应才能完成调用。
@@ -828,7 +887,7 @@ public class MetCallerTest {
             long requestId = call.getRequest().getRequestID();
             MemoryConnector connector = client.connector();
             ThrowPayload failure = new ThrowPayload(new IOException("no source"));
-            client.manager.onFailure(null, requestId, failure);
+            client.manager.deliver(null, requestId, failure);
             assertFalse(call.isDone());
 
             // 连接交付之后，正常响应才能完成调用。
@@ -853,7 +912,7 @@ public class MetCallerTest {
             response.setRequestID(requestId);
             response.setStatus(ProtocolStatus.OK);
             response.setReturnData("too early");
-            client.manager.onResponse(connector.outgoing, requestId, response);
+            client.manager.deliver(connector.outgoing, requestId, response);
             assertFalse(call.isDone());
 
             // 连接交付之后，正常响应才能完成调用。
@@ -875,7 +934,7 @@ public class MetCallerTest {
             long requestId = call.getRequest().getRequestID();
             MemoryConnector connector = client.connector();
             ThrowPayload failure = new ThrowPayload(new IOException("not attached"));
-            client.manager.onFailure(connector.outgoing, requestId, failure);
+            client.manager.deliver(connector.outgoing, requestId, failure);
             assertFalse(call.isDone());
 
             // 连接交付之后，正常响应才能完成调用。
@@ -984,7 +1043,7 @@ public class MetCallerTest {
             RequestPayload request = channel.sent.poll(2, TimeUnit.SECONDS);
             assertTrue(request.completion().isDone());
             assertTrue(request.completion().getCause() instanceof CancellationException);
-            client.manager.onResponse(channel, request.getRequestID(), response(request, ProtocolStatus.OK));
+            client.manager.deliver(channel, request.getRequestID(), response(request, ProtocolStatus.OK));
             assertTrue(call.isCancelled());
 
             // 同一调用端仍有容量接收下一次请求。
@@ -1039,28 +1098,28 @@ public class MetCallerTest {
             InterAddress unknown = new InterAddress("unknown", "localhost", 1, "default");
             Throwable failure = failure(client.invoke(unknown));
 
-            // 失败不创建连接器，且回收唯一的超时任务。
+            // 协议选择在登记请求前失败，不创建连接器和超时任务。
             assertTrue(failure instanceof MetException);
-            assertNull(client.manager.find(client.config.name()));
-            assertEquals(1, client.cancelledTimers.get());
+            assertNull(client.connector());
+            assertEquals(0, client.cancelledTimers.get());
         }
     }
 
     @Test
-    public void closeStopsListenersThenDrainsWritesBeforeFailingPendingCalls() throws Exception {
+    public void ownerCloseStopsListenersThenDrainsWritesBeforeFailingPendingCalls() throws Exception {
         try (Host server = new Host(10000, "normal"); //
              Host client = new Host(10000, "hold")) {
             server.bind();
 
             // 同时准备监听器和未完成调用，并用闸门阻塞通道排空。
-            MetListen listen = client.bind();
+            MemoryListen listen = client.bind();
             MetClient remote = client.client(server.address);
             MetFuture pending = client.invoke(server.address);
             MemoryChannel channel = client.connector().outgoing;
             channel.drainGate = new BasicFuture<>();
 
             // 异步关闭应先停止监听与接收新调用，再等待已有写入排空。
-            FutureTask<Void> closing = new FutureTask<>(client.rpc::close, null);
+            FutureTask<Void> closing = new FutureTask<>(client::close, null);
             Thread thread = new Thread(closing, "rpc-close-test");
             thread.start();
             try {
@@ -1081,7 +1140,7 @@ public class MetCallerTest {
             // 排空之后结束未完成请求；重复关闭不会重新初始化管理器。
             assertTrue(failure(pending) instanceof IllegalStateException);
             assertFalse(channel.isActive());
-            client.rpc.close();
+            client.close();
             assertFalse(client.manager.isInitialized());
         }
     }
@@ -1141,7 +1200,7 @@ public class MetCallerTest {
 
             // 注入外部标识与报文标识不一致的入站请求。
             MemoryChannel channel = (MemoryChannel) client.manager.connect(server.address).get(2, TimeUnit.SECONDS);
-            server.manager.onRequest(channel.peer, 43, request(server, 42, "invalid"));
+            server.manager.deliver(channel.peer, 43, request(server, 42, "invalid"));
 
             // 随后正常请求仍可完成，只有有效请求经过服务过滤器。
             channel.sendData(request(server, 44, "valid")).get(2, TimeUnit.SECONDS);
@@ -1166,12 +1225,12 @@ public class MetCallerTest {
             channel.drainGate = new BasicFuture<>();
 
             // 关闭尚未完成时交付最终响应，等待中的调用仍能成功。
-            FutureTask<Void> closing = new FutureTask<>(client.rpc::close, null);
+            FutureTask<Void> closing = new FutureTask<>(client::close, null);
             Thread thread = new Thread(closing, "rpc-response-during-close");
             thread.start();
             try {
                 assertTrue(channel.draining.await(2, TimeUnit.SECONDS));
-                client.manager.onResponse(channel, request.getRequestID(), response(request, ProtocolStatus.OK));
+                client.manager.deliver(channel, request.getRequestID(), response(request, ProtocolStatus.OK));
                 assertEquals("reply", pending.getData(2, TimeUnit.SECONDS));
                 assertFalse(closing.isDone());
             } finally {
@@ -1222,7 +1281,8 @@ public class MetCallerTest {
     public void constructorRequiresInitializedManager() throws Exception {
         // 保留一个尚未初始化的管理器作为构造输入。
         try (Host host = new Host(10000, "normal")) {
-            try (ConnectorManager uninitialized = new ConnectorManager(host.manager.context(), new MemoryFactory())) {
+            MetContext context = host.manager.context();
+            try (ConnectorManager uninitialized = new ConnectorManager(context)) {
                 // Caller 必须拒绝未初始化的管理器，并说明初始化要求。
                 IllegalStateException error = assertThrows(IllegalStateException.class, () -> {
                     new MetCaller(uninitialized, id -> new Supplier[0]);
@@ -1324,7 +1384,6 @@ public class MetCallerTest {
             MetFuture active = client.invoke(server.address);
             client.rpc.close();
             client.rpc.close();
-            assertFalse(client.manager.isInitialized());
             assertTrue(failure(active) instanceof IllegalStateException);
 
             // 新建的本地请求在进入过滤器之前就被拒绝。
@@ -1353,11 +1412,10 @@ public class MetCallerTest {
             RequestPayload request = channel.sent.remove();
             client.rpc.close();
             client.rpc.close();
-            assertFalse(client.manager.isInitialized());
             assertTrue(failure(active) instanceof IllegalStateException);
 
             // 关闭后从旧通道到达的入站请求不执行过滤器，也不生成响应。
-            client.manager.onRequest(channel, request.getRequestID(), request);
+            client.manager.deliver(channel, request.getRequestID(), request);
             assertEquals(1, client.localFilters.get());
             assertEquals(0, client.remoteFilters.get());
             assertTrue(channel.replies.isEmpty());
@@ -1387,13 +1445,15 @@ public class MetCallerTest {
     public void subscriptionFailureDoesNotCloseTheProvidedManager() throws Exception {
         // 管理器已初始化，但在 Caller 订阅时主动报告失败。
         try (Host host = new Host(10000, "normal"); //
-             ConnectorManager manager = new ConnectorManager(host.manager.context(), new MemoryFactory()) {
+             ConnectorManager manager = new ConnectorManager(host.manager.context()) {
                  @Override
                  public void subscribe(ConnectorSubscriber subscriber) {
                      throw new IllegalStateException("subscription failed");
                  }
              }) {
+            host.configured.set(Collections.emptyList());
             manager.init();
+            host.configured.set(Collections.singletonList(host.config));
 
             // 构造失败原样传播，外部提供的管理器仍归调用方管理。
             IllegalStateException error = assertThrows(IllegalStateException.class, () -> {
@@ -1401,6 +1461,17 @@ public class MetCallerTest {
             });
             assertEquals("subscription failed", error.getMessage());
             assertTrue(manager.isInitialized());
+        }
+    }
+
+    @Test
+    public void callerCloseDoesNotCloseTheProvidedManager() throws Exception {
+        // Caller 借用由外层创建和持有的连接管理器。
+        try (Host host = new Host(10000, "normal")) {
+            host.rpc.close();
+
+            // 关闭 Caller 只释放 RPC 自有资源，连接管理器仍由 Host 负责关闭。
+            assertTrue(host.manager.isInitialized());
         }
     }
 
@@ -1561,17 +1632,20 @@ public class MetCallerTest {
     }
 
     private static final class Host implements AutoCloseable {
-        private static final AtomicInteger             IDS             = new AtomicInteger();
-        private final        InterAddress              address;
-        private final        ServiceDomain<Echo>       service         = new ServiceDomain<>(Echo.class);
-        private final        AtomicInteger             localFilters    = new AtomicInteger();
-        private final        AtomicInteger             remoteFilters   = new AtomicInteger();
-        private final        AtomicInteger             cancelledTimers = new AtomicInteger();
-        private final        BlockingQueue<MetRequest> requests        = new LinkedBlockingQueue<>();
-        private final        OptionInfo                requestOptions  = new OptionInfo();
-        private final        ConnectorConfig           config;
-        private final        ConnectorManager          manager;
-        private final        MetCaller                 rpc;
+        private static final AtomicInteger                                IDS             = new AtomicInteger();
+        private final        InterAddress                                 address;
+        private final        ServiceDomain<Echo>                          service         = new ServiceDomain<>(Echo.class);
+        private final        AtomicInteger                                localFilters    = new AtomicInteger();
+        private final        AtomicInteger                                remoteFilters   = new AtomicInteger();
+        private final        AtomicInteger                                filterLookups   = new AtomicInteger();
+        private final        AtomicInteger                                cancelledTimers = new AtomicInteger();
+        private final        BlockingQueue<MetRequest>                    requests        = new LinkedBlockingQueue<>();
+        private final        OptionInfo                                   requestOptions  = new OptionInfo();
+        private final        ConnectorConfig                              config;
+        private final        AtomicReference<Collection<ConnectorConfig>> configured;
+        private final        MemoryConnector                              manager;
+        private final        MetCaller                                    rpc;
+        private volatile     Supplier<Echo>                               serviceProvider;
 
         @SuppressWarnings("unchecked")
         private Host(int timeout, String mode) {
@@ -1582,18 +1656,21 @@ public class MetCallerTest {
             this.service.setServiceType(MetServiceType.Provider);
             this.service.setSerializeType("Java");
             this.service.setClientTimeout(timeout);
+            this.service.setDistributed(true);
             Map<String, String> options = new HashMap<>();
-            options.put("listenType", "rpc-memory");
             options.put("mode", mode);
             String protocolName = options.getOrDefault("protocol", this.address.getSchema());
-            ProtocolConfig mount = new ProtocolConfig("rpc", this.address.getSchema(), protocolName, options);
+            ProtocolConfig mount = ProtocolTestAccess.config("rpc", this.address.getSchema(), protocolName, options);
             this.config = new ConnectorConfig("rpc", this.address, options, Collections.singletonList(mount), true);
+            this.configured = new AtomicReference<>(Collections.emptyList());
 
             // 只为 Caller 所需的设置契约提供固定值。
             MetSettings settings = proxy(MetSettings.class, (p, method, args) -> {
                 switch (method.getName()) {
                     case "getConnectorConfigs":
-                        return Collections.singletonList(this.config);
+                        return this.configured.get();
+                    case "getDefaultProtocol":
+                        return "rpc";
                     case "getQueueMaxSize":
                         return 16;
                     case "getQueueMinPoolSize":
@@ -1620,12 +1697,14 @@ public class MetCallerTest {
 
             // 上下文只提供服务、序列化器与地址查询，不模拟 Caller 行为。
             Echo echo = value -> value;
-            Supplier<Echo> serviceProvider = () -> echo;
+            this.serviceProvider = () -> echo;
             JavaSerializeCoder coder = new JavaSerializeCoder();
             MetContext context = proxy(MetContext.class, (p, method, args) -> {
                 switch (method.getName()) {
                     case "getApplicationName":
                         return "application";
+                    case "getDefaultProtocol":
+                        return "rpc";
                     case "getSettings":
                         return settings;
                     case "getSerializeCoder":
@@ -1637,7 +1716,7 @@ public class MetCallerTest {
                     case "getServiceInfo":
                         return this.service;
                     case "getServiceProvider":
-                        return serviceProvider;
+                        return this.serviceProvider;
                     case "bindAddress":
                         return this.address;
                     default:
@@ -1646,7 +1725,7 @@ public class MetCallerTest {
             });
 
             // 使用真实管理器与调度器，只观察超时任务取消次数。
-            this.manager = new ConnectorManager(context, new MemoryFactory()) {
+            this.manager = new MemoryConnector(context, this.config) {
                 @Override
                 public Cancellable schedule(Runnable task, long delay) {
                     Cancellable timer = super.schedule(task, delay);
@@ -1657,6 +1736,7 @@ public class MetCallerTest {
                 }
             };
             this.manager.init();
+            this.configured.set(Collections.singletonList(this.config));
 
             // 双向过滤器观察真实请求，再继续执行正式分发链。
             MetFilter filter = (request, response, chain) -> {
@@ -1669,16 +1749,19 @@ public class MetCallerTest {
                 chain.doFilter(request, response);
             };
             Supplier<MetFilter> filterSupplier = () -> filter;
-            MetFilterProvider filters = id -> new Supplier[] { filterSupplier };
+            MetFilterProvider filters = id -> {
+                this.filterLookups.incrementAndGet();
+                return new Supplier[] { filterSupplier };
+            };
             this.rpc = new MetCaller(this.manager, filters);
         }
 
-        private MetListen bind() throws Exception {
-            return this.manager.bind(this.config.name()).get(2, TimeUnit.SECONDS);
+        private MemoryListen bind() {
+            return this.manager.bindMemory();
         }
 
         private MemoryConnector connector() {
-            return (MemoryConnector) this.manager.find(this.config.name());
+            return this.manager.isCreated() ? this.manager : null;
         }
 
         private MetClient client(InterAddress target) {
@@ -1693,90 +1776,177 @@ public class MetCallerTest {
 
         @Override
         public void close() {
-            this.rpc.close();
+            this.rpc.stopAdmission();
+            try {
+                this.manager.close();
+            } finally {
+                this.rpc.close();
+            }
         }
     }
 
-    private static final class MemoryFactory implements MetConnectorFactory {
-        public Collection<String> listenTypes(ClassLoader loader) {
-            return Collections.singletonList("rpc-memory");
-        }
-
-        public MetConnector create(ConnectorConfig connectorConfig, ConnectorManager connectorManager) {
-            return new MemoryConnector(connectorConfig, connectorManager);
-        }
-    }
-
-    private static final class MemoryConnector extends AbstractConnector {
+    private static class MemoryConnector extends ConnectorManager {
         private static final Map<InterAddress, MemoryConnector> LISTENERS = new ConcurrentHashMap<>();
-        private              MemoryChannel                      outgoing;
-        private              BasicFuture<MetChannel>            connecting;
+        private final        ConnectorConfig                    config;
+        private final        List<ConnectorSubscriber>          receivers = new CopyOnWriteArrayList<>();
+        private final        Set<MemoryChannel>                 channels  = ConcurrentHashMap.newKeySet();
+        private volatile     MemoryChannel                      outgoing;
+        private volatile     BasicFuture<MetChannel>            connecting;
+        private volatile     MemoryListen                       listen;
+        private volatile     boolean                            created;
 
-        private MemoryConnector(ConnectorConfig connectorConfig, ConnectorManager connectorManager) {
-            super(connectorConfig, connectorManager);
+        private MemoryConnector(MetContext context, ConnectorConfig config) {
+            super(context);
+            this.config = config;
         }
 
-        protected void initialize() {
+        @Override
+        public void subscribe(ConnectorSubscriber subscriber) {
+            super.subscribe(subscriber);
+            this.receivers.add(subscriber);
         }
 
-        protected void doClose() {
+        private void deliver(MetChannel channel, long requestId, Payload payload) {
+            for (ConnectorSubscriber receiver : this.receivers) {
+                receiver.onMessage(channel, requestId, payload);
+            }
         }
 
         private InterAddress localAddress() {
-            String scheme = this.config().address().getSchema();
-            return this.manager.context().bindAddress(scheme);
+            return this.config.address();
         }
 
-        protected Future<MetListen> listen(InterAddress address, ReceivedListener listener) {
-            // 监听目录只负责定位测试对端，关闭时同步移除登记。
-            String type = this.config.listenType();
-            LISTENERS.put(address, this);
-            return new BasicFuture<>(new AbstractMetListen(type, address, listener) {
-                private boolean active = true;
-
-                public boolean isActive() {
-                    return this.active;
-                }
-
-                public void close() {
-                    this.active = false;
-                    LISTENERS.remove(address, MemoryConnector.this);
-                    MemoryConnector.this.onListenClosed(this);
-                }
-            });
+        private ConnectorConfig config() {
+            return this.config;
         }
 
-        protected Future<MetChannel> openSession(InterAddress target, ReceivedListener listener) {
+        private boolean isCreated() {
+            return this.created;
+        }
+
+        private Collection<MemoryListen> getListenList() {
+            MemoryListen current = this.listen;
+            if (current == null || !current.isActive()) {
+                return Collections.emptyList();
+            }
+            return Collections.singletonList(current);
+        }
+
+        private MemoryListen bindMemory() {
+            this.created = true;
+            MemoryListen current = this.listen;
+            if (current == null || !current.isActive()) {
+                current = new MemoryListen(this, this.localAddress());
+                this.listen = current;
+            }
+            current.start();
+            return current;
+        }
+
+        @Override
+        public Future<MetChannel> connect(InterAddress target) {
+            return this.connect(target, null);
+        }
+
+        @Override
+        public Future<MetChannel> connect(InterAddress target, String protocol) {
+            return this.connect(this.config.name(), protocol, target);
+        }
+
+        @Override
+        public Future<MetChannel> connect(String endpointName, String protocol, InterAddress target) {
             // 无监听对端时直接交付连接失败。
             this.connecting = new BasicFuture<>();
+            if (!this.isInitialized()) {
+                this.connecting.failed(new IllegalStateException("Manager is not initialized"));
+                return this.connecting;
+            }
+            if (!StringUtils.equalsIgnoreCase(this.config.address().getSchema(), target.getSchema())) {
+                String message = "No connector configured for " + target.getSchema();
+                this.connecting.failed(new MetException(ProtocolStatus.ProtocolUndefined, message));
+                return this.connecting;
+            }
+
             MemoryConnector server = LISTENERS.get(target);
             if (server == null) {
                 this.connecting.failed(new IOException("No listener"));
                 return this.connecting;
             }
 
-            // 为两端创建成对通道，仍由真实管理器接收协议事件。
-            this.outgoing = new MemoryChannel(this, this.manager.nextConnectionId(), target, listener);
-            long incomingId = server.manager.nextConnectionId();
-            MemoryChannel incoming = new MemoryChannel(server, incomingId, this.localAddress(), server.manager);
+            // 为两端创建成对通道，消息统一交给各自管理器的订阅器。
+            this.created = true;
+            this.outgoing = new MemoryChannel(this, target);
+            MemoryChannel incoming = new MemoryChannel(server, this.localAddress());
             this.outgoing.peer = incoming;
             incoming.peer = this.outgoing;
-            this.fireChannelConnected(this.outgoing);
-            server.fireChannelConnected(incoming);
+            this.channels.add(this.outgoing);
+            server.channels.add(incoming);
 
             // 延迟模式由测试控制连接何时交付。
-            if (!StringUtils.equals("delayed", this.config().option("mode", "normal"))) {
+            String mode = this.config().options().getOrDefault("mode", "normal");
+            if (!StringUtils.equals("delayed", mode)) {
                 this.connecting.completed(this.outgoing);
             }
             return this.connecting;
         }
 
-        private void closed(MetChannel channel) {
-            this.fireChannelClosed(channel);
+        private void closed(MemoryChannel channel) {
+            this.channels.remove(channel);
+        }
+
+        @Override
+        public void close() {
+            MemoryListen current = this.listen;
+            if (current != null) {
+                current.close();
+            }
+
+            List<Future<MetChannel>> draining = new ArrayList<>();
+            for (MemoryChannel channel : new ArrayList<>(this.channels)) {
+                draining.add(channel.drainAndClose());
+            }
+            for (Future<MetChannel> future : draining) {
+                try {
+                    future.get();
+                } catch (InterruptedException failure) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (ExecutionException ignored) {
+                    // 通道已经结束，管理器仍需继续回收其它资源。
+                }
+            }
+
+            this.receivers.clear();
+            super.close();
         }
     }
 
-    private static final class MemoryChannel extends AbstractMetChannel {
+    private static final class MemoryListen {
+        private final MemoryConnector owner;
+        private final InterAddress    address;
+        private       boolean         active;
+
+        private MemoryListen(MemoryConnector owner, InterAddress address) {
+            this.owner = owner;
+            this.address = address;
+        }
+
+        private synchronized boolean isActive() {
+            return this.active;
+        }
+
+        private synchronized void start() {
+            this.active = true;
+            MemoryConnector.LISTENERS.put(this.address, this.owner);
+        }
+
+        private synchronized void close() {
+            this.active = false;
+            MemoryConnector.LISTENERS.remove(this.address, this.owner);
+        }
+    }
+
+    private static final class MemoryChannel implements MetChannel {
         private final    MemoryConnector                owner;
         private final    InterAddress                   remote;
         private final    BlockingQueue<RequestPayload>  sent     = new LinkedBlockingQueue<>();
@@ -1787,10 +1957,13 @@ public class MetCallerTest {
         private          BasicFuture<MetChannel>        drainGate;
         private          BasicFuture<MetChannel>        writing;
 
-        private MemoryChannel(MemoryConnector owner, long id, InterAddress remote, ReceivedListener listener) {
-            super(owner, id, listener);
+        private MemoryChannel(MemoryConnector owner, InterAddress remote) {
             this.owner = owner;
             this.remote = remote;
+        }
+
+        public String getProtocol() {
+            return "rpc";
         }
 
         public InterAddress getLocal() {
@@ -1808,7 +1981,7 @@ public class MetCallerTest {
         public Future<MetChannel> sendData(Payload payload) {
             // 写入模式仅模拟对端传输成功、失败或延迟，不改写 RPC 状态。
             BasicFuture<MetChannel> result = new BasicFuture<>();
-            String mode = this.owner.config().option("mode", "normal");
+            String mode = this.owner.config().options().getOrDefault("mode", "normal");
             if (!this.active || StringUtils.equals("fail-write", mode)) {
                 result.failed(new IOException("Write failed"));
                 return result;
@@ -1826,15 +1999,15 @@ public class MetCallerTest {
                 this.sent.add(request);
                 if (StringUtils.equals("instant", mode)) {
                     ResponsePayload response = response(request, ProtocolStatus.OK);
-                    this.listener().onResponse(this, request.getRequestID(), response);
+                    this.owner.deliver(this, request.getRequestID(), response);
                 } else if (!StringUtils.equals("hold", mode)) {
                     request.setReceiveTime(System.currentTimeMillis());
-                    this.peer.listener().onRequest(this.peer, request.getRequestID(), request);
+                    this.peer.owner.deliver(this.peer, request.getRequestID(), request);
                 }
             } else {
                 ResponsePayload response = (ResponsePayload) payload;
                 this.replies.add(response);
-                this.peer.listener().onResponse(this.peer, response.getRequestID(), response);
+                this.peer.owner.deliver(this.peer, response.getRequestID(), response);
             }
             result.completed(this);
             return result;

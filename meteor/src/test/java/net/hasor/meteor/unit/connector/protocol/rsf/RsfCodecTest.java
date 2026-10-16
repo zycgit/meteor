@@ -7,18 +7,19 @@
  */
 package net.hasor.meteor.unit.connector.protocol.rsf;
 import java.io.IOException;
-import net.hasor.meteor.connector.protocol.rsf.codec.CodecAdapterForV1;
+import net.hasor.meteor.connector.protocol.rsf.codec.RsfV1Codec;
 import net.hasor.meteor.connector.protocol.rsf.codec.TestWireCodec;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import org.junit.Test;
-import static net.hasor.meteor.unit.connector.protocol.rsf.support.RsfFixtures.*;
+import static net.hasor.meteor.unit.connector.protocol.rsf.support.RsfFixtures.fixture;
+import static net.hasor.meteor.unit.connector.protocol.rsf.support.RsfFixtures.serializationContext;
 import static org.junit.Assert.*;
 
 /** RSF/1 历史报文与序列化边界的单元覆盖。 */
 public class RsfCodecTest {
-    private final CodecAdapterForV1 codec = new CodecAdapterForV1(serializationContext());
+    private final RsfV1Codec codec = new RsfV1Codec(serializationContext());
 
     @Test
     public void originalRequestFixtureDecodesAndReencodesByteForByte() throws Exception {
@@ -37,7 +38,7 @@ public class RsfCodecTest {
     public void legacyResponseWireReencodesByteForByte() throws Exception {
         // 历史响应含重复返回值，底层报文结构必须保持原有字节布局。
         byte[] legacy = fixture("response-v1.bin");
-        byte[] reencoded = TestWireCodec.reencodeResponse(legacy);
+        byte[] reencoded = TestWireCodec.reencodeBody(legacy);
         assertArrayEquals(legacy, reencoded);
     }
 

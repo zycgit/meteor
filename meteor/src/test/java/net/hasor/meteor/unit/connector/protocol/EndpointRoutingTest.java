@@ -9,29 +9,25 @@ package net.hasor.meteor.unit.connector.protocol;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.InputStream;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.net.SocketException;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Proxy;
+import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.MetContext;
+import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ConnectorManager;
-import net.hasor.meteor.connector.ConnectorSubscriber;
-import net.hasor.meteor.connector.MetChannel;
-import net.hasor.meteor.connector.MetListen;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.support.connector.protocol.EndpointTestProtocols.*;
-import net.hasor.meteor.support.connector.protocol.SocketTestSupport;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
+import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
+import net.hasor.meteor.support.connector.protocol.EndpointTestProtocols.*;
+import net.hasor.meteor.support.connector.protocol.SocketTestSupport;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -39,14 +35,17 @@ import static org.junit.Assert.*;
 public class EndpointRoutingTest {
     @Test(timeout = 15000)
     public void httpPartitionsSharePortAndConnectionWithoutMixingReplies() throws Exception {
-        // 同一 HTTP 监听与连接上按挂载路径选择两个协议。
-        ConnectorConfig config = endpointConfig("http", HttpA.class, HttpB.class);
+        // 两个逻辑协议共享 HTTP 地址 scheme，由同一监听上的完整路径选择挂载。
+        ConnectorConfig config = endpointConfig("http", HttpA.class, HttpB.class, "http", "http");
         try (ConnectorManager endpoint = SocketTestSupport.manager(config)) {
             endpoint.init();
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
-            MetListen listen = endpoint.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            endpoint.startInbound();
+            InterAddress shared = endpoint.bindAddress("http");
+            assertEquals(shared, endpoint.bindAddress("a"));
+            assertEquals(shared, endpoint.bindAddress("b"));
+            int port = shared.getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 sendHttp(socket, "/a", "first");
@@ -55,11 +54,10 @@ public class EndpointRoutingTest {
                 Delivery b = inbox.take();
 
                 // 协议视图独立维护关联号，响应仍遵守物理连接的请求顺序。
-                assertEquals("a", a.channel.getRemote().getSchema());
-                assertEquals("b", b.channel.getRemote().getSchema());
+                assertEquals("http", a.channel.getRemote().getSchema());
+                assertEquals("http", b.channel.getRemote().getSchema());
                 assertEquals(a.id, b.id); // 关联号归属各自的协议视图。
-                assertNotEquals(a.channel.getChannelId(), b.channel.getChannelId());
-                assertSame(a.channel.getConnector(), b.channel.getConnector());
+                assertNotSame(a.channel, b.channel);
                 Future<MetChannel> later = b.channel.sendData(response(b.id, "second"));
                 assertFalse(later.isDone());
                 a.channel.sendData(response(a.id, "first")).get(3, TimeUnit.SECONDS);
@@ -71,15 +69,15 @@ public class EndpointRoutingTest {
     }
 
     @Test(timeout = 10000)
-    public void closingOneHttpPartitionKeepsOtherPartitionUsable() throws Exception {
-        // 在同一连接上建立两个协议视图，并完成首次请求。
+    public void httpPartitionsRemainUsableOnTheSharedConnection() throws Exception {
+        // 在同一连接上依次使用两个协议视图，并继续复用后一个视图。
         ConnectorConfig config = endpointConfig("http", HttpA.class, HttpB.class);
         try (ConnectorManager endpoint = SocketTestSupport.manager(config)) {
             endpoint.init();
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
-            MetListen listen = endpoint.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 sendHttp(socket, "/a", "first");
@@ -91,10 +89,7 @@ public class EndpointRoutingTest {
                 b.channel.sendData(response(b.id, "second")).get(3, TimeUnit.SECONDS);
                 assertEquals("B:second", readHttp(socket, 200));
 
-                // 关闭 A 视图不会关闭 B 视图及其共享的物理连接。
-                a.channel.close().get(3, TimeUnit.SECONDS);
-                assertFalse(a.channel.isActive());
-                assertTrue(b.channel.isActive());
+                // B 视图及其共享的物理连接可以继续处理下一次请求。
                 sendHttp(socket, "/b", "still open");
                 Delivery next = inbox.take();
                 assertSame(b.channel, next.channel);
@@ -112,8 +107,8 @@ public class EndpointRoutingTest {
             endpoint.init();
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
-            MetListen listen = endpoint.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 sendHttp(socket, "/absent", "bad");
@@ -136,8 +131,8 @@ public class EndpointRoutingTest {
             endpoint.init();
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
-            MetListen listen = endpoint.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 sendHttp(socket, "/a", "unanswered");
@@ -176,13 +171,13 @@ public class EndpointRoutingTest {
             Inbox clientInbox = new Inbox();
             server.subscribe(serverInbox);
             client.subscribe(clientInbox);
-            MetListen listen = server.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            server.startInbound();
+            int port = server.bindAddress("a").getPort();
             String scheme = "a";
             InterAddress target = new InterAddress(scheme, "127.0.0.1", port, "test");
             MetChannel channel = client.connect(target).get(3, TimeUnit.SECONDS);
             assertEquals(scheme, channel.getRemote().getSchema());
-            assertTrue(client.find("shared").getListenList().isEmpty());
+            assertNull(client.bindAddress(scheme));
 
             // 请求及响应均沿所选协议视图传输，保留调用方请求号。
             RequestPayload request = new RequestPayload();
@@ -212,13 +207,13 @@ public class EndpointRoutingTest {
             Inbox clientInbox = new Inbox();
             server.subscribe(serverInbox);
             client.subscribe(clientInbox);
-            MetListen listen = server.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            server.startInbound();
+            int port = server.bindAddress("b").getPort();
             String scheme = "b";
             InterAddress target = new InterAddress(scheme, "127.0.0.1", port, "test");
             MetChannel channel = client.connect(target).get(3, TimeUnit.SECONDS);
             assertEquals(scheme, channel.getRemote().getSchema());
-            assertTrue(client.find("shared").getListenList().isEmpty());
+            assertNull(client.bindAddress(scheme));
 
             // 请求及响应均沿所选协议视图传输，保留调用方请求号。
             RequestPayload request = new RequestPayload();
@@ -237,14 +232,14 @@ public class EndpointRoutingTest {
 
     @Test(timeout = 10000)
     public void tcpSelectsFragmentedPrefixAndKeepsSelectedProtocol() throws Exception {
-        // TCP 探测器等待完整前缀，选中后固定当前连接的协议。
-        ConnectorConfig config = endpointConfig("tcp", WireA.class, WireB.class);
+        // 两个逻辑协议共享公开 scheme，TCP 探测器以 mountId 固定当前连接的协议。
+        ConnectorConfig config = endpointConfig("tcp", WireA.class, WireB.class, "wire", "wire");
         try (ConnectorManager endpoint = SocketTestSupport.manager(config)) {
             endpoint.init();
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
-            MetListen listen = endpoint.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("wire").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 socket.getOutputStream().write('B');
@@ -252,13 +247,85 @@ public class EndpointRoutingTest {
                 assertNull(inbox.messages.poll(100, TimeUnit.MILLISECONDS));
                 socket.getOutputStream().write("Bhello\n".getBytes(StandardCharsets.UTF_8));
                 Delivery request = inbox.take();
-                assertEquals("b", request.channel.getRemote().getSchema());
+                assertEquals("wire", request.channel.getRemote().getSchema());
                 request.channel.sendData(response(request.id, "reply")).get(3, TimeUnit.SECONDS);
                 assertEquals("BBreply", line(socket.getInputStream()));
 
                 // 后续报文即使带另一个协议的前缀，也不重新探测或切换视图。
                 socket.getOutputStream().write("AAlater\n".getBytes(StandardCharsets.UTF_8));
                 assertSame(request.channel, inbox.take().channel);
+            }
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void rsfRequestFrameSelectsRsfOnSharedTcpEndpoint() throws Exception {
+        // 用真实 RSF/1 请求作为连接首包，验证共享 TCP 端点选择 RSF 协议。
+        byte[] request = fixture("request-v1.bin");
+        assertEquals(0x91, request[0] & 0xff);
+        ConnectorConfig config = rsfEndpointConfig();
+        try (ConnectorManager endpoint = rsfManager(config)) {
+            endpoint.init();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("rsf").getPort();
+            try (Socket socket = new Socket("127.0.0.1", port)) {
+                socket.setSoTimeout(3000);
+
+                // 首字节完成路由后收到 RSF 握手，再补齐真实请求帧。
+                socket.getOutputStream().write(request, 0, 1);
+                socket.getOutputStream().flush();
+                assertEquals(0xb1, socket.getInputStream().read());
+                socket.getOutputStream().write(request, 1, request.length - 1);
+                socket.getOutputStream().flush();
+            }
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void rsfMessageFrameSelectsRsfOnSharedTcpEndpoint() throws Exception {
+        // Message 与普通请求共享 RSF/1 帧结构，仅使用独立的消息帧类型。
+        byte[] message = fixture("request-v1.bin");
+        message[0] = (byte) 0xa1;
+        ConnectorConfig config = rsfEndpointConfig();
+        try (ConnectorManager endpoint = rsfManager(config)) {
+            endpoint.init();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("rsf").getPort();
+            try (Socket socket = new Socket("127.0.0.1", port)) {
+                socket.setSoTimeout(3000);
+
+                // Message 首字节同样应进入 RSF 会话，不能落入其它 TCP 协议。
+                socket.getOutputStream().write(message, 0, 1);
+                socket.getOutputStream().flush();
+                assertEquals(0xb1, socket.getInputStream().read());
+                socket.getOutputStream().write(message, 1, message.length - 1);
+                socket.getOutputStream().flush();
+            }
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void tcpWaitsUntilPendingProbeRejectsThePrefix() throws Exception {
+        // RSF 已匹配首字节，另一个协议仍可能匹配时不能提前固定静态路由。
+        byte[] request = fixture("request-v1.bin");
+        ConnectorConfig config = rsfEndpointConfig("rsfdelayedcandidate");
+        try (ConnectorManager endpoint = rsfManager(config)) {
+            endpoint.init();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("rsf").getPort();
+            try (Socket socket = new Socket("127.0.0.1", port)) {
+                socket.setSoTimeout(200);
+                socket.getOutputStream().write(request, 0, 1);
+                socket.getOutputStream().flush();
+                assertThrows(SocketTimeoutException.class, () -> socket.getInputStream().read());
+
+                // 第二个字节排除待定协议后，RSF 分支才激活并返回握手。
+                socket.setSoTimeout(3000);
+                socket.getOutputStream().write(request, 1, 1);
+                socket.getOutputStream().flush();
+                assertEquals(0xb1, socket.getInputStream().read());
+                socket.getOutputStream().write(request, 2, request.length - 2);
+                socket.getOutputStream().flush();
             }
         }
     }
@@ -271,8 +338,8 @@ public class EndpointRoutingTest {
             endpoint.init();
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
-            MetListen listen = endpoint.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 socket.getOutputStream().write("XX\n".getBytes(StandardCharsets.UTF_8));
@@ -283,15 +350,15 @@ public class EndpointRoutingTest {
     }
 
     @Test(timeout = 10000)
-    public void udpPartitionsCompleteDatagramsAndClosingOneViewKeepsPeerUsable() throws Exception {
-        // 同一 UDP 对端按完整报文选择协议，关闭一个视图不影响另一个。
-        ConnectorConfig config = endpointConfig("udp", WireA.class, WireB.class);
+    public void udpPartitionsCompleteDatagramsAndReplyIndependently() throws Exception {
+        // 共享公开 scheme 的 UDP 挂载按完整报文选择协议，各自维护独立协议视图。
+        ConnectorConfig config = endpointConfig("udp", WireA.class, WireB.class, "wire", "wire");
         try (ConnectorManager endpoint = SocketTestSupport.manager(config)) {
             endpoint.init();
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
-            MetListen listen = endpoint.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("wire").getPort();
             // 先绑定服务端，再创建独立的 UDP 客户端。
             try (DatagramSocket peer = new DatagramSocket()) {
                 peer.setSoTimeout(3000);
@@ -301,9 +368,7 @@ public class EndpointRoutingTest {
                 Delivery b = inbox.take();
                 assertNotSame(a.channel, b.channel);
 
-                // 关闭 A 视图后，B 仍可通过同一个物理 UDP socket 返回应答。
-                a.channel.close().get(3, TimeUnit.SECONDS);
-                assertTrue(b.channel.isActive());
+                // B 视图通过共享物理 UDP socket 独立返回应答。
                 b.channel.sendData(response(b.id, "reply")).get(3, TimeUnit.SECONDS);
                 DatagramPacket response = new DatagramPacket(new byte[1024], 1024);
                 peer.receive(response);
@@ -316,13 +381,13 @@ public class EndpointRoutingTest {
     @Test(timeout = 10000)
     public void ambiguousTcpProtocolIsRejected() throws Exception {
         // 两个挂载都接受同一前缀时拒绝连接，避免不确定路由。
-        ConnectorConfig config = endpointConfig("tcp", WireA.class, WireA.class);
+        ConnectorConfig config = endpointConfig("tcp", WireA.class, WireAliasB.class);
         try (ConnectorManager endpoint = SocketTestSupport.manager(config)) {
             endpoint.init();
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
-            MetListen listen = endpoint.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 socket.getOutputStream().write("AA\n".getBytes(StandardCharsets.UTF_8));
@@ -335,13 +400,13 @@ public class EndpointRoutingTest {
     @Test(timeout = 10000)
     public void incompleteProtocolProbeCannotBufferBeyondLimit() throws Exception {
         // 始终等待更多字节的探测器也必须遵守前缀缓冲上限。
-        ConnectorConfig config = endpointConfig("tcp", IncompleteProbe.class, IncompleteProbe.class);
+        ConnectorConfig config = endpointConfig("tcp", IncompleteProbe.class, IncompleteProbeB.class);
         try (ConnectorManager endpoint = SocketTestSupport.manager(config)) {
             endpoint.init();
             Inbox inbox = new Inbox();
             endpoint.subscribe(inbox);
-            MetListen listen = endpoint.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            endpoint.startInbound();
+            int port = endpoint.bindAddress("a").getPort();
             try (Socket socket = new Socket("127.0.0.1", port)) {
                 socket.setSoTimeout(3000);
                 socket.getOutputStream().write(new byte[256]);
@@ -364,11 +429,11 @@ public class EndpointRoutingTest {
             Inbox clientInbox = new Inbox();
             server.subscribe(serverInbox);
             client.subscribe(clientInbox);
-            MetListen listen = server.bind("shared").get(3, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            server.startInbound();
+            int port = server.bindAddress("b").getPort();
             InterAddress target = new InterAddress("b", "127.0.0.1", port, "test");
             MetChannel channel = client.connect(target).get(3, TimeUnit.SECONDS);
-            assertTrue(client.find("shared").getListenList().isEmpty());
+            assertNull(client.bindAddress("b"));
             channel.sendData(response(1, "first write")).get(3, TimeUnit.SECONDS);
             Delivery firstWrite = serverInbox.take();
             assertEquals("b", firstWrite.channel.getRemote().getSchema());
@@ -378,6 +443,14 @@ public class EndpointRoutingTest {
     private static void sendDatagram(DatagramSocket peer, int port, String value) throws Exception {
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         peer.send(new DatagramPacket(bytes, bytes.length, InetAddress.getLoopbackAddress(), port));
+    }
+
+    private static byte[] fixture(String name) throws Exception {
+        String path = "/rsf-v1-wire-fixtures/" + name;
+        try (InputStream input = EndpointRoutingTest.class.getResourceAsStream(path)) {
+            assertNotNull("Missing RSF wire fixture " + path, input);
+            return input.readAllBytes();
+        }
     }
 
     private static ResponsePayload response(long id, String value) {
@@ -426,21 +499,16 @@ public class EndpointRoutingTest {
         return new String(body, StandardCharsets.UTF_8);
     }
 
-    private static final class Delivery {
-        final MetChannel channel;
-        final long       id;
-        final Payload    payload;
-
-        Delivery(MetChannel channel, long id, Payload payload) {
-            this.channel = channel;
-            this.id = id;
-            this.payload = payload;
-        }
+    private record Delivery(MetChannel channel, long id, Payload payload) {
     }
 
     private static ConnectorConfig endpointConfig(String transport, Class<?> a, Class<?> b) throws SocketException {
+        return endpointConfig(transport, a, b, "a", "b");
+    }
+
+    private static ConnectorConfig endpointConfig(//
+            String transport, Class<?> a, Class<?> b, String firstScheme, String secondScheme) throws SocketException {
         Map<String, String> options = new HashMap<>();
-        options.put("listenType", transport);
         options.put("workerThread", "1");
         String prefix = StringUtils.equals(transport, "udp") ? "datagram" : "";
         String firstProtocol = prefix + a.getSimpleName().toLowerCase(Locale.ROOT);
@@ -453,8 +521,8 @@ public class EndpointRoutingTest {
             secondOptions = Map.of("contextPath", "/b///");
         }
 
-        ProtocolConfig first = new ProtocolConfig("a", "a", firstProtocol, firstOptions);
-        ProtocolConfig second = new ProtocolConfig("b", "b", secondProtocol, secondOptions);
+        ProtocolConfig first = ProtocolTestAccess.config("a", firstScheme, firstProtocol, firstOptions);
+        ProtocolConfig second = ProtocolTestAccess.config("b", secondScheme, secondProtocol, secondOptions);
         // UDP 要求显式非零监听端口；TCP 和 HTTP 仍由 bind 分配端口。
         int port = 0;
         if (StringUtils.equals(transport, "udp")) {
@@ -463,6 +531,52 @@ public class EndpointRoutingTest {
         InterAddress address = InterAddress.forBinding(transport, "127.0.0.1", port, "test");
         List<ProtocolConfig> configMounts = Arrays.asList(first, second);
         return new ConnectorConfig("shared", address, options, configMounts, true);
+    }
+
+    private static ConnectorConfig rsfEndpointConfig() {
+        return rsfEndpointConfig("wireb");
+    }
+
+    private static ConnectorConfig rsfEndpointConfig(String alternateProtocol) {
+        Map<String, String> options = new HashMap<>();
+        options.put("workerThread", "1");
+        ProtocolConfig rsf = ProtocolTestAccess.config("rsf", "rsf", "rsf", Map.of());
+        ProtocolConfig other = ProtocolTestAccess.config("b", "b", alternateProtocol, Map.of());
+        InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "test");
+        return new ConnectorConfig("shared", address, options, Arrays.asList(rsf, other), true);
+    }
+
+    private static ConnectorManager rsfManager(ConnectorConfig config) {
+        ClassLoader loader = EndpointRoutingTest.class.getClassLoader();
+        JavaSerializeCoder coder = new JavaSerializeCoder();
+        InvocationHandler settingsHandler = (proxy, method, args) -> {
+            if (StringUtils.equals("getConnectorConfigs", method.getName())) {
+                return Collections.singletonList(config);
+            }
+            if (StringUtils.equals("getDefaultTimeout", method.getName())) {
+                return 10000;
+            }
+            throw new AssertionError(method);
+        };
+        Class<?>[] settingsInterfaces = { MetSettings.class };
+        MetSettings settings = (MetSettings) Proxy.newProxyInstance(loader, settingsInterfaces, settingsHandler);
+        InvocationHandler contextHandler = (proxy, method, args) -> {
+            if (StringUtils.equals("getSettings", method.getName())) {
+                return settings;
+            }
+            if (StringUtils.equals("getClassLoader", method.getName())) {
+                return loader;
+            }
+            if (StringUtils.equals("getSerializeCoder", method.getName())) {
+                String serializeType = (String) args[0];
+                return StringUtils.equalsIgnoreCase("Java", serializeType) ? coder : null;
+            }
+            throw new AssertionError(method);
+        };
+        Class<?>[] contextInterfaces = { MetContext.class };
+        MetContext context = (MetContext) Proxy.newProxyInstance(loader, contextInterfaces, contextHandler);
+
+        return new ConnectorManager(context);
     }
 
     private static final class Inbox implements ConnectorSubscriber {

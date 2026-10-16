@@ -6,57 +6,85 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.unit.connector.transport.http;
-import java.io.InputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyStore;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManagerFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.transport.ChannelFactory;
-import net.hasor.meteor.connector.transport.ChannelListener;
-import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.NetworkListen;
-import net.hasor.meteor.connector.transport.TransportPipeline;
-import net.hasor.meteor.connector.transport.http.HttpBody;
-import net.hasor.meteor.connector.transport.http.HttpConnector;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
-import net.hasor.neta.channel.ProtoBuildContext;
-import net.hasor.neta.codec.ssl.SslConfig;
-import net.hasor.neta.codec.ssl.SslDuplex;
+import net.hasor.meteor.connector.ProtocolTestAccess;
+import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import org.junit.Test;
 import static java.net.http.HttpRequest.newBuilder;
+import static net.hasor.meteor.connector.TransportTestConfigs.transport;
+import static net.hasor.meteor.connector.transport.http.HttpConnectorTestAccess.newConnector;
+import static net.hasor.meteor.support.connector.transport.http.HttpTransportPlans.routes;
 import static org.junit.Assert.*;
 
-/** 在真实 TCP/TLS 连接上验证 HTTP/2 传输 SPI。 */
+/** 在真实明文连接上验证 HTTP/2 传输 SPI。 */
 public class Http2TransportTest {
     @Test(timeout = 15000)
-    public void oneConnectionMatchesOverlappingExchangesToReversedResponses() throws Exception {
+    public void acceptedSocketPublishesOnlySelectedHttp2Branch() throws Exception {
+        // 同一入站 socket 会预初始化 HTTP/1 和 HTTP/2 分支，但只能发布实际选中的 HTTP/2 通道。
+        ConnectorConfig config = config(Map.of("httpVersion", "2"));
+        ClassLoader loader = this.getClass().getClassLoader();
+        AtomicInteger published = new AtomicInteger();
+        BasicFuture<NetworkChannel<HttpExchange>> accepted = new BasicFuture<>();
+        LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
+        ChannelListenerFactory<HttpExchange> delegate = receiver(accepted, received);
+        ChannelListenerFactory<HttpExchange> observing = channel -> {
+            published.incrementAndGet();
+            return delegate.createListener(channel);
+        };
+
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), observing)) {
+            BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
+            client.connect(listen.getAddress(), routes(config), null, //
+                            receiver(connected, new LinkedBlockingQueue<>())) //
+                    .get(3, TimeUnit.SECONDS);
+
+            // 首个请求完成服务端分支选择，未选中的 HTTP/1 wrapper 不能触发 ChannelListenerFactory。
+            NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
+            HttpRequest request = HttpRequest.newBuffered("GET", "/selected", Map.of(), new byte[0], 2, Map.of());
+            HttpExchange outgoing = new HttpExchange(request);
+            channel.write(outgoing).get(3, TimeUnit.SECONDS);
+            HttpExchange incoming = received.poll(3, TimeUnit.SECONDS);
+            assertNotNull(incoming);
+            assertEquals(2, incoming.request().version());
+            assertEquals(1, published.get());
+        }
+    }
+
+    @Test(timeout = 15000)
+    public void h2cPriorKnowledgeMatchesOverlappingExchangesToReversedResponses() throws Exception {
         // 只建立一条物理连接，服务端暂存二十个并行未完成的交换。
         ConnectorConfig config = config(Map.of("httpVersion", "2"));
         ClassLoader loader = this.getClass().getClassLoader();
         LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
         BasicFuture<NetworkChannel<HttpExchange>> accepted = new BasicFuture<>();
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader); //
-             NetworkListen listen = server.bind(config.address(), receiver(accepted, received))) {
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), receiver(accepted, received))) {
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), receiver(connected, new LinkedBlockingQueue<>())) //
+            client.connect(listen.getAddress(), routes(config), null, //
+                            receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
             List<HttpExchange> calls = new ArrayList<>();
@@ -100,11 +128,12 @@ public class Http2TransportTest {
         ClassLoader loader = this.getClass().getClassLoader();
         LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
         BasicFuture<NetworkChannel<HttpExchange>> accepted = new BasicFuture<>();
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader); //
-             NetworkListen listen = server.bind(config.address(), receiver(accepted, received))) {
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), receiver(accepted, received))) {
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), receiver(connected, new LinkedBlockingQueue<>())) //
+            client.connect(listen.getAddress(), routes(config), null, //
+                            receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
             HttpRequest cancelRequest = HttpRequest.newBuffered("GET", "/cancel", Map.of(), new byte[0], 2, Map.of());
@@ -142,19 +171,76 @@ public class Http2TransportTest {
     }
 
     @Test(timeout = 15000)
+    public void drainingServerRefusesNewStreamsWhileFinishingASubmittedResponse() throws Exception {
+        // 服务端保留一个尚未结束的流式响应，客户端按流读取响应正文。
+        ConnectorConfig incoming = config(Map.of("httpVersion", "2"));
+        ConnectorConfig outgoing = config(Map.of("httpVersion", "2", "streamBody", "true"));
+        ClassLoader loader = this.getClass().getClassLoader();
+        LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
+        BasicFuture<NetworkChannel<HttpExchange>> accepted = new BasicFuture<>();
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(incoming), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(outgoing), loader); //
+             NetworkListen listen = server.bind(incoming.address(), routes(incoming), receiver(accepted, received))) {
+            BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
+            client.connect(listen.getAddress(), routes(outgoing), null, //
+                            receiver(connected, new LinkedBlockingQueue<>())) //
+                    .get(3, TimeUnit.SECONDS);
+            NetworkChannel<HttpExchange> outgoingChannel = connected.get(3, TimeUnit.SECONDS);
+            HttpRequest firstRequest = HttpRequest.newBuffered("GET", "/first", Map.of(), //
+                    new byte[0], 2, Map.of());
+            HttpExchange first = new HttpExchange(firstRequest);
+            outgoingChannel.write(first).get(3, TimeUnit.SECONDS);
+            HttpExchange firstArrival = received.poll(3, TimeUnit.SECONDS);
+            assertNotNull(firstArrival);
+            NetworkChannel<HttpExchange> incomingChannel = accepted.get(3, TimeUnit.SECONDS);
+            HttpBodyStream responseBody = new HttpBodyStream(1024);
+            firstArrival.respond(HttpResponse.newStreaming(200, Map.of(), responseBody, Map.of()));
+            var writing = incomingChannel.write(firstArrival);
+            HttpResponse firstResponse = first.response().get(3, TimeUnit.SECONDS);
+            assertNotNull(firstResponse.stream());
+
+            // prepareDrain 排在标记任务之前执行；此后新 stream 必须被明确拒绝。
+            var draining = incomingChannel.drainAndClose();
+            CountDownLatch prepared = new CountDownLatch(1);
+            incomingChannel.execute(prepared::countDown);
+            assertTrue(prepared.await(3, TimeUnit.SECONDS));
+            assertFalse(draining.isDone());
+            HttpRequest secondRequest = HttpRequest.newBuffered("GET", "/second", Map.of(), //
+                    new byte[0], 2, Map.of());
+            HttpExchange second = new HttpExchange(secondRequest);
+            outgoingChannel.write(second).get(3, TimeUnit.SECONDS);
+            ExecutionException refused = assertThrows(ExecutionException.class, () -> {
+                second.completion().get(3, TimeUnit.SECONDS);
+            });
+            assertTrue(refused.getCause() instanceof IOException);
+            assertEquals("HTTP/2 stream reset: 7", refused.getCause().getMessage());
+            assertTrue(received.isEmpty());
+
+            // 排空前已经提交的首个响应继续写完，随后物理连接才关闭。
+            responseBody.finish(Map.of());
+            assertEquals(-1, firstResponse.stream().read());
+            writing.get(3, TimeUnit.SECONDS);
+            first.completion().get(3, TimeUnit.SECONDS);
+            draining.get(3, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test(timeout = 15000)
     public void responseBodyArrivesBeforeRequestEof() throws Exception {
         // 开启增量正文，服务端在收到头部后立即回传同一个正文流。
         ConnectorConfig config = config(Map.of("httpVersion", "2", "streamBody", "true"));
         ClassLoader loader = this.getClass().getClassLoader();
         ExecutorService consumer = Executors.newSingleThreadExecutor();
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader); //
-             NetworkListen listen = server.bind(config.address(), Http2TransportTest::streamingEcho)) {
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), //
+                     Http2TransportTest::streamingEcho)) {
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), receiver(connected, new LinkedBlockingQueue<>())) //
+            client.connect(listen.getAddress(), routes(config), null, //
+                            receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
-            HttpBody body = new HttpBody(16384);
+            HttpBodyStream body = new HttpBodyStream(16384);
             HttpRequest request = HttpRequest.newStreaming("POST", "/stream", Map.of(), body, 2);
             HttpExchange exchange = new HttpExchange(request);
 
@@ -163,7 +249,7 @@ public class Http2TransportTest {
             byte[] head = "head".getBytes(StandardCharsets.UTF_8);
             body.output().write(head);
             HttpResponse response = exchange.response().get(3, TimeUnit.SECONDS);
-            HttpBody input = response.stream();
+            HttpBodyStream input = response.stream();
             assertNotNull(input);
             var reading = consumer.submit(() -> input.readNBytes(head.length));
             byte[] firstChunk = reading.get(3, TimeUnit.SECONDS);
@@ -193,19 +279,21 @@ public class Http2TransportTest {
         for (int i = 0; i < payload.length; i++) {
             payload[i] = (byte) i;
         }
-        try (HttpConnector server = new HttpConnector(config, loader); //
-             HttpConnector client = new HttpConnector(config, loader); //
-             NetworkListen listen = server.bind(config.address(), Http2TransportTest::streamingEcho)) {
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), //
+                     Http2TransportTest::streamingEcho)) {
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), receiver(connected, new LinkedBlockingQueue<>())) //
+            client.connect(listen.getAddress(), routes(config), null, //
+                            receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
-            HttpBody body = new HttpBody(16384);
+            HttpBodyStream body = new HttpBodyStream(16384);
             HttpRequest request = HttpRequest.newStreaming("POST", "/stream", Map.of(), body, 2);
             HttpExchange exchange = new HttpExchange(request);
             var writing = channel.write(exchange);
             HttpResponse response = exchange.response().get(3, TimeUnit.SECONDS);
-            HttpBody input = response.stream();
+            HttpBodyStream input = response.stream();
             assertNotNull(input);
 
             // 生产已经开始但响应尚未消费，生产者不能把整个正文无限堆入编码队列。
@@ -238,8 +326,9 @@ public class Http2TransportTest {
     public void jdkClientUpgradesToH2cAndKeepsTheFirstRequest() throws Exception {
         // 监听明文 HTTP，由 JDK 客户端发起 HTTP/1.1 到 h2c 的升级。
         ConnectorConfig config = config(Map.of());
-        try (HttpConnector server = new HttpConnector(config, this.getClass().getClassLoader()); //
-             NetworkListen listen = server.bind(config.address(), Http2TransportTest::echo)) {
+        ClassLoader loader = this.getClass().getClassLoader();
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), Http2TransportTest::echo)) {
             HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_2).build();
             URI uri = URI.create("http://127.0.0.1:" + listen.getAddress().getPort() + "/upgrade");
             var request = newBuilder(uri).timeout(Duration.ofSeconds(4)).GET().build();
@@ -251,83 +340,6 @@ public class Http2TransportTest {
             var next = client.send(request, BodyHandlers.ofString());
             assertEquals(HttpClient.Version.HTTP_2, next.version());
             assertEquals("2:/upgrade", next.body());
-        }
-    }
-
-    @Test(timeout = 15000)
-    public void tlsAlpnSelectsH2AndHttp1OnTheSameListener() throws Exception {
-        // 同一个 TLS 监听器同时声明 h2 和 http/1.1，分别接受两种客户端选择。
-        ConnectorConfig config = config(Map.of("transportPipeline", TlsPipeline.class.getName()));
-        try (HttpConnector server = new HttpConnector(config, this.getClass().getClassLoader()); //
-             NetworkListen listen = server.bind(config.address(), Http2TransportTest::echo)) {
-            URI uri = URI.create("https://localhost:" + listen.getAddress().getPort() + "/tls");
-            var request = newBuilder(uri).timeout(Duration.ofSeconds(4)).GET().build();
-            SSLContext tls = sslContext();
-            HttpClient h2 = HttpClient.newBuilder().sslContext(tls).version(HttpClient.Version.HTTP_2).build();
-            HttpClient http1 = HttpClient.newBuilder().sslContext(tls).version(HttpClient.Version.HTTP_1_1).build();
-
-            // 两次请求使用相同监听地址，响应版本和服务端识别到的版本必须一致。
-            var h2Response = h2.send(request, BodyHandlers.ofString());
-            assertEquals(HttpClient.Version.HTTP_2, h2Response.version());
-            assertEquals("2:/tls", h2Response.body());
-            var http1Response = http1.send(request, BodyHandlers.ofString());
-            assertEquals(HttpClient.Version.HTTP_1_1, http1Response.version());
-            assertEquals("1:/tls", http1Response.body());
-        }
-    }
-
-    @Test(timeout = 15000)
-    public void meteorClientUsesTlsAlpnToSendAnH2Request() throws Exception {
-        // 客户端要求 HTTPS 与 HTTP/2，服务端仅声明 h2。
-        String pipeline = TlsPipeline.class.getName();
-        Map<String, String> clientOptions = new HashMap<>(Map.of("httpVersion", "2", "httpScheme", "https"));
-        clientOptions.put("transportPipeline", pipeline);
-        ConnectorConfig clientConfig = config(clientOptions);
-        ConnectorConfig serverConfig = config(Map.of("transportPipeline", pipeline, "tlsAlpn", "h2"));
-        ClassLoader loader = this.getClass().getClassLoader();
-        try (HttpConnector server = new HttpConnector(serverConfig, loader); //
-             HttpConnector client = new HttpConnector(clientConfig, loader); //
-             NetworkListen listen = server.bind(serverConfig.address(), Http2TransportTest::echo)) {
-            BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), receiver(connected, new LinkedBlockingQueue<>())) //
-                    .get(3, TimeUnit.SECONDS);
-            NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
-
-            // ALPN 选择 h2 后，请求以 HTTP/2 到达服务端并返回对应版本。
-            HttpRequest request = HttpRequest.newBuffered("GET", "/tls", Map.of(), new byte[0], 2, Map.of());
-            HttpExchange exchange = new HttpExchange(request);
-            channel.write(exchange).get(3, TimeUnit.SECONDS);
-            HttpResponse response = exchange.response().get(4, TimeUnit.SECONDS);
-            assertArrayEquals("2:/tls".getBytes(StandardCharsets.UTF_8), response.body());
-        }
-    }
-
-    @Test(timeout = 15000)
-    public void meteorH2ClientRejectsHttp1TlsNegotiation() throws Exception {
-        // 客户端要求 HTTP/2，但服务端 TLS 仅允许 http/1.1。
-        String pipeline = TlsPipeline.class.getName();
-        Map<String, String> clientOptions = new HashMap<>(Map.of("httpVersion", "2", "httpScheme", "https"));
-        clientOptions.put("transportPipeline", pipeline);
-        ConnectorConfig clientConfig = config(clientOptions);
-        ConnectorConfig serverConfig = config(Map.of("transportPipeline", pipeline, "tlsAlpn", "http/1.1"));
-        ClassLoader loader = this.getClass().getClassLoader();
-        try (HttpConnector server = new HttpConnector(serverConfig, loader); //
-             HttpConnector client = new HttpConnector(clientConfig, loader); //
-             NetworkListen listen = server.bind(serverConfig.address(), Http2TransportTest::echo)) {
-            BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), receiver(connected, new LinkedBlockingQueue<>())) //
-                    .get(3, TimeUnit.SECONDS);
-            NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
-
-            // 协商失败必须作为调用错误暴露，不能将请求降级发送或仅靠超时结束。
-            HttpRequest request = HttpRequest.newBuffered("GET", "/tls", Map.of(), new byte[0], 2, Map.of());
-            HttpExchange exchange = new HttpExchange(request);
-            channel.write(exchange);
-            ExecutionException failure = assertThrows(ExecutionException.class, () -> {
-                exchange.response().get(4, TimeUnit.SECONDS);
-            });
-            String message = failure.getCause().getMessage();
-            assertTrue(message, message.contains("ALPN h2"));
         }
     }
 
@@ -355,7 +367,7 @@ public class Http2TransportTest {
 
             public void receive(HttpExchange exchange) {
                 // 收到头部就回传同一个增量正文，输出何时 EOF 由测试中的生产者决定。
-                HttpBody input = exchange.request().stream();
+                HttpBodyStream input = exchange.request().stream();
                 assertNotNull(input);
                 exchange.respond(HttpResponse.newStreaming(200, Map.of(), input, Map.of()));
                 channel.write(exchange);
@@ -366,7 +378,7 @@ public class Http2TransportTest {
         };
     }
 
-    private static ChannelFactory<HttpExchange> receiver(BasicFuture<NetworkChannel<HttpExchange>> connected, //
+    private static ChannelListenerFactory<HttpExchange> receiver(BasicFuture<NetworkChannel<HttpExchange>> connected, //
             LinkedBlockingQueue<HttpExchange> received) {
         return channel -> new ChannelListener<>() {
             public void connected() {
@@ -385,43 +397,9 @@ public class Http2TransportTest {
 
     private static ConnectorConfig config(Map<String, String> options) {
         Map<String, String> values = new HashMap<>(options);
-        values.put("listenType", "http");
         InterAddress address = InterAddress.forBinding("http", "127.0.0.1", 0, "default");
-        ProtocolConfig protocol = new ProtocolConfig("http", "http", "http", Map.of("contextPath", "/"));
+        ProtocolConfig protocol = ProtocolTestAccess.config("http", "http", "http", Map.of("contextPath", "/"));
         return new ConnectorConfig("http", address, values, List.of(protocol), true);
     }
 
-    private static SSLContext sslContext() throws Exception {
-        // 测试证书同时作为服务端身份和对端信任来源。
-        KeyStore store = KeyStore.getInstance("PKCS12");
-        try (InputStream input = Http2TransportTest.class.getResourceAsStream("/tls/localhost.p12")) {
-            store.load(input, "changeit".toCharArray());
-        }
-        KeyManagerFactory keys = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        keys.init(store, "changeit".toCharArray());
-        TrustManagerFactory trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        trust.init(store);
-
-        // 显式初始化 TLS 上下文，避免依赖运行环境默认信任库。
-        SSLContext context = SSLContext.getInstance("TLS");
-        context.init(keys.getKeyManagers(), trust.getTrustManagers(), null);
-        return context;
-    }
-
-    public static final class TlsPipeline implements TransportPipeline {
-        public void initialize(ConnectorConfig config, ProtoBuildContext stack) throws Exception {
-            // 从本测试配置读取允许协商的协议列表。
-            SslConfig ssl = new SslConfig();
-            ssl.setSslContext(sslContext());
-            String protocols = config.option("tlsAlpn", "h2,http/1.1");
-            ssl.setAppProtocol(protocols.split(","));
-
-            // 客户端验证 localhost 证书，两端都安装真实 TLS 处理器。
-            if (stack.getChannel().isClient()) {
-                ssl.setPeerHost("localhost");
-                ssl.setEndpointAlgorithm("HTTPS");
-            }
-            stack.addLast("tls", new SslDuplex(ssl));
-        }
-    }
 }

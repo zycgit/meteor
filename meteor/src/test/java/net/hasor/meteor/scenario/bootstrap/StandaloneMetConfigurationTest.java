@@ -9,12 +9,15 @@ package net.hasor.meteor.scenario.bootstrap;
 import java.net.URL;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.List;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.MetSettings;
+import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
-import net.hasor.meteor.bootstrap.MetConfiguration;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -29,7 +32,7 @@ public class StandaloneMetConfigurationTest {
         // 未指定可选插件和监听地址，默认配置只构建内核能力。
         MetConfiguration configuration = new MetConfiguration();
         try (MetContext context = configuration.buildContext()) {
-            // 默认应用和 Java 序列化可用，但没有插件或已启动的网络资源。
+            // 默认应用、序列化和 RSF 计划可用，但没有插件或已启动的网络资源。
             assertEquals("application", context.getApplicationName());
             assertEquals("application", context.getSettings().getApplicationName());
             var endpoint = context.getSettings().getConnectorConfigs().iterator().next();
@@ -39,7 +42,7 @@ public class StandaloneMetConfigurationTest {
             String hproseClass = "net/hasor/meteor/protocol/hprose/HproseProtocol.class";
             assertNull(this.getClass().getClassLoader().getResource(hproseClass));
             assertNull(context.bindAddress("rsf"));
-            assertTrue(context.runProtocols().isEmpty());
+            assertEquals(Collections.singleton("rsf"), context.runProtocols());
             assertFalse(context.isOnline());
         }
     }
@@ -102,6 +105,132 @@ public class StandaloneMetConfigurationTest {
             } finally {
                 thread.setContextClassLoader(original);
             }
+        }
+    }
+
+    @Test
+    public void settingsExposeEveryMountAndRejectAmbiguousSingleAddressLookup() throws Exception {
+        // 同一逻辑协议配置两个监听端点，第二个挂载使用独立公开地址别名。
+        MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("rsfs");
+        configuration.connector("tcp").bind("127.0.0.1", 2101).protocol("rsf");
+        configuration.connector("tcp").bind("127.0.0.1", 2102) //
+                .option("tlsEnabled", true) //
+                .protocol("rsf").addressScheme("rsfs");
+
+        try (MetContext context = configuration.buildContext()) {
+            // 默认别名解析为逻辑协议；复数查询保留两个挂载，端点和别名均可精确选择。
+            MetSettings settings = context.getSettings();
+            List<InterAddress> addresses = settings.getBindAddressSets("rsf");
+            assertEquals("rsf", settings.getDefaultProtocol());
+            assertEquals(List.of("rsf", "rsfs"), addresses.stream().map(InterAddress::getSchema).toList());
+            assertEquals(2101, settings.getBindAddressSet("tcp-0", "rsf").getPort());
+            assertEquals(2102, settings.getBindAddressSet("tcp-1", "rsf").getPort());
+            assertEquals(2102, settings.getBindAddressSet("tcp-1", "rsfs").getPort());
+            assertEquals(2102, settings.getBindAddressSet("rsfs").getPort());
+            ConnectorConfig secureEndpoint = List.copyOf(settings.getConnectorConfigs()).get(1);
+            String secureMount = secureEndpoint.protocols().iterator().next().mountId();
+            assertEquals(2102, settings.getBindAddressSet("tcp-1", secureMount).getPort());
+
+            // 旧单值入口不能按配置顺序猜测端点。
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                settings.getBindAddressSet("rsf");
+            });
+            assertTrue(failure.getMessage().contains("Multiple"));
+            assertTrue(failure.getMessage().contains("rsf"));
+        }
+    }
+
+    @Test
+    public void sameProtocolFactoryCanListenOnPlainAndTlsEndpoints() throws Exception {
+        // 同一个 RSF 实现挂载到一个明文和两个 TLS 端点，TLS 可沿用默认别名或显式使用 rsfs。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        configuration.connector("tcp").bind("127.0.0.1", 0) //
+                .option("tlsEnabled", true) //
+                .option("tlsKeyStore", "classpath:/tls/acceptance/server.p12") //
+                .option("tlsKeyStorePassword", "meteor-test") //
+                .protocol("rsf");
+        configuration.connector("tcp").bind("127.0.0.1", 0) //
+                .option("tlsEnabled", true) //
+                .option("tlsKeyStore", "classpath:/tls/acceptance/server.p12") //
+                .option("tlsKeyStorePassword", "meteor-test") //
+                .protocol("rsf").addressScheme("rsfs");
+
+        try (MetContext context = configuration.buildContext()) {
+            context.start();
+
+            // 逻辑协议返回全部运行地址；端点名称和地址别名都能精确选择其中一个。
+            List<InterAddress> addresses = context.bindAddresses("rsf");
+            InterAddress plain = context.bindAddress("tcp-0", "rsf");
+            InterAddress secureDefault = context.bindAddress("tcp-1", "rsf");
+            InterAddress secureAlias = context.bindAddress("tcp-2", "rsf");
+            assertEquals(3, addresses.size());
+            assertEquals(List.of("rsf", "rsf", "rsfs"), addresses.stream().map(InterAddress::getSchema).toList());
+            assertEquals(plain, addresses.get(0));
+            assertEquals(secureDefault, addresses.get(1));
+            assertEquals(secureAlias, addresses.get(2));
+            assertEquals("rsf", secureDefault.getSchema());
+            assertEquals(secureAlias, context.bindAddress("tcp-2", "rsfs"));
+            ConnectorConfig aliasEndpoint = List.copyOf(context.getSettings().getConnectorConfigs()).get(2);
+            String aliasMount = aliasEndpoint.protocols().iterator().next().mountId();
+            assertEquals(secureAlias, context.bindAddress("tcp-2", aliasMount));
+            assertEquals(secureAlias, context.bindAddress("rsfs"));
+            assertNotEquals(plain.getPort(), secureDefault.getPort());
+            assertNotEquals(plain.getPort(), secureAlias.getPort());
+            assertNotEquals(secureDefault.getPort(), secureAlias.getPort());
+
+            // 旧单值入口遇到两个 RSF 挂载时明确报告歧义。
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                context.bindAddress("rsf");
+            });
+            assertTrue(failure.getMessage().contains("Ambiguous"));
+            assertTrue(failure.getMessage().contains("rsf"));
+        }
+    }
+
+    @Test
+    public void logicalProtocolNameTakesPrecedenceOverAnotherMountAddressScheme() throws Exception {
+        // 首个挂载的公开别名故意与第二个挂载的逻辑协议名相同。
+        MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("wireb");
+        configuration.connector("tcp").bind("127.0.0.1", 0) //
+                .protocol("wirea").addressScheme("wireb");
+        configuration.connector("tcp").bind("127.0.0.1", 0) //
+                .protocol("wireb").addressScheme("wireb-public");
+
+        try (MetContext context = configuration.buildContext()) {
+            context.start();
+
+            // 逻辑协议名全局优先，同名别名只能通过精确 mount 身份查询。
+            InterAddress logical = context.bindAddress("wireb");
+            ConnectorConfig aliasEndpoint = List.copyOf(context.getSettings().getConnectorConfigs()).get(0);
+            String aliasMount = aliasEndpoint.protocols().iterator().next().mountId();
+            InterAddress alias = context.bindAddress("tcp-0", aliasMount);
+            assertEquals("wireb", context.getDefaultProtocol());
+            assertEquals("wireb-public", logical.getSchema());
+            assertEquals(context.bindAddress("tcp-1", "wireb"), logical);
+            assertEquals("wireb", alias.getSchema());
+            assertNotEquals(alias.getPort(), logical.getPort());
+        }
+    }
+
+    @Test
+    public void outboundLogicalNameStillTakesPrecedenceOverBoundAddressScheme() throws Exception {
+        // 已监听挂载的公开别名与另一个仅出站挂载的逻辑协议名相同。
+        MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("wireb");
+        configuration.connector("tcp").bind("127.0.0.1", 0) //
+                .protocol("wirea").addressScheme("wireb");
+        configuration.connector("tcp").protocol("wireb").addressScheme("wireb-public");
+
+        try (MetContext context = configuration.buildContext()) {
+            context.start();
+
+            // selector 的身份由全局协议空间决定，不能在过滤监听端点后退化为别名。
+            MetSettings settings = context.getSettings();
+            assertTrue(settings.getBindAddressSets("wireb").isEmpty());
+            assertNull(settings.getBindAddressSet("tcp-0", "wireb"));
+            ConnectorConfig boundEndpoint = List.copyOf(settings.getConnectorConfigs()).get(0);
+            String exactMount = boundEndpoint.protocols().iterator().next().mountId();
+            assertNotNull(settings.getBindAddressSet("tcp-0", exactMount));
         }
     }
 
@@ -191,13 +320,49 @@ public class StandaloneMetConfigurationTest {
             ProtocolConfig second = endpoint.protocol("httpb");
             assertEquals("20", first.option("limit", null));
             assertEquals("10", second.option("limit", null));
-            assertEquals("10", endpoint.option("limit", null));
+            assertEquals("10", endpoint.options().get("limit"));
             assertEquals("1", first.option("workerThread", null));
             assertEquals("Java", first.option("serializeType", null));
             assertEquals("Json", second.option("serializeType", null));
             assertEquals("/first", first.option("contextPath", null));
             assertEquals("/httpb", second.option("contextPath", null));
         }
+    }
+
+    @Test
+    public void transportSecurityMaterialDoesNotEnterProtocolOptions() throws Exception {
+        // TLS 配置属于连接端点；协议只能看到端点最终是否启用安全传输。
+        MetConfiguration source = new MetConfiguration();
+        source.connector("http") //
+                .option("tlsEnabled", true) //
+                .option("tlsKeyStore", "server.p12") //
+                .option("tlsKeyStorePassword", "secret") //
+                .option("tlsProtocols", "TLSv1.2") //
+                .protocol("httpa");
+
+        try (MetContext context = source.buildContext()) {
+            // 证书材料留在连接器配置中，不复制给协议挂载和路由。
+            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            ProtocolConfig protocol = endpoint.protocol("httpa");
+            assertEquals("server.p12", endpoint.options().get("tlsKeyStore"));
+            assertEquals("secret", endpoint.options().get("tlsKeyStorePassword"));
+            assertEquals("true", protocol.option("tlsEnabled", null));
+            assertNull(protocol.option("tlsKeyStore", null));
+            assertNull(protocol.option("tlsKeyStorePassword", null));
+            assertNull(protocol.option("tlsProtocols", null));
+        }
+    }
+
+    @Test
+    public void protocolCannotOverrideTransportSecurityOptions() {
+        // 安全传输参数必须通过 ConnectorSettings 配置，协议挂载不能形成另一份冲突状态。
+        MetConfiguration configuration = new MetConfiguration();
+        MetConfiguration.ProtocolSettings protocol = configuration.connector("http").protocol("httpa");
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+            protocol.option("tlsEnabled", true);
+        });
+        assertEquals("Transport security option belongs to connector: tlsEnabled", failure.getMessage());
     }
 
     @Test

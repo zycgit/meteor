@@ -6,16 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.support.connector.protocol;
-import java.util.function.BiConsumer;
+import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.ProtocolContext;
-import net.hasor.meteor.connector.protocol.ProtocolFactory;
-import net.hasor.meteor.connector.protocol.ProtocolSession;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.RouteMatch;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 
@@ -29,12 +25,7 @@ public class RawSocketTestProtocol implements ProtocolFactory<byte[]> {
     }
 
     @Override
-    public String scheme() {
-        return this.name();
-    }
-
-    @Override
-    public String transport() {
+    public String transportType() {
         return "tcp";
     }
 
@@ -44,8 +35,8 @@ public class RawSocketTestProtocol implements ProtocolFactory<byte[]> {
     }
 
     @Override
-    public RouteMatch probe(ProtocolConfig config, byte[] message) {
-        return RouteMatch.REJECT;
+    public RouteProbeResult probe(ProtocolConfig config, byte[] message) {
+        return RouteProbeResult.REJECT;
     }
 
     @Override
@@ -58,11 +49,11 @@ public class RawSocketTestProtocol implements ProtocolFactory<byte[]> {
     }
 
     @Override
-    public ProtocolSession<byte[]> create( //
+    public ProtocolSession<byte[]> createSession( //
             ProtocolConfig config, //
-            ProtocolContext context, //
+            ProtocolSessionContext context, //
             NetworkChannel<byte[]> connection, //
-            BiConsumer<Long, Payload> messages) {
+            ObjLongConsumer<Payload> messages) {
         return new ProtocolSession<byte[]>() {
             private final BasicFuture<Void> ready = new BasicFuture<>();
 

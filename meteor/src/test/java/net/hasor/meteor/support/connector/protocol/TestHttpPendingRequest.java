@@ -6,22 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.support.connector.protocol;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 
-final class TestHttpPendingRequest {
-    private final HttpExchange       exchange;
-    private final TestHttpInvocation invocation;
-
-    public TestHttpPendingRequest(HttpExchange exchange, TestHttpInvocation invocation) {
-        this.exchange = exchange;
-        this.invocation = invocation;
-    }
-
-    public HttpExchange exchange() {
-        return this.exchange;
-    }
-
-    public TestHttpInvocation invocation() {
-        return this.invocation;
-    }
+record TestHttpPendingRequest(HttpExchange exchange, TestHttpInvocation invocation) {
 }

@@ -73,10 +73,9 @@ public class MetInvocationTest {
         try (Host host = new Host()) {
             RequestPayload request = host.request();
             request.setClientTimeout(500);
-            request.setReceiveTime(System.currentTimeMillis() - 20000);
 
             // 检查拒绝状态以及未发生业务调用。
-            host.assertStatus(ProtocolStatus.Timeout, request);
+            host.assertStatusAt(ProtocolStatus.Timeout, request, nanosAgo(20000));
             assertEquals(0, host.invocations.get());
         }
     }
@@ -87,10 +86,9 @@ public class MetInvocationTest {
         try (Host host = new Host()) {
             RequestPayload request = host.request();
             request.setClientTimeout(0);
-            request.setReceiveTime(System.currentTimeMillis() - 20000);
 
             // 检查拒绝状态以及未发生业务调用。
-            host.assertStatus(ProtocolStatus.Timeout, request);
+            host.assertStatusAt(ProtocolStatus.Timeout, request, nanosAgo(20000));
             assertEquals(0, host.invocations.get());
         }
     }
@@ -101,10 +99,9 @@ public class MetInvocationTest {
         try (Host host = new Host()) {
             RequestPayload request = host.request();
             request.setClientTimeout(-1);
-            request.setReceiveTime(System.currentTimeMillis() - 20000);
 
             // 检查拒绝状态以及未发生业务调用。
-            host.assertStatus(ProtocolStatus.Timeout, request);
+            host.assertStatusAt(ProtocolStatus.Timeout, request, nanosAgo(20000));
             assertEquals(0, host.invocations.get());
         }
     }
@@ -115,10 +112,9 @@ public class MetInvocationTest {
         try (Host host = new Host()) {
             RequestPayload request = host.request();
             request.setClientTimeout(20000);
-            request.setReceiveTime(System.currentTimeMillis() - 20000);
 
             // 检查拒绝状态以及未发生业务调用。
-            host.assertStatus(ProtocolStatus.Timeout, request);
+            host.assertStatusAt(ProtocolStatus.Timeout, request, nanosAgo(20000));
             assertEquals(0, host.invocations.get());
         }
     }
@@ -129,8 +125,7 @@ public class MetInvocationTest {
         try (Host host = new Host()) {
             RequestPayload expired = host.request();
             expired.setClientTimeout(0);
-            expired.setReceiveTime(System.currentTimeMillis() - 20000);
-            host.assertStatus(ProtocolStatus.Timeout, expired);
+            host.assertStatusAt(ProtocolStatus.Timeout, expired, nanosAgo(20000));
             assertEquals(0, host.invocations.get());
 
             // 新请求独立计算超时，不继承上一次失败状态。
@@ -139,6 +134,44 @@ public class MetInvocationTest {
             ResponsePayload response = host.assertStatus(ProtocolStatus.OK, request);
             assertEquals("value", response.getReturnData());
             assertEquals(1, host.invocations.get());
+        }
+    }
+
+    @Test
+    public void pastWallClockTimestampDoesNotExpireFreshRequest() throws Exception {
+        // receiveTime 只保留业务时间戳；墙钟向前跳不能制造服务端排队超时。
+        try (Host host = new Host()) {
+            RequestPayload request = host.request();
+            request.setReceiveTime(System.currentTimeMillis() - 30000);
+
+            ResponsePayload response = host.assertStatusAt(ProtocolStatus.OK, request, System.nanoTime());
+            assertEquals("value", response.getReturnData());
+            assertEquals(1, host.invocations.get());
+        }
+    }
+
+    @Test
+    public void futureWallClockTimestampDoesNotHideExpiredRequest() throws Exception {
+        // 墙钟向后跳也不能延长已经消耗完的本地排队期限。
+        try (Host host = new Host()) {
+            RequestPayload request = host.request();
+            request.setReceiveTime(System.currentTimeMillis() + 30000);
+
+            host.assertStatusAt(ProtocolStatus.Timeout, request, nanosAgo(20000));
+            assertEquals(0, host.invocations.get());
+        }
+    }
+
+    @Test
+    public void expiredMessageSkipsInvocationWithoutTerminalResponse() {
+        // 单向消息在队列中耗尽期限后既不调用业务，也不补发终态响应。
+        try (Host host = new Host()) {
+            RequestPayload message = host.request();
+            message.setMessage(true);
+
+            host.runAt(message, nanosAgo(20000));
+            assertTrue(host.responses.isEmpty());
+            assertEquals(0, host.invocations.get());
         }
     }
 
@@ -586,12 +619,34 @@ public class MetInvocationTest {
     }
 
     @Test
-    public void successfulMessageDoesNotSendTerminalResponse() throws Exception {
-        // 单向消息执行成功后不发送最终响应。
+    public void acceptedMessageContinuesExecutionWithoutTerminalResponse() throws Exception {
+        // 用闸门暂停已经入队的消息，先观察调度器发出的接纳确认。
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch finished = new CountDownLatch(1);
         try (Host host = new Host()) {
+            host.filters = new MetFilter[] { (request, response, chain) -> {
+                entered.countDown();
+                assertTrue(release.await(3, TimeUnit.SECONDS));
+                chain.doFilter(request, response);
+                finished.countDown();
+            } };
             RequestPayload message = host.request();
             message.setMessage(true);
-            host.run(message);
+
+            // Accept 完成消息调用，但不代表业务方法已经执行完成。
+            host.dispatcher.onRequest(host.channel, message.getRequestID(), message);
+            try {
+                assertTrue(entered.await(2, TimeUnit.SECONDS));
+                assertEquals(ProtocolStatus.Accept, host.take().getStatus());
+                message.completion().get(2, TimeUnit.SECONDS);
+                assertEquals(0, host.invocations.get());
+            } finally {
+                release.countDown();
+            }
+
+            // 确认之后远端继续执行业务，完成时不再发送业务最终响应。
+            assertTrue(finished.await(2, TimeUnit.SECONDS));
             assertTrue(host.responses.isEmpty());
             assertEquals(1, host.invocations.get());
         }
@@ -855,6 +910,8 @@ public class MetInvocationTest {
             // 通道收集生产任务发出的响应，测试不复刻执行或调度逻辑。
             this.channel = proxy(MetChannel.class, (p, method, args) -> {
                 switch (method.getName()) {
+                    case "getLocal":
+                        return new InterAddress("rsf://localhost:2180/default");
                     case "getRemote":
                         return new InterAddress("rsf://localhost:2181/default");
                     case "sendData":
@@ -897,11 +954,24 @@ public class MetInvocationTest {
         }
 
         private void run(RequestPayload request) {
-            this.dispatcher.run(this.channel, request);
+            this.runAt(request, System.nanoTime());
+        }
+
+        private void runAt(RequestPayload request, long receivedNanos) {
+            this.dispatcher.run(this.channel, request, receivedNanos);
         }
 
         private ResponsePayload assertStatus(short status, RequestPayload request) throws Exception {
             this.run(request);
+            ResponsePayload response = this.take();
+            assertEquals(status, response.getStatus());
+            assertEquals(request.getRequestID(), response.getRequestID());
+            return response;
+        }
+
+        private ResponsePayload assertStatusAt(//
+                short status, RequestPayload request, long receivedNanos) throws Exception {
+            this.runAt(request, receivedNanos);
             ResponsePayload response = this.take();
             assertEquals(status, response.getStatus());
             assertEquals(request.getRequestID(), response.getRequestID());
@@ -927,5 +997,9 @@ public class MetInvocationTest {
 
     private static <T> T proxy(Class<T> type, InvocationHandler handler) {
         return type.cast(Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type }, handler));
+    }
+
+    private static long nanosAgo(long millis) {
+        return System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(millis);
     }
 }

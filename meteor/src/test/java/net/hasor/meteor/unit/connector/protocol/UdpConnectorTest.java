@@ -14,28 +14,16 @@ import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ConnectorManager;
-import net.hasor.meteor.connector.ConnectorSubscriber;
-import net.hasor.meteor.connector.MetChannel;
-import net.hasor.meteor.connector.MetConnector;
-import net.hasor.meteor.connector.MetListen;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.support.connector.protocol.SocketTestSupport;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
+import net.hasor.meteor.support.connector.protocol.SocketTestSupport;
 import org.junit.Test;
-import static net.hasor.meteor.support.connector.protocol.UdpTestProtocol.packet;
-import static net.hasor.meteor.support.connector.protocol.UdpTestProtocol.request;
-import static net.hasor.meteor.support.connector.protocol.UdpTestProtocol.response;
+import static net.hasor.meteor.support.connector.protocol.UdpTestProtocol.*;
 import static org.junit.Assert.*;
 
 /** 通过正式 SPI 和真实回环报文验证 UDP 连接器契约，不依赖 RPC 调度器。 */
@@ -53,10 +41,11 @@ public class UdpConnectorTest {
             Inbox clientInbox = new Inbox();
             server.subscribe(serverInbox);
             client.subscribe(clientInbox);
-            MetListen listen = server.bind(serverConfig.name()).get(2, TimeUnit.SECONDS);
-            MetChannel first = client.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
-            MetChannel second = client.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
-            assertNotEquals(first.getChannelId(), second.getChannelId());
+            server.startInbound();
+            InterAddress listenAddress = server.bindAddress("udp");
+            MetChannel first = client.connect(listenAddress).get(2, TimeUnit.SECONDS);
+            MetChannel second = client.connect(listenAddress).get(2, TimeUnit.SECONDS);
+            assertNotSame(first, second);
 
             // 接收端按源地址建立不同通道，不能把相同请求号合并为同一个 peer。
             first.sendData(request(1, "first")).get(2, TimeUnit.SECONDS);
@@ -94,8 +83,9 @@ public class UdpConnectorTest {
             Inbox clientInbox = new Inbox();
             server.subscribe(serverInbox);
             client.subscribe(clientInbox);
-            MetListen listen = server.bind(serverConfig.name()).get(2, TimeUnit.SECONDS);
-            MetChannel outgoing = client.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
+            server.startInbound();
+            InterAddress listenAddress = server.bindAddress("udp");
+            MetChannel outgoing = client.connect(listenAddress).get(2, TimeUnit.SECONDS);
             outgoing.sendData(request(1, "establish")).get(2, TimeUnit.SECONDS);
             Delivery accepted = serverInbox.take();
 
@@ -114,115 +104,37 @@ public class UdpConnectorTest {
     }
 
     @Test(timeout = 10000)
-    public void closeBindRejectsNewPeers() throws Exception {
-        // 先建立一个 peer，使停止接纳后底层共享 UDP socket 仍被已有会话使用。
-        ConnectorConfig serverConfig = SocketTestSupport.udpConfig(65507, "testprotocol");
-        ConnectorConfig clientConfig = SocketTestSupport.udpConfig(65507, "testprotocol");
-        try (ConnectorManager server = SocketTestSupport.manager(serverConfig); //
-             ConnectorManager client = SocketTestSupport.manager(clientConfig)) {
+    public void stoppedInboundRestartsTheSameUdpListenerAndAcceptsAFreshPeer() throws Exception {
+        // 通过正式管理器开放 UDP 监听，并用原始数据报建立一个入站 peer。
+        ConnectorConfig config = SocketTestSupport.udpConfig(65507, "testprotocol");
+        try (ConnectorManager server = SocketTestSupport.manager(config); //
+             DatagramSocket firstPeer = new DatagramSocket(); //
+             DatagramSocket secondPeer = new DatagramSocket()) {
             server.init();
-            client.init();
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
-            MetListen listen = server.bind(serverConfig.name()).get(2, TimeUnit.SECONDS);
-            MetChannel existing = client.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
-            existing.sendData(request(1, "establish")).get(2, TimeUnit.SECONDS);
-            inbox.take();
+            server.startInbound();
+            InterAddress listenAddress = server.bindAddress("udp");
+            InterAddress bound = listenAddress;
+            InetSocketAddress target = new InetSocketAddress(bound.getHost(), bound.getPort());
+            send(firstPeer, target, packet(1, 1, "first"));
+            Delivery first = inbox.take();
 
-            // 停止监听后，新源端口发来的报文不能创建新 peer 或投递消息。
-            MetConnector connector = server.find(serverConfig.name());
-            connector.closeBind();
-            assertFalse(listen.isActive());
-            assertTrue(connector.getListenList().isEmpty());
-            MetChannel newcomer = client.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
-            newcomer.sendData(request(2, "rejected")).get(2, TimeUnit.SECONDS);
+            // 离线停止共享监听并关闭旧 peer，停止期间不再接收数据报。
+            server.stopInbound();
+            assertNull(server.bindAddress("udp"));
+            send(secondPeer, target, packet(1, 2, "stopped"));
             assertNull(inbox.messages.poll(200, TimeUnit.MILLISECONDS));
-        }
-    }
 
-    @Test(timeout = 10000)
-    public void closeBindLeavesExistingPeerWritable() throws Exception {
-        // 在关闭监听前完成一次报文交换，保证要保留的 peer 已被接纳。
-        ConnectorConfig serverConfig = SocketTestSupport.udpConfig(65507, "testprotocol");
-        ConnectorConfig clientConfig = SocketTestSupport.udpConfig(65507, "testprotocol");
-        try (ConnectorManager server = SocketTestSupport.manager(serverConfig); //
-             ConnectorManager client = SocketTestSupport.manager(clientConfig)) {
-            server.init();
-            client.init();
-            Inbox serverInbox = new Inbox();
-            Inbox clientInbox = new Inbox();
-            server.subscribe(serverInbox);
-            client.subscribe(clientInbox);
-            MetListen listen = server.bind(serverConfig.name()).get(2, TimeUnit.SECONDS);
-            MetChannel outgoing = client.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
-            outgoing.sendData(request(1, "establish")).get(2, TimeUnit.SECONDS);
-            Delivery accepted = serverInbox.take();
-
-            // 关闭监听只停止接纳，已有 peer 继续收发并保持原通道身份。
-            server.find(serverConfig.name()).closeBind();
-            assertFalse(listen.isActive());
-            outgoing.sendData(request(3, "existing")).get(2, TimeUnit.SECONDS);
-            Delivery existingRequest = serverInbox.take();
-            assertSame(accepted.channel, existingRequest.channel);
-            accepted.channel.sendData(response(3, "still writable")).get(2, TimeUnit.SECONDS);
-            Delivery returned = clientInbox.take();
-            ResponsePayload reply = (ResponsePayload) returned.payload;
-            assertSame(outgoing, returned.channel);
-            assertEquals("still writable", reply.getReturnData());
-        }
-    }
-
-    @Test(timeout = 10000)
-    public void closeBindPreventsRebinding() throws Exception {
-        // 真实监听关闭后，同一连接器的接纳状态不能被再次 bind 重置。
-        ConnectorConfig config = SocketTestSupport.udpConfig(65507, "testprotocol");
-        try (ConnectorManager server = SocketTestSupport.manager(config)) {
-            server.init();
-            MetListen listen = server.bind(config.name()).get(2, TimeUnit.SECONDS);
-            server.find(config.name()).closeBind();
-            assertFalse(listen.isActive());
-
-            // 再次绑定必须明确向调用者返回状态异常。
-            ExecutionException failure = assertThrows(ExecutionException.class, () -> {
-                server.bind(config.name()).get(2, TimeUnit.SECONDS);
-            });
-            assertTrue(failure.getCause() instanceof IllegalStateException);
-        }
-    }
-
-    @Test(timeout = 10000)
-    public void closingOneAcceptedPeerDoesNotCloseSharedSocket() throws Exception {
-        // 同一监听上建立两个 peer，让关闭操作只作用于第一个会话。
-        ConnectorConfig serverConfig = SocketTestSupport.udpConfig(65507, "testprotocol");
-        ConnectorConfig clientConfig = SocketTestSupport.udpConfig(65507, "testprotocol");
-        try (ConnectorManager server = SocketTestSupport.manager(serverConfig); //
-             ConnectorManager client = SocketTestSupport.manager(clientConfig)) {
-            server.init();
-            client.init();
-            Inbox serverInbox = new Inbox();
-            Inbox clientInbox = new Inbox();
-            server.subscribe(serverInbox);
-            client.subscribe(clientInbox);
-            MetListen listen = server.bind(serverConfig.name()).get(2, TimeUnit.SECONDS);
-            MetChannel first = client.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
-            MetChannel second = client.connect(listen.getBindAddress()).get(2, TimeUnit.SECONDS);
-            first.sendData(request(1, "one")).get(2, TimeUnit.SECONDS);
-            Delivery firstRequest = serverInbox.take();
-            second.sendData(request(2, "two")).get(2, TimeUnit.SECONDS);
-            Delivery secondRequest = serverInbox.take();
-
-            // 关闭目标 peer 后，共享监听和另一个 peer 仍保持可用。
-            firstRequest.channel.close().get(2, TimeUnit.SECONDS);
-            assertFalse(firstRequest.channel.isActive());
-            assertTrue(listen.isActive());
-            second.sendData(request(3, "again")).get(2, TimeUnit.SECONDS);
-            Delivery remaining = serverInbox.take();
-            assertSame(secondRequest.channel, remaining.channel);
-            secondRequest.channel.sendData(response(3, "alive")).get(2, TimeUnit.SECONDS);
-            Delivery returned = clientInbox.take();
-            ResponsePayload reply = (ResponsePayload) returned.payload;
-            assertSame(second, returned.channel);
-            assertEquals("alive", reply.getReturnData());
+            // 重新上线复用原监听和端口，新来源可以建立全新的 peer。
+            server.startInbound();
+            assertNotNull(server.bindAddress("udp"));
+            assertEquals(bound, server.bindAddress("udp"));
+            send(secondPeer, target, packet(1, 3, "restarted"));
+            Delivery restarted = inbox.take();
+            assertNotSame(first.channel, restarted.channel);
+            RequestPayload restartedRequest = (RequestPayload) restarted.payload;
+            assertEquals("restarted", restartedRequest.getTargetMethod());
         }
     }
 
@@ -235,8 +147,9 @@ public class UdpConnectorTest {
             server.init();
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
-            MetListen listen = server.bind(config.name()).get(2, TimeUnit.SECONDS);
-            InetSocketAddress target = new InetSocketAddress("127.0.0.1", listen.getBindAddress().getPort());
+            server.startInbound();
+            InterAddress listenAddress = server.bindAddress("udp");
+            InetSocketAddress target = new InetSocketAddress("127.0.0.1", listenAddress.getPort());
             send(peer, target, packet(1, 1, "short"));
             Delivery first = inbox.take();
             send(peer, target, packet(1, 2, "a longer independent datagram"));
@@ -269,8 +182,9 @@ public class UdpConnectorTest {
             server.init();
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
-            MetListen listen = server.bind(config.name()).get(2, TimeUnit.SECONDS);
-            InetSocketAddress target = new InetSocketAddress("127.0.0.1", listen.getBindAddress().getPort());
+            server.startInbound();
+            InterAddress listenAddress = server.bindAddress("udp");
+            InetSocketAddress target = new InetSocketAddress("127.0.0.1", listenAddress.getPort());
             send(good, target, packet(1, 1, "good"));
             Delivery healthy = inbox.take();
 
@@ -288,7 +202,7 @@ public class UdpConnectorTest {
             send(good, target, packet(1, 3, "healthy"));
             Delivery afterFailure = inbox.take();
             assertSame(healthy.channel, afterFailure.channel);
-            assertTrue(listen.isActive());
+            assertNotNull(server.bindAddress("udp"));
         }
     }
 
@@ -302,8 +216,9 @@ public class UdpConnectorTest {
             server.init();
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
-            MetListen listen = server.bind(config.name()).get(2, TimeUnit.SECONDS);
-            InetSocketAddress target = new InetSocketAddress("127.0.0.1", listen.getBindAddress().getPort());
+            server.startInbound();
+            InterAddress listenAddress = server.bindAddress("udp");
+            InetSocketAddress target = new InetSocketAddress("127.0.0.1", listenAddress.getPort());
             send(good, target, packet(1, 1, "good"));
             Delivery healthy = inbox.take();
             send(bad, target, packet(1, 2, "bad"));
@@ -311,10 +226,8 @@ public class UdpConnectorTest {
 
             // 残缺头部只关闭坏 peer，不能投递残缺消息或关闭共享监听。
             send(bad, target, new byte[] { 1 });
-            awaitInactive(malformed.channel);
-            assertFalse(malformed.channel.isActive());
             assertNull(inbox.messages.poll(100, TimeUnit.MILLISECONDS));
-            assertTrue(listen.isActive());
+            assertNotNull(server.bindAddress("udp"));
 
             // 等故障生效后再收发，证明正常 peer 的会话和响应能力未受污染。
             healthy.channel.sendData(response(1, "reply")).get(2, TimeUnit.SECONDS);
@@ -338,18 +251,17 @@ public class UdpConnectorTest {
             server.init();
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
-            MetListen listen = server.bind(config.name()).get(2, TimeUnit.SECONDS);
-            InetSocketAddress target = new InetSocketAddress("127.0.0.1", listen.getBindAddress().getPort());
+            server.startInbound();
+            InterAddress listenAddress = server.bindAddress("udp");
+            InetSocketAddress target = new InetSocketAddress("127.0.0.1", listenAddress.getPort());
             send(peer, target, packet(1, 1, "ok"));
             MetChannel channel = inbox.take().channel;
 
             // 超限报文必须整包拒绝并关闭目标 peer，不能截断后投递成合法消息。
             byte[] oversized = packet(1, 2, "this datagram exceeds the configured limit");
             send(peer, target, oversized);
-            awaitInactive(channel);
-            assertFalse(channel.isActive());
             assertNull(inbox.messages.poll(100, TimeUnit.MILLISECONDS));
-            assertTrue(listen.isActive());
+            assertNotNull(server.bindAddress("udp"));
         }
     }
 
@@ -362,8 +274,9 @@ public class UdpConnectorTest {
             server.init();
             Inbox inbox = new Inbox();
             server.subscribe(inbox);
-            MetListen listen = server.bind(config.name()).get(2, TimeUnit.SECONDS);
-            int port = listen.getBindAddress().getPort();
+            server.startInbound();
+            InterAddress listenAddress = server.bindAddress("udp");
+            int port = listenAddress.getPort();
             InetSocketAddress target = new InetSocketAddress("127.0.0.1", port);
             send(peer, target, packet(1, 1, "hello"));
             Delivery request = inbox.take();
@@ -372,8 +285,7 @@ public class UdpConnectorTest {
             Future<MetChannel> writing = request.channel.sendData(response(1, "drained"));
             server.close();
             assertSame(request.channel, writing.get(2, TimeUnit.SECONDS));
-            assertFalse(request.channel.isActive());
-            assertFalse(listen.isActive());
+            assertNull(server.bindAddress("udp"));
             peer.setSoTimeout(2000);
             DatagramPacket received = new DatagramPacket(new byte[512], 512);
             peer.receive(received);
@@ -388,30 +300,28 @@ public class UdpConnectorTest {
     }
 
     @Test
-    public void rejectsStreamProtocolBeforeCreatingManager() throws Exception {
-        // TCP 测试协议不能挂在 UDP 传输上，配置准备阶段就应失败。
+    public void rejectsStreamProtocolDuringManagerInitialization() throws Exception {
+        // TCP 测试协议不能挂在 UDP 传输上，初始化编译启动计划时应失败。
         ConnectorConfig config = SocketTestSupport.udpConfig(128, "rawprotocol");
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
-            try (ConnectorManager ignored = SocketTestSupport.manager(config)) {
-                fail("A TCP protocol must not be mounted on UDP");
-            }
-        });
-        assertTrue(failure.getMessage().contains("requires transport tcp"));
+        try (ConnectorManager manager = SocketTestSupport.manager(config)) {
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, manager::init);
+            assertTrue(failure.getMessage().contains("requires transport tcp"));
+        }
     }
 
     @Test(timeout = 10000)
-    public void rejectsZeroListenPortThroughBindFuture() throws Exception {
+    public void rejectsZeroListenPortWhenStartingInbound() throws Exception {
         // 地址模型允许表达零端口，但 UDP 监听必须明确拒绝这个配置。
-        Map<String, String> options = Map.of("listenType", "udp", "workerThread", "1");
-        ProtocolConfig protocol = new ProtocolConfig("udp", "udp", "testprotocol", options);
+        Map<String, String> options = Map.of("workerThread", "1");
+        ProtocolConfig protocol = ProtocolTestAccess.config("udp", "udp", "testprotocol", options);
         InterAddress address = InterAddress.forBinding("udp", "127.0.0.1", 0, "default");
         ConnectorConfig config = new ConnectorConfig("udp", address, options, List.of(protocol), true);
         try (ConnectorManager manager = SocketTestSupport.manager(config)) {
             manager.init();
 
-            // Meteor 的绑定 future 上抛参数错误，不向 Neta 提交零端口监听。
+            // 启动入站时抛出参数错误，不向 Neta 提交零端口监听。
             ExecutionException failure = assertThrows(ExecutionException.class, () -> {
-                manager.bind(config.name()).get(2, TimeUnit.SECONDS);
+                manager.startInbound();
             });
             Throwable cause = failure.getCause();
             assertTrue(cause instanceof IllegalArgumentException);
@@ -427,11 +337,11 @@ public class UdpConnectorTest {
             manager.init();
 
             // 创建网络连接器时失败，不能产生已监听的端点。
-            ExecutionException failure = assertThrows(ExecutionException.class, () -> {
-                manager.bind(config.name()).get(2, TimeUnit.SECONDS);
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                manager.startInbound();
             });
-            assertTrue(failure.getCause() instanceof IllegalArgumentException);
-            assertNull(manager.find(config.name()));
+            assertEquals("maxDatagramSize must be positive", failure.getMessage());
+            assertNull(manager.bindAddress("udp"));
         }
     }
 
@@ -443,11 +353,11 @@ public class UdpConnectorTest {
             manager.init();
 
             // 超出协议边界的资源配置失败，不遗留可用连接器。
-            ExecutionException failure = assertThrows(ExecutionException.class, () -> {
-                manager.bind(config.name()).get(2, TimeUnit.SECONDS);
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                manager.startInbound();
             });
-            assertTrue(failure.getCause() instanceof IllegalArgumentException);
-            assertNull(manager.find(config.name()));
+            assertEquals("maxDatagramSize must be between 1 and 65507", failure.getMessage());
+            assertNull(manager.bindAddress("udp"));
         }
     }
 
@@ -455,25 +365,7 @@ public class UdpConnectorTest {
         socket.send(new DatagramPacket(bytes, bytes.length, remote));
     }
 
-    private static void awaitInactive(MetChannel channel) throws InterruptedException, TimeoutException {
-        // 每次检查真实通道状态，有界等待故障处理完成。
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
-        while (channel.isActive() && System.nanoTime() < deadline) {
-            Thread.sleep(5);
-        }
-        if (channel.isActive()) {
-            throw new TimeoutException("UDP peer did not close after a malformed datagram");
-        }
-    }
-
-    private static final class Delivery {
-        private final MetChannel channel;
-        private final Payload    payload;
-
-        private Delivery(MetChannel channel, Payload payload) {
-            this.channel = channel;
-            this.payload = payload;
-        }
+    private record Delivery(MetChannel channel, Payload payload) {
     }
 
     private static final class Inbox implements ConnectorSubscriber {

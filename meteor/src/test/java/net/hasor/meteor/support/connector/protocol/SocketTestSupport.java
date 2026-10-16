@@ -22,7 +22,7 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ConnectorManager;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.protocol.EndpointConnectorFactory;
+import net.hasor.meteor.connector.ProtocolTestAccess;
 
 /** SPI 单元测试的配置与上下文桩；初始化和关闭由测试方法负责。 */
 public final class SocketTestSupport {
@@ -31,17 +31,15 @@ public final class SocketTestSupport {
 
     public static ConnectorConfig tcpConfig() {
         Map<String, String> options = new HashMap<>();
-        options.put("listenType", "tcp");
         options.put("workerThread", "1");
-        return config("raw", "rawprotocol", options, 0);
+        return config("tcp", "raw", "rawprotocol", options, 0);
     }
 
     public static ConnectorConfig udpConfig(int maxDatagramSize, String protocol) throws SocketException {
         Map<String, String> options = new HashMap<>();
-        options.put("listenType", "udp");
         options.put("workerThread", "1");
         options.put("maxDatagramSize", Integer.toString(maxDatagramSize));
-        return config("udp", protocol, options, availableUdpPort());
+        return config("udp", "udp", protocol, options, availableUdpPort());
     }
 
     public static int availableUdpPort() throws SocketException {
@@ -52,9 +50,10 @@ public final class SocketTestSupport {
         }
     }
 
-    private static ConnectorConfig config(String scheme, String protocol, Map<String, String> options, int port) {
-        InterAddress local = InterAddress.forBinding(scheme, "127.0.0.1", port, "default");
-        ProtocolConfig mount = new ProtocolConfig(scheme, scheme, protocol, options);
+    private static ConnectorConfig config(//
+            String transport, String scheme, String protocol, Map<String, String> options, int port) {
+        InterAddress local = InterAddress.forBinding(transport, "127.0.0.1", port, "default");
+        ProtocolConfig mount = ProtocolTestAccess.config(scheme, scheme, protocol, options);
         List<ProtocolConfig> mounts = Collections.singletonList(mount);
         return new ConnectorConfig(scheme, local, options, mounts, true);
     }
@@ -85,10 +84,7 @@ public final class SocketTestSupport {
         Class<?>[] contextInterfaces = { MetContext.class };
         MetContext context = (MetContext) Proxy.newProxyInstance(loader, contextInterfaces, contextHandler);
 
-        // 使用正式 SPI 发现和配置检查；资源初始化留在调用测试中。
-        EndpointConnectorFactory factory = new EndpointConnectorFactory();
-        factory.listenTypes(loader);
-        factory.prepare(config);
-        return new ConnectorManager(context, factory);
+        // Manager 在 init 中使用上下文类加载器发现 SPI 并编译端点计划。
+        return new ConnectorManager(context);
     }
 }

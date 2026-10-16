@@ -29,15 +29,15 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.transport.ChannelFactory;
-import net.hasor.meteor.connector.transport.ChannelListener;
-import net.hasor.meteor.connector.transport.NetworkChannel;
-import net.hasor.meteor.connector.transport.NetworkListen;
-import net.hasor.meteor.connector.transport.http.HttpConnector;
-import net.hasor.meteor.connector.transport.http.HttpExchange;
-import net.hasor.meteor.connector.transport.http.HttpRequest;
-import net.hasor.meteor.connector.transport.http.HttpResponse;
+import net.hasor.meteor.connector.ProtocolTestAccess;
+import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import org.junit.Test;
+import static net.hasor.meteor.connector.TransportTestConfigs.transport;
+import static net.hasor.meteor.connector.transport.http.HttpConnectorTestAccess.newConnector;
+import static net.hasor.meteor.support.connector.transport.http.HttpTransportPlans.routes;
 import static org.junit.Assert.*;
 
 /** 使用独立 Netty HTTP/2 对端，在真实连接上验证传输 SPI 的 GOAWAY 边界。 */
@@ -52,8 +52,9 @@ public class Http2GoawayInteropTest {
         BasicFuture<Void> closed = new BasicFuture<>();
         EventLoopGroup group = new NioEventLoopGroup(1);
         Channel peer = null;
-        try (HttpConnector server = new HttpConnector(config, this.getClass().getClassLoader()); //
-             NetworkListen listen = server.bind(config.address(), channel -> new ChannelListener<>() {
+        ClassLoader loader = this.getClass().getClassLoader();
+        try (NetworkConnector<HttpExchange> server = newConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), channel -> new ChannelListener<>() {
                  public void connected() {
                      connected.completed(channel);
                  }
@@ -130,9 +131,11 @@ public class Http2GoawayInteropTest {
         ConnectorConfig config = config(Map.of("httpVersion", "2"), false);
         BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
         BasicFuture<Void> closed = new BasicFuture<>();
+        ClassLoader loader = this.getClass().getClassLoader();
         try (Peer peer = new Peer(); //
-             HttpConnector client = new HttpConnector(config, this.getClass().getClassLoader())) {
-            client.connect(peer.address(), receiver(connected, closed)).get(3, TimeUnit.SECONDS);
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader)) {
+            client.connect(peer.address(), routes(config), null, receiver(connected, closed)) //
+                    .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
             List<HttpExchange> calls = new ArrayList<>();
             for (int i = 0; i < 3; i++) {
@@ -170,9 +173,11 @@ public class Http2GoawayInteropTest {
         ConnectorConfig config = config(Map.of("httpVersion", "2"), false);
         BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
         BasicFuture<Void> closed = new BasicFuture<>();
+        ClassLoader loader = this.getClass().getClassLoader();
         try (Peer peer = new Peer(); //
-             HttpConnector client = new HttpConnector(config, this.getClass().getClassLoader())) {
-            client.connect(peer.address(), receiver(connected, closed)).get(3, TimeUnit.SECONDS);
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader)) {
+            client.connect(peer.address(), routes(config), null, receiver(connected, closed)) //
+                    .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
             HttpExchange accepted = request();
             channel.write(accepted).get(3, TimeUnit.SECONDS);
@@ -207,9 +212,11 @@ public class Http2GoawayInteropTest {
         ConnectorConfig config = config(Map.of("httpVersion", "2"), false);
         BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
         BasicFuture<Void> closed = new BasicFuture<>();
+        ClassLoader loader = this.getClass().getClassLoader();
         try (Peer peer = new Peer(); //
-             HttpConnector client = new HttpConnector(config, this.getClass().getClassLoader())) {
-            client.connect(peer.address(), receiver(connected, closed)).get(3, TimeUnit.SECONDS);
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader)) {
+            client.connect(peer.address(), routes(config), null, receiver(connected, closed)) //
+                    .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
             List<HttpExchange> calls = new ArrayList<>();
             for (int i = 0; i < 3; i++) {
@@ -243,9 +250,11 @@ public class Http2GoawayInteropTest {
         ConnectorConfig config = config(Map.of("httpVersion", "2"), false);
         BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
         BasicFuture<Void> closed = new BasicFuture<>();
+        ClassLoader loader = this.getClass().getClassLoader();
         try (Peer peer = new Peer(); //
-             HttpConnector client = new HttpConnector(config, this.getClass().getClassLoader())) {
-            client.connect(peer.address(), receiver(connected, closed)).get(3, TimeUnit.SECONDS);
+             NetworkConnector<HttpExchange> client = newConnector(transport(config), loader)) {
+            client.connect(peer.address(), routes(config), null, receiver(connected, closed)) //
+                    .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
             List<HttpExchange> calls = new ArrayList<>();
             for (int i = 0; i < 2; i++) {
@@ -268,8 +277,7 @@ public class Http2GoawayInteropTest {
     private static ConnectorConfig config(Map<String, String> options, boolean server) {
         InterAddress local = InterAddress.forBinding("http", "127.0.0.1", 0, "default");
         Map<String, String> values = new HashMap<>(options);
-        values.put("listenType", "http");
-        ProtocolConfig protocol = new ProtocolConfig("http", "http", "http", Map.of("contextPath", "/"));
+        ProtocolConfig protocol = ProtocolTestAccess.config("http", "http", "http", Map.of("contextPath", "/"));
         return new ConnectorConfig("http", local, values, List.of(protocol), server);
     }
 
@@ -278,7 +286,7 @@ public class Http2GoawayInteropTest {
         return new HttpExchange(request);
     }
 
-    private static ChannelFactory<HttpExchange> receiver(BasicFuture<NetworkChannel<HttpExchange>> connected, //
+    private static ChannelListenerFactory<HttpExchange> receiver(BasicFuture<NetworkChannel<HttpExchange>> connected, //
             BasicFuture<Void> closed) {
         return channel -> new ChannelListener<>() {
             public void connected() {

@@ -18,8 +18,8 @@ public final class InvocationTestAccess implements AutoCloseable {
         this.dispatcher = new MetDispatcher(context, filters);
     }
 
-    public void run(MetChannel channel, RequestPayload request) {
-        new MetInvocationTask(channel, this.dispatcher, request).run();
+    public void run(MetChannel channel, RequestPayload request, long receivedNanos) {
+        new MetInvocationTask(channel, this.dispatcher, request, receivedNanos).run();
     }
 
     public void onRequest(MetChannel channel, long requestId, RequestPayload request) {
