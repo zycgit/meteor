@@ -18,8 +18,8 @@ public final class MetInstanceInfo {
     private boolean             online            = false; // 注册会话是否仍然有效
     private boolean             block             = false;
     private String              unitName          = null;
-    private Map<String, String> listenAddresses   = new LinkedHashMap<>();
-    private Map<String, String> managementAddress = new LinkedHashMap<>(); // 协议名称 -> 管理 RPC 地址
+    private Map<String, String> listenAddresses   = new LinkedHashMap<>(); // 连接器名称#地址 scheme -> 实际监听地址
+    private Map<String, String> managementAddress = new LinkedHashMap<>(); // 连接器名称#地址 scheme -> 管理 RPC 地址
     private MetServiceType[]    roles             = new MetServiceType[0];
 
     public MetServiceType[] getRoles() {

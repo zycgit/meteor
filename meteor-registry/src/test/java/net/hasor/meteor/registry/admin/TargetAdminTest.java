@@ -79,7 +79,7 @@ public class TargetAdminTest {
             assertTrue(management.isShadow());
             assertEquals(first.getInstanceID(), instance.instance().getInstanceId());
             assertEquals("orders", instance.instance().getApplicationName());
-            assertEquals(Map.of("rsf", address.toString()), instance.instance().getManagementAddress());
+            assertEquals(Map.of("tcp-0#rsf", address.toString()), instance.instance().getManagementAddress());
             MetServiceMember otherProvider = other.providers(null, null).getItems().get(0);
             assertEquals("inventory", otherProvider.getInstance().getApplicationName());
             MetPage<MetServiceInfo> services = instance.getServiceList(null);
@@ -130,7 +130,7 @@ public class TargetAdminTest {
             instance.block();
             assertTrue(instance.isBlock());
             assertTrue(instance.instance().isBlock());
-            assertEquals(Map.of("rsf", address.toString()), instance.instance().getManagementAddress());
+            assertEquals(Map.of("tcp-0#rsf", address.toString()), instance.instance().getManagementAddress());
             assertTrue(first.isOnline());
             assertForbidden(() -> caller.getRsfClient(address).wrapper(Echo.class).echo("blocked"));
             InterAddress secondAddress = second.bindAddress("rsf");
@@ -176,7 +176,7 @@ public class TargetAdminTest {
             provider.start();
             consumer.start();
             TargetAdmin targets = provider.getExtension(TargetAdmin.class);
-            assertTrue(provider.getServiceInfo(ManagementRPC.class).isDistributed());
+            assertTrue(provider.getServiceInfo(ManagementRPC.class).isDistributedCall());
 
             // 管理服务显式使用分布式模式，按地址调用访问指定对端。
             InterAddress remote = consumer.bindAddress("rsf");
@@ -200,7 +200,7 @@ public class TargetAdminTest {
             MetServiceAdmin localService = targets.getServiceAdminByAddress(local, id);
             assertEquals(id, localService.info().getServiceId());
             MetServiceMember member = localService.providers(null, null).getItems().get(0);
-            assertEquals(Map.of("rsf", local.toString()), member.getInstance().getManagementAddress());
+            assertEquals(Map.of("tcp-0#rsf", local.toString()), member.getInstance().getManagementAddress());
             assertEquals(provider.bindAddress("rsf").toString(), member.getEndpoints()[0].getListenAddress());
             assertNull(member.getEndpoints()[0].getPublishedAddress());
             assertEquals(2, probe.openedSessions());
@@ -448,7 +448,7 @@ public class TargetAdminTest {
             assertEquals(MetServiceType.Provider, management.getServiceType());
             assertTrue(management.isShadow());
             assertEquals(target.getInstanceID(), instance.instance().getInstanceId());
-            assertEquals(Map.of("rsf", address.toString()), instance.instance().getManagementAddress());
+            assertEquals(Map.of("tcp-0#rsf", address.toString()), instance.instance().getManagementAddress());
             assertEquals(1, instance.getServiceList(null).getItems().size());
             service.putMeta("owner", "direct");
             assertEquals("direct", target.getServiceInfo(Echo.class).getMetaData("owner"));

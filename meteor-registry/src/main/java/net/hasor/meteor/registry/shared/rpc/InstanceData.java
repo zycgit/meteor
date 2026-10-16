@@ -16,8 +16,8 @@ public final class InstanceData {
     private String              applicationName   = null;
     private boolean             block             = false;
     private String              unitName          = null;
-    private Map<String, String> listenAddresses   = new LinkedHashMap<>();
-    private Map<String, String> managementAddress = new LinkedHashMap<>(); // 协议名称 -> 管理 RPC 地址
+    private Map<String, String> listenAddresses   = new LinkedHashMap<>(); // 连接器名称#地址 scheme -> 实际监听地址
+    private Map<String, String> managementAddress = new LinkedHashMap<>(); // 连接器名称#地址 scheme -> 管理 RPC 地址
 
     public String getInstanceId() {
         return this.instanceId;

@@ -263,7 +263,7 @@ public class RegistryAdminClientTest {
                 RegistryAdmin admin = adminContext.getExtension(RegistryAdmin.class);
                 MetInstanceAdmin serverAdmin = admin.getInstanceAdmin(server.getInstanceID());
                 Map<String, String> management = serverAdmin.instance().getManagementAddress();
-                assertEquals(Map.of("rsf", server.bindAddress("rsf").toString()), management);
+                assertEquals(Map.of("tcp-0#rsf", server.bindAddress("rsf").toString()), management);
                 MetInstanceAdmin callerAdmin = admin.getInstanceAdmin(caller.getInstanceID());
                 assertTrue(callerAdmin.instance().getManagementAddress().isEmpty());
                 MetServiceAdmin service = admin.getServiceAdmin(binding.getBindID());

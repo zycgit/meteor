@@ -189,15 +189,22 @@ public final class ManagementRPCImpl implements ManagementRPC {
         result.setApplicationName(this.context.getApplicationName());
         result.setUnitName(this.context.getSettings().getUnitName());
         result.setBlock(this.governance.isBlock());
-        for (String protocol : this.context.runProtocols()) {
-            InterAddress address = this.context.bindAddress(protocol);
-            if (address != null) {
-                result.getListenAddresses().put(protocol, address.toString());
-                InterAddress managementAddress = address;
-                if (StringUtils.isNotBlank(this.publishHost)) {
-                    managementAddress = new InterAddress(address.getSchema(), this.publishHost, address.getPort(), address.getFormUnit());
+        for (ConnectorConfig connector : this.context.getSettings().getConnectorConfigs()) {
+            if (!connector.bindEnabled()) {
+                continue;
+            }
+
+            for (ProtocolConfig protocol : connector.protocols()) {
+                InterAddress address = this.context.bindAddress(connector.name(), protocol.mountId());
+                if (address != null) {
+                    String addressKey = connector.name() + "#" + protocol.scheme();
+                    result.getListenAddresses().putIfAbsent(addressKey, address.toString());
+                    InterAddress managementAddress = address;
+                    if (StringUtils.isNotBlank(this.publishHost)) {
+                        managementAddress = new InterAddress(address.getSchema(), this.publishHost, address.getPort(), address.getFormUnit());
+                    }
+                    result.getManagementAddress().putIfAbsent(addressKey, managementAddress.toString());
                 }
-                result.getManagementAddress().put(protocol, managementAddress.toString());
             }
         }
         return result;
@@ -595,13 +602,13 @@ public final class ManagementRPCImpl implements ManagementRPC {
                     paths = Collections.singletonList(null);
                 }
 
-                InterAddress listen = connector.bindEnabled() ? this.context.bindAddress(protocol.name()) : null;
+                InterAddress listen = connector.bindEnabled() ? this.context.bindAddress(connector.name(), protocol.mountId()) : null;
                 for (String path : paths) {
                     ServiceEndpointData endpoint = new ServiceEndpointData();
                     endpoint.setConnectorName(connector.name());
-                    endpoint.setTransport(connector.listenType());
+                    endpoint.setTransport(connector.transportType());
                     endpoint.setProtocolName(protocol.name());
-                    endpoint.setProtocol(protocol.protocol());
+                    endpoint.setProtocol(protocol.factoryName());
                     endpoint.setScheme(protocol.scheme());
                     endpoint.setContextPath(path);
                     endpoint.setBindEnabled(connector.bindEnabled());
