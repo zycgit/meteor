@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.address;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +58,12 @@ class AddressCacheResult {
         private BucketSnapshot(AddressBucket bucket) {
             this.addresses = bucket.getLocalUnitAddresses();
             RuleRef ref = bucket.getRuleRef();
-            this.rules = List.of(ref.getServiceLevel(), ref.getMethodLevel(), ref.getArgsLevel());
+            // 候选地址依次经过服务级、方法级和参数级规则，不可交换筛选层级。
+            List<InnerRuleEngine> rules = new ArrayList<>(3);
+            rules.add(ref.getServiceLevel());
+            rules.add(ref.getMethodLevel());
+            rules.add(ref.getArgsLevel());
+            this.rules = List.copyOf(rules);
         }
     }
 }

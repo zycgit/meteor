@@ -10,9 +10,8 @@ dependencies {
     api "net.hasor:neta-core:${property('lib.neta')}"
     api "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
     api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${property('lib.jackson')}"
-
-    implementation "ognl:ognl:${property('lib.ognl')}"
-    implementation "net.hasor:neta-codec-http:${property('lib.neta')}"
+    api "ognl:ognl:${property('lib.ognl')}"
+    api "net.hasor:neta-codec-http:${property('lib.neta')}"
 
     // for test
     testImplementation "com.google.code.gson:gson:${property('lib.gson')}"

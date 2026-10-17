@@ -153,7 +153,7 @@ public class RequestPayload extends Payload {
     }
     //
 
-    /**添加请求参数。*/
+    /** 按方法形参声明顺序追加参数，类型和值列表的相同下标必须对应同一参数。 */
     public void addParameter(String paramType, Object paramValue) {
         this.paramTypes.add(paramType);
         this.paramValues.add(paramValue);

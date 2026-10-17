@@ -10,7 +10,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -184,8 +183,12 @@ final class MetBindBuilder implements MetPublisher {
         public ConfigurationBuilder<T> contextPathByPrefix(String protocol, String defaultContextPath, String... additionalContextPaths) {
             Objects.requireNonNull(additionalContextPaths, "additionalPaths");
             List<String> paths = new ArrayList<>(additionalContextPaths.length + 1);
+            // 保持声明顺序；所选路径不含挂载默认目录时，出站使用首项。
             paths.add(defaultContextPath);
-            Collections.addAll(paths, additionalContextPaths);
+            for (String additionalPath : additionalContextPaths) {
+                paths.add(additionalPath);
+            }
+
             String protocolName = this.protocolSelector(protocol);
             ContextPath context = new ContextPath(paths, false);
             this.serviceDefine.getDomain().setBindContextPaths(protocolName, context);
@@ -196,8 +199,12 @@ final class MetBindBuilder implements MetPublisher {
         public ConfigurationBuilder<T> contextPathByExact(String protocol, String path, String... additionalPaths) {
             Objects.requireNonNull(additionalPaths, "additionalPaths");
             List<String> paths = new ArrayList<>(additionalPaths.length + 1);
+            // 首项用作出站默认精确地址，其余地址必须按声明顺序追加。
             paths.add(path);
-            Collections.addAll(paths, additionalPaths);
+            for (String additionalPath : additionalPaths) {
+                paths.add(additionalPath);
+            }
+
             String protocolName = this.protocolSelector(protocol);
             ContextPath context = new ContextPath(paths, true);
             this.serviceDefine.getDomain().setBindContextPaths(protocolName, context);
