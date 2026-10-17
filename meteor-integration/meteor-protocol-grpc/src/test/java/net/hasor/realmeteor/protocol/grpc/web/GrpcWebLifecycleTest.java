@@ -38,6 +38,8 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class GrpcWebLifecycleTest {
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     @Test(timeout = 20000)
     public void independentHttp2ClientMultiplexesCallsOnOneConnection() throws Exception {
         // 独立 HTTP/2 客户端复用连接；Meteor 服务端仍通过 bootstrap 发布普通 Java 接口。
@@ -54,8 +56,7 @@ public class GrpcWebLifecycleTest {
 
             // 先完成 h2c 协商，再在同一个 JDK 客户端上并发提交数据帧。
             HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_2).build();
-            ObjectMapper mapper = new ObjectMapper();
-            byte[] initial = mapper.writeValueAsBytes(Message.of("ready", 0));
+            byte[] initial = MAPPER.writeValueAsBytes(Message.of("ready", 0));
             URI uri = this.uri(server, "echo");
             HttpRequest first = this.post(uri, this.frame(0, initial));
             HttpResponse<byte[]> ready = http.send(first, HttpResponse.BodyHandlers.ofByteArray());
@@ -63,7 +64,7 @@ public class GrpcWebLifecycleTest {
             assertEquals(200, ready.statusCode());
             List<Future<HttpResponse<byte[]>>> pending = new ArrayList<>();
             for (int index = 0; index < 24; index++) {
-                byte[] message = mapper.writeValueAsBytes(Message.of("call-" + index, index));
+                byte[] message = MAPPER.writeValueAsBytes(Message.of("call-" + index, index));
                 HttpRequest request = this.post(uri, this.frame(0, message));
                 pending.add(http.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()));
             }
@@ -77,7 +78,7 @@ public class GrpcWebLifecycleTest {
                 assertEquals(0, Byte.toUnsignedInt(frames.get()));
                 byte[] message = new byte[frames.getInt()];
                 frames.get(message);
-                JsonNode value = mapper.readTree(message);
+                JsonNode value = MAPPER.readTree(message);
                 assertEquals("call-" + index, value.path("value").asText());
                 assertEquals(index, value.path("count").asInt());
                 assertEquals(0x80, Byte.toUnsignedInt(frames.get()));
@@ -152,7 +153,7 @@ public class GrpcWebLifecycleTest {
 
             // JSON 消息先经 JDK gzip 压缩，再放入压缩标记为 1 的 gRPC-Web 数据帧。
             String value = "gzip 中文".repeat(4096);
-            byte[] json = new ObjectMapper().writeValueAsBytes(Message.of(value, 7));
+            byte[] json = MAPPER.writeValueAsBytes(Message.of(value, 7));
             ByteArrayOutputStream compressed = new ByteArrayOutputStream();
             try (GZIPOutputStream gzip = new GZIPOutputStream(compressed)) {
                 gzip.write(json);
@@ -179,7 +180,7 @@ public class GrpcWebLifecycleTest {
             frames.get(encoded);
             assertTrue(encoded.length < json.length);
             try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(encoded))) {
-                JsonNode result = new ObjectMapper().readTree(gzip);
+                JsonNode result = MAPPER.readTree(gzip);
                 assertEquals(value, result.path("value").asText());
                 assertEquals(7, result.path("count").asInt());
             }
@@ -216,7 +217,7 @@ public class GrpcWebLifecycleTest {
             assertEquals(0, Byte.toUnsignedInt(frames.get()));
             byte[] message = new byte[frames.getInt()];
             frames.get(message);
-            JsonNode result = new ObjectMapper().readTree(message);
+            JsonNode result = MAPPER.readTree(message);
             assertEquals("h2c", result.path("value").asText());
             assertEquals(3, result.path("count").asInt());
             assertEquals(0x80, Byte.toUnsignedInt(frames.get()));

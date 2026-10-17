@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.protocol.soap.codec;
-
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 
 /** 属性中的二进制保留内联文本，不作为 MTOM 元素。 */

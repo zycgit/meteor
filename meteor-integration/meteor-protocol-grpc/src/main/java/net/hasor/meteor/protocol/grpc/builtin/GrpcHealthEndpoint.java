@@ -12,7 +12,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Flow;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.MetBindInfo;
@@ -22,10 +22,11 @@ import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 
 /** 状态来自 Context 的上线、下线及服务发布事件；未知服务的 Watch 保持订阅。 */
 final class GrpcHealthEndpoint implements GrpcHealthService {
-    private final    GrpcBuiltinServicesExtension services;
-    private final    Set<GrpcHealthSubscription>  watchers = ConcurrentHashMap.newKeySet();
-    private final    Cancellable                  events;
-    private volatile boolean                      closed;
+    private static final ObjectMapper                 MAPPER   = new ObjectMapper();
+    private final        GrpcBuiltinServicesExtension services;
+    private final        Set<GrpcHealthSubscription>  watchers = ConcurrentHashMap.newKeySet();
+    private final        Cancellable                  events;
+    private volatile     boolean                      closed;
 
     GrpcHealthEndpoint(GrpcBuiltinServicesExtension services, MetContext context) {
         this.services = services;
@@ -49,7 +50,7 @@ final class GrpcHealthEndpoint implements GrpcHealthService {
 
     @Override
     public JsonNode List(JsonNode request) {
-        ObjectNode result = JsonNodeFactory.instance.objectNode();
+        ObjectNode result = MAPPER.createObjectNode();
         ObjectNode statuses = result.putObject("statuses");
         this.statuses().forEach((name, status) -> statuses.set(name, GrpcHealthEndpoint.response(status)));
         return result;
@@ -107,6 +108,6 @@ final class GrpcHealthEndpoint implements GrpcHealthService {
     }
 
     static JsonNode response(String status) {
-        return JsonNodeFactory.instance.objectNode().put("status", status);
+        return MAPPER.createObjectNode().put("status", status);
     }
 }

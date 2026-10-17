@@ -16,13 +16,9 @@ import net.hasor.meteor.connector.ProtocolConfig;
 
 /** 解析 gRPC Service Config 的重试部分；策略留在插件，每次 RPC 仍占用原 Caller 的一个调用槽。 */
 final class GrpcClientRetryPolicy {
-    private static final List<String>                       CODES     = List.of(//
-            "OK", "CANCELLED", "UNKNOWN", "INVALID_ARGUMENT", "DEADLINE_EXCEEDED", "NOT_FOUND", //
-            "ALREADY_EXISTS", "PERMISSION_DENIED", "RESOURCE_EXHAUSTED", "FAILED_PRECONDITION", //
-            "ABORTED", "OUT_OF_RANGE", "UNIMPLEMENTED", "INTERNAL", "UNAVAILABLE", //
-            "DATA_LOSS", "UNAUTHENTICATED");
-    private static final GrpcRetryMethodPolicy              SINGLE    = new GrpcRetryMethodPolicy(//
-            1, false, 0, 0, 1, Set.of());
+    private static final ObjectMapper                       MAPPER;
+    private static final List<String>                       CODES;
+    private static final GrpcRetryMethodPolicy              SINGLE;
     private final        Map<String, GrpcRetryMethodPolicy> methods   = new HashMap<>();
     private final        Map<String, GrpcRetryThrottle>     throttles = new LinkedHashMap<>(16, 0.75f, true);
     private final        int                                bufferLimit;
@@ -30,23 +26,37 @@ final class GrpcClientRetryPolicy {
     private final        double                             maximumTokens;
     private final        double                             tokenRatio;
 
+    static {
+        MAPPER = new ObjectMapper();
+        CODES = List.of("OK", "CANCELLED", "UNKNOWN", "INVALID_ARGUMENT", //
+                "DEADLINE_EXCEEDED", "NOT_FOUND", "ALREADY_EXISTS",       //
+                "PERMISSION_DENIED", "RESOURCE_EXHAUSTED", "ABORTED",     //
+                "OUT_OF_RANGE", "UNIMPLEMENTED", "FAILED_PRECONDITION",   //
+                "INTERNAL", "UNAVAILABLE", "DATA_LOSS", "UNAUTHENTICATED");
+        SINGLE = new GrpcRetryMethodPolicy(//
+                1, false, 0, 0, 1, Set.of());
+    }
+
     GrpcClientRetryPolicy(ProtocolConfig config) {
         this.bufferLimit = config.integer("retryBufferSize", 256 * 1024);
         this.throttleCacheSize = config.integer("retryThrottleCacheSize", 1024);
         if (this.throttleCacheSize <= 0) {
             throw new IllegalArgumentException("retryThrottleCacheSize must be positive");
         }
+
         try {
-            JsonNode input = new ObjectMapper().readTree(config.option("serviceConfig", "{}"));
+            JsonNode input = MAPPER.readTree(config.option("serviceConfig", "{}"));
             if (input == null || !input.isObject()) {
                 throw new IllegalArgumentException("gRPC serviceConfig must be an object");
             }
+
             JsonNode throttle = input.path("retryThrottling");
             this.maximumTokens = throttle.isMissingNode() ? 0 : throttle.path("maxTokens").asDouble();
             this.tokenRatio = throttle.isMissingNode() ? 0 : throttle.path("tokenRatio").asDouble();
             if (!throttle.isMissingNode() && (this.maximumTokens <= 0 || this.tokenRatio <= 0)) {
                 throw new IllegalArgumentException("retryThrottling requires positive maxTokens and tokenRatio");
             }
+
             for (JsonNode method : input.path("methodConfig")) {
                 this.register(method);
             }
@@ -64,15 +74,18 @@ final class GrpcClientRetryPolicy {
         if (!retry && !hedge) {
             return;
         }
+
         if (retry && hedge) {
             throw new IllegalArgumentException("retryPolicy and hedgingPolicy are mutually exclusive");
         }
+
         JsonNode policy = config.get(retry ? "retryPolicy" : "hedgingPolicy");
         JsonNode attemptCount = policy.path("maxAttempts");
         int attempts = attemptCount.asInt();
         if (!attemptCount.isIntegralNumber() || !attemptCount.canConvertToInt() || attempts < 2) {
             throw new IllegalArgumentException("gRPC maxAttempts must be at least 2");
         }
+
         // 与标准客户端一致，将服务端配置的尝试上限限制为五次。
         attempts = Math.min(attempts, 5);
         long delay = duration(policy.path(hedge ? "hedgingDelay" : "initialBackoff").asText(hedge ? "0s" : ""));
@@ -81,11 +94,13 @@ final class GrpcClientRetryPolicy {
         if ((!hedge && (delay <= 0 || maximum <= 0)) || multiplier <= 0) {
             throw new IllegalArgumentException("gRPC backoff values must be positive");
         }
+
         Set<Integer> statuses = new HashSet<>();
         String statusField = hedge ? "nonFatalStatusCodes" : "retryableStatusCodes";
         if (policy.has(statusField) && !policy.path(statusField).isArray()) {
             throw new IllegalArgumentException(statusField + " must be an array");
         }
+
         for (JsonNode status : policy.path(statusField)) {
             int code;
             if (status.isIntegralNumber()) {
@@ -99,13 +114,16 @@ final class GrpcClientRetryPolicy {
             }
             statuses.add(code);
         }
+
         if (!hedge && statuses.isEmpty()) {
             throw new IllegalArgumentException("retryableStatusCodes must not be empty");
         }
+
         GrpcRetryMethodPolicy parsed = new GrpcRetryMethodPolicy(attempts, hedge, delay, maximum, multiplier, statuses);
         if (!config.path("name").isArray() || config.path("name").isEmpty()) {
             throw new IllegalArgumentException("gRPC methodConfig requires names");
         }
+
         for (JsonNode name : config.get("name")) {
             String service = name.path("service").asText("");
             String method = name.path("method").asText("");
@@ -123,6 +141,7 @@ final class GrpcClientRetryPolicy {
         if (path.length < 2) {
             return null;
         }
+
         String service = path[path.length - 2];
         String name = path[path.length - 1];
         GrpcRetryMethodPolicy policy = this.methods.get(service + "/" + name);
@@ -163,6 +182,7 @@ final class GrpcClientRetryPolicy {
         if (!text.matches("[0-9]+(?:\\.[0-9]{1,9})?s")) {
             throw new IllegalArgumentException("Invalid gRPC duration: " + text);
         }
+
         BigDecimal seconds = new BigDecimal(text.substring(0, text.length() - 1));
         // 定时器以毫秒调度，亚毫秒值向上取整，避免提前重试。
         return seconds.multiply(BigDecimal.valueOf(1000)).setScale(0, RoundingMode.CEILING).longValueExact();

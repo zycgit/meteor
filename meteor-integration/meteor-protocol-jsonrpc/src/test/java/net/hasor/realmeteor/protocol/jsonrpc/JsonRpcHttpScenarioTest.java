@@ -33,6 +33,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class JsonRpcHttpScenarioTest {
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     @Test(timeout = 15000)
     public void jsonRpcAndHproseShareOneHttpPortThroughContextRouting() throws Exception {
@@ -65,7 +66,7 @@ public class JsonRpcHttpScenarioTest {
                     .build();
             HttpResponse<String> jsonResponse = http.send(jsonRequest, HttpResponse.BodyHandlers.ofString());
             assertEquals(200, jsonResponse.statusCode());
-            String jsonResult = new ObjectMapper().readTree(jsonResponse.body()).path("result").asText();
+            String jsonResult = JSON.readTree(jsonResponse.body()).path("result").asText();
             assertEquals("jsonrpc", jsonResult);
 
             // Hprose 请求使用真实线协议报文，确认未被 JSON-RPC 分支接收。
@@ -283,7 +284,7 @@ public class JsonRpcHttpScenarioTest {
             // 验证 HTTP/2 已协商成功，且业务响应完整。
             assertEquals(HttpClient.Version.HTTP_2, response.version());
             assertEquals(200, response.statusCode());
-            assertEquals("h2c", new ObjectMapper().readTree(response.body()).path("result").asText());
+            assertEquals("h2c", JSON.readTree(response.body()).path("result").asText());
         }
     }
 

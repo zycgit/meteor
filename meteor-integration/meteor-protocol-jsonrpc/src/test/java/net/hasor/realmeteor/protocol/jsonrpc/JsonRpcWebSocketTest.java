@@ -31,6 +31,8 @@ import static org.junit.Assert.*;
 
 /** WebSocket 与 WSS 复用 HTTP 挂载，实际业务仍经过公开 Caller 和 Dispatcher。 */
 public class JsonRpcWebSocketTest {
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     @Test(timeout = 20000)
     public void http1UpgradeCarriesPublishedService() throws Exception {
         // 在 HTTP/1 端点上声明升级挂载，两端使用相同 context 与公开地址别名。
@@ -302,7 +304,7 @@ public class JsonRpcWebSocketTest {
             try {
                 String request = "{\"jsonrpc\":\"2.0\",\"method\":\"echo.echo\",\"params\":[\"JDK🙂\"],\"id\":\"peer\"}";
                 socket.sendText(request, true).get(5, TimeUnit.SECONDS);
-                JsonNode response = new ObjectMapper().readTree(peer.nextMessage());
+                JsonNode response = JSON.readTree(peer.nextMessage());
                 assertEquals("peer", response.path("id").asText());
                 assertEquals("JDK🙂", response.path("result").asText());
             } finally {

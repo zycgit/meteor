@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.*;
 import io.grpc.ForwardingServerCall.SimpleForwardingServerCall;
@@ -25,6 +26,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 abstract class GrpcMetadataPeer {
+    private static final   ObjectMapper         MAPPER  = new ObjectMapper().disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
     protected static final Metadata.Key<String> TEXT    = Metadata.Key.of("x-values", Metadata.ASCII_STRING_MARSHALLER);
     protected static final Metadata.Key<byte[]> BINARY  = //
             Metadata.Key.of("x-values-bin", Metadata.BINARY_BYTE_MARSHALLER);
@@ -188,11 +190,10 @@ abstract class GrpcMetadataPeer {
 
     protected static MethodDescriptor<Message, Message> method(String name, MethodDescriptor.MethodType type) {
         // 官方对端按 JSON 编码业务消息，不使用 Meteor 内部协议实现。
-        ObjectMapper mapper = new ObjectMapper();
         MethodDescriptor.Marshaller<Message> marshaller = new MethodDescriptor.Marshaller<>() {
             public InputStream stream(Message value) {
                 try {
-                    byte[] bytes = mapper.writeValueAsBytes(value);
+                    byte[] bytes = MAPPER.writeValueAsBytes(value);
                     return new ByteArrayInputStream(bytes);
                 } catch (Exception failure) {
                     throw new IllegalStateException(failure);
@@ -201,7 +202,7 @@ abstract class GrpcMetadataPeer {
 
             public Message parse(InputStream stream) {
                 try {
-                    return mapper.readValue(stream, Message.class);
+                    return MAPPER.readValue(stream, Message.class);
                 } catch (Exception failure) {
                     throw new IllegalStateException(failure);
                 }

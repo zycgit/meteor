@@ -24,7 +24,7 @@ import static org.junit.Assert.assertEquals;
 
 /** 服务的发布范围决定 Connect 在同一监听端口上的上下文可见性。 */
 public class ConnectContextScenarioTest {
-    private final ObjectMapper json = new ObjectMapper();
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     @Test(timeout = 15000)
     public void unspecifiedServiceContextUsesTheDefaultMount() throws Exception {
@@ -41,7 +41,7 @@ public class ConnectContextScenarioTest {
             int port = server.getListenAddress("connect").getPort();
             HttpResponse<String> response = this.echo(port, "/rpc");
             assertEquals(200, response.statusCode());
-            JsonNode reply = this.json.readTree(response.body());
+            JsonNode reply = JSON.readTree(response.body());
             assertEquals("context 中文", reply.path("text").asText());
             assertEquals(42, reply.path("number").asInt());
         }
@@ -63,7 +63,7 @@ public class ConnectContextScenarioTest {
             int port = server.getListenAddress("connect").getPort();
             HttpResponse<String> response = this.echo(port, "/private");
             assertEquals(501, response.statusCode());
-            assertEquals("unimplemented", this.json.readTree(response.body()).path("code").asText());
+            assertEquals("unimplemented", JSON.readTree(response.body()).path("code").asText());
             assertEquals(0, implementation.getCalls());
         }
     }
@@ -84,7 +84,7 @@ public class ConnectContextScenarioTest {
             int port = server.getListenAddress("connect").getPort();
             HttpResponse<String> response = this.echo(port, "/private");
             assertEquals(200, response.statusCode());
-            assertEquals(42, this.json.readTree(response.body()).path("number").asInt());
+            assertEquals(42, JSON.readTree(response.body()).path("number").asInt());
         }
     }
 
@@ -105,7 +105,7 @@ public class ConnectContextScenarioTest {
             int port = server.getListenAddress("connect").getPort();
             HttpResponse<String> response = this.echo(port, "/rpc");
             assertEquals(501, response.statusCode());
-            assertEquals("unimplemented", this.json.readTree(response.body()).path("code").asText());
+            assertEquals("unimplemented", JSON.readTree(response.body()).path("code").asText());
             assertEquals(0, implementation.getCalls());
         }
     }
@@ -150,7 +150,7 @@ public class ConnectContextScenarioTest {
             int port = server.getListenAddress("connect").getPort();
             HttpResponse<String> response = this.echo(port, "/rpc/private");
             assertEquals(200, response.statusCode());
-            assertEquals("context 中文", this.json.readTree(response.body()).path("text").asText());
+            assertEquals("context 中文", JSON.readTree(response.body()).path("text").asText());
         }
     }
 

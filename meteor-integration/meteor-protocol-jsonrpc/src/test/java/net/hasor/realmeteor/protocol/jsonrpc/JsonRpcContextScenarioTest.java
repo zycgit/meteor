@@ -23,8 +23,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class JsonRpcContextScenarioTest {
-    private final ObjectMapper mapper = new ObjectMapper();
-    private final HttpClient   http   = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private final        HttpClient   http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
 
     @Test(timeout = 15000)
     public void unspecifiedServiceContextUsesOnlyTheDefault() throws Exception {
@@ -52,11 +52,11 @@ public class JsonRpcContextScenarioTest {
                     """;
             HttpRequest selected = this.post(port, "/rpc", body);
             HttpResponse<String> accepted = this.http.send(selected, HttpResponse.BodyHandlers.ofString());
-            assertEquals("selected", this.mapper.readTree(accepted.body()).path("result").asText());
+            assertEquals("selected", JSON.readTree(accepted.body()).path("result").asText());
 
             HttpRequest other = this.post(port, "/private", body);
             HttpResponse<String> rejected = this.http.send(other, HttpResponse.BodyHandlers.ofString());
-            JsonNode denied = this.mapper.readTree(rejected.body());
+            JsonNode denied = JSON.readTree(rejected.body());
             assertTrue(denied.has("error"));
             assertEquals(1, calls.get());
         }
@@ -89,11 +89,11 @@ public class JsonRpcContextScenarioTest {
                     """;
             HttpRequest selected = this.post(port, "/private", body);
             HttpResponse<String> accepted = this.http.send(selected, HttpResponse.BodyHandlers.ofString());
-            assertEquals("selected", this.mapper.readTree(accepted.body()).path("result").asText());
+            assertEquals("selected", JSON.readTree(accepted.body()).path("result").asText());
 
             HttpRequest other = this.post(port, "/rpc", body);
             HttpResponse<String> rejected = this.http.send(other, HttpResponse.BodyHandlers.ofString());
-            JsonNode denied = this.mapper.readTree(rejected.body());
+            JsonNode denied = JSON.readTree(rejected.body());
             assertTrue(denied.has("error"));
             assertEquals(1, calls.get());
         }
@@ -118,11 +118,11 @@ public class JsonRpcContextScenarioTest {
                     """;
             HttpRequest defaultRequest = this.post(port, "/rpc", body);
             HttpResponse<String> defaults = this.http.send(defaultRequest, HttpResponse.BodyHandlers.ofString());
-            assertEquals("ready", this.mapper.readTree(defaults.body()).path("result").asText());
+            assertEquals("ready", JSON.readTree(defaults.body()).path("result").asText());
 
             HttpRequest extraRequest = this.post(port, "/private", body);
             HttpResponse<String> extra = this.http.send(extraRequest, HttpResponse.BodyHandlers.ofString());
-            assertEquals("ready", this.mapper.readTree(extra.body()).path("result").asText());
+            assertEquals("ready", JSON.readTree(extra.body()).path("result").asText());
         }
     }
 
@@ -146,7 +146,7 @@ public class JsonRpcContextScenarioTest {
                     """;
             HttpRequest request = this.post(port, "/calculator", body);
             HttpResponse<String> response = this.http.send(request, HttpResponse.BodyHandlers.ofString());
-            assertEquals(21, this.mapper.readTree(response.body()).path("result").asInt());
+            assertEquals(21, JSON.readTree(response.body()).path("result").asInt());
         }
     }
 

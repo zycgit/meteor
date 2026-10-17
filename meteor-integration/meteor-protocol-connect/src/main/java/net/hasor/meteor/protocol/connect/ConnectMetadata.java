@@ -15,12 +15,12 @@ import net.hasor.meteor.domain.OptionInfo;
 
 /** 单次 Connect 的元数据视图，以 JSON 选项保存多值字段并转换二进制值。 */
 public final class ConnectMetadata {
+    private static final ObjectMapper JSON         = new ObjectMapper();
     private static final String       HEADERS      = "connect-metadata-headers";
     private static final String       TRAILERS     = "connect-metadata-trailers";
     private static final Set<String>  HTTP_HEADERS = Set.of(//
             "content-type", "content-length", "content-encoding", "accept-encoding", "host", "connection", //
             "transfer-encoding", "te", "user-agent");
-    private static final ObjectMapper MAPPER       = new ObjectMapper();
     private static final JavaType     FIELDS       = fieldsType();
     private final        MetOptionSet options;
 
@@ -145,9 +145,9 @@ public final class ConnectMetadata {
     }
 
     private static JavaType fieldsType() {
-        JavaType keyType = MAPPER.getTypeFactory().constructType(String.class);
-        JavaType valueType = MAPPER.getTypeFactory().constructCollectionType(List.class, String.class);
-        return MAPPER.getTypeFactory().constructMapType(LinkedHashMap.class, keyType, valueType);
+        JavaType keyType = JSON.getTypeFactory().constructType(String.class);
+        JavaType valueType = JSON.getTypeFactory().constructCollectionType(List.class, String.class);
+        return JSON.getTypeFactory().constructMapType(LinkedHashMap.class, keyType, valueType);
     }
 
     private static Map<String, List<String>> parse(String value) {
@@ -156,7 +156,7 @@ public final class ConnectMetadata {
         }
 
         try {
-            Map<String, List<String>> fields = MAPPER.readValue(value, FIELDS);
+            Map<String, List<String>> fields = JSON.readValue(value, FIELDS);
             if (fields == null) {
                 throw new IllegalArgumentException("Connect metadata must be a JSON object");
             }
@@ -173,7 +173,7 @@ public final class ConnectMetadata {
 
     private static String format(Map<String, List<String>> value) {
         try {
-            return MAPPER.writeValueAsString(value);
+            return JSON.writeValueAsString(value);
         } catch (JsonProcessingException failure) {
             throw new IllegalArgumentException("Cannot encode Connect metadata option", failure);
         }

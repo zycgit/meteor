@@ -15,6 +15,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import hprose.io.HproseWriter;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -22,9 +23,14 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
 
 /** 编解码 Hprose 调用和响应的线协议正文。 */
 final class HproseWireCodec {
-    private static final ObjectMapper ERROR_MAPPER = new ObjectMapper() //
-            .setSerializationInclusion(JsonInclude.Include.NON_NULL) //
-            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+    private static final ObjectMapper ERROR_MAPPER;
+
+    static {
+        ERROR_MAPPER = JsonMapper.builder() //
+                .serializationInclusion(JsonInclude.Include.NON_NULL)   //
+                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS) //
+                .build();
+    }
 
     private HproseWireCodec() {
     }

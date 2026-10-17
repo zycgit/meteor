@@ -23,8 +23,8 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class JsonRpcWireScenarioTest {
-    private final ObjectMapper mapper = new ObjectMapper();
-    private final HttpClient   http   = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private final        HttpClient   http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
 
     @Test(timeout = 15000)
     public void positionalParametersCallTheJavaInterface() throws Exception {
@@ -44,7 +44,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals("2.0", result.path("jsonrpc").asText());
             assertEquals(2, result.path("result").asInt());
             assertEquals(1, result.path("id").asInt());
@@ -71,7 +71,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(2, result.path("result").asInt());
         }
     }
@@ -94,7 +94,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals("ready", result.path("result").asText());
         }
     }
@@ -117,7 +117,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertTrue(result.has("result"));
             assertTrue(result.path("result").isNull());
             assertFalse(result.has("error"));
@@ -142,7 +142,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals("external-42", result.path("id").asText());
         }
     }
@@ -165,7 +165,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals("123456789012345678901234567890", result.path("id").asText());
         }
     }
@@ -188,7 +188,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertTrue(result.has("id"));
             assertTrue(result.path("id").isNull());
             assertEquals("ready", result.path("result").asText());
@@ -213,7 +213,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(-32700, result.path("error").path("code").asInt());
             assertTrue(result.path("id").isNull());
         }
@@ -237,7 +237,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(-32600, result.path("error").path("code").asInt());
         }
     }
@@ -260,7 +260,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(-32600, result.path("error").path("code").asInt());
         }
     }
@@ -283,7 +283,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(-32600, result.path("error").path("code").asInt());
         }
     }
@@ -306,7 +306,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(-32601, result.path("error").path("code").asInt());
             assertEquals(11, result.path("id").asInt());
         }
@@ -330,7 +330,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(-32602, result.path("error").path("code").asInt());
         }
     }
@@ -354,7 +354,7 @@ public class JsonRpcWireScenarioTest {
             HttpResponse<String> response = this.http.send(this.post(port, body), HttpResponse.BodyHandlers.ofString());
 
             // 错误与结果互斥，外部 ID 仍能用于对应失败调用。
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(-32603, result.path("error").path("code").asInt());
             assertEquals("failed-call", result.path("id").asText());
             assertFalse(result.has("result"));
@@ -379,7 +379,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(-32602, result.path("error").path("code").asInt());
         }
     }
@@ -404,7 +404,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(-32602, result.path("error").path("code").asInt());
         }
     }
@@ -427,7 +427,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertTrue(result.isObject());
             assertEquals(-32600, result.path("error").path("code").asInt());
         }
@@ -451,7 +451,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertTrue(result.isArray());
             assertEquals(1, result.size());
             assertEquals("ready", result.get(0).path("result").asText());
@@ -476,7 +476,7 @@ public class JsonRpcWireScenarioTest {
 
             // 检查线上的响应结构与当前场景对应的结果。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(2, result.size());
             JsonNode error = result.get(0).has("error") ? result.get(0) : result.get(1);
             JsonNode success = result.get(0).has("result") ? result.get(0) : result.get(1);
@@ -580,7 +580,7 @@ public class JsonRpcWireScenarioTest {
 
             // 批次只有两个有 ID 的响应，通知仍然被正常执行。
             assertEquals(200, response.statusCode());
-            JsonNode result = this.mapper.readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals(2, result.size());
             int successes = 0;
             int failures = 0;

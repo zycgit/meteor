@@ -23,11 +23,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 /** 独立浏览器进程的所有者，启动、调用和关闭都有等待上限。 */
 final class GrpcWebBrowserProcess implements AutoCloseable {
-    private final Process               process;
-    private final Thread                reader;
-    private final BlockingQueue<String> lines  = new LinkedBlockingQueue<>();
-    private final StringBuffer          output = new StringBuffer();
-    private final ObjectMapper          json   = new ObjectMapper();
+    private static final ObjectMapper          MAPPER = new ObjectMapper();
+    private final        Process               process;
+    private final        Thread                reader;
+    private final        BlockingQueue<String> lines  = new LinkedBlockingQueue<>();
+    private final        StringBuffer          output = new StringBuffer();
 
     private GrpcWebBrowserProcess(Process process) {
         this.process = process;
@@ -54,13 +54,13 @@ final class GrpcWebBrowserProcess implements AutoCloseable {
 
     JsonNode invoke(String target, String scene) throws Exception {
         // 页面先准备独立 origin，Meteor 启动后再交付调用地址与单个场景。
-        String command = this.json.writeValueAsString(Map.of("target", target, "scene", scene)) + "\n";
+        String command = MAPPER.writeValueAsString(Map.of("target", target, "scene", scene)) + "\n";
         this.process.getOutputStream().write(command.getBytes(StandardCharsets.UTF_8));
         this.process.getOutputStream().flush();
         String result = this.awaitLine("RESULT ", 20);
 
         // 浏览器保持在线供调用方验证取消传播，最终由 close 负责释放并检查正常退出。
-        return this.json.readTree(result);
+        return MAPPER.readTree(result);
     }
 
     private String awaitLine(String prefix, int seconds) throws InterruptedException {

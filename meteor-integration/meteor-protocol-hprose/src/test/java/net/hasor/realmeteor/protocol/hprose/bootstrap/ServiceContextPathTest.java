@@ -32,6 +32,8 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 public class ServiceContextPathTest extends BootstrapTestSupport {
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+
     @Test
     public void implicitServiceUsesOnlyTheDefaultContext() throws Exception {
         // 接入点声明默认和附加挂载，服务不显式选择路径。
@@ -60,7 +62,7 @@ public class ServiceContextPathTest extends BootstrapTestSupport {
             HttpRequest deniedRequest = this.post(port, "/private", call);
             HttpResponse<byte[]> denied = http.send(deniedRequest, HttpResponse.BodyHandlers.ofByteArray());
             String error = this.readFrame(denied, 'E', String.class);
-            assertEquals(ProtocolStatus.Forbidden, new ObjectMapper().readTree(error).path("status").asInt());
+            assertEquals(ProtocolStatus.Forbidden, JSON_MAPPER.readTree(error).path("status").asInt());
             assertEquals(1, calls.get());
         }
     }
@@ -94,7 +96,7 @@ public class ServiceContextPathTest extends BootstrapTestSupport {
             HttpRequest deniedRequest = this.post(port, "/hprose", call);
             HttpResponse<byte[]> denied = http.send(deniedRequest, HttpResponse.BodyHandlers.ofByteArray());
             String error = this.readFrame(denied, 'E', String.class);
-            assertEquals(ProtocolStatus.Forbidden, new ObjectMapper().readTree(error).path("status").asInt());
+            assertEquals(ProtocolStatus.Forbidden, JSON_MAPPER.readTree(error).path("status").asInt());
             assertEquals(1, calls.get());
         }
     }
@@ -193,7 +195,7 @@ public class ServiceContextPathTest extends BootstrapTestSupport {
             HttpRequest nestedRequest = this.post(port, "/api/private/child", call);
             HttpResponse<byte[]> nested = http.send(nestedRequest, HttpResponse.BodyHandlers.ofByteArray());
             String error = this.readFrame(nested, 'E', String.class);
-            assertEquals(ProtocolStatus.Forbidden, new ObjectMapper().readTree(error).path("status").asInt());
+            assertEquals(ProtocolStatus.Forbidden, JSON_MAPPER.readTree(error).path("status").asInt());
             assertEquals(1, calls.get());
         }
     }

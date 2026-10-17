@@ -39,6 +39,8 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class JsonRpcSessionTest {
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     @Test
     public void factoryDeclaresHttpMessageTransport() {
         // 同一个 SPI 同时承载普通 HTTP 和升级后的 WebSocket，不按编码再造传输层。
@@ -232,7 +234,7 @@ public class JsonRpcSessionTest {
             session.prepareDrain();
             assertEquals(List.of(exchange), network.writes);
             assertTrue(unanswered.completion().isDone());
-            JsonNode body = new ObjectMapper().readTree(exchange.response().getResult().body());
+            JsonNode body = JSON.readTree(exchange.response().getResult().body());
             assertEquals("finished", body.get(0).get("result").asText());
             assertEquals(-32603, body.get(1).get("error").get("code").asInt());
 

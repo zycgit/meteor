@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.protocol.soap.codec;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /** 多 part 返回值的普通泛型 DTO 与显式属性方向样本。 */

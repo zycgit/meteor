@@ -14,20 +14,21 @@ import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.rpc.MetCaller;
 
 public final class InteropServiceImpl implements InteropService {
-    private final ExecutorService delivery;
+    private static final ObjectMapper    MAPPER = new ObjectMapper();
+    private final        ExecutorService delivery;
 
     public InteropServiceImpl(ExecutorService delivery) {
         this.delivery = delivery;
     }
 
     public JsonNode EmptyCall(JsonNode request) {
-        return JsonNodeFactory.instance.objectNode();
+        return MAPPER.createObjectNode();
     }
 
     public JsonNode UnaryCall(JsonNode request) {
@@ -51,7 +52,7 @@ public final class InteropServiceImpl implements InteropService {
 
         // 请求流完成后才返回汇总结果，不在订阅回调内等待。
         consuming.get(10, TimeUnit.SECONDS);
-        return JsonNodeFactory.instance.objectNode().put("aggregatedPayloadSize", size.get());
+        return MAPPER.createObjectNode().put("aggregatedPayloadSize", size.get());
     }
 
     public Flow.Publisher<JsonNode> StreamingOutputCall(JsonNode request) {
@@ -107,7 +108,7 @@ public final class InteropServiceImpl implements InteropService {
     }
 
     private JsonNode payload(int size) {
-        ObjectNode response = JsonNodeFactory.instance.objectNode();
+        ObjectNode response = MAPPER.createObjectNode();
         response.putObject("payload").put("body", new byte[size]);
         return response;
     }

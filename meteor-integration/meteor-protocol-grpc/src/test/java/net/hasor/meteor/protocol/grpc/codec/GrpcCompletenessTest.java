@@ -34,6 +34,8 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class GrpcCompletenessTest {
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     public interface Types {
         JsonNode roundTrip(JsonNode request);
 
@@ -373,8 +375,7 @@ public class GrpcCompletenessTest {
     public void protobufComplexTypesRoundTripWithIndependentDescriptors() throws Exception {
         // 加载含复杂类型的 proto，准备边界值和嵌套对象。
         GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/complex.proto"));
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode value = mapper.readTree("""
+        JsonNode value = MAPPER.readTree("""
                 {"signedValue":"-9223372036854775808","unsignedValue":"18446744073709551615",
                  "data":"AP8=","children":[{"name":"child"}],"entries":{"key":{"name":"entry"}},
                  "presentZero":0,"index":0,"kind":"FIRST",
@@ -420,8 +421,7 @@ public class GrpcCompletenessTest {
     public void absentOptionalAndOneofFieldsRemainAbsent() throws Exception {
         // 加载描述并注册使用 Protobuf 的订阅声明。
         GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/complex.proto"));
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode value = mapper.readTree("""
+        JsonNode value = MAPPER.readTree("""
                 {"signedValue":"-9223372036854775808","unsignedValue":"18446744073709551615",
                  "data":"AP8=","children":[{"name":"child"}],"entries":{"key":{"name":"entry"}},
                  "presentZero":0,"index":0,"kind":"FIRST",
@@ -445,12 +445,12 @@ public class GrpcCompletenessTest {
             request.setSerializeType("Protobuf");
             request.addParameter(JsonNode.class.getName(), value);
             // 未出现的 optional / oneof 保持未出现，空消息保留合法的零长度 Protobuf 正文。
-            request.getParameterValues().set(0, mapper.createObjectNode());
+            request.getParameterValues().set(0, MAPPER.createObjectNode());
             HttpRequest encoded = codec.encode(request);
             ByteArrayInputStream body = new ByteArrayInputStream(encoded.body());
             byte[] absent = codec.readMessage(body, null);
             Object decoded = codec.decodeValue(request, JsonNode.class, absent, true);
-            assertEquals(mapper.createObjectNode(), decoded);
+            assertEquals(MAPPER.createObjectNode(), decoded);
         }
     }
 
@@ -458,8 +458,7 @@ public class GrpcCompletenessTest {
     public void emptyProtobufMessageHasOnlyTheFrameHeader() throws Exception {
         // 加载描述并注册使用 Protobuf 的订阅声明。
         GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/complex.proto"));
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode value = mapper.readTree("""
+        JsonNode value = MAPPER.readTree("""
                 {"signedValue":"-9223372036854775808","unsignedValue":"18446744073709551615",
                  "data":"AP8=","children":[{"name":"child"}],"entries":{"key":{"name":"entry"}},
                  "presentZero":0,"index":0,"kind":"FIRST",
@@ -484,7 +483,7 @@ public class GrpcCompletenessTest {
             request.addParameter(JsonNode.class.getName(), value);
 
             // 切换为空消息方法，确认正文只包含五字节帧头。
-            request.getParameterValues().set(0, mapper.createObjectNode());
+            request.getParameterValues().set(0, MAPPER.createObjectNode());
             request.setTargetMethod("empty");
             byte[] empty = codec.encode(request).body();
             assertArrayEquals(new byte[5], empty);

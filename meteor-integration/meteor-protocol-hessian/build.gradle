@@ -1,12 +1,14 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
 }
 
+ext.pomName = 'Meteor Protocol Hessian'
 description = 'Hessian RPC over HTTP and HTTPS, with pluggable Hessian serialization'
 
 dependencies {
     api project(':meteor')
     implementation "com.caucho:hessian:${property('lib.hessian')}"
+
+    // for test
     testRuntimeOnly project(':meteor-protocol-hprose')
 }

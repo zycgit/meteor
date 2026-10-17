@@ -15,13 +15,17 @@ import net.hasor.meteor.domain.OptionInfo;
 
 /** 单次 gRPC 的元数据视图，以 JSON 选项保存多值字段并转换二进制值。 */
 public final class GrpcMetadata {
-    private static final String       HEADERS      = "grpc-metadata-headers";
-    private static final String       TRAILERS     = "grpc-metadata-trailers";
-    private static final Set<String>  HTTP_HEADERS = Set.of(//
-            "content-type", "content-length", "host", "connection", "transfer-encoding", "te", "user-agent");
-    private static final ObjectMapper MAPPER       = new ObjectMapper();
-    private static final JavaType     FIELDS       = fieldsType();
+    private static final ObjectMapper MAPPER   = new ObjectMapper();
+    private static final String       HEADERS  = "grpc-metadata-headers";
+    private static final String       TRAILERS = "grpc-metadata-trailers";
+    private static final Set<String>  HTTP_HEADERS;
+    private static final JavaType     FIELDS   = fieldsType();
     private final        MetOptionSet options;
+
+    static {
+        HTTP_HEADERS = Set.of("content-type", "content-length", "host",//
+                "connection", "transfer-encoding", "te", "user-agent");
+    }
 
     private GrpcMetadata(MetOptionSet options) {
         this.options = options;

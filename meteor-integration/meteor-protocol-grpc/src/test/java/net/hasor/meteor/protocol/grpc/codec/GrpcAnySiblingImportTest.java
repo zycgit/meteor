@@ -21,6 +21,8 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 public class GrpcAnySiblingImportTest {
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     public interface EnvelopeService {
         JsonNode exchange(JsonNode request);
     }
@@ -30,8 +32,7 @@ public class GrpcAnySiblingImportTest {
         // 入口同时导入服务与载荷，服务文件自身只依赖标准 Any 定义。
         URL source = this.getClass().getResource("/proto/any-sibling/aggregator.proto");
         GrpcProtoResource resource = new GrpcProtoResource(source);
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode value = mapper.readTree("""
+        JsonNode value = MAPPER.readTree("""
                 {"payload":{"@type":"type.googleapis.com/sibling_any.Payload","value":"sibling"}}
                 """);
         MetConfiguration configuration = new MetConfiguration();

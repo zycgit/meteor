@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.*;
@@ -38,6 +39,7 @@ import static org.junit.Assert.*;
 
 /** 使用独立官方服务端观察物理尝试，业务侧仍只有一次普通 Meteor 调用。 */
 public class GrpcClientRetryPolicyInteropTest {
+    private static final ObjectMapper         MAPPER   = new ObjectMapper().disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
     private static final Metadata.Key<String> PREVIOUS = //
             Metadata.Key.of("grpc-previous-rpc-attempts", Metadata.ASCII_STRING_MARSHALLER);
     private static final Metadata.Key<String> PUSHBACK = //
@@ -75,8 +77,7 @@ public class GrpcClientRetryPolicyInteropTest {
             context.start();
             var publication = context.publisher().rsfService(Echo.class, service);
             publication.aliasName("grpc", "test.Policy").serialize("Json").register();
-            ObjectMapper mapper = new ObjectMapper();
-            Map<String, ?> policy = mapper.readValue(RETRY, new TypeReference<>() {
+            Map<String, ?> policy = MAPPER.readValue(RETRY, new TypeReference<>() {
             });
             int port = context.getListenAddress("grpc").getPort();
             ManagedChannel channel = NettyChannelBuilder.forAddress("127.0.0.1", port) //
@@ -919,11 +920,10 @@ public class GrpcClientRetryPolicyInteropTest {
 
         private static MethodDescriptor.Marshaller<Message> marshaller() {
             // 对端独立使用 Jackson 编解码普通 Java 消息。
-            ObjectMapper mapper = new ObjectMapper();
             return new MethodDescriptor.Marshaller<>() {
                 public InputStream stream(Message value) {
                     try {
-                        byte[] bytes = mapper.writeValueAsBytes(value);
+                        byte[] bytes = MAPPER.writeValueAsBytes(value);
                         return new ByteArrayInputStream(bytes);
                     } catch (Exception failure) {
                         throw new IllegalStateException(failure);
@@ -932,7 +932,7 @@ public class GrpcClientRetryPolicyInteropTest {
 
                 public Message parse(InputStream input) {
                     try {
-                        return mapper.readValue(input, Message.class);
+                        return MAPPER.readValue(input, Message.class);
                     } catch (Exception failure) {
                         throw new IllegalArgumentException(failure);
                     }

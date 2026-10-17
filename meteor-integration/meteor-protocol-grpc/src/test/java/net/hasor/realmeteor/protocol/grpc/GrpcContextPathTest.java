@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.*;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
@@ -31,6 +32,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
 public class GrpcContextPathTest {
+    private static final ObjectMapper MAPPER = new ObjectMapper().disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
+
     @Test(timeout = 20000)
     public void serviceWithoutPathSelectionIsVisibleOnDefaultContext() throws Exception {
         // 协议拥有默认路径和额外路径，服务不声明路径选择。
@@ -333,11 +336,10 @@ public class GrpcContextPathTest {
 
     private MethodDescriptor<Message, Message> method(String name, MethodDescriptor.MethodType type) {
         // 官方对端独立编解码 JSON，不使用 Meteor 内部协议实现。
-        ObjectMapper mapper = new ObjectMapper();
         MethodDescriptor.Marshaller<Message> marshaller = new MethodDescriptor.Marshaller<>() {
             public InputStream stream(Message value) {
                 try {
-                    byte[] bytes = mapper.writeValueAsBytes(value);
+                    byte[] bytes = MAPPER.writeValueAsBytes(value);
                     return new ByteArrayInputStream(bytes);
                 } catch (Exception failure) {
                     throw new IllegalStateException(failure);
@@ -346,7 +348,7 @@ public class GrpcContextPathTest {
 
             public Message parse(InputStream stream) {
                 try {
-                    return mapper.readValue(stream, Message.class);
+                    return MAPPER.readValue(stream, Message.class);
                 } catch (Exception failure) {
                     throw new IllegalStateException(failure);
                 }

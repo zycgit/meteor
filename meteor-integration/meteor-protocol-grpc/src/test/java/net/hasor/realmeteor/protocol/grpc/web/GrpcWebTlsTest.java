@@ -18,12 +18,7 @@ import java.net.http.HttpTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Flow;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
@@ -47,6 +42,8 @@ import static org.junit.Assert.*;
 
 /** gRPC-Web 的二进制、文本和响应流通过 TLS 后保持协议与调用语义。 */
 public class GrpcWebTlsTest {
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     @Test(timeout = 20000)
     public void binaryJsonUnaryUsesHttpsHttp1() throws Exception {
         // 配置 HTTP/1、服务端证书认证与二进制 gRPC-Web 消息。
@@ -189,7 +186,7 @@ public class GrpcWebTlsTest {
             assertEquals(0, frames.get());
             byte[] payload = new byte[frames.getInt()];
             frames.get(payload);
-            JsonNode result = new ObjectMapper().readTree(payload);
+            JsonNode result = MAPPER.readTree(payload);
             assertEquals("alpn", result.path("value").asText());
             assertEquals(2, result.path("count").asInt());
             assertEquals(128, frames.get() & 0xff);

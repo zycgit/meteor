@@ -9,8 +9,8 @@ package net.hasor.meteor.protocol.grpc.builtin;
 import java.util.*;
 import java.util.concurrent.Flow;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
@@ -22,7 +22,8 @@ import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 
 /** 标准 v1 查询，仅暴露本实例实际发布且绑定 Protobuf 描述的服务。 */
 final class GrpcReflectionEndpoint implements GrpcReflectionService {
-    private final GrpcBuiltinServicesExtension services;
+    private static final ObjectMapper                 MAPPER = new ObjectMapper();
+    private final        GrpcBuiltinServicesExtension services;
 
     GrpcReflectionEndpoint(GrpcBuiltinServicesExtension services) {
         this.services = services;
@@ -54,7 +55,7 @@ final class GrpcReflectionEndpoint implements GrpcReflectionService {
     }
 
     private JsonNode respond(JsonNode request) {
-        ObjectNode response = JsonNodeFactory.instance.objectNode();
+        ObjectNode response = MAPPER.createObjectNode();
         response.put("validHost", request.path("host").asText(""));
         response.set("originalRequest", request);
         try {

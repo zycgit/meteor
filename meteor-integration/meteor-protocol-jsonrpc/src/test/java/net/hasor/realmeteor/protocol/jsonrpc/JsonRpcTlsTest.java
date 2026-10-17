@@ -36,6 +36,8 @@ import static org.junit.Assert.*;
 
 /** JSON-RPC 在 HTTP/2、TLS 和客户端证书认证下仍通过公开入口执行真实业务。 */
 public class JsonRpcTlsTest {
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     @Test(timeout = 20000)
     public void httpsHttp1UsesServerAuthentication() throws Exception {
         // 两端显式配置 HTTP/1 与测试 CA，传输参数通过正式 bootstrap 入口生效。
@@ -172,7 +174,7 @@ public class JsonRpcTlsTest {
                     .POST(HttpRequest.BodyPublishers.ofString(body)).build();
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             assertEquals(HttpClient.Version.HTTP_2, response.version());
-            JsonNode result = new ObjectMapper().readTree(response.body());
+            JsonNode result = JSON.readTree(response.body());
             assertEquals("alpn", result.path("result").asText());
         }
     }

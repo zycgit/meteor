@@ -1,13 +1,14 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
 }
 
+ext.pomName = 'Meteor Protocol JSON-RPC'
 description = 'JSON-RPC 2.0 protocol over HTTP and WebSocket'
 
 dependencies {
     api project(':meteor')
-    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+
+    // for test
     testRuntimeOnly project(':meteor-protocol-hprose')
 }
 
@@ -25,7 +26,7 @@ tasks.register('prepareJsonRpcPeer', Sync) {
 tasks.register('installJsonRpcPeer', Exec) {
     dependsOn 'prepareJsonRpcPeer'
     workingDir layout.buildDirectory.dir('jsonrpc-peer')
-    commandLine 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+    commandLine npmCommand, 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
     inputs.files('src/test/node/package.json', 'src/test/node/package-lock.json')
     outputs.dir layout.buildDirectory.dir('jsonrpc-peer/node_modules')
 }

@@ -1,19 +1,13 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
 }
 
+ext.pomName = 'Meteor Protocol Hprose'
 description = 'HTTP/Hprose protocol plugin and Hprose serialization'
 
 dependencies {
     api project(':meteor')
     implementation "org.hprose:hprose-java:${property('lib.hprose')}"
-    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
-}
-
-// Hprose bean decoding reflects into java.io on Java 17.
-tasks.named('test') {
-    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
 }
 
 // 官方 Node.js 对端仅用于跨语言互通，安装在构建目录，不进入插件产物。
@@ -25,7 +19,7 @@ tasks.register('prepareHprosePeer', Sync) {
 tasks.register('installHprosePeer', Exec) {
     dependsOn 'prepareHprosePeer'
     workingDir layout.buildDirectory.dir('hprose-peer')
-    commandLine 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+    commandLine npmCommand, 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
     inputs.files('src/test/node/package.json', 'src/test/node/package-lock.json')
     outputs.dir layout.buildDirectory.dir('hprose-peer/node_modules')
 }

@@ -40,6 +40,8 @@ import static org.junit.Assert.*;
 
 /** Connect 的 HTTP 版本、TLS 身份与协商结果通过公开启动和发布入口验证。 */
 public class ConnectSecureScenarioTest {
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     @Test(timeout = 20000)
     public void jsonUnaryUsesPlainHttp1() throws Exception {
         // JSON 单次调用使用 HTTP/1，客户端不监听端口。
@@ -340,7 +342,7 @@ public class ConnectSecureScenarioTest {
             // 实际响应版本证明完成升级，同时验证 JSON 业务结果。
             assertEquals(HttpClient.Version.HTTP_2, response.version());
             assertEquals(200, response.statusCode());
-            JsonNode message = new ObjectMapper().readTree(response.body());
+            JsonNode message = JSON.readTree(response.body());
             assertEquals("h2c", message.path("text").asText());
             assertEquals(8, message.path("number").asInt());
         }
@@ -366,7 +368,7 @@ public class ConnectSecureScenarioTest {
             // 不允许回退到 HTTP/1；协商结果与业务数据分别验证。
             assertEquals(HttpClient.Version.HTTP_2, response.version());
             assertEquals(200, response.statusCode());
-            JsonNode message = new ObjectMapper().readTree(response.body());
+            JsonNode message = JSON.readTree(response.body());
             assertEquals("alpn", message.path("text").asText());
             assertEquals(8, message.path("number").asInt());
         }
@@ -528,7 +530,7 @@ public class ConnectSecureScenarioTest {
             assertEquals(2, frames.get() & 0xff);
             byte[] endStream = new byte[frames.getInt()];
             frames.get(endStream);
-            JsonNode terminal = new ObjectMapper().readTree(endStream);
+            JsonNode terminal = JSON.readTree(endStream);
             assertEquals("unimplemented", terminal.path("error").path("code").asText());
             assertFalse(frames.hasRemaining());
         }

@@ -25,11 +25,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 /** 从固定镜像提取真实 Envoy，在独占进程中将 gRPC-Web 转发到本次测试的 gRPC 服务。 */
 final class EnvoyPeerProcess implements AutoCloseable {
-    private static final String  IMAGE = "envoyproxy/envoy@sha256:" //
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String       IMAGE  = "envoyproxy/envoy@sha256:" //
             + "08acc53db6f4ac46e77e36b203c5254b4a2549869314bb54cf97aab81baa4566";
-    private final        Path    directory;
-    private final        int     port;
-    private              Process process;
+    private final        Path         directory;
+    private final        int          port;
+    private              Process      process;
 
     EnvoyPeerProcess(int upstreamPort) throws Exception {
         this.directory = Files.createTempDirectory("meteor-grpc-web-envoy-");
@@ -85,7 +86,6 @@ final class EnvoyPeerProcess implements AutoCloseable {
         // 读取 Envoy 写出的动态管理地址，再查询已激活监听器，避免预占端口竞争。
         Path addressFile = this.directory.resolve("admin.address");
         HttpClient admin = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(1)).build();
-        ObjectMapper json = new ObjectMapper();
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
         IOException lastFailure = null;
         while (System.nanoTime() < deadline) {
@@ -102,7 +102,7 @@ final class EnvoyPeerProcess implements AutoCloseable {
                     URI listeners = URI.create("http://" + address + "/listeners?format=json");
                     HttpRequest request = HttpRequest.newBuilder(listeners).timeout(Duration.ofSeconds(1)).build();
                     var response = admin.send(request, HttpResponse.BodyHandlers.ofString());
-                    JsonNode statuses = json.readTree(response.body()).path("listener_statuses");
+                    JsonNode statuses = MAPPER.readTree(response.body()).path("listener_statuses");
                     for (JsonNode status : statuses) {
                         JsonNode socket = status.path("local_address").path("socket_address");
                         int listenerPort = socket.path("port_value").asInt();

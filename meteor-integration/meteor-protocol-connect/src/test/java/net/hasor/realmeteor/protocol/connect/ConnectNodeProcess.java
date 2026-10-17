@@ -21,10 +21,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 /** 独立官方 Connect Node 进程的所有者，协议行为由官方依赖实现。 */
 final class ConnectNodeProcess implements AutoCloseable {
-    private final Process               process;
-    private final Thread                reader;
-    private final BlockingQueue<String> lines  = new LinkedBlockingQueue<>();
-    private final StringBuffer          output = new StringBuffer();
+    private static final ObjectMapper          JSON   = new ObjectMapper();
+    private final        Process               process;
+    private final        Thread                reader;
+    private final        BlockingQueue<String> lines  = new LinkedBlockingQueue<>();
+    private final        StringBuffer          output = new StringBuffer();
 
     private ConnectNodeProcess(Process process) {
         this.process = process;
@@ -51,7 +52,7 @@ final class ConnectNodeProcess implements AutoCloseable {
 
     JsonNode awaitResult() throws Exception {
         String result = this.awaitLine("RESULT ");
-        return new ObjectMapper().readTree(result);
+        return JSON.readTree(result);
     }
 
     private String awaitLine(String prefix) throws InterruptedException {

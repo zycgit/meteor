@@ -29,8 +29,9 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class JsonRpcResponseTest {
-    private MetContext   context;
-    private JsonRpcCodec codec;
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private              MetContext   context;
+    private              JsonRpcCodec codec;
 
     @Before
     public void prepareConsumerMetadata() throws Exception {
@@ -411,7 +412,7 @@ public class JsonRpcResponseTest {
     }
 
     private JsonNode json(byte[] bytes) throws IOException {
-        return new ObjectMapper().readTree(bytes);
+        return JSON.readTree(bytes);
     }
 
     private byte[] bytes(String text) {

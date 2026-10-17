@@ -1,13 +1,14 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
 }
 
+ext.pomName = 'Meteor Protocol XML-RPC'
 description = 'XML-RPC protocol over HTTP and HTTPS'
 
 dependencies {
     api project(':meteor')
-    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+
+    // for test
     testRuntimeOnly project(':meteor-protocol-jsonrpc')
 }
 

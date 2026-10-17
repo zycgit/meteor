@@ -15,6 +15,8 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class GrpcMetadataTest {
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     @Test
     public void metadataRoundTripsThroughOrdinaryStringOptions() throws Exception {
         // 在普通选项上写入重复头部与二进制尾部。
@@ -27,7 +29,7 @@ public class GrpcMetadataTest {
 
         // 特殊选项使用普通 JSON 字符串，复制后不依赖原来的元数据对象。
         String json = source.getOption("grpc-metadata-headers");
-        JsonNode headers = new ObjectMapper().readTree(json);
+        JsonNode headers = MAPPER.readTree(json);
         assertEquals("first", headers.get("x-tag").get(0).asText());
         assertEquals("second", headers.get("x-tag").get(1).asText());
 

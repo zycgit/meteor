@@ -1,22 +1,21 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
 }
 
+ext.pomName = 'Meteor Protocol gRPC'
 description = 'gRPC and gRPC-Web protocol adapters for Meteor Java services'
 
 dependencies {
     api project(':meteor')
-    api 'com.google.protobuf:protobuf-java:3.25.9'
-    api "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
-    implementation 'com.squareup.wire:wire-schema-jvm:4.9.11'
-    implementation 'com.google.protobuf:protobuf-java-util:3.25.9'
+    api "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
+    implementation "com.squareup.wire:wire-schema-jvm:${property('lib.wire')}"
+    implementation "com.google.protobuf:protobuf-java-util:${property('lib.protobuf')}"
 
     // for test
-    testImplementation 'io.grpc:grpc-netty-shaded:1.84.1'
-    testImplementation 'io.grpc:grpc-stub:1.84.1'
-    testImplementation 'io.grpc:grpc-services:1.84.1'
-    testImplementation('io.grpc:grpc-interop-testing:1.84.1') {
+    testImplementation "io.grpc:grpc-netty-shaded:${property('lib.grpc')}"
+    testImplementation "io.grpc:grpc-stub:${property('lib.grpc')}"
+    testImplementation "io.grpc:grpc-services:${property('lib.grpc')}"
+    testImplementation("io.grpc:grpc-interop-testing:${property('lib.grpc')}") {
         // 互通场景不使用指标导出和 xDS CEL，避免这两项将 Protobuf 升级到不兼容的 4.x。
         exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-prometheus'
         exclude group: 'dev.cel'
@@ -24,11 +23,6 @@ dependencies {
     testImplementation project(':meteor-protocol-hprose')
     testRuntimeOnly project(':meteor-protocol-hessian')
     testImplementation "org.hprose:hprose-java:${property('lib.hprose')}"
-}
-
-// 同端口互通测试包含 Hprose bean 反序列化。
-tasks.named('test') {
-    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
 }
 
 // 官方 gRPC-Web 客户端与 Chromium 仅参与互通测试。
@@ -40,7 +34,7 @@ tasks.register('prepareGrpcWebPeer', Sync) {
 tasks.register('installGrpcWebPeer', Exec) {
     dependsOn 'prepareGrpcWebPeer'
     workingDir layout.buildDirectory.dir('grpcweb-peer')
-    commandLine 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+    commandLine npmCommand, 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
     inputs.files('src/test/node/grpcweb/package.json', 'src/test/node/grpcweb/package-lock.json')
     outputs.dir layout.buildDirectory.dir('grpcweb-peer/node_modules')
 }

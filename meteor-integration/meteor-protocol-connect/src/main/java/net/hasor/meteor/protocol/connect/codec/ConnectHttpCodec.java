@@ -6,8 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.connect.codec;
-import java.io.IOException;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URLEncoder;
@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.DescriptorProtos.MethodOptions.IdempotencyLevel;
 import com.google.protobuf.Descriptors.Descriptor;
@@ -33,8 +34,8 @@ import com.google.protobuf.util.JsonFormat;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetOptionSet;
 import net.hasor.meteor.MetMessage;
+import net.hasor.meteor.MetOptionSet;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
 import net.hasor.meteor.connector.RouteSelection;
@@ -51,18 +52,24 @@ import net.hasor.meteor.protocol.grpc.codec.GrpcMethodShape;
 
 /** Connect HTTP 信封及 Java/Protobuf 消息映射；不承担调用调度或连接生命周期。 */
 public final class ConnectHttpCodec {
-    private static final ObjectMapper                                    MAPPER      = new ObjectMapper() //
-            .setSerializationInclusion(JsonInclude.Include.NON_NULL) //
-            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION) //
-            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
-    private static final Set<String>                                     HTTP_FIELDS = Set.of( //
-            "content-type", "content-length", "content-encoding", //
-            "accept-encoding", "host", "connection", "transfer-encoding", "te", "user-agent", "message");
+    private static final ObjectMapper                                    MAPPER;
+    private static final Set<String>                                     HTTP_FIELDS;
     private final        ProtocolConfig                                  config;
     private final        MetContext                                      context;
     private final        ConnectFrameCodec                               frames;
     private final        String                                          compression;
-    private final        Map<GrpcProtoResource, JsonFormat.TypeRegistry> registries  = new WeakHashMap<>();
+    private final        Map<GrpcProtoResource, JsonFormat.TypeRegistry> registries = new WeakHashMap<>();
+
+    static {
+        MAPPER = JsonMapper.builder() //
+                .serializationInclusion(JsonInclude.Include.NON_NULL)   //
+                .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)  //
+                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS) //
+                .build();
+        HTTP_FIELDS = Set.of("content-type", "content-length", "host",  //
+                "message", "content-encoding", "accept-encoding", "te", //
+                "connection", "transfer-encoding", "user-agent");
+    }
 
     public ConnectHttpCodec(ProtocolConfig config, MetContext context) {
         this.config = config;

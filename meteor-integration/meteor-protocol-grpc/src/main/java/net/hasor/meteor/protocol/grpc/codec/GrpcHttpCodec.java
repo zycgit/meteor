@@ -16,6 +16,7 @@ import java.util.*;
 import java.util.concurrent.CancellationException;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.FileDescriptor;
 import com.google.protobuf.Descriptors.MethodDescriptor;
@@ -41,15 +42,18 @@ import net.hasor.meteor.serialize.SerializeCoder;
 
 /** 负责 Java 消息与标准 gRPC 报文之间的转换，调用仍交给 Caller/Dispatcher。 */
 public final class GrpcHttpCodec {
-    private static final ObjectMapper                                    MAPPER         = new ObjectMapper()//
-            .setSerializationInclusion(JsonInclude.Include.NON_NULL);
-    private static final Set<String>                                     HTTP_HEADERS   = Set.of(//
-            "content-type", "content-length", "host", "connection", "transfer-encoding", "te", "user-agent");
+    private static final ObjectMapper                                    MAPPER;
+    private static final Set<String>                                     HTTP_HEADERS;
     private final        ProtocolConfig                                  config;
     private final        MetContext                                      context;
     private final        GrpcFrameCodec                                  frames;
     private final        String                                          compression;
     private final        Map<GrpcProtoResource, JsonFormat.TypeRegistry> typeRegistries = new WeakHashMap<>();
+
+    static {
+        MAPPER = JsonMapper.builder().serializationInclusion(JsonInclude.Include.NON_NULL).build();
+        HTTP_HEADERS = Set.of("content-type", "content-length", "host", "connection", "transfer-encoding", "te", "user-agent");
+    }
 
     public GrpcHttpCodec(ProtocolConfig config, MetContext context) {
         this.config = config;

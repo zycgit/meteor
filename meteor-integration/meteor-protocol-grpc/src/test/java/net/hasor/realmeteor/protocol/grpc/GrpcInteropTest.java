@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
@@ -46,6 +47,7 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class GrpcInteropTest {
+    private static final ObjectMapper MAPPER = new ObjectMapper().disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
 
     @Test
     public void protobufAndHproseShareOneHttpPort() throws Exception {
@@ -633,7 +635,7 @@ public class GrpcInteropTest {
             public InputStream stream(Message value) {
                 try {
                     if (json) {
-                        byte[] jsonBytes = new ObjectMapper().writeValueAsBytes(value);
+                        byte[] jsonBytes = MAPPER.writeValueAsBytes(value);
                         return new ByteArrayInputStream(jsonBytes);
                     }
 
@@ -652,7 +654,7 @@ public class GrpcInteropTest {
             public Message parse(InputStream stream) {
                 try {
                     if (json) {
-                        return new ObjectMapper().readValue(stream, Message.class);
+                        return MAPPER.readValue(stream, Message.class);
                     }
 
                     // 未知 Protobuf 字段按标准规则跳过，不影响已知字段。
