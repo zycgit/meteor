@@ -30,6 +30,7 @@ import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.meteor.protocol.grpc.GrpcProtoSchema;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -263,7 +264,7 @@ public class GrpcHttpCodecTest {
         GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/echo.proto"));
 
         // 读取导入消息的描述，核对输入和输出字段编号。
-        var method = resource.method("example.Echo", "echo");
+        var method = GrpcProtoSchema.fromResource(resource).method("example.Echo", "echo");
         var inputField = method.getInputType().findFieldByName("value");
         var outputField = method.getOutputType().findFieldByName("count");
         assertEquals(7, inputField.getNumber());

@@ -5,8 +5,9 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.protocol.hprose;
+package net.hasor.example.protocol.soap;
 
-/** 一个 RPC 请求在 HTTP 批次中的位置。 */
-record HprosePendingRequest(HproseBatch batch, HproseCall call, int index) {
+/** 集合由带明确 XML 映射的普通 DTO 承载。 */
+public interface MetXmlCollectionService {
+    MetXmlCollections echo(MetXmlCollections value);
 }

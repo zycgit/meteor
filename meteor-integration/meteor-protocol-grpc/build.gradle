@@ -8,8 +8,8 @@ description = 'gRPC and gRPC-Web protocol adapters for Meteor Java services'
 dependencies {
     api project(':meteor')
     api "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
-    implementation "com.squareup.wire:wire-schema-jvm:${property('lib.wire')}"
-    implementation "com.google.protobuf:protobuf-java-util:${property('lib.protobuf')}"
+    api "com.squareup.wire:wire-schema-jvm:${property('lib.wire')}"
+    api "com.google.protobuf:protobuf-java-util:${property('lib.protobuf')}"
 
     // for test
     testImplementation "io.grpc:grpc-netty-shaded:${property('lib.grpc')}"
@@ -21,7 +21,7 @@ dependencies {
         exclude group: 'dev.cel'
     }
     testImplementation project(':meteor-protocol-hprose')
-    testRuntimeOnly project(':meteor-protocol-hessian')
+    testImplementation project(':meteor-protocol-hessian')
     testImplementation "org.hprose:hprose-java:${property('lib.hprose')}"
 }
 

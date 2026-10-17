@@ -15,6 +15,7 @@ import java.util.SortedMap;
 import javax.xml.namespace.QName;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
+import net.hasor.example.protocol.soap.codec.MetXmlEncodedValue;
 import net.hasor.example.protocol.soap.codec.ResultMappingValues.*;
 import net.hasor.meteor.protocol.soap.definition.SoapBody;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionAccess;
@@ -278,6 +279,52 @@ public class SoapResultMappingTest {
         // 修改返回数组不会影响后续调用看到的契约类型。
         types[0] = Integer.class;
         assertSame(String.class, mapper.types()[0]);
+    }
+
+    @Test
+    public void multipartSplitUsesAnnotatedQualifiedPropertyNames() {
+        // 两个字段 XML localName 相同，WSDL 消息 part 名称也独立于 Java 字段名。
+        SoapPart first = SoapDefinitionAccess.part("firstPart", new QName("urn:meteor:xml:first", "value"), null, 1, 1);
+        QName secondName = new QName("urn:meteor:xml:second", "value");
+        SoapPart second = SoapDefinitionAccess.part("secondPart", secondName, null, 1, 1);
+        SoapBody body = SoapDefinitionAccess.body(null, List.of(second, first), List.of(), "literal", null);
+        SoapResultMapping mapping = new SoapResultMapping(body, //
+                MetXmlEncodedValue.class, SoapMessageCodec.newXmlMapper());
+        MetXmlEncodedValue value = new MetXmlEncodedValue();
+        value.first = "first";
+        value.second = "second";
+
+        // 完整 QName 决定拆分位置，不依赖字段顺序或 Jackson localName 合并。
+        assertArrayEquals(new Object[] { "second", "first" }, mapping.split(value));
+    }
+
+    @Test
+    public void multipartJoinAssignsTheMatchingQualifiedProperties() {
+        // 多输出 part 按 QName 指向两个不同的 Java 属性。
+        SoapPart first = SoapDefinitionAccess.part("firstPart", new QName("urn:meteor:xml:first", "value"), null, 1, 1);
+        QName secondName = new QName("urn:meteor:xml:second", "value");
+        SoapPart second = SoapDefinitionAccess.part("secondPart", secondName, null, 1, 1);
+        SoapBody body = SoapDefinitionAccess.body(null, List.of(second, first), List.of(), "literal", null);
+        SoapResultMapping mapping = new SoapResultMapping(body, //
+                MetXmlEncodedValue.class, SoapMessageCodec.newXmlMapper());
+
+        // 值回到声明的属性，不能都写入同一个 localName 属性。
+        MetXmlEncodedValue result = (MetXmlEncodedValue) mapping.join(new Object[] { "second", "first" });
+        assertEquals("first", result.first);
+        assertEquals("second", result.second);
+    }
+
+    @Test
+    public void multipartLocalNameFallbackRejectsAmbiguousProperties() {
+        // 外部契约只提供相同 part 名，实际元素 QName 没有命中任意已声明字段。
+        SoapPart first = SoapDefinitionAccess.part("value", new QName("urn:unknown", "value"), null, 1, 1);
+        SoapPart second = SoapDefinitionAccess.part("next", new QName("", "next"), null, 1, 1);
+        SoapBody body = SoapDefinitionAccess.body(null, List.of(first, second), List.of(), "literal", null);
+
+        // 不能随机选择第一个同名字段，映射构建时明确拒绝歧义。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> new SoapResultMapping(body, MetXmlEncodedValue.class, SoapMessageCodec.newXmlMapper()));
+        assertEquals("Ambiguous SOAP output part property: value", failure.getMessage());
     }
 
     private SoapResultMapping mapper(Type resultType, String... names) {

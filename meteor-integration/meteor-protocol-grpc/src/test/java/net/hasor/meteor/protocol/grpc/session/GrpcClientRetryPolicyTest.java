@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.protocol.grpc.session;
 import java.util.Map;
+import io.grpc.Status;
 import net.hasor.meteor.connector.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -32,6 +33,70 @@ public class GrpcClientRetryPolicyTest {
         assertEquals(1, method.initialDelay());
         assertTrue(method.retryable(14));
         assertTrue(method.retryable(10));
+    }
+
+    @Test
+    public void failedPreconditionRetriesOnlyItsConfiguredStatus() {
+        // 应用明确允许在前置条件失败时重试。
+        String config = """
+                {"methodConfig":[{"name":[{}],"retryPolicy":{
+                  "maxAttempts":2,"initialBackoff":"1s","maxBackoff":"1s",
+                  "backoffMultiplier":1,"retryableStatusCodes":["FAILED_PRECONDITION"]
+                }}]}
+                """;
+        GrpcRetryMethodPolicy method = this.policy(config).method("/test.Service/echo");
+
+        // 官方状态值应被识别，未配置的未实现错误不能触发重试。
+        assertTrue(method.retryable(Status.FAILED_PRECONDITION.getCode().value()));
+        assertFalse(method.retryable(Status.UNIMPLEMENTED.getCode().value()));
+    }
+
+    @Test
+    public void abortedRetriesOnlyItsConfiguredStatus() {
+        // 应用明确允许在事务中止时重试。
+        String config = """
+                {"methodConfig":[{"name":[{}],"retryPolicy":{
+                  "maxAttempts":2,"initialBackoff":"1s","maxBackoff":"1s",
+                  "backoffMultiplier":1,"retryableStatusCodes":["ABORTED"]
+                }}]}
+                """;
+        GrpcRetryMethodPolicy method = this.policy(config).method("/test.Service/echo");
+
+        // 官方状态值应被识别，未配置的前置条件失败不能触发重试。
+        assertTrue(method.retryable(Status.ABORTED.getCode().value()));
+        assertFalse(method.retryable(Status.FAILED_PRECONDITION.getCode().value()));
+    }
+
+    @Test
+    public void outOfRangeRetriesOnlyItsConfiguredStatus() {
+        // 应用明确允许在数据范围变化后重试。
+        String config = """
+                {"methodConfig":[{"name":[{}],"retryPolicy":{
+                  "maxAttempts":2,"initialBackoff":"1s","maxBackoff":"1s",
+                  "backoffMultiplier":1,"retryableStatusCodes":["OUT_OF_RANGE"]
+                }}]}
+                """;
+        GrpcRetryMethodPolicy method = this.policy(config).method("/test.Service/echo");
+
+        // 官方状态值应被识别，未配置的事务中止不能触发重试。
+        assertTrue(method.retryable(Status.OUT_OF_RANGE.getCode().value()));
+        assertFalse(method.retryable(Status.ABORTED.getCode().value()));
+    }
+
+    @Test
+    public void unimplementedRetriesOnlyItsConfiguredStatus() {
+        // 应用明确允许在目标方法尚未实现时重试。
+        String config = """
+                {"methodConfig":[{"name":[{}],"retryPolicy":{
+                  "maxAttempts":2,"initialBackoff":"1s","maxBackoff":"1s",
+                  "backoffMultiplier":1,"retryableStatusCodes":["UNIMPLEMENTED"]
+                }}]}
+                """;
+        GrpcRetryMethodPolicy method = this.policy(config).method("/test.Service/echo");
+
+        // 官方状态值应被识别，未配置的范围错误不能触发重试。
+        assertTrue(method.retryable(Status.UNIMPLEMENTED.getCode().value()));
+        assertFalse(method.retryable(Status.OUT_OF_RANGE.getCode().value()));
     }
 
     @Test

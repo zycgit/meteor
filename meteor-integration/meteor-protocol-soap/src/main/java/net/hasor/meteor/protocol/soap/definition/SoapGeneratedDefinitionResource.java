@@ -8,8 +8,11 @@
 package net.hasor.meteor.protocol.soap.definition;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import javax.xml.XMLConstants;
@@ -25,21 +28,22 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetMessage;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.MetRuntimeUtils;
+import net.hasor.meteor.protocol.soap.annotation.MetXmlElement;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 /** 从已发布 Java 服务生成调用契约与 WSDL/XSD，不依赖调用方提供描述文件。 */
 final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
-    private static final String           WSDL_NAMESPACE = SoapWsdlParser.WSDL_NAMESPACE;
-    private static final String           XSD_NAMESPACE  = SoapWsdlParser.XSD_NAMESPACE;
-    private final        SoapDefinition   definition;
-    private final        Document         wsdl;
-    private final        byte[]           schema;
-    private final        String           style;
-    private final        String           use;
-    private final        boolean          bare;
-    private final        SoapSchemaParser schemas;
+    private static final String                WSDL_NAMESPACE = SoapWsdlParser.WSDL_NAMESPACE;
+    private static final String                XSD_NAMESPACE  = SoapWsdlParser.XSD_NAMESPACE;
+    private final        SoapDefinition        definition;
+    private final        Document              wsdl;
+    private final        Map<String, Document> schemaResources;
+    private final        String                style;
+    private final        String                use;
+    private final        boolean               bare;
+    private final        SoapSchemaParser      schemas;
 
     SoapGeneratedDefinitionResource(MetBindInfo<?> service, ProtocolConfig config) {
         SoapVersion version = SoapVersion.from(config);
@@ -85,9 +89,9 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
                 }
             }
             schemaGenerator.operation(method, oneWay);
-            SoapBody input = this.generatedBody(schemaGenerator.document(), namespace, name, false, version, wrappers);
+            SoapBody input = this.generatedBody(schemaGenerator, namespace, method, false, version, wrappers);
             SoapBody output = oneWay ? null //
-                    : this.generatedBody(schemaGenerator.document(), namespace, name, true, version, wrappers);
+                    : this.generatedBody(schemaGenerator, namespace, method, true, version, wrappers);
             String action = namespace + "/" + name;
             operations.add(new SoapOperation(name, action, this.style, input, output, true, //
                     List.of(), List.of(), Map.of()));
@@ -96,10 +100,14 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
             throw new IllegalArgumentException("SOAP service must declare at least one operation");
         }
         this.definition = new SoapDefinition(version, namespace, operations);
-        this.buildWsdl(alias, namespace, schemaGenerator.document());
+        this.buildWsdl(alias, namespace, schemaGenerator.documents());
         try {
-            this.schema = serialize(schemaGenerator.document());
-            this.schemas = SoapSchemaParser.generated(schemaGenerator.document());
+            Map<String, byte[]> documents = new LinkedHashMap<>();
+            for (Map.Entry<String, Document> document : schemaGenerator.documents().entrySet()) {
+                documents.put(document.getKey(), serialize(document.getValue()));
+            }
+            this.schemaResources = Collections.unmodifiableMap(schemaGenerator.documents());
+            this.schemas = SoapSchemaParser.generated(this.schemaResources, documents);
         } catch (IOException failure) {
             throw new IllegalStateException("Unable to generate SOAP schema", failure);
         }
@@ -126,16 +134,54 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         Document document = (Document) this.wsdl.cloneNode(true);
         String bindingNamespace = this.definition.version().bindingNamespace();
         Element address = (Element) document.getElementsByTagNameNS(bindingNamespace, "address").item(0);
-        address.setAttribute("location", endpoint.toASCIIString());
+        URI publishedEndpoint = this.endpoint(endpoint);
+        address.setAttribute("location", publishedEndpoint.toASCIIString());
+        this.rewriteSchemaLocations(document, publishedEndpoint);
         return serialize(document);
     }
 
     @Override
     public byte[] renderResource(String name, URI endpoint) throws IOException {
-        if (StringUtils.equals("types.xsd", name)) {
-            return this.schema.clone();
+        Document resource = this.schemaResources.get(name);
+        if (resource != null) {
+            Document document = (Document) resource.cloneNode(true);
+            this.rewriteSchemaLocations(document, this.endpoint(endpoint));
+            return serialize(document);
+        }
+        Set<String> standards = Set.of("xml-namespace.xsd", "soap-encoding-1.1.xsd", "soap-encoding-1.2.xsd");
+        if (standards.contains(name)) {
+            String resourceName = "/META-INF/meteor/protocol/soap/" + name;
+            try (InputStream input = SoapGeneratedDefinitionResource.class.getResourceAsStream(resourceName)) {
+                if (input == null) {
+                    throw new IOException("SOAP standard XML Schema is missing: " + name);
+                }
+                return input.readAllBytes();
+            }
         }
         return StringUtils.equals("service.wsdl", name) ? this.renderWsdl(endpoint) : null;
+    }
+
+    private URI endpoint(URI endpoint) throws IOException {
+        if (endpoint == null || !endpoint.isAbsolute() || endpoint.isOpaque()) {
+            throw new IOException("SOAP endpoint must be an absolute hierarchical URI.");
+        }
+        try {
+            return new URI(endpoint.getScheme(), endpoint.getAuthority(), endpoint.getPath(), null, null);
+        } catch (URISyntaxException failure) {
+            throw new IOException("Invalid SOAP endpoint: " + endpoint, failure);
+        }
+    }
+
+    private void rewriteSchemaLocations(Document document, URI endpoint) {
+        var imports = document.getElementsByTagNameNS(XSD_NAMESPACE, "import");
+        for (int index = 0; index < imports.getLength(); index++) {
+            Element imported = (Element) imports.item(index);
+            String location = imported.getAttribute("schemaLocation");
+            if (!location.isEmpty()) {
+                String encoded = URLEncoder.encode(location, StandardCharsets.UTF_8).replace("+", "%20");
+                imported.setAttribute("schemaLocation", endpoint.toASCIIString() + "?xsd=" + encoded);
+            }
+        }
     }
 
     private String option(ProtocolConfig config, String name, String defaultValue, Set<String> values) {
@@ -146,8 +192,10 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         return selected;
     }
 
-    private SoapBody generatedBody(Document schemaDocument, String namespace, String operation, boolean output, //
+    private SoapBody generatedBody(SoapSchemaGenerator generator, String namespace, Method method, boolean output, //
             SoapVersion version, Set<String> names) {
+        String operation = method.getName();
+        Document schemaDocument = generator.document();
         String wrapperName = output ? operation + "Response" : operation;
         Element schema = schemaDocument.getDocumentElement();
         Element wrapper = null;
@@ -169,27 +217,32 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
             if (!(node instanceof Element element)) {
                 continue;
             }
-            String name = element.getAttribute("name");
-            String typeName = element.getAttribute("type");
-            int separator = typeName.indexOf(':');
-            String prefix = separator < 0 ? null : typeName.substring(0, separator);
-            String local = separator < 0 ? typeName : typeName.substring(separator + 1);
-            QName type = new QName(element.lookupNamespaceURI(prefix), local);
-            QName valueName = new QName("", name);
+            QName valueName = generator.elementName(element);
+            QName type = generator.elementType(element);
+            String name = valueName.getLocalPart();
             if (this.bare) {
-                String globalName = output ? operation + "Result" : operation + "Arg" + parameter;
-                this.requireWrapper(names, globalName);
-                Element global = (Element) element.cloneNode(true);
-                global.setAttribute("name", globalName);
-                global.removeAttribute("minOccurs");
-                global.removeAttribute("maxOccurs");
-                schema.appendChild(global);
-                valueName = new QName(namespace, globalName);
+                MetXmlElement annotation;
+                if (output) {
+                    annotation = method.getAnnotation(MetXmlElement.class);
+                } else {
+                    annotation = method.getParameters()[parameter].getAnnotation(MetXmlElement.class);
+                }
+                boolean explicitName = false;
+                if (annotation != null) {
+                    explicitName = !annotation.name().isEmpty() || !annotation.namespace().isEmpty();
+                }
+                if (!explicitName) {
+                    String globalName = output ? operation + "Result" : operation + "Arg" + parameter;
+                    this.requireWrapper(names, globalName);
+                    valueName = new QName(namespace, globalName);
+                }
+                generator.promote(element, valueName);
                 if (StringUtils.equals("encoded", this.use)) {
-                    name = globalName;
+                    name = valueName.getLocalPart();
                 }
             }
-            parts.add(new SoapPart(name, valueName, type, 1, 1));
+            int minimum = StringUtils.equals("0", element.getAttribute("minOccurs")) ? 0 : 1;
+            parts.add(new SoapPart(name, valueName, type, minimum, 1));
             parameter++;
         }
         QName bodyWrapper = this.bare ? null : new QName(namespace, wrapperName);
@@ -210,7 +263,7 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         }
     }
 
-    private void buildWsdl(String alias, String namespace, Document schemaDocument) {
+    private void buildWsdl(String alias, String namespace, Map<String, Document> schemaDocuments) {
         String bindingNamespace = this.definition.version().bindingNamespace();
         Element definitions = this.wsdl.createElementNS(WSDL_NAMESPACE, "wsdl:definitions");
         this.wsdl.appendChild(definitions);
@@ -220,7 +273,19 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         definitions.setAttribute("name", alias);
         definitions.setAttribute("targetNamespace", namespace);
         Element types = SoapXmlUtils.append(definitions, WSDL_NAMESPACE, "wsdl:types");
-        types.appendChild(this.wsdl.importNode(schemaDocument.getDocumentElement(), true));
+        for (Document schemaDocument : schemaDocuments.values()) {
+            Element schema = (Element) this.wsdl.importNode(schemaDocument.getDocumentElement(), true);
+            // 所有生成的 Schema 一同内嵌，导入按 namespace 关联；外部资源仍保留相对文件名。
+            for (Node node = schema.getFirstChild(); node != null; node = node.getNextSibling()) {
+                if (node instanceof Element imported && StringUtils.equals("import", imported.getLocalName())) {
+                    // XML 标准属性引用随插件发布的原始 Schema，避免复制标准定义。
+                    if (!StringUtils.equals("xml-namespace.xsd", imported.getAttribute("schemaLocation"))) {
+                        imported.removeAttribute("schemaLocation");
+                    }
+                }
+            }
+            types.appendChild(schema);
+        }
 
         // WSDL message、portType 和 binding 共用生成的 operation 描述。
         for (SoapOperation operation : this.definition.operations()) {
@@ -278,12 +343,24 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
             part.setAttribute("name", value.name());
             boolean encodedType = body.encoded() && this.definition.version() == SoapVersion.SOAP_11;
             if (this.bare && !encodedType) {
-                part.setAttribute("element", "tns:" + value.element().getLocalPart());
+                part.setAttribute("element", this.qname(definitions, value.element()));
             } else {
-                String prefix = StringUtils.equals(XSD_NAMESPACE, value.type().getNamespaceURI()) ? "xsd:" : "tns:";
-                part.setAttribute("type", prefix + value.type().getLocalPart());
+                part.setAttribute("type", this.qname(definitions, value.type()));
             }
         }
+    }
+
+    private String qname(Element definitions, QName name) {
+        String namespace = name.getNamespaceURI();
+        if (namespace.isEmpty()) {
+            return name.getLocalPart();
+        }
+        String prefix = definitions.lookupPrefix(namespace);
+        if (prefix == null) {
+            prefix = "ns" + definitions.getAttributes().getLength();
+            definitions.setAttributeNS(XMLConstants.XMLNS_ATTRIBUTE_NS_URI, "xmlns:" + prefix, namespace);
+        }
+        return prefix + ":" + name.getLocalPart();
     }
 
     private void portMessage(Element operation, String direction, String message) {

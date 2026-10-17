@@ -9,7 +9,7 @@ dependencies {
     api project(':meteor')
 
     // for test
-    testRuntimeOnly project(':meteor-protocol-hprose')
+    testImplementation project(':meteor-protocol-hprose')
 }
 
 // 命名参数示例保留 Java 接口中的真实参数名。

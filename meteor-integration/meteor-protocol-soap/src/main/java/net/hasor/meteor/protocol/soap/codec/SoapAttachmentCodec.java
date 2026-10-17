@@ -313,6 +313,8 @@ final class SoapAttachmentCodec {
     private static Map<Element, Element> elementCopies(Document original, Document copy) {
         Map<Element, Element> result = new IdentityHashMap<>();
         Queue<Node[]> remaining = new ArrayDeque<>();
+
+        // 每对节点固定为 [0] 原节点、[1] 副本，出队时按此位置建立对应关系。
         remaining.add(new Node[] { original, copy });
         while (!remaining.isEmpty()) {
             Node[] pair = remaining.remove();
@@ -322,6 +324,7 @@ final class SoapAttachmentCodec {
             NodeList firstChildren = pair[0].getChildNodes();
             NodeList secondChildren = pair[1].getChildNodes();
             for (int index = 0; index < firstChildren.getLength(); index++) {
+                // 同一索引的子节点也按原节点、副本顺序入队，保持两棵树逐节点对齐。
                 remaining.add(new Node[] { firstChildren.item(index), secondChildren.item(index) });
             }
         }

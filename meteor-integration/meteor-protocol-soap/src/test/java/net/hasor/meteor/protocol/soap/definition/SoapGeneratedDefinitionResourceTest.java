@@ -267,15 +267,21 @@ public class SoapGeneratedDefinitionResourceTest {
     }
 
     @Test
-    public void customDtoPropertyNamespacesAreRejected() {
-        // DTO 字段自定义命名空间，超出当前单一 Schema 的属性模型。
+    public void customDtoPropertyNamespacesAreRetained() throws Exception {
+        // Jackson XML 字段的 namespace 与 Meteor 注解共用完整 QName 模型。
         ServiceDomain<NamespacedService> service = this.service(NamespacedService.class);
         ProtocolConfig config = ProtocolConfig.newConfig("soap", "soap", Map.of());
+        SoapGeneratedDefinitionResource resource = new SoapGeneratedDefinitionResource(service, config);
 
-        // 不能忽略字段命名空间而生成与实际 XML 不一致的定义。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
-                () -> new SoapGeneratedDefinitionResource(service, config));
-        assertTrue(failure.getMessage().contains("custom property namespaces are not supported"));
+        // 外部命名空间生成独立 Schema，参数内容按实际 QName 验证。
+        String input = "<Body><s:echo xmlns:s=\"urn:hasor:meteor:soap:GeneratedService\"" //
+                + " xmlns:p=\"urn:test:property\"><arg0><p:value>hello</p:value></arg0></s:echo></Body>";
+        DocumentBuilderFactory documents = DocumentBuilderFactory.newInstance();
+        documents.setNamespaceAware(true);
+        byte[] inputBytes = input.getBytes(StandardCharsets.UTF_8);
+        Document document = documents.newDocumentBuilder().parse(new ByteArrayInputStream(inputBytes));
+        resource.validateBody(document.getDocumentElement(), resource.definition().operation("echo").inputBody());
+        assertNotNull(resource.renderResource("types-1.xsd", ENDPOINT));
     }
 
     @Test
@@ -436,15 +442,20 @@ public class SoapGeneratedDefinitionResourceTest {
     }
 
     @Test
-    public void jsonPropertyNamespacesCannotBypassSchemaValidation() {
-        // JsonProperty 的 namespace 也会改变 Jackson XML 输出的属性命名空间。
+    public void jsonPropertyNamespacesAreRetained() throws Exception {
+        // JsonProperty namespace 保留为属性实际的 XML QName。
         ServiceDomain<JsonNamespacedService> service = this.service(JsonNamespacedService.class);
         ProtocolConfig config = ProtocolConfig.newConfig("soap", "soap", Map.of());
+        SoapGeneratedDefinitionResource resource = new SoapGeneratedDefinitionResource(service, config);
 
-        // 生成器应与 JacksonXmlProperty 使用相同限制，避免输出无法满足自身 XSD。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
-                () -> new SoapGeneratedDefinitionResource(service, config));
-        assertTrue(failure.getMessage().contains("custom property namespaces are not supported"));
+        // 生成契约接受带 namespace 的字段，不把它降为同名的无 namespace 字段。
+        String input = "<Body><s:echo xmlns:s=\"urn:hasor:meteor:soap:GeneratedService\"" //
+                + " xmlns:p=\"urn:test:property\"><arg0><p:value>hello</p:value></arg0></s:echo></Body>";
+        DocumentBuilderFactory documents = DocumentBuilderFactory.newInstance();
+        documents.setNamespaceAware(true);
+        byte[] inputBytes = input.getBytes(StandardCharsets.UTF_8);
+        Document document = documents.newDocumentBuilder().parse(new ByteArrayInputStream(inputBytes));
+        resource.validateBody(document.getDocumentElement(), resource.definition().operation("echo").inputBody());
     }
 
     private <T> ServiceDomain<T> service(Class<T> type) {

@@ -140,8 +140,11 @@ final class NacosGovernance implements AutoCloseable {
             return null;
         }
 
-        // 存储契约的版本由正文和显式开关共同生成，不向 XML 注入版本字段。
-        String version = RegistryJson.write(Arrays.asList(body, enabled));
+        // 版本摘要固定按 [正文, 显式开关] 编码，两项均允许为 null，不向 XML 注入版本字段。
+        List<Object> revisionValues = new ArrayList<>(2);
+        revisionValues.add(body);
+        revisionValues.add(enabled);
+        String version = RegistryJson.write(revisionValues);
         EntityRecord<EntRuleConfigurationData> result = new EntityRecord<>();
         result.setRevision(MD5.getMD5(version.getBytes(StandardCharsets.UTF_8)));
         EntRuleConfigurationData data = new EntRuleConfigurationData();

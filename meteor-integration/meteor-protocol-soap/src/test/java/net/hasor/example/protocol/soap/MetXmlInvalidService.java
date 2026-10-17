@@ -5,6 +5,9 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
+package net.hasor.example.protocol.soap;
 
-/** Web Services 协议身份、契约解析和发布校验单元测试。 */
-package net.hasor.meteor.protocol.soap.unit;
+/** 非法 DTO 映射应在服务发布时失败。 */
+public interface MetXmlInvalidService {
+    MetXmlConflictingValue echo(MetXmlConflictingValue value);
+}

@@ -33,7 +33,7 @@ import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 import org.xml.sax.helpers.DefaultHandler;
 
-/** 本地 WSDL 1.1 定义及其相对引用的 XSD/WSDL 资源。 */
+/** WSDL 1.1 定义及其受限的同源 XSD/WSDL 资源。 */
 public final class SoapWsdlResource extends SoapDefinitionResource {
     private static final int                          MAX_RESOURCE_BYTES = 2 * 1024 * 1024;
     private static final int                          MAX_TOTAL_BYTES    = 8 * 1024 * 1024;
@@ -144,8 +144,15 @@ public final class SoapWsdlResource extends SoapDefinitionResource {
         state.resources().put(name, resource);
 
         for (String location : this.importLocations(document)) {
-            String dependencyName = this.resolveName(name, location);
-            URL dependency = new URL(source, location);
+            URL dependency;
+            String dependencyName;
+            if (this.httpSource()) {
+                dependency = this.resolveHttpSource(source, location);
+                dependencyName = this.httpResourceName(dependency);
+            } else {
+                dependencyName = this.resolveName(name, location);
+                dependency = new URL(source, location);
+            }
             this.load(dependencyName, dependency, depth + 1, state);
         }
     }
@@ -157,6 +164,11 @@ public final class SoapWsdlResource extends SoapDefinitionResource {
         connection.setReadTimeout(5_000);
         if (connection instanceof HttpURLConnection http) {
             http.setInstanceFollowRedirects(false);
+            int status = http.getResponseCode();
+            if (status >= 300 && status < 400) {
+                http.disconnect();
+                throw new IOException("WSDL/XSD resource redirects are not allowed: " + source);
+            }
         }
 
         try (InputStream input = connection.getInputStream()) {
@@ -165,6 +177,10 @@ public final class SoapWsdlResource extends SoapDefinitionResource {
                 throw new IOException("WSDL/XSD resource exceeds 2 MiB: " + source);
             }
             return body;
+        } finally {
+            if (connection instanceof HttpURLConnection http) {
+                http.disconnect();
+            }
         }
     }
 
@@ -263,7 +279,9 @@ public final class SoapWsdlResource extends SoapDefinitionResource {
                 }
                 continue;
             }
-            this.validateRelativeLocation(location);
+            if (!this.httpSource()) {
+                this.validateRelativeLocation(location);
+            }
             locations.add(location);
         }
     }
@@ -334,11 +352,17 @@ public final class SoapWsdlResource extends SoapDefinitionResource {
         if (endpoint == null || !endpoint.isAbsolute() || endpoint.isOpaque()) {
             throw new IOException("SOAP endpoint must be an absolute hierarchical URI.");
         }
-        try {
-            return new URI(endpoint.getScheme(), endpoint.getRawAuthority(), endpoint.getRawPath(), null, null);
-        } catch (URISyntaxException failure) {
-            throw new IOException("Invalid SOAP endpoint: " + endpoint, failure);
+        // 保留已经转义的路径，只移除查询与片段，避免将 % 再编码成 %25。
+        String address = endpoint.toASCIIString();
+        int fragment = address.indexOf('#');
+        if (fragment >= 0) {
+            address = address.substring(0, fragment);
         }
+        int query = address.indexOf('?');
+        if (query >= 0) {
+            address = address.substring(0, query);
+        }
+        return URI.create(address);
     }
 
     private String entryName(URL source) throws IOException {
@@ -348,10 +372,15 @@ public final class SoapWsdlResource extends SoapDefinitionResource {
         if (name.isBlank()) {
             throw new IOException("WSDL URL must identify a file: " + source);
         }
-        return name;
+        String query = source.getQuery();
+        return this.httpSource() && query != null ? name + "?" + query : name;
     }
 
     private String resolveName(String currentName, String location) throws IOException {
+        if (this.httpSource()) {
+            URL current = new URL(this.wsdl, currentName);
+            return this.httpResourceName(this.resolveHttpSource(current, location));
+        }
         this.validateRelativeLocation(location);
         try {
             URI base = new URI(null, null, "/" + currentName, null);
@@ -370,6 +399,67 @@ public final class SoapWsdlResource extends SoapDefinitionResource {
         }
     }
 
+    private boolean httpSource() {
+        String protocol = this.wsdl.getProtocol();
+        return StringUtils.equalsIgnoreCase("http", protocol) || StringUtils.equalsIgnoreCase("https", protocol);
+    }
+
+    private URL resolveHttpSource(URL current, String location) throws IOException {
+        try {
+            URI reference = new URI(location);
+            String path = reference.getPath();
+            boolean invalid = reference.getRawFragment() != null || reference.getRawUserInfo() != null || path == null;
+            if (invalid) {
+                throw new IOException("Invalid same-origin WSDL/XSD import: " + location);
+            }
+            this.requireResourcePath(path, location);
+
+            // JDK 的 query-only resolve 会丢掉文件名；资源查询必须保留当前端点。
+            URI source = current.toURI();
+            URI resolved;
+            boolean queryOnly = !reference.isAbsolute() && reference.getRawAuthority() == null && path.isEmpty();
+            if (queryOnly && reference.getRawQuery() != null) {
+                String endpoint = source.toASCIIString();
+                int separator = endpoint.indexOf('?');
+                endpoint = separator < 0 ? endpoint : endpoint.substring(0, separator);
+                resolved = new URI(endpoint + "?" + reference.getRawQuery());
+            } else {
+                resolved = source.resolve(reference).normalize();
+            }
+            URL dependency = resolved.toURL();
+            this.requireSameOrigin(dependency);
+            return dependency;
+        } catch (URISyntaxException | IllegalArgumentException failure) {
+            throw new IOException("Invalid WSDL/XSD import location: " + location, failure);
+        }
+    }
+
+    private String httpResourceName(URL source) throws IOException {
+        String entryPath = this.wsdl.getPath();
+        String directory = entryPath.substring(0, entryPath.lastIndexOf('/') + 1);
+        String path = source.getPath();
+        if (!path.startsWith(directory)) {
+            throw new IOException("WSDL/XSD import escapes its resource root: " + source);
+        }
+        String name = path.substring(directory.length());
+        if (name.isBlank()) {
+            throw new IOException("WSDL/XSD import must identify a resource: " + source);
+        }
+        String query = source.getQuery();
+        return query == null ? name : name + "?" + query;
+    }
+
+    private void requireResourcePath(String path, String location) throws IOException {
+        if (path.indexOf('\\') >= 0) {
+            throw new IOException("WSDL/XSD import must use forward slashes: " + location);
+        }
+        for (String segment : path.split("/")) {
+            if (StringUtils.equals("..", segment)) {
+                throw new IOException("WSDL/XSD import escapes its resource root: " + location);
+            }
+        }
+    }
+
     private void validateRelativeLocation(String location) throws IOException {
         try {
             URI reference = new URI(location);
@@ -378,14 +468,7 @@ public final class SoapWsdlResource extends SoapDefinitionResource {
                     reference.getRawFragment() != null || path == null || path.startsWith("/")) {
                 throw new IOException("WSDL/XSD import must use a relative same-origin URL: " + location);
             }
-            if (path.indexOf('\\') >= 0) {
-                throw new IOException("WSDL/XSD import must use forward slashes: " + location);
-            }
-            for (String segment : path.split("/")) {
-                if (StringUtils.equals("..", segment)) {
-                    throw new IOException("WSDL/XSD import escapes its resource root: " + location);
-                }
-            }
+            this.requireResourcePath(path, location);
         } catch (URISyntaxException failure) {
             throw new IOException("Invalid WSDL/XSD import location: " + location, failure);
         }

@@ -13,6 +13,9 @@ import java.lang.reflect.Type;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ObjLongConsumer;
+import javax.xml.namespace.QName;
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetMessage;
@@ -27,12 +30,16 @@ import net.hasor.meteor.protocol.soap.codec.SoapMessageCodec;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionResource;
 import net.hasor.meteor.protocol.soap.definition.SoapOperation;
 import net.hasor.meteor.protocol.soap.definition.SoapPart;
+import net.hasor.meteor.protocol.soap.definition.SoapVersion;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlProperty;
 
 /** SOAP 1.1/1.2 协议入口及 Java 服务映射校验。 */
 public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
-    private final Map<ProtocolConfig, Map<MetBindInfo<?>, SoapDefinitionResource>> resources = //
-            new ConcurrentHashMap<>();
-    private final Map<ProtocolConfig, SoapMessageCodec>                            codecs    = new ConcurrentHashMap<>();
+    private final XmlMapper                                                        xmlMapper  = SoapXmlMapping.newMapper();
+    private final SoapXmlMapping                                                   xmlMapping = new SoapXmlMapping(this.xmlMapper);
+    private final Map<ProtocolConfig, Map<MetBindInfo<?>, SoapDefinitionResource>> resources  = new ConcurrentHashMap<>();
+    private final Map<ProtocolConfig, SoapMessageCodec>                            codecs     = new ConcurrentHashMap<>();
 
     @Override
     public String name() {
@@ -66,6 +73,8 @@ public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
         }
         this.validateDirectoryPath(config, service);
         SoapDefinitionResource resource = SoapDefinitionResource.create(config, service);
+        boolean externalDefinition = service.getBindResource() instanceof SoapDefinitionResource;
+        SoapVersion version = SoapVersion.from(config);
 
         // Java 方法和 WSDL operation 必须一一对应；重载无法映射到 SOAP operation 名称。
         Set<String> methods = new HashSet<>();
@@ -84,6 +93,10 @@ public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
                 throw new IllegalArgumentException(message);
             }
             this.requirePartTypes(operation.inputBody().parts(), method.getGenericParameterTypes(), method.getName());
+            if (externalDefinition) {
+                SoapVersion encoding = operation.inputBody().encoded() ? version : null;
+                this.requireXmlTypes(method.getGenericParameterTypes(), encoding);
+            }
             if (operation.oneWay() && method.getReturnType() != void.class) {
                 throw new IllegalArgumentException("SOAP one-way method must return void: " + method.getName());
             }
@@ -97,6 +110,10 @@ public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
                 Type[] resultTypes = SoapMessageCodec.resultTypes( //
                         operation.outputBody(), method.getGenericReturnType());
                 this.requirePartTypes(operation.outputBody().parts(), resultTypes, method.getName());
+                if (externalDefinition) {
+                    SoapVersion encoding = operation.outputBody().encoded() ? version : null;
+                    this.requireXmlTypes(resultTypes, encoding);
+                }
             }
             boolean messageMode = service.isMessage() || method.isAnnotationPresent(MetMessage.class);
             if (method.isAnnotationPresent(SoapGet.class)) {
@@ -121,6 +138,47 @@ public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
             }
         }
         this.cacheResource(config, service, resource);
+    }
+
+    private void requireXmlTypes(Type[] types, SoapVersion encodingVersion) {
+        // 自动生成契约时已遍历类型图；外部 WSDL 同样要在发布前发现嵌套 DTO 的映射错误。
+        Set<JavaType> visited = new HashSet<>();
+        for (Type type : types) {
+            this.requireXmlType(this.xmlMapper.constructType(type), encodingVersion, visited);
+        }
+    }
+
+    private void requireXmlType(JavaType type, SoapVersion encodingVersion, Set<JavaType> visited) {
+        if (SoapXmlMapping.isScalar(type) || !visited.add(type)) {
+            return;
+        }
+        if (SoapXmlMapping.isCollection(type)) {
+            JavaType content = type.getContentType();
+            if (content == null || content.hasRawClass(Object.class)) {
+                throw new IllegalArgumentException("SOAP collection elements require a concrete Java type");
+            }
+            if (encodingVersion == null && SoapXmlMapping.isCollection(content)) {
+                throw new IllegalArgumentException("Nested SOAP literal collections require an explicit DTO wrapper");
+            }
+            this.requireXmlType(content, encodingVersion, visited);
+            return;
+        }
+        for (SoapXmlProperty property : this.xmlMapping.type(type).getProperties()) {
+            boolean literalShape = property.isText() || property.getWrapper() != null;
+            if (encodingVersion != null && literalShape) {
+                throw new IllegalArgumentException("SOAP encoded values do not support XML text or element wrappers");
+            }
+            if (encodingVersion != null && property.isAttribute()) {
+                this.requireEncodedAttribute(property.getName(), encodingVersion);
+            }
+            this.requireXmlType(property.getJavaType(), encodingVersion, visited);
+        }
+    }
+
+    private void requireEncodedAttribute(QName name, SoapVersion version) {
+        if (version.isEncodingControlAttribute(name)) {
+            throw new IllegalArgumentException("SOAP encoded XML attribute is reserved: " + name);
+        }
     }
 
     private void validateAttachments(ProtocolConfig config) {

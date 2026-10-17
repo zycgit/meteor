@@ -52,6 +52,7 @@ public class RegistryAdminClientTest {
         MetConfiguration configuration = new MetConfiguration();
         configuration.connector("tcp").protocol("rsf").option("serializeType", "Json");
         configuration.addExtension(registryConfig);
+        configuration.setRequestOption("marker", "local");
 
         try (MetContext context = configuration.buildContext(); //
              StorageAccess storage = storageConfiguration.openStorage()) {
@@ -70,7 +71,6 @@ public class RegistryAdminClientTest {
             // 推送只上报当前本地状态，不把本地偏差重新改回注册中心的期望值。
             provider.setMetaData("marker", "local");
             consumer.setMetaData("marker", "local");
-            context.getSettings().getRequestOptions().addOption("marker", "local");
             client.pushSync().get(10, TimeUnit.SECONDS);
             assertEquals("local", provider.getMetaData("marker"));
             assertEquals("local", consumer.getMetaData("marker"));
@@ -130,6 +130,7 @@ public class RegistryAdminClientTest {
         MetConfiguration clientConfiguration = new MetConfiguration();
         clientConfiguration.connector("tcp").protocol("rsf").option("serializeType", "Json");
         clientConfiguration.addExtension(registryConfig);
+        clientConfiguration.setRequestOption("marker", "local");
 
         try (MetContext context = clientConfiguration.buildContext(); //
              StorageAccess storage = storageConfiguration.openStorage()) {
@@ -153,7 +154,6 @@ public class RegistryAdminClientTest {
             // 单服务推送不回写实例记录，也不删除另一个服务的成员关系。
             first.setMetaData("marker", "local");
             other.setMetaData("marker", "local");
-            context.getSettings().getRequestOptions().addOption("marker", "local");
             client.pushSync(first.getBindID()).get(10, TimeUnit.SECONDS);
             assertEquals("local", first.getMetaData("marker"));
             EntServiceRuntimeData afterPush = storage.getInstanceService(instanceId, otherId);

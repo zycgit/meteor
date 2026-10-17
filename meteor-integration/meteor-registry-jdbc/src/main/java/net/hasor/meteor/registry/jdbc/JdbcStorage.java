@@ -323,7 +323,10 @@ final class JdbcStorage implements StorageAccess {
     @Override
     public RecordPage<EntServiceRuntimeData> instanceServices(String instanceId, DirectoryQuery query) throws Exception {
         return this.transaction(jdbc -> {
-            List<Object> args = new ArrayList<>(List.of(key(instanceId), System.currentTimeMillis()));
+            // WHERE 依次绑定实例 ID 和租约时间，分页条件随后追加。
+            List<Object> args = new ArrayList<>();
+            args.add(key(instanceId));
+            args.add(System.currentTimeMillis());
             String sql = "SELECT r.service_id,r.body" + memberFrom() //
                     + " WHERE r.instance_id=? AND " + liveMember();
             return this.page(jdbc, sql, args, "r.service_id", query, EntServiceRuntimeData.class, SERVICE_COLUMNS);
@@ -346,7 +349,11 @@ final class JdbcStorage implements StorageAccess {
     public RecordPage<RefServiceRelationData> members(String serviceId, MetServiceType role, DirectoryQuery query) throws Exception {
         return this.transaction(jdbc -> {
             String memberRole = Objects.requireNonNull(role).name();
-            List<Object> args = new ArrayList<>(List.of(key(serviceId), memberRole, System.currentTimeMillis()));
+            // WHERE 依次绑定服务 ID、成员角色和租约时间，分页条件随后追加。
+            List<Object> args = new ArrayList<>();
+            args.add(key(serviceId));
+            args.add(memberRole);
+            args.add(System.currentTimeMillis());
             String sql = "SELECT r.instance_id,i.runtime_body,r.body" + memberFrom() //
                     + " JOIN meteor_applications a ON a.application_id=i.application_id" //
                     + " WHERE r.service_id=? AND r.member_role=? AND " + liveMember();
@@ -557,7 +564,11 @@ final class JdbcStorage implements StorageAccess {
         return this.transaction(jdbc -> {
             String instance = scopeKey(instanceId);
             String service = scopeKey(serviceId);
-            List<Object> ids = new ArrayList<>(List.of(instance, service, item));
+            // WHERE 依次绑定实例、服务和配置槽位，会话条件随后追加。
+            List<Object> ids = new ArrayList<>();
+            ids.add(instance);
+            ids.add(service);
+            ids.add(Objects.requireNonNull(item));
             String sql = "SELECT revision,body FROM meteor_governance WHERE instance_id=? AND service_id=? AND item_name=?";
             if (instanceId != null) {
                 String session = new JdbcRuleStore(instance, service).session(jdbc);
@@ -737,7 +748,10 @@ final class JdbcStorage implements StorageAccess {
         return this.watch(() -> this.transaction(jdbc -> {
             String sql = "SELECT item_name,revision FROM meteor_governance WHERE instance_id=? AND service_id=?" //
                     + " AND item_name NOT LIKE 'rule/%' AND body IS NOT NULL";
-            List<Object> args = new ArrayList<>(List.of(instance, service));
+            // WHERE 先绑定实例和服务，再追加临时配置的会话条件。
+            List<Object> args = new ArrayList<>();
+            args.add(instance);
+            args.add(service);
             if (instanceId != null) {
                 String session = rules.session(jdbc);
                 if (session == null) {
@@ -872,6 +886,7 @@ final class JdbcStorage implements StorageAccess {
             }
         }
         String revision = UUID.randomUUID().toString();
+        // UPDATE 先绑定 SET 中的附加列、revision 和 body，再绑定 WHERE 主键。
         List<Object> updateArgs = new ArrayList<>(Arrays.asList(values));
         updateArgs.add(revision);
         updateArgs.add(body);
@@ -887,6 +902,7 @@ final class JdbcStorage implements StorageAccess {
         }
 
         // 首次插入冲突在保存点回滚后重试 UPDATE；PG 的失败事务不能直接继续执行 SQL。
+        // INSERT 按列名顺序绑定主键、附加列、revision 和 body，与 UPDATE 的顺序不同。
         List<Object> insertArgs = new ArrayList<>(Arrays.asList(keys));
         insertArgs.addAll(Arrays.asList(values));
         insertArgs.add(revision);

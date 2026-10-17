@@ -1,13 +1,10 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
 }
 
+ext.pomName = 'Meteor Registry'
 description = 'Meteor registry storage, application client, and administration.'
 
 dependencies {
     api project(':meteor')
-    api "com.fasterxml.jackson.core:jackson-annotations:${property('lib.jackson')}"
-
-    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
 }

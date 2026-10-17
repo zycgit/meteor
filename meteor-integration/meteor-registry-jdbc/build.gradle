@@ -7,7 +7,7 @@ description = 'Meteor JDBC registry storage adapter.'
 
 dependencies {
     api project(':meteor-registry')
-    implementation "net.hasor:dbvisitor:${property('lib.dbvisitor')}"
+    api "net.hasor:dbvisitor:${property('lib.dbvisitor')}"
 
     // for test
     testImplementation "com.h2database:h2:${property('lib.h2')}"

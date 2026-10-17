@@ -1,16 +1,16 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
 }
 
+ext.pomName = 'Meteor Protocol SOAP'
 description = 'SOAP Web Services protocol adapter for ordinary Meteor Java services'
 
 dependencies {
     api project(':meteor')
-    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${property('lib.jackson')}"
-    implementation 'jakarta.mail:jakarta.mail-api:2.1.5'
-    implementation 'org.eclipse.angus:angus-mail:2.0.5'
+    api "jakarta.mail:jakarta.mail-api:${property('lib.jakarta.mail')}"
 
-    testImplementation 'com.sun.xml.ws:jaxws-rt:4.0.5'
-    testImplementation 'axis:axis:1.4'
+    // for test
+    testImplementation "org.eclipse.angus:angus-mail:${property('lib.angus.mail')}"
+    testImplementation "com.sun.xml.ws:jaxws-rt:${property('lib.jaxws')}"
+    testImplementation "axis:axis:${property('lib.axis')}"
 }

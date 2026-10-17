@@ -22,10 +22,7 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-import com.fasterxml.jackson.dataformat.xml.ser.ToXmlGenerator;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.connector.ProtocolConfig;
@@ -42,6 +39,7 @@ import net.hasor.meteor.protocol.soap.SoapFault;
 import net.hasor.meteor.protocol.soap.SoapGet;
 import net.hasor.meteor.protocol.soap.SoapHeaderHandler;
 import net.hasor.meteor.protocol.soap.definition.*;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import org.w3c.dom.*;
 import org.xml.sax.InputSource;
 
@@ -72,13 +70,7 @@ public final class SoapMessageCodec {
     }
 
     static XmlMapper newXmlMapper() {
-        return XmlMapper.builder() //
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES) //
-                .enable(ToXmlGenerator.Feature.WRITE_NULLS_AS_XSI_NIL) //
-                .enable(ToXmlGenerator.Feature.WRITE_XML_SCHEMA_CONFORMING_FLOATS) //
-                .enable(JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN) //
-                .defaultUseWrapper(false) //
-                .build();
+        return SoapXmlMapping.newMapper();
     }
 
     public SoapInboundResult receive(HttpRequest input, MetBindInfo<?> service, //
@@ -635,7 +627,14 @@ public final class SoapMessageCodec {
 
     private void validateFaultStructure(Element fault) {
         this.validateStructuralContent(fault);
-        List<String> order = List.of("Code", "Reason", "Node", "Role", "Detail");
+        // SOAP 1.2 Fault 子元素必须按 Code、Reason、Node、Role、Detail 排列，索引用于拒绝逆序。
+        List<String> order = new ArrayList<>();
+        order.add("Code");
+        order.add("Reason");
+        order.add("Node");
+        order.add("Role");
+        order.add("Detail");
+        order = List.copyOf(order);
         Set<String> names = new HashSet<>();
         int previous = -1;
         for (Element child : this.elements(fault)) {

@@ -19,6 +19,7 @@ import com.google.protobuf.Descriptors.ServiceDescriptor;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.meteor.protocol.grpc.GrpcProtoSchema;
 
 /** 标准 v1 查询，仅暴露本实例实际发布且绑定 Protobuf 描述的服务。 */
 final class GrpcReflectionEndpoint implements GrpcReflectionService {
@@ -119,7 +120,7 @@ final class GrpcReflectionEndpoint implements GrpcReflectionService {
                 continue;
             }
             String name = info.getAliasName("grpc");
-            ServiceDescriptor descriptor = resource.service(name);
+            ServiceDescriptor descriptor = GrpcProtoSchema.fromResource(resource).service(name);
             if (descriptor != null) {
                 result.put(name, descriptor);
             }

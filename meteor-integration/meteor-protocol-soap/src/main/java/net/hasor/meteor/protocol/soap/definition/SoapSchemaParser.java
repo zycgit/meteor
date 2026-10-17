@@ -6,10 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.soap.definition;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Reader;
+import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -20,7 +17,11 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Source;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
@@ -77,22 +78,27 @@ final class SoapSchemaParser {
         this.indexedViews = new IdentityHashMap<>();
 
         // 入口资源优先索引，使重复组件错误保持稳定。
-        this.indexResource(entry);
+        SoapXmlResource indexedEntry = this.resources.getOrDefault(entry.name(), entry);
+        this.indexResource(indexedEntry);
         for (SoapXmlResource resource : this.resources.values()) {
-            if (resource != entry) {
+            if (resource != indexedEntry) {
                 this.indexResource(resource);
             }
         }
-        this.validationSchema = this.compileSchema(entry);
+        this.validationSchema = this.compileSchema(indexedEntry);
     }
 
-    static SoapSchemaParser generated(Document schema) throws IOException {
-        if (schema == null) {
-            throw new IllegalArgumentException("Generated XML Schema is required.");
+    static SoapSchemaParser generated(Map<String, Document> schemas, Map<String, byte[]> bodies) throws IOException {
+        if (schemas.isEmpty()) {
+            throw new IllegalArgumentException("Generated XML Schemas are required.");
         }
-        URL source = URI.create("file:/meteor-generated-types.xsd").toURL();
-        SoapXmlResource resource = new SoapXmlResource("meteor-generated-types.xsd", source, new byte[0], schema);
-        return new SoapSchemaParser(List.of(resource), resource);
+        List<SoapXmlResource> resources = new ArrayList<>();
+        for (Map.Entry<String, Document> schema : schemas.entrySet()) {
+            String name = schema.getKey();
+            URL source = URI.create("file:/meteor-generated/" + name).toURL();
+            resources.add(new SoapXmlResource(name, source, bodies.get(name), schema.getValue()));
+        }
+        return new SoapSchemaParser(resources, resources.get(0));
     }
 
     boolean hasElement(QName elementName) {
@@ -175,6 +181,7 @@ final class SoapSchemaParser {
         SchemaComponent element = this.elements.get(payloadName);
         Element validationPayload = this.validationCopy(payload, element);
         this.validate(validationPayload, "SOAP part");
+        this.applyDefaults(payload, validationPayload);
     }
 
     private void validate(Element payload) throws IOException {
@@ -186,9 +193,34 @@ final class SoapSchemaParser {
             Validator validator = this.validationSchema.newValidator();
             validator.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
             validator.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-            validator.validate(new DOMSource(payload));
+            // 使用同一 DOM 作为结果，保留 Schema 注入的属性及空元素默认值供 Java 映射读取。
+            validator.validate(new DOMSource(payload), new DOMResult(payload));
         } catch (SAXException failure) {
             throw new IOException(description + " does not match its XML Schema: " + failure.getMessage(), failure);
+        }
+    }
+
+    private void applyDefaults(Element target, Element validated) {
+        // Header 在副本中移除了协议控制属性，只把新增的业务值带回原文档。
+        NamedNodeMap attributes = validated.getAttributes();
+        for (int index = 0; index < attributes.getLength(); index++) {
+            Attr attribute = (Attr) attributes.item(index);
+            String namespace = attribute.getNamespaceURI();
+            String localName = attribute.getLocalName();
+            if (!target.hasAttributeNS(namespace, localName)) {
+                target.setAttributeNS(namespace, attribute.getName(), attribute.getValue());
+            }
+        }
+        List<Element> originals = this.children(target, null, null);
+        List<Element> checked = this.children(validated, null, null);
+        if (originals.isEmpty()) {
+            if (target.getTextContent().isEmpty()) {
+                target.setTextContent(validated.getTextContent());
+            }
+            return;
+        }
+        for (int index = 0; index < originals.size(); index++) {
+            this.applyDefaults(originals.get(index), checked.get(index));
         }
     }
 
@@ -407,6 +439,15 @@ final class SoapSchemaParser {
             body = input.readAllBytes();
         }
         Document document = this.parseStandardSchema(source, body);
+
+        // 同一标准 Schema 可由 HTTP 定义页再次导入；仅原文字节相同的资源共享索引视图。
+        for (Map.Entry<String, SoapXmlResource> loaded : indexed.entrySet()) {
+            SoapXmlResource imported = loaded.getValue();
+            if (Arrays.equals(body, imported.body())) {
+                SoapXmlResource canonical = new SoapXmlResource(imported.name(), imported.source(), body, document);
+                loaded.setValue(canonical);
+            }
+        }
         SoapXmlResource resource = new SoapXmlResource(resourceName, source, body, document);
         if (indexed.putIfAbsent(resourceName, resource) != null) {
             throw new IOException("SOAP Encoding XML Schema resource name conflicts with WSDL input: " + resourceName);
@@ -576,11 +617,11 @@ final class SoapSchemaParser {
         }
 
         String location = this.requiredAttribute(reference, "schemaLocation", "XML Schema location");
-        String resourceName = this.resolveName(owner.resource().name(), location);
-        SoapXmlResource resource = this.resources.get(resourceName);
+        SoapXmlResource resource = this.referencedResource(owner.resource(), location);
         if (resource == null) {
-            throw new IOException("XML Schema resource was not loaded: " + resourceName);
+            throw new IOException("XML Schema resource was not loaded: " + location);
         }
+        String resourceName = resource.name();
 
         Element schema = resource.document().getDocumentElement();
         if (!this.isElement(schema, SoapWsdlParser.XSD_NAMESPACE, "schema")) {
@@ -601,6 +642,48 @@ final class SoapSchemaParser {
             throw new IOException("Imported XML Schema namespace does not match targetNamespace: " + resourceName);
         }
         return new SchemaView(resource, schema, declaredNamespace);
+    }
+
+    private SoapXmlResource referencedResource(SoapXmlResource owner, String location) throws IOException {
+        String protocol = owner.source().getProtocol();
+        boolean http = StringUtils.equalsIgnoreCase("http", protocol);
+        boolean https = StringUtils.equalsIgnoreCase("https", protocol);
+        if (!http && !https) {
+            return this.resources.get(this.resolveName(owner.name(), location));
+        }
+        try {
+            // HTTP 资源可能由同一路径的不同查询参数发布；以已加载的实际 URL 匹配。
+            URI resolved = resolveUri(owner.source().toURI(), new URI(location));
+            for (SoapXmlResource resource : this.resources.values()) {
+                if (resolved.equals(resource.source().toURI().normalize())) {
+                    return resource;
+                }
+            }
+            return null;
+        } catch (URISyntaxException failure) {
+            throw new IOException("Invalid XML Schema resource URL: " + location, failure);
+        }
+    }
+
+    private static URI resolveUri(URI owner, URI reference) {
+        boolean relative = !reference.isAbsolute() && reference.getRawAuthority() == null;
+        String path = reference.getRawPath();
+        boolean queryOnly = relative && path.isEmpty() && reference.getRawQuery() != null;
+        if (!queryOnly) {
+            return owner.resolve(reference).normalize();
+        }
+
+        // JDK URI.resolve 对 query-only 引用会删掉文件名；同端点挂载必须保留原路径。
+        String address = owner.toASCIIString();
+        int fragment = address.indexOf('#');
+        if (fragment >= 0) {
+            address = address.substring(0, fragment);
+        }
+        int query = address.indexOf('?');
+        if (query >= 0) {
+            address = address.substring(0, query);
+        }
+        return URI.create(address + "?" + reference.getRawQuery()).normalize();
     }
 
     private SoapXmlResource standardSchema(String namespace) {
@@ -1277,20 +1360,63 @@ final class SoapSchemaParser {
                 Element root = resource.document().getDocumentElement();
                 boolean schema = StringUtils.equals(SoapWsdlParser.XSD_NAMESPACE, root.getNamespaceURI()) && //
                         StringUtils.equals("schema", root.getLocalName());
-                if (!schema) {
+                if (schema) {
+                    this.indexNamespace(resource, ambiguousNamespaces);
                     continue;
                 }
-                String namespace = root.getAttribute("targetNamespace");
-                if (this.isStandard(resource.name(), namespace)) {
-                    this.standardResources.put(namespace, resource);
-                    continue;
-                }
-                if (this.namespaceResources.putIfAbsent(namespace, resource) != null) {
-                    ambiguousNamespaces.add(namespace);
+
+                // WSDL 的各内嵌 Schema 是独立 namespace 的入口，导入仍只解析已加载的文档。
+                NodeList inlineSchemas = root.getElementsByTagNameNS(SoapWsdlParser.XSD_NAMESPACE, "schema");
+                for (int index = 0; index < inlineSchemas.getLength(); index++) {
+                    Element inlineSchema = (Element) inlineSchemas.item(index);
+                    SoapXmlResource inline = this.inlineResource(resource, inlineSchema, index);
+                    this.indexNamespace(inline, ambiguousNamespaces);
                 }
             }
             for (String namespace : ambiguousNamespaces) {
                 this.namespaceResources.remove(namespace);
+            }
+        }
+
+        private void indexNamespace(SoapXmlResource resource, Set<String> ambiguousNamespaces) {
+            String namespace = resource.document().getDocumentElement().getAttribute("targetNamespace");
+            if (this.isStandard(resource.name(), namespace)) {
+                this.standardResources.put(namespace, resource);
+            } else if (this.namespaceResources.putIfAbsent(namespace, resource) != null) {
+                ambiguousNamespaces.add(namespace);
+            }
+        }
+
+        private SoapXmlResource inlineResource(SoapXmlResource resource, Element schema, int index) throws IOException {
+            Document document = SoapXmlUtils.newDocument();
+            Element copy = (Element) document.importNode(schema, true);
+            document.appendChild(copy);
+
+            // Schema 可以引用 WSDL 祖先节点声明的前缀；独立解析副本时补齐这些声明。
+            for (Node node = schema; node instanceof Element ancestor; node = node.getParentNode()) {
+                NamedNodeMap attributes = ancestor.getAttributes();
+                for (int attributeIndex = 0; attributeIndex < attributes.getLength(); attributeIndex++) {
+                    Attr attribute = (Attr) attributes.item(attributeIndex);
+                    String attributeNamespace = attribute.getNamespaceURI();
+                    String localName = attribute.getLocalName();
+                    boolean namespace = StringUtils.equals(XMLConstants.XMLNS_ATTRIBUTE_NS_URI, attributeNamespace);
+                    if (namespace && !copy.hasAttributeNS(XMLConstants.XMLNS_ATTRIBUTE_NS_URI, localName)) {
+                        String attributeName = attribute.getName();
+                        copy.setAttributeNS(XMLConstants.XMLNS_ATTRIBUTE_NS_URI, attributeName, attribute.getValue());
+                    }
+                }
+            }
+            try {
+                TransformerFactory factory = TransformerFactory.newInstance();
+                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+                factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+                factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                factory.newTransformer().transform(new DOMSource(document), new StreamResult(bytes));
+                URL source = new URL(resource.source().toExternalForm() + "#schema-" + index);
+                return new SoapXmlResource(resource.name() + "#schema-" + index, source, bytes.toByteArray(), document);
+            } catch (TransformerException failure) {
+                throw new IOException("Unable to prepare inline XML Schema: " + resource.name(), failure);
             }
         }
 
@@ -1306,7 +1432,7 @@ final class SoapSchemaParser {
             } else if (StringUtils.isNotBlank(systemId)) {
                 try {
                     URI reference = new URI(systemId);
-                    URI resolved = StringUtils.isBlank(baseUri) ? reference : new URI(baseUri).resolve(reference);
+                    URI resolved = StringUtils.isBlank(baseUri) ? reference : resolveUri(new URI(baseUri), reference);
                     resource = this.systemResources.get(resolved.normalize().toString());
                 } catch (URISyntaxException ignored) {
                     return null;

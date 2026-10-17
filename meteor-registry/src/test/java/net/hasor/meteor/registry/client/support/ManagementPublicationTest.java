@@ -228,9 +228,7 @@ public class ManagementPublicationTest {
                 Map.of(), List.of(ordersB), true);
         InterAddress listenA = new InterAddress("http", "0.0.0.0", 8100, "default");
         InterAddress listenB = new InterAddress("http", "0.0.0.0", 8200, "default");
-        List<MetListenEndpoint> listenEndpoints = List.of(//
-                new MetListenEndpoint("edge-a", "http", ordersA.name(), edgeA.address(), listenA), new MetListenEndpoint("edge-a", "http", adminA.name(), edgeA.address(), listenA), new MetListenEndpoint("edge-b", "http", ordersB.name(), edgeB.address(), listenB));
-        AtomicInteger endpointQueries = new AtomicInteger();
+        AtomicInteger addressQueries = new AtomicInteger();
         MetConfiguration application = new MetConfiguration();
         application.connector("tcp").protocol("rsf");
 
@@ -254,9 +252,10 @@ public class ManagementPublicationTest {
                 if (StringUtils.equals(method.getName(), "isOnline")) {
                     return true;
                 }
-                if (StringUtils.equals(method.getName(), "getListenEndpoints")) {
-                    endpointQueries.incrementAndGet();
-                    return listenEndpoints;
+                if (StringUtils.equals(method.getName(), "getListenAddress") && args.length == 3) {
+                    addressQueries.incrementAndGet();
+                    String connectorName = (String) args[0];
+                    return StringUtils.equals("edge-a", connectorName) ? listenA : listenB;
                 }
                 try {
                     return method.invoke(context, args);
@@ -268,9 +267,9 @@ public class ManagementPublicationTest {
             ManagementRPCImpl rpc = new ManagementRPCImpl(observed, "127.0.0.1");
             String serviceId = context.publisher().rsfService(Echo.class, value -> value).register().getBindID();
 
-            // 完整快照复用结构化监听信息，实例按 connector#scheme 去重，服务保留每个逻辑挂载。
+            // 完整快照按公开配置身份查询地址，实例按 connector#scheme 去重，服务保留每个逻辑挂载。
             RegistrationSnapshot snapshot = rpc.snapshot(null);
-            assertEquals(2, endpointQueries.get());
+            assertEquals(6, addressQueries.get());
             assertEquals(Map.of("edge-a#http", listenA.toString(), "edge-b#http", listenB.toString()), //
                     snapshot.getInstance().getListenAddresses());
             String publishedA = new InterAddress("http", "127.0.0.1", 8100, "default").toString();
@@ -385,6 +384,7 @@ public class ManagementPublicationTest {
         MetConfiguration application = new MetConfiguration();
         application.connector("tcp").protocol("rsf");
         application.addExtension(registry);
+        application.setRequestOption("owner", "local");
 
         try (MetContext context = application.buildContext(); //
              StorageAccess storage = storageConfiguration.openStorage()) {
@@ -422,7 +422,6 @@ public class ManagementPublicationTest {
             assertTrue(failure.getCause() instanceof IllegalArgumentException);
 
             // 修复规则后重新拉取成功，应用本地默认选项保持原值。
-            context.getSettings().getRequestOptions().addOption("owner", "local");
             storage.deleteRule(null, id, RuleKind.SERVICE_ROUTE, storage.getRule(null, id, RuleKind.SERVICE_ROUTE).getRevision());
             client.pullSync().get(5, TimeUnit.SECONDS);
             assertEquals("local", context.getSettings().getRequestOptions().getOption("owner"));

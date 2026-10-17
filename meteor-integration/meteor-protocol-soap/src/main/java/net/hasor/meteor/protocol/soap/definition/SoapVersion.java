@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.soap.definition;
+import java.util.Set;
+import javax.xml.XMLConstants;
+import javax.xml.namespace.QName;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.connector.ProtocolConfig;
 
@@ -56,6 +59,22 @@ public enum SoapVersion {
 
     public String contentType() {
         return this.contentType;
+    }
+
+    /** 判断 Encoding 节点使用的控制属性，业务映射不得覆盖这些 QName。 */
+    public boolean isEncodingControlAttribute(QName name) {
+        String namespace = name.getNamespaceURI();
+        String local = name.getLocalPart();
+        boolean legacyGraph = this == SOAP_11 && namespace.isEmpty() && Set.of("id", "href").contains(local);
+        String encoding = this == SOAP_11 //
+                ? "http://schemas.xmlsoap.org/soap/encoding/" : "http://www.w3.org/2003/05/soap-encoding";
+        boolean encodingControl = StringUtils.equals(namespace, encoding);
+        boolean xsiControl = StringUtils.equals(namespace, XMLConstants.W3C_XML_SCHEMA_INSTANCE_NS_URI) //
+                && Set.of("type", "nil", "null").contains(local);
+        boolean envelopeControl = StringUtils.equals(namespace, this.namespace) //
+                && StringUtils.equals(local, "encodingStyle");
+        boolean namespaceDeclaration = StringUtils.equals(namespace, XMLConstants.XMLNS_ATTRIBUTE_NS_URI);
+        return legacyGraph || encodingControl || xsiControl || envelopeControl || namespaceDeclaration;
     }
 
     public String clientFaultCode() {

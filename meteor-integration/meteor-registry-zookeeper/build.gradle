@@ -7,7 +7,7 @@ description = 'Meteor zookeeper registry adapter.'
 
 dependencies {
     api project(':meteor-registry')
-    implementation "org.apache.curator:curator-recipes:${property('lib.curator')}"
+    api "org.apache.curator:curator-recipes:${property('lib.curator')}"
 
     // for test
     testImplementation "org.apache.curator:curator-test:${property('lib.curator')}"

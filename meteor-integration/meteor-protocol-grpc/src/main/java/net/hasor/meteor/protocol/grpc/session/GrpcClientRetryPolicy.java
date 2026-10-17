@@ -28,11 +28,26 @@ final class GrpcClientRetryPolicy {
 
     static {
         MAPPER = new ObjectMapper();
-        CODES = List.of("OK", "CANCELLED", "UNKNOWN", "INVALID_ARGUMENT", //
-                "DEADLINE_EXCEEDED", "NOT_FOUND", "ALREADY_EXISTS",       //
-                "PERMISSION_DENIED", "RESOURCE_EXHAUSTED", "ABORTED",     //
-                "OUT_OF_RANGE", "UNIMPLEMENTED", "FAILED_PRECONDITION",   //
-                "INTERNAL", "UNAVAILABLE", "DATA_LOSS", "UNAUTHENTICATED");
+        // 添加顺序必须与 gRPC 标准状态码 0～16 一致，列表下标即状态码。
+        List<String> codes = new ArrayList<>();
+        codes.add("OK"); // 0
+        codes.add("CANCELLED"); // 1
+        codes.add("UNKNOWN"); // 2
+        codes.add("INVALID_ARGUMENT"); // 3
+        codes.add("DEADLINE_EXCEEDED"); // 4
+        codes.add("NOT_FOUND"); // 5
+        codes.add("ALREADY_EXISTS"); // 6
+        codes.add("PERMISSION_DENIED"); // 7
+        codes.add("RESOURCE_EXHAUSTED"); // 8
+        codes.add("FAILED_PRECONDITION"); // 9
+        codes.add("ABORTED"); // 10
+        codes.add("OUT_OF_RANGE"); // 11
+        codes.add("UNIMPLEMENTED"); // 12
+        codes.add("INTERNAL"); // 13
+        codes.add("UNAVAILABLE"); // 14
+        codes.add("DATA_LOSS"); // 15
+        codes.add("UNAUTHENTICATED"); // 16
+        CODES = Collections.unmodifiableList(codes);
         SINGLE = new GrpcRetryMethodPolicy(//
                 1, false, 0, 0, 1, Set.of());
     }

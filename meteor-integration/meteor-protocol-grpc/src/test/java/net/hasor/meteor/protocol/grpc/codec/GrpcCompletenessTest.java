@@ -29,6 +29,7 @@ import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.protocol.grpc.GrpcMetadata;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.meteor.protocol.grpc.GrpcProtoSchema;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -402,7 +403,8 @@ public class GrpcCompletenessTest {
             // 用独立动态消息检查线格式，再还原为原始 JSON 值。
             HttpRequest encoded = codec.encode(request);
             byte[] bytes = codec.readMessage(new ByteArrayInputStream(encoded.body()), null);
-            var type = resource.method("example.Types", "roundTrip").getInputType();
+            GrpcProtoSchema schema = GrpcProtoSchema.fromResource(resource);
+            var type = schema.method("example.Types", "roundTrip").getInputType();
             DynamicMessage wire = DynamicMessage.parseFrom(type, bytes);
             assertEquals(Long.MIN_VALUE, wire.getField(type.findFieldByNumber(1)));
             assertEquals(-1L, wire.getField(type.findFieldByNumber(2)));

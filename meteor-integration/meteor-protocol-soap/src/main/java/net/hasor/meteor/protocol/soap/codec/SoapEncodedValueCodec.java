@@ -15,14 +15,14 @@ import java.math.BigInteger;
 import java.util.*;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
-import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import net.hasor.cobble.StringUtils;
+import net.hasor.meteor.protocol.soap.annotation.MetXmlType;
 import net.hasor.meteor.protocol.soap.definition.SoapVersion;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlProperty;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlType;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -30,24 +30,27 @@ import org.w3c.dom.NodeList;
 
 /** SOAP Encoding 对象图与 XML 表示之间的转换。 */
 final class SoapEncodedValueCodec {
-    private static final int    MAX_ARRAY_ITEMS  = 1_000_000;
-    private static final String SOAP_11_ENCODING = "http://schemas.xmlsoap.org/soap/encoding/";
-    private static final String SOAP_12_ENCODING = "http://www.w3.org/2003/05/soap-encoding";
-    private static final String XSI_NAMESPACE    = "http://www.w3.org/2001/XMLSchema-instance";
-    private static final String XSD_NAMESPACE    = XMLConstants.W3C_XML_SCHEMA_NS_URI;
+    private static final int            MAX_ARRAY_ITEMS  = 1_000_000;
+    private static final String         SOAP_11_ENCODING = "http://schemas.xmlsoap.org/soap/encoding/";
+    private static final String         SOAP_12_ENCODING = "http://www.w3.org/2003/05/soap-encoding";
+    private static final String         XSI_NAMESPACE    = "http://www.w3.org/2001/XMLSchema-instance";
+    private static final String         XSD_NAMESPACE    = XMLConstants.W3C_XML_SCHEMA_NS_URI;
+    private static final QName          ANY_TYPE         = new QName(XSD_NAMESPACE, "anyType");
+    private static final Set<Class<?>>  SCALAR_TYPES;
+    private final        SoapVersion    version;
+    private final        XmlMapper      mapper;
+    private final        SoapXmlMapping mapping;
 
-    private static final QName         ANY_TYPE     = new QName(XSD_NAMESPACE, "anyType");
-    private static final Set<Class<?>> SCALAR_TYPES = Set.of( //
-            String.class, Character.class, char[].class, byte[].class, Boolean.class, //
-            Byte.class, Short.class, Integer.class, Long.class, Float.class, Double.class, //
-            BigInteger.class, BigDecimal.class, Date.class);
-
-    private final SoapVersion version;
-    private final XmlMapper   mapper;
+    static {
+        SCALAR_TYPES = Set.of(String.class, Character.class, char[].class, byte[].class, //
+                Boolean.class, Byte.class, Short.class, Integer.class, Long.class, Float.class, //
+                Double.class, BigInteger.class, BigDecimal.class, Date.class);
+    }
 
     SoapEncodedValueCodec(SoapVersion version, XmlMapper mapper) {
         this.version = version;
         this.mapper = mapper;
+        this.mapping = new SoapXmlMapping(mapper);
     }
 
     Encoder encoder(Document document, Element body) {
@@ -190,37 +193,51 @@ final class SoapEncodedValueCodec {
             if (SoapEncodedValueCodec.this.version == SoapVersion.SOAP_12) {
                 this.writeEncodingAttribute(target, "nodeType", "struct");
             }
-            if (graphNode.xmlType() != null) {
-                this.writeType(target, graphNode.xmlType());
+            QName xmlType = graphNode.xmlType();
+            if (xmlType == null) {
+                xmlType = SoapEncodedValueCodec.this.namedXmlType(graphNode.javaType());
+            }
+            if (xmlType != null) {
+                this.writeType(target, xmlType);
             }
 
-            JavaType javaType = graphNode.javaType();
-            BeanDescription bean = SoapEncodedValueCodec.this.mapper.getSerializationConfig().introspect(javaType);
-            boolean found = false;
-            for (BeanPropertyDefinition property : bean.findProperties()) {
-                if (!property.couldSerialize()) {
+            // 保留 Encoding 对象图，只将结构成员的 XML 映射交给共享元数据。
+            SoapXmlType bean = SoapEncodedValueCodec.this.mapping.type(graphNode.javaType());
+            for (SoapXmlProperty property : bean.getProperties()) {
+                SoapEncodedValueCodec.this.requireEncodedProperty(property);
+                Object propertyValue = property.read(graphNode.value());
+                if (property.isAttribute()) {
+                    if (propertyValue == null) {
+                        SoapEncodedValueCodec.this.requireOptional(property);
+                        continue;
+                    }
+                    QName name = property.getName();
+                    String qualified = SoapEncodedValueCodec.this.qName(target, name);
+                    String text = SoapEncodedValueCodec.this.scalarText(propertyValue);
+                    target.setAttributeNS(name.getNamespaceURI(), qualified, text);
                     continue;
                 }
-                AnnotatedMember accessor = property.getAccessor();
-                if (accessor == null) {
+                if (propertyValue == null && !property.isNillable()) {
+                    SoapEncodedValueCodec.this.requireOptional(property);
                     continue;
                 }
-                accessor.fixAccess(true);
-                Object propertyValue = accessor.getValue(graphNode.value());
-                Element propertyElement = SoapEncodedValueCodec.this.element(this.document, target, //
-                        new QName(property.getName()));
+                Element propertyElement = SoapEncodedValueCodec.this.element(this.document, target, property.getName());
                 target.appendChild(propertyElement);
-                this.writeAccessor(propertyElement, null, property.getPrimaryType(), propertyValue);
-                found = true;
-            }
-            if (!found) {
-                throw SoapEncodedValueCodec.this.unsupported(graphNode.javaType(), "no readable properties");
+                this.writeAccessor(propertyElement, null, property.getJavaType(), propertyValue);
             }
         }
 
         private void writeScalar(Element target, QName declaredXmlType, JavaType javaType, Object value) {
-            QName xmlType = declaredXmlType != null ? declaredXmlType : SoapEncodedValueCodec.this.xmlType(javaType);
-            this.writeType(target, xmlType);
+            QName xmlType = declaredXmlType;
+            if (xmlType == null && javaType.isEnumType()) {
+                // 无法确定生成类型的命名空间时，保留元素声明的枚举限制，不用基类 string 覆盖它。
+                xmlType = SoapEncodedValueCodec.this.namedXmlType(javaType);
+            } else if (xmlType == null) {
+                xmlType = SoapEncodedValueCodec.this.xmlType(javaType);
+            }
+            if (xmlType != null) {
+                this.writeType(target, xmlType);
+            }
             target.setTextContent(SoapEncodedValueCodec.this.scalarText(value));
         }
 
@@ -487,40 +504,48 @@ final class SoapEncodedValueCodec {
             if (declaredXmlType != null) {
                 SoapEncodedValueCodec.this.validateXmlType(element, declaredXmlType, javaType);
             }
-            Object value = SoapEncodedValueCodec.this.newObject(javaType.getRawClass());
+            SoapXmlType bean = SoapEncodedValueCodec.this.mapping.type(javaType);
+            Object value = bean.newInstance();
             if (id != null) {
                 this.values.put(id, value);
             }
 
-            Map<String, Element> children = new LinkedHashMap<>();
+            // 完整 QName 是结构成员身份，两个命名空间下的同名成员可以同时存在。
+            Map<QName, Element> children = new LinkedHashMap<>();
             for (Element child : SoapEncodedValueCodec.this.children(element)) {
-                String name = child.getLocalName() == null ? child.getNodeName() : child.getLocalName();
+                String local = child.getLocalName() == null ? child.getNodeName() : child.getLocalName();
+                QName name = new QName(child.getNamespaceURI(), local);
                 if (children.put(name, child) != null) {
                     throw new IllegalArgumentException("Duplicate SOAP Encoding struct member: " + name);
                 }
             }
-
-            BeanDescription bean = SoapEncodedValueCodec.this.mapper.getDeserializationConfig().introspect(javaType);
-            boolean found = false;
-            for (BeanPropertyDefinition property : bean.findProperties()) {
-                if (!property.couldDeserialize()) {
+            for (SoapXmlProperty property : bean.getProperties()) {
+                SoapEncodedValueCodec.this.requireEncodedProperty(property);
+                QName name = property.getName();
+                if (property.isAttribute()) {
+                    String namespace = StringUtils.isEmpty(name.getNamespaceURI()) ? null : name.getNamespaceURI();
+                    if (!element.hasAttributeNS(namespace, name.getLocalPart())) {
+                        SoapEncodedValueCodec.this.requireOptional(property);
+                        continue;
+                    }
+                    String text = element.getAttributeNS(namespace, name.getLocalPart());
+                    Object propertyValue = SoapEncodedValueCodec.this.scalarValue(text, property.getJavaType());
+                    property.write(value, propertyValue);
                     continue;
                 }
-                Element child = children.get(property.getName());
+                Element child = children.get(name);
                 if (child == null) {
+                    SoapEncodedValueCodec.this.requireOptional(property);
                     continue;
                 }
-                AnnotatedMember mutator = property.getMutator();
-                if (mutator == null) {
-                    continue;
+                if (!property.isNillable() && SoapEncodedValueCodec.this.nil(child)) {
+                    throw new IllegalArgumentException("SOAP Encoding property is not nillable: " + name);
                 }
-                mutator.fixAccess(true);
-                Object propertyValue = this.readAccessor(child, null, property.getPrimaryType());
-                mutator.setValue(value, propertyValue);
-                found = true;
-            }
-            if (!found && !children.isEmpty()) {
-                throw SoapEncodedValueCodec.this.unsupported(javaType, "no writable properties");
+                Object propertyValue = this.readAccessor(child, null, property.getJavaType());
+                if (propertyValue == null && !property.isNillable()) {
+                    throw new IllegalArgumentException("SOAP Encoding property is not nillable: " + name);
+                }
+                property.write(value, propertyValue);
             }
             return value;
         }
@@ -977,7 +1002,7 @@ final class SoapEncodedValueCodec {
         if (declaredType == null || !StringUtils.equals(XSD_NAMESPACE, declaredType.getNamespaceURI())) {
             return;
         }
-        QName expected = this.xmlType(javaType);
+        QName expected = this.baseXmlType(javaType);
         boolean generic = StringUtils.equals("anyType", declaredType.getLocalPart());
         if (!generic && !expected.equals(declaredType)) {
             throw new IllegalArgumentException("SOAP Encoding type " + declaredType + " cannot map to " + javaType);
@@ -985,6 +1010,22 @@ final class SoapEncodedValueCodec {
     }
 
     private QName xmlType(JavaType type) {
+        QName named = this.namedXmlType(type);
+        return named == null ? this.baseXmlType(type) : named;
+    }
+
+    private QName namedXmlType(JavaType type) {
+        if (!type.getRawClass().isAnnotationPresent(MetXmlType.class)) {
+            return null;
+        }
+        SoapXmlType xml = this.mapping.type(type);
+        if (StringUtils.isEmpty(xml.getName()) || StringUtils.isEmpty(xml.getNamespace())) {
+            return null;
+        }
+        return new QName(xml.getNamespace(), xml.getName());
+    }
+
+    private QName baseXmlType(JavaType type) {
         Class<?> rawType = type.getRawClass();
         String localName;
         boolean character = rawType == Character.class || rawType == char.class || rawType == char[].class;
@@ -1081,7 +1122,7 @@ final class SoapEncodedValueCodec {
             return text.toCharArray();
         }
         if (rawType == byte[].class) {
-            return Base64.getMimeDecoder().decode(text);
+            return Base64.getDecoder().decode(text.replaceAll("[ \t\r\n]", ""));
         }
         String normalized = text.trim();
         if (rawType == Boolean.class || rawType == boolean.class) {
@@ -1137,25 +1178,28 @@ final class SoapEncodedValueCodec {
     }
 
     private String enumText(Enum<?> value) {
-        try {
-            JsonProperty property = value.getDeclaringClass().getField(value.name()).getAnnotation(JsonProperty.class);
-            if (property != null && StringUtils.isNotEmpty(property.value())) {
-                return property.value();
-            }
-            return value.name();
-        } catch (NoSuchFieldException failure) {
-            throw new IllegalStateException("Unable to inspect SOAP enum constant", failure);
-        }
+        return this.mapping.enumValue(value);
     }
 
     private Object enumValue(Class<?> enumType, String value) {
-        for (Object constant : enumType.getEnumConstants()) {
-            Enum<?> enumeration = (Enum<?>) constant;
-            if (StringUtils.equals(this.enumText(enumeration), value)) {
-                return enumeration;
-            }
+        return this.mapping.enumValue(enumType, value);
+    }
+
+    private void requireEncodedProperty(SoapXmlProperty property) {
+        if (property.isText() || property.getWrapper() != null) {
+            String reason = "SOAP Encoding does not support XML text or collection wrapper properties";
+            throw new IllegalArgumentException(reason);
         }
-        throw new IllegalArgumentException("Unknown SOAP enum value for " + enumType.getName() + ": " + value);
+        QName name = property.getName();
+        if (property.isAttribute() && this.version.isEncodingControlAttribute(name)) {
+            throw new IllegalArgumentException("SOAP Encoding XML attribute uses a reserved graph name: " + name);
+        }
+    }
+
+    private void requireOptional(SoapXmlProperty property) {
+        if (property.isRequired()) {
+            throw new IllegalArgumentException("Required SOAP Encoding property has no value: " + property.getName());
+        }
     }
 
     private List<Object> arrayValues(Object value) {
@@ -1182,10 +1226,6 @@ final class SoapEncodedValueCodec {
             return new ArrayList<>();
         }
         return (Collection<Object>) this.newObject(type, true);
-    }
-
-    private Object newObject(Class<?> type) throws Exception {
-        return this.newObject(type, false);
     }
 
     private Object newObject(Class<?> type, boolean allowJavaType) throws Exception {
@@ -1260,6 +1300,9 @@ final class SoapEncodedValueCodec {
     }
 
     private String prefix(Element scope, String namespace, String preferred) {
+        if (StringUtils.equals(XMLConstants.XML_NS_URI, namespace)) {
+            return XMLConstants.XML_NS_PREFIX;
+        }
         String existing = scope.lookupPrefix(namespace);
         if (StringUtils.isNotEmpty(existing)) {
             return existing;

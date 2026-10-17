@@ -7,8 +7,8 @@ description = 'Hessian RPC over HTTP and HTTPS, with pluggable Hessian serializa
 
 dependencies {
     api project(':meteor')
-    implementation "com.caucho:hessian:${property('lib.hessian')}"
+    api "com.caucho:hessian:${property('lib.hessian')}"
 
     // for test
-    testRuntimeOnly project(':meteor-protocol-hprose')
+    testImplementation project(':meteor-protocol-hprose')
 }

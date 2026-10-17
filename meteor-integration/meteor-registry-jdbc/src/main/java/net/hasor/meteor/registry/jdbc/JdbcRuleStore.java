@@ -56,7 +56,11 @@ final class JdbcRuleStore {
             sql += " AND g.session_id=d.session_id";
         }
         sql += " WHERE " + this.qualifiedWhere();
-        List<Object> args = new ArrayList<>(List.of(this.instance, this.service, "rule/" + kind.name()));
+        // 先绑定 JOIN 的实例、服务和规则槽位，再按 WHERE 顺序追加详情主键。
+        List<Object> args = new ArrayList<>();
+        args.add(Objects.requireNonNull(this.instance));
+        args.add(Objects.requireNonNull(this.service));
+        args.add("rule/" + kind.name());
         args.addAll(Arrays.asList(this.ids));
         sql = this.onlyLive(sql, args);
         List<String[]> rows = jdbc.queryForList(sql, args.toArray(), //
@@ -163,7 +167,10 @@ final class JdbcRuleStore {
         }
         String sql = "SELECT item_name,revision FROM meteor_governance" //
                 + " WHERE instance_id=? AND service_id=? AND item_name LIKE 'rule/%'";
-        List<Object> args = new ArrayList<>(List.of(this.instance, this.service));
+        // WHERE 依次绑定实例和服务；临时规则的会话条件追加在两者之后。
+        List<Object> args = new ArrayList<>();
+        args.add(Objects.requireNonNull(this.instance));
+        args.add(Objects.requireNonNull(this.service));
         if (this.temporary) {
             sql += " AND session_id=?";
             args.add(row.get("session"));

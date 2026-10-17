@@ -10,6 +10,7 @@ import java.lang.reflect.Type;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import javax.xml.namespace.QName;
 import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
@@ -18,6 +19,8 @@ import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import net.hasor.cobble.ClassUtils;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.protocol.soap.definition.SoapBody;
+import net.hasor.meteor.protocol.soap.definition.SoapPart;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 
 /** 将多 part 的输出消息与一个 Java 返回对象对应，保留各部分的实际类型和对象引用。 */
 final class SoapResultMapping {
@@ -25,12 +28,14 @@ final class SoapResultMapping {
     private final JavaType                     resultType;
     private final Type[]                       types;
     private final XmlMapper                    mapper;
+    private final SoapXmlMapping               mapping;
     private final List<BeanPropertyDefinition> readableProperties;
     private final List<BeanPropertyDefinition> writableProperties;
 
     SoapResultMapping(SoapBody binding, Type resultType, XmlMapper mapper) {
         this.binding = binding;
         this.mapper = mapper;
+        this.mapping = new SoapXmlMapping(mapper);
         this.resultType = this.mapper.constructType(resultType);
         BeanDescription readable = this.mapper.getSerializationConfig().introspect(this.resultType);
         BeanDescription writable = this.mapper.getDeserializationConfig().introspect(this.resultType);
@@ -47,10 +52,11 @@ final class SoapResultMapping {
                 }
                 this.types[index] = this.resultType.getContentType();
             } else {
-                String name = binding.parts().get(index).name();
-                BeanPropertyDefinition property = this.property(this.writableProperties, name);
+                SoapPart part = binding.parts().get(index);
+                String name = part.name();
+                BeanPropertyDefinition property = this.property(this.writableProperties, part);
                 if (property == null) {
-                    property = this.property(this.readableProperties, name);
+                    property = this.property(this.readableProperties, part);
                 }
                 if (property == null) {
                     throw new IllegalArgumentException("SOAP output part has no Java result property: " + name);
@@ -67,13 +73,14 @@ final class SoapResultMapping {
     Object[] split(Object result) {
         Object[] values = new Object[this.types.length];
         for (int index = 0; index < values.length; index++) {
-            String name = this.binding.parts().get(index).name();
+            SoapPart part = this.binding.parts().get(index);
+            String name = part.name();
             if (values.length == 1) {
                 values[index] = result;
             } else if (result instanceof Map<?, ?> map) {
                 values[index] = map.get(name);
             } else if (result != null) {
-                BeanPropertyDefinition property = this.property(this.readableProperties, name);
+                BeanPropertyDefinition property = this.property(this.readableProperties, part);
                 AnnotatedMember accessor = property == null ? null : property.getAccessor();
                 if (accessor == null) {
                     throw new IllegalArgumentException("SOAP output part has no readable property: " + name);
@@ -104,19 +111,20 @@ final class SoapResultMapping {
             result = ClassUtils.newInstance(this.resultType.getRawClass());
         }
         for (int index = 0; index < values.length; index++) {
-            String name = this.binding.parts().get(index).name();
-            this.assign(result, name, values[index]);
+            SoapPart part = this.binding.parts().get(index);
+            this.assign(result, part, values[index]);
         }
         return result;
     }
 
     @SuppressWarnings("unchecked")
-    private void assign(Object result, String name, Object value) {
+    private void assign(Object result, SoapPart part, Object value) {
+        String name = part.name();
         if (result instanceof Map<?, ?> map) {
             ((Map<String, Object>) map).put(name, value);
             return;
         }
-        BeanPropertyDefinition property = this.property(this.writableProperties, name);
+        BeanPropertyDefinition property = this.property(this.writableProperties, part);
         AnnotatedMember mutator = property == null ? null : property.getNonConstructorMutator();
         if (mutator == null) {
             throw new IllegalArgumentException("SOAP output part has no writable property: " + name);
@@ -125,12 +133,34 @@ final class SoapResultMapping {
         mutator.setValue(result, value);
     }
 
-    private BeanPropertyDefinition property(List<BeanPropertyDefinition> properties, String name) {
+    private BeanPropertyDefinition property(List<BeanPropertyDefinition> properties, SoapPart part) {
+        // 文档 part 先按完整元素 QName 定位，允许结果对象中出现同名、不同命名空间的属性。
+        BeanPropertyDefinition selected = null;
         for (BeanPropertyDefinition property : properties) {
-            if (StringUtils.equals(name, property.getName())) {
-                return property;
+            if (part.element().equals(this.mapping.propertyName(property))) {
+                if (selected != null) {
+                    throw new IllegalArgumentException("Ambiguous SOAP output part property: " + part.name());
+                }
+                selected = property;
             }
         }
-        return null;
+        if (selected != null) {
+            return selected;
+        }
+
+        // RPC part 的消息名可以独立于 XML 元素名，保留原有按 part 名聚合结果的约定。
+        for (BeanPropertyDefinition property : properties) {
+            QName xmlName = this.mapping.propertyName(property);
+            boolean xmlMatched = StringUtils.equals(part.name(), xmlName.getLocalPart());
+            boolean javaMatched = StringUtils.equals(part.name(), property.getName());
+            boolean matched = xmlMatched || javaMatched;
+            if (matched) {
+                if (selected != null) {
+                    throw new IllegalArgumentException("Ambiguous SOAP output part property: " + part.name());
+                }
+                selected = property;
+            }
+        }
+        return selected;
     }
 }

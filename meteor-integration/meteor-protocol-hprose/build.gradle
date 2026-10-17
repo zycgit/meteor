@@ -7,7 +7,7 @@ description = 'HTTP/Hprose protocol plugin and Hprose serialization'
 
 dependencies {
     api project(':meteor')
-    implementation "org.hprose:hprose-java:${property('lib.hprose')}"
+    api "org.hprose:hprose-java:${property('lib.hprose')}"
 }
 
 // 官方 Node.js 对端仅用于跨语言互通，安装在构建目录，不进入插件产物。

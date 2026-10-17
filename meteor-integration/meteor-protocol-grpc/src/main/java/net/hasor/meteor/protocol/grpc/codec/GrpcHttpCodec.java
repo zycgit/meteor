@@ -37,6 +37,7 @@ import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.protocol.grpc.GrpcMetadata;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.meteor.protocol.grpc.GrpcProtoSchema;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.serialize.SerializeCoder;
 
@@ -465,8 +466,8 @@ public final class GrpcHttpCodec {
     }
 
     private Descriptor descriptor(MetBindInfo<?> service, Method method, boolean request) {
-        GrpcProtoResource proto = this.resource(service);
-        MethodDescriptor descriptor = proto.method(this.alias(service), method.getName());
+        GrpcProtoSchema schema = GrpcProtoSchema.fromResource(this.resource(service));
+        MethodDescriptor descriptor = schema.method(this.alias(service), method.getName());
         GrpcMethodShape signature = new GrpcMethodShape(method);
         boolean client = descriptor.isClientStreaming() == signature.streamingRequest();
         boolean server = descriptor.isServerStreaming() == signature.streamingResponse();
@@ -486,7 +487,7 @@ public final class GrpcHttpCodec {
     private JsonFormat.TypeRegistry createTypeRegistry(GrpcProtoResource resource) {
         JsonFormat.TypeRegistry.Builder registry = JsonFormat.TypeRegistry.newBuilder();
         Set<String> visited = new HashSet<>();
-        for (FileDescriptor descriptor : resource.fileDescriptors()) {
+        for (FileDescriptor descriptor : GrpcProtoSchema.fromResource(resource).fileDescriptors()) {
             this.addTypes(descriptor, registry, visited);
         }
         return registry.build();

@@ -9,12 +9,17 @@ package net.hasor.meteor.registry.shared.utils;
 import java.io.IOException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 /** One JSON representation for all registry backends. */
 public final class RegistryJson {
-    private static final ObjectMapper MAPPER = new ObjectMapper()       //
-            .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES) //
-            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+    private static final ObjectMapper MAPPER;
+
+    static {
+        MAPPER = JsonMapper.builder() //
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES) //
+                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
+    }
 
     private RegistryJson() {
     }
