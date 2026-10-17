@@ -1,6 +1,5 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
 }
 
 ext.pomName = 'Meteor Framework'
@@ -9,11 +8,13 @@ description = 'Meteor framework with configuration, context assembly, RPC, servi
 dependencies {
     api "net.hasor:cobble-all:${property('lib.cobble')}"
     api "net.hasor:neta-core:${property('lib.neta')}"
+    api "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+    api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${property('lib.jackson')}"
 
     implementation "ognl:ognl:${property('lib.ognl')}"
     implementation "net.hasor:neta-codec-http:${property('lib.neta')}"
-    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
 
     // for test
-    testImplementation 'io.netty:netty-codec-http2:4.2.16.Final'
+    testImplementation "com.google.code.gson:gson:${property('lib.gson')}"
+    testImplementation "io.netty:netty-codec-http2:${property('lib.netty')}"
 }
