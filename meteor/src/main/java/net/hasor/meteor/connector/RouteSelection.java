@@ -11,18 +11,18 @@ import java.util.Objects;
 
 /** Immutable protocol mount selected for one transport request. */
 public final class RouteSelection {
-    private final String              mountId;
+    private final String              protocolName;
     private final RouteMount          mount;
     private final Map<String, String> options;
 
-    RouteSelection(String mountId, RouteMount mount, Map<String, String> options) {
-        this.mountId = Objects.requireNonNull(mountId, "mountId");
+    RouteSelection(String protocolName, RouteMount mount, Map<String, String> options) {
+        this.protocolName = Objects.requireNonNull(protocolName, "protocolName");
         this.mount = Objects.requireNonNull(mount, "mount");
         this.options = Map.copyOf(options);
     }
 
-    public String mountId() {
-        return this.mountId;
+    public String protocolName() {
+        return this.protocolName;
     }
 
     public RouteMount mount() {

@@ -18,23 +18,23 @@ import net.hasor.meteor.MetMessage;
  * @author 赵永春 (zyc@hasor.net)
  */
 public class ServiceDomain<T> implements MetBindInfo<T> {
-    private          String                   bindID             = null;      // 服务ID
-    private          String                   bindName           = null;      // 服务名
-    private          String                   bindGroup          = "default"; // 服务分组
-    private          String                   bindVersion        = "1.0.0";   // 服务版本
-    private          Map<String, String>      aliasNameMap       = null;      // 别名
-    private          Class<T>                 bindType           = null;      // 服务类型
-    private          boolean                  asMessage          = false;     // 是否为消息接口
-    private          boolean                  asShadow           = false;     // 是否为消息接口
-    private          boolean                  asDistributedCall  = false;     // 是否强制进入分布式调用链
-    private          boolean                  isSharedThreadPool = true;      // 是否共享调用线程池(提供者)
-    private          int                      clientTimeout      = 6000;      // 调用超时（毫秒）
-    private          String                   serializeType      = null;      // 传输序列化类型
-    private          Object                   bindResource       = null;      // 协议扩展使用的本地绑定资源
-    private          MetServiceType           serviceType        = null;      // 服务类型（提供者 or 消费者）
-    private          Set<String>              bindProtocols      = null;      // 服务特殊置顶的协议类型
-    private final    Map<String, Object>      metadata           = new ConcurrentHashMap<>();
-    private volatile Map<String, ContextPath> bindContextPaths   = Map.of();
+    private          String                    bindID             = null;      // 服务ID
+    private          String                    bindName           = null;      // 服务名
+    private          String                    bindGroup          = "default"; // 服务分组
+    private          String                    bindVersion        = "1.0.0";   // 服务版本
+    private          Map<String, String>       aliasNameMap       = null;      // 别名
+    private          Class<T>                  bindType           = null;      // 服务类型
+    private          boolean                   asMessage          = false;     // 是否为消息接口
+    private          boolean                   asShadow           = false;     // 是否为消息接口
+    private          boolean                   asDistributedCall  = false;     // 是否强制进入分布式调用链
+    private          boolean                   isSharedThreadPool = true;      // 是否共享调用线程池(提供者)
+    private          int                       clientTimeout      = 6000;      // 调用超时（毫秒）
+    private          String                    serializeType      = null;      // 传输序列化类型
+    private          Object                    bindResource       = null;      // 协议扩展使用的本地绑定资源
+    private          MetServiceType            serviceType        = null;      // 服务类型（提供者 or 消费者）
+    private          Set<String>               bindProtocols      = null;      // 服务特殊置顶的协议类型
+    private final    Map<String, Object>       metadata           = new ConcurrentHashMap<>();
+    private volatile Map<String, ProtocolMeta> protocols          = Map.of();
 
     public ServiceDomain(Class<T> bindType) {
         this.bindType = bindType;
@@ -191,12 +191,41 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
         this.bindProtocols.add(bindProtocol);
     }
 
-    @Override
-    public Map<String, ContextPath> getBindContextPaths() {
-        return this.bindContextPaths;
+    public Map<String, ProtocolMeta> getProtocolMetas() {
+        return this.protocols;
     }
 
-    /** 替换一个协议的路径及匹配方式；只读快照不随后续声明变化。 */
+    public ProtocolMeta getProtocolMeta(String protocol) {
+        return this.protocols.get(protocol.toLowerCase(Locale.ROOT));
+    }
+
+    public void replaceProtocolPublication(Map<String, ProtocolMeta> protocols) {
+        // 清理旧发布结果时保留原始声明，下一轮发布仍能恢复相同的路径选择。
+        Map<String, ProtocolMeta> selected = new LinkedHashMap<>();
+        for (Map.Entry<String, ProtocolMeta> entry : this.protocols.entrySet()) {
+            ProtocolMeta meta = entry.getValue();
+            if (meta.getContextPath() != null) {
+                ProtocolMeta declaration = new ProtocolMeta(meta.getService(), meta.getContextPath(), Map.of());
+                selected.put(entry.getKey(), declaration);
+            }
+        }
+
+        // 新结果逐协议替换，不保留既无声明也无接受端点的空分组。
+        for (Map.Entry<String, ProtocolMeta> entry : protocols.entrySet()) {
+            String name = entry.getKey().toLowerCase(Locale.ROOT);
+            ProtocolMeta meta = entry.getValue();
+            ProtocolMeta declaration = selected.get(name);
+            if (meta.getContextPath() == null && declaration != null) {
+                meta = new ProtocolMeta(meta.getService(), declaration.getContextPath(), meta.getEndpoints());
+            }
+            if (meta.getContextPath() != null || !meta.getEndpoints().isEmpty()) {
+                selected.put(name, meta);
+            }
+        }
+        this.protocols = Collections.unmodifiableMap(selected);
+    }
+
+    /** 更新一个协议的原始路径声明，已持有的只读快照不随后续修改变化。 */
     public void setBindContextPaths(String protocol, ContextPath context) {
         if (StringUtils.isBlank(protocol)) {
             throw new IllegalArgumentException("Path protocol must not be blank");
@@ -204,11 +233,12 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
         Objects.requireNonNull(context, "context");
 
         // 替换项移到末尾，同一个规范化选择器重复声明时保留最后一次选择。
-        Map<String, ContextPath> selected = new LinkedHashMap<>(this.bindContextPaths);
+        Map<String, ProtocolMeta> selected = new LinkedHashMap<>(this.protocols);
         String key = protocol.trim().toLowerCase(Locale.ROOT);
-        selected.remove(key);
-        selected.put(key, context);
-        this.bindContextPaths = Collections.unmodifiableMap(selected);
+        ProtocolMeta previous = selected.remove(key);
+        Map<String, ProtocolBinding> endpoints = previous == null ? Map.of() : previous.getEndpoints();
+        selected.put(key, new ProtocolMeta(this, context, endpoints));
+        this.protocols = Collections.unmodifiableMap(selected);
     }
 
     @Override

@@ -45,12 +45,7 @@ public final class TestSocketRuntime implements AutoCloseable {
         this.transport.close();
     }
 
-    private static final class PipelineCapture implements NetworkConnector<Object> {
-        private final TransportPipeline pipeline;
-
-        private PipelineCapture(TransportPipeline pipeline) {
-            this.pipeline = pipeline;
-        }
+    private record PipelineCapture(TransportPipeline pipeline) implements NetworkConnector<Object> {
 
         @Override
         public NetworkListen bind(InterAddress address, RouteTable<Object> routes, //
@@ -59,7 +54,7 @@ public final class TestSocketRuntime implements AutoCloseable {
         }
 
         @Override
-        public Future<Void> connect(InterAddress address, RouteTable<Object> routes, String initialMountId, //
+        public Future<Void> connect(String initial, InterAddress address, RouteTable<Object> routes,  //
                 ChannelListenerFactory<Object> factory) {
             throw new UnsupportedOperationException();
         }

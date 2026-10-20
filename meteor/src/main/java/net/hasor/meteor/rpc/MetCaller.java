@@ -235,7 +235,7 @@ public final class MetCaller implements AutoCloseable {
     private ProtocolSelection resolveProtocol(MetRequestObject request) {
         InterAddress target = request.getTargetAddress();
         if (target == null) {
-            return new ProtocolSelection(null, null, this.context.getDefaultProtocol(), null);
+            return new ProtocolSelection(null, this.context.getDefaultProtocol(), null);
         }
 
         MetBindInfo<?> service = request.getBindInfo();
@@ -244,18 +244,16 @@ public final class MetCaller implements AutoCloseable {
         String defaultProtocol = this.context.getDefaultProtocol();
         Set<String> selectors = useDefault ? Collections.singleton(defaultProtocol) : declared;
         List<ProtocolCandidate> available = new ArrayList<>();
-        Set<String> logicalNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         for (ConnectorConfig endpoint : this.context.getSettings().getConnectorConfigs()) {
             for (ProtocolConfig mount : endpoint.protocols()) {
                 available.add(new ProtocolCandidate(endpoint, mount));
-                logicalNames.add(mount.name());
             }
         }
 
-        // 完整候选同时满足目标地址和逻辑身份；没有服务声明时，默认协议只负责消除歧义。
+        // 协议声明只按 name 选择；目标 scheme 再限定对应端点及其传输配置。
         String scheme = target.getSchema();
         available.removeIf(candidate -> !StringUtils.equalsIgnoreCase(candidate.mount.scheme(), scheme));
-        List<ProtocolCandidate> candidates = this.selectProtocols(available, selectors, logicalNames);
+        List<ProtocolCandidate> candidates = this.selectProtocols(available, selectors);
         if (candidates.isEmpty() && useDefault) {
             candidates = available;
         }
@@ -275,18 +273,14 @@ public final class MetCaller implements AutoCloseable {
         ProtocolCandidate selected = candidates.get(0);
         InterAddress bindAddress = this.connectors.getListenAddress(//
                 selected.endpoint.name(), selected.mount.name(), selected.mount.scheme());
-        return new ProtocolSelection(//
-                selected.endpoint.name(), selected.mount.mountId(), selected.mount.name(), bindAddress);
+        return new ProtocolSelection(selected.endpoint.name(), selected.mount.name(), bindAddress);
     }
 
-    private List<ProtocolCandidate> selectProtocols(//
-            List<ProtocolCandidate> available, Set<String> selectors, Set<String> logicalNames) {
+    private List<ProtocolCandidate> selectProtocols(List<ProtocolCandidate> available, Set<String> selectors) {
         List<ProtocolCandidate> selected = new ArrayList<>();
         for (ProtocolCandidate candidate : available) {
             for (String selector : selectors) {
-                boolean logicalName = logicalNames.contains(selector);
-                String value = logicalName ? candidate.mount.name() : candidate.mount.scheme();
-                if (StringUtils.equalsIgnoreCase(value, selector)) {
+                if (StringUtils.equalsIgnoreCase(candidate.mount.name(), selector)) {
                     selected.add(candidate);
                     break;
                 }
@@ -429,7 +423,7 @@ public final class MetCaller implements AutoCloseable {
         if (this.closed) {
             sent.failed(new IllegalStateException("RPC is closed"));
         } else {
-            this.connectors.connect(selection.endpointName, selection.mountId, address).onFinal(connected -> {
+            this.connectors.connect(selection.endpointName, selection.protocol, address).onFinal(connected -> {
                 this.finishConnect(request, sent, connected);
             });
         }
@@ -529,14 +523,11 @@ public final class MetCaller implements AutoCloseable {
 
     private static final class ProtocolSelection {
         private final String       endpointName;
-        private final String       mountId;
         private final String       protocol;
         private final InterAddress bindAddress;
 
-        private ProtocolSelection(//
-                String endpointName, String mountId, String protocol, InterAddress bindAddress) {
+        private ProtocolSelection(String endpointName, String protocol, InterAddress bindAddress) {
             this.endpointName = endpointName;
-            this.mountId = mountId;
             this.protocol = protocol;
             this.bindAddress = bindAddress;
         }

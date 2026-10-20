@@ -9,14 +9,14 @@ package net.hasor.meteor.connector;
 import java.util.Map;
 import java.util.function.Function;
 
-/** Thin test access that activates package-private route planning results. */
+/** Thin test access for package-private route construction. */
 public final class RouteTestAccess {
     private RouteTestAccess() {
     }
 
     public static <M> RouteTable<M> activate(Map<String, RouteDefinition<M>> definitions, //
             Function<String, RouteSelection> exactResolver) {
-        return new PlanRouteTable<>(definitions).activate(exactResolver);
+        return new RouteTable<>(definitions, exactResolver);
     }
 
     public static <M> RouteDefinition<M> definition(Map<String, String> options, RouteMountIndex mountIndex, //

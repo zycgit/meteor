@@ -36,9 +36,9 @@ public class RsfsLifecycleScenarioTest {
              MetContext client = outgoing.buildContext()) {
             server.start();
             client.start();
-            server.publisher().rsfService(RsfsBlockingService.class, provider).protocol("rsfs").register();
+            server.publisher().rsfService(RsfsBlockingService.class, provider).protocol("rsf").register();
             MetBindInfo<RsfsBlockingService> service = client.publisher() //
-                    .rsfService(RsfsBlockingService.class).protocol("rsfs").register();
+                    .rsfService(RsfsBlockingService.class).protocol("rsf").register();
 
             // 消息在服务执行结束之前完成回执，并在释放后继续执行。
             MetClient remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs"));
@@ -66,9 +66,9 @@ public class RsfsLifecycleScenarioTest {
             client.start();
             server.publisher().rsfService(RsfsEcho.class, value -> {
                 throw new IllegalArgumentException("business-error:" + value);
-            }).protocol("rsfs").serialize("Json").register();
+            }).protocol("rsf").serialize("Json").register();
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class) //
-                    .protocol("rsfs").serialize("Json").register();
+                    .protocol("rsf").serialize("Json").register();
 
             // 失败必须来自业务响应，不能被误认为 TLS 失败或等待超时。
             MetClient remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs"));
@@ -94,11 +94,11 @@ public class RsfsLifecycleScenarioTest {
              MetContext client = outgoing.buildContext()) {
             server.start();
             client.start();
-            server.publisher().rsfService(RsfsBlockingService.class, provider).protocol("rsfs").register();
-            server.publisher().rsfService(RsfsEcho.class, value -> value).protocol("rsfs").register();
+            server.publisher().rsfService(RsfsBlockingService.class, provider).protocol("rsf").register();
+            server.publisher().rsfService(RsfsEcho.class, value -> value).protocol("rsf").register();
             MetBindInfo<RsfsBlockingService> blocking = client.publisher() //
-                    .rsfService(RsfsBlockingService.class).protocol("rsfs").register();
-            MetBindInfo<RsfsEcho> echo = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
+                    .rsfService(RsfsBlockingService.class).protocol("rsf").register();
+            MetBindInfo<RsfsEcho> echo = client.publisher().rsfService(RsfsEcho.class).protocol("rsf").register();
             MetClient remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs"));
 
             // 取消已进入服务的请求，不关闭共享的 TLS 连接。
@@ -127,9 +127,9 @@ public class RsfsLifecycleScenarioTest {
              MetContext client = outgoing.buildContext()) {
             server.start();
             client.start();
-            server.publisher().rsfService(RsfsBlockingService.class, provider).protocol("rsfs").register();
+            server.publisher().rsfService(RsfsBlockingService.class, provider).protocol("rsf").register();
             MetBindInfo<RsfsBlockingService> service = client.publisher() //
-                    .rsfService(RsfsBlockingService.class).protocol("rsfs").register();
+                    .rsfService(RsfsBlockingService.class).protocol("rsf").register();
             MetClient remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs"));
             MetFuture call = remote.asyncInvoke(service, "execute", new Class<?>[0], new Object[0]);
 

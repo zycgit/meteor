@@ -13,13 +13,15 @@ import java.util.Map;
 import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -47,13 +49,13 @@ public final class EndpointTestProtocols {
         return response;
     }
 
-    public static class HttpA implements ProtocolFactory<HttpExchange>, TestHttpCodec {
+    public static class HttpA implements ProtocolProvider<HttpExchange>, TestHttpCodec {
         @Override
         public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
             return RouteProbeResult.REJECT;
         }
 
-        public String defaultSerializeType() {
+        public String defaultSerialize() {
             return "Java";
         }
 
@@ -62,7 +64,20 @@ public final class EndpointTestProtocols {
         }
 
         @Override
-        public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
+        public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
+            // 显式故障撤销本次登记；普通能力拒绝只影响当前协议端点。
+            if (Boolean.parseBoolean(config.option("failService", "false"))) {
+                throw new IllegalArgumentException("Invalid test protocol definition");
+            }
+            if (Boolean.parseBoolean(config.option("rejectService", "false"))) {
+                return null;
+            }
+            // 每个端点保存自己的定义；未配置时直接使用应用提供的绑定资源。
+            Object definition = config.option("definition", null);
+            if (definition == null) {
+                definition = meta.getService().getBindResource();
+            }
+            return config.build(definition);
         }
 
         public Class<HttpExchange> messageType() {
@@ -122,8 +137,8 @@ public final class EndpointTestProtocols {
         }
     }
 
-    public static class WireA implements ProtocolFactory<byte[]> {
-        public String defaultSerializeType() {
+    public static class WireA implements ProtocolProvider<byte[]> {
+        public String defaultSerialize() {
             return "Java";
         }
 
@@ -132,7 +147,8 @@ public final class EndpointTestProtocols {
         }
 
         @Override
-        public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
+        public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
+            return config.build(null);
         }
 
         public Class<byte[]> messageType() {

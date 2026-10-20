@@ -34,9 +34,9 @@ import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import org.junit.Test;
+import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static org.junit.Assert.*;
 
 /** 使用独立 Netty HTTP/2 对端，在真实连接上验证传输 SPI 的 GOAWAY 边界。 */
@@ -133,7 +133,7 @@ public class Http2GoawayInteropTest {
         ClassLoader loader = this.getClass().getClassLoader();
         try (Peer peer = new Peer(); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader)) {
-            client.connect(peer.address(), routes(config), null, receiver(connected, closed)) //
+            client.connect(null, peer.address(), routes(config), receiver(connected, closed)) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
             List<HttpExchange> calls = new ArrayList<>();
@@ -175,7 +175,7 @@ public class Http2GoawayInteropTest {
         ClassLoader loader = this.getClass().getClassLoader();
         try (Peer peer = new Peer(); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader)) {
-            client.connect(peer.address(), routes(config), null, receiver(connected, closed)) //
+            client.connect(null, peer.address(), routes(config), receiver(connected, closed)) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
             HttpExchange accepted = request();
@@ -214,7 +214,7 @@ public class Http2GoawayInteropTest {
         ClassLoader loader = this.getClass().getClassLoader();
         try (Peer peer = new Peer(); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader)) {
-            client.connect(peer.address(), routes(config), null, receiver(connected, closed)) //
+            client.connect(null, peer.address(), routes(config), receiver(connected, closed)) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
             List<HttpExchange> calls = new ArrayList<>();
@@ -252,7 +252,7 @@ public class Http2GoawayInteropTest {
         ClassLoader loader = this.getClass().getClassLoader();
         try (Peer peer = new Peer(); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader)) {
-            client.connect(peer.address(), routes(config), null, receiver(connected, closed)) //
+            client.connect(null, peer.address(), routes(config), receiver(connected, closed)) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
             List<HttpExchange> calls = new ArrayList<>();

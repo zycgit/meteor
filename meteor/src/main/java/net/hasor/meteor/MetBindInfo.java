@@ -8,7 +8,6 @@
 package net.hasor.meteor;
 import java.util.Map;
 import java.util.Set;
-import net.hasor.meteor.domain.ContextPath;
 import net.hasor.meteor.domain.MetServiceType;
 
 /**
@@ -57,14 +56,8 @@ public interface MetBindInfo<T> {
     /** @return 是提供者还是消费者*/
     MetServiceType getServiceType();
 
-    /** @return 指定使用的RPC通信协议，如果为空表示没有特殊指定。RSF将使用 MetContext.runProtocols()*/
+    /** @return 所选协议的 SPI 名称；空集合表示未显式限定协议。 */
     Set<String> getBindProtocols();
-
-    /**
-     * 返回按协议选择的上下文路径及匹配方式，键统一为小写，值和映射均只读。
-     * 未选择路径的协议使用其默认上下文；显式选择不自动包含默认上下文，不影响 {@link #getBindProtocols()}。
-     */
-    Map<String, ContextPath> getBindContextPaths();
 
     /**
      * 返回接口是否为一个 Message 接口。

@@ -17,13 +17,15 @@ public final class ProtocolSessionContext {
     private final BiFunction<Runnable, Long, Cancellable> scheduler;
     private final InterAddress                            bindAddress;
     private final boolean                                 outbound;
+    private final RouteMountIndex                         routes;
 
     ProtocolSessionContext(MetContext metContext, BiFunction<Runnable, Long, Cancellable> scheduler, //
-            InterAddress bindAddress, boolean outbound) {
+            InterAddress bindAddress, boolean outbound, RouteMountIndex routes) {
         this.metContext = metContext;
         this.scheduler = scheduler;
         this.bindAddress = bindAddress;
         this.outbound = outbound;
+        this.routes = routes;
     }
 
     /** Active listener address, or null for an endpoint without a listener. */
@@ -33,6 +35,11 @@ public final class ProtocolSessionContext {
 
     public boolean isOutbound() {
         return this.outbound;
+    }
+
+    /** Immutable route selection prepared for this endpoint protocol. */
+    public RouteMountIndex routes() {
+        return this.routes;
     }
 
     public MetContext metContext() {

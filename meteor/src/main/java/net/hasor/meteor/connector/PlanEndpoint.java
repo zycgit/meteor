@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import net.hasor.meteor.connector.transport.TransportPlan;
 
 /** Immutable endpoint assembly produced during connector initialization. */
@@ -19,22 +18,28 @@ final class PlanEndpoint<M> {
     private final TransportPlan<M>                     transportPlan;
     private final boolean                              sharedRoutes;
     private final Map<String, ProtocolMountBinding<M>> protocolBindings;
-    private final PlanRouteTable<M>                    routeTablePlan;
 
     PlanEndpoint(ConnectorConfig config, TransportPlan<M> transportPlan, boolean sharedRoutes, //
-            Map<String, ProtocolMountBinding<M>> protocolBindings, PlanRouteTable<M> routeTablePlan) {
+            Map<String, ProtocolMountBinding<M>> protocolBindings) {
         this.config = Objects.requireNonNull(config, "config");
         this.transportPlan = Objects.requireNonNull(transportPlan, "transportPlan");
         this.sharedRoutes = sharedRoutes;
         this.protocolBindings = Collections.unmodifiableMap(new LinkedHashMap<>(protocolBindings));
-        this.routeTablePlan = Objects.requireNonNull(routeTablePlan, "routeTablePlan");
     }
 
-    ConnectorEndpoint<M> activate(ConnectorManager manager, RouteServiceRegistry registry) {
-        Function<String, RouteSelection> exactResolver = //
-                registry.addEndpoint(this.config, this.protocolBindings.values());
-        RouteTable<M> routeTable = this.routeTablePlan.activate(exactResolver);
-        return new ConnectorEndpoint<>(this.config, this.transportPlan, this.sharedRoutes, //
-                this.protocolBindings, routeTable, manager);
+    ConnectorConfig config() {
+        return this.config;
+    }
+
+    TransportPlan<M> transportPlan() {
+        return this.transportPlan;
+    }
+
+    boolean sharedRoutes() {
+        return this.sharedRoutes;
+    }
+
+    Map<String, ProtocolMountBinding<M>> protocolBindings() {
+        return this.protocolBindings;
     }
 }

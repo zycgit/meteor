@@ -8,7 +8,6 @@
 package net.hasor.meteor.connector;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 
 /** Builds the compiled route view used by direct HTTP transport tests. */
@@ -18,14 +17,14 @@ public final class HttpTransportPlans {
 
     public static RouteTable<HttpExchange> routes(ConnectorConfig config) {
         Map<String, RouteDefinition<HttpExchange>> routes = new LinkedHashMap<>();
-        for (Map.Entry<String, ProtocolConfig> entry : config.mounts().entrySet()) {
-            ProtocolConfig protocol = entry.getValue();
+        for (ProtocolConfig protocol : config.protocols()) {
             Map<String, String> options = new LinkedHashMap<>(config.options());
             options.putAll(protocol.options());
-            RouteDefinition<HttpExchange> route = new RouteDefinition<>(options, protocol.mountIndex(), //
+            RouteMountIndex mounts = new RouteMountIndex(config.name(), protocol);
+            RouteDefinition<HttpExchange> route = new RouteDefinition<>(options, mounts, //
                     message -> RouteProbeResult.REJECT);
-            routes.put(entry.getKey(), route);
+            routes.put(protocol.name(), route);
         }
-        return new PlanRouteTable<>(routes).activate(null);
+        return new RouteTable<>(routes, null);
     }
 }

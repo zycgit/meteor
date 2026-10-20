@@ -8,33 +8,33 @@
 package net.hasor.meteor.connector;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import net.hasor.cobble.StringUtils;
+import java.util.function.Function;
+import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.cobble.concurrent.future.FutureListener;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.connector.transport.ChannelListenerFactory;
+import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.NetworkConnector;
+import net.hasor.meteor.connector.transport.NetworkListen;
 import net.hasor.meteor.domain.payload.Payload;
 
 /** Owns one configured endpoint, its listeners, transport connections and protocol channels. */
 final class ConnectorEndpoint<M> {
-    private static final Logger logger = Logger.getLogger(ConnectorEndpoint.class);
-    private final        ConnectorConfig                      config;
-    private final        TransportPlan<M>                     transportPlan;
-    private final        boolean                              sharedRoutes;
-    private final        Map<String, ProtocolMountBinding<M>> protocolBindings;
-    private final        RouteTable<M>                        routes;
-    private final        ConnectorManager                     manager;
-    private final        Map<Long, ConnectorChannel<?>>       channels           = new LinkedHashMap<>();
-    private final        Set<NetworkChannel<M>>               connections        = ConcurrentHashMap.newKeySet();
-    private final        Set<NetworkChannel<M>>               inboundConnections = ConcurrentHashMap.newKeySet();
-    private final        Set<NetworkChannel<M>>               closingInbound     = ConcurrentHashMap.newKeySet();
-    private              BasicFuture<NetworkListen>           binding;
-    private              NetworkListen                        listen;
-    private              NetworkConnector<M>                  networkConnector;
-    private volatile     State                                state              = State.NEW;
-    private              boolean                              bindDisabled;
+    private static final Logger                          logger         = Logger.getLogger(ConnectorEndpoint.class);
+    private final        PlanEndpoint<M>                 plan;
+    private final        RouteTable<M>                   routes;
+    private final        ConnectorManager                manager;
+    private final        Map<Long, ConnectorChannel<?>>  channels       = new LinkedHashMap<>();
+    private final        Map<NetworkChannel<M>, Boolean> connections    = new ConcurrentHashMap<>();
+    private final        Set<NetworkChannel<M>>          closingInbound = ConcurrentHashMap.newKeySet();
+    private              BasicFuture<NetworkListen>      binding;
+    private              NetworkListen                   listen;
+    private              NetworkConnector<M>             networkConnector;
+    private volatile     State                           state          = State.NEW;
+    private              boolean                         bindDisabled;
 
     private enum State {
         NEW,
@@ -42,22 +42,38 @@ final class ConnectorEndpoint<M> {
         CLOSED
     }
 
-    ConnectorEndpoint(ConnectorConfig config, TransportPlan<M> transportPlan, boolean sharedRoutes, //
-            Map<String, ProtocolMountBinding<M>> protocolBindings, RouteTable<M> routes, ConnectorManager manager) {
-        this.config = config;
-        this.transportPlan = transportPlan;
-        this.sharedRoutes = sharedRoutes;
-        this.protocolBindings = protocolBindings;
-        this.routes = routes;
+    ConnectorEndpoint(PlanEndpoint<M> plan, ConnectorManager manager) {
+        this.plan = plan;
         this.manager = manager;
+        this.routes = this.createRoutes();
+    }
+
+    private RouteTable<M> createRoutes() {
+        // 根据当前端点的协议挂载创建路由定义，报文探测留到收包时执行。
+        Map<String, RouteDefinition<M>> definitions = new LinkedHashMap<>();
+        for (ProtocolMountBinding<M> binding : this.plan.protocolBindings().values()) {
+            ProtocolConfig protocol = binding.config();
+            ProtocolProvider<M> provider = binding.provider();
+            Function<M, RouteProbeResult> probe = message -> provider.probe(protocol, message);
+            RouteDefinition<M> definition = new RouteDefinition<>(protocol.options(), binding.routes(), probe);
+            definitions.put(protocol.name(), definition);
+        }
+
+        // 路由表由端点持有，静态索引在构造时一次生成，动态查询由管理器提供。
+        Function<String, RouteSelection> exactResolver = this.manager.routeResolver(this.plan.config().name());
+        return new RouteTable<>(definitions, exactResolver);
     }
 
     ConnectorConfig config() {
-        return this.config;
+        return this.plan.config();
     }
 
     ConnectorManager manager() {
         return this.manager;
+    }
+
+    String singleProtocol() {
+        return this.routes.resolveProtocol(null);
     }
 
     synchronized boolean hasListener() {
@@ -80,13 +96,8 @@ final class ConnectorEndpoint<M> {
                 return;
             }
 
-            try {
-                this.networkConnector = this.transportPlan.create(this.manager.transportRuntimeServices());
-                this.state = State.READY;
-            } catch (Exception | Error error) {
-                this.state = State.NEW;
-                throw error;
-            }
+            this.networkConnector = this.plan.transportPlan().create(this.manager.transportRuntimeServices());
+            this.state = State.READY;
         }
     }
 
@@ -99,8 +110,9 @@ final class ConnectorEndpoint<M> {
     }
 
     Future<NetworkListen> bind() {
-        if (!this.config.bindEnabled()) {
-            throw new IllegalStateException("Endpoint has no configured listener: " + this.config.name());
+        ConnectorConfig config = this.config();
+        if (!config.bindEnabled()) {
+            throw new IllegalStateException("Endpoint has no configured listener: " + config.name());
         }
 
         BasicFuture<NetworkListen> result;
@@ -123,13 +135,12 @@ final class ConnectorEndpoint<M> {
         }
 
         try {
-            this.createListen(this.config.address()).onCompleted(done -> {
-                this.completeBind(result, done.getResult());
-            }).onFailed(done -> {
-                result.failed(done.getCause());
-            }).onCancel(done -> {
-                result.cancel();
+            // 传输 bind 同步返回监听器，直接完成已经登记的共享 Future。
+            NetworkListen bound = this.networkConnector.bind(config.address(), this.routes, channel -> {
+                return new RouteChannelDispatcher<>(this, channel, null);
             });
+            bound.onClose(() -> this.onListenClosed(bound));
+            this.completeBind(result, bound);
         } catch (Throwable failure) {
             result.failed(failure);
         }
@@ -149,13 +160,6 @@ final class ConnectorEndpoint<M> {
         if (this.binding == result) {
             this.binding = null;
         }
-    }
-
-    private Future<NetworkListen> createListen(InterAddress address) throws Exception {
-        NetworkListen networkListen = this.networkConnector.bind(address, this.routes, //
-                channel -> this.attach(channel, null, null));
-        networkListen.onClose(() -> this.onListenClosed(networkListen));
-        return new BasicFuture<>(networkListen);
     }
 
     private void completeBind(BasicFuture<NetworkListen> result, NetworkListen bound) {
@@ -201,42 +205,80 @@ final class ConnectorEndpoint<M> {
         }
     }
 
-    Future<MetChannel> connect(String mountId, InterAddress target) {
+    Future<MetChannel> connect(String protocolName, InterAddress target) {
         if (!this.acceptsWrites()) {
             return failed(new IllegalStateException("Connector endpoint is not ready for connections"));
         }
-        ProtocolConfig mount = this.config.mount(mountId);
-        if (mount == null) {
-            return failed(new IllegalArgumentException("Unknown endpoint mount: " + mountId));
-        }
-        if (!StringUtils.equalsIgnoreCase(mount.scheme(), target.getSchema())) {
-            return failed(new IllegalArgumentException("Endpoint mount scheme mismatch: " + mountId));
-        }
 
+        // 协议名和地址前缀已经由 Manager 的公开连接入口统一校验。
         try {
-            return this.openSession(mountId, target);
+            return this.openSession(protocolName, target);
         } catch (Exception | Error failure) {
             return failed(failure);
         }
     }
 
-    private Future<MetChannel> openSession(String mountId, InterAddress address) {
-        BasicFuture<MetChannel> result = new BasicFuture<>();
-        Future<Void> connecting = this.networkConnector.connect(address, this.routes, mountId, channel -> {
-            result.onCancel(done -> channel.close());
-            return this.attach(channel, result, mountId);
-        });
+    private Future<MetChannel> openSession(String protocolName, InterAddress address) {
+        // 先创建逻辑通道，让同一个 ready 覆盖底层连接和协议握手。
+        ConnectorChannel<M> channel = this.createChannel();
+        try {
+            ChannelListenerFactory<M> factory = networkChannel -> {
+                this.attachChannel(channel, protocolName, networkChannel, true);
+                return new RouteChannelDispatcher<>(this, networkChannel, channel);
+            };
+            Future<Void> connect = this.networkConnector.connect(protocolName, address, this.routes, factory);
 
-        result.onCancel(done -> connecting.cancel());
-        connecting.onFailed(done -> result.failed(done.getCause())).onCancel(done -> result.cancel());
-        return result;
+            channel.ready().onCancel(done -> {
+                connect.cancel();
+            });
+
+            connect.onFailed(done -> {
+                channel.fail(done.getCause());
+            }).onCancel(done -> {
+                channel.ready().cancel();
+            });
+        } catch (RuntimeException | Error failure) {
+            channel.fail(failure);
+        }
+        return channel.ready();
     }
 
-    private ChannelListener<M> attach(NetworkChannel<M> channel, BasicFuture<MetChannel> outboundResult, //
-            String mountId) {
-        Runnable terminationListener = () -> this.onConnectionClosed(channel);
-        return new RouteChannelDispatcher<>(this, channel, this.protocolBindings, outboundResult, mountId, //
-                this.sharedRoutes, terminationListener);
+    ConnectorChannel<M> createChannel() {
+        ConnectorChannel<M> channel = new ConnectorChannel<>(this);
+        this.registerChannel(channel);
+        return channel;
+    }
+
+    void attachChannel(ConnectorChannel<M> channel, String protocolName, NetworkChannel<M> networkChannel, boolean outbound) {
+        ProtocolMountBinding<M> binding = this.plan.protocolBindings().get(protocolName);
+        if (binding == null) {
+            throw new IllegalArgumentException("Unknown protocol: " + protocolName);
+        }
+
+        // 共享入站连接只关闭当前协议通道，不影响同一连接上的其他协议。
+        boolean isolatedClose = this.plan.sharedRoutes() && !outbound;
+        ProtocolConfig protocolConfig = binding.config();
+        ProtocolNetworkChannel<M> connection = new ProtocolNetworkChannel<>(networkChannel, protocolConfig, outbound, isolatedClose);
+        connection.onClose(channel::closed);
+        channel.attach(connection);
+    }
+
+    ProtocolSession<M> createSession(ProtocolNetworkChannel<M> connection, ObjLongConsumer<Payload> messages) {
+        ProtocolMountBinding<M> binding = this.plan.protocolBindings().get(connection.getProtocol());
+        ProtocolConfig protocolConfig = binding.config();
+
+        // 监听地址以当前协议的公开前缀传给会话，未开启监听时保持为空。
+        InterAddress local = this.getBindAddress();
+        InterAddress advertised = null;
+        if (local != null) {
+            String scheme = protocolConfig.scheme();
+            advertised = new InterAddress(scheme, local.getHost(), local.getPort(), local.getFormUnit());
+        }
+
+        // 会话使用端点已经确定的配置、路由与管理器公共资源。
+        ProtocolSessionContext context = new ProtocolSessionContext(//
+                this.manager.context(), this.manager::schedule, advertised, connection.isOutbound(), binding.routes());
+        return binding.provider().createSession(protocolConfig, context, connection, messages);
     }
 
     synchronized boolean registerConnection(NetworkChannel<M> channel, boolean inbound) {
@@ -250,26 +292,20 @@ final class ConnectorEndpoint<M> {
             return false;
         }
 
-        this.connections.add(channel);
-        if (inbound) {
-            this.inboundConnections.add(channel);
-        }
+        this.connections.put(channel, inbound);
         return true;
     }
 
-    private void onConnectionClosed(NetworkChannel<M> channel) {
+    void unregisterConnection(NetworkChannel<M> channel) {
         this.connections.remove(channel);
-        this.inboundConnections.remove(channel);
         this.closingInbound.remove(channel);
     }
 
     void registerChannel(ConnectorChannel<?> channel) {
         synchronized (this) {
             if (this.acceptsWrites()) {
-                ConnectorChannel<?> previous = this.channels.putIfAbsent(channel.channelId(), channel);
-                if (previous != null && previous != channel) {
-                    throw new IllegalStateException("Duplicate channel ID");
-                }
+                // 通道 ID 由当前 Manager 的统一分配器生成。
+                this.channels.put(channel.channelId(), channel);
                 return;
             }
         }
@@ -294,9 +330,9 @@ final class ConnectorEndpoint<M> {
         }
 
         try {
-            Future<Void> draining = channel.drainAndClose();
-            draining.onFailed(done -> this.forceClose(channel, done.getCause()));
-            draining.onCancel(done -> {
+            channel.drainAndClose().onFailed(done -> {
+                this.forceClose(channel, done.getCause());
+            }).onCancel(done -> {
                 this.forceClose(channel, new IllegalStateException("Channel drain cancelled"));
             });
         } catch (RuntimeException | Error failure) {
@@ -332,6 +368,7 @@ final class ConnectorEndpoint<M> {
                 failure = appendFailure(failure, error);
             }
         }
+
         if (current != null) {
             try {
                 current.suspend();
@@ -339,13 +376,20 @@ final class ConnectorEndpoint<M> {
                 failure = appendFailure(failure, error);
             }
         }
-        for (NetworkChannel<M> channel : new ArrayList<>(this.inboundConnections)) {
+
+        for (Map.Entry<NetworkChannel<M>, Boolean> connection : this.connections.entrySet()) {
+            if (!connection.getValue()) {
+                continue;
+            }
+
+            NetworkChannel<M> channel = connection.getKey();
             try {
                 this.closeInbound(channel);
             } catch (RuntimeException | Error error) {
                 failure = appendFailure(failure, error);
             }
         }
+
         throwFailure(failure);
     }
 
@@ -354,6 +398,7 @@ final class ConnectorEndpoint<M> {
         synchronized (this) {
             current = this.listen;
         }
+
         if (current != null) {
             current.resume();
         }
@@ -377,6 +422,7 @@ final class ConnectorEndpoint<M> {
                 logger.warn("Pending binding failure notification failed", failure);
             }
         }
+
         if (closing != null) {
             try {
                 closing.close();
@@ -416,7 +462,7 @@ final class ConnectorEndpoint<M> {
 
     List<Future<Void>> drainConnections() {
         List<Future<Void>> draining = new ArrayList<>();
-        for (NetworkChannel<M> channel : this.connections) {
+        for (NetworkChannel<M> channel : this.connections.keySet()) {
             try {
                 draining.add(channel.drainAndClose());
             } catch (RuntimeException failure) {
@@ -431,8 +477,8 @@ final class ConnectorEndpoint<M> {
         if (this.networkConnector != null) {
             this.networkConnector.close();
         }
+
         this.connections.clear();
-        this.inboundConnections.clear();
         this.closingInbound.clear();
     }
 
@@ -446,6 +492,7 @@ final class ConnectorEndpoint<M> {
         if (current == null) {
             return failure;
         }
+
         if (current != failure) {
             current.addSuppressed(failure);
         }
@@ -456,6 +503,7 @@ final class ConnectorEndpoint<M> {
         if (failure instanceof Error error) {
             throw error;
         }
+
         if (failure != null) {
             throw (RuntimeException) failure;
         }

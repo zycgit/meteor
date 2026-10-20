@@ -22,7 +22,7 @@ final class EndpointFixture {
 
     static ConnectorConfig rsfEndpoint(String name, boolean bindEnabled) {
         Map<String, String> options = Map.of("workerThread", "1");
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", "rsf", Map.of());
+        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", Map.of());
         InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "test");
         return new ConnectorConfig(name, address, options, List.of(protocol), bindEnabled);
     }

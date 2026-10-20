@@ -115,17 +115,14 @@ final class SocketAdmissionTracker {
     }
 
     private static final class AcceptedRouteReceiver<M> extends AcceptedListener<M> implements RouteReceiver<M> {
-        private final RouteReceiver<M> routed;
-
         private AcceptedRouteReceiver(SocketAdmissionTracker tracker, NetChannel channel, RouteReceiver<M> routed) {
             super(tracker, channel, routed);
-            this.routed = routed;
         }
 
         @Override
-        public void receive(String mountId, M message) throws Exception {
+        public void receive(String protocolName, M message) throws Exception {
             if (this.isConnected()) {
-                this.routed.receive(mountId, message);
+                ((RouteReceiver<M>) this.receiver).receive(protocolName, message);
             }
         }
     }

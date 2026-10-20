@@ -9,8 +9,8 @@ package net.hasor.meteor.domain.warp;
 import java.util.Map;
 import java.util.Set;
 import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.domain.ContextPath;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.ServiceDomain;
 
 /**
  * {@link MetBindInfo}包装形式。
@@ -22,6 +22,15 @@ public class MetBindInfoWrap<T> implements MetBindInfo<T> {
 
     public MetBindInfoWrap(MetBindInfo<T> target) {
         this.target = target;
+    }
+
+    /** 解开已有绑定包装，返回唯一持有内部协议状态的服务域。 */
+    public static ServiceDomain<?> unwrap(MetBindInfo<?> service) {
+        MetBindInfo<?> target = service;
+        while (target instanceof MetBindInfoWrap<?> wrap) {
+            target = wrap.getTarget();
+        }
+        return (ServiceDomain<?>) target;
     }
 
     protected MetBindInfo<T> getTarget() {
@@ -86,11 +95,6 @@ public class MetBindInfoWrap<T> implements MetBindInfo<T> {
     @Override
     public Set<String> getBindProtocols() {
         return this.target.getBindProtocols();
-    }
-
-    @Override
-    public Map<String, ContextPath> getBindContextPaths() {
-        return this.target.getBindContextPaths();
     }
 
     @Override

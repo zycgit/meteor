@@ -16,15 +16,30 @@ import net.hasor.meteor.connector.transport.NetworkChannel;
 /** Protocol-scoped network channel. An isolated close leaves sibling protocol channels open. */
 final class ProtocolNetworkChannel<M> implements NetworkChannel<M> {
     private final NetworkChannel<M>   networkChannel;
-    private final String              scheme;
+    private final ProtocolConfig      protocol;
+    private final boolean             outbound;
     private final boolean             isolatedClose;
     private final BasicFuture<Void>   closeFuture = new BasicFuture<>();
     private       Consumer<Throwable> closeListener;
 
-    ProtocolNetworkChannel(NetworkChannel<M> networkChannel, String scheme, boolean isolatedClose) {
+    ProtocolNetworkChannel(NetworkChannel<M> networkChannel, ProtocolConfig protocol, //
+            boolean outbound, boolean isolatedClose) {
         this.networkChannel = networkChannel;
-        this.scheme = scheme;
+        this.protocol = protocol;
+        this.outbound = outbound;
         this.isolatedClose = isolatedClose;
+    }
+
+    String getProtocol() {
+        return this.protocol.name();
+    }
+
+    ProtocolConfig config() {
+        return this.protocol;
+    }
+
+    boolean isOutbound() {
+        return this.outbound;
     }
 
     void onClose(Consumer<Throwable> listener) {
@@ -41,7 +56,8 @@ final class ProtocolNetworkChannel<M> implements NetworkChannel<M> {
         if (address == null) {
             return null;
         } else {
-            return new InterAddress(this.scheme, address.getHost(), address.getPort(), address.getFormUnit());
+            String scheme = this.protocol.scheme();
+            return new InterAddress(scheme, address.getHost(), address.getPort(), address.getFormUnit());
         }
     }
 

@@ -8,25 +8,27 @@
 package net.hasor.meteor.connector;
 import java.util.Objects;
 
-/** Resolved protocol configuration and factory bound to one endpoint mount. */
+/** Resolved protocol configuration and provider bound to one endpoint mount. */
 final class ProtocolMountBinding<M> {
-    private final ProtocolConfig     config;
-    private final ProtocolFactory<M> factory;
+    private final ProtocolConfig      config;
+    private final ProtocolProvider<M> provider;
+    private final RouteMountIndex     routes;
 
-    ProtocolMountBinding(ProtocolConfig config, ProtocolFactory<M> factory) {
+    ProtocolMountBinding(ProtocolConfig config, ProtocolProvider<M> provider, RouteMountIndex routes) {
         this.config = Objects.requireNonNull(config, "config");
-        this.factory = Objects.requireNonNull(factory, "factory");
-    }
-
-    String mountId() {
-        return this.config.mountId();
+        this.provider = Objects.requireNonNull(provider, "provider");
+        this.routes = routes;
     }
 
     ProtocolConfig config() {
         return this.config;
     }
 
-    ProtocolFactory<M> factory() {
-        return this.factory;
+    RouteMountIndex routes() {
+        return this.routes;
+    }
+
+    ProtocolProvider<M> provider() {
+        return this.provider;
     }
 }

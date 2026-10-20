@@ -20,32 +20,33 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.meteor.connector.RouteTable;
 import net.hasor.meteor.connector.transport.ChannelListenerFactory;
-import net.hasor.meteor.connector.transport.SocketRuntime;
 import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.http.channel.*;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.NetChannel;
+import net.hasor.neta.channel.PlayLoad;
 import net.hasor.neta.channel.ReadPause;
+import net.hasor.neta.channel.SoInputCloseEvent;
 import net.hasor.neta.codec.http.*;
 
 /**
  * Owns incoming HTTP request routes and preserves HTTP/1 response order.
  */
 class Http1ServerChannel extends HttpChannel {
-    private       boolean                                    inputClosed;
-    private       Http1ServerResponseSlot                    writing;
-    private final NetChannel                                 channel;
-    private final InterAddress                               remote;
-    private final Deque<Http1ServerResponseSlot>             replies = new ArrayDeque<>();
-    private final Map<HttpExchange, Http1ServerResponseSlot> pending = new HashMap<>();
-    private       String                                     upgradeUri;
-    private       Consumer<RouteSelection>                   upgradeAuthorization;
+    private volatile boolean                                    selected;
+    private          boolean                                    inputClosed;
+    private          Http1ServerResponseSlot                    writing;
+    private final    NetChannel                                 channel;
+    private final    InterAddress                               remote;
+    private final    Deque<Http1ServerResponseSlot>             replies = new ArrayDeque<>();
+    private final    Map<HttpExchange, Http1ServerResponseSlot> pending = new HashMap<>();
+    private          String                                     upgradeUri;
+    private          Consumer<RouteSelection>                   upgradeAuthorization;
 
-    Http1ServerChannel(TransportConfig config, SocketRuntime transport, NetChannel channel, Executor executor, //
-            RouteTable<HttpExchange> routes) {
-        super(config, transport, executor, routes, null);
+    Http1ServerChannel(TransportConfig config, NetChannel channel, Executor executor, RouteTable<HttpExchange> routes) {
+        super(config, executor, routes, false);
         this.channel = channel;
 
         InetSocketAddress remote = (InetSocketAddress) channel.getRemoteAddr();
@@ -54,14 +55,28 @@ class Http1ServerChannel extends HttpChannel {
         this.remote = new InterAddress(scheme, host, remote.getPort(), "unknown");
     }
 
-    void connected() {
-        this.executor.execute(() -> {
-            try {
-                this.notifyConnected();
-            } catch (Throwable failure) {
+    void activated(ChannelListenerFactory<HttpExchange> factory) {
+        try {
+            // 只为实际选中的 HTTP/1 分支登记接收器。
+            if (!this.attachReceiver(factory)) {
                 this.close();
+                return;
             }
-        });
+            this.selected = true;
+            this.executor.execute(() -> {
+                try {
+                    this.notifyConnected();
+                } catch (Throwable failure) {
+                    this.close();
+                }
+            });
+        } catch (Exception failure) {
+            this.close();
+        }
+    }
+
+    boolean acceptsInbound(PlayLoad event) {
+        return this.selected && (event.isInbound() || !event.isSuccess());
     }
 
     void received(HttpRequest request, boolean keepAlive) {
@@ -75,6 +90,22 @@ class Http1ServerChannel extends HttpChannel {
         });
     }
 
+    void onInbound(PlayLoad event) {
+        // 管线失败和输入结束都进入通道的串行任务，保持与请求交付的顺序。
+        if (!event.isSuccess()) {
+            this.execute(this::close);
+            return;
+        }
+
+        if (event.getData() instanceof SoInputCloseEvent) {
+            this.execute(this::inputClosed);
+            return;
+        }
+
+        Http1InboundRequest request = (Http1InboundRequest) event.getData();
+        this.received(request.request(), request.keepAlive());
+    }
+
     void terminated() {
         this.executor.execute(() -> {
             try {
@@ -85,7 +116,7 @@ class Http1ServerChannel extends HttpChannel {
         });
     }
 
-    void inputClosed() {
+    private void inputClosed() {
         this.inputClosed = true;
         if (this.replies.isEmpty() && this.writing == null) {
             this.drainAndClose();
@@ -128,10 +159,6 @@ class Http1ServerChannel extends HttpChannel {
         this.upgradeAuthorization = null;
     }
 
-    boolean attach(ChannelListenerFactory<HttpExchange> factory) throws Exception {
-        return this.attachReceiver(factory);
-    }
-
     RouteSelection selectRoute(String uri) {
         return this.route(uri);
     }
@@ -144,6 +171,7 @@ class Http1ServerChannel extends HttpChannel {
         if (!this.canUpgrade()) {
             throw new IllegalStateException("HTTP connection has pending responses");
         }
+
         HttpMessageUtils.route(request, this.route(request.uri()));
         return new HttpExchange(request);
     }
@@ -252,7 +280,12 @@ class Http1ServerChannel extends HttpChannel {
         Http1ServerResponseSlot slot = this.replies.removeFirst();
         this.writing = slot;
         BasicFuture<Void> sent = new BasicFuture<>();
-        sent.onFinal(done -> this.execute(() -> this.written(slot, done)));
+        sent.onFinal(done -> {
+            this.execute(() -> {
+                this.written(slot, done);
+            });
+        });
+
         try {
             HttpResponse response = slot.response();
             if (response.stream() != null) {
@@ -282,6 +315,7 @@ class Http1ServerChannel extends HttpChannel {
                 out.setHeader("Transfer-Encoding", "chunked");
                 HttpMessageUtils.write(response.trailers(), out.trailingHeaders());
             }
+
             out.setHeader("Connection", slot.keepAlive() ? "keep-alive" : "close");
             this.writeSocket(this.channel, out).onFinal(done -> {
                 this.completeWrite(sent, null, HttpMessageUtils.writeFailure(done));
@@ -294,8 +328,7 @@ class Http1ServerChannel extends HttpChannel {
     private void writeContinue(Http1ServerResponseSlot slot) {
         // 100 Continue 同样遵守 HTTP/1 响应顺序，不能越过前一个请求的正文。
         this.writing = slot;
-        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, //
-                HttpStatus.CONTINUE, ByteBuf.EMPTY);
+        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpStatus.CONTINUE, ByteBuf.EMPTY);
         this.writeSocket(this.channel, response).onFinal(done -> this.execute(() -> {
             this.writing = null;
             Throwable failure = HttpMessageUtils.writeFailure(done);
@@ -322,16 +355,20 @@ class Http1ServerChannel extends HttpChannel {
         if (slot.sent() != null) {
             slot.sent().onCancel(done -> bodyStream.fail(new CancellationException("HTTP response cancelled")));
         }
-        this.writeSocket(this.channel, new Object[] { start, headers }).onFinal(done -> this.execute(() -> {
-            Throwable failure = HttpMessageUtils.writeFailure(done);
-            if (failure == null) {
-                Function<Object, Future<?>> writer = message -> this.writeSocket(this.channel, message);
-                this.startStreamingBodyWrite(0, bodyStream, response.trailers(), writer, sent);
-            } else {
-                bodyStream.fail(failure);
-                sent.failed(failure);
-            }
-        }));
+        this.writeSocket(this.channel, new Object[] { start, headers }).onFinal(done -> {
+            this.execute(() -> {
+                Throwable failure = HttpMessageUtils.writeFailure(done);
+                if (failure == null) {
+                    Function<Object, Future<?>> writer = message -> {
+                        return this.writeSocket(this.channel, message);
+                    };
+                    this.startStreamingBodyWrite(0, bodyStream, response.trailers(), writer, sent);
+                } else {
+                    bodyStream.fail(failure);
+                    sent.failed(failure);
+                }
+            });
+        });
     }
 
     private void written(Http1ServerResponseSlot slot, Future<?> done) {
@@ -346,6 +383,7 @@ class Http1ServerChannel extends HttpChannel {
         if (unread) {
             request.fail(new IOException("HTTP response ended before request body was consumed"));
         }
+
         if (failure != null || !slot.keepAlive() || unread) {
             this.cancelUpgradeAuthorization();
             this.channel.closeNow();
@@ -377,6 +415,7 @@ class Http1ServerChannel extends HttpChannel {
         if (this.writing != null) {
             this.failReply(this.writing, failure);
         }
+
         for (Http1ServerResponseSlot slot : this.replies) {
             this.failReply(slot, failure);
         }

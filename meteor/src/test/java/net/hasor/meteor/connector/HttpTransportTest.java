@@ -21,17 +21,16 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.example.connector.protocol.*;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.*;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
-import net.hasor.example.connector.protocol.*;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -51,7 +50,7 @@ public class HttpTransportTest {
         options.put("protocol", protocol.getSimpleName().toLowerCase(Locale.ROOT));
         String protocolName = options.getOrDefault("protocol", schema);
         InterAddress localAddress = InterAddress.forBinding("http", "127.0.0.1", port, "default");
-        ProtocolConfig mount = new ProtocolConfig(protocolName, protocolName, protocolName, options);
+        ProtocolConfig mount = new ProtocolConfig(protocolName, protocolName, options);
         return new ConnectorConfig(schema, localAddress, options, Collections.singletonList(mount), true);
     }
 
@@ -528,13 +527,13 @@ public class HttpTransportTest {
     }
 
     @Test
-    public void incompatibleProtocolFactoryIsRejectedBeforeListening() throws Exception {
+    public void incompatibleProtocolProviderIsRejectedBeforeListening() throws Exception {
         // 将 TCP 协议错误挂载到 HTTP 传输，验证绑定前的类型校验。
         Map<String, String> options = new HashMap<>();
         options.put("protocol", "wirea");
         InterAddress localAddress = new InterAddress("http://127.0.0.1:" + port() + "/default");
         String protocolName = options.getOrDefault("protocol", "http");
-        ProtocolConfig mount = new ProtocolConfig("http", "http", protocolName, options);
+        ProtocolConfig mount = new ProtocolConfig(protocolName, "http", options);
         List<ProtocolConfig> configMounts = Collections.singletonList(mount);
         ConnectorConfig config = new ConnectorConfig("http", localAddress, options, configMounts, true);
         try (ConnectorManager manager = subscribedManager(runtimeContext(config), RECEIVER)) {

@@ -15,10 +15,10 @@ import net.hasor.neta.channel.data.ProtoSndQueue;
 
 /** Copies engine-owned byte buffers into routed transport messages. */
 public final class RouteByteHandler implements ProtoHandler<ByteBuf, Object> {
-    private final String mountId;
+    private final String protocolName;
 
-    public RouteByteHandler(String mountId) {
-        this.mountId = mountId;
+    public RouteByteHandler(String protocolName) {
+        this.protocolName = protocolName;
     }
 
     public ProtoStatus onMessage(ProtoContext context, ProtoRcvQueue<ByteBuf> source, ProtoSndQueue<Object> target) {
@@ -27,7 +27,7 @@ public final class RouteByteHandler implements ProtoHandler<ByteBuf, Object> {
             try {
                 byte[] bytes = new byte[buffer.readableBytes()];
                 buffer.readBytes(bytes);
-                target.offerMessage(new RouteMessage<>(this.mountId, bytes));
+                target.offerMessage(new RouteMessage<>(this.protocolName, bytes));
             } finally {
                 buffer.release();
             }

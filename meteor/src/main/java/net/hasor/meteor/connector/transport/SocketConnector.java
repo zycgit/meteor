@@ -77,11 +77,10 @@ public abstract class SocketConnector<M> implements NetworkConnector<M> {
         }
     }
 
-    public Future<Void> connect(InterAddress target, RouteTable<M> routes, String initialMountId, //
-            ChannelListenerFactory<M> factory) {
+    public Future<Void> connect(String initial, InterAddress target, RouteTable<M> routes, ChannelListenerFactory<M> factory) {
         BasicFuture<Void> result = new BasicFuture<>();
         Future<NetChannel> connecting = this.transport.connect(target, stack -> {
-            this.attach(stack, target, routes, initialMountId, factory);
+            this.attach(stack, target, routes, initial, factory);
         });
 
         result.onCancel(done -> {
@@ -103,17 +102,17 @@ public abstract class SocketConnector<M> implements NetworkConnector<M> {
         return result;
     }
 
-    private void attach(ProtoBuildContext stack, InterAddress target, RouteTable<M> routes, String initialMountId, //
+    private void attach(ProtoBuildContext stack, InterAddress target, RouteTable<M> routes, String initialProtocol, //
             ChannelListenerFactory<M> factory) {
         try {
-            this.initialize(stack, target, routes, initialMountId, factory);
+            this.initialize(initialProtocol, target, stack, routes, factory);
         } catch (Exception error) {
             throw ExceptionUtils.toRuntime(error);
         }
     }
 
-    protected abstract void initialize(ProtoBuildContext stack, InterAddress target, RouteTable<M> routes, //
-            String initialMountId, ChannelListenerFactory<M> factory) throws Exception;
+    protected abstract void initialize(String initial, InterAddress target, ProtoBuildContext context, RouteTable<M> routes, //
+            ChannelListenerFactory<M> factory) throws Exception;
 
     public void close() {
         for (SocketAdmissionTracker admission : this.admissionTrackers) {

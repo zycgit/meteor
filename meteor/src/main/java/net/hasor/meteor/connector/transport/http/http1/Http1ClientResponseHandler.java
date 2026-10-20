@@ -18,11 +18,9 @@ import static net.hasor.meteor.connector.transport.http.channel.HttpMessageUtils
 
 final class Http1ClientResponseHandler implements ProtoHandler<FullHttpResponse, Object> {
     private final Http1ClientChannel channel;
-    private final NetChannel         socket;
 
-    Http1ClientResponseHandler(Http1ClientChannel channel, NetChannel socket) {
+    Http1ClientResponseHandler(Http1ClientChannel channel) {
         this.channel = channel;
-        this.socket = socket;
     }
 
     @Override
@@ -54,17 +52,20 @@ final class Http1ClientResponseHandler implements ProtoHandler<FullHttpResponse,
 
     @Override
     public void onClose(ProtoContext context) {
+        // 提交串行任务前固定本次回调的连接，客户端可能已开始连接下一条 socket。
+        NetChannel socket = (NetChannel) context.getChannel();
         this.channel.execute(() -> {
             IOException failure = new IOException("HTTP connection closed before response");
-            this.channel.failed(this.socket, failure);
+            this.channel.failed(socket, failure);
         });
     }
 
     @Override
     public ProtoStatus onError(ProtoContext context, Throwable failure, ProtoExceptionHolder holder) {
+        NetChannel socket = (NetChannel) context.getChannel();
         this.channel.execute(() -> {
-            this.channel.failed(this.socket, failure);
-            this.socket.closeNow();
+            this.channel.failed(socket, failure);
+            socket.closeNow();
         });
         return ProtoStatus.Next;
     }

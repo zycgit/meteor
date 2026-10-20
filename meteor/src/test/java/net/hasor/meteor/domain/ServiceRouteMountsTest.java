@@ -21,23 +21,24 @@ public class ServiceRouteMountsTest {
         service.setBindContextPaths("HTTPB", new ContextPath(List.of("/second/", "/first", "/second"), false));
         service.setBindContextPaths("httpa", new ContextPath(List.of("/other"), false));
 
-        Map<String, ContextPath> paths = service.getBindContextPaths();
-        assertEquals(List.of("httpb", "httpa"), new ArrayList<>(paths.keySet()));
-        assertEquals(List.of("/second", "/first"), new ArrayList<>(paths.get("httpb").getPaths()));
+        Map<String, ProtocolMeta> protocols = service.getProtocolMetas();
+        Set<String> selectedPaths = protocols.get("httpb").getContextPath().getPaths();
+        assertEquals(List.of("httpb", "httpa"), new ArrayList<>(protocols.keySet()));
+        assertEquals(List.of("/second", "/first"), new ArrayList<>(selectedPaths));
         assertTrue(service.getBindProtocols().isEmpty());
     }
 
     @Test
     public void repeatedProtocolSelectionMovesToTheLatestConfigurationPosition() {
-        // 协议名和 scheme 可能指向同一个协议，顺序必须反映最后一次配置调用。
+        // 同一协议重复声明时，顺序反映最后一次配置调用。
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.setBindContextPaths("HTTPA", new ContextPath(List.of("/first"), false));
         service.setBindContextPaths("http", new ContextPath(List.of("/second"), false));
         service.setBindContextPaths("httpa", new ContextPath(List.of("/latest"), false));
 
-        Map<String, ContextPath> paths = service.getBindContextPaths();
-        assertEquals(List.of("http", "httpa"), new ArrayList<>(paths.keySet()));
-        assertEquals(Set.of("/latest"), paths.get("httpa").getPaths());
+        Map<String, ProtocolMeta> protocols = service.getProtocolMetas();
+        assertEquals(List.of("http", "httpa"), new ArrayList<>(protocols.keySet()));
+        assertEquals(Set.of("/latest"), protocols.get("httpa").getContextPath().getPaths());
     }
 
     @Test
@@ -46,18 +47,20 @@ public class ServiceRouteMountsTest {
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         List<String> selected = new ArrayList<>(List.of("/orders", "/inventory"));
         service.setBindContextPaths("httpa", new ContextPath(selected, false));
-        Map<String, ContextPath> snapshot = service.getBindContextPaths();
+        Map<String, ProtocolMeta> snapshot = service.getProtocolMetas();
         selected.clear();
 
-        assertEquals(Set.of("/orders", "/inventory"), snapshot.get("httpa").getPaths());
-        ContextPath other = new ContextPath(Set.of("/other"), false);
+        Set<String> originalPaths = snapshot.get("httpa").getContextPath().getPaths();
+        assertEquals(Set.of("/orders", "/inventory"), originalPaths);
+        ContextPath otherPaths = new ContextPath(Set.of("/other"), false);
+        ProtocolMeta other = new ProtocolMeta(service, otherPaths, Map.of());
         assertThrows(UnsupportedOperationException.class, () -> snapshot.put("httpb", other));
-        assertThrows(UnsupportedOperationException.class, () -> snapshot.get("httpa").getPaths().add("/other"));
+        assertThrows(UnsupportedOperationException.class, () -> originalPaths.add("/other"));
 
         // 后续替换选择不会修改此前已返回的快照。
         service.setBindContextPaths("HTTPA", new ContextPath(List.of("/later"), false));
-        assertEquals(Set.of("/orders", "/inventory"), snapshot.get("httpa").getPaths());
-        assertEquals(Set.of("/later"), service.getBindContextPaths().get("httpa").getPaths());
+        assertEquals(Set.of("/orders", "/inventory"), snapshot.get("httpa").getContextPath().getPaths());
+        assertEquals(Set.of("/later"), service.getProtocolMeta("httpa").getContextPath().getPaths());
     }
 
     @Test
@@ -70,7 +73,8 @@ public class ServiceRouteMountsTest {
             service.setBindContextPaths("httpa", new ContextPath(List.of("/inventory", "/bad?query"), false));
         });
         ContextPath expected = new ContextPath(Set.of("/orders"), false);
-        assertEquals(Map.of("httpa", expected), service.getBindContextPaths());
+        assertEquals(Set.of("httpa"), service.getProtocolMetas().keySet());
+        assertEquals(expected, service.getProtocolMeta("httpa").getContextPath());
     }
 
     @Test
@@ -81,7 +85,7 @@ public class ServiceRouteMountsTest {
         assertThrows(IllegalArgumentException.class, () -> {
             service.setBindContextPaths("httpa", new ContextPath(List.of(), false));
         });
-        assertTrue(service.getBindContextPaths().isEmpty());
+        assertTrue(service.getProtocolMetas().isEmpty());
     }
 
     @Test
@@ -91,6 +95,6 @@ public class ServiceRouteMountsTest {
 
         ContextPath paths = new ContextPath(List.of("/orders"), false);
         assertThrows(IllegalArgumentException.class, () -> service.setBindContextPaths(" ", paths));
-        assertTrue(service.getBindContextPaths().isEmpty());
+        assertTrue(service.getProtocolMetas().isEmpty());
     }
 }

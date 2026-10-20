@@ -94,7 +94,7 @@ public class ConnectorAssemblyTest {
     public void missingTransportFailsInitialization() {
         // 管理器从上下文加载尚未支持的端点配置。
         Map<String, String> options = Map.of();
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", "rsf", Map.of());
+        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", Map.of());
         InterAddress local = InterAddress.forBinding("missing", "127.0.0.1", 0, "test");
         ConnectorConfig config = new ConnectorConfig("server", local, options, List.of(protocol), true);
         try (ConnectorManager manager = EndpointFixture.manager(config)) {

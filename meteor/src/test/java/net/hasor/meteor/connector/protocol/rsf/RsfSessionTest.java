@@ -16,10 +16,7 @@ import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolSession;
-import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.ProtocolTestAccess;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.protocol.rsf.codec.RsfV1Codec;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.OptionInfo;
@@ -321,9 +318,10 @@ public class RsfSessionTest {
     public void outboundHandshakeDoesNotAdvertiseAnUnboundServiceAddress() throws Exception {
         // 出站端点没有监听地址，握手不得宣告虚构服务地址。
         Connection connection = new Connection();
-        ProtocolSessionContext outbound = ProtocolTestAccess.context( //
-                this.context.runtime, this.context::schedule, null, true);
         ProtocolConfig config = config(Collections.emptyMap());
+        RouteMountIndex routes = new RouteMountIndex("unit", config);
+        ProtocolSessionContext outbound = ProtocolTestAccess.context( //
+                this.context.runtime, this.context::schedule, null, true, routes);
         ProtocolSession<byte[]> session = new RsfSession(config, outbound, connection, (payload, id) -> {
         });
         session.connected();
@@ -339,10 +337,12 @@ public class RsfSessionTest {
             Connection connection, List<OptionInfo> messages, //
             Map<String, String> options) throws Exception {
         InterAddress address = new InterAddress("rsf", "127.0.0.1", 2181, "default");
+        ProtocolConfig config = config(options);
+        RouteMountIndex routes = new RouteMountIndex("unit", config);
         ProtocolSessionContext protocol = ProtocolTestAccess.context( //
-                this.context.runtime, this.context::schedule, address, false);
+                this.context.runtime, this.context::schedule, address, false, routes);
         return new RsfSession( //
-                config(options), protocol, connection, (payload, id) -> messages.add(payload));
+                config, protocol, connection, (payload, id) -> messages.add(payload));
     }
 
     private ProtocolConfig config(Map<String, String> options) {

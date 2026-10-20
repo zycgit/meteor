@@ -7,7 +7,6 @@
  */
 package net.hasor.realmeteor.bootstrap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
@@ -15,7 +14,6 @@ import net.hasor.meteor.MetPublisher;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.domain.ContextPath;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -30,8 +28,8 @@ public class ServiceContextPublicationTest {
         try (MetContext context = configuration.buildContext()) {
             ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
             ProtocolConfig protocol = endpoint.protocol("httpa");
-            assertEquals("/", protocol.contextPath());
-            assertEquals(List.of("/", "/orders"), protocol.contextPaths());
+            assertEquals("/", protocol.option("contextPath", null));
+            assertEquals("[\"/orders\"]", protocol.option("contextPaths", null));
         }
     }
 
@@ -45,8 +43,8 @@ public class ServiceContextPublicationTest {
         try (MetContext context = configuration.buildContext()) {
             ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
             ProtocolConfig protocol = endpoint.protocol("httpa");
-            assertEquals("/default", protocol.contextPath());
-            assertEquals(List.of("/default", "/orders"), protocol.contextPaths());
+            assertEquals("/default", protocol.option("contextPath", null));
+            assertEquals("[\"/orders\"]", protocol.option("contextPaths", null));
         }
     }
 
@@ -64,61 +62,13 @@ public class ServiceContextPublicationTest {
             // 修改默认路径并添加上下文后重建，旧快照仍保留原来的路径集合。
             editable.contextPath("/later").addContextPath("/inventory");
             try (MetContext after = configuration.buildContext()) {
-                ConnectorConfig changedEndpoint = after.getSettings().getConnectorConfigs().iterator().next();
-                ProtocolConfig changed = changedEndpoint.protocol("httpa");
-                assertEquals(List.of("/later", "/orders", "/inventory"), changed.contextPaths());
-                assertEquals(List.of("/default", "/orders"), original.contextPaths());
+                ConnectorConfig updated = after.getSettings().getConnectorConfigs().iterator().next();
+                ProtocolConfig changed = updated.protocol("httpa");
+                assertEquals("/later", changed.option("contextPath", null));
+                assertEquals("[\"/orders\",\"/inventory\"]", changed.option("contextPaths", null));
+                assertEquals("/default", original.option("contextPath", null));
+                assertEquals("[\"/orders\"]", original.option("contextPaths", null));
             }
-        }
-    }
-
-    @Test
-    public void unselectedServiceUsesOnlyProtocolDefaultContext() throws Exception {
-        // 协议允许多个上下文，服务未显式选择时只发布到默认路径。
-        MetConfiguration configuration = new MetConfiguration();
-        configuration.connector("http").protocol("httpa") //
-                .contextPath("/default").addContextPath("/orders");
-
-        try (MetContext context = configuration.buildContext()) {
-            MetBindInfo<Runnable> service = context.publisher() //
-                    .rsfService(Runnable.class, () -> {
-                    }).register();
-            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
-            ProtocolConfig protocol = endpoint.protocol("httpa");
-
-            assertTrue(service.getBindContextPaths().isEmpty());
-            assertEquals(List.of("/default"), protocol.contextPaths(service));
-            assertEquals("/default", protocol.contextPath(service));
-        }
-    }
-
-    @Test
-    public void explicitServiceContextsDoNotImplicitlyIncludeDefaultContext() throws Exception {
-        // 同一协议的一次选择可以指定多个上下文，选择顺序也决定默认发布地址。
-        MetConfiguration configuration = new MetConfiguration();
-        configuration.connector("http").protocol("httpa") //
-                .contextPath("/default") //
-                .addContextPath("/orders").addContextPath("/inventory");
-
-        try (MetContext context = configuration.buildContext()) {
-            MetBindInfo<Runnable> service = context.publisher() //
-                    .rsfService(Runnable.class, () -> {
-                    }) //
-                    .contextPathByPrefix("HTTPA", "/orders/", "/inventory").register();
-            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
-            ProtocolConfig protocol = endpoint.protocol("httpa");
-
-            // 显式选择不含默认上下文，首个选择用于默认发布地址。
-            assertEquals(List.of("/orders", "/inventory"), protocol.contextPaths(service));
-            assertEquals("/orders", protocol.contextPath(service));
-            assertFalse(protocol.accepts(service, protocol.mountIndex().get("/default")));
-            assertTrue(protocol.accepts(service, protocol.mountIndex().get("/orders")));
-            assertTrue(protocol.accepts(service, protocol.mountIndex().get("/inventory")));
-            assertTrue(service.getBindProtocols().isEmpty());
-            ContextPath selectedPaths = new ContextPath(List.of("/orders", "/inventory"), false);
-            Map<String, ContextPath> selected = Map.of("httpa", selectedPaths);
-            MetBindInfo<?> published = context.getServiceInfo(service.getBindID());
-            assertEquals(selected, published.getBindContextPaths());
         }
     }
 
@@ -135,14 +85,14 @@ public class ServiceContextPublicationTest {
             MetBindInfo<Runnable> service = context.publisher() //
                     .rsfService(Runnable.class, () -> {
                     }) //
-                    .contextPathByPrefix("httpa", "/orders").contextPathByPrefix("httpb", "/shared") //
+                    .contextPathByPrefix("httpa", "/missing").contextPathByPrefix("httpb", "/shared") //
                     .contextPathByPrefix("HTTPA", "/inventory").register();
-            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
 
-            // 只替换目标协议的上下文，另一协议的选择及服务协议范围保持不变。
-            assertEquals(List.of("/inventory"), endpoint.protocol("httpa").contextPaths(service));
-            assertEquals(List.of("/shared"), endpoint.protocol("httpb").contextPaths(service));
+            // 被覆盖的未声明路径不再导致登记失败，原有服务协议范围保持不变。
             assertTrue(service.getBindProtocols().isEmpty());
+            MetBindInfo<?> published = context.getServiceInfo(service.getBindID());
+            assertNotNull(published);
+            assertEquals(service.getBindID(), published.getBindID());
         }
     }
 
@@ -236,8 +186,8 @@ public class ServiceContextPublicationTest {
     }
 
     @Test
-    public void logicalContextSelectionAppliesToEveryMountedAddressScheme() throws Exception {
-        // 同一逻辑协议分别通过普通和安全地址公开，并声明相同的可选目录。
+    public void namedProtocolContextSelectionPublishesWhenAddressSchemesDiffer() throws Exception {
+        // 同一协议分别通过普通和安全地址公开，并声明相同的可选目录。
         MetConfiguration configuration = new MetConfiguration();
         configuration.connector("http").protocol("httpa") //
                 .addressScheme("http").contextPath("/default").addContextPath("/orders");
@@ -245,63 +195,111 @@ public class ServiceContextPublicationTest {
                 .addressScheme("https").contextPath("/default").addContextPath("/orders");
 
         try (MetContext context = configuration.buildContext()) {
-            // 服务只按逻辑协议选择一次目录，该选择应覆盖这个协议的全部端点挂载。
+            // 服务按协议名称选择一次目录，该选择应覆盖这个协议的全部端点挂载。
             MetBindInfo<Runnable> service = context.publisher() //
                     .rsfService(Runnable.class, () -> {
                     }) //
-                    .contextPathByPrefix("httpa", "/orders").register();
+                    .protocol("HTTPA").contextPathByPrefix("HTTPA", "/orders").register();
 
-            // 服务保存逻辑协议身份，端点的公开地址 scheme 不参与上下文归属。
-            assertEquals(Set.of("httpa"), service.getBindContextPaths().keySet());
-            for (ConnectorConfig endpoint : context.getSettings().getConnectorConfigs()) {
-                assertEquals(List.of("/orders"), endpoint.protocol("httpa").contextPaths(service));
-            }
+            // 服务保存统一协议名称，端点的公开地址 scheme 不参与上下文归属。
+            assertEquals(Set.of("httpa"), service.getBindProtocols());
+            MetBindInfo<?> published = context.getServiceInfo(service.getBindID());
+            assertNotNull(published);
+            assertEquals(service.getBindID(), published.getBindID());
+            List<ConnectorConfig> endpoints = List.copyOf(context.getSettings().getConnectorConfigs());
+            assertEquals("http", endpoints.get(0).protocol("httpa").scheme());
+            assertEquals("https", endpoints.get(1).protocol("httpa").scheme());
         }
     }
 
     @Test
-    public void logicalProtocolNameTakesPriorityOverAnotherMountAlias() throws Exception {
-        // 第一个协议的地址别名与第二个协议的逻辑名相同。
+    public void protocolNameDoesNotSelectAnotherMountAddressScheme() throws Exception {
+        // 第一个协议的地址前缀与第二个协议的名称相同。
         MetConfiguration configuration = new MetConfiguration();
         MetConfiguration.ConnectorSettings http = configuration.connector("http");
         http.protocol("httpa").addressScheme("httpb").contextPath("/first");
         http.protocol("httpb").addressScheme("public").contextPath("/second");
 
         try (MetContext context = configuration.buildContext()) {
-            // 选择 httpb 必须解释为逻辑协议名，不能同时把 httpa 的地址别名纳入范围。
+            // 选择 httpb 只匹配协议名称，不将 httpa 的地址前缀纳入范围。
             MetBindInfo<Runnable> service = context.publisher() //
                     .rsfService(Runnable.class, () -> {
                     }) //
                     .protocol("httpb").contextPathByPrefix("httpb", "/second").register();
-            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
 
+            // 登记不检查第一个协议的 /first 目录，协议名对应的发布仍成功。
             assertEquals(Set.of("httpb"), service.getBindProtocols());
-            assertTrue(endpoint.protocol("httpa").contextPaths(service).isEmpty());
-            assertEquals(List.of("/second"), endpoint.protocol("httpb").contextPaths(service));
+            MetBindInfo<?> published = context.getServiceInfo(service.getBindID());
+            assertNotNull(published);
+            assertEquals(service.getBindID(), published.getBindID());
         }
     }
 
     @Test
-    public void uniqueAddressSchemeAliasSelectsOnlyItsPublishedScheme() throws Exception {
-        // 地址别名只对应一个逻辑协议时，服务入口仍允许用别名选择。
+    public void serviceProtocolRejectsAnAddressScheme() throws Exception {
+        // 协议名与地址前缀不同，服务范围只接受协议名。
         MetConfiguration configuration = new MetConfiguration();
         configuration.connector("http").protocol("httpa").addressScheme("public");
 
         try (MetContext context = configuration.buildContext()) {
-            MetBindInfo<Runnable> service = context.publisher() //
+            MetPublisher.ConfigurationBuilder<Runnable> service = context.publisher() //
                     .rsfService(Runnable.class, () -> {
-                    }) //
-                    .protocol("public").register();
+                    });
 
-            assertEquals(Set.of("public"), service.getBindProtocols());
-            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
-            assertTrue(endpoint.protocol("httpa").accepts(service.getBindProtocols()));
+            // 地址前缀不能声明服务协议，也不会留下服务登记。
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                service.protocol("public");
+            });
+            assertEquals("Service selected unknown protocol: public", failure.getMessage());
+            assertNull(context.getServiceInfo(Runnable.class));
         }
     }
 
     @Test
-    public void sharedAddressSchemeAliasCannotSelectAServiceProtocol() throws Exception {
-        // 同一公开地址 scheme 挂载两个不同逻辑协议时，别名不足以确定服务范围。
+    public void prefixContextSelectionRejectsAnAddressScheme() throws Exception {
+        // 可选目录属于协议名，地址前缀不形成另一份上下文配置。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("http").protocol("httpa") //
+                .addressScheme("public").contextPath("/orders");
+
+        try (MetContext context = configuration.buildContext()) {
+            MetPublisher.ConfigurationBuilder<Runnable> service = context.publisher() //
+                    .rsfService(Runnable.class, () -> {
+                    });
+
+            // 前缀上下文入口立即报告未知协议。
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                service.contextPathByPrefix("public", "/orders");
+            });
+            assertEquals("Service selected unknown protocol: public", failure.getMessage());
+            assertNull(context.getServiceInfo(Runnable.class));
+        }
+    }
+
+    @Test
+    public void exactContextSelectionRejectsAnAddressScheme() throws Exception {
+        // 精确上下文和前缀上下文采用同一个协议名称边界。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("http").protocol("httpa") //
+                .addressScheme("public").contextPath("/orders");
+
+        try (MetContext context = configuration.buildContext()) {
+            MetPublisher.ConfigurationBuilder<Runnable> service = context.publisher() //
+                    .rsfService(Runnable.class, () -> {
+                    });
+
+            // 精确上下文入口不能通过地址前缀绕过协议选择。
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                service.contextPathByExact("public", "/orders/echo");
+            });
+            assertEquals("Service selected unknown protocol: public", failure.getMessage());
+            assertNull(context.getServiceInfo(Runnable.class));
+        }
+    }
+
+    @Test
+    public void sharedAddressSchemeDoesNotSelectAnyServiceProtocol() throws Exception {
+        // 两个协议共用一个地址前缀，不影响各自独立的协议名称。
         MetConfiguration configuration = new MetConfiguration();
         MetConfiguration.ConnectorSettings http = configuration.connector("http");
         http.protocol("httpa").addressScheme("http").contextPath("/first");
@@ -312,10 +310,11 @@ public class ServiceContextPublicationTest {
                     .rsfService(Runnable.class, () -> {
                     });
 
+            // 共用前缀仍是未知协议，不再解释别名或判断歧义。
             IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
                 service.protocol("http");
             });
-            assertTrue(failure.getMessage().contains("alias is ambiguous"));
+            assertEquals("Service selected unknown protocol: http", failure.getMessage());
         }
     }
 
@@ -337,5 +336,16 @@ public class ServiceContextPublicationTest {
         MetConfiguration.ProtocolSettings protocol = configuration.connector("http").protocol("httpa");
 
         assertThrows(IllegalArgumentException.class, () -> protocol.addContextPath("/orders?tenant=1"));
+    }
+
+    @Test
+    public void invalidRawContextOptionIsRejectedDuringBootstrap() {
+        // option 允许保存原始配置，路径有效性由启动期的协议路由编译检查。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("http").protocol("httpa").option("contextPath", "/orders?tenant=1");
+
+        // 构建入口必须拒绝带查询参数的目录，不能推迟到首次收发请求。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, configuration::buildContext);
+        assertTrue(failure.getMessage().contains("without authority, query or fragment"));
     }
 }

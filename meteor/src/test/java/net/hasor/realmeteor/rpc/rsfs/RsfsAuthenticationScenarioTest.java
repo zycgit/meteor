@@ -9,14 +9,14 @@ package net.hasor.realmeteor.rpc.rsfs;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import net.hasor.example.rpc.rsfs.RsfsConfigurations;
+import net.hasor.example.rpc.rsfs.RsfsEcho;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
-import net.hasor.example.rpc.rsfs.RsfsConfigurations;
-import net.hasor.example.rpc.rsfs.RsfsEcho;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -35,8 +35,8 @@ public class RsfsAuthenticationScenarioTest {
             server.publisher().rsfService(RsfsEcho.class, value -> {
                 calls.incrementAndGet();
                 return value;
-            }).protocol("rsfs").register();
-            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
+            }).protocol("rsf").register();
+            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsf").register();
 
             // 认证失败直接结束调用，不能等待业务超时，也不能执行服务。
             MetFuture call = client.getRsfClient(server.getListenAddress("rsf", "rsfs")) //
@@ -61,8 +61,8 @@ public class RsfsAuthenticationScenarioTest {
             server.publisher().rsfService(RsfsEcho.class, value -> {
                 calls.incrementAndGet();
                 return value;
-            }).protocol("rsfs").register();
-            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
+            }).protocol("rsf").register();
+            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsf").register();
 
             // 认证失败直接结束调用，不能等待业务超时，也不能执行服务。
             MetFuture call = client.getRsfClient(server.getListenAddress("rsf", "rsfs")) //
@@ -87,8 +87,8 @@ public class RsfsAuthenticationScenarioTest {
             server.publisher().rsfService(RsfsEcho.class, value -> {
                 calls.incrementAndGet();
                 return value;
-            }).protocol("rsfs").register();
-            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
+            }).protocol("rsf").register();
+            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsf").register();
 
             // 认证失败直接结束调用，不能等待业务超时，也不能执行服务。
             MetFuture call = client.getRsfClient(server.getListenAddress("rsf", "rsfs")) //
@@ -113,8 +113,8 @@ public class RsfsAuthenticationScenarioTest {
             server.publisher().rsfService(RsfsEcho.class, value -> {
                 calls.incrementAndGet();
                 return value;
-            }).protocol("rsfs").register();
-            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
+            }).protocol("rsf").register();
+            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsf").register();
 
             // 认证失败直接结束调用，不能等待业务超时，也不能执行服务。
             MetFuture call = client.getRsfClient(server.getListenAddress("rsf", "rsfs")) //

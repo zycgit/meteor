@@ -65,7 +65,7 @@ public interface MetSettings {
     /**获取本地服务绑定地址*/
     String getBindAddress();
 
-    /**获取默认传输协议*/
+    /** 获取默认协议的 SPI 名称。 */
     String getDefaultProtocol();
 
     /**可使用的协议名集合*/

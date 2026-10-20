@@ -18,8 +18,6 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.*;
-import net.hasor.neta.channel.ProtoBuildContext;
-import net.hasor.neta.channel.transport.udp.UdpSoConfig;
 import org.junit.Test;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static org.junit.Assert.*;
@@ -38,9 +36,9 @@ public class UdpChannelTest {
             Receiver receiver = new Receiver();
             ClassLoader loader = this.getClass().getClassLoader();
             TransportConfig transportConfig = transport(config);
-            try (TestSocketRuntime transport = new TestSocketRuntime( //
-                    transportConfig, loader, this.socketConfig())) {
-                transport.connect(remote, stack -> receiver.attach(stack, remote, transport, 65507)) //
+            try (NetworkConnector<byte[]> transport = new UdpConnector( //
+                    transportConfig, null, TransportTestServices.newRuntimeServices(loader))) {
+                transport.connect(null, remote, RouteTestAccess.activate(Map.of(), null), receiver) //
                         .get(2, TimeUnit.SECONDS);
                 NetworkChannel<byte[]> connection = receiver.connected.get(2, TimeUnit.SECONDS);
                 peer.setSoTimeout(2000);
@@ -62,22 +60,23 @@ public class UdpChannelTest {
     }
 
     @Test(timeout = 10000)
-    public void outboundRepliesKeepTheInitiallySelectedMount() throws Exception {
-        // 主动连接选择 A 挂载，同时准备一个会匹配回包内容的 B 探针。
+    public void outboundRepliesKeepTheInitiallySelectedProtocol() throws Exception {
+        // 主动连接选择 alpha 协议，同时准备一个会匹配回包内容的 beta 协议探针。
         try (DatagramSocket peer = new DatagramSocket()) {
             InterAddress remote = new InterAddress("udp", "127.0.0.1", peer.getLocalPort(), "default");
             ConnectorConfig config = this.config(remote);
-            RoutedFactory receiver = new RoutedFactory("mount-a");
+            RoutedFactory receiver = new RoutedFactory("alpha");
             ClassLoader loader = this.getClass().getClassLoader();
             TransportConfig transportConfig = transport(config);
-            try (TestSocketRuntime transport = new TestSocketRuntime( //
-                    transportConfig, loader, this.socketConfig())) {
-                transport.connect(remote, stack -> receiver.attach(stack, remote, transport, 65507)) //
+            try (NetworkConnector<byte[]> transport = new UdpConnector( //
+                    transportConfig, null, TransportTestServices.newRuntimeServices(loader))) {
+                RouteTable<byte[]> routes = RouteTestAccess.activate(receiver.routes, null);
+                transport.connect(receiver.initialProtocol, remote, routes, receiver) //
                         .get(2, TimeUnit.SECONDS);
                 NetworkChannel<byte[]> connection = receiver.connected.get(2, TimeUnit.SECONDS);
                 peer.setSoTimeout(2000);
 
-                // 回包内容明确匹配 B 探针，主动连接仍必须交付给创建连接时选定的 A 挂载。
+                // 回包内容匹配 beta 探针，仍必须交付给创建连接时选定的 alpha 协议。
                 byte[] request = "AArequest".getBytes(StandardCharsets.US_ASCII);
                 connection.write(request).get(2, TimeUnit.SECONDS);
                 DatagramPacket packet = receive(peer);
@@ -86,7 +85,7 @@ public class UdpChannelTest {
 
                 RoutedMessage received = receiver.received.poll(2, TimeUnit.SECONDS);
                 assertNotNull(received);
-                assertEquals("mount-a", received.mountId);
+                assertEquals("alpha", received.protocolName);
                 assertArrayEquals(reply, received.message);
             }
         }
@@ -110,9 +109,9 @@ public class UdpChannelTest {
             Receiver receiver = new Receiver();
             ClassLoader loader = this.getClass().getClassLoader();
             TransportConfig transportConfig = transport(config);
-            try (TestSocketRuntime transport = new TestSocketRuntime( //
-                    transportConfig, loader, this.socketConfig())) {
-                transport.connect(remote, stack -> receiver.attach(stack, remote, transport, 65507)) //
+            try (NetworkConnector<byte[]> transport = new UdpConnector( //
+                    transportConfig, null, TransportTestServices.newRuntimeServices(loader))) {
+                transport.connect(null, remote, RouteTestAccess.activate(Map.of(), null), receiver) //
                         .get(2, TimeUnit.SECONDS);
                 NetworkChannel<byte[]> connection = receiver.connected.get(2, TimeUnit.SECONDS);
                 peer.setSoTimeout(2000);
@@ -144,13 +143,13 @@ public class UdpChannelTest {
         // 创建真实数据报对端并通过 SocketRuntime 安装 UDP SPI。
         try (DatagramSocket peer = new DatagramSocket()) {
             InterAddress remote = new InterAddress("udp", "127.0.0.1", peer.getLocalPort(), "default");
-            ConnectorConfig config = this.config(remote);
+            ConnectorConfig config = this.config(remote, Map.of("maxDatagramSize", "32"));
             Receiver receiver = new Receiver();
             ClassLoader loader = this.getClass().getClassLoader();
             TransportConfig transportConfig = transport(config);
-            try (TestSocketRuntime transport = new TestSocketRuntime( //
-                    transportConfig, loader, this.socketConfig())) {
-                transport.connect(remote, stack -> receiver.attach(stack, remote, transport, 32)) //
+            try (NetworkConnector<byte[]> transport = new UdpConnector( //
+                    transportConfig, null, TransportTestServices.newRuntimeServices(loader))) {
+                transport.connect(null, remote, RouteTestAccess.activate(Map.of(), null), receiver) //
                         .get(2, TimeUnit.SECONDS);
                 NetworkChannel<byte[]> connection = receiver.connected.get(2, TimeUnit.SECONDS);
                 peer.setSoTimeout(2000);
@@ -180,13 +179,13 @@ public class UdpChannelTest {
         // 创建真实数据报对端并通过 SocketRuntime 安装 UDP SPI。
         try (DatagramSocket peer = new DatagramSocket()) {
             InterAddress remote = new InterAddress("udp", "127.0.0.1", peer.getLocalPort(), "default");
-            ConnectorConfig config = this.config(remote);
+            ConnectorConfig config = this.config(remote, Map.of("maxDatagramSize", "32"));
             Receiver receiver = new Receiver();
             ClassLoader loader = this.getClass().getClassLoader();
             TransportConfig transportConfig = transport(config);
-            try (TestSocketRuntime transport = new TestSocketRuntime( //
-                    transportConfig, loader, this.socketConfig())) {
-                transport.connect(remote, stack -> receiver.attach(stack, remote, transport, 32)) //
+            try (NetworkConnector<byte[]> transport = new UdpConnector( //
+                    transportConfig, null, TransportTestServices.newRuntimeServices(loader))) {
+                transport.connect(null, remote, RouteTestAccess.activate(Map.of(), null), receiver) //
                         .get(2, TimeUnit.SECONDS);
                 NetworkChannel<byte[]> connection = receiver.connected.get(2, TimeUnit.SECONDS);
                 peer.setSoTimeout(2000);
@@ -216,13 +215,13 @@ public class UdpChannelTest {
         // 创建真实数据报对端并通过 SocketRuntime 安装 UDP SPI。
         try (DatagramSocket peer = new DatagramSocket()) {
             InterAddress remote = new InterAddress("udp", "127.0.0.1", peer.getLocalPort(), "default");
-            ConnectorConfig config = this.config(remote);
+            ConnectorConfig config = this.config(remote, Map.of("maxDatagramSize", "32"));
             Receiver receiver = new Receiver();
             ClassLoader loader = this.getClass().getClassLoader();
             TransportConfig transportConfig = transport(config);
-            try (TestSocketRuntime transport = new TestSocketRuntime( //
-                    transportConfig, loader, this.socketConfig())) {
-                transport.connect(remote, stack -> receiver.attach(stack, remote, transport, 32)) //
+            try (NetworkConnector<byte[]> transport = new UdpConnector( //
+                    transportConfig, null, TransportTestServices.newRuntimeServices(loader))) {
+                transport.connect(null, remote, RouteTestAccess.activate(Map.of(), null), receiver) //
                         .get(2, TimeUnit.SECONDS);
                 NetworkChannel<byte[]> connection = receiver.connected.get(2, TimeUnit.SECONDS);
                 peer.setSoTimeout(2000);
@@ -255,13 +254,13 @@ public class UdpChannelTest {
         // 创建真实数据报对端并通过 SocketRuntime 安装 UDP SPI。
         try (DatagramSocket peer = new DatagramSocket()) {
             InterAddress remote = new InterAddress("udp", "127.0.0.1", peer.getLocalPort(), "default");
-            ConnectorConfig config = this.config(remote);
+            ConnectorConfig config = this.config(remote, Map.of("maxDatagramSize", "32"));
             Receiver receiver = new Receiver();
             ClassLoader loader = this.getClass().getClassLoader();
             TransportConfig transportConfig = transport(config);
-            try (TestSocketRuntime transport = new TestSocketRuntime( //
-                    transportConfig, loader, this.socketConfig())) {
-                transport.connect(remote, stack -> receiver.attach(stack, remote, transport, 32)) //
+            try (NetworkConnector<byte[]> transport = new UdpConnector( //
+                    transportConfig, null, TransportTestServices.newRuntimeServices(loader))) {
+                transport.connect(null, remote, RouteTestAccess.activate(Map.of(), null), receiver) //
                         .get(2, TimeUnit.SECONDS);
                 NetworkChannel<byte[]> connection = receiver.connected.get(2, TimeUnit.SECONDS);
                 peer.setSoTimeout(2000);
@@ -305,13 +304,13 @@ public class UdpChannelTest {
         // 创建真实数据报对端并通过 SocketRuntime 安装 UDP SPI。
         try (DatagramSocket peer = new DatagramSocket()) {
             InterAddress remote = new InterAddress("udp", "127.0.0.1", peer.getLocalPort(), "default");
-            ConnectorConfig config = this.config(remote);
+            ConnectorConfig config = this.config(remote, Map.of("maxDatagramSize", "32"));
             Receiver receiver = new Receiver();
             ClassLoader loader = this.getClass().getClassLoader();
             TransportConfig transportConfig = transport(config);
-            try (TestSocketRuntime transport = new TestSocketRuntime( //
-                    transportConfig, loader, this.socketConfig())) {
-                transport.connect(remote, stack -> receiver.attach(stack, remote, transport, 32)) //
+            try (NetworkConnector<byte[]> transport = new UdpConnector( //
+                    transportConfig, null, TransportTestServices.newRuntimeServices(loader))) {
+                transport.connect(null, remote, RouteTestAccess.activate(Map.of(), null), receiver) //
                         .get(2, TimeUnit.SECONDS);
                 NetworkChannel<byte[]> connection = receiver.connected.get(2, TimeUnit.SECONDS);
                 peer.setSoTimeout(2000);
@@ -355,31 +354,17 @@ public class UdpChannelTest {
     }
 
     private ConnectorConfig config(InterAddress remote) {
-        Map<String, String> options = Collections.emptyMap();
-        ProtocolConfig mount = ProtocolConfig.newConfig("raw-udp", "udp", options);
-        return new ConnectorConfig("raw-udp", remote, options, List.of(mount), true);
+        return this.config(remote, Map.of());
     }
 
-    private UdpSoConfig socketConfig() {
-        UdpSoConfig config = new UdpSoConfig();
-        config.setRcvPacketSize(65536);
-        return config;
+    private ConnectorConfig config(InterAddress remote, Map<String, String> options) {
+        ProtocolConfig mount = ProtocolConfig.newConfig("raw-udp", "udp", options);
+        return new ConnectorConfig("raw-udp", remote, options, List.of(mount), true);
     }
 
     private static final class Receiver implements ChannelListenerFactory<byte[]> {
         private final BasicFuture<NetworkChannel<byte[]>> connected = new BasicFuture<>();
         private final BlockingQueue<byte[]>               received  = new LinkedBlockingQueue<>();
-
-        private void attach(ProtoBuildContext stack, InterAddress remote, TestSocketRuntime transport, int maximum) {
-            try {
-                RouteTable<byte[]> routeTable = RouteTestAccess.activate(Collections.emptyMap(), null);
-                UdpChannel.attach(stack, remote, transport.nextExecutor(), maximum, false, null, 0, 0, //
-                        routeTable, null, this);
-            } catch (Exception failure) {
-                this.connected.failed(failure);
-                throw new IllegalStateException(failure);
-            }
-        }
 
         public ChannelListener<byte[]> createListener(NetworkChannel<byte[]> channel) {
             return new ChannelListener<byte[]>() {
@@ -399,32 +384,21 @@ public class UdpChannelTest {
     }
 
     private static final class RoutedFactory implements ChannelListenerFactory<byte[]> {
-        private final String                               initialMountId;
+        private final String                               initialProtocol;
         private final Map<String, RouteDefinition<byte[]>> routes;
         private final BasicFuture<NetworkChannel<byte[]>>  connected = new BasicFuture<>();
         private final BlockingQueue<RoutedMessage>         received  = new LinkedBlockingQueue<>();
 
-        private RoutedFactory(String initialMountId) {
-            this.initialMountId = initialMountId;
+        private RoutedFactory(String initialProtocol) {
+            this.initialProtocol = initialProtocol;
             Map<String, RouteDefinition<byte[]>> routes = new LinkedHashMap<>();
             RouteDefinition<byte[]> first = RouteTestAccess.definition(//
                     Collections.emptyMap(), null, message -> probe("AA", message));
             RouteDefinition<byte[]> second = RouteTestAccess.definition(//
                     Collections.emptyMap(), null, message -> probe("BB", message));
-            routes.put("mount-a", first);
-            routes.put("mount-b", second);
+            routes.put("alpha", first);
+            routes.put("beta", second);
             this.routes = Collections.unmodifiableMap(routes);
-        }
-
-        private void attach(ProtoBuildContext stack, InterAddress remote, TestSocketRuntime transport, int maximum) {
-            try {
-                RouteTable<byte[]> routeTable = RouteTestAccess.activate(this.routes, null);
-                UdpChannel.attach(stack, remote, transport.nextExecutor(), maximum, false, null, 0, 0, //
-                        routeTable, this.initialMountId, this);
-            } catch (Exception failure) {
-                this.connected.failed(failure);
-                throw new IllegalStateException(failure);
-            }
         }
 
         @Override
@@ -436,8 +410,8 @@ public class UdpChannelTest {
                 }
 
                 @Override
-                public void receive(String mountId, byte[] message) {
-                    RoutedFactory.this.received.add(new RoutedMessage(mountId, message));
+                public void receive(String protocolName, byte[] message) {
+                    RoutedFactory.this.received.add(new RoutedMessage(protocolName, message));
                 }
 
                 @Override
@@ -461,14 +435,7 @@ public class UdpChannelTest {
         }
     }
 
-    private static final class RoutedMessage {
-        private final String mountId;
-        private final byte[] message;
-
-        private RoutedMessage(String mountId, byte[] message) {
-            this.mountId = mountId;
-            this.message = message;
-        }
+    private record RoutedMessage(String protocolName, byte[] message) {
     }
 
     private static final class DispatchBlocker implements Runnable {

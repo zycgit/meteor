@@ -211,7 +211,7 @@ final class MetBindBuilder implements MetPublisher {
             return this;
         }
 
-        /** 逻辑协议名优先；地址 scheme 只在能够唯一确定逻辑协议时作为兼容别名。 */
+        /** 服务声明只使用已配置的协议名，地址 scheme 不参与协议选择。 */
         private String protocolSelector(String selection) {
             if (StringUtils.isBlank(selection)) {
                 throw new IllegalArgumentException("Service protocol must not be blank");
@@ -219,7 +219,7 @@ final class MetBindBuilder implements MetPublisher {
 
             String selector = selection.trim();
 
-            // 先在全部端点中解析逻辑协议名，同一逻辑协议可以挂载在多个传输端点上。
+            // 同一协议可以挂载在多个端点，匹配时返回统一的协议名。
             for (ConnectorConfig endpoint : MetBindBuilder.this.getSettings().getConnectorConfigs()) {
                 for (ProtocolConfig protocol : endpoint.protocols()) {
                     if (StringUtils.equalsIgnoreCase(selector, protocol.name())) {
@@ -228,24 +228,6 @@ final class MetBindBuilder implements MetPublisher {
                 }
             }
 
-            // 没有逻辑名匹配时，公开地址 scheme 必须唯一对应一个逻辑协议。
-            String selected = null;
-            String selectedScheme = null;
-            for (ConnectorConfig endpoint : MetBindBuilder.this.getSettings().getConnectorConfigs()) {
-                for (ProtocolConfig protocol : endpoint.protocols()) {
-                    if (!StringUtils.equalsIgnoreCase(selector, protocol.scheme())) {
-                        continue;
-                    }
-                    if (selected != null && !StringUtils.equalsIgnoreCase(selected, protocol.name())) {
-                        throw new IllegalArgumentException("Service protocol alias is ambiguous: " + selection);
-                    }
-                    selected = protocol.name();
-                    selectedScheme = protocol.scheme();
-                }
-            }
-            if (selectedScheme != null) {
-                return selectedScheme;
-            }
             throw new IllegalArgumentException("Service selected unknown protocol: " + selection);
         }
 

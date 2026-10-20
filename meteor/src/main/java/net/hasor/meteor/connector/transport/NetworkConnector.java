@@ -16,10 +16,10 @@ public interface NetworkConnector<M> extends AutoCloseable {
     /**
      * Establishes a transport channel and installs its receiver. The receiver observes activation.
      * HTTP establishes a logical channel here and opens its socket on the first exchange.
+     * initialProtocol selects a protocol name in this endpoint; null lets the route table choose the protocol.
      * Application handshakes, if any, run above this operation.
      */
-    Future<Void> connect(InterAddress address, RouteTable<M> routes, String initialMountId, //
-            ChannelListenerFactory<M> factory);
+    Future<Void> connect(String initial, InterAddress address, RouteTable<M> routes, ChannelListenerFactory<M> factory);
 
     /** Releases network resources. Drain individual channels first when graceful shutdown is required. */
     void close();

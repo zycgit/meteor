@@ -192,6 +192,36 @@ public class MetCallerTest {
     }
 
     @Test
+    public void dispatcherAcceptsProtocolNameWithDifferentAddressScheme() throws Exception {
+        // 服务只向 RPC 协议开放，内存传输地址使用独立的 memory 前缀。
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
+            server.service.addBindProtocol("RPC");
+            server.bind();
+
+            // 入站授权按通道协议名匹配，并保持协议名大小写不敏感。
+            assertEquals("hello", client.invoke(server.address).getData(2, TimeUnit.SECONDS));
+            assertEquals(1, server.remoteFilters.get());
+        }
+    }
+
+    @Test
+    public void dispatcherRejectsAddressSchemeUsedAsProtocolName() throws Exception {
+        // 底层通道的协议名为 rpc，服务却只声明地址前缀 memory。
+        try (Host server = new Host(10000, "normal"); //
+             Host client = new Host(10000, "normal")) {
+            server.service.addBindProtocol("memory");
+            server.bind();
+
+            // 地址前缀不授予协议访问权限，请求在业务过滤器前被拒绝。
+            Throwable failure = failure(client.invoke(server.address));
+            assertTrue(failure instanceof MetException);
+            assertEquals(ProtocolStatus.Forbidden, ((MetException) failure).getStatus());
+            assertEquals(0, server.remoteFilters.get());
+        }
+    }
+
+    @Test
     public void coreInvokesWithoutClientFacadeCalls() throws Exception {
         // 准备独立的服务端和调用端内存连接器。
         try (Host server = new Host(10000, "normal"); //

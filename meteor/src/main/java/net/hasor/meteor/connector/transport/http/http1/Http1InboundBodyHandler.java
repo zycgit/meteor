@@ -10,13 +10,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
 import net.hasor.meteor.connector.RouteSelection;
-import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
-import net.hasor.meteor.connector.transport.http.channel.HttpMessageUtils;
+import net.hasor.meteor.connector.transport.http.channel.*;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.neta.channel.*;
@@ -26,37 +21,28 @@ import net.hasor.neta.codec.http.*;
 
 /** 按挂载点交付增量正文；普通消息继续交给 Neta 聚合器。 */
 final class Http1InboundBodyHandler implements ProtoHandler<HttpObject, HttpObject> {
-    private final Consumer<Runnable>               executor;
-    private final Function<String, RouteSelection> routeSelector;
-    private final Predicate<RouteSelection>        streamRequest;
-    private final NetChannel                       socket;
-    private final BooleanSupplier                  streamResponse;
-    private final Consumer<Object>                 received;
-    private final Map<String, List<String>>        headers  = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    private final Map<String, List<String>>        trailers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-    private       HttpBodyStream                   bodyStream;
-    private       RouteSelection                   route;
-    private       boolean                          routePending;
-    private       String                           method;
-    private       String                           uri;
-    private       int                              status;
-    private       HttpVersion                      version;
-    private       ReadPause                        pause;
+    private final HttpChannel               channel;
+    private final Map<String, List<String>> headers  = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    private final Map<String, List<String>> trailers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    private       HttpBodyStream            bodyStream;
+    private       RouteSelection            route;
+    private       boolean                   routePending;
+    private       String                    method;
+    private       String                    uri;
+    private       int                       status;
+    private       HttpVersion               version;
+    private       ReadPause                 pause;
 
-    Http1InboundBodyHandler(Consumer<Runnable> executor, Function<String, RouteSelection> routeSelector, Predicate<RouteSelection> streamRequest, NetChannel socket, BooleanSupplier streamResponse, Consumer<Object> received) {
-        this.executor = executor;
-        this.routeSelector = routeSelector;
-        this.streamRequest = streamRequest;
-        this.socket = socket;
-        this.streamResponse = streamResponse;
-        this.received = received;
+    Http1InboundBodyHandler(HttpChannel channel) {
+        this.channel = channel;
     }
 
     @Override
-    public ProtoStatus onMessage(ProtoContext context, ProtoRcvQueue<HttpObject> source, //
-            ProtoSndQueue<HttpObject> target) throws Exception {
+    public ProtoStatus onMessage(ProtoContext context, ProtoRcvQueue<HttpObject> source, ProtoSndQueue<HttpObject> target) throws Exception {
+        // 使用本次回调所属的物理连接，客户端重连不会改变旧 Handler 的归属。
+        NetChannel socket = (NetChannel) context.getChannel();
         if (this.pause != null && (this.bodyStream == null || this.bodyStream.writableBytes() > 0)) {
-            this.socket.resumeRead(this.pause);
+            socket.resumeRead(this.pause);
             this.pause = null;
         }
 
@@ -97,14 +83,14 @@ final class Http1InboundBodyHandler implements ProtoHandler<HttpObject, HttpObje
                 int count = Math.min(this.bodyStream.writableBytes(), content.content().readableBytes());
                 if (count == 0) {
                     if (this.pause == null) {
-                        this.pause = this.socket.pauseRead();
+                        this.pause = socket.pauseRead();
                     }
                     return ProtoStatus.Next;
                 }
 
                 byte[] bytes = new byte[count];
                 content.content().readBytes(bytes);
-                this.bodyStream.offer(bytes, () -> this.executor.accept(context::resumeReceive));
+                this.bodyStream.offer(bytes, () -> this.channel.execute(context::resumeReceive));
                 if (content.content().readableBytes() > 0) {
                     continue;
                 }
@@ -112,7 +98,7 @@ final class Http1InboundBodyHandler implements ProtoHandler<HttpObject, HttpObje
 
             source.takeMessage();
             try {
-                this.consume(message);
+                this.consume(message, socket);
             } finally {
                 message.release();
             }
@@ -122,8 +108,10 @@ final class Http1InboundBodyHandler implements ProtoHandler<HttpObject, HttpObje
 
     private void begin(HttpObject message) {
         if (message instanceof DefaultHttpRequest request) {
-            this.route = this.routeSelector.apply(request.uri());
-            if (this.streamRequest.test(this.route)) {
+            // 请求头到达时固定本次路由，并据此选择正文模式。
+            Http1ServerChannel server = (Http1ServerChannel) this.channel;
+            this.route = server.selectRoute(request.uri());
+            if (server.streamRequest(this.route)) {
                 this.method = request.method().name();
                 this.uri = request.uri();
                 this.version = request.protocolVersion();
@@ -132,7 +120,9 @@ final class Http1InboundBodyHandler implements ProtoHandler<HttpObject, HttpObje
                 this.routePending = true;
             }
         } else if (message instanceof DefaultHttpResponse response) {
-            if (response.status().code() >= 200 && this.streamResponse.getAsBoolean()) {
+            // 响应模式需要结合当前请求，交换状态仍由客户端通道管理。
+            Http1ClientChannel client = (Http1ClientChannel) this.channel;
+            if (response.status().code() >= 200 && client.streamResponse()) {
                 this.status = response.status().code();
                 this.version = response.protocolVersion();
                 this.bodyStream = new HttpBodyStream(65536);
@@ -140,7 +130,7 @@ final class Http1InboundBodyHandler implements ProtoHandler<HttpObject, HttpObje
         }
     }
 
-    private void consume(HttpObject message) {
+    private void consume(HttpObject message, NetChannel socket) {
         if (message instanceof HttpHeaders fields) {
             Map<String, List<String>> destination = this.headers;
             if (message instanceof TrailerHttpHeaders) {
@@ -157,10 +147,12 @@ final class Http1InboundBodyHandler implements ProtoHandler<HttpObject, HttpObje
             if (this.method != null) {
                 HttpRequest request = HttpRequest.newStreaming(this.method, this.uri, this.headers, this.bodyStream, 1);
                 HttpMessageUtils.route(request, this.route);
-                this.received.accept(new Http1InboundRequest(request, keepAlive));
+                Http1ServerChannel server = (Http1ServerChannel) this.channel;
+                server.received(request, keepAlive);
             } else {
                 HttpResponse response = HttpResponse.newStreaming(this.status, this.headers, this.bodyStream, Map.of());
-                this.received.accept(new Http1InboundResponse(response, keepAlive));
+                Http1ClientChannel client = (Http1ClientChannel) this.channel;
+                client.received(socket, response, keepAlive);
             }
         }
 

@@ -114,8 +114,8 @@ public class StandaloneMetConfigurationTest {
 
     @Test
     public void settingsExposeConfiguredConnectorsWithoutRuntimeMountSelectors() throws Exception {
-        // 同一逻辑协议配置两个监听端点，第二个挂载使用独立公开地址别名。
-        MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("rsfs");
+        // 同一协议配置两个监听端点，第二个挂载使用独立的公开地址前缀。
+        MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("RSF");
         configuration.connector("tcp").bind("127.0.0.1", 2101).protocol("rsf");
         configuration.connector("tcp").bind("127.0.0.1", 2102) //
                 .option("tlsEnabled", true) //
@@ -136,8 +136,21 @@ public class StandaloneMetConfigurationTest {
     }
 
     @Test
-    public void sameProtocolFactoryCanListenOnPlainAndTlsEndpoints() throws Exception {
-        // 同一个 RSF 实现挂载到一个明文和两个 TLS 端点，TLS 可沿用默认别名或显式使用 rsfs。
+    public void defaultProtocolRejectsAnAddressScheme() {
+        // RSF 的两个端点分别公开 rsf 与 rsfs 前缀，默认协议仍只能使用 rsf 名称。
+        MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("rsfs");
+        configuration.connector("tcp").protocol("rsf");
+        configuration.connector("tcp").option("tlsEnabled", true) //
+                .protocol("rsf").addressScheme("rsfs");
+
+        // 前缀不属于协议名称，构建时报告未配置的默认协议。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, configuration::buildContext);
+        assertEquals("Default protocol is not configured: rsfs", failure.getMessage());
+    }
+
+    @Test
+    public void sameProtocolProviderCanListenOnPlainAndTlsEndpoints() throws Exception {
+        // 同一个 RSF 实现挂载到一个明文和两个 TLS 端点，地址前缀可使用 rsf 或 rsfs。
         MetConfiguration configuration = new MetConfiguration();
         configuration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
         configuration.connector("tcp").bind("127.0.0.1", 0) //
@@ -154,7 +167,7 @@ public class StandaloneMetConfigurationTest {
         try (MetContext context = configuration.buildContext()) {
             context.start();
 
-            // 逻辑协议返回全部运行地址，连接器名称和公开 scheme 可精确选择其中一个。
+            // 协议名称返回全部运行地址，连接器名称和公开 scheme 可精确选择其中一个。
             List<InterAddress> addresses = context.getListenAddresses("rsf");
             assertEquals(3, addresses.size());
             assertEquals(List.of("rsf", "rsf", "rsfs"), addresses.stream().map(InterAddress::getSchema).toList());
@@ -176,8 +189,8 @@ public class StandaloneMetConfigurationTest {
     }
 
     @Test
-    public void logicalProtocolNameTakesPrecedenceOverAnotherMountAddressScheme() throws Exception {
-        // 首个挂载的公开别名故意与第二个挂载的逻辑协议名相同。
+    public void protocolNameSelectsItsMountRegardlessOfOtherAddressSchemes() throws Exception {
+        // 首个挂载的地址前缀与第二个挂载的协议名称相同。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("wireb");
         configuration.connector("tcp").bind("127.0.0.1", 0) //
                 .protocol("wirea").addressScheme("wireb");
@@ -187,19 +200,19 @@ public class StandaloneMetConfigurationTest {
         try (MetContext context = configuration.buildContext()) {
             context.start();
 
-            // 查询参数始终是逻辑协议名；公开地址 scheme 不参与协议选择。
-            InterAddress logical = context.getListenAddress("wireb");
-            InterAddress alias = context.getListenAddress("wirea");
+            // 查询参数始终是协议名称，公开地址 scheme 不参与协议选择。
+            InterAddress selected = context.getListenAddress("wireb");
+            InterAddress other = context.getListenAddress("wirea");
             assertEquals("wireb", context.getDefaultProtocol());
-            assertEquals("wireb-public", logical.getSchema());
-            assertEquals("wireb", alias.getSchema());
-            assertNotEquals(alias.getPort(), logical.getPort());
+            assertEquals("wireb-public", selected.getSchema());
+            assertEquals("wireb", other.getSchema());
+            assertNotEquals(other.getPort(), selected.getPort());
         }
     }
 
     @Test
-    public void outboundLogicalNameStillTakesPrecedenceOverBoundAddressScheme() throws Exception {
-        // 已监听挂载的公开别名与另一个仅出站挂载的逻辑协议名相同。
+    public void outboundProtocolNameDoesNotSelectAnotherBoundAddressScheme() throws Exception {
+        // 已监听挂载的地址前缀与另一个仅出站挂载的协议名称相同。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("wireb");
         configuration.connector("tcp").bind("127.0.0.1", 0) //
                 .protocol("wirea").addressScheme("wireb");
@@ -208,7 +221,7 @@ public class StandaloneMetConfigurationTest {
         try (MetContext context = configuration.buildContext()) {
             context.start();
 
-            // 仅出站的逻辑协议没有监听地址，同名地址 scheme 不会被误认为逻辑协议。
+            // 仅出站的协议没有监听地址，同名地址 scheme 不参与名称匹配。
             assertTrue(context.getListenAddresses("wireb").isEmpty());
             assertNotNull(context.getListenAddress("wirea"));
         }

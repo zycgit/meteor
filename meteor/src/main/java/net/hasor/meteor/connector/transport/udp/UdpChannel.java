@@ -8,19 +8,16 @@
 package net.hasor.meteor.connector.transport.udp;
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
-import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.RouteTable;
-import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.SocketAddressUtils;
 import net.hasor.neta.bytebuf.ByteBuf;
-import net.hasor.neta.channel.*;
-import net.hasor.neta.channel.routing.PartitionKey;
+import net.hasor.neta.channel.NetChannel;
 
 /**
  * A UDP peer view: one application write is one datagram; no RPC request state or stream assembly.
@@ -39,7 +36,7 @@ final class UdpChannel implements NetworkChannel<byte[]> {
     private          boolean             writeReady;
     private volatile Throwable           failure;
 
-    private UdpChannel(NetChannel socket, InterAddress remote, Executor executor, int maxDatagramSize, //
+    UdpChannel(NetChannel socket, InterAddress remote, Executor executor, int maxDatagramSize, //
             boolean orderedWrites) {
         this.socket = socket;
         this.remote = remote;
@@ -47,120 +44,6 @@ final class UdpChannel implements NetworkChannel<byte[]> {
         this.maxDatagramSize = maxDatagramSize;
         this.orderedWrites = orderedWrites;
         this.writeReady = !orderedWrites;
-    }
-
-    /**
-     * Called after transport stages have been added.
-     */
-    static UdpChannel attach(ProtoBuildContext stack, InterAddress remote, Executor executor, int maxDatagramSize, //
-            boolean orderedWrites, TransportRuntimeServices runtimeServices, long retryMillis, long timeoutMillis, //
-            RouteTable<byte[]> routes, String initialMountId, //
-            ChannelListenerFactory<byte[]> factory) throws Exception {
-        if (maxDatagramSize < 1 || maxDatagramSize > 65507) {
-            throw new IllegalArgumentException("maxDatagramSize must be between 1 and 65507");
-        }
-
-        NetChannel socket = (NetChannel) stack.getChannel();
-        UdpChannel channel = new UdpChannel(socket, remote, executor, maxDatagramSize, orderedWrites);
-        ChannelListenerRelay<byte[]> listenerRelay = new ChannelListenerRelay<>(channel::terminated);
-
-        // 先安装物理连接生命周期，ChannelListenerFactory 此后取得的通道已经能够观察关闭。
-        Runnable connected = () -> {
-            channel.execute(() -> {
-                try {
-                    listenerRelay.connected();
-                } catch (Throwable failure) {
-                    channel.fail(failure);
-                }
-            });
-        };
-
-        Runnable closed = () -> {
-            channel.execute(() -> listenerRelay.closed(channel.failure()));
-        };
-        stack.addLastDecoder("lifecycle", new ChannelLifecycleHandler(connected, closed, channel::fail));
-        if (orderedWrites) {
-            DtlsHandshakeHandler handshake = new DtlsHandshakeHandler(//
-                    channel, runtimeServices, retryMillis, timeoutMillis);
-            stack.addLastDecoder("dtls-ready", handshake);
-        }
-
-        Function<String, ProtoInitializer> branch = route -> {
-            return ctx -> ctx.addLastDecoder("messages", new RouteByteHandler(route));
-        };
-
-        configureRouting(stack, branch, routes, initialMountId);
-
-        // 网络事件只负责投递，业务收包仍在串行执行器中处理。
-        socket.subscribe(event -> {
-            return event.isInbound() || !event.isSuccess();
-        }, SubscribeMode.SYNC, event -> {
-            if (!event.isSuccess()) {
-                channel.execute(() -> channel.fail(event.getError()));
-                return;
-            }
-
-            RouteMessage<byte[]> message = (RouteMessage<byte[]>) event.getData();
-            channel.execute(() -> {
-                try {
-                    if (message.message().length > maxDatagramSize) {
-                        throw new IOException("Received datagram exceeds " + maxDatagramSize);
-                    }
-                    listenerRelay.receive(message.mountId(), message.message());
-                } catch (Throwable failure) {
-                    channel.fail(failure);
-                }
-            });
-        });
-
-        // 所有关闭、路由和收包入口就绪后再把通道交给上层，并在同一执行器中绑定监听器。
-        try {
-            ChannelListener<byte[]> listener = factory.createListener(channel);
-            channel.execute(() -> {
-                try {
-                    listenerRelay.attach(listener);
-                } catch (Throwable failure) {
-                    channel.fail(failure);
-                }
-            });
-        } catch (Exception | Error failure) {
-            listenerRelay.attachmentFailed();
-            channel.fail(failure);
-            throw failure;
-        }
-        return channel;
-    }
-
-    private static void configureRouting(ProtoBuildContext context, //
-            Function<String, ProtoInitializer> branch, RouteTable<byte[]> routes, String initialMountId) {
-        // 没有协议路由的底层测试或扩展直接接收原始数据报。
-        if (routes.definitions().isEmpty()) {
-            branch.apply("").config(context);
-            return;
-        }
-
-        // 主动连接已经选定协议挂载，回包必须沿用该挂载；监听连接仍按每个数据报探测。
-        String initial = routes.resolveMountId(initialMountId);
-
-        if (initial != null) {
-            branch.apply(initial).config(context);
-            return;
-        }
-
-        ProtoHelper.typed(ByteBuf.class, Object.class).nextPartition("route", (ctx, kind, message) -> {
-            if (!ctx.isRcv() || !(message instanceof ByteBuf bytes)) {
-                return null;
-            } else {
-                int length = bytes.readableBytes();
-                String route = RouteByteUtils.select(Collections.singletonList(bytes), //
-                        routes.definitions(), length, true);
-                return PartitionKey.newKey(route);
-            }
-        }, partitions -> {
-            partitions.byInitializer(ctx -> {
-                branch.apply(PartitionKey.findKey(ctx).getKey()).config(ctx);
-            });
-        }).build().config(context);
     }
 
     @Override
@@ -369,16 +252,16 @@ final class UdpChannel implements NetworkChannel<byte[]> {
         this.socket.close();
     }
 
-    private void fail(Throwable error) {
+    void fail(Throwable error) {
         this.failure = error;
         this.close();
     }
 
-    private Throwable failure() {
+    Throwable failure() {
         return this.failure == null ? new IOException("UDP channel closed") : this.failure;
     }
 
-    private void terminated() {
+    void terminated() {
         this.failPendingWrites(this.failure());
         this.closed.completed(null);
     }

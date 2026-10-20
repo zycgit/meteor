@@ -8,7 +8,6 @@
 package net.hasor.meteor.connector.transport.http.http2;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.meteor.connector.transport.http.channel.HttpMessageUtils;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
@@ -22,12 +21,10 @@ import net.hasor.neta.codec.http.HttpObject;
 
 /** 将聚合后的 HTTP/2 请求复制并交付给对应 stream。 */
 final class Http2BufferedRequestHandler implements ProtoHandler<HttpObject, Object> {
-    private final Http2Channel             channel;
-    private final Supplier<RouteSelection> selectedRoute;
+    private final Http2Channel channel;
 
-    Http2BufferedRequestHandler(Http2Channel channel, Supplier<RouteSelection> selectedRoute) {
+    Http2BufferedRequestHandler(Http2Channel channel) {
         this.channel = channel;
-        this.selectedRoute = selectedRoute;
     }
 
     @Override
@@ -55,7 +52,8 @@ final class Http2BufferedRequestHandler implements ProtoHandler<HttpObject, Obje
 
                 int version = request.protocolVersion().majorVersion();
                 HttpRequest copy = HttpRequest.newBuffered(method, request.uri(), headers, content, version, trailers);
-                this.channel.receiveRequest(request.streamId(), copy, this.selectedRoute.get());
+                RouteSelection route = context.context(RouteSelection.class);
+                this.channel.receiveRequest(request.streamId(), copy, route);
             } finally {
                 message.release();
             }

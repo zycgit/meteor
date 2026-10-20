@@ -33,7 +33,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/** 出站调用依据服务声明和目标地址选择唯一逻辑协议。 */
+/** 出站调用依据协议名和目标地址选择唯一挂载。 */
 public class MetCallerProtocolSelectionTest {
     public interface Echo {
         String echo(String value);
@@ -94,12 +94,12 @@ public class MetCallerProtocolSelectionTest {
     }
 
     @Test
-    public void logicalNameTakesPriorityOverSchemeAlias() throws Exception {
-        // 一个协议的逻辑名与另一个协议的 HTTPS 别名相同。
+    public void protocolNameMatchesOnlyTheDeclaredProtocol() throws Exception {
+        // 一个协议的名称与另一个协议的 HTTPS 地址前缀相同。
         ConnectorConfig shared = endpoint("shared", "https", 8443, "https", "grpc");
         InterAddress target = new InterAddress("https://127.0.0.1:9443/default");
         try (Host host = new Host("grpc", List.of(shared), Set.of("https"), target)) {
-            // 已有逻辑名命中时不能再把同名地址别名加入候选。
+            // 服务声明只选择同名协议，其它协议的地址前缀不参与协议匹配。
             MetFuture future = host.invoke();
             assertEquals("https", host.connectedProtocol.get());
             assertTrue(future.cancel(true));
@@ -107,21 +107,49 @@ public class MetCallerProtocolSelectionTest {
     }
 
     @Test
-    public void logicalNameIsNotReinterpretedAfterAddressFiltering() throws Exception {
-        // 逻辑协议 https 只挂载在 TCP，gRPC 却使用 https 作为地址别名。
+    public void addressSchemeCannotBeUsedAsProtocolName() throws Exception {
+        // 唯一挂载的协议名为 gRPC，对外地址前缀为 HTTPS。
+        ConnectorConfig endpoint = endpoint("http", "https", 8443, "grpc");
+        InterAddress target = new InterAddress("https://127.0.0.1:9443/default");
+        try (Host host = new Host("grpc", List.of(endpoint), Set.of("https"), target)) {
+            // 即使目标地址匹配，服务声明 HTTPS 也不能隐式选择 gRPC。
+            MetException failure = failure(host.invoke());
+            assertEquals(ProtocolStatus.ProtocolUndefined, failure.getStatus());
+            assertEquals(0, host.connectCalls.get());
+        }
+    }
+
+    @Test
+    public void protocolNameMustAlsoMatchTheTargetAddress() throws Exception {
+        // 协议 https 只挂载在 TCP，gRPC 使用 https 作为地址前缀。
         Map<String, String> endpointOptions = Collections.emptyMap();
-        ProtocolConfig logical = ProtocolConfig.newConfig("https", "tcp", Collections.emptyMap());
+        ProtocolConfig named = ProtocolConfig.newConfig("https", "tcp", Collections.emptyMap());
         ProtocolConfig alias = ProtocolConfig.newConfig("grpc", "https", Collections.emptyMap());
         InterAddress local = InterAddress.forBinding("tcp", "127.0.0.1", 8443, "default");
         ConnectorConfig shared = new ConnectorConfig(//
-                "shared", local, endpointOptions, List.of(logical, alias), true);
+                "shared", local, endpointOptions, List.of(named, alias), true);
         InterAddress target = new InterAddress("https://127.0.0.1:9443/default");
 
-        // 地址过滤后不能把已存在的逻辑名重新解释为 gRPC 的 scheme。
+        // 声明的协议没有对应地址挂载时，不改选地址前缀相同的其它协议。
         try (Host host = new Host("grpc", List.of(shared), Set.of("https"), target)) {
             MetException failure = failure(host.invoke());
             assertEquals(ProtocolStatus.ProtocolUndefined, failure.getStatus());
             assertEquals(0, host.connectCalls.get());
+        }
+    }
+
+    @Test
+    public void secureAddressSelectsTheMatchingEndpointOfTheSameProtocol() throws Exception {
+        // 同一个 RSF 协议分别挂载在明文端点和安全端点。
+        ConnectorConfig plain = endpoint("plain", "rsf", 2181, "rsf");
+        ConnectorConfig secure = endpoint("secure", "rsfs", 2182, "rsf");
+        InterAddress target = new InterAddress("rsfs://127.0.0.1:3182/default");
+        try (Host host = new Host("rsf", List.of(plain, secure), Set.of("RSF"), target)) {
+            // 协议名保持 RSF，目标前缀决定实际使用的端点及挂载。
+            MetFuture future = host.invoke();
+            assertEquals("rsf", host.connectedProtocol.get());
+            assertEquals("secure", host.connectedEndpoint.get());
+            assertTrue(future.cancel(true));
         }
     }
 
@@ -170,7 +198,7 @@ public class MetCallerProtocolSelectionTest {
     }
 
     @Test
-    public void requestKeepsTheResolvedMountAddress() throws Exception {
+    public void requestKeepsTheResolvedProtocolAddress() throws Exception {
         // 两个逻辑协议共用 HTTPS，单值 scheme 查询会产生歧义。
         ConnectorConfig shared = endpoint("shared", "https", 8443, "grpc", "hprose");
         InterAddress target = new InterAddress("https://127.0.0.1:9443/default");
@@ -179,9 +207,8 @@ public class MetCallerProtocolSelectionTest {
             MetFuture future = host.invoke();
             InterAddress expected = new InterAddress("https://127.0.0.1:8443/default");
             assertEquals(expected, future.getRequest().getRemoteAddress());
-            ProtocolConfig selected = shared.protocols().iterator().next();
             assertEquals(shared.name(), host.connectedEndpoint.get());
-            assertEquals(selected.mountId(), host.connectedMount.get());
+            assertEquals("grpc", host.connectedProtocol.get());
             assertTrue(future.cancel(true));
         }
     }
@@ -218,7 +245,6 @@ public class MetCallerProtocolSelectionTest {
         private final AtomicInteger           connectCalls      = new AtomicInteger();
         private final AtomicReference<String> connectedProtocol = new AtomicReference<>();
         private final AtomicReference<String> connectedEndpoint = new AtomicReference<>();
-        private final AtomicReference<String> connectedMount    = new AtomicReference<>();
         private final ConnectorManager        manager;
         private final MetCaller               caller;
 
@@ -297,12 +323,10 @@ public class MetCallerProtocolSelectionTest {
             this.manager = new ConnectorManager(context) {
                 @Override
                 public Future<MetChannel> connect(//
-                        String endpointName, String mountId, InterAddress address) {
+                        String endpointName, String protocolName, InterAddress address) {
                     Host.this.connectCalls.incrementAndGet();
                     Host.this.connectedEndpoint.set(endpointName);
-                    Host.this.connectedMount.set(mountId);
-                    String protocol = Host.this.protocolName(endpoints, endpointName, mountId);
-                    Host.this.connectedProtocol.set(protocol);
+                    Host.this.connectedProtocol.set(protocolName);
                     return new BasicFuture<>(channel);
                 }
 
@@ -320,16 +344,6 @@ public class MetCallerProtocolSelectionTest {
             this.manager.init();
             configured.set(endpoints);
             this.caller = new MetCaller(this.manager, serviceId -> new Supplier[0]);
-        }
-
-        private String protocolName(List<ConnectorConfig> endpoints, String endpointName, String mountId) {
-            for (ConnectorConfig endpoint : endpoints) {
-                if (StringUtils.equals(endpoint.name(), endpointName)) {
-                    ProtocolConfig mount = endpoint.mount(mountId);
-                    return mount == null ? null : mount.name();
-                }
-            }
-            return null;
         }
 
         private InterAddress listenAddress(List<ConnectorConfig> endpoints, String endpointName, //

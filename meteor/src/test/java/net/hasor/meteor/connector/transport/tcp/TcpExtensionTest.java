@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.transport.tcp;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,7 +15,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteTable;
+import net.hasor.meteor.connector.RouteTestAccess;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.*;
@@ -34,17 +36,17 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(Map.of());
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
-             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
+        TransportConfig transportConfig = transport(config);
+        try (NetworkConnector<byte[]> server = this.connector(transportConfig, loader); //
+             NetworkConnector<byte[]> client = this.connector(transportConfig, loader)) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
-            NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
-            int port = ((InetSocketAddress) listen.getLocalAddr()).getPort();
+            RouteTable<byte[]> routes = RouteTestAccess.activate(Collections.emptyMap(), null);
+            NetworkListen listen = server.bind(address, routes, this.receiver(true, responder));
+            int port = listen.getAddress().getPort();
             InterAddress remote = new InterAddress("mux", "127.0.0.1", port, "default");
             AtomicReference<MuxSession> requester = new AtomicReference<>();
-            Future<NetChannel> connecting = client.connect(remote, stack -> {
-                this.attach(stack, remote, client, false, requester);
-            });
+            Future<Void> connecting = client.connect(null, remote, routes, this.receiver(false, requester));
             connecting.get(2, TimeUnit.SECONDS);
             MuxSession session = requester.get();
             session.ready().get(2, TimeUnit.SECONDS);
@@ -67,17 +69,17 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(Map.of());
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
-             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
+        TransportConfig transportConfig = transport(config);
+        try (NetworkConnector<byte[]> server = this.connector(transportConfig, loader); //
+             NetworkConnector<byte[]> client = this.connector(transportConfig, loader)) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
-            NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
-            int port = ((InetSocketAddress) listen.getLocalAddr()).getPort();
+            RouteTable<byte[]> routes = RouteTestAccess.activate(Collections.emptyMap(), null);
+            NetworkListen listen = server.bind(address, routes, this.receiver(true, responder));
+            int port = listen.getAddress().getPort();
             InterAddress remote = new InterAddress("mux", "127.0.0.1", port, "default");
             AtomicReference<MuxSession> requester = new AtomicReference<>();
-            Future<NetChannel> connecting = client.connect(remote, stack -> {
-                this.attach(stack, remote, client, false, requester);
-            });
+            Future<Void> connecting = client.connect(null, remote, routes, this.receiver(false, requester));
             connecting.get(2, TimeUnit.SECONDS);
             MuxSession session = requester.get();
             session.ready().get(2, TimeUnit.SECONDS);
@@ -100,17 +102,17 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(Map.of());
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
-             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
+        TransportConfig transportConfig = transport(config);
+        try (NetworkConnector<byte[]> server = this.connector(transportConfig, loader); //
+             NetworkConnector<byte[]> client = this.connector(transportConfig, loader)) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
-            NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
-            int port = ((InetSocketAddress) listen.getLocalAddr()).getPort();
+            RouteTable<byte[]> routes = RouteTestAccess.activate(Collections.emptyMap(), null);
+            NetworkListen listen = server.bind(address, routes, this.receiver(true, responder));
+            int port = listen.getAddress().getPort();
             InterAddress remote = new InterAddress("mux", "127.0.0.1", port, "default");
             AtomicReference<MuxSession> requester = new AtomicReference<>();
-            Future<NetChannel> connecting = client.connect(remote, stack -> {
-                this.attach(stack, remote, client, false, requester);
-            });
+            Future<Void> connecting = client.connect(null, remote, routes, this.receiver(false, requester));
             connecting.get(2, TimeUnit.SECONDS);
             MuxSession session = requester.get();
             session.ready().get(2, TimeUnit.SECONDS);
@@ -136,17 +138,17 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(extensions);
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
-             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
+        TransportConfig transportConfig = transport(config);
+        try (NetworkConnector<byte[]> server = this.connector(transportConfig, loader); //
+             NetworkConnector<byte[]> client = this.connector(transportConfig, loader)) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
-            NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
-            int port = ((InetSocketAddress) listen.getLocalAddr()).getPort();
+            RouteTable<byte[]> routes = RouteTestAccess.activate(Collections.emptyMap(), null);
+            NetworkListen listen = server.bind(address, routes, this.receiver(true, responder));
+            int port = listen.getAddress().getPort();
             InterAddress remote = new InterAddress("mux", "127.0.0.1", port, "default");
             AtomicReference<MuxSession> requester = new AtomicReference<>();
-            Future<NetChannel> connecting = client.connect(remote, stack -> {
-                this.attach(stack, remote, client, false, requester);
-            });
+            Future<Void> connecting = client.connect(null, remote, routes, this.receiver(false, requester));
             connecting.get(2, TimeUnit.SECONDS);
             MuxSession session = requester.get();
             session.ready().get(2, TimeUnit.SECONDS);
@@ -180,17 +182,17 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(extensions);
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
-             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
+        TransportConfig transportConfig = transport(config);
+        try (NetworkConnector<byte[]> server = this.connector(transportConfig, loader); //
+             NetworkConnector<byte[]> client = this.connector(transportConfig, loader)) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
-            NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
-            int port = ((InetSocketAddress) listen.getLocalAddr()).getPort();
+            RouteTable<byte[]> routes = RouteTestAccess.activate(Collections.emptyMap(), null);
+            NetworkListen listen = server.bind(address, routes, this.receiver(true, responder));
+            int port = listen.getAddress().getPort();
             InterAddress remote = new InterAddress("mux", "127.0.0.1", port, "default");
             AtomicReference<MuxSession> requester = new AtomicReference<>();
-            Future<NetChannel> connecting = client.connect(remote, stack -> {
-                this.attach(stack, remote, client, false, requester);
-            });
+            Future<Void> connecting = client.connect(null, remote, routes, this.receiver(false, requester));
             connecting.get(2, TimeUnit.SECONDS);
             MuxSession session = requester.get();
             session.ready().get(2, TimeUnit.SECONDS);
@@ -224,17 +226,17 @@ public class TcpExtensionTest {
         ConnectorConfig config = this.config(extensions);
         ClassLoader loader = this.getClass().getClassLoader();
         InterAddress address = config.address();
-        try (TestSocketRuntime server = new TestSocketRuntime(transport(config), loader, SoConfig.TCP()); //
-             TestSocketRuntime client = new TestSocketRuntime(transport(config), loader, SoConfig.TCP())) {
+        TransportConfig transportConfig = transport(config);
+        try (NetworkConnector<byte[]> server = this.connector(transportConfig, loader); //
+             NetworkConnector<byte[]> client = this.connector(transportConfig, loader)) {
             // 将测试帧协议装入真实 TCP 连接，等待接收器就绪。
             AtomicReference<MuxSession> responder = new AtomicReference<>();
-            NetListen listen = server.bind(address, stack -> this.attach(stack, address, server, true, responder));
-            int port = ((InetSocketAddress) listen.getLocalAddr()).getPort();
+            RouteTable<byte[]> routes = RouteTestAccess.activate(Collections.emptyMap(), null);
+            NetworkListen listen = server.bind(address, routes, this.receiver(true, responder));
+            int port = listen.getAddress().getPort();
             InterAddress remote = new InterAddress("mux", "127.0.0.1", port, "default");
             AtomicReference<MuxSession> requester = new AtomicReference<>();
-            Future<NetChannel> connecting = client.connect(remote, stack -> {
-                this.attach(stack, remote, client, false, requester);
-            });
+            Future<Void> connecting = client.connect(null, remote, routes, this.receiver(false, requester));
             connecting.get(2, TimeUnit.SECONDS);
             MuxSession session = requester.get();
             session.ready().get(2, TimeUnit.SECONDS);
@@ -263,23 +265,17 @@ public class TcpExtensionTest {
         return new ConnectorConfig("mux", address, options, List.of(mount), true);
     }
 
-    private void attach( //
-            ProtoBuildContext stack, //
-            InterAddress address, //
-            TestSocketRuntime transport, //
-            boolean server, //
-            AtomicReference<MuxSession> session) {
-        try {
-            RouteTable<byte[]> routeTable = RouteTestAccess.activate(Collections.emptyMap(), null);
-            TcpChannel.attach(stack, address, transport.nextExecutor(), 256, //
-                    routeTable, null, connection -> {
-                        MuxSession created = new MuxSession(connection, server);
-                        session.set(created);
-                        return created;
-                    });
-        } catch (Exception error) {
-            throw new IllegalStateException(error);
-        }
+    private NetworkConnector<byte[]> connector(TransportConfig config, ClassLoader loader) {
+        TransportPlan<byte[]> plan = new TcpTransportFactory().prepare(config, loader);
+        return plan.create(TransportTestServices.newRuntimeServices(loader));
+    }
+
+    private ChannelListenerFactory<byte[]> receiver(boolean server, AtomicReference<MuxSession> session) {
+        return connection -> {
+            MuxSession created = new MuxSession(connection, server);
+            session.set(created);
+            return created;
+        };
     }
 
     private static final class MuxSession implements ChannelListener<byte[]> {

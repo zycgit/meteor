@@ -7,18 +7,18 @@
  */
 package net.hasor.meteor.connector.transport;
 
-/** A selected route travels with its message, independently of subsequent routing decisions. */
+/** A selected protocol name travels with its message within the owning connector endpoint. */
 public final class RouteMessage<M> {
-    private final String mountId;
+    private final String protocolName;
     private final M      message;
 
-    public RouteMessage(String mountId, M message) {
-        this.mountId = mountId;
+    public RouteMessage(String protocolName, M message) {
+        this.protocolName = protocolName;
         this.message = message;
     }
 
-    public String mountId() {
-        return this.mountId;
+    public String protocolName() {
+        return this.protocolName;
     }
 
     public M message() {

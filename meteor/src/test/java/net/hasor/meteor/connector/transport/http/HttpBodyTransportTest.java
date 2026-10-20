@@ -9,6 +9,7 @@ package net.hasor.meteor.connector.transport.http;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,9 +28,9 @@ import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static org.junit.Assert.*;
 
 /** 同一组消息契约分别通过真实 HTTP/1 和 HTTP/2 连接验证。 */
@@ -56,7 +57,7 @@ public class HttpBodyTransportTest {
         try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
              NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
-            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
+            client.connect(null, listen.getAddress(), routes(config), clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
             HttpBodyStream output = new HttpBodyStream(16384);
@@ -119,7 +120,7 @@ public class HttpBodyTransportTest {
         try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
              NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
-            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
+            client.connect(null, listen.getAddress(), routes(config), clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
             // 服务端将收到的正文直接作为响应生产源，双方必须同时推进窗口。
@@ -171,7 +172,7 @@ public class HttpBodyTransportTest {
         try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
              NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
-            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
+            client.connect(null, listen.getAddress(), routes(config), clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
             Map<String, List<String>> headers = Map.of("x-tag", List.of("first", "second"));
@@ -210,7 +211,7 @@ public class HttpBodyTransportTest {
         try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
              NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
-            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
+            client.connect(null, listen.getAddress(), routes(config), clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
             byte[] emptyBody = new byte[0];
@@ -265,7 +266,7 @@ public class HttpBodyTransportTest {
         try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
              NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
-            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
+            client.connect(null, listen.getAddress(), routes(config), clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
             byte[] emptyBody = new byte[0];
@@ -322,7 +323,7 @@ public class HttpBodyTransportTest {
         try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
              NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
-            client.connect(listen.getAddress(), routes(config), null, clientReceiver).get(3, TimeUnit.SECONDS);
+            client.connect(null, listen.getAddress(), routes(config), clientReceiver).get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
 
             HttpBodyStream output = new HttpBodyStream(16384);
@@ -367,6 +368,184 @@ public class HttpBodyTransportTest {
             consumer.shutdownNow();
             producer.shutdownNow();
         }
+    }
+
+    @Test(timeout = 15000)
+    public void selectedProtocolEnablesStreamingResponsesOverBufferedEndpoint() throws Exception {
+        // 端点默认聚合，选中的第二个协议单独启用流式响应。
+        ConnectorConfig config = this.bodyModeConfig(false, true);
+        Recorder serverReceiver = new Recorder();
+        Recorder clientReceiver = new Recorder();
+        ClassLoader loader = this.getClass().getClassLoader();
+        ExecutorService consumer = Executors.newSingleThreadExecutor();
+        try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
+            client.connect("selected", listen.getAddress(), routes(config), clientReceiver).get(3, TimeUnit.SECONDS);
+            NetworkChannel<HttpExchange> channel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
+
+            // 使用普通请求和完整响应，避免请求本身的流式正文影响响应模式。
+            HttpRequest request = HttpRequest.newBuffered("GET", "/selected", Map.of(), //
+                    new byte[0], this.version, Map.of());
+            HttpExchange outgoing = new HttpExchange(request);
+            channel.write(outgoing).get(3, TimeUnit.SECONDS);
+            HttpExchange incoming = serverReceiver.requests.poll(3, TimeUnit.SECONDS);
+            assertNotNull(incoming);
+            byte[] bytes = new byte[] { 1, 2, 3 };
+            incoming.respond(HttpResponse.newBuffered(200, Map.of(), bytes, Map.of()));
+            NetworkChannel<HttpExchange> accepted = serverReceiver.connected.get(3, TimeUnit.SECONDS);
+            accepted.write(incoming).get(3, TimeUnit.SECONDS);
+
+            // 响应以流交付，正文完整且读取受等待期限约束。
+            HttpResponse response = outgoing.response().get(3, TimeUnit.SECONDS);
+            HttpBodyStream body = response.stream();
+            assertNotNull(body);
+            byte[] actual = consumer.submit(body::readAllBytes).get(3, TimeUnit.SECONDS);
+            assertArrayEquals(bytes, actual);
+        } finally {
+            consumer.shutdownNow();
+            assertTrue(consumer.awaitTermination(3, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test(timeout = 15000)
+    public void selectedProtocolDisablesStreamingResponsesOverStreamingEndpoint() throws Exception {
+        // 端点默认流式，选中的第二个协议明确要求聚合响应。
+        ConnectorConfig config = this.bodyModeConfig(true, false);
+        Recorder serverReceiver = new Recorder();
+        Recorder clientReceiver = new Recorder();
+        ClassLoader loader = this.getClass().getClassLoader();
+        try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
+            client.connect("selected", listen.getAddress(), routes(config), clientReceiver).get(3, TimeUnit.SECONDS);
+            NetworkChannel<HttpExchange> channel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
+
+            // 完整响应必须按协议选项聚合，不沿用端点或第一个协议的流式设置。
+            HttpRequest request = HttpRequest.newBuffered("GET", "/selected", Map.of(), //
+                    new byte[0], this.version, Map.of());
+            HttpExchange outgoing = new HttpExchange(request);
+            channel.write(outgoing).get(3, TimeUnit.SECONDS);
+            HttpExchange incoming = serverReceiver.requests.poll(3, TimeUnit.SECONDS);
+            assertNotNull(incoming);
+            byte[] bytes = new byte[] { 4, 5, 6 };
+            incoming.respond(HttpResponse.newBuffered(200, Map.of(), bytes, Map.of()));
+            NetworkChannel<HttpExchange> accepted = serverReceiver.connected.get(3, TimeUnit.SECONDS);
+            accepted.write(incoming).get(3, TimeUnit.SECONDS);
+
+            // 对调用方交付完整字节数组，不创建增量正文流。
+            HttpResponse response = outgoing.response().get(3, TimeUnit.SECONDS);
+            assertNull(response.stream());
+            assertArrayEquals(bytes, response.body());
+        }
+    }
+
+    @Test(timeout = 15000)
+    public void selectedRouteEnablesStreamingRequestsOverBufferedEndpoint() throws Exception {
+        // 端点默认聚合，只有请求路径选中的协议开启增量正文。
+        ConnectorConfig config = this.bodyModeConfig(false, true);
+        Recorder serverReceiver = new Recorder();
+        Recorder clientReceiver = new Recorder();
+        ClassLoader loader = this.getClass().getClassLoader();
+        ExecutorService consumer = Executors.newSingleThreadExecutor();
+        try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
+            client.connect("other", listen.getAddress(), routes(config), clientReceiver).get(3, TimeUnit.SECONDS);
+            NetworkChannel<HttpExchange> channel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
+            HttpBodyStream upload = new HttpBodyStream(16);
+            HttpRequest request = HttpRequest.newStreaming("POST", "/selected", Map.of(), upload, this.version);
+            HttpExchange outgoing = new HttpExchange(request);
+            Future<Void> writing = channel.write(outgoing);
+
+            // 未结束上传也能拿到正文流，入站模式按路径确定，不沿用出站协议。
+            HttpExchange incoming = serverReceiver.requests.poll(3, TimeUnit.SECONDS);
+            assertNotNull(incoming);
+            HttpBodyStream body = incoming.request().stream();
+            assertNotNull(body);
+            assertFalse(writing.isDone());
+            byte[] bytes = new byte[] { 1, 2, 3 };
+            upload.output().write(bytes);
+            byte[] actual = consumer.submit(() -> body.readNBytes(bytes.length)).get(3, TimeUnit.SECONDS);
+            assertArrayEquals(bytes, actual);
+            upload.finish(Map.of());
+            var eof = consumer.submit(() -> {
+                return body.read();
+            });
+            assertEquals(Integer.valueOf(-1), eof.get(3, TimeUnit.SECONDS));
+            writing.get(3, TimeUnit.SECONDS);
+
+            // 完成本次响应，让上传和下载的生命周期均正常结束。
+            incoming.respond(HttpResponse.newBuffered(200, Map.of(), new byte[0], Map.of()));
+            NetworkChannel<HttpExchange> accepted = serverReceiver.connected.get(3, TimeUnit.SECONDS);
+            accepted.write(incoming).get(3, TimeUnit.SECONDS);
+            HttpResponse response = outgoing.response().get(3, TimeUnit.SECONDS);
+            byte[] responseBytes = consumer.submit(response.stream()::readAllBytes).get(3, TimeUnit.SECONDS);
+            assertEquals(0, responseBytes.length);
+            outgoing.completion().get(3, TimeUnit.SECONDS);
+        } finally {
+            consumer.shutdownNow();
+            assertTrue(consumer.awaitTermination(3, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test(timeout = 15000)
+    public void selectedRouteDisablesStreamingRequestsOverStreamingEndpoint() throws Exception {
+        // 端点默认流式，只有请求路径选中的协议要求先聚合完整正文。
+        ConnectorConfig config = this.bodyModeConfig(true, false);
+        Recorder serverReceiver = new Recorder();
+        Recorder clientReceiver = new Recorder();
+        ClassLoader loader = this.getClass().getClassLoader();
+        ExecutorService consumer = Executors.newSingleThreadExecutor();
+        try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), serverReceiver)) {
+            client.connect("other", listen.getAddress(), routes(config), clientReceiver).get(3, TimeUnit.SECONDS);
+            NetworkChannel<HttpExchange> channel = clientReceiver.connected.get(3, TimeUnit.SECONDS);
+            HttpBodyStream upload = new HttpBodyStream(16);
+            byte[] bytes = new byte[] { 4, 5, 6 };
+            upload.output().write(bytes);
+            HttpRequest request = HttpRequest.newStreaming("POST", "/selected", Map.of(), upload, this.version);
+            HttpExchange outgoing = new HttpExchange(request);
+            Future<Void> writing = channel.write(outgoing);
+
+            // 正文结束前不向应用发布；完成后交付聚合字节数组。
+            assertNull(serverReceiver.requests.poll(100, TimeUnit.MILLISECONDS));
+            upload.finish(Map.of());
+            writing.get(3, TimeUnit.SECONDS);
+            HttpExchange incoming = serverReceiver.requests.poll(3, TimeUnit.SECONDS);
+            assertNotNull(incoming);
+            assertNull(incoming.request().stream());
+            assertArrayEquals(bytes, incoming.request().body());
+
+            // 结束本次响应，确认模式选择没有干扰正常收发和连接复用。
+            incoming.respond(HttpResponse.newBuffered(200, Map.of(), new byte[0], Map.of()));
+            NetworkChannel<HttpExchange> accepted = serverReceiver.connected.get(3, TimeUnit.SECONDS);
+            accepted.write(incoming).get(3, TimeUnit.SECONDS);
+            HttpResponse response = outgoing.response().get(3, TimeUnit.SECONDS);
+            byte[] responseBytes = consumer.submit(response.stream()::readAllBytes).get(3, TimeUnit.SECONDS);
+            assertEquals(0, responseBytes.length);
+            outgoing.completion().get(3, TimeUnit.SECONDS);
+        } finally {
+            consumer.shutdownNow();
+            assertTrue(consumer.awaitTermination(3, TimeUnit.SECONDS));
+        }
+    }
+
+    private ConnectorConfig bodyModeConfig(boolean endpointStreaming, boolean protocolStreaming) {
+        Map<String, String> options = Map.of(//
+                "httpVersion", String.valueOf(this.version), "streamBody", String.valueOf(endpointStreaming));
+        InterAddress address = InterAddress.forBinding("http", "127.0.0.1", 0, "default");
+        Map<String, String> otherOptions = Map.of(//
+                "contextPath", "/other", "streamBody", String.valueOf(!protocolStreaming));
+        Map<String, String> selectedOptions = Map.of(//
+                "contextPath", "/selected", "streamBody", String.valueOf(protocolStreaming));
+
+        // 前一个协议使用相反模式，确认按名称选择而不是取列表首项。
+        List<ProtocolConfig> protocols = new ArrayList<>();
+        protocols.add(ProtocolConfig.newConfig("other", "http", otherOptions));
+        protocols.add(ProtocolConfig.newConfig("selected", "http", selectedOptions));
+        return new ConnectorConfig("http", address, options, protocols, true);
     }
 
     private ConnectorConfig config(boolean streaming) {

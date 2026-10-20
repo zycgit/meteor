@@ -6,8 +6,13 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.domain.MetException;
+import net.hasor.meteor.domain.ProtocolStatus;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -62,21 +67,75 @@ public class ConnectorConnectionsTest {
     }
 
     @Test
-    public void exactMountIdentityConnectsTheSelectedEndpoint() throws Exception {
-        // 客户端保存 endpoint 内部的精确挂载身份，服务端打开真实 RSF 监听器。
+    public void endpointAndProtocolNameKeepOutgoingChannelsIndependent() throws Exception {
+        // 客户端两个端点挂载同名协议，服务端打开真实 RSF 监听器。
         ConnectorConfig serverConfig = EndpointFixture.rsfEndpoint("server", true);
-        ConnectorConfig clientConfig = EndpointFixture.rsfEndpoint("client", false);
+        ConnectorConfig firstConfig = EndpointFixture.rsfEndpoint("first", false);
+        ConnectorConfig secondConfig = EndpointFixture.rsfEndpoint("second", false);
         try (ConnectorManager server = EndpointFixture.manager(serverConfig); //
-                ConnectorManager client = EndpointFixture.manager(clientConfig)) {
+             ConnectorManager client = EndpointFixture.manager(firstConfig, secondConfig)) {
             server.init();
             client.init();
             server.startInbound();
-            ProtocolConfig mount = clientConfig.protocols().iterator().next();
 
-            // 精确连接入口直接使用 mountId，不再退回 scheme 或逻辑协议二次选择。
+            // 协议名相同时，连接器名称仍把两个出站通道定位到各自端点。
             InterAddress target = server.getListenAddress("rsf");
-            MetChannel channel = client.connect("client", mount.mountId(), target).get(3, TimeUnit.SECONDS);
+            MetChannel first = client.connect("first", "rsf", target).get(3, TimeUnit.SECONDS);
+            MetChannel second = client.connect("second", "rsf", target).get(3, TimeUnit.SECONDS);
+            assertEquals("rsf", first.getProtocol());
+            assertEquals("rsf", second.getProtocol());
+            assertNotSame(first, second);
+            long firstId = ((ConnectorChannel<?>) first).channelId();
+            long secondId = ((ConnectorChannel<?>) second).channelId();
+            assertTrue(firstId > 0);
+            assertTrue(secondId > firstId);
+            assertNotEquals(first.getLocal(), second.getLocal());
+            assertEquals(target, first.getRemote());
+            assertEquals(target, second.getRemote());
+        }
+    }
+
+    @Test
+    public void protocolNameConnectsThroughItsPublishedAddressScheme() throws Exception {
+        // 协议名仍为 rsf，地址前缀单独配置，连接时同时匹配这两个属性。
+        InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "test");
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "published-rsf", Map.of());
+        Map<String, String> options = Map.of("workerThread", "1");
+        ConnectorConfig incoming = new ConnectorConfig("server", address, options, List.of(protocol), true);
+        ConnectorConfig outgoing = new ConnectorConfig("client", address, options, List.of(protocol), false);
+
+        try (ConnectorManager server = EndpointFixture.manager(incoming); //
+             ConnectorManager client = EndpointFixture.manager(outgoing)) {
+            server.init();
+            client.init();
+            server.startInbound();
+
+            // 用户按协议名选择，真实通道地址保留独立的公开前缀。
+            InterAddress target = server.getListenAddress("rsf");
+            MetChannel channel = client.connect(target, "RSF").get(3, TimeUnit.SECONDS);
+            assertEquals("published-rsf", target.getSchema());
             assertEquals("rsf", channel.getProtocol());
+            assertEquals(target, channel.getRemote());
+        }
+    }
+
+    @Test
+    public void connectRejectsAnAddressSchemeAsProtocolName() throws Exception {
+        // 仅配置出站端点，目标地址的前缀与协议名不同。
+        InterAddress local = InterAddress.forBinding("tcp", "127.0.0.1", 0, "test");
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "published-rsf", Map.of());
+        ConnectorConfig config = new ConnectorConfig("client", local, Map.of(), List.of(protocol), false);
+        InterAddress target = new InterAddress("published-rsf", "127.0.0.1", 1, "test");
+
+        try (ConnectorManager manager = EndpointFixture.manager(config)) {
+            manager.init();
+
+            // 将地址前缀当作协议参数时，必须在网络连接前报告协议未配置。
+            ExecutionException failure = assertThrows(ExecutionException.class, () -> {
+                manager.connect(target, "published-rsf").get(3, TimeUnit.SECONDS);
+            });
+            assertTrue(failure.getCause() instanceof MetException);
+            assertEquals(ProtocolStatus.ProtocolUndefined, ((MetException) failure.getCause()).getStatus());
         }
     }
 }

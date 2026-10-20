@@ -33,9 +33,9 @@ import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import org.junit.Test;
 import static java.net.http.HttpRequest.newBuilder;
+import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static org.junit.Assert.*;
 
 /** 在真实连接上验证 HTTP/1 传输 SPI 的正文与关闭契约。 */
@@ -202,7 +202,7 @@ public class Http1LifecycleTest {
             });
             InterAddress target = new InterAddress("http", "127.0.0.1", listener.getLocalPort(), "default");
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(target, routes(config), null, receiver(connected, new LinkedBlockingQueue<>())) //
+            client.connect(null, target, routes(config), receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
 
@@ -253,7 +253,7 @@ public class Http1LifecycleTest {
             });
             InterAddress target = new InterAddress("http", "127.0.0.1", listener.getLocalPort(), "default");
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(target, routes(config), null, receiver(connected, new LinkedBlockingQueue<>())) //
+            client.connect(null, target, routes(config), receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
 
@@ -317,6 +317,67 @@ public class Http1LifecycleTest {
         } finally {
             consumer.shutdownNow();
             assertTrue(consumer.awaitTermination(3, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test(timeout = 15000)
+    public void queuedBufferedRequestDoesNotInheritPreviousStreamingResponseMode() throws Exception {
+        // 同一客户端通道先排入流式请求，再排入普通请求，端点默认采用聚合正文。
+        ConnectorConfig config = config(false);
+        ClassLoader loader = this.getClass().getClassLoader();
+        BasicFuture<NetworkChannel<HttpExchange>> accepted = new BasicFuture<>();
+        BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
+        LinkedBlockingQueue<HttpExchange> requests = new LinkedBlockingQueue<>();
+        ExecutorService reader = Executors.newSingleThreadExecutor();
+        try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), routes(config), receiver(accepted, requests))) {
+            client.connect(null, listen.getAddress(), routes(config), //
+                    receiver(connected, new LinkedBlockingQueue<>())).get(3, TimeUnit.SECONDS);
+            NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
+            HttpBodyStream upload = new HttpBodyStream(16);
+            upload.output().write(new byte[] { 1, 2 });
+            upload.finish(Map.of());
+            HttpRequest firstRequest = HttpRequest.newStreaming("POST", "/stream", Map.of(), upload, 1);
+            HttpExchange first = new HttpExchange(firstRequest);
+            HttpRequest nextRequest = HttpRequest.newBuffered("GET", "/buffered", Map.of(), new byte[0], 1, Map.of());
+            HttpExchange next = new HttpExchange(nextRequest);
+            var firstWriting = channel.write(first);
+            var nextWriting = channel.write(next);
+
+            // 前一个请求要求流式响应，完整响应也应以流交付并由应用消费。
+            HttpExchange firstIncoming = requests.poll(3, TimeUnit.SECONDS);
+            assertNotNull(firstIncoming);
+            assertEquals("/stream", firstIncoming.request().uri());
+            byte[] firstBytes = new byte[] { 3, 4 };
+            firstIncoming.respond(HttpResponse.newBuffered(200, Map.of(), firstBytes, Map.of()));
+            NetworkChannel<HttpExchange> provider = accepted.get(3, TimeUnit.SECONDS);
+            provider.write(firstIncoming).get(3, TimeUnit.SECONDS);
+            firstWriting.get(3, TimeUnit.SECONDS);
+            HttpResponse firstResponse = first.response().get(3, TimeUnit.SECONDS);
+            HttpBodyStream firstBody = firstResponse.stream();
+            assertNotNull(firstBody);
+            byte[] actual = reader.submit(firstBody::readAllBytes).get(3, TimeUnit.SECONDS);
+            assertArrayEquals(firstBytes, actual);
+            first.completion().get(3, TimeUnit.SECONDS);
+            int localPort = channel.getLocal().getPort();
+
+            // 下一次交换重新读取当前请求状态，恢复聚合模式并继续复用同一连接。
+            HttpExchange nextIncoming = requests.poll(3, TimeUnit.SECONDS);
+            assertNotNull(nextIncoming);
+            assertEquals("/buffered", nextIncoming.request().uri());
+            byte[] nextBytes = new byte[] { 5, 6 };
+            nextIncoming.respond(HttpResponse.newBuffered(200, Map.of(), nextBytes, Map.of()));
+            provider.write(nextIncoming).get(3, TimeUnit.SECONDS);
+            nextWriting.get(3, TimeUnit.SECONDS);
+            HttpResponse nextResponse = next.response().get(3, TimeUnit.SECONDS);
+            assertNull(nextResponse.stream());
+            assertArrayEquals(nextBytes, nextResponse.body());
+            next.completion().get(3, TimeUnit.SECONDS);
+            assertEquals(localPort, channel.getLocal().getPort());
+        } finally {
+            reader.shutdownNow();
+            assertTrue(reader.awaitTermination(3, TimeUnit.SECONDS));
         }
     }
 

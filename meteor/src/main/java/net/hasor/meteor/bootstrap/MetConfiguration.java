@@ -103,6 +103,7 @@ public final class MetConfiguration {
         return this;
     }
 
+    /** Selects the default protocol by its configured SPI name. */
     public MetConfiguration setDefaultProtocol(String value) {
         this.defaultProtocol = value;
         return this;

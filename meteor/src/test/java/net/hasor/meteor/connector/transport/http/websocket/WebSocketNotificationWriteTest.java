@@ -11,18 +11,15 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.example.rpc.websocket.JsonWebSocketProtocol;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolSession;
-import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.ProtocolTestAccess;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpUpgradeFixture;
 import net.hasor.meteor.domain.payload.RequestPayload;
-import net.hasor.example.rpc.websocket.JsonWebSocketProtocol;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -30,13 +27,14 @@ import static org.junit.Assert.*;
 public class WebSocketNotificationWriteTest {
     @Test
     public void failedPhysicalWriteDoesNotProduceAnAccept() throws Exception {
-        // 只替换物理发送 Future；使用真实示例 ProtocolFactory 和正式 JSON 编码器。
+        // 只替换物理发送 Future；使用真实示例 ProtocolProvider 和正式 JSON 编码器。
         MetConfiguration configuration = new MetConfiguration();
         try (MetContext context = configuration.buildContext()) {
             ControlledConnection connection = new ControlledConnection();
             ProtocolConfig config = ProtocolConfig.newConfig("jsonws", "jsonws", //
                     Map.of("contextPath", "/ws"));
-            ProtocolSessionContext protocolContext = ProtocolTestAccess.context(context, null, null, true);
+            RouteMountIndex routes = new RouteMountIndex("unit", config);
+            ProtocolSessionContext protocolContext = ProtocolTestAccess.context(context, null, null, true, routes);
             AtomicInteger delivered = new AtomicInteger();
             JsonWebSocketProtocol protocol = new JsonWebSocketProtocol();
             ProtocolSession<HttpExchange> session = protocol.createSession(config, protocolContext, //

@@ -9,7 +9,6 @@ package net.hasor.meteor.connector.transport.http.http2;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Supplier;
 import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpMessageUtils;
@@ -25,7 +24,6 @@ import net.hasor.neta.codec.http.*;
 /** 每个 HTTP/2 stream 独立收集头部，正文交付后由应用消费并归还流控额度。 */
 final class Http2InboundBodyHandler implements ProtoHandler<HttpObject, HttpObject> {
     private final Http2Channel              channel;
-    private final Supplier<RouteSelection>  selectedRoute;
     private final HttpBodyStream            bodyStream = new HttpBodyStream(65535);
     private final Map<String, List<String>> headers    = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private final Map<String, List<String>> trailers   = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
@@ -34,13 +32,11 @@ final class Http2InboundBodyHandler implements ProtoHandler<HttpObject, HttpObje
     private       int                       status;
     private       boolean                   published;
 
-    Http2InboundBodyHandler(Http2Channel channel, Supplier<RouteSelection> selectedRoute) {
+    Http2InboundBodyHandler(Http2Channel channel) {
         this.channel = channel;
-        this.selectedRoute = selectedRoute;
     }
 
-    public ProtoStatus onMessage(ProtoContext context, ProtoRcvQueue<HttpObject> source, //
-            ProtoSndQueue<HttpObject> target) {
+    public ProtoStatus onMessage(ProtoContext context, ProtoRcvQueue<HttpObject> source, ProtoSndQueue<HttpObject> target) {
         while (source.hasMore()) {
             HttpObject message = source.takeMessage();
             boolean retained = false;
@@ -73,12 +69,13 @@ final class Http2InboundBodyHandler implements ProtoHandler<HttpObject, HttpObje
 
                     this.published = true;
                     if (this.method != null) {
-                        HttpRequest request = HttpRequest.newStreaming(this.method, this.uri, //
-                                this.headers, this.bodyStream, 2);
-                        this.channel.receiveRequest(message.streamId(), request, this.selectedRoute.get());
+                        HttpRequest request = HttpRequest.newStreaming(//
+                                this.method, this.uri, this.headers, this.bodyStream, 2);
+                        RouteSelection route = context.context(RouteSelection.class);
+                        this.channel.receiveRequest(message.streamId(), request, route);
                     } else {
-                        HttpResponse response = HttpResponse.newStreaming(this.status, //
-                                this.headers, this.bodyStream, Map.of());
+                        HttpResponse response = HttpResponse.newStreaming(//
+                                this.status, this.headers, this.bodyStream, Map.of());
                         this.channel.receiveResponse(message.streamId(), response);
                     }
                 }

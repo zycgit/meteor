@@ -9,14 +9,16 @@ package net.hasor.example.connector.protocol;
 import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 
 /** 只写原始字节的测试协议，用于观察真实 TCP 写入与关闭。 */
-public class RawSocketTestProtocol implements ProtocolFactory<byte[]> {
+public class RawSocketTestProtocol implements ProtocolProvider<byte[]> {
     public static final int WRITE_SIZE = 8 * 1024 * 1024;
 
     @Override
@@ -40,12 +42,13 @@ public class RawSocketTestProtocol implements ProtocolFactory<byte[]> {
     }
 
     @Override
-    public String defaultSerializeType() {
+    public String defaultSerialize() {
         return "Java";
     }
 
     @Override
-    public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
+    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
+        return config.build(null);
     }
 
     @Override

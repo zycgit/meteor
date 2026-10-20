@@ -25,8 +25,8 @@ import net.hasor.meteor.connector.transport.tcp.TcpTransportFactory;
 import net.hasor.meteor.connector.transport.udp.UdpTransportFactory;
 import org.junit.Test;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
-import static net.hasor.meteor.connector.transport.TransportTestServices.newRuntimeServices;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
+import static net.hasor.meteor.connector.transport.TransportTestServices.newRuntimeServices;
 import static org.junit.Assert.*;
 
 /**
@@ -80,7 +80,8 @@ public class NetworkConnectorTest {
                 public void closed(Throwable cause) {
                 }
             });
-            client.connect(listen.getAddress(), routes, this.mountId(config), channel -> new ChannelListener<byte[]>() {
+            String initialProtocol = this.protocolName(config);
+            client.connect(initialProtocol, listen.getAddress(), routes, channel -> new ChannelListener<byte[]>() {
 
                 public void connected() {
                     connected.completed(channel);
@@ -124,7 +125,7 @@ public class NetworkConnectorTest {
             RouteTable<byte[]> routes = this.routePlan(config);
 
             // 工厂看到通道后立即失败，connect Future 必须结束且通道关闭 Future 不能悬挂。
-            var connecting = client.connect(target, routes, this.mountId(config), channel -> {
+            var connecting = client.connect(this.protocolName(config), target, routes, channel -> {
                 exposed.set(channel);
                 throw new IllegalStateException("listener construction failed");
             });
@@ -243,7 +244,8 @@ public class NetworkConnectorTest {
                 public void closed(Throwable cause) {
                 }
             });
-            client.connect(listen.getAddress(), routes, this.mountId(config), channel -> new ChannelListener<byte[]>() {
+            String initialProtocol = this.protocolName(config);
+            client.connect(initialProtocol, listen.getAddress(), routes, channel -> new ChannelListener<byte[]>() {
 
                 public void connected() {
                     connected.completed(channel);
@@ -287,7 +289,7 @@ public class NetworkConnectorTest {
             RouteTable<byte[]> routes = this.routePlan(config);
 
             // 工厂失败必须同步反映到连接 Future，并由已经安装的 close 通知结束通道 Future。
-            var connecting = client.connect(target, routes, this.mountId(config), channel -> {
+            var connecting = client.connect(this.protocolName(config), target, routes, channel -> {
                 exposed.set(channel);
                 throw new IllegalStateException("listener construction failed");
             });
@@ -371,7 +373,7 @@ public class NetworkConnectorTest {
                         }
                     });
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), routes, this.mountId(config), //
+            client.connect(this.protocolName(config), listen.getAddress(), routes,  //
                     channel -> new ChannelListener<HttpExchange>() {
 
                         public void connected() {
@@ -426,7 +428,8 @@ public class NetworkConnectorTest {
         try {
             InterAddress unusedRemote = new InterAddress("http", "127.0.0.1", 1, "default");
             RouteTable<HttpExchange> routes = this.routePlan(config);
-            client.connect(unusedRemote, routes, this.mountId(config), channel -> new ChannelListener<HttpExchange>() {
+            String initialProtocol = this.protocolName(config);
+            client.connect(initialProtocol, unusedRemote, routes, channel -> new ChannelListener<HttpExchange>() {
 
                 public void connected() {
                     connected.completed(channel);
@@ -503,14 +506,15 @@ public class NetworkConnectorTest {
     private <M> RouteTable<M> routePlan(ConnectorConfig config) {
         Map<String, RouteDefinition<M>> routes = new LinkedHashMap<>();
         for (ProtocolConfig protocol : config.protocols()) {
+            RouteMountIndex mounts = new RouteMountIndex(config.name(), protocol);
             RouteDefinition<M> route = RouteTestAccess.definition(//
-                    protocol.options(), protocol.mountIndex(), message -> RouteProbeResult.MATCH);
-            routes.put(protocol.mountId(), route);
+                    protocol.options(), mounts, message -> RouteProbeResult.MATCH);
+            routes.put(protocol.name(), route);
         }
         return RouteTestAccess.activate(routes, null);
     }
 
-    private String mountId(ConnectorConfig config) {
-        return config.protocols().iterator().next().mountId();
+    private String protocolName(ConnectorConfig config) {
+        return config.protocols().iterator().next().name();
     }
 }

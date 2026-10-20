@@ -7,7 +7,7 @@
  */
 package net.hasor.meteor.connector.transport;
 
-/** Receives a transport message after the transport route has selected its protocol mount. */
+/** Receives a transport message after the transport route has selected its protocol. */
 public interface RouteReceiver<M> extends ChannelListener<M> {
-    void receive(String mountId, M message) throws Exception;
+    void receive(String protocolName, M message) throws Exception;
 }

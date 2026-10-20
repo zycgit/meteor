@@ -6,10 +6,15 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.connector.transport.udp;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.function.Function;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.RouteTable;
 import net.hasor.meteor.connector.transport.*;
-import net.hasor.neta.channel.ProtoBuildContext;
+import net.hasor.neta.bytebuf.ByteBuf;
+import net.hasor.neta.channel.*;
+import net.hasor.neta.channel.routing.PartitionKey;
 import net.hasor.neta.channel.transport.udp.UdpSoConfig;
 
 final class UdpConnector extends SocketConnector<byte[]> {
@@ -71,9 +76,107 @@ final class UdpConnector extends SocketConnector<byte[]> {
         return maxDatagramSize;
     }
 
-    protected void initialize(ProtoBuildContext stack, InterAddress target, //
-            RouteTable<byte[]> routes, String initialMountId, ChannelListenerFactory<byte[]> factory) throws Exception {
-        UdpChannel.attach(stack, target, this.transport.nextExecutor(), this.maxDatagramSize, this.dtlsEnabled, //
-                this.runtimeServices, this.retransmitTimeout, this.handshakeTimeout, routes, initialMountId, factory);
+    protected void initialize(String initial, InterAddress target, ProtoBuildContext context,  //
+            RouteTable<byte[]> routes, ChannelListenerFactory<byte[]> factory) throws Exception {
+        NetChannel socket = (NetChannel) context.getChannel();
+        UdpChannel channel = new UdpChannel(socket, target, this.transport.nextExecutor(), //
+                this.maxDatagramSize, this.dtlsEnabled);
+        ChannelListenerRelay<byte[]> listenerRelay = new ChannelListenerRelay<>(channel::terminated);
+
+        // 先安装物理连接生命周期，ChannelListenerFactory 此后取得的通道已经能够观察关闭。
+        Runnable connected = () -> {
+            channel.execute(() -> {
+                try {
+                    listenerRelay.connected();
+                } catch (Throwable failure) {
+                    channel.fail(failure);
+                }
+            });
+        };
+
+        Runnable closed = () -> {
+            channel.execute(() -> listenerRelay.closed(channel.failure()));
+        };
+        context.addLastDecoder("lifecycle", new ChannelLifecycleHandler(connected, closed, channel::fail));
+        if (this.dtlsEnabled) {
+            DtlsHandshakeHandler handshake = new DtlsHandshakeHandler(//
+                    channel, this.runtimeServices, this.retransmitTimeout, this.handshakeTimeout);
+            context.addLastDecoder("dtls-ready", handshake);
+        }
+
+        Function<String, ProtoInitializer> branch = route -> {
+            return ctx -> ctx.addLastDecoder("messages", new RouteByteHandler(route));
+        };
+
+        configureRouting(context, branch, routes, initial);
+
+        // 网络事件只负责投递，业务收包仍在串行执行器中处理。
+        socket.subscribe(event -> {
+            return event.isInbound() || !event.isSuccess();
+        }, SubscribeMode.SYNC, event -> {
+            if (!event.isSuccess()) {
+                channel.execute(() -> channel.fail(event.getError()));
+                return;
+            }
+
+            RouteMessage<byte[]> message = (RouteMessage<byte[]>) event.getData();
+            channel.execute(() -> {
+                try {
+                    if (message.message().length > this.maxDatagramSize) {
+                        throw new IOException("Received datagram exceeds " + this.maxDatagramSize);
+                    }
+                    listenerRelay.receive(message.protocolName(), message.message());
+                } catch (Throwable failure) {
+                    channel.fail(failure);
+                }
+            });
+        });
+
+        // 所有关闭、路由和收包入口就绪后再把通道交给上层，并在同一执行器中绑定监听器。
+        try {
+            ChannelListener<byte[]> listener = factory.createListener(channel);
+            channel.execute(() -> {
+                try {
+                    listenerRelay.attach(listener);
+                } catch (Throwable failure) {
+                    channel.fail(failure);
+                }
+            });
+        } catch (Exception | Error failure) {
+            listenerRelay.attachmentFailed();
+            channel.fail(failure);
+            throw failure;
+        }
     }
+
+    private static void configureRouting(ProtoBuildContext context, Function<String, ProtoInitializer> branch, RouteTable<byte[]> routes, String initial) {
+        // 没有协议路由的底层测试或扩展直接接收原始数据报。
+        if (routes.definitions().isEmpty()) {
+            branch.apply("").config(context);
+            return;
+        }
+
+        // 主动连接已经选定协议名，回包必须沿用该协议；监听连接仍按每个数据报探测。
+        String s = routes.resolveProtocol(initial);
+        if (s != null) {
+            branch.apply(s).config(context);
+            return;
+        }
+
+        ProtoHelper.typed(ByteBuf.class, Object.class).nextPartition("route", (ctx, kind, message) -> {
+            if (!ctx.isRcv() || !(message instanceof ByteBuf bytes)) {
+                return null;
+            } else {
+                int length = bytes.readableBytes();
+                String route = RouteByteUtils.select(Collections.singletonList(bytes), //
+                        routes.definitions(), length, true);
+                return PartitionKey.newKey(route);
+            }
+        }, partitions -> {
+            partitions.byInitializer(ctx -> {
+                branch.apply(PartitionKey.findKey(ctx).getKey()).config(ctx);
+            });
+        }).build().config(context);
+    }
+
 }

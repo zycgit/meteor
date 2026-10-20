@@ -30,8 +30,8 @@ public class ConnectorManagerTest {
     public void addressFilteringDoesNotTurnLogicalNameIntoSchemeAlias() throws Exception {
         // wirea 是逻辑协议名，同时被 wireb 作为公开地址 scheme。
         Map<String, String> endpointOptions = Map.of("workerThread", "1");
-        ProtocolConfig logical = new ProtocolConfig("wirea", "tcp", "wirea", Map.of());
-        ProtocolConfig alias = new ProtocolConfig("wireb", "wirea", "wireb", Map.of());
+        ProtocolConfig logical = new ProtocolConfig("wirea", "tcp", Map.of());
+        ProtocolConfig alias = new ProtocolConfig("wireb", "wirea", Map.of());
         InterAddress local = InterAddress.forBinding("tcp", "127.0.0.1", 0, "test");
         ConnectorConfig config = new ConnectorConfig(//
                 "client", local, endpointOptions, List.of(logical, alias), false);

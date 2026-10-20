@@ -66,8 +66,7 @@ final class MetDispatcher implements AutoCloseable {
         MetBindInfo<?> service = this.context.getServiceInfo(info.getServiceGroup(), info.getServiceName(), info.getServiceVersion());
         if (service != null && !service.getBindProtocols().isEmpty()) {
             if (!this.accepts(service.getBindProtocols(), channel)) {
-                String scheme = channel.getLocal().getSchema();
-                String message = "Service is not exposed through protocol: " + scheme;
+                String message = "Service is not exposed through protocol: " + channel.getProtocol();
                 ResponsePayload response = MetPayloadBuilder.buildResponseStatus(//
                         requestId, ProtocolStatus.Forbidden, message);
                 channel.sendData(response).onFinal(done -> this.completeResponse(info, response, done));
@@ -124,19 +123,8 @@ final class MetDispatcher implements AutoCloseable {
 
     private boolean accepts(Set<String> selected, MetChannel channel) {
         String protocol = channel.getProtocol();
-        String scheme = channel.getLocal().getSchema();
-        Set<String> logicalNames = this.context.getSettings().getProtocols();
         for (String value : selected) {
-            boolean logical = false;
-            for (String name : logicalNames) {
-                if (StringUtils.equalsIgnoreCase(value, name)) {
-                    logical = true;
-                    break;
-                }
-            }
-            boolean matches = logical ? StringUtils.equalsIgnoreCase(value, protocol) : //
-                    StringUtils.equalsIgnoreCase(value, scheme);
-            if (matches) {
+            if (StringUtils.equalsIgnoreCase(value, protocol)) {
                 return true;
             }
         }

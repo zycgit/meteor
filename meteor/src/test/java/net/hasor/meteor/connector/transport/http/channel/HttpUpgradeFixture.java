@@ -36,7 +36,7 @@ public final class HttpUpgradeFixture {
 
     private static final class Owner extends HttpChannel {
         private Owner(Executor executor) {
-            super(config(), null, executor, RouteTestAccess.activate(Map.of(), uri -> null), null);
+            super(config(), executor, RouteTestAccess.activate(Map.of(), uri -> null), false);
         }
 
         private static TransportConfig config() {

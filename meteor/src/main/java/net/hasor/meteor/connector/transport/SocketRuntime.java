@@ -63,6 +63,10 @@ public final class SocketRuntime {
         }
     }
 
+    public TransportConfig config() {
+        return this.config;
+    }
+
     public Executor nextExecutor() {
         return this.workers[Math.floorMod(this.nextWorker.getAndIncrement(), this.workers.length)];
     }

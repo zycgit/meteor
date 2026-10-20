@@ -7,14 +7,16 @@
  */
 package net.hasor.example.rpc.websocket;
 import java.util.function.ObjLongConsumer;
-import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 
 /** 用户可以自定义应用协议；WebSocket 适配器本身不规定 RPC 信封。 */
-public final class JsonWebSocketProtocol implements ProtocolFactory<HttpExchange> {
+public final class JsonWebSocketProtocol implements ProtocolProvider<HttpExchange> {
     @Override
     public String name() {
         return "jsonws";
@@ -26,7 +28,7 @@ public final class JsonWebSocketProtocol implements ProtocolFactory<HttpExchange
     }
 
     @Override
-    public String defaultSerializeType() {
+    public String defaultSerialize() {
         return "Json";
     }
 
@@ -36,8 +38,9 @@ public final class JsonWebSocketProtocol implements ProtocolFactory<HttpExchange
     }
 
     @Override
-    public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
+    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
         // 示例接受普通发布接口，方法签名在每个请求到达时解析。
+        return config.build(null);
     }
 
     @Override

@@ -7,35 +7,29 @@
  */
 package net.hasor.realmeteor.rpc.rsfs;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetFuture;
-import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.domain.MetException;
-import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.example.rpc.rsfs.RsfsConfigurations;
 import net.hasor.example.rpc.rsfs.RsfsEcho;
+import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
+import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.bootstrap.MetConfiguration;
 import org.junit.Test;
-import org.junit.function.ThrowingRunnable;
 import static org.junit.Assert.*;
 
-/** 服务协议选择和地址发现保留 rsf 与 rsfs 的独立身份。 */
+/** 服务使用 RSF 协议名发布，地址前缀区分明文和 TLS 端点。 */
 public class RsfsPublicationScenarioTest {
     @Test(timeout = 30000)
     public void discoveredSecureAddressUsesTheRsfsConnector() throws Exception {
-        // 只配置安全协议，默认协议和实际发布地址都应为 rsfs。
+        // 只配置安全端点，默认协议为 RSF，实际发布地址为 rsfs。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");
         MetConfiguration outgoing = RsfsConfigurations.client(null, "trust");
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             server.start();
             client.start();
-            server.publisher().rsfService(RsfsEcho.class, value -> "discovered:" + value).protocol("rsfs").register();
-            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsfs").register();
+            server.publisher().rsfService(RsfsEcho.class, value -> "discovered:" + value).protocol("rsf").register();
+            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).protocol("rsf").register();
 
             // 通过公开地址更新入口交付发现结果，让普通客户端自行选址。
             InterAddress address = server.getListenAddress("rsf", "rsfs");
@@ -49,41 +43,24 @@ public class RsfsPublicationScenarioTest {
     }
 
     @Test(timeout = 30000)
-    public void secureOnlyServiceIsNotExposedThroughPlainRsf() throws Exception {
-        // 同一应用使用两个独立监听器，服务只选择 rsfs。
+    public void publicationRejectsAddressSchemeAsProtocolName() throws Exception {
+        // 同一 RSF 协议同时挂载明文端点和 rsfs 安全端点。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");
         incoming.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
-        MetConfiguration outgoing = RsfsConfigurations.client(null, "trust");
-        outgoing.connector("tcp").protocol("rsf");
-        AtomicInteger calls = new AtomicInteger();
-        try (MetContext server = incoming.buildContext(); //
-             MetContext client = outgoing.buildContext()) {
+        try (MetContext server = incoming.buildContext()) {
             server.start();
-            client.start();
-            server.publisher().rsfService(RsfsEcho.class, value -> {
-                calls.incrementAndGet();
-                return value;
-            }).protocol("rsfs").register();
-            MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).register();
 
-            // 被选择的入口可调用；另一入口收到协议禁止状态且不得执行服务。
-            RsfsEcho allowed = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
-            assertEquals("allowed", allowed.echo("allowed"));
-            InterAddress plain = server.getListenAddress("rsf", "rsf");
-            MetFuture rejected = client.getRsfClient(plain) //
-                    .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "blocked" });
-            ThrowingRunnable awaitRejected = () -> rejected.get(5, TimeUnit.SECONDS);
-            ExecutionException failure = assertThrows(ExecutionException.class, awaitRejected);
-            assertTrue(failure.getCause() instanceof MetException);
-            assertEquals(ProtocolStatus.Forbidden, ((MetException) failure.getCause()).getStatus());
-            assertEquals(1, calls.get());
-            assertNotEquals(plain.getPort(), server.getListenAddress("rsf", "rsfs").getPort());
+            // 地址前缀不能用作发布协议名，配置阶段直接拒绝。
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                server.publisher().rsfService(RsfsEcho.class, value -> value).protocol("rsfs").register();
+            });
+            assertTrue(failure.getMessage().contains("unknown protocol: rsfs"));
         }
     }
 
     @Test(timeout = 30000)
-    public void logicalRsfServiceIsExposedThroughEveryRsfMount() throws Exception {
-        // 同一 RSF 逻辑协议挂载到明文和 TLS 监听器，服务按逻辑名选择全部挂载。
+    public void namedRsfServiceIsExposedThroughEveryRsfMount() throws Exception {
+        // 同一 RSF 协议挂载到明文和 TLS 监听器，服务按协议名选择全部挂载。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");
         incoming.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
         MetConfiguration outgoing = RsfsConfigurations.client(null, "trust");
@@ -99,7 +76,7 @@ public class RsfsPublicationScenarioTest {
             }).protocol("rsf").register();
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class).register();
 
-            // 逻辑协议名优先于地址别名，两个端点都使用同一个 RSF 协议实现。
+            // 两个端点使用同一个 RSF 协议实现，调用地址决定具体端点。
             InterAddress plain = server.getListenAddress("rsf", "rsf");
             RsfsEcho allowed = client.getRsfClient(plain).getRemote(service);
             assertEquals("allowed", allowed.echo("allowed"));

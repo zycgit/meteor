@@ -17,10 +17,7 @@ import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolSession;
-import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.ChannelListener;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
@@ -35,6 +32,7 @@ import net.hasor.meteor.domain.payload.ThrowPayload;
 /** test-only JSON RPC 会话，演示公开升级入口与标准 Payload 生命周期的组合。 */
 final class JsonWebSocketSession implements ProtocolSession<HttpExchange> {
     private final ProtocolConfig                              config;
+    private final RouteMountIndex                             routes;
     private final boolean                                     outbound;
     private final boolean                                     binary;
     private final NetworkChannel<HttpExchange>                http;
@@ -50,11 +48,12 @@ final class JsonWebSocketSession implements ProtocolSession<HttpExchange> {
     JsonWebSocketSession(ProtocolConfig config, ProtocolSessionContext context, NetworkChannel<HttpExchange> http, //
             ObjLongConsumer<Payload> messages) {
         this.config = config;
+        this.routes = context.routes();
         this.outbound = context.isOutbound();
         this.binary = Boolean.parseBoolean(config.option("binary", "false"));
         this.http = http;
         this.messages = messages;
-        this.codec = new WebSocketPayloadCodec(context.metContext(), config);
+        this.codec = new WebSocketPayloadCodec(context.metContext(), this.routes);
         this.observation = context.metContext().getExtension(WebSocketObservation.class);
     }
 
@@ -67,7 +66,7 @@ final class JsonWebSocketSession implements ProtocolSession<HttpExchange> {
     public void connected() {
         if (this.outbound) {
             // H2 可以在同一个 HTTP 会话内打开多个独立 WS stream。
-            String path = this.config.option("requestPath", this.config.contextPath());
+            String path = this.config.option("requestPath", this.routes.contextPath());
             int streams = this.config.integer("streams", 1);
             for (int index = 0; index < streams; index++) {
                 int httpVersion = this.config.integer("httpVersion", 1);

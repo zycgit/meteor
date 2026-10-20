@@ -8,7 +8,6 @@
 package net.hasor.meteor.connector.transport.http.channel;
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.Future;
@@ -20,31 +19,26 @@ import net.hasor.neta.channel.NetChannel;
 public final class HttpUpgradeCoordinator {
     private final HttpChannel                         owner;
     private final NetChannel                          socket;
-    private final boolean                             server;
     private final int                                 version;
     private final long                                streamId;
     private final Function<HttpRequest, HttpExchange> handoff;
     private final Runnable                            closeAction;
-    private final BooleanSupplier                     available;
     private final Consumer<Throwable>                 failureAction;
     private       boolean                             opened;
 
-    public HttpUpgradeCoordinator(HttpChannel owner, NetChannel socket, boolean server, int version, long streamId, //
-            Function<HttpRequest, HttpExchange> handoff, Runnable closeAction, //
-            BooleanSupplier available, Consumer<Throwable> failureAction) {
+    public HttpUpgradeCoordinator(HttpChannel owner, NetChannel socket, int version, long streamId, //
+            Function<HttpRequest, HttpExchange> handoff, Runnable closeAction, Consumer<Throwable> failureAction) {
         this.owner = owner;
         this.socket = socket;
-        this.server = server;
         this.version = version;
         this.streamId = streamId;
         this.handoff = handoff;
         this.closeAction = closeAction;
-        this.available = available;
         this.failureAction = failureAction;
     }
 
     public boolean isServer() {
-        return this.server;
+        return !this.socket.isClient();
     }
 
     public int version() {
@@ -74,7 +68,7 @@ public final class HttpUpgradeCoordinator {
     }
 
     private RouteSelection selectRoute(String uri) {
-        boolean available = this.owner.acceptsUpgrade() && this.available.getAsBoolean();
+        boolean available = this.owner.acceptsUpgrade() && this.owner.isOpen();
         return available ? this.owner.route(uri) : null;
     }
 
@@ -101,19 +95,21 @@ public final class HttpUpgradeCoordinator {
                 writer, this.closeAction);
         this.owner.execute(() -> {
             try {
-                boolean h2Server = this.server && this.version == 2;
+                boolean h2Server = this.isServer() && this.version == 2;
                 if (!h2Server && !this.owner.acceptsUpgrade()) {
                     throw new IOException("HTTP endpoint is closing");
                 }
+
                 // H2 服务端由 handoff 在同一有序执行器上做最终准入，drain 先到时它会发出 RST。
                 HttpExchange exchange = this.handoff.apply(request);
                 if (exchange == null || exchange.completion().isDone()) {
                     throw new IOException("HTTP upgrade exchange is no longer available");
                 }
+
                 this.owner.trackUpgrade(channel);
                 exchange.attachUpgrade(channel);
                 exchange.respond(response);
-                if (this.server) {
+                if (this.isServer()) {
                     this.owner.received(exchange);
                 }
             } catch (Throwable failure) {

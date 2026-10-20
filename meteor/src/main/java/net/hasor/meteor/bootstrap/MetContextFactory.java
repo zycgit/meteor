@@ -97,7 +97,7 @@ final class MetContextFactory {
             return configured.get(0).protocols().iterator().next().name();
         }
 
-        // 逻辑协议名优先于地址 scheme，避免两类标识碰撞时受端点顺序影响。
+        // 默认协议只能选择已配置的协议名，地址 scheme 不参与匹配。
         for (ConnectorConfig endpoint : configured) {
             for (ProtocolConfig protocol : endpoint.protocols()) {
                 if (StringUtils.equalsIgnoreCase(defaultProtocol, protocol.name())) {
@@ -106,21 +106,6 @@ final class MetContextFactory {
             }
         }
 
-        // 没有逻辑名匹配时，再按公开地址别名选择唯一的逻辑协议。
-        String selected = null;
-        for (ConnectorConfig endpoint : configured) {
-            for (ProtocolConfig protocol : endpoint.protocols()) {
-                if (StringUtils.equalsIgnoreCase(defaultProtocol, protocol.scheme())) {
-                    if (selected != null && !StringUtils.equalsIgnoreCase(selected, protocol.name())) {
-                        throw new IllegalArgumentException("Default protocol alias is ambiguous: " + defaultProtocol);
-                    }
-                    selected = protocol.name();
-                }
-            }
-        }
-        if (selected != null) {
-            return selected;
-        }
         throw new IllegalArgumentException("Default protocol is not configured: " + defaultProtocol);
     }
 }

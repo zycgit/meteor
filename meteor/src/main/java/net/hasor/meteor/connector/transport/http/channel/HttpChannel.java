@@ -15,7 +15,6 @@ import java.util.function.Supplier;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.RouteDefinition;
 import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.meteor.connector.RouteTable;
 import net.hasor.meteor.connector.transport.*;
@@ -24,7 +23,6 @@ import net.hasor.neta.channel.NetChannel;
 /** HTTP/1、HTTP/2 与升级通道共用的写入准入和排空生命周期。 */
 public abstract class HttpChannel implements NetworkChannel<HttpExchange> {
     protected final TransportConfig               config;
-    protected final SocketRuntime                 transport;
     protected final Executor                      executor;
     private final   RouteTable<HttpExchange>      routes;
     private         ChannelListener<HttpExchange> receiver;
@@ -37,24 +35,13 @@ public abstract class HttpChannel implements NetworkChannel<HttpExchange> {
     private         int                           writing;
     private         boolean                       draining;
 
-    protected HttpChannel(TransportConfig config, SocketRuntime transport, Executor executor, //
-            RouteTable<HttpExchange> routes, String initialMountId) {
+    protected HttpChannel(TransportConfig config, Executor executor, //
+            RouteTable<HttpExchange> routes, boolean streamingResponses) {
         this.config = config;
-        this.transport = transport;
         this.executor = executor;
         this.routes = routes;
         this.streaming = Boolean.parseBoolean(config.option("streamBody", "false"));
-        boolean responseStreaming = this.streaming;
-
-        String initial = routes.resolveMountId(initialMountId);
-        RouteDefinition<HttpExchange> outgoing = initial == null ? null : routes.definitions().get(initial);
-        if (outgoing != null) {
-            String configuredStreaming = outgoing.options().get("streamBody");
-            if (configuredStreaming != null) {
-                responseStreaming = Boolean.parseBoolean(configuredStreaming);
-            }
-        }
-        this.streamingResponses = responseStreaming;
+        this.streamingResponses = streamingResponses;
     }
 
     protected final synchronized boolean attachReceiver(ChannelListenerFactory<HttpExchange> factory) throws Exception {
@@ -68,9 +55,9 @@ public abstract class HttpChannel implements NetworkChannel<HttpExchange> {
     protected final void received(HttpExchange exchange) throws Exception {
         if (this.receiver instanceof RouteReceiver<HttpExchange> routed) {
             RouteSelection route = exchange.request().route();
-            String mountId = route == null ? "" : route.mountId();
-            if (this.routes.contains(mountId)) {
-                routed.receive(mountId, exchange);
+            String protocolName = route == null ? "" : route.protocolName();
+            if (this.routes.contains(protocolName)) {
+                routed.receive(protocolName, exchange);
             } else {
                 exchange.respond(HttpResponse.newBuffered(404, Collections.emptyMap(), new byte[0], Map.of()));
                 this.write(exchange);

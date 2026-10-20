@@ -18,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.*;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -48,14 +47,15 @@ public class ConnectorSubscriptionsTest {
             manager.startInbound();
 
             // 原始报文经传输选路和协议解析后进入统一订阅入口。
-            this.send(manager.getListenAddress("a"), "AArequest\n");
+            this.send(manager.getListenAddress("wirea"), "AArequest\n");
             assertTrue(delivered.await(3, TimeUnit.SECONDS));
             assertEquals(List.of("first", "second"), deliveries);
 
             // 回调保留协议通道、协议请求标识及解析后的负载。
             Delivery delivery = first.get();
             assertNotNull(delivery);
-            assertEquals("a", delivery.channel.getProtocol());
+            assertEquals("wirea", delivery.channel.getProtocol());
+            assertEquals("a", delivery.channel.getRemote().getSchema());
             assertEquals(1, delivery.requestId);
             assertTrue(delivery.payload instanceof RequestPayload);
         }
@@ -79,7 +79,7 @@ public class ConnectorSubscriptionsTest {
             manager.startInbound();
 
             // 单个观察者异常不能截断后续订阅者。
-            this.send(manager.getListenAddress("a"), "AArequest\n");
+            this.send(manager.getListenAddress("wirea"), "AArequest\n");
             assertTrue(delivered.await(3, TimeUnit.SECONDS));
             assertTrue(received.get() instanceof RequestPayload);
         }
@@ -110,7 +110,7 @@ public class ConnectorSubscriptionsTest {
             manager.startInbound();
 
             // close 必须先让出协议线程，外部重复 close 则等待同一关闭屏障完成。
-            InterAddress address = manager.getListenAddress("a");
+            InterAddress address = manager.getListenAddress("wirea");
             try (Socket socket = new Socket(address.getHost(), address.getPort())) {
                 socket.setSoTimeout(3000);
                 socket.getOutputStream().write("AArequest\n".getBytes(StandardCharsets.UTF_8));
@@ -146,7 +146,7 @@ public class ConnectorSubscriptionsTest {
     private ConnectorConfig config() {
         Map<String, String> options = new HashMap<>();
         options.put("workerThread", "1");
-        ProtocolConfig protocol = new ProtocolConfig("a", "a", "wirea", Collections.emptyMap());
+        ProtocolConfig protocol = new ProtocolConfig("wirea", "a", Collections.emptyMap());
         InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "test");
         return new ConnectorConfig("subscriptions", address, options, List.of(protocol), true);
     }
@@ -158,15 +158,6 @@ public class ConnectorSubscriptionsTest {
         }
     }
 
-    private static final class Delivery {
-        private final MetChannel channel;
-        private final long       requestId;
-        private final Payload    payload;
-
-        private Delivery(MetChannel channel, long requestId, Payload payload) {
-            this.channel = channel;
-            this.requestId = requestId;
-            this.payload = payload;
-        }
+    private record Delivery(MetChannel channel, long requestId, Payload payload) {
     }
 }

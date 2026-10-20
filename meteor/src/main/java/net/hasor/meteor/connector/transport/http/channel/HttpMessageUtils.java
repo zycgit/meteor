@@ -11,12 +11,34 @@ import java.util.concurrent.CancellationException;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.connector.RouteSelection;
+import net.hasor.meteor.connector.RouteTable;
+import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.codec.http.HttpHeaders;
 import net.hasor.neta.codec.http.HttpVersion;
 
 public final class HttpMessageUtils {
     private HttpMessageUtils() {
+    }
+
+    /** 根据传输安全配置确定 HTTP 报文使用的地址前缀。 */
+    public static String scheme(TransportConfig config) {
+        if (Boolean.parseBoolean(config.option("tlsEnabled", "false"))) {
+            return "https";
+        } else {
+            return config.option("httpScheme", "http");
+        }
+    }
+
+    public static boolean streamResponseBody(TransportConfig config, RouteTable<HttpExchange> routes, String initialProtocol) {
+        // 响应正文先采用端点默认值，再由本次连接选择的协议覆盖。
+        String protocolName = routes.resolveProtocol(initialProtocol);
+        String bodyMode = config.option("streamBody", "false");
+        if (protocolName != null) {
+            Map<String, String> options = routes.definitions().get(protocolName).options();
+            bodyMode = options.getOrDefault("streamBody", bodyMode);
+        }
+        return Boolean.parseBoolean(bodyMode);
     }
 
     public static boolean keepAlive(HttpVersion version, HttpHeaders headers) {

@@ -7,23 +7,25 @@
  */
 package net.hasor.meteor.connector;
 import java.util.function.ObjLongConsumer;
-import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 
-/** Protocol SPI. Transport requirements and protocol execution use one contract. */
-public interface ProtocolFactory<M> {
+/** Protocol SPI for metadata, service validation, route probing and session creation. */
+public interface ProtocolProvider<M> {
     String name();
 
     String transportType();
 
     /** Default serializer for calls sent through this protocol. */
-    String defaultSerializeType();
+    String defaultSerialize();
 
     Class<M> messageType();
 
-    /** 服务发布时校验匹配当前挂载的声明，检查失败将撤销本次登记。 */
-    void validateService(ProtocolConfig config, MetBindInfo<?> service);
+    /** 根据服务的协议分组准备当前端点发布结果；null 表示拒绝，异常撤销本次登记。 */
+    ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context);
 
     /** Inspect data without consuming it when the transport needs content-based routing. */
     RouteProbeResult probe(ProtocolConfig config, M message);

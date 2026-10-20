@@ -10,8 +10,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
@@ -19,7 +17,8 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.meteor.connector.RouteTable;
-import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.connector.transport.ChannelListenerFactory;
+import net.hasor.meteor.connector.transport.SocketRuntime;
 import net.hasor.meteor.connector.transport.http.channel.*;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
@@ -28,188 +27,154 @@ import net.hasor.neta.channel.*;
 import net.hasor.neta.channel.data.ProtoRcvQueue;
 import net.hasor.neta.channel.data.ProtoSndQueue;
 import net.hasor.neta.channel.routing.PartitionKey;
-import net.hasor.neta.channel.routing.ProtoRoutingControl;
-import net.hasor.neta.channel.routing.ProtoRoutingDataSelector;
 import net.hasor.neta.codec.http.*;
-import net.hasor.neta.codec.http.h2.*;
+import net.hasor.neta.codec.http.h2.Http2Frame;
+import net.hasor.neta.codec.http.h2.Http2GoawayEvent;
+import net.hasor.neta.codec.http.h2.Http2ResetEvent;
 import net.hasor.neta.codec.ssl.SslHandshakeEvent;
 import net.hasor.neta.codec.ssl.SslHandshakePhaseEnum;
 
 /** HTTP/2 完整消息通道；Neta 管理帧、流控和 stream，业务关联仅保留在 HttpExchange 中。 */
 final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject, HttpObject> {
-    private final    NetChannel                 socket;
-    private final    InterAddress               remote;
-    private final    boolean                    server;
-    private final    String                     scheme;
-    private final    boolean                    upgrades;
-    private final    HttpApplicationInitializer application;
-    private final    BasicFuture<Void>          remoteSettings = new BasicFuture<>();
-    private final    Map<Long, HttpExchange>    pending        = new ConcurrentHashMap<>();
-    private final    Map<HttpExchange, Long>    streams        = new IdentityHashMap<>();
-    private volatile boolean                    selected;
-    private          long                       nextStreamId   = 1;
-    private volatile boolean                    accepting      = true;
-    private volatile Throwable                  closeCause;
+    private static final Http2Frame SETTINGS_ACK = Http2Frame.settingsAck();
 
-    Http2Channel(TransportConfig config, SocketRuntime transport, //
-            NetChannel socket, InterAddress remote, Executor executor, //
-            RouteTable<HttpExchange> routes, String initialMountId, boolean server, String scheme, boolean upgrades, HttpApplicationInitializer application) {
-        super(config, transport, executor, routes, initialMountId);
+    private final    NetChannel              socket;
+    private final    InterAddress            remote;
+    private final    boolean                 server;
+    private final    BasicFuture<Void>       remoteSettings = new BasicFuture<>();
+    private final    Map<Long, HttpExchange> pending        = new ConcurrentHashMap<>();
+    private final    Map<HttpExchange, Long> streams        = new IdentityHashMap<>();
+    private          long                    nextStreamId   = 1;
+    private volatile boolean                 selected;
+    private volatile boolean                 accepting      = true;
+    private volatile Throwable               closeCause;
+
+    Http2Channel(SocketRuntime transport, NetChannel socket, InterAddress remote,//
+            RouteTable<HttpExchange> routes, boolean streamingResponses) {
+        super(transport.config(), transport.nextExecutor(), routes, streamingResponses);
         this.socket = socket;
         this.remote = remote;
-        this.server = server;
-        this.scheme = scheme;
-        this.upgrades = upgrades;
-        this.application = application;
+        this.server = !socket.isClient();
     }
 
-    void initialize(ProtoBuildContext stack, ChannelListenerFactory<HttpExchange> factory, //
-            ProtoRoutingControl routing) throws Exception {
+    boolean initialize(ChannelListenerFactory<HttpExchange> factory) throws Exception {
+        // 客户端先登记接收器，连接激活前的失败也能交付给发起方。
         if (!this.server && !this.attachReceiver(factory)) {
             this.socket.closeNow();
-            return;
+            return false;
         }
-
-        ChannelLifecycleHandler lifecycleHandler = new ChannelLifecycleHandler(() -> {
-            try {
-                // Neta 会预初始化所有 HTTP 分支，此处只发布已被当前连接选中的分支。
-                if (this.server && !this.attachReceiver(factory)) {
-                    this.socket.closeNow();
-                    return;
-                }
-                this.selected = true;
-                this.execute(() -> {
-                    if (!this.server && this.upgrades) {
-                        // Neta 在首次 flush 才发送前言；等待 SETTINGS 前先启动连接协商。
-                        this.socket.flush().onFailed(done -> this.remoteSettings.failed(done.getCause()));
-                    }
-                    this.notifyConnected();
-                });
-            } catch (Exception failure) {
-                this.closeCause = failure;
-                this.socket.closeNow();
-            }
-        }, () -> {
-            this.execute(this::terminated);
-        }, this::fail);
-        stack.addLastDecoder("lifecycle", lifecycleHandler);
-
-        // 先完成连接级帧处理，再按 HTTP/2 stream 分区处理消息。
-        int limit = this.config.integer("maxFrameSize", 16 * 1024 * 1024);
-        ProtoHelper.standard()//
-                .nextDuplex("h2-frame", new Http2FrameDuplex(this.server))//
-                .nextEncoder("h2-settings-ready", new Http2RemoteSettingsAckHandler())//
-                .nextDuplex("h2-message", new Http2ObjectDuplex(this.server, routing))//
-                .nextDecoder("h2-events", this)//
-                .nextPartition("h2-stream", new Http2ObjectPartitionSelector(), partitions -> {
-                    Http2ObjectPartitionPolicy policy = new Http2ObjectPartitionPolicy();
-                    partitions.policy(policy).byDefault(context -> {
-                        context.addLast("lifecycle", new Http2ObjectStreamManager(partitions.control(), policy));
-                    }).byInitializer(context -> {
-                        if (!this.upgrades) {
-                            this.initializeBody(context, limit);
-                        } else {
-                            long id = Long.parseLong(PartitionKey.findKey(context).getKey());
-                            HttpUpgradeCoordinator upgradeCoordinator = new HttpUpgradeCoordinator(//
-                                    this, this.socket, this.server, 2, id, //
-                                    request -> this.upgraded(id, request), () -> this.closeUpgrade(id), //
-                                    this::isOpen, failure -> this.failUpgrade(id, failure));
-                            ProtoInitializer body = branch -> this.initializeBody(branch, limit);
-                            this.application.initialize(context, upgradeCoordinator, body);
-                        }
-                    });
-                }).config(stack);
-
-        stack.addLastDecoder("input-close", new ChannelInputCloseHandler());
-
-        // 回调只复制消息，释放 Neta 缓冲；收发及关闭统一进入连接执行器。
-        this.socket.subscribe(//
-                event -> (this.selected || !this.server) && (event.isInbound() || !event.isSuccess()), //
-                SubscribeMode.SYNC, event -> {
-                    if (!event.isSuccess()) {
-                        this.fail(event.getError());
-                    } else if (event.getData() instanceof FullHttpResponse response) {
-                        try {
-                            long id = response.streamId();
-                            if (response.isBad()) {
-                                this.invalidMessage(id, response.badReason());
-                                return;
-                            }
-
-                            Map<String, List<String>> trailers = Map.of();
-                            if (response.hasTrailingHeaders()) {
-                                trailers = HttpMessageUtils.headers(response.trailingHeaders());
-                            }
-
-                            int status = response.status().code();
-                            Map<String, List<String>> headers = HttpMessageUtils.headers(response);
-                            byte[] body = HttpMessageUtils.body(response.content());
-                            HttpResponse copy = HttpResponse.newBuffered(status, headers, body, trailers);
-                            this.execute(() -> this.response(id, copy));
-                        } finally {
-                            response.release();
-                        }
-                    } else if (event.getData() instanceof SoInputCloseEvent) {
-                        this.execute(this::close);
-                    }
-                });
+        return true;
     }
 
-    private void fail(Throwable failure) {
+    void activated(ChannelListenerFactory<HttpExchange> factory, boolean negotiateUpgrade) {
+        try {
+            // Neta 预初始化所有版本分支，服务端只发布实际选中的通道。
+            if (this.server && !this.attachReceiver(factory)) {
+                this.socket.closeNow();
+                return;
+            }
+
+            this.selected = true;
+            this.execute(() -> {
+                if (!this.server && negotiateUpgrade) {
+                    // Neta 在首次 flush 才发送前言；等待 SETTINGS 前先启动连接协商。
+                    this.socket.flush().onFailed(done -> this.remoteSettings.failed(done.getCause()));
+                }
+                this.notifyConnected();
+            });
+        } catch (Exception failure) {
+            this.fail(failure);
+        }
+    }
+
+    void disconnected() {
+        this.execute(this::terminated);
+    }
+
+    boolean acceptsInbound(PlayLoad event) {
+        return (this.selected || !this.server) && (event.isInbound() || !event.isSuccess());
+    }
+
+    void onInbound(PlayLoad event) {
+        if (!event.isSuccess()) {
+            this.fail(event.getError());
+        } else if (event.getData() instanceof FullHttpResponse response) {
+            // 在 Neta 回调内复制并释放缓冲，随后交给通道执行器处理响应。
+            try {
+                long id = response.streamId();
+                if (response.isBad()) {
+                    this.rejectMessage(id, response.badReason());
+                    return;
+                }
+
+                Map<String, List<String>> trailers = Map.of();
+                if (response.hasTrailingHeaders()) {
+                    trailers = HttpMessageUtils.headers(response.trailingHeaders());
+                }
+
+                int status = response.status().code();
+                Map<String, List<String>> headers = HttpMessageUtils.headers(response);
+                byte[] body = HttpMessageUtils.body(response.content());
+                HttpResponse copy = HttpResponse.newBuffered(status, headers, body, trailers);
+                this.receiveResponse(id, copy);
+            } finally {
+                response.release();
+            }
+        } else if (event.getData() instanceof SoInputCloseEvent) {
+            this.execute(this::close);
+        }
+    }
+
+    String selectBodyMode(ProtoContext context, ProtoRcvQueue<HttpObject> source, ProtoSndQueue<HttpObject> target) {
+        boolean streaming;
+        if (!this.server) {
+            // 出站分区先发送请求，必须在 onActive 就确定正文模式。
+            long id = Long.parseLong(PartitionKey.findKey(context).getKey());
+            HttpExchange exchange = this.pending.get(id);
+            HttpRequest request = exchange == null ? null : exchange.request();
+            streaming = request != null && (request.stream() != null || this.streamResponseBody());
+        } else {
+            HttpObject first = source.peekMessage();
+            if (first == null) {
+                return null;
+            }
+
+            if (first instanceof DefaultHttpRequest request) {
+                RouteSelection route = this.route(request.uri());
+                // 路由保存在当前 stream 上下文，正文分支从父作用域读取。
+                context.context(RouteSelection.class, route);
+                streaming = this.streamBody(route);
+            } else if (first instanceof FullHttpRequest request) {
+                // h2c 升级首请求已经聚合，仍须为 stream 1 保存匹配结果。
+                RouteSelection route = this.route(request.uri());
+                context.context(RouteSelection.class, route);
+                streaming = false;
+            } else {
+                streaming = false;
+            }
+        }
+        return streaming ? "stream" : "complete";
+    }
+
+    ProtoStatus onOutboundFrame(ProtoRcvQueue<Http2Frame> source, ProtoSndQueue<Http2Frame> target) {
+        while (source.hasMore() && target.hasSlot()) {
+            Http2Frame frame = source.takeMessage();
+            target.offerMessage(frame);
+            // 只有 Neta 已应用远端 SETTINGS，出站编码器才会生成对应 ACK。
+            if (frame.type() == SETTINGS_ACK.type() && (frame.flags() & SETTINGS_ACK.flags()) != 0) {
+                this.execute(() -> this.remoteSettings.completed(null));
+            }
+        }
+
+        return ProtoStatus.Next;
+    }
+
+    void fail(Throwable failure) {
         this.closeCause = failure;
         this.execute(() -> {
             this.terminated();
             this.socket.closeNow();
         });
-    }
-
-    private void initializeBody(ProtoBuildContext stack, int limit) {
-        // 每个 stream 的分区独立保存头部匹配结果，不能放在连接字段中。
-        AtomicReference<RouteSelection> selectedRoute = new AtomicReference<>();
-        ProtoRoutingDataSelector<HttpObject, HttpObject> selector = (context, source, target) -> {
-            boolean streaming;
-            if (!this.server) {
-                // 出站分区先发送请求，必须在 onActive 就确定正文模式。
-                PartitionKey key = PartitionKey.findKey(context);
-                long id = Long.parseLong(key.getKey());
-                HttpExchange exchange = this.pending.get(id);
-                HttpRequest request = exchange == null ? null : exchange.request();
-                streaming = request != null && (request.stream() != null || this.streamResponseBody());
-            } else {
-                HttpObject first = source.peekMessage();
-                if (first == null) {
-                    return null;
-                }
-                if (first instanceof DefaultHttpRequest request) {
-                    RouteSelection route = this.route(request.uri());
-                    selectedRoute.set(route);
-                    streaming = this.streamBody(route);
-                } else if (first instanceof FullHttpRequest request) {
-                    // h2c 升级首请求已经聚合，仍须为 stream 1 保存匹配结果。
-                    selectedRoute.set(this.route(request.uri()));
-                    streaming = false;
-                } else {
-                    streaming = false;
-                }
-            }
-            return streaming ? "stream" : "complete";
-        };
-
-        ProtoHelper.standard().nextRouteAsStatic("body-mode", selector, routing -> {
-            routing.branchByInitializer("stream", branch -> {
-                Http2InboundBodyHandler handler = new Http2InboundBodyHandler(this, selectedRoute::get);
-                branch.addLastDecoder("body", handler);
-            });
-            routing.branchByInitializer("complete", branch -> {
-                if (this.server) {
-                    branch.addLastDecoder("aggregate", new HttpRequestAggregator(limit));
-                    Http2BufferedRequestHandler handler = new Http2BufferedRequestHandler(this, selectedRoute::get);
-                    branch.addLastDecoder("messages", handler);
-                } else {
-                    branch.addLastDecoder("aggregate", new HttpResponseAggregator(limit));
-                }
-            });
-        }).config(stack);
     }
 
     @Override
@@ -261,13 +226,22 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
     @Override
     public Future<Void> write(HttpExchange exchange) {
         BasicFuture<Void> sent = new BasicFuture<>();
-        sent.onFailed(done -> exchange.complete(done.getCause()));
-        exchange.completion().onFailed(done -> sent.failed(done.getCause()));
+        sent.onFailed(done -> {
+            exchange.complete(done.getCause());
+        });
+        exchange.completion().onFailed(done -> {
+            sent.failed(done.getCause());
+        });
+
         if (this.admitWrite(sent)) {
-            this.executeWrite(sent, () -> this.write(exchange, sent));
+            this.executeWrite(sent, () -> {
+                this.write(exchange, sent);
+            });
         }
 
-        sent.onCancel(done -> exchange.complete(new CancellationException("HTTP/2 write cancelled")));
+        sent.onCancel(done -> {
+            exchange.complete(new CancellationException("HTTP/2 write cancelled"));
+        });
         return sent;
     }
 
@@ -282,7 +256,9 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
         if (extendedConnect) {
             if (!this.remoteSettings.isDone()) {
                 Runnable retry = () -> this.write(exchange, sent);
-                this.remoteSettings.onFinal(done -> this.executeWrite(sent, retry));
+                this.remoteSettings.onFinal(done -> {
+                    this.executeWrite(sent, retry);
+                });
                 return;
             }
             if (this.remoteSettings.getCause() != null) {
@@ -330,30 +306,33 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
             HttpRequest request = exchange.request();
             if (StringUtils.equalsIgnoreCase("CONNECT", request.method()) && request.header(":protocol") != null) {
                 // 扩展 CONNECT 的头部不结束 stream；后续字节属于升级后的双向通道。
-                DefaultHttpRequest start = new DefaultHttpRequest(//
-                        HttpVersion.HTTP_2_0, HttpMethod.CONNECT, request.uri());
-                start.scheme(this.scheme);
+                DefaultHttpRequest start = new DefaultHttpRequest(HttpVersion.HTTP_2_0, HttpMethod.CONNECT, request.uri());
+                start.scheme(HttpMessageUtils.scheme(this.config));
                 start.streamId(id);
                 LastHttpHeaders headers = new DefaultLastHttpHeaders();
                 headers.streamId(id);
                 HttpMessageUtils.write(request.headers(), headers);
                 headers.setHeader("Host", this.remote.getHostPort());
-                this.writeSocket(this.socket, new Object[] { start, headers }).onFinal(done -> this.execute(() -> {
-                    Throwable failure = done.getCause();
-                    if (done.isCancelled()) {
-                        failure = new CancellationException("HTTP upgrade write cancelled");
-                    }
-                    this.completeWrite(sent, null, failure);
-                    if (failure != null) {
-                        exchange.complete(failure);
-                    }
-                }));
+
+                this.writeSocket(this.socket, new Object[] { start, headers }).onFinal(done -> {
+                    this.execute(() -> {
+                        Throwable failure = done.getCause();
+                        if (done.isCancelled()) {
+                            failure = new CancellationException("HTTP upgrade write cancelled");
+                        }
+                        this.completeWrite(sent, null, failure);
+                        if (failure != null) {
+                            exchange.complete(failure);
+                        }
+                    });
+                });
                 return;
             }
+
             if (request.stream() != null) {
                 HttpMethod method = HttpMethod.valueOf(request.method());
                 DefaultHttpRequest headers = new DefaultHttpRequest(HttpVersion.HTTP_2_0, method, request.uri());
-                headers.scheme(this.scheme);
+                headers.scheme(HttpMessageUtils.scheme(this.config));
                 Map<String, List<String>> fields = new HashMap<>(request.headers());
                 fields.put("Host", List.of(this.remote.getHostPort()));
                 this.writeBody(id, exchange, headers, fields, request.stream(), request.trailers(), sent);
@@ -362,14 +341,14 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
 
             HttpMethod method = HttpMethod.valueOf(request.method());
             ByteBuf content = ByteBuf.wrap(request.body());
-            FullHttpRequest out = new DefaultFullHttpRequest(//
-                    HttpVersion.HTTP_2_0, method, request.uri(), content);
-            out.scheme(this.scheme);
+            FullHttpRequest out = new DefaultFullHttpRequest(HttpVersion.HTTP_2_0, method, request.uri(), content);
+            out.scheme(HttpMessageUtils.scheme(this.config));
             HttpMessageUtils.write(request.headers(), out);
             out.setHeader("Host", this.remote.getHostPort());
             HttpMessageUtils.write(request.trailers(), out.trailingHeaders());
             message = out;
         }
+
         message.streamId(id);
         int length = ((HttpContent) message).content().readableBytes();
         if (length > this.config.integer("maxFrameSize", 16 * 1024 * 1024)) {
@@ -385,42 +364,50 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
             this.remove(id);
         }
 
-        this.writeSocket(this.socket, message).onFinal(done -> this.execute(() -> {
-            Throwable failure = done.getCause();
-            if (done.isCancelled()) {
-                failure = new CancellationException("HTTP/2 write cancelled");
-            }
+        this.writeSocket(this.socket, message).onFinal(done -> {
+            this.execute(() -> {
+                Throwable failure = done.getCause();
+                if (done.isCancelled()) {
+                    failure = new CancellationException("HTTP/2 write cancelled");
+                }
 
-            this.completeWrite(sent, null, failure);
-            if (failure != null || this.server) {
-                exchange.complete(failure);
-            }
+                this.completeWrite(sent, null, failure);
+                if (failure != null || this.server) {
+                    exchange.complete(failure);
+                }
 
-            this.closeAfterGoaway();
-        }));
+                this.closeAfterGoaway();
+            });
+        });
     }
 
     private void writeBody(long id, HttpExchange exchange, HttpObject start, //
-            Map<String, List<String>> fields, HttpBodyStream bodyStream, //
+            Map<String, List<String>> fields, HttpBodyStream bodyStream,     //
             Map<String, List<String>> trailers, BasicFuture<Void> sent) {
         start.streamId(id);
         LastHttpHeaders headers = new DefaultLastHttpHeaders();
         HttpMessageUtils.write(fields, headers);
         headers.removeHeader("Content-Length");
         headers.streamId(id);
-        this.writeSocket(this.socket, new Object[] { start, headers }).onFinal(done -> this.execute(() -> {
-            if (done.getCause() != null || done.isCancelled()) {
-                Throwable failure = done.getCause();
-                if (failure == null) {
-                    failure = new IOException("HTTP/2 headers cancelled");
+
+        this.writeSocket(this.socket, new Object[] { start, headers }).onFinal(done -> {
+            this.execute(() -> {
+                if (done.getCause() != null || done.isCancelled()) {
+                    Throwable failure = done.getCause();
+                    if (failure == null) {
+                        failure = new IOException("HTTP/2 headers cancelled");
+                    }
+                    bodyStream.fail(failure);
+                    sent.failed(failure);
+                    return;
                 }
-                bodyStream.fail(failure);
-                sent.failed(failure);
-                return;
-            }
-            Function<Object, Future<?>> writer = message -> this.writeSocket(this.socket, message);
-            this.startStreamingBodyWrite(id, bodyStream, trailers, writer, sent);
-        }));
+
+                Function<Object, Future<?>> writer = message -> {
+                    return this.writeSocket(this.socket, message);
+                };
+                this.startStreamingBodyWrite(id, bodyStream, trailers, writer, sent);
+            });
+        });
 
         sent.onCompleted(done -> this.execute(() -> {
             if (this.server) {
@@ -473,13 +460,14 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
         }
     }
 
-    private HttpExchange upgraded(long id, HttpRequest request) {
+    HttpExchange upgraded(long id, HttpRequest request) {
         if (this.server) {
             if (!this.accepting || this.pending.size() >= this.config.integer("maxPendingRequests", 1024)) {
                 // 握手已完成但 exchange 尚未登记，普通 reset 的 pending 守卫无法结束该 stream。
                 this.socket.fireEvent(Http2ResetEvent.class, new Http2ResetEvent(id, Http2ResetEvent.REFUSED));
                 throw new IllegalStateException("HTTP/2 endpoint does not accept another stream");
             }
+
             HttpMessageUtils.route(request, this.route(request.uri()));
             HttpExchange exchange = new HttpExchange(request);
             this.track(id, exchange);
@@ -488,11 +476,13 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
         return this.pending.get(id);
     }
 
-    private void closeUpgrade(long id) {
-        this.execute(() -> this.failUpgrade(id, new IOException("HTTP upgrade stream closed")));
+    void closeUpgrade(long id) {
+        this.execute(() -> {
+            this.failUpgrade(id, new IOException("HTTP upgrade stream closed"));
+        });
     }
 
-    private void failUpgrade(long id, Throwable failure) {
+    void failUpgrade(long id, Throwable failure) {
         if (this.reset(id, failure)) {
             this.socket.fireEvent(Http2ResetEvent.class, new Http2ResetEvent(id, Http2ResetEvent.CANCEL));
         }
@@ -510,14 +500,16 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
                 exchange.respond(response);
                 exchange.complete(null);
             } else {
-                response.stream().completion().onFinal(done -> this.execute(() -> {
-                    // 失败由交换的终止回调发出 RST；提前摘除会丢失远端取消通知。
-                    if (done.getCause() == null) {
-                        this.remove(id);
-                    }
-                    exchange.complete(done.getCause());
-                    this.closeAfterGoaway();
-                }));
+                response.stream().completion().onFinal(done -> {
+                    this.execute(() -> {
+                        // 失败由交换的终止回调发出 RST；提前摘除会丢失远端取消通知。
+                        if (done.getCause() == null) {
+                            this.remove(id);
+                        }
+                        exchange.complete(done.getCause());
+                        this.closeAfterGoaway();
+                    });
+                });
                 exchange.respond(response);
             }
         } else if (response.stream() != null) {
@@ -529,12 +521,14 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
     private void track(long id, HttpExchange exchange) {
         this.pending.put(id, exchange);
         this.streams.put(exchange, id);
-        exchange.completion().onFinal(done -> this.execute(() -> {
-            if (this.remove(id) != null) {
-                this.socket.fireEvent(Http2ResetEvent.class, new Http2ResetEvent(id, Http2ResetEvent.CANCEL));
-                this.closeAfterGoaway();
-            }
-        }));
+        exchange.completion().onFinal(done -> {
+            this.execute(() -> {
+                if (this.remove(id) != null) {
+                    this.socket.fireEvent(Http2ResetEvent.class, new Http2ResetEvent(id, Http2ResetEvent.CANCEL));
+                    this.closeAfterGoaway();
+                }
+            });
+        });
     }
 
     private HttpExchange remove(long id) {
@@ -550,6 +544,7 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
         if (exchange != null) {
             this.terminate(exchange, failure);
         }
+
         this.closeAfterGoaway();
         return exchange != null;
     }
@@ -577,6 +572,7 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
         if (settingsFailure == null) {
             settingsFailure = new IOException("HTTP/2 connection closed before settings");
         }
+
         this.remoteSettings.failed(settingsFailure);
         for (HttpExchange exchange : new ArrayList<>(this.pending.values())) {
             Throwable failure = this.closeCause;
@@ -606,23 +602,4 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
         this.socket.closeNow();
         return this.closeFuture();
     }
-
-    /** 只有 Neta 已应用远端 SETTINGS，出站编码器才会生成对应 ACK。 */
-    private final class Http2RemoteSettingsAckHandler implements ProtoHandler<Http2Frame, Http2Frame> {
-        private static final Http2Frame ACK = Http2Frame.settingsAck();
-
-        @Override
-        public ProtoStatus onMessage(ProtoContext context, //
-                ProtoRcvQueue<Http2Frame> source, ProtoSndQueue<Http2Frame> target) {
-            while (source.hasMore() && target.hasSlot()) {
-                Http2Frame frame = source.takeMessage();
-                target.offerMessage(frame);
-                if (frame.type() == ACK.type() && (frame.flags() & ACK.flags()) != 0) {
-                    Http2Channel.this.execute(() -> Http2Channel.this.remoteSettings.completed(null));
-                }
-            }
-            return ProtoStatus.Next;
-        }
-    }
-
 }

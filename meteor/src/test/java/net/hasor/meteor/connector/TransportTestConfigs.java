@@ -18,7 +18,7 @@ public final class TransportTestConfigs {
     public static TransportConfig transport(ConnectorConfig config) {
         Map<String, Map<String, String>> routeOptions = new LinkedHashMap<>();
         for (ProtocolConfig protocol : config.protocols()) {
-            routeOptions.put(protocol.mountId(), protocol.options());
+            routeOptions.put(protocol.name(), protocol.options());
         }
 
         return new TransportConfig(config.name(), config.address(), config.bindEnabled(), config.options(), //

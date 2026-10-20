@@ -19,10 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
@@ -30,9 +30,9 @@ import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import org.junit.Test;
 import static java.net.http.HttpRequest.newBuilder;
+import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static org.junit.Assert.*;
 
 /** 在真实明文连接上验证 HTTP/2 传输 SPI。 */
@@ -55,7 +55,7 @@ public class Http2TransportTest {
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
              NetworkListen listen = server.bind(config.address(), routes(config), observing)) {
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), routes(config), null, //
+            client.connect(null, listen.getAddress(), routes(config),  //
                             receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
 
@@ -82,7 +82,7 @@ public class Http2TransportTest {
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
              NetworkListen listen = server.bind(config.address(), routes(config), receiver(accepted, received))) {
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), routes(config), null, //
+            client.connect(null, listen.getAddress(), routes(config),  //
                             receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
@@ -131,7 +131,7 @@ public class Http2TransportTest {
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
              NetworkListen listen = server.bind(config.address(), routes(config), receiver(accepted, received))) {
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), routes(config), null, //
+            client.connect(null, listen.getAddress(), routes(config),  //
                             receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
@@ -181,7 +181,7 @@ public class Http2TransportTest {
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(outgoing), loader); //
              NetworkListen listen = server.bind(incoming.address(), routes(incoming), receiver(accepted, received))) {
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), routes(outgoing), null, //
+            client.connect(null, listen.getAddress(), routes(outgoing),  //
                             receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> outgoingChannel = connected.get(3, TimeUnit.SECONDS);
@@ -235,7 +235,7 @@ public class Http2TransportTest {
              NetworkListen listen = server.bind(config.address(), routes(config), //
                      Http2TransportTest::streamingEcho)) {
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), routes(config), null, //
+            client.connect(null, listen.getAddress(), routes(config),  //
                             receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
@@ -283,7 +283,7 @@ public class Http2TransportTest {
              NetworkListen listen = server.bind(config.address(), routes(config), //
                      Http2TransportTest::streamingEcho)) {
             BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-            client.connect(listen.getAddress(), routes(config), null, //
+            client.connect(null, listen.getAddress(), routes(config),  //
                             receiver(connected, new LinkedBlockingQueue<>())) //
                     .get(3, TimeUnit.SECONDS);
             NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
@@ -340,6 +340,125 @@ public class Http2TransportTest {
             assertEquals(HttpClient.Version.HTTP_2, next.version());
             assertEquals("2:/upgrade", next.body());
         }
+    }
+
+    @Test(timeout = 15000)
+    public void interleavedBodyModesKeepRoutesIsolatedWithinEachStream() throws Exception {
+        // 两个普通挂载使用不同正文模式，同时配置 WebSocket 以覆盖嵌套分支上下文。
+        ConnectorConfig config = routingConfig();
+        ClassLoader loader = this.getClass().getClassLoader();
+        RouteTable<HttpExchange> compiled = routes(config);
+        LinkedBlockingQueue<String> selected = new LinkedBlockingQueue<>();
+        RouteTable<HttpExchange> incomingRoutes = RouteTestAccess.activate(compiled.definitions(), uri -> {
+            selected.add(uri);
+            return compiled.select(uri);
+        });
+        BasicFuture<NetworkChannel<HttpExchange>> accepted = new BasicFuture<>();
+        BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
+        LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
+        ExecutorService reader = Executors.newSingleThreadExecutor();
+        try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), incomingRoutes, receiver(accepted, received))) {
+            client.connect(null, listen.getAddress(), compiled, //
+                    receiver(connected, new LinkedBlockingQueue<>())).get(3, TimeUnit.SECONDS);
+            NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
+
+            // 第一个 stream 已选择聚合路由，但正文尚未结束，暂时不能交付应用。
+            HttpBodyStream bufferedUpload = new HttpBodyStream(16);
+            bufferedUpload.output().write(1);
+            HttpRequest buffered = HttpRequest.newStreaming("POST", "/buffered", Map.of(), bufferedUpload, 2);
+            var bufferedWriting = channel.write(new HttpExchange(buffered));
+            assertEquals("/buffered", selected.poll(3, TimeUnit.SECONDS));
+
+            // 另一个 stream 先交付流式正文，其路由不能覆盖前一个 stream 的选择。
+            HttpBodyStream streamingUpload = new HttpBodyStream(16);
+            streamingUpload.output().write(2);
+            HttpRequest streaming = HttpRequest.newStreaming("POST", "/streaming", Map.of(), streamingUpload, 2);
+            var streamingWriting = channel.write(new HttpExchange(streaming));
+            assertEquals("/streaming", selected.poll(3, TimeUnit.SECONDS));
+            HttpExchange streamedArrival = received.poll(3, TimeUnit.SECONDS);
+            assertNotNull(streamedArrival);
+            assertEquals("/streaming", streamedArrival.request().uri());
+            RouteSelection streamedRoute = streamedArrival.request().route();
+            assertNotNull(streamedRoute);
+            assertEquals("streaming", streamedRoute.protocolName());
+            HttpBodyStream streamedBody = streamedArrival.request().stream();
+            assertNotNull(streamedBody);
+
+            // 后完成的聚合请求仍携带自己的路由，两个正文也保持独立。
+            bufferedUpload.finish(Map.of());
+            bufferedWriting.get(3, TimeUnit.SECONDS);
+            HttpExchange bufferedArrival = received.poll(3, TimeUnit.SECONDS);
+            assertNotNull(bufferedArrival);
+            assertEquals("/buffered", bufferedArrival.request().uri());
+            RouteSelection bufferedRoute = bufferedArrival.request().route();
+            assertNotNull(bufferedRoute);
+            assertEquals("buffered", bufferedRoute.protocolName());
+            assertNull(bufferedArrival.request().stream());
+            assertArrayEquals(new byte[] { 1 }, bufferedArrival.request().body());
+            streamingUpload.finish(Map.of());
+            streamingWriting.get(3, TimeUnit.SECONDS);
+            byte[] streamedBytes = reader.submit(streamedBody::readAllBytes).get(3, TimeUnit.SECONDS);
+            assertArrayEquals(new byte[] { 2 }, streamedBytes);
+        } finally {
+            reader.shutdownNow();
+            assertTrue(reader.awaitTermination(3, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test(timeout = 15000)
+    public void bufferedRequestKeepsHeaderRouteAfterMappingChanges() throws Exception {
+        // 动态路由初始指向聚合挂载，使用可观察的路由查询确认头部已经完成选择。
+        ConnectorConfig config = routingConfig();
+        ClassLoader loader = this.getClass().getClassLoader();
+        RouteTable<HttpExchange> compiled = routes(config);
+        RouteSelection original = compiled.select("/buffered");
+        AtomicReference<RouteSelection> current = new AtomicReference<>(original);
+        BasicFuture<RouteSelection> selected = new BasicFuture<>();
+        RouteTable<HttpExchange> incomingRoutes = RouteTestAccess.activate(compiled.definitions(), uri -> {
+            RouteSelection route = current.get();
+            selected.completed(route);
+            return route;
+        });
+        BasicFuture<NetworkChannel<HttpExchange>> accepted = new BasicFuture<>();
+        BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
+        LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
+        try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(config), loader); //
+             NetworkConnector<HttpExchange> client = newHttpConnector(transport(config), loader); //
+             NetworkListen listen = server.bind(config.address(), incomingRoutes, receiver(accepted, received))) {
+            client.connect(null, listen.getAddress(), compiled, //
+                    receiver(connected, new LinkedBlockingQueue<>())).get(3, TimeUnit.SECONDS);
+            NetworkChannel<HttpExchange> channel = connected.get(3, TimeUnit.SECONDS);
+            HttpBodyStream upload = new HttpBodyStream(16);
+            upload.output().write(3);
+            HttpRequest request = HttpRequest.newStreaming("POST", "/buffered", Map.of(), upload, 2);
+            var writing = channel.write(new HttpExchange(request));
+            assertSame(original, selected.get(3, TimeUnit.SECONDS));
+
+            // 正文完成前变更动态映射，当前请求继续使用头部阶段保存在 stream 上的结果。
+            current.set(compiled.select("/streaming"));
+            upload.finish(Map.of());
+            writing.get(3, TimeUnit.SECONDS);
+            HttpExchange incoming = received.poll(3, TimeUnit.SECONDS);
+            assertNotNull(incoming);
+            assertSame(original, incoming.request().route());
+            assertNull(incoming.request().stream());
+            assertArrayEquals(new byte[] { 3 }, incoming.request().body());
+        }
+    }
+
+    private static ConnectorConfig routingConfig() {
+        InterAddress address = InterAddress.forBinding("http", "127.0.0.1", 0, "default");
+        Map<String, String> options = Map.of("httpVersion", "2");
+        Map<String, String> buffered = Map.of("contextPath", "/buffered", "streamBody", "false");
+        Map<String, String> streaming = Map.of("contextPath", "/streaming", "streamBody", "true");
+        Map<String, String> websocket = Map.of("contextPath", "/ws", "upgrade", "websocket");
+        List<ProtocolConfig> protocols = new ArrayList<>();
+        protocols.add(ProtocolConfig.newConfig("buffered", "http", buffered));
+        protocols.add(ProtocolConfig.newConfig("streaming", "http", streaming));
+        protocols.add(ProtocolConfig.newConfig("websocket", "http", websocket));
+        return new ConnectorConfig("http", address, options, protocols, true);
     }
 
     private static ChannelListener<HttpExchange> echo(NetworkChannel<HttpExchange> channel) {

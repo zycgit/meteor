@@ -27,14 +27,14 @@ import net.hasor.meteor.connector.transport.ChannelListener;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.NetworkConnector;
 import net.hasor.meteor.connector.transport.NetworkListen;
+import net.hasor.meteor.connector.transport.http.HttpTlsObservationPipeline.Observation;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
-import net.hasor.meteor.connector.transport.http.HttpTlsObservationPipeline.Observation;
 import org.junit.Test;
+import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static org.junit.Assert.*;
 
 /** 验证 HTTP 明文路由以及生产 TLS、ALPN 和客户端身份校验边界。 */
@@ -385,7 +385,7 @@ public class HttpTlsAcceptanceTest {
     private NetworkChannel<HttpExchange> connect(NetworkConnector<HttpExchange> connector, //
             ConnectorConfig config, InterAddress target) throws Exception {
         BasicFuture<NetworkChannel<HttpExchange>> connected = new BasicFuture<>();
-        connector.connect(target, routes(config), null, channel -> new ChannelListener<HttpExchange>() {
+        connector.connect(null, target, routes(config), channel -> new ChannelListener<HttpExchange>() {
             @Override
             public void connected() {
                 connected.completed(channel);

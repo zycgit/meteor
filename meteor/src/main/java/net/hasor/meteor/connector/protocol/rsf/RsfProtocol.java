@@ -7,21 +7,23 @@
  */
 package net.hasor.meteor.connector.protocol.rsf;
 import java.util.function.ObjLongConsumer;
-import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 
 /**
  * RSF/1 message adapter, including its own request/response correlation.
  */
-public final class RsfProtocol implements ProtocolFactory<byte[]> {
+public final class RsfProtocol implements ProtocolProvider<byte[]> {
     public String name() {
         return "rsf";
     }
 
     @Override
-    public String defaultSerializeType() {
+    public String defaultSerialize() {
         return "Json";
     }
 
@@ -30,7 +32,8 @@ public final class RsfProtocol implements ProtocolFactory<byte[]> {
     }
 
     @Override
-    public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
+    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
+        return config.build(null);
     }
 
     public Class<byte[]> messageType() {

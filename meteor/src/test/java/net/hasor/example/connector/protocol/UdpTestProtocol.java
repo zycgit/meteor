@@ -12,15 +12,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 
 /** 报文类型、请求号和 UTF-8 正文组成的 UDP 测试对端协议。 */
-public final class UdpTestProtocol implements ProtocolFactory<byte[]> {
+public final class UdpTestProtocol implements ProtocolProvider<byte[]> {
     @Override
     public String name() {
         return "testprotocol";
@@ -42,12 +44,13 @@ public final class UdpTestProtocol implements ProtocolFactory<byte[]> {
     }
 
     @Override
-    public String defaultSerializeType() {
+    public String defaultSerialize() {
         return "Java";
     }
 
     @Override
-    public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
+    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
+        return config.build(null);
     }
 
     @Override

@@ -12,6 +12,7 @@ import net.hasor.meteor.domain.payload.Payload;
 
 /** One protocol session. Lifecycle, receive and send run on its ordered network executor. */
 public interface ProtocolSession<M> extends ChannelListener<M> {
+
     Future<Void> ready();
 
     /**

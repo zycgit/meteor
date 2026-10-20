@@ -21,17 +21,16 @@ import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.example.connector.protocol.EndpointTestProtocols.HttpA;
+import net.hasor.example.connector.protocol.RawSocketTestProtocol;
+import net.hasor.example.connector.protocol.TextProtocol;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.connector.transport.tcp.TcpTransportFactory;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
-import net.hasor.example.connector.protocol.EndpointTestProtocols.HttpA;
-import net.hasor.example.connector.protocol.RawSocketTestProtocol;
-import net.hasor.example.connector.protocol.TextProtocol;
 import net.hasor.neta.channel.ProtoBuildContext;
 import org.junit.Before;
 import org.junit.Rule;
@@ -52,6 +51,7 @@ public class ProtocolSpiTest {
         AdmissionTransportFactory.creations.clear();
         CloseBarrierTransportFactory.creations.clear();
         CustomProtocol.configurations.clear();
+        CustomProtocol.contexts.clear();
         CountingTransportPipeline.reset();
         FailingOnceTransportPipeline.attempts.set(0);
     }
@@ -69,7 +69,7 @@ public class ProtocolSpiTest {
             // 失败不能被记录为已准备，第二次初始化必须重新进入传输配置逻辑。
             manager.init();
             assertEquals(2, RetryPreparationTransport.attempts.get());
-            assertEquals("ready", config.protocol("custom").option("preparation", null));
+            assertEquals("ready", config.protocol("custom-protocol").option("preparation", null));
         }
     }
 
@@ -80,14 +80,16 @@ public class ProtocolSpiTest {
         Class<?>[] protocols = { CustomProtocol.class };
         ClassLoader loader = this.loader(transports, protocols);
         ConnectorConfig config = config("CUSTOM-PROTOCOL");
-        ProtocolConfig mount = config.protocol("custom");
+        ProtocolConfig mount = config.protocol("custom-protocol");
 
         // 准备配置及初始化管理器不会分配网络资源，也不会复制挂载对象。
         try (ConnectorManager manager = this.manager(loader, config)) {
             manager.init();
             assertEquals(0, CustomTransport.created.get());
             assertEquals(1, CustomTransport.prepared.get());
-            assertSame(mount, config.protocol("custom"));
+            assertSame(mount, config.protocol("custom-protocol"));
+            assertEquals("custom-protocol", mount.name());
+            assertEquals("custom", mount.scheme());
             assertEquals("ready", mount.option("preparation", null));
             assertEquals("Java", mount.option("serializeType", null));
         }
@@ -109,11 +111,11 @@ public class ProtocolSpiTest {
             assertEquals(0, CountingTransportPipeline.created.get());
             assertEquals(0, CountingTransportPipeline.initialized.get());
             assertEquals(0, CustomTransport.created.get());
-            assertNull(config.protocol("custom").option("transportPipeline", null));
+            assertNull(config.protocol("custom-protocol").option("transportPipeline", null));
 
             // 首次监听才创建网络连接器，物理连接复用启动时固定的 provider。
             manager.startInbound();
-            InterAddress address = manager.getListenAddress("custom");
+            InterAddress address = manager.getListenAddress("custom-protocol");
             try (Socket ignored = new Socket("127.0.0.1", address.getPort())) {
                 assertTrue(CountingTransportPipeline.connected.await(3, TimeUnit.SECONDS));
             }
@@ -160,7 +162,7 @@ public class ProtocolSpiTest {
             assertEquals(1, FailingOnceTransportPipeline.attempts.get());
             manager.startInbound();
             assertEquals(2, FailingOnceTransportPipeline.attempts.get());
-            assertNotNull(manager.getListenAddress("custom"));
+            assertNotNull(manager.getListenAddress("custom-protocol"));
         }
     }
 
@@ -171,7 +173,7 @@ public class ProtocolSpiTest {
         Class<?>[] protocols = { CustomProtocol.class };
         ClassLoader loader = this.loader(transports, protocols);
         ConnectorConfig config = config("CUSTOM-PROTOCOL");
-        ProtocolConfig mount = config.protocol("custom");
+        ProtocolConfig mount = config.protocol("custom-protocol");
         try (ConnectorManager manager = this.manager(loader, config); //
              ServerSocket server = new ServerSocket(0)) {
             // 主动连接首次创建传输，协议会话直接使用已准备的挂载配置。
@@ -189,7 +191,7 @@ public class ProtocolSpiTest {
 
                 // 同一个端点再开启监听时复用已经创建的传输。
                 manager.startInbound();
-                InterAddress boundAddress = manager.getListenAddress("custom");
+                InterAddress boundAddress = manager.getListenAddress("custom-protocol");
                 assertNotNull(boundAddress);
                 assertEquals(1, CustomTransport.created.get());
 
@@ -199,6 +201,76 @@ public class ProtocolSpiTest {
                     assertEquals(1, CustomTransport.prepared.get());
                 }
             }
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void outgoingSessionContextHasNoListenerAddressBeforeBinding() throws Exception {
+        // 端点只发起连接，不打开本地监听器。
+        Class<?>[] transports = { CustomTransport.class };
+        Class<?>[] protocols = { CustomProtocol.class };
+        ClassLoader loader = this.loader(transports, protocols);
+        ConnectorConfig config = config("custom-protocol");
+        try (ConnectorManager manager = this.manager(loader, config); //
+             ServerSocket peer = new ServerSocket(0)) {
+            manager.init();
+            InterAddress target = new InterAddress("custom", "127.0.0.1", peer.getLocalPort(), "test");
+            manager.connect(target).get(3, TimeUnit.SECONDS);
+
+            // SPI 收到出站标记和所属上下文，不能把本地连接地址当作监听地址。
+            ProtocolSessionContext context = CustomProtocol.contexts.poll(3, TimeUnit.SECONDS);
+            assertNotNull(context);
+            assertTrue(context.isOutbound());
+            assertNull(context.bindAddress());
+            assertSame(manager.context(), context.metContext());
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void incomingSessionContextUsesThePublishedProtocolAddress() throws Exception {
+        // 监听使用传输地址，协议对外发布独立的地址前缀。
+        Class<?>[] transports = { CustomTransport.class };
+        Class<?>[] protocols = { CustomProtocol.class };
+        ClassLoader loader = this.loader(transports, protocols);
+        InterAddress local = InterAddress.forBinding("custom", "127.0.0.1", 0, "test");
+        ProtocolConfig protocol = new ProtocolConfig("custom-protocol", "published", Map.of());
+        ConnectorConfig config = new ConnectorConfig("server", local, //
+                Map.of("workerThread", "1"), List.of(protocol), true);
+        try (ConnectorManager manager = this.manager(loader, config)) {
+            manager.init();
+            manager.startInbound();
+            InterAddress published = manager.getListenAddress("custom-protocol");
+
+            // 被动接入的会话沿用端点实际监听端口，并把 scheme 转为协议发布前缀。
+            try (Socket peer = new Socket("127.0.0.1", published.getPort())) {
+                ProtocolSessionContext context = CustomProtocol.contexts.poll(3, TimeUnit.SECONDS);
+                assertNotNull(context);
+                assertFalse(context.isOutbound());
+                assertEquals(published, context.bindAddress());
+                assertSame(manager.context(), context.metContext());
+            }
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void outgoingSessionContextKeepsTheActiveListenerAddress() throws Exception {
+        // 同一端点已经监听，随后仍可主动连接另一个服务端。
+        Class<?>[] transports = { CustomTransport.class };
+        Class<?>[] protocols = { CustomProtocol.class };
+        ClassLoader loader = this.loader(transports, protocols);
+        ConnectorConfig config = config("custom-protocol");
+        try (ConnectorManager manager = this.manager(loader, config); //
+             ServerSocket peer = new ServerSocket(0)) {
+            manager.init();
+            manager.startInbound();
+            InterAddress target = new InterAddress("custom", "127.0.0.1", peer.getLocalPort(), "test");
+            manager.connect(target).get(3, TimeUnit.SECONDS);
+
+            // 监听地址可供协议握手发布，但不能因此把主动连接标记成入站会话。
+            ProtocolSessionContext context = CustomProtocol.contexts.poll(3, TimeUnit.SECONDS);
+            assertNotNull(context);
+            assertTrue(context.isOutbound());
+            assertEquals(manager.getListenAddress("custom-protocol"), context.bindAddress());
         }
     }
 
@@ -419,7 +491,7 @@ public class ProtocolSpiTest {
             assertEquals(0, network.channel.drains);
             network.connected();
             manager.startInbound();
-            network.receive(config.protocol("custom").mountId(), new byte[] { 1 });
+            network.receive("custom-protocol", new byte[] { 1 });
             assertEquals(0, LifecycleProtocol.created.get());
             assertEquals(0, LifecycleProtocol.received.get());
             assertEquals(0, network.channel.drains);
@@ -461,7 +533,7 @@ public class ProtocolSpiTest {
 
     private static ConnectorConfig config(String protocol, Map<String, String> extensions) {
         InterAddress localAddress = InterAddress.forBinding("custom", "127.0.0.1", 0, "test");
-        ProtocolConfig mount = new ProtocolConfig("custom", "custom", protocol, Collections.emptyMap());
+        ProtocolConfig mount = new ProtocolConfig(protocol, "custom", Collections.emptyMap());
         Map<String, String> options = new LinkedHashMap<>();
         options.put("workerThread", "1");
         options.putAll(extensions);
@@ -499,7 +571,7 @@ public class ProtocolSpiTest {
         // 只替换当前用例指定的 SPI 描述文件，其余资源沿用父加载器。
         Map<String, URL> descriptors = new HashMap<>();
         this.descriptor(descriptors, TransportFactory.class, transports);
-        this.descriptor(descriptors, ProtocolFactory.class, protocols);
+        this.descriptor(descriptors, ProtocolProvider.class, protocols);
         return new ClassLoader(this.getClass().getClassLoader()) {
             @Override
             public Enumeration<URL> getResources(String name) throws IOException {
@@ -634,7 +706,8 @@ public class ProtocolSpiTest {
     }
 
     public static class CustomProtocol extends RawSocketTestProtocol {
-        private static final BlockingQueue<ProtocolConfig> configurations = new LinkedBlockingQueue<>();
+        private static final BlockingQueue<ProtocolConfig>         configurations = new LinkedBlockingQueue<>();
+        private static final BlockingQueue<ProtocolSessionContext> contexts       = new LinkedBlockingQueue<>();
 
         public ProtocolSession<byte[]> createSession( //
                 ProtocolConfig config, //
@@ -642,6 +715,7 @@ public class ProtocolSpiTest {
                 NetworkChannel<byte[]> connection, //
                 ObjLongConsumer<Payload> messages) {
             configurations.add(config);
+            contexts.add(context);
             return super.createSession(config, context, connection, messages);
         }
 
@@ -783,7 +857,7 @@ public class ProtocolSpiTest {
         }
 
         @Override
-        public Future<Void> connect(InterAddress address, RouteTable<byte[]> routes, String initialMountId, //
+        public Future<Void> connect(String initial, InterAddress address, RouteTable<byte[]> routes,  //
                 ChannelListenerFactory<byte[]> factory) {
             BasicFuture<Void> failed = new BasicFuture<>();
             failed.failed(new UnsupportedOperationException("Lifecycle fixture accepts inbound channels only"));
@@ -841,7 +915,7 @@ public class ProtocolSpiTest {
         }
 
         @Override
-        public Future<Void> connect(InterAddress address, RouteTable<byte[]> routes, String initialMountId, //
+        public Future<Void> connect(String initial, InterAddress address, RouteTable<byte[]> routes,  //
                 ChannelListenerFactory<byte[]> factory) {
             this.connecting.countDown();
             try {
@@ -872,7 +946,7 @@ public class ProtocolSpiTest {
         }
 
         @Override
-        public Future<Void> connect(InterAddress address, RouteTable<byte[]> routes, String initialMountId, //
+        public Future<Void> connect(String initial, InterAddress address, RouteTable<byte[]> routes,  //
                 ChannelListenerFactory<byte[]> factory) {
             BasicFuture<Void> result = new BasicFuture<>();
             result.failed(new IOException("Fixture does not open a real connection"));

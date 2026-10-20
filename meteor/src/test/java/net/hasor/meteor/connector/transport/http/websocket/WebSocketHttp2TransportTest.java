@@ -28,9 +28,9 @@ import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import org.junit.Test;
+import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static org.junit.Assert.*;
 
 /** 在真实 HTTP/2 连接上验证 WebSocket stream 的准入与排空边界。 */
@@ -46,7 +46,7 @@ public class WebSocketHttp2TransportTest {
         try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(incoming), loader); //
              NetworkConnector<HttpExchange> client = newHttpConnector(transport(outgoing), loader); //
              NetworkListen listen = server.bind(incoming.address(), routes(incoming), channel -> echo())) {
-            client.connect(listen.getAddress(), routes(outgoing), null, channel -> new ChannelListener<>() {
+            client.connect(null, listen.getAddress(), routes(outgoing), channel -> new ChannelListener<>() {
                 public void connected() {
                     connected.completed(channel);
                 }
@@ -108,8 +108,8 @@ public class WebSocketHttp2TransportTest {
         Channel peer = null;
         try (NetworkConnector<HttpExchange> server = newHttpConnector(transport(incoming), loader); //
              NetworkListen listen = server.bind(incoming.address(), routes(incoming), channel -> {
-                 String plainMountId = incoming.protocol("http").mountId();
-                 return mixed(channel, plainMountId, requestChannel, requests, upgrades);
+                 String plainProtocol = incoming.protocol("http").name();
+                 return mixed(channel, plainProtocol, requestChannel, requests, upgrades);
              })) {
             Bootstrap bootstrap = new Bootstrap();
             bootstrap.group(group).channel(NioSocketChannel.class);
@@ -290,7 +290,7 @@ public class WebSocketHttp2TransportTest {
     }
 
     private static RouteReceiver<HttpExchange> mixed(NetworkChannel<HttpExchange> channel, //
-            String plainMountId, //
+            String plainProtocol, //
             BasicFuture<NetworkChannel<HttpExchange>> requestChannel, //
             LinkedBlockingQueue<HttpExchange> requests, //
             LinkedBlockingQueue<HttpExchange> upgrades) {
@@ -299,7 +299,7 @@ public class WebSocketHttp2TransportTest {
             }
 
             public void receive(String route, HttpExchange exchange) {
-                if (StringUtils.equals(plainMountId, route)) {
+                if (StringUtils.equals(plainProtocol, route)) {
                     requestChannel.completed(channel);
                     requests.add(exchange);
                     return;

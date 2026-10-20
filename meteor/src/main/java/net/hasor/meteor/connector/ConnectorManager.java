@@ -13,6 +13,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Cancellable;
@@ -48,7 +49,7 @@ public class ConnectorManager implements AutoCloseable {
     private final        PlanCompiler                      compiler       = new PlanCompiler();
     private final        Map<String, ConnectorEndpoint<?>> endpoints      = new LinkedHashMap<>();
     private final        List<ConnectorSubscriber>         subscribers    = new CopyOnWriteArrayList<>();
-    private              RouteServiceRegistry              serviceRouteRegistry;
+    private final        RouteServiceRegistry              serviceRegistry;
 
     private enum State {
         STOPPED,
@@ -61,6 +62,7 @@ public class ConnectorManager implements AutoCloseable {
     public ConnectorManager(MetContext context) {
         this.context = Objects.requireNonNull(context, "context");
         this.transportRuntimeServices = new TransportRuntimeServices(this.context.getClassLoader(), this::schedule);
+        this.serviceRegistry = new RouteServiceRegistry(this.context);
     }
 
     private Map<String, ConnectorConfig> readConfigurations() {
@@ -116,12 +118,19 @@ public class ConnectorManager implements AutoCloseable {
             Map<String, ConnectorConfig> configured = this.readConfigurations();
             this.compiler.prepareAll(configured.values());
 
-            // 编译启动计划，并激活独立的运行期路由表。
-            RouteServiceRegistry initializedServiceRoutes = new RouteServiceRegistry(this.context);
-            Map<String, ConnectorEndpoint<?>> endpoints = new LinkedHashMap<>();
+            // 先完成全部端点计划，失败时不会留下部分登记的协议挂载。
+            List<PlanEndpoint<?>> plans = new ArrayList<>();
             for (ConnectorConfig config : configured.values()) {
-                PlanEndpoint<?> plan = this.compiler.compile(config);
-                endpoints.put(config.name(), plan.activate(this, initializedServiceRoutes));
+                plans.add(this.compiler.compile(config));
+            }
+
+            // 统一登记协议挂载，准备各端点的动态服务路径查询。
+            this.serviceRegistry.prepare(plans);
+
+            // Endpoint 只消费已准备的计划和查询入口，自行构建运行期路由表。
+            Map<String, ConnectorEndpoint<?>> endpoints = new LinkedHashMap<>();
+            for (PlanEndpoint<?> plan : plans) {
+                endpoints.put(plan.config().name(), new ConnectorEndpoint<>(plan, this));
             }
 
             // The timer and compiled plans become visible as one initialized manager state.
@@ -133,13 +142,16 @@ public class ConnectorManager implements AutoCloseable {
 
             synchronized (this) {
                 this.endpoints.putAll(endpoints);
-                this.serviceRouteRegistry = initializedServiceRoutes;
                 this.timer = initializedTimer;
                 this.state = State.ACTIVE;
             }
         } finally {
             this.lifecycleLock.unlock();
         }
+    }
+
+    Function<String, RouteSelection> routeResolver(String endpointName) {
+        return this.serviceRegistry.resolver(endpointName);
     }
 
     /** Bind or restart every configured listener, exposing inbound traffic only after all endpoints are ready. */
@@ -282,18 +294,13 @@ public class ConnectorManager implements AutoCloseable {
             }
 
             HashedWheelTimer stopping;
-            RouteServiceRegistry stoppingServiceRoutes;
             synchronized (this) {
                 this.endpoints.clear();
-                stoppingServiceRoutes = this.serviceRouteRegistry;
-                this.serviceRouteRegistry = null;
                 stopping = this.timer;
                 this.timer = null;
             }
 
-            if (stoppingServiceRoutes != null) {
-                stoppingServiceRoutes.clear();
-            }
+            this.serviceRegistry.clear();
 
             if (stopping != null) {
                 try {
@@ -354,16 +361,11 @@ public class ConnectorManager implements AutoCloseable {
 
         this.lifecycleLock.lock();
         try {
-            RouteServiceRegistry activeServiceRoutes;
-            synchronized (this) {
-                this.requireReady();
-                activeServiceRoutes = this.serviceRouteRegistry;
-            }
-
+            this.requireReady();
             if (eventType == MetContextEventType.REGISTERED) {
-                activeServiceRoutes.registerService(event.getServiceInfo());
+                this.serviceRegistry.registerService(event.getServiceInfo());
             } else {
-                activeServiceRoutes.removeService(event.getServiceInfo());
+                this.serviceRegistry.removeService(event.getServiceInfo());
             }
         } finally {
             this.lifecycleLock.unlock();
@@ -375,7 +377,7 @@ public class ConnectorManager implements AutoCloseable {
         return this.connect(address, null);
     }
 
-    /** Resolve a published address scheme together with its logical protocol. */
+    /** Resolve a published address scheme together with its protocol name. */
     public Future<MetChannel> connect(InterAddress address, String protocol) {
         try {
             ResolvedMount target;
@@ -389,8 +391,8 @@ public class ConnectorManager implements AutoCloseable {
         }
     }
 
-    /** Connect through one endpoint using an exact mount, logical protocol or published scheme selector. */
-    public Future<MetChannel> connect(String endpointName, String selector, InterAddress address) {
+    /** Connect through the protocol named within one endpoint. */
+    public Future<MetChannel> connect(String endpointName, String protocolName, InterAddress address) {
         try {
             ResolvedMount target;
             synchronized (this) {
@@ -401,15 +403,12 @@ public class ConnectorManager implements AutoCloseable {
                 }
 
                 ConnectorConfig endpointConfig = endpoint.config();
-                List<ResolvedMount> available = new ArrayList<>();
-                for (ProtocolConfig mount : endpointConfig.protocols()) {
-                    available.add(new ResolvedMount(endpointConfig, mount));
+                ProtocolConfig protocol = endpointConfig.protocol(protocolName);
+                if (protocol == null || !StringUtils.equalsIgnoreCase(protocol.scheme(), address.getSchema())) {
+                    String message = "No connector configured for " + address.getSchema();
+                    throw undefined(message + " and protocol " + protocolName);
                 }
-
-                List<ResolvedMount> selected = this.selectForConnect(available, selector, address.getSchema());
-                ResolvedMount resolved = this.requireSingleMount(selected, address.getSchema(), selector);
-                ProtocolConfig mount = resolved.mount();
-                target = new ResolvedMount(endpointConfig, mount);
+                target = new ResolvedMount(endpointConfig, protocol);
             }
             return this.connect(target, address);
         } catch (Exception failure) {
@@ -431,104 +430,32 @@ public class ConnectorManager implements AutoCloseable {
 
             // Starting the transport connection and stopping admission are one lifecycle decision.
             endpoint.init();
-            return endpoint.connect(target.mount().mountId(), address);
+            return endpoint.connect(target.mount().name(), address);
         } finally {
             this.lifecycleLock.unlock();
         }
     }
 
     private ResolvedMount resolve(String scheme, String protocol) {
-        if (protocol == null) {
-            return this.requireSingleMount(this.findConfiguredMountsByScheme(scheme), scheme, null);
-        }
-
-        List<ResolvedMount> candidates = this.selectForConnect(this.configuredMounts(), protocol, scheme);
+        List<ResolvedMount> candidates = this.findConfiguredMounts(scheme, protocol);
         return this.requireSingleMount(candidates, scheme, protocol);
     }
 
-    private List<ResolvedMount> selectForConnect(//
-            Collection<ResolvedMount> candidates, String selector, String scheme) {
-        List<ResolvedMount> mounted = this.selectMounted(candidates, selector);
-        if (!mounted.isEmpty()) {
-            mounted.removeIf(candidate -> !StringUtils.equalsIgnoreCase(candidate.mount().scheme(), scheme));
-            return mounted;
-        }
-
-        boolean logicalName = this.isLogicalSelector(selector);
-        List<ResolvedMount> selected = new ArrayList<>();
-        for (ResolvedMount candidate : candidates) {
-            ProtocolConfig mount = candidate.mount();
-            if (!StringUtils.equalsIgnoreCase(mount.scheme(), scheme)) {
-                continue;
-            }
-
-            String value = logicalName ? mount.name() : mount.scheme();
-            if (StringUtils.equalsIgnoreCase(value, selector)) {
-                selected.add(candidate);
-            }
-        }
-        return selected;
-    }
-
-    private List<ResolvedMount> configuredMounts() {
+    private List<ResolvedMount> findConfiguredMounts(String scheme, String protocol) {
         List<ResolvedMount> candidates = new ArrayList<>();
         for (ConnectorEndpoint<?> endpoint : this.endpoints.values()) {
             ConnectorConfig endpointConfig = endpoint.config();
             for (ProtocolConfig mount : endpointConfig.protocols()) {
+                if (!StringUtils.equalsIgnoreCase(mount.scheme(), scheme)) {
+                    continue;
+                }
+                if (protocol != null && !StringUtils.equalsIgnoreCase(mount.name(), protocol)) {
+                    continue;
+                }
                 candidates.add(new ResolvedMount(endpointConfig, mount));
             }
         }
         return candidates;
-    }
-
-    private List<ResolvedMount> findConfiguredMountsByScheme(String scheme) {
-        List<ResolvedMount> candidates = new ArrayList<>();
-        for (ConnectorEndpoint<?> endpoint : this.endpoints.values()) {
-            ConnectorConfig endpointConfig = endpoint.config();
-            for (ProtocolConfig mount : endpointConfig.protocols()) {
-                if (StringUtils.equalsIgnoreCase(mount.scheme(), scheme)) {
-                    candidates.add(new ResolvedMount(endpointConfig, mount));
-                }
-            }
-        }
-        return candidates;
-    }
-
-    private List<ResolvedMount> selectMounts(Collection<ResolvedMount> candidates, String selector) {
-        List<ResolvedMount> mounted = this.selectMounted(candidates, selector);
-        if (!mounted.isEmpty()) {
-            return mounted;
-        }
-
-        boolean logicalName = this.isLogicalSelector(selector);
-        List<ResolvedMount> selected = new ArrayList<>();
-        for (ResolvedMount candidate : candidates) {
-            ProtocolConfig mount = candidate.mount();
-            String value = logicalName ? mount.name() : mount.scheme();
-            if (StringUtils.equalsIgnoreCase(value, selector)) {
-                selected.add(candidate);
-            }
-        }
-        return selected;
-    }
-
-    private List<ResolvedMount> selectMounted(Collection<ResolvedMount> candidates, String selector) {
-        List<ResolvedMount> mounted = new ArrayList<>();
-        for (ResolvedMount candidate : candidates) {
-            if (StringUtils.equalsIgnoreCase(candidate.mount().mountId(), selector)) {
-                mounted.add(candidate);
-            }
-        }
-        return mounted;
-    }
-
-    private boolean isLogicalSelector(String selector) {
-        for (ResolvedMount candidate : this.configuredMounts()) {
-            if (StringUtils.equalsIgnoreCase(candidate.mount().name(), selector)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private ResolvedMount requireSingleMount(List<ResolvedMount> candidates, String scheme, String protocol) {
@@ -539,6 +466,7 @@ public class ConnectorManager implements AutoCloseable {
             }
             throw undefined(message);
         }
+
         if (candidates.size() > 1) {
             String message = "Ambiguous connector mount for scheme " + scheme;
             if (protocol != null) {
@@ -628,7 +556,7 @@ public class ConnectorManager implements AutoCloseable {
     // Queries and shared resources
     //
 
-    /** Returns the unique active listener address for one logical protocol. */
+    /** Returns the unique active listener address for one protocol name. */
     public synchronized InterAddress getListenAddress(String protocol) {
         List<InterAddress> addresses = this.getListenAddresses(protocol);
         if (addresses.isEmpty()) {
@@ -640,13 +568,13 @@ public class ConnectorManager implements AutoCloseable {
         return addresses.get(0);
     }
 
-    /** Returns all active listener addresses for one logical protocol. */
+    /** Returns all active listener addresses for one protocol name. */
     public synchronized List<InterAddress> getListenAddresses(String protocol) {
         Objects.requireNonNull(protocol, "protocol");
         List<ResolvedMount> targets = this.findBoundMountsByProtocol(protocol);
         Map<String, InterAddress> addresses = new LinkedHashMap<>();
         for (ResolvedMount target : targets) {
-            InterAddress address = this.getListenAddressByMount(target.endpoint().name(), target.mount().mountId());
+            InterAddress address = this.getListenAddress(target.endpoint().name(), target.mount().name(), target.mount().scheme());
             if (address != null) {
                 String key = target.endpoint().name() + "\u0000" + target.mount().scheme();
                 addresses.putIfAbsent(key, address);
@@ -655,7 +583,7 @@ public class ConnectorManager implements AutoCloseable {
         return List.copyOf(addresses.values());
     }
 
-    /** Returns the unique active listener address for a logical protocol and its public address scheme. */
+    /** Returns the unique active listener address for a protocol name and its public address scheme. */
     public synchronized InterAddress getListenAddress(String protocol, String addressScheme) {
         Objects.requireNonNull(addressScheme, "addressScheme");
         List<InterAddress> addresses = new ArrayList<>();
@@ -664,6 +592,7 @@ public class ConnectorManager implements AutoCloseable {
                 addresses.add(address);
             }
         }
+
         if (addresses.isEmpty()) {
             return null;
         }
@@ -674,7 +603,7 @@ public class ConnectorManager implements AutoCloseable {
         return addresses.get(0);
     }
 
-    /** Returns an active listener selected by its configured connector, logical protocol and public scheme. */
+    /** Returns an active listener selected by its configured connector, protocol name and public scheme. */
     public synchronized InterAddress getListenAddress(//
             String connectorName, String protocol, String addressScheme) {
         Objects.requireNonNull(connectorName, "connectorName");
@@ -685,28 +614,12 @@ public class ConnectorManager implements AutoCloseable {
         if (actual == null) {
             return null;
         }
-        for (ProtocolConfig mount : endpoint.config().protocols()) {
-            boolean protocolMatched = StringUtils.equalsIgnoreCase(mount.name(), protocol);
-            boolean schemeMatched = StringUtils.equalsIgnoreCase(mount.scheme(), addressScheme);
-            if (protocolMatched && schemeMatched) {
-                return new InterAddress(mount.scheme(), actual.getHost(), actual.getPort(), actual.getFormUnit());
-            }
-        }
-        return null;
-    }
 
-    /** Internal exact lookup used after protocol routing has already selected a mount. */
-    private InterAddress getListenAddressByMount(String endpointName, String mountId) {
-        ConnectorEndpoint<?> endpoint = this.endpoints.get(endpointName);
-        ProtocolConfig mount = endpoint == null ? null : endpoint.config().mount(mountId);
-        if (mount == null) {
+        ProtocolConfig config = endpoint.config().protocol(protocol);
+        if (config == null || !StringUtils.equalsIgnoreCase(config.scheme(), addressScheme)) {
             return null;
         }
-        InterAddress actual = endpoint.getBindAddress();
-        if (actual == null) {
-            return null;
-        }
-        return new InterAddress(mount.scheme(), actual.getHost(), actual.getPort(), actual.getFormUnit());
+        return new InterAddress(config.scheme(), actual.getHost(), actual.getPort(), actual.getFormUnit());
     }
 
     private List<ResolvedMount> findBoundMountsByProtocol(String protocol) {
@@ -715,10 +628,10 @@ public class ConnectorManager implements AutoCloseable {
             if (endpoint.getBindAddress() == null) {
                 continue;
             }
-            for (ProtocolConfig mount : endpoint.config().protocols()) {
-                if (StringUtils.equalsIgnoreCase(mount.name(), protocol)) {
-                    available.add(new ResolvedMount(endpoint.config(), mount));
-                }
+
+            ProtocolConfig configured = endpoint.config().protocol(protocol);
+            if (configured != null) {
+                available.add(new ResolvedMount(endpoint.config(), configured));
             }
         }
         return available;
@@ -756,6 +669,7 @@ public class ConnectorManager implements AutoCloseable {
         if (this.timer == null) {
             throw new RejectedExecutionException("Connector manager is not initialized or is closed");
         }
+
         Timeout timeout = this.timer.newTimeout(ignored -> task.run(), delayMillis, TimeUnit.MILLISECONDS);
         return timeout::cancel;
     }

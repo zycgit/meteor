@@ -9,24 +9,18 @@ package net.hasor.meteor.connector;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.Executor;
-import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.RouteReceiver;
 
 /** Owns protocol sessions on one physical connection. Lifecycle callbacks follow channel order. */
 final class RouteChannelDispatcher<M> implements RouteReceiver<M> {
-    private static final Logger logger = Logger.getLogger(RouteChannelDispatcher.class);
-    private final        ConnectorEndpoint<M>                 endpoint;
-    private final        NetworkChannel<M>                    networkChannel;
-    private final        Map<String, ProtocolMountBinding<M>> bindings;
-    private final        BasicFuture<MetChannel>              outboundResult;
-    private final        String                               initialMountId;
-    private final        boolean                              sharedRoutes;
-    private final        Runnable                             terminationListener;
-    private final        Map<String, ConnectorChannel<M>>     protocolChannels = new LinkedHashMap<>();
-    private              LifecycleState                       lifecycle        = LifecycleState.NEW;
+    private static final Logger                           logger           = Logger.getLogger(RouteChannelDispatcher.class);
+    private final        ConnectorEndpoint<M>             endpoint;
+    private final        NetworkChannel<M>                networkChannel;
+    private final        boolean                          outbound;
+    private final        Map<String, ConnectorChannel<M>> protocolChannels = new LinkedHashMap<>();
+    private              LifecycleState                   lifecycle        = LifecycleState.NEW;
 
     private enum LifecycleState {
         NEW,
@@ -34,17 +28,13 @@ final class RouteChannelDispatcher<M> implements RouteReceiver<M> {
         CLOSED
     }
 
-    RouteChannelDispatcher(ConnectorEndpoint<M> endpoint, NetworkChannel<M> networkChannel, //
-            Map<String, ProtocolMountBinding<M>> bindings, //
-            BasicFuture<MetChannel> outboundResult, String initialMountId, //
-            boolean sharedRoutes, Runnable terminationListener) {
+    RouteChannelDispatcher(ConnectorEndpoint<M> endpoint, NetworkChannel<M> channel, ConnectorChannel<M> initial) {
         this.endpoint = endpoint;
-        this.networkChannel = networkChannel;
-        this.bindings = bindings;
-        this.outboundResult = outboundResult;
-        this.initialMountId = initialMountId;
-        this.sharedRoutes = sharedRoutes;
-        this.terminationListener = terminationListener;
+        this.networkChannel = channel;
+        this.outbound = initial != null;
+        if (initial != null) {
+            this.protocolChannels.put(initial.getProtocol(), initial);
+        }
     }
 
     @Override
@@ -53,62 +43,53 @@ final class RouteChannelDispatcher<M> implements RouteReceiver<M> {
             return;
         }
 
-        boolean accepted = this.endpoint.registerConnection(this.networkChannel, this.isInbound());
+        boolean accepted = this.endpoint.registerConnection(this.networkChannel, !this.outbound);
         if (!accepted) {
             IllegalStateException failure = new IllegalStateException("Connector endpoint no longer accepts channels");
-            if (this.outboundResult != null) {
-                this.outboundResult.failed(failure);
-            }
+            this.closed(failure);
             this.networkChannel.close();
             return;
         }
         this.lifecycle = LifecycleState.ACTIVE;
 
-        String initial = this.initialMountId;
-        if (initial != null) {
-            this.getOrCreateChannel(initial);
-        } else if (this.bindings.size() == 1) {
-            this.getOrCreateChannel(this.bindings.keySet().iterator().next());
+        // 出站逻辑通道在发起连接前创建，物理连接激活后才启动会话。
+        for (ConnectorChannel<M> channel : this.protocolChannels.values()) {
+            channel.connected();
+        }
+
+        // 入站单协议端点立即启动握手，多协议端点等待报文选路。
+        if (this.protocolChannels.isEmpty()) {
+            String protocolName = this.endpoint.singleProtocol();
+            if (protocolName != null) {
+                this.getOrCreateChannel(protocolName);
+            }
         }
     }
 
-    private ConnectorChannel<M> getOrCreateChannel(String mountId) {
-        ConnectorChannel<M> channel = this.protocolChannels.get(mountId);
+    private ConnectorChannel<M> getOrCreateChannel(String protocolName) {
+        ConnectorChannel<M> channel = this.protocolChannels.get(protocolName);
         if (channel == null) {
-            ProtocolMountBinding<M> binding = this.bindings.get(mountId);
-            if (binding == null) {
-                throw new IllegalArgumentException("Unknown protocol mount: " + mountId);
+            channel = this.endpoint.createChannel();
+            this.protocolChannels.put(protocolName, channel);
+            this.endpoint.attachChannel(channel, protocolName, this.networkChannel, this.outbound);
+            if (this.isActive()) {
+                channel.connected();
             }
-
-            boolean isolatedClose = this.sharedRoutes && this.isInbound();
-            String scheme = binding.config().scheme();
-            ProtocolNetworkChannel<M> protocolChannel;
-            protocolChannel = new ProtocolNetworkChannel<>(this.networkChannel, scheme, isolatedClose);
-            long channelId = this.endpoint.manager().nextChannelId();
-            Executor executor = protocolChannel::execute;
-            ProtocolConfig config = binding.config();
-            ProtocolFactory<M> factory = binding.factory();
-
-            channel = new ConnectorChannel<>(this.endpoint, channelId, executor, protocolChannel, //
-                    factory, this.outboundResult, config);
-            protocolChannel.onClose(channel::closed);
-            this.protocolChannels.put(mountId, channel);
-            channel.connected();
         }
         return channel;
     }
 
     @Override
-    public void receive(String mountId, M message) throws Exception {
+    public void receive(String protocolName, M message) throws Exception {
         if (!this.isActive()) {
             return;
         }
 
-        if (this.isInbound() && !this.endpoint.acceptingInbound(this.networkChannel)) {
+        if (!this.outbound && !this.endpoint.acceptingInbound(this.networkChannel)) {
             this.endpoint.closeInbound(this.networkChannel);
             return;
         }
-        this.getOrCreateChannel(mountId).receive(message);
+        this.getOrCreateChannel(protocolName).receive(message);
     }
 
     @Override
@@ -132,19 +113,7 @@ final class RouteChannelDispatcher<M> implements RouteReceiver<M> {
             }
         }
 
-        if (this.outboundResult != null) {
-            try {
-                this.outboundResult.failed(cause);
-            } catch (RuntimeException | Error cleanup) {
-                logger.warn("Protocol connection failure notification failed", cleanup);
-            }
-        }
-
-        this.terminationListener.run();
-    }
-
-    private boolean isInbound() {
-        return this.outboundResult == null;
+        this.endpoint.unregisterConnection(this.networkChannel);
     }
 
     private boolean isActive() {

@@ -49,7 +49,7 @@ public final class SocketTestSupport {
     private static ConnectorConfig config(//
             String transport, String scheme, String protocol, Map<String, String> options, int port) {
         InterAddress local = InterAddress.forBinding(transport, "127.0.0.1", port, "default");
-        ProtocolConfig mount = new ProtocolConfig(scheme, scheme, protocol, options);
+        ProtocolConfig mount = new ProtocolConfig(protocol, scheme, options);
         List<ProtocolConfig> mounts = Collections.singletonList(mount);
         return new ConnectorConfig(scheme, local, options, mounts, true);
     }

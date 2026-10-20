@@ -8,13 +8,8 @@
 package net.hasor.meteor.connector.transport.http.http1;
 import java.net.InetSocketAddress;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.BasicFuture;
@@ -39,7 +34,7 @@ public class HttpUpgradeAuthorizationTest {
         ProtocolConfig config = ProtocolConfig.newConfig("jsonws", "jsonws", Map.of("contextPath", "/ws"));
         Map<String, String> options = Map.of("upgrade", "websocket");
         RouteDefinition<HttpExchange> definition = RouteTestAccess.definition(//
-                options, config.mountIndex(), exchange -> RouteProbeResult.MATCH);
+                options, new RouteMountIndex("unit", config), exchange -> RouteProbeResult.MATCH);
         RouteTable<HttpExchange> routes = RouteTestAccess.activate(Map.of("jsonws", definition), null);
         RouteSelection expected = routes.select("/ws");
         assertNotNull(expected);
@@ -85,7 +80,7 @@ public class HttpUpgradeAuthorizationTest {
         ProtocolConfig config = ProtocolConfig.newConfig("jsonws", "jsonws", Map.of("contextPath", "/ws"));
         Map<String, String> options = Map.of("upgrade", "websocket");
         RouteDefinition<HttpExchange> definition = RouteTestAccess.definition(//
-                options, config.mountIndex(), exchange -> RouteProbeResult.MATCH);
+                options, new RouteMountIndex("unit", config), exchange -> RouteProbeResult.MATCH);
         RouteTable<HttpExchange> routes = RouteTestAccess.activate(Map.of("jsonws", definition), null);
         RouteSelection expected = routes.select("/ws");
         assertNotNull(expected);
@@ -118,11 +113,10 @@ public class HttpUpgradeAuthorizationTest {
         Function<HttpRequest, HttpExchange> handoff = request -> null;
         Runnable closeAction = () -> {
         };
-        BooleanSupplier available = () -> true;
         Consumer<Throwable> failureAction = failure -> {
         };
         HttpUpgradeCoordinator coordinator = new HttpUpgradeCoordinator(//
-                owner, socket, true, 1, 0, handoff, closeAction, available, failureAction);
+                owner, socket, 1, 0, handoff, closeAction, failureAction);
         // 回调必须等待接收管线释放锁后再交付应用。
         synchronized (socket) {
             coordinator.authorize(uri, callback);
@@ -140,10 +134,11 @@ public class HttpUpgradeAuthorizationTest {
             ProtocolConfig protocol = ProtocolConfig.newConfig(//
                     "ordinary", "http", Map.of("contextPath", "/ordinary"));
             Function<HttpExchange, RouteProbeResult> probe = message -> RouteProbeResult.MATCH;
-            RouteDefinition<HttpExchange> ordinary = RouteTestAccess.definition(Map.of(), protocol.mountIndex(), probe);
+            RouteMountIndex mounts = new RouteMountIndex("unit", protocol);
+            RouteDefinition<HttpExchange> ordinary = RouteTestAccess.definition(Map.of(), mounts, probe);
             RouteTable<HttpExchange> routes = RouteTestAccess.activate(Map.of("ordinary", ordinary), router);
-            this.channel = new Http1ServerChannel(Owner.config(), null, new OpenSocket(), executor, routes);
-            this.channel.attach(channel -> new RouteReceiver<>() {
+            this.channel = new Http1ServerChannel(Owner.config(), new OpenSocket(), executor, routes);
+            this.channel.activated(channel -> new RouteReceiver<>() {
                 @Override
                 public void connected() {
                 }
@@ -188,7 +183,7 @@ public class HttpUpgradeAuthorizationTest {
 
     private static final class Owner extends HttpChannel {
         private Owner(Executor executor, Function<String, RouteSelection> router) {
-            super(config(), null, executor, RouteTestAccess.activate(Map.of(), router), null);
+            super(config(), executor, RouteTestAccess.activate(Map.of(), router), false);
         }
 
         private static TransportConfig config() {

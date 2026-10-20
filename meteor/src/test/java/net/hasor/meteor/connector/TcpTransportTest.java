@@ -21,7 +21,6 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.*;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -41,8 +40,8 @@ public class TcpTransportTest {
         options.put("workerThread", "1");
         options.put("protocol", "rsf");
         InterAddress address = new InterAddress("tcp://127.0.0.1:" + port + "/default");
-        ProtocolConfig protocol = new ProtocolConfig(schema, schema, //
-                options.getOrDefault("protocol", schema), options);
+        String protocolName = options.getOrDefault("protocol", schema);
+        ProtocolConfig protocol = new ProtocolConfig(protocolName, schema, options);
         return new ConnectorConfig(schema, address, options, Collections.singletonList(protocol), true);
     }
 
@@ -353,7 +352,7 @@ public class TcpTransportTest {
             options.put("protocol", "rsf");
             InterAddress localAddress = config("rsf", port()).address();
             String protocolName = options.getOrDefault("protocol", "rsf");
-            ProtocolConfig mount = new ProtocolConfig("rsf", "rsf", protocolName, options);
+            ProtocolConfig mount = new ProtocolConfig(protocolName, "rsf", options);
             List<ProtocolConfig> mounts = Collections.singletonList(mount);
             ConnectorConfig shortHandshake = new ConnectorConfig("rsf", localAddress, options, mounts, true);
             try (Endpoint client = new Endpoint(shortHandshake, new Inbox())) {
@@ -744,7 +743,7 @@ public class TcpTransportTest {
         options.put("protocol", "rsf");
         InterAddress localAddress = config("rsf", port()).address();
         String protocolName = options.getOrDefault("protocol", "rsf");
-        ProtocolConfig mount = new ProtocolConfig("server", "rsf", protocolName, options);
+        ProtocolConfig mount = new ProtocolConfig(protocolName, "rsf", options);
         List<ProtocolConfig> serverConfigMounts = Collections.singletonList(mount);
         ConnectorConfig serverConfig = new ConnectorConfig("server", localAddress, options, serverConfigMounts, true);
         Inbox serverReceiver = new Inbox() {
@@ -786,7 +785,7 @@ public class TcpTransportTest {
         options.put("protocol", "rsf");
         InterAddress localAddress = config("rsf", port()).address();
         String protocolName = options.getOrDefault("protocol", "rsf");
-        ProtocolConfig mount = new ProtocolConfig("server", "rsf", protocolName, options);
+        ProtocolConfig mount = new ProtocolConfig(protocolName, "rsf", options);
         List<ProtocolConfig> serverConfigMounts = Collections.singletonList(mount);
         ConnectorConfig serverConfig = new ConnectorConfig("server", localAddress, options, serverConfigMounts, true);
         Inbox serverReceiver = new Inbox() {
@@ -830,7 +829,7 @@ public class TcpTransportTest {
         options.put("protocol", "rsf");
         InterAddress localAddress = config("rsf", port()).address();
         String protocolName = options.getOrDefault("protocol", "rsf");
-        ProtocolConfig mount = new ProtocolConfig("server", "rsf", protocolName, options);
+        ProtocolConfig mount = new ProtocolConfig(protocolName, "rsf", options);
         List<ProtocolConfig> configMounts = Collections.singletonList(mount);
         ConnectorConfig config = new ConnectorConfig("server", localAddress, options, configMounts, true);
         Inbox serverReceiver = new Inbox() {
@@ -879,7 +878,7 @@ public class TcpTransportTest {
         options.put("protocol", "rsf");
         InterAddress localAddress = config("rsf", port()).address();
         String protocolName = options.getOrDefault("protocol", "rsf");
-        ProtocolConfig mount = new ProtocolConfig("server", "rsf", protocolName, options);
+        ProtocolConfig mount = new ProtocolConfig(protocolName, "rsf", options);
         List<ProtocolConfig> configMounts = Collections.singletonList(mount);
         ConnectorConfig config = new ConnectorConfig("server", localAddress, options, configMounts, true);
         Inbox serverReceiver = new Inbox() {

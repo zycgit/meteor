@@ -156,17 +156,17 @@ public interface MetPublisher {
         ConfigurationBuilder<T> bindResource(Object bindResource);
 
         /**
-         * 选择服务暴露的协议名称或 scheme，忽略大小写；未设置时覆盖所有已配置协议接入点。
-         * @param protocol 使用的协议
-         * @param protocolArrays 使用的协议
+         * 按 SPI 名称选择服务暴露的协议，忽略大小写；未设置时覆盖所有已配置协议接入点。
+         * @param protocol 已配置协议的 SPI 名称，忽略大小写
+         * @param protocolArrays 其他已配置协议的 SPI 名称
          * @return 返回ConfigurationBuilder
          */
         ConfigurationBuilder<T> protocol(String protocol, String... protocolArrays);
 
         /**
-         * 选择服务在指定协议下暴露的上下文路径。协议名称或 scheme 忽略大小写，重复调用会替换该协议的选择及精确路径模式。
+         * 选择服务在指定协议下暴露的上下文路径。协议名称忽略大小写，重复调用会替换该协议的选择及精确路径模式。
          * 未选择路径的协议只使用其默认上下文；显式选择不会自动包含默认上下文，也不会改变协议选择。
-         * @param protocol 协议名称或 scheme
+         * @param protocol 已配置协议的 SPI 名称
          * @param defaultContextPath 上下文路径，必须已在该协议上配置
          * @param additionalContextPaths 同一协议的其他上下文路径
          * @return 返回ConfigurationBuilder
@@ -175,8 +175,8 @@ public interface MetPublisher {
 
         /**
          * 选择服务在指定协议下精确匹配的完整路径，保留尾部斜杠，不自动添加上下文前缀。
-         * 协议名称或 scheme 忽略大小写，重复调用会替换该协议的选择及上下文路径模式，不改变协议选择。
-         * @param protocol 协议名称或 scheme
+         * 协议名称忽略大小写，重复调用会替换该协议的选择及上下文路径模式，不改变协议选择。
+         * @param protocol 已配置协议的 SPI 名称
          * @param path 完整路径
          * @param additionalPaths 同一协议的其他完整路径
          * @return 返回ConfigurationBuilder

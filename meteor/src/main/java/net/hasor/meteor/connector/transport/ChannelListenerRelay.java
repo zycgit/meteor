@@ -82,11 +82,11 @@ public final class ChannelListenerRelay<M> implements RouteReceiver<M> {
     }
 
     @Override
-    public void receive(String mountId, M message) throws Exception {
+    public void receive(String protocolName, M message) throws Exception {
         ChannelListener<M> attached = this.requireListener();
         if (attached instanceof RouteReceiver<?>) {
-            @SuppressWarnings("unchecked") RouteReceiver<M> routed = (RouteReceiver<M>) attached;
-            routed.receive(mountId, message);
+            RouteReceiver<M> routed = (RouteReceiver<M>) attached;
+            routed.receive(protocolName, message);
         } else {
             attached.receive(message);
         }

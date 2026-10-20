@@ -26,9 +26,9 @@ public class RsfsSerializationScenarioTest {
             server.start();
             client.start();
             server.publisher().rsfService(RsfsEcho.class, value -> "secure:" + value) //
-                    .protocol("rsfs").serialize("Java").register();
+                    .protocol("rsf").serialize("Java").register();
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class) //
-                    .protocol("rsfs").serialize("Java").register();
+                    .protocol("rsf").serialize("Java").register();
 
             // 显式使用 rsfs 地址经过真实 TLS 连接，不能命中本地优先调用。
             RsfsEcho remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
@@ -47,9 +47,9 @@ public class RsfsSerializationScenarioTest {
             server.start();
             client.start();
             server.publisher().rsfService(RsfsEcho.class, value -> "secure:" + value) //
-                    .protocol("rsfs").serialize("Java").register();
+                    .protocol("rsf").serialize("Java").register();
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class) //
-                    .protocol("rsfs").serialize("Java").register();
+                    .protocol("rsf").serialize("Java").register();
 
             // 显式使用 rsfs 地址经过真实 TLS 连接，不能命中本地优先调用。
             RsfsEcho remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
@@ -68,9 +68,9 @@ public class RsfsSerializationScenarioTest {
             server.start();
             client.start();
             server.publisher().rsfService(RsfsEcho.class, value -> "secure:" + value) //
-                    .protocol("rsfs").serialize("Json").register();
+                    .protocol("rsf").serialize("Json").register();
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class) //
-                    .protocol("rsfs").serialize("Json").register();
+                    .protocol("rsf").serialize("Json").register();
 
             // 显式使用 rsfs 地址经过真实 TLS 连接，不能命中本地优先调用。
             RsfsEcho remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);
@@ -89,9 +89,9 @@ public class RsfsSerializationScenarioTest {
             server.start();
             client.start();
             server.publisher().rsfService(RsfsEcho.class, value -> "secure:" + value) //
-                    .protocol("rsfs").serialize("Json").register();
+                    .protocol("rsf").serialize("Json").register();
             MetBindInfo<RsfsEcho> service = client.publisher().rsfService(RsfsEcho.class) //
-                    .protocol("rsfs").serialize("Json").register();
+                    .protocol("rsf").serialize("Json").register();
 
             // 显式使用 rsfs 地址经过真实 TLS 连接，不能命中本地优先调用。
             RsfsEcho remote = client.getRsfClient(server.getListenAddress("rsf", "rsfs")).getRemote(service);

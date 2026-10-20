@@ -10,8 +10,8 @@ import java.lang.reflect.Method;
 import java.util.List;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -20,13 +20,13 @@ import net.hasor.meteor.serialize.SerializeCoder;
 
 /** 仅示范应用协议如何映射 Payload，不接触 Caller 或 Dispatcher 内部实现。 */
 public final class WebSocketPayloadCodec {
-    private final MetContext     context;
-    private final ProtocolConfig config;
-    private final SerializeCoder json;
+    private final MetContext      context;
+    private final RouteMountIndex routes;
+    private final SerializeCoder  json;
 
-    public WebSocketPayloadCodec(MetContext context, ProtocolConfig config) {
+    public WebSocketPayloadCodec(MetContext context, RouteMountIndex routes) {
         this.context = context;
-        this.config = config;
+        this.routes = routes;
         this.json = context.getSerializeCoder("Json");
     }
 
@@ -60,7 +60,7 @@ public final class WebSocketPayloadCodec {
         // 服务与方法从正式发布目录解析，不能通过另一个 context 调用未暴露的服务。
         MetBindInfo<?> service = this.context.getServiceInfo(envelope.group, envelope.name, envelope.version);
         boolean provider = service != null && service.getServiceType() == MetServiceType.Provider;
-        if (!provider || !this.config.accepts(service, mount)) {
+        if (!provider || !this.routes.accepts(service, mount)) {
             throw new IllegalArgumentException("Service is not published on this WebSocket context");
         }
         Class<?>[] parameterTypes = this.parameterTypes(envelope.parameterTypes);

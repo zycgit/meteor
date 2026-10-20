@@ -10,9 +10,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.*;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.example.connector.protocol.RawSocketTestProtocol;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.domain.payload.RequestPayload;
-import net.hasor.example.connector.protocol.RawSocketTestProtocol;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -71,12 +71,12 @@ public class SocketLifecycleTest {
             server.init();
             client.init();
             server.startInbound();
-            InterAddress address = server.getListenAddress("raw");
+            InterAddress address = server.getListenAddress("rawprotocol");
             MetChannel channel = client.connect(address).get(3, TimeUnit.SECONDS);
 
             // 停止入站会关闭服务端已接纳连接，并撤下公开监听地址。
             server.stopInbound();
-            assertNull(server.getListenAddress("raw"));
+            assertNull(server.getListenAddress("rawprotocol"));
         }
     }
 
@@ -89,13 +89,13 @@ public class SocketLifecycleTest {
             server.init();
             client.init();
             server.startInbound();
-            InterAddress address = server.getListenAddress("raw");
+            InterAddress address = server.getListenAddress("rawprotocol");
             server.stopInbound();
-            assertNull(server.getListenAddress("raw"));
+            assertNull(server.getListenAddress("rawprotocol"));
 
             // 恢复监听后可通过同一公开地址重新发起连接。
             server.startInbound();
-            InterAddress resumed = server.getListenAddress("raw");
+            InterAddress resumed = server.getListenAddress("rawprotocol");
             assertEquals(address, resumed);
             MetChannel channel = client.connect(resumed).get(3, TimeUnit.SECONDS);
         }

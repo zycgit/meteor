@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.Executor;
 import java.util.function.Function;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
@@ -18,45 +17,57 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.RouteTable;
 import net.hasor.meteor.connector.transport.ChannelListenerFactory;
 import net.hasor.meteor.connector.transport.SocketRuntime;
-import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.http.channel.*;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.neta.bytebuf.ByteBuf;
-import net.hasor.neta.channel.NetChannel;
-import net.hasor.neta.channel.ProtoBuildContext;
+import net.hasor.neta.channel.*;
 import net.hasor.neta.codec.http.*;
 
 /**
  * Serial HTTP/1 exchanges over a reusable, lazily connected socket.
  */
 final class Http1ClientChannel extends HttpChannel {
-    private final    InterAddress                                      remote;
-    private final    Http1Pipeline                                    pipeline;
-    private final    Deque<Http1ClientExchangeState>                   pendingExchanges = new ArrayDeque<>();
-    private volatile boolean                                           closed;
-    private volatile NetChannel                                        channel;
-    private volatile Http1ClientExchangeState                          activeExchange;
-    private          Future<NetChannel>                                connecting;
+    private final    InterAddress                    remote;
+    private final    SocketRuntime                   transport;
+    private final    Deque<Http1ClientExchangeState> pendingExchanges = new ArrayDeque<>();
+    private volatile boolean                         closed;
+    private volatile NetChannel                      channel;
+    private volatile Http1ClientExchangeState        activeExchange;
+    private          Future<NetChannel>              connecting;
+    private          ProtoInitializer                initializer;
 
-    Http1ClientChannel(TransportConfig config, SocketRuntime transport, InterAddress remote, Executor loop, //
-            RouteTable<HttpExchange> routes, String initialMountId, //
-            Http1Pipeline pipeline) {
-        super(config, transport, loop, routes, initialMountId);
-        this.pipeline = pipeline;
+    Http1ClientChannel(SocketRuntime transport, InterAddress remote, RouteTable<HttpExchange> routes, boolean streamingResponses) {
+        super(transport.config(), transport.nextExecutor(), routes, streamingResponses);
+        this.transport = transport;
         this.remote = remote;
     }
 
-    boolean attach(ChannelListenerFactory<HttpExchange> factory) throws Exception {
-        return this.attachReceiver(factory);
-    }
+    Future<Void> initialize(ChannelListenerFactory<HttpExchange> factory, ProtoInitializer initializer) {
+        BasicFuture<Void> ready = new BasicFuture<>();
+        this.initializer = initializer;
+        try {
+            this.attachReceiver(factory);
+            ready.onCancel(done -> this.close());
+            // 逻辑通道先就绪，第一次写入时才建立物理连接。
+            this.execute(() -> {
+                try {
+                    if (this.closed) {
+                        throw new IOException("HTTP connector closed");
+                    }
 
-    Future<Void> closedFuture() {
-        return this.closeFuture();
-    }
-
-    void notifyReady() {
-        this.notifyConnected();
+                    this.notifyConnected();
+                    ready.completed(null);
+                } catch (Throwable failure) {
+                    ready.failed(failure);
+                    this.close();
+                }
+            });
+        } catch (Throwable failure) {
+            ready.failed(failure);
+            this.close();
+        }
+        return ready;
     }
 
     @Override
@@ -153,9 +164,7 @@ final class Http1ClientChannel extends HttpChannel {
 
     private void openSocket() {
         try {
-            this.connecting = this.transport.connect(this.getRemote(), stack -> {
-                this.pipeline.initializeClient(stack, this);
-            });
+            this.connecting = this.transport.connect(this.remote, this.initializer);
 
             this.connecting.onFinal(done -> {
                 this.executor.execute(() -> {
@@ -194,6 +203,7 @@ final class Http1ClientChannel extends HttpChannel {
                 this.writeBody(exchangeState, method);
                 return;
             }
+
             if (request.body().length > this.config.integer("maxFrameSize", 16 * 1024 * 1024)) {
                 throw new IOException("HTTP request too large");
             }
@@ -340,10 +350,48 @@ final class Http1ClientChannel extends HttpChannel {
         return request.stream() != null || this.streamResponseBody();
     }
 
+    void onInbound(PlayLoad event) {
+        NetChannel socket = (NetChannel) event.getSource();
+        if (!event.isSuccess()) {
+            this.execute(() -> {
+                this.failed(socket, event.getError());
+                socket.closeNow();
+            });
+            return;
+        }
+
+        if (event.getData() instanceof SoInputCloseEvent) {
+            this.execute(() -> {
+                this.failed(socket, new IOException("HTTP peer closed before response"));
+                socket.closeNow();
+            });
+            return;
+        }
+
+        Http1InboundResponse response = (Http1InboundResponse) event.getData();
+        this.received(socket, response.response(), response.keepAlive());
+    }
+
+    void received(NetChannel socket, HttpResponse response, boolean keepAlive) {
+        // 聚合响应和流式响应共用交付入口，避免网络回调重入应用收发。
+        // 流式响应交付后仍需继续接收正文，只有聚合响应暂缓下一轮网络读取。
+        ReadPause pause = response.stream() == null ? socket.pauseRead() : null;
+        this.execute(() -> {
+            try {
+                this.receive(socket, response, keepAlive);
+            } finally {
+                if (pause != null) {
+                    socket.resumeRead(pause);
+                }
+            }
+        });
+    }
+
     HttpExchange upgraded(NetChannel socket) {
         if (this.closed || this.channel != socket || this.activeExchange == null) {
             throw new IllegalStateException("HTTP upgrade no longer has an active request");
         }
+
         HttpExchange exchange = this.activeExchange.exchange();
         this.activeExchange = null;
         this.channel = null;
@@ -352,7 +400,7 @@ final class Http1ClientChannel extends HttpChannel {
         return exchange;
     }
 
-    void receive(NetChannel socket, HttpResponse response, boolean keepAlive) {
+    private void receive(NetChannel socket, HttpResponse response, boolean keepAlive) {
         if (socket != this.channel || this.activeExchange == null) {
             socket.closeNow();
             return;
@@ -372,6 +420,7 @@ final class Http1ClientChannel extends HttpChannel {
                 }
             }));
         }
+
         exchangeState.exchange().respond(response);
         this.finishResponse(exchangeState);
     }
@@ -382,6 +431,7 @@ final class Http1ClientChannel extends HttpChannel {
         if (this.activeExchange != exchangeState || exchangeState.response() == null || !written) {
             return;
         }
+
         HttpBodyStream bodyStream = exchangeState.response().stream();
         if (bodyStream != null && (//
                 !bodyStream.completion().isDone() || bodyStream.completion().getCause() != null)) {
@@ -401,6 +451,7 @@ final class Http1ClientChannel extends HttpChannel {
         if (socket != this.channel) {
             return;
         }
+
         this.channel = null;
         Http1ClientExchangeState exchangeState = this.activeExchange;
         if (exchangeState != null) {
@@ -414,10 +465,16 @@ final class Http1ClientChannel extends HttpChannel {
                 this.finishResponse(exchangeState);
                 return;
             }
+
             this.activeExchange = null;
             this.failExchange(exchangeState, failure);
         }
         this.next();
+    }
+
+    void failUpgrade(NetChannel socket, Throwable failure) {
+        this.failed(socket, failure);
+        socket.closeNow();
     }
 
     private void failExchange(Http1ClientExchangeState exchangeState, Throwable error) {
