@@ -13,10 +13,7 @@ import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolSession;
-import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
@@ -30,6 +27,7 @@ import net.hasor.meteor.protocol.xmlrpc.codec.XmlRpcCodec;
 
 /** Internal session constructed by the protocol entry point; serializes HTTP and RPC lifecycle events. */
 public final class XmlRpcSession implements ProtocolSession<HttpExchange> {
+    private final RouteMountIndex              routes;
     private final ProtocolConfig               config;
     private final NetworkChannel<HttpExchange> channel;
     private final ObjLongConsumer<Payload>     messages;
@@ -42,9 +40,10 @@ public final class XmlRpcSession implements ProtocolSession<HttpExchange> {
     public XmlRpcSession(ProtocolConfig config, ProtocolSessionContext context, NetworkChannel<HttpExchange> channel, //
             ObjLongConsumer<Payload> messages) {
         this.config = config;
+        this.routes = context.routes();
         this.channel = channel;
         this.messages = messages;
-        this.codec = new XmlRpcCodec(config, context.metContext());
+        this.codec = new XmlRpcCodec(config, this.routes, context.metContext());
         this.outbound = context.isOutbound();
     }
 
@@ -61,7 +60,7 @@ public final class XmlRpcSession implements ProtocolSession<HttpExchange> {
     @Override
     public void receive(HttpExchange exchange) {
         HttpRequest http = exchange.request();
-        RouteMount mount = http.route() == null ? this.config.matchContext(http.uri()) : http.route().mount();
+        RouteMount mount = http.route() == null ? this.routes.match(http.uri()) : http.route().mount();
 
         // HTTP 方法、媒体类型与挂载目录先决定是否进入 XML-RPC。
         if (!StringUtils.equalsIgnoreCase(http.method(), "POST")) {

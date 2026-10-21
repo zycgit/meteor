@@ -44,7 +44,7 @@ public class XmlRpcSessionTest {
         ProtocolConfig config = configuration();
         assertEquals("xmlrpc", factory.name());
         assertEquals("http", factory.transportType());
-        assertEquals("Json", factory.defaultSerializeType());
+        assertEquals("Json", factory.defaultSerialize());
         assertEquals(HttpExchange.class, factory.messageType());
         assertEquals(RouteProbeResult.REJECT, factory.probe(config, exchange("<invalid/>")));
     }
@@ -52,7 +52,7 @@ public class XmlRpcSessionTest {
     @Test
     public void httpSessionBecomesReadyOnConnected() throws Exception {
         // HTTP 没有额外协议握手，已连接事件只完成就绪 Future。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = applicationConfiguration().buildContext()) {
             MemoryNetwork network = new MemoryNetwork();
             ProtocolSession<HttpExchange> session = session(context, network, new ArrayList<>(), true);
             assertFalse(session.ready().isDone());
@@ -66,7 +66,7 @@ public class XmlRpcSessionTest {
     @Test
     public void closeBeforeConnectedFailsReady() throws Exception {
         // 传输在连接完成前失败，应保留握手阶段的原始异常。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = applicationConfiguration().buildContext()) {
             MemoryNetwork network = new MemoryNetwork();
             ProtocolSession<HttpExchange> session = session(context, network, new ArrayList<>(), true);
             IOException failure = new IOException("connection failed");
@@ -511,7 +511,7 @@ public class XmlRpcSessionTest {
             Map<String, String> options = Map.of("contextPath", "/rpc", "maxMessageSize", "1");
             ProtocolConfig config = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", options);
             ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext( //
-                    context, (action, delay) -> null, network.getLocal(), false);
+                    context, (action, delay) -> null, network.getLocal(), false, config);
             XmlRpcProtocol factory = new XmlRpcProtocol();
             ProtocolSession<HttpExchange> session = factory.createSession(config, runtime, network, (payload, id) -> {
                 fail("Invalid request must not reach Dispatcher");
@@ -526,12 +526,18 @@ public class XmlRpcSessionTest {
     }
 
     private static MetContext context() throws Exception {
-        MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext();
+        MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext();
         context.publisher().rsfService(XmlRpcDemoService.class, new XmlRpcDemoServiceImpl()) //
                 .name("Echo") //
                 .aliasName("xmlrpc", "demo") //
                 .register();
         return context;
+    }
+
+    private static MetConfiguration applicationConfiguration() {
+        MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("xmlrpc");
+        configuration.connector("http").protocol("xmlrpc").contextPath("/rpc");
+        return configuration;
     }
 
     private static ProtocolConfig configuration() {
@@ -545,10 +551,11 @@ public class XmlRpcSessionTest {
             throw new AssertionError("XML-RPC must reuse RPC request deadlines");
         };
         InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", 8080, "default");
+        ProtocolConfig config = configuration();
         ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext( //
-                context, scheduler, address, outbound);
+                context, scheduler, address, outbound, config);
         XmlRpcProtocol factory = new XmlRpcProtocol();
-        return factory.createSession(configuration(), runtime, network, (payload, id) -> received.add(payload));
+        return factory.createSession(config, runtime, network, (payload, id) -> received.add(payload));
     }
 
     private static RequestPayload outgoing(long id) {

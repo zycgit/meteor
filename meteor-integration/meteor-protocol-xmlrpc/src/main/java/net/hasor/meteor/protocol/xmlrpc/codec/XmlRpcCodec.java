@@ -24,6 +24,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetMessage;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.ProtocolStatus;
@@ -40,12 +41,14 @@ public final class XmlRpcCodec {
             .build();
 
     private final ProtocolConfig  protocol;
+    private final RouteMountIndex routes;
     private final MetContext      context;
     private final XmlRpcWireCodec wire;
     private final int             maxDepth;
 
-    public XmlRpcCodec(ProtocolConfig protocol, MetContext context) {
+    public XmlRpcCodec(ProtocolConfig protocol, RouteMountIndex routes, MetContext context) {
         this.protocol = protocol;
+        this.routes = routes;
         this.context = context;
         this.wire = new XmlRpcWireCodec(protocol);
         this.maxDepth = protocol.integer("maxDepth", 64);
@@ -67,7 +70,7 @@ public final class XmlRpcCodec {
         for (String serviceId : this.context.getServiceIDs()) {
             MetBindInfo<?> service = this.context.getServiceInfo(serviceId);
             boolean provider = service != null && service.getServiceType() == MetServiceType.Provider;
-            if (!provider || service.isShadow() || !this.protocol.accepts(service, mount)) {
+            if (!provider || service.isShadow() || !this.routes.accepts(service, mount)) {
                 continue;
             }
             String alias = alias(service);
@@ -126,49 +129,47 @@ public final class XmlRpcCodec {
         return request;
     }
 
-    /** 发布时拒绝 XML-RPC 无法表达的消息、流和未启用 nil 的空返回值。 */
-    public static void validateService(ProtocolConfig protocol, MetBindInfo<?> service) {
-        if (!protocol.accepts(service.getBindProtocols())) {
-            return;
-        }
+    /** 检查 XML-RPC 是否支持当前接口；未启用 nil 的空返回值不属于该端点。 */
+    public static boolean validateService(ProtocolConfig protocol, MetBindInfo<?> service) {
         String alias = alias(service);
         if (StringUtils.isBlank(alias) || !alias.matches("[A-Za-z0-9_.:/]+")) {
-            String message = "XML-RPC service alias must use letters, digits, underscore, dot, colon or slash";
-            throw new IllegalArgumentException(message);
+            return false;
         }
         if (service.isMessage()) {
-            throw new IllegalArgumentException("XML-RPC does not support message services");
+            return false;
         }
         boolean allowNil = Boolean.parseBoolean(protocol.option("allowNil", "false"));
+        Set<String> signatures = new HashSet<>();
         for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
             if (method.isBridge() || method.isSynthetic()) {
                 continue;
             }
-            if (!method.getName().matches("[A-Za-z0-9_]+")) {
-                throw new IllegalArgumentException("Invalid XML-RPC method name: " + method.getName());
+            String signature = method.getName() + "/" + method.getParameterCount();
+            if (!signatures.add(signature)) {
+                return false;
             }
-            if (method.isAnnotationPresent(MetMessage.class)) {
-                throw new IllegalArgumentException("XML-RPC does not support message method: " + method.getName());
+            if (!method.getName().matches("[A-Za-z0-9_]+") || method.isAnnotationPresent(MetMessage.class)) {
+                return false;
             }
             Class<?> result = method.getReturnType();
             boolean empty = result == void.class || result == Void.class;
-            if (empty && !allowNil) {
-                throw new IllegalArgumentException("XML-RPC void methods require allowNil: " + method.getName());
+            if (empty && !allowNil || unsupportedStream(result)) {
+                return false;
             }
-            rejectStream(result);
             for (Class<?> parameter : method.getParameterTypes()) {
-                rejectStream(parameter);
+                if (unsupportedStream(parameter)) {
+                    return false;
+                }
             }
         }
+        return true;
     }
 
-    private static void rejectStream(Class<?> type) {
+    private static boolean unsupportedStream(Class<?> type) {
         boolean publisher = Flow.Publisher.class.isAssignableFrom(type);
         boolean input = InputStream.class.isAssignableFrom(type) || Reader.class.isAssignableFrom(type);
         boolean output = OutputStream.class.isAssignableFrom(type) || Writer.class.isAssignableFrom(type);
-        if (publisher || input || output) {
-            throw new IllegalArgumentException("XML-RPC does not support streaming type: " + type.getName());
-        }
+        return publisher || input || output;
     }
 
     public byte[] encodeRequest(RequestPayload request) throws IOException {
@@ -199,7 +200,7 @@ public final class XmlRpcCodec {
     }
 
     public String requestPath(RequestPayload request) {
-        return this.protocol.contextPath(this.service(request));
+        return this.routes.contextPath(this.service(request));
     }
 
     public byte[] encodeResponse(ResponsePayload response) throws IOException {
@@ -371,7 +372,10 @@ public final class XmlRpcCodec {
         if (value instanceof Character) {
             return value.toString();
         }
-        rejectStream(value.getClass());
+        Class<?> valueType = value.getClass();
+        if (unsupportedStream(valueType)) {
+            throw new IllegalArgumentException("XML-RPC does not support streaming type: " + valueType.getName());
+        }
         if (visiting.put(value, Boolean.TRUE) != null) {
             throw new IllegalArgumentException("XML-RPC values cannot contain object cycles");
         }

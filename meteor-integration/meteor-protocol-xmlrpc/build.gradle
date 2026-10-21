@@ -7,12 +7,4 @@ description = 'XML-RPC protocol over HTTP and HTTPS'
 
 dependencies {
     api project(':meteor')
-
-    // for test
-    testImplementation project(':meteor-protocol-jsonrpc')
-}
-
-// Python 标准库只作为独立互通对端，不进入生产依赖。
-tasks.named('test') {
-    systemProperty 'xmlrpc.peer.script', file('src/test/python/peer.py').absolutePath
 }

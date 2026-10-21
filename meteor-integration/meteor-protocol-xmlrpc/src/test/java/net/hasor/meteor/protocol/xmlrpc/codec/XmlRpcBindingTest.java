@@ -12,12 +12,15 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetIgnore;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
+import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.protocol.xmlrpc.XmlRpcException;
 import org.junit.After;
 import org.junit.Before;
@@ -27,6 +30,7 @@ import static org.junit.Assert.*;
 public class XmlRpcBindingTest {
     private MetContext      context;
     private ProtocolConfig  protocol;
+    private RouteMountIndex routes;
     private XmlRpcCodec     codec;
     private XmlRpcWireCodec wire;
 
@@ -39,7 +43,8 @@ public class XmlRpcBindingTest {
         this.context.publisher().rsfService(Methods.class, new Methods()) //
                 .name("Methods").aliasName("xmlrpc", "math").register();
         this.protocol = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", Map.of("contextPath", "/rpc"));
-        this.codec = new XmlRpcCodec(this.protocol, this.context);
+        this.routes = new RouteMountIndex("http-1", this.protocol);
+        this.codec = new XmlRpcCodec(this.protocol, this.routes, this.context);
         this.wire = new XmlRpcWireCodec(this.protocol);
     }
 
@@ -151,7 +156,7 @@ public class XmlRpcBindingTest {
         // 指定服务的挂载点只需要发送方法名。
         ProtocolConfig scoped = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", //
                 Map.of("contextPath", "/rpc", "service", "math"));
-        this.codec = new XmlRpcCodec(scoped, this.context);
+        this.codec = new XmlRpcCodec(scoped, new RouteMountIndex("http-1", scoped), this.context);
         assertEquals("ping", this.decode("ping", List.of()).getTargetMethod());
     }
 
@@ -160,7 +165,7 @@ public class XmlRpcBindingTest {
         // service 选项不允许借助完整名称跨越到别的服务。
         ProtocolConfig scoped = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", //
                 Map.of("contextPath", "/rpc", "service", "other"));
-        this.codec = new XmlRpcCodec(scoped, this.context);
+        this.codec = new XmlRpcCodec(scoped, new RouteMountIndex("http-1", scoped), this.context);
         XmlRpcException error = assertThrows(XmlRpcException.class, () -> this.decode("math.ping", List.of()));
         assertEquals(-32601, error.getCode());
     }
@@ -183,7 +188,8 @@ public class XmlRpcBindingTest {
     @Test
     public void hiddenServiceIsNotInvocable() {
         // shadow 服务不能从公开挂载点调用。
-        ServiceDomain<?> service = (ServiceDomain<?>) this.context.getServiceInfo("wire", "Methods", "1.0.0");
+        MetBindInfo<?> info = this.context.getServiceInfo("wire", "Methods", "1.0.0");
+        ServiceDomain<?> service = MetBindInfoWrap.unwrap(info);
         service.setShadow(true);
         XmlRpcException error = assertThrows(XmlRpcException.class, () -> this.decode("math.ping", List.of()));
         assertEquals(-32601, error.getCode());
@@ -195,6 +201,20 @@ public class XmlRpcBindingTest {
         this.context.publisher().rsfService(Methods.class, new Methods()).name("private").protocol("rsf").register();
         XmlRpcException error = assertThrows(XmlRpcException.class, () -> this.decode("private.ping", List.of()));
         assertEquals(-32601, error.getCode());
+    }
+
+    @Test
+    public void rejectedProtocolDoesNotExposeOrdinaryMethods() {
+        // 未启用 nil 的端点拒绝带有空返回值的整个接口，RSF 仍可接受它。
+        MetBindInfo<UnsupportedMethods> service = this.context.publisher() //
+                .rsfService(UnsupportedMethods.class, new UnsupportedMethods()) //
+                .name("rejected").register();
+        ServiceDomain<?> domain = MetBindInfoWrap.unwrap(service);
+        assertNull(domain.getProtocolMeta("xmlrpc"));
+
+        // 不能通过普通方法名绕过发布阶段的拒绝结果。
+        XmlRpcException failure = assertThrows(XmlRpcException.class, () -> this.decode("rejected.ping", List.of()));
+        assertEquals(-32601, failure.getCode());
     }
 
     @Test
@@ -214,10 +234,18 @@ public class XmlRpcBindingTest {
     }
 
     @Test
-    public void sameArityOverloadsAreRejected() {
-        // XML-RPC 没有 Java 参数类型描述，不能猜测同参数数量重载。
-        XmlRpcException error = assertThrows(XmlRpcException.class, () -> this.decode("math.overload", List.of(1)));
-        assertEquals(-32602, error.getCode());
+    public void sameArityOverloadsAreRejectedBeforeInboundDispatch() {
+        // 同数量重载无法由 XML-RPC 唯一定位，发布检查拒绝整个接口。
+        MetBindInfo<AmbiguousMethods> service = this.context.publisher() //
+                .rsfService(AmbiguousMethods.class, new AmbiguousMethods()) //
+                .name("ambiguous").register();
+        ServiceDomain<?> domain = MetBindInfoWrap.unwrap(service);
+        assertNull(domain.getProtocolMeta("xmlrpc"));
+
+        // 服务仍在容器中，入站报文不能绕过实际端点的拒绝结果。
+        XmlRpcException error = assertThrows(XmlRpcException.class, //
+                () -> this.decode("ambiguous.overload", List.of(1)));
+        assertEquals(-32601, error.getCode());
     }
 
     @Test
@@ -314,7 +342,7 @@ public class XmlRpcBindingTest {
         // nil 扩展不会把 null 默认化成原始类型的零值。
         ProtocolConfig nil = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", //
                 Map.of("contextPath", "/rpc", "allowNil", "true"));
-        this.codec = new XmlRpcCodec(nil, this.context);
+        this.codec = new XmlRpcCodec(nil, new RouteMountIndex("http-1", nil), this.context);
         this.wire = new XmlRpcWireCodec(nil);
         XmlRpcException error = assertThrows(XmlRpcException.class, //
                 () -> this.decode("math.subtract", Arrays.asList(null, 2)));
@@ -326,7 +354,7 @@ public class XmlRpcBindingTest {
         // 启用 nil 后，引用类型参数可以收到真正的 null。
         ProtocolConfig nil = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", //
                 Map.of("contextPath", "/rpc", "allowNil", "true"));
-        this.codec = new XmlRpcCodec(nil, this.context);
+        this.codec = new XmlRpcCodec(nil, new RouteMountIndex("http-1", nil), this.context);
         this.wire = new XmlRpcWireCodec(nil);
         RequestPayload request = this.decode("math.binary", Arrays.asList((Object) null));
         assertNull(request.getParameterValues().get(0));
@@ -344,7 +372,7 @@ public class XmlRpcBindingTest {
         // 解析失败在绑定边界转换为约定 fault，不能当作普通内部异常。
         byte[] body = "<methodCall>".getBytes(StandardCharsets.UTF_8);
         XmlRpcException error = assertThrows(XmlRpcException.class, //
-                () -> this.codec.decodeRequest(body, this.protocol.matchContext("/rpc")));
+                () -> this.codec.decodeRequest(body, this.routes.match("/rpc")));
         assertEquals(-32700, error.getCode());
     }
 
@@ -353,13 +381,22 @@ public class XmlRpcBindingTest {
         // XML 本身有效但并非 XML-RPC 调用时，同样属于文档解析错误。
         byte[] body = "<other/>".getBytes(StandardCharsets.UTF_8);
         XmlRpcException error = assertThrows(XmlRpcException.class, //
-                () -> this.codec.decodeRequest(body, this.protocol.matchContext("/rpc")));
+                () -> this.codec.decodeRequest(body, this.routes.match("/rpc")));
         assertEquals(-32700, error.getCode());
     }
 
     private RequestPayload decode(String method, List<?> values) throws Exception {
         byte[] body = this.wire.encodeRequest(method, values);
-        return this.codec.decodeRequest(body, this.protocol.matchContext("/rpc"));
+        return this.codec.decodeRequest(body, this.routes.match("/rpc"));
+    }
+
+    public static class UnsupportedMethods {
+        public String ping() {
+            return "pong";
+        }
+
+        public void consume(String value) {
+        }
     }
 
     public static class Methods {
@@ -423,14 +460,6 @@ public class XmlRpcBindingTest {
             return first + second;
         }
 
-        public int overload(int value) {
-            return value;
-        }
-
-        public int overload(String value) {
-            return value.length();
-        }
-
         @MetIgnore
         public String hidden() {
             return "hidden";
@@ -438,6 +467,16 @@ public class XmlRpcBindingTest {
 
         public static String staticMethod() {
             return "static";
+        }
+    }
+
+    public static class AmbiguousMethods {
+        public int overload(int value) {
+            return value;
+        }
+
+        public int overload(String value) {
+            return value.length();
         }
     }
 

@@ -14,43 +14,51 @@ import java.util.Map;
 import java.util.concurrent.Flow;
 import net.hasor.meteor.MetMessage;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.protocol.xmlrpc.XmlRpcProtocol;
 import org.junit.Test;
-import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.*;
 
 public class XmlRpcPublicationTest {
     @Test
     public void ordinaryServiceNeedsNoSchemaResource() {
         // 普通 Java 接口无需 IDL 或绑定资源。
         ServiceDomain<Unary> service = this.service(Unary.class);
-        XmlRpcCodec.validateService(this.protocol(false), service);
+        ProtocolConfig protocol = this.protocol(false);
+        assertTrue(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
     public void voidRequiresExplicitNilExtension() {
         // 标准 XML-RPC 没有空返回值类型，默认启动时拒绝。
         ServiceDomain<VoidReturn> service = this.service(VoidReturn.class);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(false), service));
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
     public void nilExtensionPermitsVoidReturn() {
         // 启用 nil 后 void 映射为单个 nil 响应，不会变成通知。
-        XmlRpcCodec.validateService(this.protocol(true), this.service(VoidReturn.class));
+        ProtocolConfig protocol = this.protocol(true);
+        assertTrue(XmlRpcCodec.validateService(protocol, this.service(VoidReturn.class)));
     }
 
     @Test
     public void boxedVoidAlsoRequiresNilExtension() {
         // Void 同样只能返回 null，不能绕过发布检查。
         ServiceDomain<BoxedVoid> service = this.service(BoxedVoid.class);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(false), service));
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
     public void messageInterfaceIsRejected() {
         // 接口上的消息声明不能用于 XML-RPC。
         ServiceDomain<MessageService> service = this.service(MessageService.class);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(true), service));
+        ProtocolConfig protocol = this.protocol(true);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
@@ -58,56 +66,64 @@ public class XmlRpcPublicationTest {
         // 编程式 asMessage 与接口注解遵循相同约束。
         ServiceDomain<Unary> service = this.service(Unary.class);
         service.setMessage(true);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(true), service));
+        ProtocolConfig protocol = this.protocol(true);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
     public void messageMethodIsRejected() {
         // 单方法消息声明也不能跳过响应。
         ServiceDomain<MessageMethod> service = this.service(MessageMethod.class);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(true), service));
+        ProtocolConfig protocol = this.protocol(true);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
     public void publisherReturnIsRejected() {
         // 持续输出流不能编码成单次 XML 值。
         ServiceDomain<PublisherReturn> service = this.service(PublisherReturn.class);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(false), service));
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
     public void publisherParameterIsRejected() {
         // 持续输入流不构成完整位置参数。
         ServiceDomain<PublisherParameter> service = this.service(PublisherParameter.class);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(false), service));
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
     public void inputStreamIsRejected() {
         // 二进制内容使用 byte[]，不能把流当作 DTO。
         ServiceDomain<Input> service = this.service(Input.class);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(false), service));
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
     public void outputStreamIsRejected() {
         // 输出流不是 XML-RPC 返回值。
         ServiceDomain<Output> service = this.service(Output.class);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(false), service));
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
     public void readerIsRejected() {
         // 文本流应在业务侧消费为字符串。
         ServiceDomain<TextInput> service = this.service(TextInput.class);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(false), service));
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
     public void writerIsRejected() {
         // Writer 不能承载服务返回通道。
         ServiceDomain<TextOutput> service = this.service(TextOutput.class);
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(false), service));
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
@@ -115,7 +131,8 @@ public class XmlRpcPublicationTest {
         // 别名参与 methodName，必须满足 XML-RPC 方法名字符集合。
         ServiceDomain<Unary> service = this.service(Unary.class);
         service.putAliasName("xmlrpc", "bad alias");
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(false), service));
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
@@ -123,15 +140,55 @@ public class XmlRpcPublicationTest {
         // 不能生成缺失服务前缀的方法名。
         ServiceDomain<Unary> service = this.service(Unary.class);
         service.setBindName("");
-        assertThrows(IllegalArgumentException.class, () -> XmlRpcCodec.validateService(this.protocol(false), service));
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
     }
 
     @Test
-    public void otherProtocolServiceKeepsItsOwnCapabilities() {
-        // 插件不会限制只声明给 gRPC 的流服务。
+    public void capabilityCheckDoesNotFollowDeclaredProtocol() {
+        // 服务声明给 gRPC 不会让 XML-RPC 接受流式返回类型。
         ServiceDomain<PublisherReturn> service = this.service(PublisherReturn.class);
         service.addBindProtocol("grpc");
-        XmlRpcCodec.validateService(this.protocol(false), service);
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
+    }
+
+    @Test
+    public void providerReturnsAcceptedBindingForSupportedService() {
+        // XML-RPC 接受普通服务并生成单个接入结果。
+        XmlRpcProtocol provider = new XmlRpcProtocol();
+        ServiceDomain<Unary> service = this.service(Unary.class);
+        ProtocolConfig protocol = this.protocol(false);
+        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
+
+        // 发布检查保留地址前缀，不附加协议定义。
+        ProtocolBinding binding = provider.validate(protocol, meta, null);
+        assertEquals("xmlrpc", binding.getScheme());
+        assertNull(binding.getDefinition());
+    }
+
+    @Test
+    public void sameArityOverloadsAreNotSupported() {
+        // 线协议只有方法名和参数数量，无法区分同数量的 Java 重载。
+        ServiceDomain<SameArity> service = this.service(SameArity.class);
+        ProtocolConfig protocol = this.protocol(false);
+        assertFalse(XmlRpcCodec.validateService(protocol, service));
+    }
+
+    @Test
+    public void differentArityOverloadsRemainSupported() {
+        // 参数数量不同仍可唯一选定方法，不拒绝整类重载。
+        ServiceDomain<DifferentArity> service = this.service(DifferentArity.class);
+        ProtocolConfig protocol = this.protocol(false);
+        assertTrue(XmlRpcCodec.validateService(protocol, service));
+    }
+
+    @Test
+    public void generatedBridgeMethodDoesNotCreateAnOverload() {
+        // 泛型实现的桥接方法不属于线协议方法表。
+        ServiceDomain<GenericEcho> service = this.service(GenericEcho.class);
+        ProtocolConfig protocol = this.protocol(false);
+        assertTrue(XmlRpcCodec.validateService(protocol, service));
     }
 
     private <T> ServiceDomain<T> service(Class<T> type) {
@@ -142,6 +199,29 @@ public class XmlRpcPublicationTest {
 
     private ProtocolConfig protocol(boolean allowNil) {
         return ProtocolConfig.newConfig("xmlrpc", "xmlrpc", Map.of("allowNil", String.valueOf(allowNil)));
+    }
+
+    public interface SameArity {
+        int echo(int value);
+
+        String echo(String value);
+    }
+
+    public interface DifferentArity {
+        int echo(int value);
+
+        int echo(int first, int second);
+    }
+
+    public interface Generic<T> {
+        T echo(T value);
+    }
+
+    public static class GenericEcho implements Generic<String> {
+        @Override
+        public String echo(String value) {
+            return value;
+        }
     }
 
     public interface Unary {

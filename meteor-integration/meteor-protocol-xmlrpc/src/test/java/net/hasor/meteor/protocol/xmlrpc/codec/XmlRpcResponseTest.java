@@ -12,6 +12,7 @@ import java.util.*;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -28,11 +29,13 @@ public class XmlRpcResponseTest {
 
     @Before
     public void prepareConsumerMetadata() throws Exception {
-        this.context = new MetConfiguration().setDefaultGroup("wire").buildContext();
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        configuration.connector("http").protocol("xmlrpc").contextPath("/rpc");
+        this.context = configuration.buildContext();
         this.context.publisher().rsfService(XmlRpcBindingTest.Methods.class) //
                 .name("Methods").aliasName("xmlrpc", "math").register();
         ProtocolConfig protocol = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", Map.of("contextPath", "/rpc"));
-        this.codec = new XmlRpcCodec(protocol, this.context);
+        this.codec = new XmlRpcCodec(protocol, new RouteMountIndex("http-0", protocol), this.context);
         this.wire = new XmlRpcWireCodec(protocol);
     }
 
@@ -60,7 +63,7 @@ public class XmlRpcResponseTest {
         // scoped 端点直接使用方法名。
         ProtocolConfig config = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", //
                 Map.of("contextPath", "/rpc", "service", "math"));
-        XmlRpcCodec scoped = new XmlRpcCodec(config, this.context);
+        XmlRpcCodec scoped = new XmlRpcCodec(config, new RouteMountIndex("http-0", config), this.context);
         assertEquals("ping", this.wire.decodeRequest(scoped.encodeRequest(this.request("ping"))).methodName());
     }
 
@@ -69,7 +72,7 @@ public class XmlRpcResponseTest {
         // 不允许把当前服务发送到为另一个服务配置的入口。
         ProtocolConfig config = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", //
                 Map.of("contextPath", "/rpc", "service", "other"));
-        XmlRpcCodec scoped = new XmlRpcCodec(config, this.context);
+        XmlRpcCodec scoped = new XmlRpcCodec(config, new RouteMountIndex("http-0", config), this.context);
         assertThrows(IOException.class, () -> scoped.encodeRequest(this.request("ping")));
     }
 
@@ -263,7 +266,7 @@ public class XmlRpcResponseTest {
     public void normalizationDepthIsBoundedBeforeXmlEncoding() {
         // DTO 展开也遵循深度限制，不能等待 XML 写出后才限制。
         ProtocolConfig config = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", Map.of("maxDepth", "2"));
-        XmlRpcCodec limited = new XmlRpcCodec(config, this.context);
+        XmlRpcCodec limited = new XmlRpcCodec(config, new RouteMountIndex("http-0", config), this.context);
         RequestPayload request = this.request("dynamicMap");
         request.addParameter(Map.class.getName(), Map.of("outer", Map.of("inner", 1)));
         assertThrows(IOException.class, () -> limited.encodeRequest(request));
@@ -293,7 +296,7 @@ public class XmlRpcResponseTest {
         // nil 扩展为无返回值方法提供合法单个响应。
         this.context.publisher().rsfService(EmptyResult.class).name("empty").register();
         ProtocolConfig nil = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", Map.of("allowNil", "true"));
-        XmlRpcCodec codec = new XmlRpcCodec(nil, this.context);
+        XmlRpcCodec codec = new XmlRpcCodec(nil, new RouteMountIndex("http-0", nil), this.context);
         RequestPayload request = this.request("consume");
         request.setServiceName("empty");
 
@@ -309,7 +312,7 @@ public class XmlRpcResponseTest {
         // void 消费者不能接受被对端伪造的业务结果。
         this.context.publisher().rsfService(EmptyResult.class).name("empty").register();
         ProtocolConfig nil = ProtocolConfig.newConfig("xmlrpc", "xmlrpc", Map.of("allowNil", "true"));
-        XmlRpcCodec codec = new XmlRpcCodec(nil, this.context);
+        XmlRpcCodec codec = new XmlRpcCodec(nil, new RouteMountIndex("http-0", nil), this.context);
         RequestPayload request = this.request("consume");
         request.setServiceName("empty");
         byte[] body = this.wire.encodeResponse("unexpected");

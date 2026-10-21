@@ -7,16 +7,18 @@
  */
 package net.hasor.meteor.protocol.xmlrpc;
 import java.util.function.ObjLongConsumer;
-import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.protocol.xmlrpc.codec.XmlRpcCodec;
 import net.hasor.meteor.protocol.xmlrpc.session.XmlRpcSession;
 
 /** XML-RPC publishes ordinary HTTP request/response methods through the protocol SPI. */
-public final class XmlRpcProtocol implements ProtocolFactory<HttpExchange> {
+public final class XmlRpcProtocol implements ProtocolProvider<HttpExchange> {
     @Override
     public String name() {
         return "xmlrpc";
@@ -28,7 +30,7 @@ public final class XmlRpcProtocol implements ProtocolFactory<HttpExchange> {
     }
 
     @Override
-    public String defaultSerializeType() {
+    public String defaultSerialize() {
         return "Json";
     }
 
@@ -38,8 +40,8 @@ public final class XmlRpcProtocol implements ProtocolFactory<HttpExchange> {
     }
 
     @Override
-    public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
-        XmlRpcCodec.validateService(config, service);
+    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
+        return XmlRpcCodec.validateService(config, meta.getService()) ? config.build(null) : null;
     }
 
     @Override
