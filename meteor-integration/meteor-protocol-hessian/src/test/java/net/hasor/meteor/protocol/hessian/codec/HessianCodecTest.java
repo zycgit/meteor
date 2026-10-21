@@ -12,11 +12,13 @@ import java.io.Reader;
 import java.io.Writer;
 import java.util.*;
 import java.util.concurrent.Flow;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetMessage;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
+import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodecTestFixture.BusinessException;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodecTestFixture.Methods;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodecTestFixture.Person;
@@ -234,7 +236,7 @@ public class HessianCodecTest {
         // HTTP 查询参数不参与服务路径定位。
         byte[] body = HessianCodecTestFixture.call(2, "ping");
         RequestPayload request = this.fixture.codec.decodeRequest(body, "/rpc/math?trace=true", //
-                this.fixture.protocol.mountIndex().get("/rpc"));
+                this.fixture.routes.match("/rpc"));
         assertEquals("Methods", request.getServiceName());
     }
 
@@ -243,7 +245,36 @@ public class HessianCodecTest {
         // 合法方法报文不能命中不存在的路径服务。
         byte[] body = HessianCodecTestFixture.call(2, "ping");
         assertThrows(Exception.class, () -> this.fixture.codec.decodeRequest(body, "/rpc/missing", //
-                this.fixture.protocol.mountIndex().get("/rpc")));
+                this.fixture.routes.match("/rpc")));
+    }
+
+    @Test
+    public void rejectedServicePublishesNoHessianEndpoint() throws Exception {
+        // 同一接口允许通过 RSF 消息模式发布，Hessian 独立拒绝该协议挂载。
+        MetBindInfo<MessageService> service = this.fixture.context.publisher() //
+                .rsfService(MessageService.class, value -> {
+                }) //
+                .name("Messages").aliasName("hessian", "messages").register();
+
+        // 单测检查实际持有发布状态的服务域，公共绑定接口不承载内部接入结果。
+        ServiceDomain<?> domain = MetBindInfoWrap.unwrap(service);
+        assertNull(domain.getProtocolMeta("hessian"));
+        assertFalse(domain.getProtocolMeta("rsf").getEndpoints().isEmpty());
+    }
+
+    @Test
+    public void rejectedServiceCannotBeResolvedByAnInboundHessianPath() throws Exception {
+        // 发布保留 RSF 能力，但拒绝的 Hessian 路径不能暴露同一个 Java 服务。
+        this.fixture.context.publisher().rsfService(MessageService.class, value -> {
+                }) //
+                .name("Messages").aliasName("hessian", "messages").register();
+        byte[] body = HessianCodecTestFixture.call(2, "consume", "value");
+
+        // 入站根据实际接受端点筛选，不使用宽泛的协议声明来兜底。
+        HessianFaultException failure = assertThrows(HessianFaultException.class, //
+                () -> this.fixture.codec.decodeRequest(body, "/rpc/messages", this.fixture.routes.match("/rpc")));
+        assertEquals("NoSuchObjectException", failure.getCode());
+        assertEquals("Hessian service not found", failure.getMessage());
     }
 
     @Test
@@ -282,7 +313,7 @@ public class HessianCodecTest {
 
         // 通过消费者名称访问时返回方法不可用。
         assertThrows(Exception.class, () -> this.fixture.codec.decodeRequest(body, "/rpc/Consumer", //
-                this.fixture.protocol.mountIndex().get("/rpc")));
+                this.fixture.routes.match("/rpc")));
     }
 
     @Test
@@ -379,7 +410,7 @@ public class HessianCodecTest {
     @Test
     public void ordinaryServiceNeedsNoBindingResource() {
         // Hessian 根据 Java 方法声明发布，不需要 IDL。
-        HessianCodec.validateService(this.fixture.protocol, this.service(Unary.class));
+        assertTrue(HessianCodec.validateService(this.service(Unary.class)));
     }
 
     @Test
@@ -389,9 +420,7 @@ public class HessianCodecTest {
         service.putAliasName("hessian", ".");
 
         // 在发布阶段明确拒绝，避免运行期匹配到错误的挂载点。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
-        assertEquals("Invalid Hessian service alias: .", failure.getMessage());
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
@@ -401,31 +430,27 @@ public class HessianCodecTest {
         service.putAliasName("hessian", "..");
 
         // 在发布阶段拒绝跨目录的别名。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
-        assertEquals("Invalid Hessian service alias: ..", failure.getMessage());
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
     public void voidServiceIsPublishable() {
         // null 是 Hessian 原生值，void 服务无需额外配置。
-        HessianCodec.validateService(this.fixture.protocol, this.service(VoidReturn.class));
+        assertTrue(HessianCodec.validateService(this.service(VoidReturn.class)));
     }
 
     @Test
     public void messageInterfaceIsRejectedAtPublication() {
         // Hessian 请求响应协议不支持接口级消息模式。
         ServiceDomain<MessageService> service = this.service(MessageService.class);
-        assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
     public void messageMethodIsRejectedAtPublication() {
         // 单个方法也不能声明无需响应。
         ServiceDomain<MessageMethod> service = this.service(MessageMethod.class);
-        assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
@@ -433,64 +458,57 @@ public class HessianCodecTest {
         // 编程式消息声明与注解遵守相同边界。
         ServiceDomain<Unary> service = this.service(Unary.class);
         service.setMessage(true);
-        assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
     public void publisherParameterIsRejectedAtPublication() {
         // 持续输入流不能作为完整 Hessian 值发送。
         ServiceDomain<PublisherInput> service = this.service(PublisherInput.class);
-        assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
     public void publisherReturnIsRejectedAtPublication() {
         // 持续结果流不属于本插件的单次响应模型。
         ServiceDomain<PublisherOutput> service = this.service(PublisherOutput.class);
-        assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
     public void inputStreamIsRejectedAtPublication() {
         // 二进制内容应使用 byte[]，不能发送流对象。
         ServiceDomain<BinaryInput> service = this.service(BinaryInput.class);
-        assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
     public void outputStreamIsRejectedAtPublication() {
         // OutputStream 不能作为远程写通道。
         ServiceDomain<BinaryOutput> service = this.service(BinaryOutput.class);
-        assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
     public void readerIsRejectedAtPublication() {
         // Reader 不是可完整序列化的业务对象。
         ServiceDomain<TextInput> service = this.service(TextInput.class);
-        assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
     public void writerIsRejectedAtPublication() {
         // Writer 不能充当 Hessian 返回值。
         ServiceDomain<TextOutput> service = this.service(TextOutput.class);
-        assertThrows(IllegalArgumentException.class, //
-                () -> HessianCodec.validateService(this.fixture.protocol, service));
+        assertFalse(HessianCodec.validateService(service));
     }
 
     @Test
-    public void unrelatedProtocolKeepsItsStreamingContract() {
-        // 只挂载其他协议的接口不受 Hessian 发布检查影响。
+    public void contractValidationDoesNotSelectDeclaredProtocols() {
+        // 协议选择归发布编排；签名判断不受其他协议声明干扰。
         ServiceDomain<PublisherOutput> service = this.service(PublisherOutput.class);
         service.addBindProtocol("grpc");
-        HessianCodec.validateService(this.fixture.protocol, service);
+        assertFalse(HessianCodec.validateService(service));
     }
 
     private <T> ServiceDomain<T> service(Class<T> type) {

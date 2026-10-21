@@ -13,10 +13,7 @@ import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolSession;
-import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
@@ -32,6 +29,7 @@ import net.hasor.meteor.protocol.hessian.codec.HessianFaultException;
 /** Internal session constructed by the protocol entry point; serializes HTTP and RPC lifecycle events. */
 public final class HessianSession implements ProtocolSession<HttpExchange> {
     private final ProtocolConfig                config;
+    private final RouteMountIndex               routes;
     private final NetworkChannel<HttpExchange>  channel;
     private final ObjLongConsumer<Payload>      messages;
     private final HessianCodec                  codec;
@@ -44,9 +42,10 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
     public HessianSession(ProtocolConfig config, ProtocolSessionContext context, //
             NetworkChannel<HttpExchange> channel, ObjLongConsumer<Payload> messages) {
         this.config = config;
+        this.routes = context.routes();
         this.channel = channel;
         this.messages = messages;
-        this.codec = new HessianCodec(config, context.metContext());
+        this.codec = new HessianCodec(config, this.routes, context.metContext());
         this.outbound = context.isOutbound();
     }
 
@@ -66,14 +65,16 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
             exchange.complete(this.closeCause);
             return;
         }
+
         HttpRequest http = exchange.request();
-        RouteMount mount = http.route() == null ? this.config.matchContext(http.uri()) : http.route().mount();
+        RouteMount mount = http.route() == null ? this.routes.match(http.uri()) : http.route().mount();
 
         // HTTP 方法、媒体类型与挂载目录先决定是否进入 Hessian。
         if (!StringUtils.equalsIgnoreCase(http.method(), "POST")) {
             this.reply(exchange, 405, Map.of("Allow", List.of("POST")), new byte[0]);
             return;
         }
+
         String contentType = http.header("Content-Type");
         String mediaType = contentType == null ? null : contentType.split(";", 2)[0].trim();
         boolean standard = StringUtils.equalsIgnoreCase(mediaType, "application/x-hessian");
@@ -82,6 +83,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
             this.reply(exchange, 415, Map.of(), new byte[0]);
             return;
         }
+
         if (mount == null) {
             this.reply(exchange, 404, Map.of(), new byte[0]);
             return;
@@ -98,6 +100,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
             request.addOption("Location", http.uri());
             HessianPendingCall call = new HessianPendingCall(request, exchange, responseVersion);
             this.track(call);
+
             try {
                 this.messages.accept(request, request.getRequestID());
             } catch (Exception failure) {
@@ -109,6 +112,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
                 if (failure instanceof IOException) {
                     fault = new HessianFaultException("ProtocolException", failure.getMessage());
                 }
+
                 byte[] body = this.codec.encodeError(fault, responseVersion);
                 this.reply(exchange, 200, this.headers(null), body);
             } catch (Exception encodingFailure) {
@@ -123,6 +127,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
             if (payload instanceof RequestPayload request) {
                 request.complete(this.closeCause);
             }
+
             return this.failed(this.closeCause);
         }
         try {
@@ -155,6 +160,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
         int responseVersion = this.config.integer("version", 2);
         HessianPendingCall call = new HessianPendingCall(request, new HttpExchange(wire), responseVersion);
         this.track(call);
+
         call.exchange().response().onFinal(done -> this.channel.execute(() -> {
             if (!this.pending.containsKey(request.getRequestID()) || request.completion().isDone()) {
                 return;
@@ -163,11 +169,13 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
                 this.fail(call, done.getCause());
                 return;
             }
+
             try {
                 HttpResponse response = done.getResult();
                 if (response.status() != 200) {
                     throw new IOException("Hessian HTTP status " + response.status());
                 }
+
                 ResponsePayload result = this.codec.decodeResponse(request, response.body());
                 this.copyHeaders(response.headers(), result);
                 this.messages.accept(result, request.getRequestID());
@@ -185,6 +193,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
         if (call == null || response.getStatus() == ProtocolStatus.Accept) {
             return new BasicFuture<>((Void) null);
         }
+
         if (call.exchange().response().isDone()) {
             return call.sent();
         }
@@ -209,10 +218,12 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
             if (this.pending.get(id) != call) {
                 return;
             }
+
             Throwable failure = done.getCause();
             if (failure == null) {
                 failure = new CancellationException("RPC completed without a response");
             }
+
             if (this.outbound) {
                 boolean answered = done.getCause() == null && call.exchange().response().isDone();
                 if (answered) {
@@ -256,8 +267,11 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
             Future<Void> writing = this.channel.write(call.exchange());
             call.sent().onCancel(done -> {
                 writing.cancel();
-                this.channel.execute(() -> this.fail(call, new CancellationException("Hessian write cancelled")));
+                this.channel.execute(() -> {
+                    this.fail(call, new CancellationException("Hessian write cancelled"));
+                });
             });
+
             writing.onFinal(done -> this.channel.execute(() -> {
                 if (done.isCancelled()) {
                     call.sent().cancel();
@@ -285,6 +299,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
         if (!this.pending.remove(id, call)) {
             return;
         }
+
         boolean unfinished = !call.request().completion().isDone();
         call.exchange().complete(failure);
         call.request().complete(failure);
@@ -298,6 +313,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
         if (this.closeCause == null) {
             this.closeCause = cause == null ? new IOException("Hessian channel closed") : cause;
         }
+
         this.ready.failed(this.closeCause);
         for (HessianPendingCall call : new ArrayList<>(this.pending.values())) {
             this.fail(call, this.closeCause);
@@ -313,6 +329,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
         if (this.outbound) {
             return;
         }
+
         for (HessianPendingCall call : new ArrayList<>(this.pending.values())) {
             if (!call.exchange().response().isDone()) {
                 this.fault(call, this.closeCause);
@@ -325,6 +342,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
         if (!exchange.respond(response)) {
             return;
         }
+
         try {
             this.channel.write(exchange).onFinal(done -> {
                 if (done.isCancelled()) {
@@ -353,6 +371,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
                 headers.put(key, List.of(value));
             }
         }
+
         headers.put("Content-Type", List.of("application/x-hessian"));
         return headers;
     }
@@ -361,6 +380,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
         if (name.isEmpty()) {
             throw new IllegalArgumentException("Empty Hessian HTTP metadata name");
         }
+
         for (int index = 0; index < name.length(); index++) {
             char character = name.charAt(index);
             boolean letter = character >= 'A' && character <= 'Z' || character >= 'a' && character <= 'z';
@@ -370,6 +390,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
                 throw new IllegalArgumentException("Invalid Hessian HTTP metadata name: " + name);
             }
         }
+
         for (int index = 0; index < value.length(); index++) {
             char character = value.charAt(index);
             boolean text = character >= 32 && character <= 255 && character != 127;

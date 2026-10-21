@@ -12,10 +12,12 @@ import java.util.concurrent.Flow;
 import net.hasor.cobble.StringUtils;
 import net.hasor.example.protocol.hessian.HessianDemoService;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolFactory;
+import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.ServiceDomain;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -23,20 +25,20 @@ import static org.junit.Assert.*;
 public class HessianProtocolTest {
     @Test
     public void spiDiscoversTheHessianHttpContract() {
-        // 从正式插件资源发现工厂，验证实际发布的 SPI 契约。
-        ProtocolFactory<?> factory = ServiceLoader.load(ProtocolFactory.class).stream() //
+        // 从正式插件资源发现提供者，验证实际发布的 SPI 契约。
+        ProtocolProvider<?> provider = ServiceLoader.load(ProtocolProvider.class).stream() //
                 .map(ServiceLoader.Provider::get) //
                 .filter(value -> StringUtils.equals("hessian", value.name())) //
                 .findFirst() //
                 .orElse(null);
 
         // 协议入口、传输和默认编码共同确定插件的正式身份。
-        assertNotNull(factory);
-        assertEquals(HessianProtocol.class, factory.getClass());
-        assertEquals("hessian", factory.name());
-        assertEquals("http", factory.transportType());
-        assertEquals("Hessian", factory.defaultSerializeType());
-        assertEquals(HttpExchange.class, factory.messageType());
+        assertNotNull(provider);
+        assertEquals(HessianProtocol.class, provider.getClass());
+        assertEquals("hessian", provider.name());
+        assertEquals("http", provider.transportType());
+        assertEquals("Hessian", provider.defaultSerialize());
+        assertEquals(HttpExchange.class, provider.messageType());
     }
 
     @Test
@@ -53,26 +55,33 @@ public class HessianProtocolTest {
 
     @Test
     public void ordinaryServiceCanBePublishedWithoutBindingAnIdl() {
-        // 通过协议工厂校验普通 Java 服务，发布方无需提供额外资源。
+        // 通过协议提供者校验普通 Java 服务，发布方无需提供额外资源。
         ServiceDomain<HessianDemoService> service = new ServiceDomain<>(HessianDemoService.class);
         service.setBindName("echo");
         service.putAliasName("hessian", "echo");
-        new HessianProtocol().validateService(this.protocol(), service);
+        ProtocolConfig config = this.protocol();
+        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
+        ProtocolBinding binding = new HessianProtocol().validate(config, meta, null);
+
+        // 无需定义文件也会生成当前挂载自己的接入结果。
+        assertNotNull(binding);
+        assertEquals("hessian", binding.getScheme());
+        assertEquals(config.options(), binding.getOptions());
+        assertNull(binding.getDefinition());
     }
 
     @Test
-    public void factoryRejectsStreamingServiceBeforePublication() {
-        // 发布校验必须经过工厂委托，不能等收到网络请求才发现不支持 Flow。
+    public void providerRejectsStreamingServiceBeforePublication() {
+        // 发布校验必须经过提供者委托，不能等收到网络请求才发现不支持 Flow。
         ServiceDomain<StreamingService> service = new ServiceDomain<>(StreamingService.class);
         service.setBindName("stream");
         service.putAliasName("hessian", "stream");
-        HessianProtocol factory = new HessianProtocol();
+        HessianProtocol provider = new HessianProtocol();
         ProtocolConfig config = this.protocol();
 
-        // Hessian RPC 的普通响应不能承载持续输出的 Publisher。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
-                () -> factory.validateService(config, service));
-        assertTrue(StringUtils.startsWith(failure.getMessage(), "Hessian does not support streaming type:"));
+        // Hessian 不接受该挂载，其他已配置协议仍可独立判断服务签名。
+        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
+        assertNull(provider.validate(config, meta, null));
     }
 
     private ProtocolConfig protocol() {

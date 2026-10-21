@@ -15,16 +15,20 @@ import com.caucho.services.server.AbstractSkeleton;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetIgnore;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 
 /** 为 Codec 单测准备服务元信息和独立 Caucho 报文。 */
 final class HessianCodecTestFixture implements AutoCloseable {
-    final MetContext     context;
-    final ProtocolConfig protocol;
-    final HessianCodec   codec;
+    final MetContext      context;
+    final ProtocolConfig  protocol;
+    final RouteMountIndex routes;
+    final String          endpointName;
+    final HessianCodec    codec;
 
     HessianCodecTestFixture() throws Exception {
         // 只构建元信息，不绑定端口或启动网络。
@@ -34,12 +38,17 @@ final class HessianCodecTestFixture implements AutoCloseable {
         this.context = configuration.buildContext();
         this.context.publisher().rsfService(Methods.class, new Methods()) //
                 .name("Methods").aliasName("hessian", "math").register();
-        this.protocol = ProtocolConfig.newConfig("hessian", "hessian", Map.of("contextPath", "/rpc"));
-        this.codec = new HessianCodec(this.protocol, this.context);
+        ConnectorConfig endpoint = this.context.getSettings().getConnectorConfigs().stream() //
+                .filter(candidate -> candidate.protocol("hessian") != null) //
+                .findFirst().orElseThrow();
+        this.protocol = endpoint.protocol("hessian");
+        this.endpointName = endpoint.name();
+        this.routes = new RouteMountIndex(this.endpointName, this.protocol);
+        this.codec = new HessianCodec(this.protocol, this.routes, this.context);
     }
 
     RequestPayload decode(byte[] body) throws IOException {
-        return this.codec.decodeRequest(body, "/rpc/math", this.protocol.mountIndex().get("/rpc"));
+        return this.codec.decodeRequest(body, "/rpc/math", this.routes.match("/rpc"));
     }
 
     RequestPayload request(String method, Class<?>[] parameterTypes, Object... values) {

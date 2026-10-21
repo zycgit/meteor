@@ -22,10 +22,7 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolSession;
-import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.ProtocolSessionContextTestAccess;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
@@ -174,8 +171,10 @@ public class HessianSessionTest {
             MemoryNetwork network = new MemoryNetwork();
             Map<String, String> options = Map.of("contextPath", "/rpc", "version", "1");
             ProtocolConfig config = ProtocolConfig.newConfig("hessian", "hessian", options);
+            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            RouteMountIndex routes = new RouteMountIndex(endpoint.name(), config);
             ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext( //
-                    context, (action, delay) -> null, network.getLocal(), true);
+                    context, (action, delay) -> null, network.getLocal(), true, routes);
             HessianSession session = new HessianSession(config, runtime, network, (payload, id) -> {
             });
 
@@ -828,8 +827,10 @@ public class HessianSessionTest {
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolConfig config = ProtocolConfig.newConfig("hessian", "hessian", Map.of("contextPath", "/rpc"));
+            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            RouteMountIndex routes = new RouteMountIndex(endpoint.name(), config);
             ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext( //
-                    context, (action, delay) -> null, network.getLocal(), false);
+                    context, (action, delay) -> null, network.getLocal(), false, routes);
             HessianSession session = new HessianSession(config, runtime, network, (payload, id) -> {
                 received.add(payload);
                 throw new UnencodableFailure();
@@ -866,7 +867,9 @@ public class HessianSessionTest {
     }
 
     private static MetContext context() throws Exception {
-        MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext();
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        configuration.connector("http").protocol("hessian").contextPath("/rpc");
+        MetContext context = configuration.buildContext();
         context.publisher().rsfService(Echo.class, value -> value) //
                 .name("Echo") //
                 .aliasName("hessian", "demo") //
@@ -881,9 +884,11 @@ public class HessianSessionTest {
         BiFunction<Runnable, Long, Cancellable> scheduler = (action, delay) -> {
             throw new AssertionError("Hessian must reuse RPC request deadlines");
         };
-        ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext( //
-                context, scheduler, network.getLocal(), outbound);
         ProtocolConfig config = ProtocolConfig.newConfig("hessian", "hessian", Map.of("contextPath", "/rpc"));
+        ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+        RouteMountIndex routes = new RouteMountIndex(endpoint.name(), config);
+        ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext( //
+                context, scheduler, network.getLocal(), outbound, routes);
         return new HessianSession(config, runtime, network, (payload, id) -> received.add(payload));
     }
 

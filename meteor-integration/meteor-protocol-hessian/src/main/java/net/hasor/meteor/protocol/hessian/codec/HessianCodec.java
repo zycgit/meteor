@@ -21,6 +21,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetMessage;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.ProtocolStatus;
@@ -29,18 +30,19 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
 
 /** HTTP 服务地址与 Hessian 1/2 调用映射；对象图交给 Caucho 原生序列化处理。 */
 public final class HessianCodec {
-    private final ProtocolConfig    protocol;
+    private final RouteMountIndex   routes;
     private final MetContext        context;
     private final SerializerFactory serializers;
     private final int               version;
     private final int               maxMessageSize;
 
-    public HessianCodec(ProtocolConfig protocol, MetContext context) {
-        this.protocol = protocol;
+    public HessianCodec(ProtocolConfig protocol, RouteMountIndex routes, MetContext context) {
+        this.routes = routes;
         this.context = context;
         this.serializers = new HessianSerializerFactory(context.getClassLoader());
         this.version = protocol.integer("version", 2);
         this.maxMessageSize = protocol.integer("maxMessageSize", 4 * 1024 * 1024);
+
         if (this.version != 1 && this.version != 2) {
             throw new IllegalArgumentException("Hessian version must be 1 or 2");
         }
@@ -54,6 +56,7 @@ public final class HessianCodec {
         if (body == null || body.length < 3) {
             throw new IOException("Invalid Hessian call version header");
         }
+
         int marker = body[0] & 0xff;
         int major = body[1] & 0xff;
         int minor = body[2] & 0xff;
@@ -86,12 +89,14 @@ public final class HessianCodec {
         } else {
             input = new HessianInput(bytes);
         }
+
         this.configure(input);
         try {
             input.readCall();
             while (input.readHeader() != null) {
                 input.readObject();
             }
+
             String name = input.readMethod();
             int argumentCount = input.readMethodArgLength();
             Method method = this.resolve(service, name, argumentCount);
@@ -109,6 +114,7 @@ public final class HessianCodec {
             for (Class<?> type : method.getParameterTypes()) {
                 request.addParameter(type.getName(), input.readObject(type));
             }
+
             input.completeCall();
             this.end(input, bytes);
             return request;
@@ -121,9 +127,11 @@ public final class HessianCodec {
         if (request.isMessage()) {
             throw new IOException("Hessian does not support message calls");
         }
+
         MetBindInfo<?> service = this.service(request);
         Method method = this.method(request, service);
         String name = method.getName();
+
         int overloads = 0;
         for (Method candidate : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
             if (StringUtils.equals(candidate.getName(), name) && !candidate.isBridge() && !candidate.isSynthetic()) {
@@ -142,10 +150,11 @@ public final class HessianCodec {
 
     public String requestPath(RequestPayload request) {
         MetBindInfo<?> service = this.service(request);
-        if (!this.protocol.exactPaths(service).isEmpty()) {
-            return this.protocol.contextPath(service);
+        if (!this.routes.exactPaths(service).isEmpty()) {
+            return this.routes.contextPath(service);
+        } else {
+            return this.routes.requestPath(service, alias(service));
         }
-        return this.protocol.requestPath(service, alias(service));
     }
 
     public byte[] encodeResponse(ResponsePayload response, int version) throws IOException {
@@ -165,12 +174,14 @@ public final class HessianCodec {
         while (cause instanceof InvocationTargetException && cause.getCause() != null) {
             cause = cause.getCause();
         }
+
         String code = "ServiceException";
         Object detail = cause;
         if (cause instanceof HessianFaultException fault) {
             code = fault.getCode();
             detail = null;
         }
+
         String message = cause == null ? "Hessian service failed" : cause.getMessage();
         String faultCode = code;
         Object faultDetail = detail;
@@ -185,6 +196,7 @@ public final class HessianCodec {
         if (!hessian1 && !hessian2) {
             throw new IOException("Expected Hessian reply");
         }
+
         ByteArrayInputStream bytes = new ByteArrayInputStream(body);
         AbstractHessianInput input;
         if (hessian2) {
@@ -193,6 +205,7 @@ public final class HessianCodec {
         } else {
             input = new HessianInput(bytes);
         }
+
         this.configure(input);
         try {
             Method method = this.method(request, this.service(request));
@@ -216,36 +229,42 @@ public final class HessianCodec {
     }
 
     /** 发布时验证服务签名与官方重载命名，避免运行期出现不可区分的方法。 */
-    public static void validateService(ProtocolConfig protocol, MetBindInfo<?> service) {
-        if (!protocol.accepts(service.getBindProtocols())) {
-            return;
-        }
+    public static boolean validateService(MetBindInfo<?> service) {
         String alias = alias(service);
         boolean relativePath = StringUtils.equals(alias, ".") || StringUtils.equals(alias, "..");
         if (relativePath || StringUtils.isBlank(alias) || !alias.matches("[A-Za-z0-9_.-]+")) {
-            throw new IllegalArgumentException("Invalid Hessian service alias: " + alias);
+            return false;
         }
         if (service.isMessage()) {
-            throw new IllegalArgumentException("Hessian does not support message services");
+            return false;
         }
+
         Map<String, Method> names = new LinkedHashMap<>();
         for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
             if (method.isBridge() || method.isSynthetic()) {
                 continue;
             }
+
             if (method.isAnnotationPresent(MetMessage.class)) {
-                throw new IllegalArgumentException("Hessian does not support message method: " + method.getName());
+                return false;
             }
-            rejectStream(method.getReturnType());
+            if (isStream(method.getReturnType())) {
+                return false;
+            }
+
             for (Class<?> type : method.getParameterTypes()) {
-                rejectStream(type);
+                if (isStream(type)) {
+                    return false;
+                }
             }
+
             String mangled = AbstractSkeleton.mangleName(method, false);
             Method previous = names.putIfAbsent(mangled, method);
             if (previous != null && !previous.equals(method)) {
-                throw new IllegalArgumentException("Ambiguous Hessian method signature: " + mangled);
+                return false;
             }
         }
+        return true;
     }
 
     private byte[] encode(int version, EConsumer<AbstractHessianOutput, IOException> action) throws IOException {
@@ -258,6 +277,7 @@ public final class HessianCodec {
         } else {
             throw new IOException("Unsupported Hessian reply version");
         }
+
         output.setSerializerFactory(this.serializers);
         try {
             action.eAccept(output);
@@ -296,9 +316,10 @@ public final class HessianCodec {
         for (String id : this.context.getServiceIDs()) {
             MetBindInfo<?> service = this.context.getServiceInfo(id);
             boolean provider = service != null && service.getServiceType() == MetServiceType.Provider;
-            if (!provider || service.isShadow() || !this.protocol.accepts(service, mount)) {
+            if (!provider || service.isShadow() || !this.routes.accepts(service, mount)) {
                 continue;
             }
+
             String endpoint = mount.exact() ? mount.path() : mount.prefix() + alias(service);
             if (!StringUtils.equals(path, endpoint)) {
                 continue;
@@ -308,6 +329,7 @@ public final class HessianCodec {
             }
             selected = service;
         }
+
         if (selected == null) {
             throw new HessianFaultException("NoSuchObjectException", "Hessian service not found");
         }
@@ -330,6 +352,7 @@ public final class HessianCodec {
             if (StringUtils.equals(name, mangled)) {
                 return candidate;
             }
+
             if (StringUtils.equals(name, candidate.getName())) {
                 ambiguous |= selected != null;
                 selected = candidate;
@@ -372,12 +395,10 @@ public final class HessianCodec {
         return StringUtils.isBlank(alias) ? service.getBindName() : alias;
     }
 
-    private static void rejectStream(Class<?> type) {
+    private static boolean isStream(Class<?> type) {
         boolean publisher = Flow.Publisher.class.isAssignableFrom(type);
         boolean input = InputStream.class.isAssignableFrom(type) || Reader.class.isAssignableFrom(type);
         boolean output = OutputStream.class.isAssignableFrom(type) || Writer.class.isAssignableFrom(type);
-        if (publisher || input || output) {
-            throw new IllegalArgumentException("Hessian does not support streaming type: " + type.getName());
-        }
+        return publisher || input || output;
     }
 }

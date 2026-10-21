@@ -17,6 +17,7 @@ import com.caucho.hessian.io.HessianOutput;
 import com.caucho.hessian.io.HessianRemote;
 import com.caucho.hessian.io.HessianServiceException;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodecTestFixture.BusinessException;
 import org.junit.After;
@@ -185,7 +186,7 @@ public class HessianWireTest {
         byte[] request = HessianCodecTestFixture.call(2, "ping");
         Exception failure = assertThrows(Exception.class, //
                 () -> this.fixture.codec.decodeRequest(request, "/rpc/missing", //
-                        this.fixture.protocol.mountIndex().get("/rpc")));
+                        this.fixture.routes.match("/rpc")));
 
         // 对端按 Hessian 标准故障读取服务缺失信息。
         byte[] body = this.fixture.codec.encodeError(failure, 2);
@@ -332,7 +333,7 @@ public class HessianWireTest {
         byte[] body = HessianCodecTestFixture.call(2, "ping");
         HessianCodec codec = this.codec(Map.of("maxMessageSize", String.valueOf(body.length)));
         RequestPayload request = codec.decodeRequest(body, "/rpc/math", //
-                this.fixture.protocol.mountIndex().get("/rpc"));
+                this.fixture.routes.match("/rpc"));
         assertEquals("ping", request.getTargetMethod());
     }
 
@@ -342,7 +343,7 @@ public class HessianWireTest {
         byte[] body = HessianCodecTestFixture.call(2, "ping");
         HessianCodec codec = this.codec(Map.of("maxMessageSize", String.valueOf(body.length - 1)));
         assertThrows(IOException.class, () -> codec.decodeRequest(body, "/rpc/math", //
-                this.fixture.protocol.mountIndex().get("/rpc")));
+                this.fixture.routes.match("/rpc")));
     }
 
     @Test
@@ -492,7 +493,8 @@ public class HessianWireTest {
         Map<String, String> configured = new LinkedHashMap<>(options);
         configured.put("contextPath", "/rpc");
         ProtocolConfig protocol = ProtocolConfig.newConfig("hessian", "hessian", configured);
-        return new HessianCodec(protocol, this.fixture.context);
+        RouteMountIndex routes = new RouteMountIndex(this.fixture.endpointName, protocol);
+        return new HessianCodec(protocol, routes, this.fixture.context);
     }
 
     private byte[] append(byte[] source, byte value) {

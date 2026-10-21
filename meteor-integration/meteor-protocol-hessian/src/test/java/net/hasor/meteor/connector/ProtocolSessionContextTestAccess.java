@@ -18,7 +18,7 @@ public final class ProtocolSessionContextTestAccess {
 
     public static ProtocolSessionContext newContext( //
             MetContext context, BiFunction<Runnable, Long, Cancellable> scheduler, //
-            InterAddress bindAddress, boolean outbound) {
-        return new ProtocolSessionContext(context, scheduler, bindAddress, outbound);
+            InterAddress bindAddress, boolean outbound, RouteMountIndex routes) {
+        return new ProtocolSessionContext(context, scheduler, bindAddress, outbound, routes);
     }
 }

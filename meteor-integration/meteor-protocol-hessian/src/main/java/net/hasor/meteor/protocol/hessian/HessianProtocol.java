@@ -7,16 +7,18 @@
  */
 package net.hasor.meteor.protocol.hessian;
 import java.util.function.ObjLongConsumer;
-import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodec;
 import net.hasor.meteor.protocol.hessian.session.HessianSession;
 
 /** Hessian RPC 协议入口，按 HTTP 挂载点发布普通 Java 服务。 */
-public final class HessianProtocol implements ProtocolFactory<HttpExchange> {
+public final class HessianProtocol implements ProtocolProvider<HttpExchange> {
     @Override
     public String name() {
         return "hessian";
@@ -28,7 +30,7 @@ public final class HessianProtocol implements ProtocolFactory<HttpExchange> {
     }
 
     @Override
-    public String defaultSerializeType() {
+    public String defaultSerialize() {
         return "Hessian";
     }
 
@@ -38,8 +40,8 @@ public final class HessianProtocol implements ProtocolFactory<HttpExchange> {
     }
 
     @Override
-    public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
-        HessianCodec.validateService(config, service);
+    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
+        return HessianCodec.validateService(meta.getService()) ? config.build(null) : null;
     }
 
     @Override
@@ -48,7 +50,7 @@ public final class HessianProtocol implements ProtocolFactory<HttpExchange> {
     }
 
     @Override
-    public ProtocolSession<HttpExchange> createSession(ProtocolConfig config, ProtocolSessionContext context, //
+    public ProtocolSession<HttpExchange> createSession(ProtocolConfig config, ProtocolSessionContext context,//
             NetworkChannel<HttpExchange> channel, ObjLongConsumer<Payload> messages) {
         return new HessianSession(config, context, channel, messages);
     }
