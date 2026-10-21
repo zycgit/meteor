@@ -18,6 +18,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.MetUpdater;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.admin.MetServiceInfo;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
@@ -99,7 +100,6 @@ public class RegistrationBoundaryTest {
             String[] addressMethods = { "queryAvailableAddresses", "queryInvalidAddresses", "queryLocalUnitAddresses" };
             Set<String> addressReads = Set.of(addressMethods);
             Set<String> settingReads = Set.of("getDefaultTimeout", "getRequestTimeout", "getRequestOptions");
-            Set<String> declarationReads = Set.of("getClientTimeout", "getSerializeType", "getAliasTypes");
             MetUpdater updater = rejectReads(MetUpdater.class, context.getUpdater(), addressReads);
             MetSettings settings = rejectReads(MetSettings.class, context.getSettings(), settingReads);
             InvocationHandler handler = (proxy, method, arguments) -> {
@@ -112,7 +112,7 @@ public class RegistrationBoundaryTest {
                 try {
                     Object value = method.invoke(context, arguments);
                     if (value instanceof MetBindInfo<?> binding) {
-                        return rejectReads(MetBindInfo.class, binding, declarationReads);
+                        return rejectDeclarationReads(binding);
                     }
                     return value;
                 } catch (InvocationTargetException failure) {
@@ -136,6 +136,26 @@ public class RegistrationBoundaryTest {
             RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
             assertEquals(1, admin.getServiceAdmin(id).consumers(null, null).getItems().size());
         }
+    }
+
+    private static <T> MetBindInfo<T> rejectDeclarationReads(MetBindInfo<T> binding) {
+        // 使用框架的绑定包装，内部状态仍归原服务域，公开诊断读取继续受到检查。
+        return new MetBindInfoWrap<>(binding) {
+            @Override
+            public int getClientTimeout() {
+                throw new AssertionError("Registration must not collect getClientTimeout");
+            }
+
+            @Override
+            public String getSerializeType() {
+                throw new AssertionError("Registration must not collect getSerializeType");
+            }
+
+            @Override
+            public Set<String> getAliasTypes() {
+                throw new AssertionError("Registration must not collect getAliasTypes");
+            }
+        };
     }
 
     private static <T> T rejectReads(Class<T> type, T target, Set<String> forbidden) {

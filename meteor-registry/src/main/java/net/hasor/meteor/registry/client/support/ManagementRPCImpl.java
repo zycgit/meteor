@@ -16,6 +16,7 @@ import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.rpc.*;
 import net.hasor.meteor.registry.shared.storage.domain.EntConfigurationData;
@@ -590,7 +591,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
 
     private ServiceEndpointData[] endpoints(MetBindInfo<?> service) {
         List<ServiceEndpointData> result = new ArrayList<>();
-        Set<String> protocols = service.getBindProtocols();
         for (ConnectorConfig connector : this.context.getSettings().getConnectorConfigs()) {
             boolean provider = service.getServiceType() == MetServiceType.Provider;
             if (provider && !connector.bindEnabled()) {
@@ -598,13 +598,14 @@ public final class ManagementRPCImpl implements ManagementRPC {
             }
 
             for (ProtocolConfig protocol : connector.protocols()) {
-                if (!protocol.accepts(protocols)) {
+                RouteMountIndex routes = new RouteMountIndex(connector.name(), protocol);
+                if (!routes.accepts(service)) {
                     continue;
                 }
 
                 // 服务只上报实际选择的上下文；不使用上下文的协议仍保留一个端点。
-                List<String> paths = protocol.contextPaths(service);
-                if (protocol.contextPaths().isEmpty()) {
+                List<String> paths = routes.contextPaths(service);
+                if (routes.contextPaths().isEmpty()) {
                     paths = Collections.singletonList(null);
                 }
 
@@ -615,7 +616,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
                     endpoint.setConnectorName(connector.name());
                     endpoint.setTransport(connector.transportType());
                     endpoint.setProtocolName(protocol.name());
-                    endpoint.setProtocol(protocol.factoryName());
+                    endpoint.setProtocol(protocol.name());
                     endpoint.setScheme(protocol.scheme());
                     endpoint.setContextPath(path);
                     endpoint.setBindEnabled(connector.bindEnabled());

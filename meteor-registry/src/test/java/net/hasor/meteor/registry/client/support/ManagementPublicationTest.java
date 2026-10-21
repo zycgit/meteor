@@ -24,10 +24,7 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.RegistryProtocolTestAccess;
-import net.hasor.meteor.domain.MetException;
-import net.hasor.meteor.domain.MetServiceType;
-import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.domain.*;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.TargetAdmin;
@@ -217,20 +214,53 @@ public class ManagementPublicationTest {
     }
 
     @Test
+    public void rejectedProtocolIsExcludedFromPublishedRegistryEndpoints() throws Exception {
+        // 在同一应用配置可接受服务的 RSF 与会拒绝该服务的 HTTP 协议。
+        MemoryRegistryConfiguration registry = new MemoryRegistryConfiguration();
+        registry.setManagementToken("secret");
+        registry.setPublishHost("127.0.0.1");
+        registry.setRefreshMillis(600000);
+        MetConfiguration application = new MetConfiguration();
+        application.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        application.connector("http").bind("127.0.0.1", 0) //
+                .protocol("registry-http").option("rejectService", "rejected");
+        application.addExtension(registry);
+
+        try (MetContext context = application.buildContext()) {
+            // HTTP 拒绝不影响服务登记及其 RSF 发布，自动同步上报实际接受结果。
+            MetBindInfo<Echo> service = context.publisher().rsfService(Echo.class, value -> value) //
+                    .name("rejected").register();
+            context.start();
+            context.getExtension(RegistryClient.class).pushSync().get(5, TimeUnit.SECONDS);
+
+            // 注册中心仅公布已接受的端点，本地声明仍可查询。
+            RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
+            MetServiceEndpoint[] published = member(admin, service.getBindID()).getEndpoints();
+            assertEquals(1, published.length);
+            assertEquals("rsf", published[0].getProtocolName());
+            MetBindInfo<?> local = context.getServiceInfo(service.getBindID());
+            assertNotNull(local);
+            assertEquals(service.getBindID(), local.getBindID());
+        }
+    }
+
+    @Test
     public void snapshotPublishesEachMountedEndpointWithoutAmbiguousAddressSelection() throws Exception {
-        // 准备同一逻辑协议跨端点、同一地址 scheme 多协议的运行快照。
-        ProtocolConfig ordersA = RegistryProtocolTestAccess.config("orders-http", "http", "registry-http", Map.of());
-        ProtocolConfig adminA = RegistryProtocolTestAccess.config("admin-http", "http", "registry-http", Map.of());
+        // 同一 SPI 协议跨两个端点，各自挂载订单和管理上下文。
+        Map<String, String> mountOptions = Map.of("contextPath", "/orders", "contextPaths", "[\"/admin\"]");
+        ProtocolConfig protocolA = ProtocolConfig.newConfig("registry-http", "http", mountOptions);
         ConnectorConfig edgeA = new ConnectorConfig("edge-a", InterAddress.forBinding("http", "0.0.0.0", 0, "default"), //
-                Map.of(), List.of(ordersA, adminA), true);
-        ProtocolConfig ordersB = RegistryProtocolTestAccess.config("orders-http", "http", "registry-http", Map.of());
+                Map.of(), List.of(protocolA), true);
+        ProtocolConfig protocolB = ProtocolConfig.newConfig("registry-http", "http", mountOptions);
         ConnectorConfig edgeB = new ConnectorConfig("edge-b", InterAddress.forBinding("http", "0.0.0.0", 0, "default"), //
-                Map.of(), List.of(ordersB), true);
+                Map.of(), List.of(protocolB), true);
         InterAddress listenA = new InterAddress("http", "0.0.0.0", 8100, "default");
         InterAddress listenB = new InterAddress("http", "0.0.0.0", 8200, "default");
         AtomicInteger addressQueries = new AtomicInteger();
         MetConfiguration application = new MetConfiguration();
         application.connector("tcp").protocol("rsf");
+        application.connector("http").protocol("registry-http").addressScheme("http") //
+                .contextPath("/orders").addContextPath("/admin");
 
         try (MetContext context = application.buildContext()) {
             // 连接器配置与运行态监听地址分别通过用户可识别的公开信息提供。
@@ -244,7 +274,8 @@ public class ManagementPublicationTest {
                     throw failure.getCause();
                 }
             };
-            MetSettings settings = (MetSettings) Proxy.newProxyInstance(this.getClass().getClassLoader(), new Class<?>[] { MetSettings.class }, settingsView);
+            MetSettings settings = (MetSettings) Proxy.newProxyInstance(this.getClass().getClassLoader(), //
+                    new Class<?>[] { MetSettings.class }, settingsView);
             InvocationHandler contextView = (proxy, method, args) -> {
                 if (StringUtils.equals(method.getName(), "getSettings")) {
                     return settings;
@@ -263,13 +294,24 @@ public class ManagementPublicationTest {
                     throw failure.getCause();
                 }
             };
-            MetContext observed = (MetContext) Proxy.newProxyInstance(this.getClass().getClassLoader(), new Class<?>[] { MetContext.class }, contextView);
+            MetContext observed = (MetContext) Proxy.newProxyInstance(this.getClass().getClassLoader(), //
+                    new Class<?>[] { MetContext.class }, contextView);
             ManagementRPCImpl rpc = new ManagementRPCImpl(observed, "127.0.0.1");
-            String serviceId = context.publisher().rsfService(Echo.class, value -> value).register().getBindID();
+            String serviceId = context.publisher().rsfService(Echo.class, value -> value) //
+                    .contextPathByPrefix("registry-http", "/orders", "/admin").register().getBindID();
 
-            // 完整快照按公开配置身份查询地址，实例按 connector#scheme 去重，服务保留每个逻辑挂载。
+            // 观察视图模拟两个已发布的运行端点，服务接受结果与该视图保持一致。
+            ServiceDomain<?> declaration = (ServiceDomain<?>) context.getServiceInfo(serviceId);
+            ContextPath contexts = declaration.getProtocolMeta("registry-http").getContextPath();
+            ProtocolBinding bindingA = edgeA.protocol("registry-http").build(null).withContextPaths(contexts);
+            ProtocolBinding bindingB = edgeB.protocol("registry-http").build(null).withContextPaths(contexts);
+            Map<String, ProtocolBinding> bindings = Map.of("edge-a", bindingA, "edge-b", bindingB);
+            ProtocolMeta meta = new ProtocolMeta(declaration, contexts, bindings);
+            declaration.replaceProtocolPublication(Map.of("registry-http", meta));
+
+            // 完整快照按协议名查询地址，实例按 connector#scheme 去重，服务保留每个上下文挂载。
             RegistrationSnapshot snapshot = rpc.snapshot(null);
-            assertEquals(6, addressQueries.get());
+            assertEquals(4, addressQueries.get());
             assertEquals(Map.of("edge-a#http", listenA.toString(), "edge-b#http", listenB.toString()), //
                     snapshot.getInstance().getListenAddresses());
             String publishedA = new InterAddress("http", "127.0.0.1", 8100, "default").toString();
@@ -277,15 +319,16 @@ public class ManagementPublicationTest {
             assertEquals(Map.of("edge-a#http", publishedA, "edge-b#http", publishedB), //
                     snapshot.getInstance().getManagementAddresses());
 
-            // 三个服务端点均保留精确身份，同端点同 scheme 共享实际监听地址。
+            // 四个服务端点保留协议和上下文身份，同端点同 scheme 共享实际监听地址。
             assertEquals(1, snapshot.getServices().size());
             EntServiceRuntimeData service = snapshot.getServices().get(0);
             assertEquals(serviceId, service.getServiceId());
             RefProtocolMountData[] endpoints = service.getEndpoints();
-            assertEquals(3, endpoints.length);
-            assertEndpoint(endpoints[0], "edge-a", "orders-http", edgeA.address().toString(), listenA.toString(), publishedA);
-            assertEndpoint(endpoints[1], "edge-a", "admin-http", edgeA.address().toString(), listenA.toString(), publishedA);
-            assertEndpoint(endpoints[2], "edge-b", "orders-http", edgeB.address().toString(), listenB.toString(), publishedB);
+            assertEquals(4, endpoints.length);
+            assertEndpoint(endpoints[0], "edge-a", "/orders", edgeA.address().toString(), listenA.toString(), publishedA);
+            assertEndpoint(endpoints[1], "edge-a", "/admin", edgeA.address().toString(), listenA.toString(), publishedA);
+            assertEndpoint(endpoints[2], "edge-b", "/orders", edgeB.address().toString(), listenB.toString(), publishedB);
+            assertEndpoint(endpoints[3], "edge-b", "/admin", edgeB.address().toString(), listenB.toString(), publishedB);
             assertEquals(Set.of(publishedA, publishedB), Set.of(service.getAddresses()));
         }
     }
@@ -491,13 +534,14 @@ public class ManagementPublicationTest {
         assertEquals(ProtocolStatus.Forbidden, ((MetException) failure).getStatus());
     }
 
-    private static void assertEndpoint(RefProtocolMountData endpoint, String connectorName, String protocolName, //
+    private static void assertEndpoint(RefProtocolMountData endpoint, String connectorName, String contextPath, //
             String configuredAddress, String listenAddress, String publishedAddress) {
         assertEquals(connectorName, endpoint.getConnectorName());
         assertEquals("http", endpoint.getTransport());
-        assertEquals(protocolName, endpoint.getProtocolName());
+        assertEquals("registry-http", endpoint.getProtocolName());
         assertEquals("registry-http", endpoint.getProtocol());
         assertEquals("http", endpoint.getScheme());
+        assertEquals(contextPath, endpoint.getContextPath());
         assertTrue(endpoint.isBindEnabled());
         assertEquals(configuredAddress, endpoint.getConfiguredAddress());
         assertEquals(listenAddress, endpoint.getListenAddress());
