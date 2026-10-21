@@ -1,0 +1,15 @@
+plugins {
+    id 'java-library'
+}
+
+ext.pomName = 'Meteor Protocol Thrift'
+description = 'Apache Thrift RPC over TCP, HTTP and their secure transports.'
+
+dependencies {
+    api project(':meteor')
+    api "org.apache.thrift:libthrift:${property('lib.thrift')}"
+
+    // Thrift 官方生成的测试代码直接引用 SDK 的日志 API。
+    testImplementation "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+    testImplementation "org.mockito:mockito-core:${property('lib.mockito')}"
+}

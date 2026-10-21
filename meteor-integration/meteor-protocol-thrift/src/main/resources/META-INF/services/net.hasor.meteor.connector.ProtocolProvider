@@ -1,0 +1,2 @@
+net.hasor.meteor.protocol.thrift.ThriftProtocol
+net.hasor.meteor.protocol.thrift.ThriftHttpProtocol
