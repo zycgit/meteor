@@ -26,10 +26,7 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolSession;
-import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.ProtocolSessionContextTestAccess;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
@@ -49,10 +46,21 @@ public class HproseSessionTest {
         String echo(String value);
     }
 
+    private MetConfiguration configuration() {
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("http").protocol("hprose").contextPath("/rpc");
+        return configuration;
+    }
+
+    private RouteMountIndex routes(MetContext context, ProtocolConfig protocol) {
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        return new RouteMountIndex(endpointName, protocol);
+    }
+
     @Test
     public void connectedSessionReportsReady() throws Exception {
         // 创建连接后的会话，检查协议就绪状态。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class).name("Echo").register();
             MemoryNetwork network = new MemoryNetwork();
@@ -66,11 +74,11 @@ public class HproseSessionTest {
     @Test
     public void inboundSessionAssignsIndependentRequestIds() throws Exception {
         // 准备包含两个调用的入站批次和会话。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec codec = new HproseHttpCodec(config, context);
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
@@ -87,11 +95,11 @@ public class HproseSessionTest {
     @Test
     public void batchRepliesKeepRequestOrder() throws Exception {
         // 准备包含两个调用的入站批次会话。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec codec = new HproseHttpCodec(config, context);
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
@@ -119,11 +127,11 @@ public class HproseSessionTest {
     @Test
     public void batchRepliesSharePhysicalWriteCompletion() throws Exception {
         // 准备入站批次会话，让物理写入等待测试主动完成。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec codec = new HproseHttpCodec(config, context);
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
             MemoryNetwork network = new MemoryNetwork();
             network.writeResult = new BasicFuture<>();
             List<Payload> received = new ArrayList<>();
@@ -149,11 +157,11 @@ public class HproseSessionTest {
     @Test
     public void cancellingOneBatchReplyDoesNotCancelSharedWrite() throws Exception {
         // 准备入站批次会话，让物理写入和 HTTP 交换等待测试主动完成。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec codec = new HproseHttpCodec(config, context);
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
             MemoryNetwork network = new MemoryNetwork();
             network.writeResult = new BasicFuture<>();
             List<Payload> received = new ArrayList<>();
@@ -182,11 +190,11 @@ public class HproseSessionTest {
     @Test
     public void batchTimeoutPreservesOtherResults() throws Exception {
         // 准备同一批次的两个调用，让第一个先产生正常结果。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec codec = new HproseHttpCodec(config, context);
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
@@ -212,11 +220,11 @@ public class HproseSessionTest {
     @Test
     public void closeReleasesAnsweredAndUnansweredBatchChildren() throws Exception {
         // 准备接收批次请求的协议会话，并记录每个子调用。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec codec = new HproseHttpCodec(config, context);
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
@@ -240,11 +248,11 @@ public class HproseSessionTest {
     @Test
     public void malformedBatchNeverDispatchesItsValidPrefix() throws Exception {
         // 准备批次编解码器和入站会话，记录实际分发的请求。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec codec = new HproseHttpCodec(config, context);
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
@@ -266,7 +274,7 @@ public class HproseSessionTest {
     @Test
     public void malformedCorsRequestKeepsCredentialResponseHeaders() throws Exception {
         // 准备带 Origin 的非法入站请求，观察协议错误响应的跨域头。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             MemoryNetwork network = new MemoryNetwork();
@@ -301,11 +309,11 @@ public class HproseSessionTest {
     @Test
     public void acceptAcknowledgementDoesNotWriteHttpResponse() throws Exception {
         // 准备入站会话，观察内部确认是否触发 HTTP 写入。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec protocol = new HproseHttpCodec(config, context);
+            HproseHttpCodec protocol = new HproseHttpCodec(config, this.routes(context, config), context);
 
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -325,11 +333,11 @@ public class HproseSessionTest {
     @Test
     public void reversedRepliesKeepTheirOriginalExchanges() throws Exception {
         // 准备独立交换的编解码器和会话，记录网络写入顺序。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec protocol = new HproseHttpCodec(config, context);
+            HproseHttpCodec protocol = new HproseHttpCodec(config, this.routes(context, config), context);
 
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -358,11 +366,11 @@ public class HproseSessionTest {
     @Test
     public void unifiedSessionFinishesExpiredRequestsAndRejectsLateReplies() throws Exception {
         // 准备一条等待业务响应的入站请求。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec protocol = new HproseHttpCodec(config, context);
+            HproseHttpCodec protocol = new HproseHttpCodec(config, this.routes(context, config), context);
 
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -387,11 +395,11 @@ public class HproseSessionTest {
     @Test
     public void completedInboundRequestRejectsQueuedBusinessResponse() throws Exception {
         // 准备入站请求，并暂停会话完成回调所在的连接执行器。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec codec = new HproseHttpCodec(config, context);
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, false);
@@ -420,11 +428,11 @@ public class HproseSessionTest {
     @Test
     public void prepareDrainResolvesPendingWithoutClosingBorrowedChannel() throws Exception {
         // 准备两条尚未返回结果的 HTTP 调用，作为排空对象。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec protocol = new HproseHttpCodec(config, context);
+            HproseHttpCodec protocol = new HproseHttpCodec(config, this.routes(context, config), context);
 
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -452,11 +460,11 @@ public class HproseSessionTest {
     @Test
     public void unifiedSessionCloseCompletesAllInboundRequests() throws Exception {
         // 准备两条在途入站请求，保留完成信号供关闭后检查。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
             ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
-            HproseHttpCodec protocol = new HproseHttpCodec(config, context);
+            HproseHttpCodec protocol = new HproseHttpCodec(config, this.routes(context, config), context);
 
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -478,7 +486,7 @@ public class HproseSessionTest {
     @Test
     public void outboundResponseCompletesItsOriginalRequest() throws Exception {
         // 准备出站会话，记录网络响应转换出的 Payload。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
 
@@ -508,7 +516,7 @@ public class HproseSessionTest {
     @Test
     public void networkFailureIsDeliveredAsThrowPayload() throws Exception {
         // 准备出站会话，观察原请求和失败通知的完成原因。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class, value -> value).name("Echo").register();
 
@@ -530,7 +538,7 @@ public class HproseSessionTest {
     @Test
     public void malformedOutboundReplyFailsOnlyItsRequest() throws Exception {
         // 准备出站会话，观察一条响应失败是否影响其它请求。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class).name("Echo").register();
             MemoryNetwork network = new MemoryNetwork();
@@ -566,7 +574,7 @@ public class HproseSessionTest {
     @Test
     public void completedRequestIsNotSent() throws Exception {
         // 准备出站会话，分别记录物理写入和接收通知。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class).name("Echo").register();
             MemoryNetwork network = new MemoryNetwork();
@@ -586,7 +594,7 @@ public class HproseSessionTest {
     @Test
     public void completedOutboundRequestDoesNotPublishItsLocalFailure() throws Exception {
         // 准备已写出的出站请求，观察 RPC 本地终结后的协议通知。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class).name("Echo").register();
             MemoryNetwork network = new MemoryNetwork();
@@ -605,7 +613,7 @@ public class HproseSessionTest {
     @Test
     public void completedOutboundRequestDoesNotPublishQueuedResponse() throws Exception {
         // 准备已到达但尚未由连接执行器处理的出站响应。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class).name("Echo").register();
             MemoryNetwork network = new MemoryNetwork();
@@ -631,7 +639,7 @@ public class HproseSessionTest {
     @Test
     public void outboundSessionRejectsResponsePayload() throws Exception {
         // 准备主动连接的会话，观察不支持的消息是否被写出。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class).name("Echo").register();
             MemoryNetwork network = new MemoryNetwork();
@@ -649,7 +657,7 @@ public class HproseSessionTest {
     @Test
     public void inboundSessionRejectsRequestPayload() throws Exception {
         // 准备服务声明和内存网络，供方向校验使用。
-        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        MetConfiguration configuration = this.configuration().setDefaultGroup("wire");
         try (MetContext context = configuration.buildContext()) {
             context.publisher().rsfService(Echo.class).name("Echo").register();
             MemoryNetwork network = new MemoryNetwork();
@@ -673,9 +681,9 @@ public class HproseSessionTest {
 
         // 将协议与内存网络组装成已连接会话，收到的消息交由测试观察。
         InterAddress address = new InterAddress("hprose", "127.0.0.1", 8080, "default");
-        ProtocolSessionContext context = ProtocolSessionContextTestAccess.newContext( //
-                runtime, scheduler, address, outbound);
         ProtocolConfig config = ProtocolConfig.newConfig("hprose", "hprose", Map.of("contextPath", "/rpc"));
+        ProtocolSessionContext context = ProtocolSessionContextTestAccess.newContext( //
+                runtime, scheduler, address, outbound, config);
         HproseProtocol factory = new HproseProtocol();
         ObjLongConsumer<Payload> messages = (payload, id) -> received.add(payload);
         ProtocolSession<HttpExchange> session = factory.createSession(config, context, network, messages);

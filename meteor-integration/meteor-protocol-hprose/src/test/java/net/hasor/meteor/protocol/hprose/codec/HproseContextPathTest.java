@@ -10,6 +10,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Flow;
 import hprose.io.HproseReader;
 import hprose.io.HproseWriter;
 import net.hasor.meteor.MetBindInfo;
@@ -17,16 +18,23 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
+import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class HproseContextPathTest {
     public interface Echo {
         String echo(String value);
+    }
+
+    public interface Streaming {
+        Flow.Publisher<String> watch(String value);
     }
 
     @Test
@@ -47,7 +55,8 @@ public class HproseContextPathTest {
                     .register();
 
             // 默认入口的发现请求只返回默认挂载点上的方法。
-            HproseHttpCodec codec = new HproseHttpCodec(this.protocol(context), context);
+            ProtocolConfig protocol = this.protocol(context);
+            HproseHttpCodec codec = new HproseHttpCodec(protocol, this.routes(context, protocol), context);
             HttpRequest request = HttpRequest.newBuffered("GET", "/rpc", Map.of(), new byte[0], 1, Map.of());
             byte[] body = codec.decodeRequest(request).immediate().body();
             ByteArrayInputStream input = new ByteArrayInputStream(body);
@@ -75,7 +84,8 @@ public class HproseContextPathTest {
                     .aliasName("Hprose", "private") //
                     .contextPathByPrefix("hprose", "/rpc/private") //
                     .register();
-            HproseHttpCodec codec = new HproseHttpCodec(this.protocol(context), context);
+            ProtocolConfig protocol = this.protocol(context);
+            HproseHttpCodec codec = new HproseHttpCodec(protocol, this.routes(context, protocol), context);
 
             // GET 的查询字符串不改变挂载点选择，也不能泄露父挂载点的函数。
             String uri = "/rpc/private/functions?context=/rpc";
@@ -105,7 +115,8 @@ public class HproseContextPathTest {
                     .aliasName("Hprose", "shared") //
                     .contextPathByPrefix("hprose", "/rpc/private") //
                     .register();
-            HproseHttpCodec codec = new HproseHttpCodec(this.protocol(context), context);
+            ProtocolConfig protocol = this.protocol(context);
+            HproseHttpCodec codec = new HproseHttpCodec(protocol, this.routes(context, protocol), context);
 
             // 只允许当前挂载点上的服务参与重载选择。
             byte[] body = this.call("shared_echo");
@@ -132,7 +143,8 @@ public class HproseContextPathTest {
                     .aliasName("Hprose", "private") //
                     .contextPathByPrefix("hprose", "/rpc/private") //
                     .register();
-            HproseHttpCodec codec = new HproseHttpCodec(this.protocol(context), context);
+            ProtocolConfig protocol = this.protocol(context);
+            HproseHttpCodec codec = new HproseHttpCodec(protocol, this.routes(context, protocol), context);
 
             // 将两个完整调用组合成单个批次，并发送到附加挂载点。
             ByteArrayOutputStream batch = new ByteArrayOutputStream();
@@ -162,7 +174,8 @@ public class HproseContextPathTest {
                     .rsfService(Echo.class) //
                     .contextPathByPrefix("hprose", "/rpc/private", "/rpc") //
                     .register();
-            HproseHttpCodec codec = new HproseHttpCodec(this.protocol(context), context);
+            ProtocolConfig protocol = this.protocol(context);
+            HproseHttpCodec codec = new HproseHttpCodec(protocol, this.routes(context, protocol), context);
 
             // 出站编码直接使用订阅服务的路径选择，不读取先前入站请求。
             HttpRequest request = codec.encodeRequest(this.request(service));
@@ -179,11 +192,61 @@ public class HproseContextPathTest {
                     .rsfService(Echo.class) //
                     .contextPathByPrefix("hprose", "/alternate", "/rpc/private") //
                     .register();
-            HproseHttpCodec codec = new HproseHttpCodec(this.protocol(context), context);
+            ProtocolConfig protocol = this.protocol(context);
+            HproseHttpCodec codec = new HproseHttpCodec(protocol, this.routes(context, protocol), context);
 
             // 协议配置中附加入口的声明顺序不能覆盖服务自己的选择。
             HttpRequest request = codec.encodeRequest(this.request(service));
             assertEquals("/alternate", request.uri());
+        }
+    }
+
+    @Test
+    public void rejectedStreamingServiceIsHiddenFromDiscovery() throws Exception {
+        // Hprose 不支持流式服务；发布保留服务声明，但不接受当前协议端点。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<Streaming> service = context.publisher() //
+                    .rsfService(Streaming.class, value -> subscriber -> {
+                    }) //
+                    .aliasName("Hprose", "stream") //
+                    .register();
+            ServiceDomain<?> domain = MetBindInfoWrap.unwrap(service);
+            assertNull(domain.getProtocolMeta("hprose"));
+            assertTrue(domain.getProtocolMetas().isEmpty());
+
+            // 目录只枚举实际发布成功的服务，不暴露被拒绝的方法。
+            ProtocolConfig protocol = this.protocol(context);
+            HproseHttpCodec codec = new HproseHttpCodec(protocol, this.routes(context, protocol), context);
+            HttpRequest request = HttpRequest.newBuffered("GET", "/rpc", Map.of(), new byte[0], 1, Map.of());
+            ByteArrayInputStream input = new ByteArrayInputStream(codec.decodeRequest(request).immediate().body());
+            assertEquals('F', input.read());
+            assertArrayEquals(new String[0], new HproseReader(input).unserialize(String[].class));
+            assertEquals('z', input.read());
+        }
+    }
+
+    @Test
+    public void rejectedStreamingServiceCannotReceiveCalls() throws Exception {
+        // 服务存在于容器中，但流式签名被 Hprose 协议拒绝。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            context.publisher() //
+                    .rsfService(Streaming.class, value -> subscriber -> {
+                    }) //
+                    .aliasName("Hprose", "stream") //
+                    .register();
+            ProtocolConfig protocol = this.protocol(context);
+            HproseHttpCodec codec = new HproseHttpCodec(protocol, this.routes(context, protocol), context);
+
+            // 直接构造匹配别名的入站报文，仍不能绕过实际发布结果。
+            HttpRequest request = HttpRequest.newBuffered("POST", "/rpc", Map.of(), //
+                    this.call("stream_watch"), 1, Map.of());
+            HproseDecodedCall call = codec.decodeRequest(request).calls().get(0);
+            assertNull(call.request());
+            assertTrue(call.failure() instanceof MetException);
+            MetException failure = (MetException) call.failure();
+            assertEquals(ProtocolStatus.Forbidden, failure.getStatus());
         }
     }
 
@@ -195,6 +258,11 @@ public class HproseContextPathTest {
                 .addContextPath("/rpc/private") //
                 .addContextPath("/alternate");
         return configuration;
+    }
+
+    private RouteMountIndex routes(MetContext context, ProtocolConfig protocol) {
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        return new RouteMountIndex(endpointName, protocol);
     }
 
     private ProtocolConfig protocol(MetContext context) {

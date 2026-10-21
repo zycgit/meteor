@@ -12,8 +12,8 @@ import java.util.Set;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
@@ -21,19 +21,19 @@ import net.hasor.meteor.domain.ProtocolStatus;
 
 /** 查询当前 Hprose 挂载点可见的服务方法。 */
 final class HproseServiceCatalog {
-    private final MetContext     context;
-    private final ProtocolConfig protocol;
+    private final MetContext      context;
+    private final RouteMountIndex routes;
 
-    HproseServiceCatalog(MetContext context, ProtocolConfig protocol) {
+    HproseServiceCatalog(MetContext context, RouteMountIndex routes) {
         this.context = context;
-        this.protocol = protocol;
+        this.routes = routes;
     }
 
     String[] listFunctions(RouteMount mount) {
         Set<String> functions = new LinkedHashSet<>();
         for (String serviceId : this.context.getServiceIDs()) {
             MetBindInfo<?> service = this.context.getServiceInfo(serviceId);
-            if (!this.isProvider(service) || !this.protocol.accepts(service, mount)) {
+            if (!this.isProvider(service) || !this.routes.accepts(service, mount)) {
                 continue;
             }
 
@@ -41,6 +41,7 @@ final class HproseServiceCatalog {
             if (StringUtils.isBlank(alias)) {
                 continue;
             }
+
             for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
                 functions.add(alias + "_" + method.getName());
             }
@@ -61,6 +62,7 @@ final class HproseServiceCatalog {
             if (StringUtils.isBlank(alias)) {
                 continue;
             }
+
             for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
                 String exposedName = alias + "_" + method.getName();
                 boolean signatureMatches = method.getParameterCount() == parameterCount && //
@@ -68,7 +70,8 @@ final class HproseServiceCatalog {
                 if (!signatureMatches) {
                     continue;
                 }
-                if (!this.protocol.accepts(service, mount)) {
+
+                if (!this.routes.accepts(service, mount)) {
                     forbidden = true;
                     continue;
                 }
@@ -82,6 +85,7 @@ final class HproseServiceCatalog {
         if (selected != null) {
             return selected;
         }
+
         if (forbidden) {
             throw new MetException(ProtocolStatus.Forbidden, "Service is not exposed on this protocol mount");
         }
@@ -92,21 +96,6 @@ final class HproseServiceCatalog {
         return service != null && !service.isShadow() && service.getServiceType() == MetServiceType.Provider;
     }
 
-    static final class ResolvedMethod {
-        private final MetBindInfo<?> service;
-        private final Method         method;
-
-        ResolvedMethod(MetBindInfo<?> service, Method method) {
-            this.service = service;
-            this.method = method;
-        }
-
-        MetBindInfo<?> service() {
-            return this.service;
-        }
-
-        Method method() {
-            return this.method;
-        }
+    record ResolvedMethod(MetBindInfo<?> service, Method method) {
     }
 }

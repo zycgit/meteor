@@ -18,7 +18,9 @@ public final class ProtocolSessionContextTestAccess {
 
     public static ProtocolSessionContext newContext( //
             MetContext context, BiFunction<Runnable, Long, Cancellable> scheduler, //
-            InterAddress bindAddress, boolean outbound) {
-        return new ProtocolSessionContext(context, scheduler, bindAddress, outbound);
+            InterAddress bindAddress, boolean outbound, ProtocolConfig config) {
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        RouteMountIndex routes = new RouteMountIndex(endpointName, config);
+        return new ProtocolSessionContext(context, scheduler, bindAddress, outbound, routes);
     }
 }

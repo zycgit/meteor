@@ -20,6 +20,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetMessage;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
@@ -33,12 +34,14 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
 public final class HproseHttpCodec {
     private final MetContext           context;
     private final ProtocolConfig       protocol;
+    private final RouteMountIndex      routes;
     private final HproseServiceCatalog services;
 
-    public HproseHttpCodec(ProtocolConfig protocol, MetContext context) {
+    public HproseHttpCodec(ProtocolConfig protocol, RouteMountIndex routes, MetContext context) {
         this.context = context;
         this.protocol = protocol;
-        this.services = new HproseServiceCatalog(context, protocol);
+        this.routes = routes;
+        this.services = new HproseServiceCatalog(context, routes);
     }
 
     public HproseDecodedInvocation decodeRequest(HttpRequest request) throws Exception {
@@ -74,10 +77,10 @@ public final class HproseHttpCodec {
     private RouteMount resolveMount(HttpRequest request) {
         RouteSelection route = request.route();
         if (route == null) {
-            // 独立测试编解码器时回退到协议目录；实际请求由运行期路由表选定挂载点。
-            return this.protocol.matchContext(request.uri());
+            // 未携带选择结果的 HTTP 请求仍使用启动期编译的路径索引。
+            return this.routes.match(request.uri());
         }
-        if (!StringUtils.equals(this.protocol.mountId(), route.mountId())) {
+        if (!StringUtils.equals(this.protocol.name(), route.protocolName())) {
             return null;
         }
         return route.mount();
@@ -239,7 +242,7 @@ public final class HproseHttpCodec {
         MetBindInfo<?> service = this.context.getServiceInfo( //
                 request.getServiceGroup(), request.getServiceName(), request.getServiceVersion());
         String alias = service.getAliasName(HproseSerializeCoder.SERIALIZE_TYPE);
-        String uri = this.protocol.contextPath(service);
+        String uri = this.routes.contextPath(service);
         byte[] body = HproseWireCodec.encodeRequest(alias, request);
         return HttpRequest.newBuffered("POST", uri, headers, body, 1, Map.of());
     }

@@ -9,26 +9,5 @@ package net.hasor.meteor.protocol.hprose.session;
 import net.hasor.meteor.protocol.hprose.codec.HproseDecodedCall;
 
 /** 等待业务响应的调用及其在 HTTP 批次中的位置。 */
-final class HprosePendingCall {
-    private final HproseResponseBatch batch;
-    private final HproseDecodedCall   call;
-    private final int                 index;
-
-    HprosePendingCall(HproseResponseBatch batch, HproseDecodedCall call, int index) {
-        this.batch = batch;
-        this.call = call;
-        this.index = index;
-    }
-
-    HproseResponseBatch batch() {
-        return this.batch;
-    }
-
-    HproseDecodedCall call() {
-        return this.call;
-    }
-
-    int index() {
-        return this.index;
-    }
+record HprosePendingCall(HproseResponseBatch batch, HproseDecodedCall call, int index) {
 }
