@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -35,11 +36,13 @@ public class JsonRpcResponseTest {
 
     @Before
     public void prepareConsumerMetadata() throws Exception {
-        this.context = new MetConfiguration().setDefaultGroup("wire").buildContext();
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        configuration.connector("http").protocol("jsonrpc").contextPath("/rpc");
+        this.context = configuration.buildContext();
         this.context.publisher().rsfService(JsonRpcBindingTest.Methods.class) //
                 .name("Methods").aliasName("jsonrpc", "math").register();
         ProtocolConfig protocol = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", Map.of("contextPath", "/rpc"));
-        this.codec = new JsonRpcCodec(protocol, this.context);
+        this.codec = new JsonRpcCodec(protocol, new RouteMountIndex("http-0", protocol), this.context);
     }
 
     @After
@@ -77,7 +80,7 @@ public class JsonRpcResponseTest {
         // 同样的 service 选项同时约束入站和出站命名。
         ProtocolConfig scoped = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", //
                 Map.of("contextPath", "/rpc", "service", "math"));
-        JsonRpcCodec scopedCodec = new JsonRpcCodec(scoped, this.context);
+        JsonRpcCodec scopedCodec = new JsonRpcCodec(scoped, new RouteMountIndex("http-0", scoped), this.context);
         JsonNode encoded = this.json(scopedCodec.encodeRequest(this.request("ping")));
         assertEquals("ping", encoded.path("method").textValue());
     }
@@ -87,7 +90,7 @@ public class JsonRpcResponseTest {
         // 指定其他服务的端点不能用于发送当前消费者请求。
         ProtocolConfig scoped = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", //
                 Map.of("contextPath", "/rpc", "service", "other"));
-        JsonRpcCodec scopedCodec = new JsonRpcCodec(scoped, this.context);
+        JsonRpcCodec scopedCodec = new JsonRpcCodec(scoped, new RouteMountIndex("http-0", scoped), this.context);
         assertThrows(IOException.class, () -> scopedCodec.encodeRequest(this.request("ping")));
     }
 
@@ -253,7 +256,7 @@ public class JsonRpcResponseTest {
     public void encodedMessageLimitAppliesBeforeNetworkWrite() {
         // 出站大小限制覆盖完整信封。
         ProtocolConfig limited = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", Map.of("maxMessageSize", "4"));
-        JsonRpcCodec codec = new JsonRpcCodec(limited, this.context);
+        JsonRpcCodec codec = new JsonRpcCodec(limited, new RouteMountIndex("http-0", limited), this.context);
         assertThrows(IOException.class, () -> codec.encodeRequest(this.request("ping")));
     }
 

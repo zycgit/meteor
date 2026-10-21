@@ -15,10 +15,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.ProtocolSession;
-import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.ChannelListener;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
@@ -37,6 +34,7 @@ import net.hasor.meteor.protocol.jsonrpc.codec.JsonRpcEnvelope;
 
 /** Correlates JSON-RPC calls with Dispatcher requests on the ordered network executor. */
 public final class JsonRpcSession implements ProtocolSession<HttpExchange> {
+    private final RouteMountIndex                        routes;
     private final ProtocolConfig                         config;
     private final NetworkChannel<HttpExchange>           http;
     private final ObjLongConsumer<Payload>               messages;
@@ -54,11 +52,12 @@ public final class JsonRpcSession implements ProtocolSession<HttpExchange> {
     public JsonRpcSession(ProtocolConfig config, ProtocolSessionContext context, NetworkChannel<HttpExchange> http, //
             ObjLongConsumer<Payload> messages) {
         this.config = config;
+        this.routes = context.routes();
         this.http = http;
         this.messages = messages;
         this.outbound = context.isOutbound();
         this.upgrade = StringUtils.equalsIgnoreCase(config.option("upgrade", ""), "websocket");
-        this.codec = new JsonRpcCodec(config, context.metContext());
+        this.codec = new JsonRpcCodec(config, this.routes, context.metContext());
     }
 
     @Override
@@ -73,7 +72,7 @@ public final class JsonRpcSession implements ProtocolSession<HttpExchange> {
         } else {
             // WebSocket 在配置的目录完成握手，之后每条消息沿用该目录的可见性。
             int version = this.config.integer("httpVersion", 1);
-            HttpExchange exchange = WebSocketHandshakeUtils.newExchange(this.config.contextPath(), version);
+            HttpExchange exchange = WebSocketHandshakeUtils.newExchange(this.routes.contextPath(), version);
             this.attach(exchange, null);
             this.http.write(exchange).onFinal(done -> {
                 if (done.isCancelled()) {
@@ -88,7 +87,7 @@ public final class JsonRpcSession implements ProtocolSession<HttpExchange> {
     @Override
     public void receive(HttpExchange exchange) {
         HttpRequest request = exchange.request();
-        RouteMount mount = request.route() == null ? this.config.matchContext(request.uri()) : request.route().mount();
+        RouteMount mount = request.route() == null ? this.routes.match(request.uri()) : request.route().mount();
         boolean get = StringUtils.equalsIgnoreCase(request.method(), "GET");
         boolean connect = StringUtils.equalsIgnoreCase(request.method(), "CONNECT");
         boolean http1Upgrade = get && StringUtils.equalsIgnoreCase(request.header("Upgrade"), "websocket");
@@ -237,7 +236,7 @@ public final class JsonRpcSession implements ProtocolSession<HttpExchange> {
         }
         byte[] body = this.codec.encodeRequest(request);
         String path = this.codec.requestPath(request);
-        if (this.upgrade && !StringUtils.equals(path, this.config.contextPath())) {
+        if (this.upgrade && !StringUtils.equals(path, this.routes.contextPath())) {
             throw new IllegalArgumentException("WebSocket service context must match its handshake context: " + path);
         }
 

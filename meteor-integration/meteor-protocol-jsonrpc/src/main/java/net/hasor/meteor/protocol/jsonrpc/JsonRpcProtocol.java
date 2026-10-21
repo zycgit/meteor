@@ -7,16 +7,18 @@
  */
 package net.hasor.meteor.protocol.jsonrpc;
 import java.util.function.ObjLongConsumer;
-import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.protocol.jsonrpc.codec.JsonRpcCodec;
 import net.hasor.meteor.protocol.jsonrpc.session.JsonRpcSession;
 
 /** JSON-RPC 2.0 uses HTTP or an upgraded WebSocket on the same transport SPI. */
-public final class JsonRpcProtocol implements ProtocolFactory<HttpExchange> {
+public final class JsonRpcProtocol implements ProtocolProvider<HttpExchange> {
     @Override
     public String name() {
         return "jsonrpc";
@@ -28,7 +30,7 @@ public final class JsonRpcProtocol implements ProtocolFactory<HttpExchange> {
     }
 
     @Override
-    public String defaultSerializeType() {
+    public String defaultSerialize() {
         return "Json";
     }
 
@@ -38,8 +40,8 @@ public final class JsonRpcProtocol implements ProtocolFactory<HttpExchange> {
     }
 
     @Override
-    public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
-        JsonRpcCodec.validateService(config, service);
+    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
+        return JsonRpcCodec.validateService(meta.getService()) ? config.build(null) : null;
     }
 
     @Override

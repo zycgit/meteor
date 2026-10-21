@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -328,7 +329,7 @@ public class JsonRpcEnvelopeTest {
 
     private JsonRpcCodec codec(Map<String, String> options) {
         ProtocolConfig protocol = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", options);
-        return new JsonRpcCodec(protocol, null);
+        return new JsonRpcCodec(protocol, new RouteMountIndex("http-0", protocol), null);
     }
 
     private byte[] bytes(String value) {

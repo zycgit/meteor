@@ -9,24 +9,9 @@ package net.hasor.meteor.protocol.jsonrpc.session;
 import net.hasor.meteor.protocol.jsonrpc.codec.JsonRpcCall;
 
 /** Associates one Dispatcher request with its original JSON-RPC batch position. */
-final class JsonRpcPendingCall {
-    private final JsonRpcResponseBatch batch;
-    private final int                  index;
-
-    JsonRpcPendingCall(JsonRpcResponseBatch batch, int index) {
-        this.batch = batch;
-        this.index = index;
-    }
-
-    JsonRpcResponseBatch batch() {
-        return this.batch;
-    }
+record JsonRpcPendingCall(JsonRpcResponseBatch batch, int index) {
 
     JsonRpcCall call() {
         return this.batch.envelope().calls().get(this.index);
-    }
-
-    int index() {
-        return this.index;
     }
 }

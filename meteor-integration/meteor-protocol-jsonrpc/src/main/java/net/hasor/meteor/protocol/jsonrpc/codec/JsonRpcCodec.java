@@ -12,7 +12,9 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Flow;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.*;
@@ -26,6 +28,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.ProtocolStatus;
@@ -45,13 +48,15 @@ public final class JsonRpcCodec {
             .nodeFactory(JsonNodeFactory.withExactBigDecimals(true)) //
             .build();
 
-    private final ProtocolConfig protocol;
-    private final MetContext     context;
-    private final int            maxMessageSize;
-    private final int            maxBatchCalls;
+    private final ProtocolConfig  protocol;
+    private final RouteMountIndex routes;
+    private final MetContext      context;
+    private final int             maxMessageSize;
+    private final int             maxBatchCalls;
 
-    public JsonRpcCodec(ProtocolConfig protocol, MetContext context) {
+    public JsonRpcCodec(ProtocolConfig protocol, RouteMountIndex routes, MetContext context) {
         this.protocol = protocol;
+        this.routes = routes;
         this.context = context;
         this.maxMessageSize = protocol.integer("maxMessageSize", 4 * 1024 * 1024);
         this.maxBatchCalls = protocol.integer("maxBatchCalls", 1024);
@@ -177,7 +182,7 @@ public final class JsonRpcCodec {
 
     private boolean visible(MetBindInfo<?> service, RouteMount mount) {
         boolean provider = service != null && service.getServiceType() == MetServiceType.Provider;
-        return provider && !service.isShadow() && this.protocol.accepts(service, mount);
+        return provider && !service.isShadow() && this.routes.accepts(service, mount);
     }
 
     private RequestPayload request(MetBindInfo<?> service, Method method, JsonNode params, boolean notification) {
@@ -214,27 +219,30 @@ public final class JsonRpcCodec {
         return request;
     }
 
-    /** 发布检查仅约束本协议无法表达的调用形态。 */
-    public static void validateService(ProtocolConfig protocol, MetBindInfo<?> service) {
-        if (!protocol.accepts(service.getBindProtocols())) {
-            return;
-        }
+    /** 检查接口是否能由 JSON-RPC 表达，不重复筛选服务的协议声明。 */
+    public static boolean validateService(MetBindInfo<?> service) {
         String alias = alias(service);
         boolean reservedAlias = StringUtils.equals(alias, "rpc") || StringUtils.startsWith(alias, "rpc.");
         if (StringUtils.isBlank(alias) || reservedAlias) {
-            throw new IllegalArgumentException("JSON-RPC service alias must be nonblank and outside rpc. namespace");
+            return false;
         }
+        // 与入站定位保持一致：方法名和参数数量必须能唯一确定一个入口。
+        Set<String> signatures = new HashSet<>();
         for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
-            String unsupported = "JSON-RPC does not support streaming method: " + method.getName();
-            if (Flow.Publisher.class.isAssignableFrom(method.getReturnType())) {
-                throw new IllegalArgumentException(unsupported);
+            if (method.isBridge() || method.isSynthetic()) {
+                continue;
+            }
+            String signature = method.getName() + "/" + method.getParameterCount();
+            if (!signatures.add(signature) || Flow.Publisher.class.isAssignableFrom(method.getReturnType())) {
+                return false;
             }
             for (Class<?> parameter : method.getParameterTypes()) {
                 if (Flow.Publisher.class.isAssignableFrom(parameter)) {
-                    throw new IllegalArgumentException(unsupported);
+                    return false;
                 }
             }
         }
+        return true;
     }
 
     private static String alias(MetBindInfo<?> service) {
@@ -265,7 +273,7 @@ public final class JsonRpcCodec {
     }
 
     public String requestPath(RequestPayload request) {
-        return this.protocol.contextPath(this.service(request));
+        return this.routes.contextPath(this.service(request));
     }
 
     public JsonNode encodeResponse(JsonRpcCall call, ResponsePayload response) {

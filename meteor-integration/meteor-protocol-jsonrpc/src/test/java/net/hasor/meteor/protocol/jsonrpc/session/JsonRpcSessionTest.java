@@ -48,7 +48,7 @@ public class JsonRpcSessionTest {
         ProtocolConfig config = configuration();
         assertEquals("jsonrpc", factory.name());
         assertEquals("http", factory.transportType());
-        assertEquals("Json", factory.defaultSerializeType());
+        assertEquals("Json", factory.defaultSerialize());
         assertEquals(HttpExchange.class, factory.messageType());
         assertEquals(RouteProbeResult.REJECT, factory.probe(config, exchange("{}")));
     }
@@ -56,7 +56,7 @@ public class JsonRpcSessionTest {
     @Test
     public void httpSessionBecomesReadyAfterConnected() throws Exception {
         // 创建不需要握手的 HTTP 会话。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = applicationConfiguration().buildContext()) {
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = session(context, network, received, true);
@@ -70,7 +70,7 @@ public class JsonRpcSessionTest {
     @Test
     public void notificationIsAcceptedOnlyAfterCompleteWrite() throws Exception {
         // 暂停物理写入，让消息调用停留在已提交但尚未写完的状态。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             network.writeResult = new BasicFuture<>();
@@ -96,7 +96,7 @@ public class JsonRpcSessionTest {
     @Test
     public void notificationWriteFailureNeverProducesAccept() throws Exception {
         // 使用仍未完成的物理写入，保留失败发生时的原始异常。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             network.writeResult = new BasicFuture<>();
@@ -117,7 +117,7 @@ public class JsonRpcSessionTest {
     @Test
     public void cancelledNotificationNeverProducesLateAccept() throws Exception {
         // 保留物理写入 Future，模拟用户在写完前取消 RPC。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             network.writeResult = new BasicFuture<>();
@@ -136,7 +136,7 @@ public class JsonRpcSessionTest {
     @Test
     public void cancellingNotificationSendCancelsItsPendingWrite() throws Exception {
         // 消息发送尚未写完，发送者取消自己持有的发送 Future。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             network.writeResult = new BasicFuture<>();
@@ -156,7 +156,7 @@ public class JsonRpcSessionTest {
     @Test
     public void cancelledRequestDiscardsLateResponse() throws Exception {
         // 发出普通调用并保留它对应的 HTTP 交换。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -176,7 +176,7 @@ public class JsonRpcSessionTest {
     @Test
     public void malformedResponseFailsOnlyItsRequest() throws Exception {
         // 在同一会话同时发出两个请求，验证损坏的响应没有串扰。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -198,7 +198,7 @@ public class JsonRpcSessionTest {
     @Test
     public void closeFailsOutstandingResponse() throws Exception {
         // 普通请求已写完，仍然等待远端响应。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -218,7 +218,7 @@ public class JsonRpcSessionTest {
     @Test
     public void drainResolvesUnansweredBatchBeforeWaitingForWrites() throws Exception {
         // 同一入站批次先完成一个业务结果，另一个业务仍未返回。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             network.writeResult = new BasicFuture<>();
@@ -248,7 +248,7 @@ public class JsonRpcSessionTest {
     @Test
     public void batchRepliesWaitForOnePhysicalWrite() throws Exception {
         // 两个入站请求共享一个批次，物理响应由测试控制完成时机。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             network.writeResult = new BasicFuture<>();
@@ -276,7 +276,7 @@ public class JsonRpcSessionTest {
     @Test
     public void cancellingOneBatchWaiterDoesNotCancelOtherReply() throws Exception {
         // 同一批次包含两个独立请求，先提交第一个业务结果。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             network.writeResult = new BasicFuture<>();
@@ -303,7 +303,7 @@ public class JsonRpcSessionTest {
     @Test
     public void closeReleasesPartiallyAnsweredBatch() throws Exception {
         // 只有第一个子调用生成结果，整批响应尚未达到写出条件。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             List<Payload> received = new ArrayList<>();
@@ -328,7 +328,7 @@ public class JsonRpcSessionTest {
     @Test
     public void closeReleasesBatchWhoseResponseIsStillWriting() throws Exception {
         // 两个业务都已完成，但唯一一次物理批次写入仍未结束。
-        try (MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext()) {
+        try (MetContext context = applicationConfiguration().setDefaultGroup("wire").buildContext()) {
             publish(context);
             MemoryNetwork network = new MemoryNetwork();
             network.writeResult = new BasicFuture<>();
@@ -359,6 +359,12 @@ public class JsonRpcSessionTest {
                 .register();
     }
 
+    private static MetConfiguration applicationConfiguration() {
+        MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("jsonrpc");
+        configuration.connector("http").protocol("jsonrpc").contextPath("/rpc");
+        return configuration;
+    }
+
     private static ProtocolConfig configuration() {
         return ProtocolConfig.newConfig("jsonrpc", "jsonrpc", Map.of("contextPath", "/rpc"));
     }
@@ -370,13 +376,14 @@ public class JsonRpcSessionTest {
             throw new AssertionError("JSON-RPC must use RPC request deadlines");
         };
         InterAddress address = new InterAddress("jsonrpc", "127.0.0.1", 8080, "default");
+        ProtocolConfig config = configuration();
         ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext( //
-                context, scheduler, address, outbound);
+                context, scheduler, address, outbound, config);
 
         // 通过协议工厂装配会话；内存通道只控制网络写入完成时机。
         JsonRpcProtocol factory = new JsonRpcProtocol();
         ProtocolSession<HttpExchange> session = factory.createSession( //
-                configuration(), runtime, network, (payload, id) -> received.add(payload));
+                config, runtime, network, (payload, id) -> received.add(payload));
         session.connected();
         return session;
     }

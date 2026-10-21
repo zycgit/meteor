@@ -9,21 +9,27 @@ package net.hasor.meteor.protocol.jsonrpc.codec;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Flow;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetIgnore;
 import net.hasor.meteor.MetMessage;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
+import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class JsonRpcBindingTest {
-    private MetContext     context;
-    private ProtocolConfig protocol;
-    private JsonRpcCodec   codec;
+    private MetContext      context;
+    private ProtocolConfig  protocol;
+    private RouteMountIndex routes;
+    private JsonRpcCodec    codec;
 
     @Before
     public void prepareServiceMetadata() throws Exception {
@@ -35,7 +41,8 @@ public class JsonRpcBindingTest {
                 }) //
                 .name("Methods").aliasName("jsonrpc", "math").register();
         this.protocol = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", Map.of("contextPath", "/rpc"));
-        this.codec = new JsonRpcCodec(this.protocol, this.context);
+        this.routes = new RouteMountIndex("http-1", this.protocol);
+        this.codec = new JsonRpcCodec(this.protocol, this.routes, this.context);
     }
 
     @After
@@ -160,7 +167,7 @@ public class JsonRpcBindingTest {
         // 端点绑定指定服务后，线协议方法名无需服务前缀。
         ProtocolConfig scoped = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", //
                 Map.of("contextPath", "/rpc", "service", "math"));
-        this.codec = new JsonRpcCodec(scoped, this.context);
+        this.codec = new JsonRpcCodec(scoped, new RouteMountIndex("http-1", scoped), this.context);
         JsonRpcCall call = this.decode("add", "[1,2]", "7");
         assertNotNull(call.request());
     }
@@ -193,6 +200,22 @@ public class JsonRpcBindingTest {
     }
 
     @Test
+    public void rejectedProtocolDoesNotExposeOrdinaryMethods() {
+        // 接口仍由 RSF 接受，但持续输出使整个接口不属于 JSON-RPC。
+        MetBindInfo<StreamingMethods> service = this.context.publisher() //
+                .rsfService(StreamingMethods.class, new StreamingMethods() {
+                }) //
+                .name("rejected").register();
+        ServiceDomain<?> domain = MetBindInfoWrap.unwrap(service);
+        assertNull(domain.getProtocolMeta("jsonrpc"));
+
+        // 同接口中的普通方法也不能绕过协议接受结果进入 Dispatcher。
+        JsonRpcCall call = this.decode("rejected.ping", null, "7");
+        assertNull(call.request());
+        assertEquals(-32601, call.response().path("error").path("code").intValue());
+    }
+
+    @Test
     public void serviceOutsideSelectedContextIsNotVisible() {
         // 默认挂载点不能访问另一个显式上下文发布的服务。
         this.context.publisher().rsfService(Fallback.class, new Fallback() {
@@ -208,7 +231,7 @@ public class JsonRpcBindingTest {
         String body = "[{\"jsonrpc\":\"2.0\",\"method\":\"math.ping\",\"id\":1},";
         body += "{\"jsonrpc\":\"2.0\",\"method\":\"math.ping\"},false]";
         JsonRpcEnvelope envelope = this.codec.decodeRequest(body.getBytes(StandardCharsets.UTF_8), //
-                this.protocol.matchContext("/rpc"));
+                this.routes.match("/rpc"));
 
         // 只有通知不占用响应，错误项保留自己的位置。
         assertTrue(envelope.batch());
@@ -328,13 +351,19 @@ public class JsonRpcBindingTest {
     }
 
     @Test
-    public void sameArityOverloadsAreRejectedDeterministically() {
-        // 该输入只验证一个方法解析或参数绑定边界。
-        JsonRpcCall call = this.decode("math.overload", "[1]", "7");
+    public void sameArityOverloadsAreRejectedBeforeRequestsCanReachThem() {
+        // 通过正式发布入口登记重载服务；RSF 可接受，JSON-RPC 拒绝整个接口。
+        MetBindInfo<SameArityOverloads> service = this.context.publisher() //
+                .rsfService(SameArityOverloads.class, new SameArityOverloads() {
+                }) //
+                .name("overloaded").register();
+        ServiceDomain<?> domain = MetBindInfoWrap.unwrap(service);
+        assertNull(domain.getProtocolMeta("jsonrpc"));
 
-        // 错误保留请求 ID，不进入 Dispatcher。
+        // 未被协议接受的接口不能等到调用时才表现为参数歧义。
+        JsonRpcCall call = this.decode("overloaded.select", "[1]", "7");
         assertNull(call.request());
-        assertEquals(-32602, call.response().path("error").path("code").intValue());
+        assertEquals(-32601, call.response().path("error").path("code").intValue());
         assertEquals(7, call.response().path("id").intValue());
     }
 
@@ -380,7 +409,7 @@ public class JsonRpcBindingTest {
             body += ",\"id\":" + id;
         }
         byte[] bytes = (body + "}").getBytes(StandardCharsets.UTF_8);
-        return this.codec.decodeRequest(bytes, this.protocol.matchContext("/rpc")).calls().get(0);
+        return this.codec.decodeRequest(bytes, this.routes.match("/rpc")).calls().get(0);
     }
 
     public interface Methods {
@@ -400,14 +429,6 @@ public class JsonRpcBindingTest {
         default void notice(String value) {
         }
 
-        default int overload(int value) {
-            return value;
-        }
-
-        default int overload(String value) {
-            return value.length();
-        }
-
         default int arity(int first) {
             return first;
         }
@@ -422,6 +443,26 @@ public class JsonRpcBindingTest {
         }
 
         static void staticMethod() {
+        }
+    }
+
+    public interface SameArityOverloads {
+        default int select(int value) {
+            return value;
+        }
+
+        default int select(String value) {
+            return value.length();
+        }
+    }
+
+    public interface StreamingMethods {
+        default String ping() {
+            return "pong";
+        }
+
+        default Flow.Publisher<String> stream() {
+            return null;
         }
     }
 
