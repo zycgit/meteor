@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.connector;
 import java.util.Objects;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Resolved protocol configuration and provider bound to one endpoint mount. */
 final class ProtocolMountBinding<M> {

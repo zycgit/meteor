@@ -17,7 +17,7 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.bootstrap.MetConfiguration.ProtocolSettings;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Resolves configuration inputs and transfers each initialized context to its caller. */
 final class MetContextFactory {

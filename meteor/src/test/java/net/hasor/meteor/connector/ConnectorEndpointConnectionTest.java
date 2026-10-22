@@ -20,6 +20,7 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.example.connector.protocol.RawSocketTestProtocol;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -271,7 +272,7 @@ public class ConnectorEndpointConnectionTest {
 
         private ConnectionFixture() throws Exception {
             // 使用真实的端点组装对象，替换传输时序和协议握手，避免依赖线程调度或休眠。
-            ProtocolConfig protocol = new ProtocolConfig("rawprotocol", "raw", Map.of("serializeType", "Java"));
+            ProtocolConfig protocol = ProtocolConfig.newConfig("rawprotocol", "raw", Map.of("serializeType", "Java"));
             InterAddress local = InterAddress.forBinding("tcp", "127.0.0.1", 0, "test");
             ConnectorConfig config = new ConnectorConfig("client", local, Map.of(), List.of(protocol), false);
             this.manager = EndpointFixture.manager(config);

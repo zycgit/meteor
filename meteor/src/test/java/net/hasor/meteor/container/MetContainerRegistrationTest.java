@@ -71,6 +71,24 @@ public class MetContainerRegistrationTest {
     }
 
     @Test
+    public void builderOverridesLeaveTheSameInterfacesDefaultRegistrationUnchanged() {
+        // 首份注册覆盖公共注解的全部配置，不改变后续注册读取的声明。
+        MetBindInfo<AnnotatedEcho> custom = this.publisher.rsfService(AnnotatedEcho.class) //
+                .group("custom").name("renamed").version("3") //
+                .timeout(2500).serialize("Java").register();
+        MetBindInfo<AnnotatedEcho> declared = this.publisher.rsfService(AnnotatedEcho.class).register();
+
+        // 同一接口的两份注册分别保留自己的最终值，按类型查询仍选择默认坐标。
+        assertEquals("[custom]renamed-3", custom.getBindID());
+        assertEquals(2500, custom.getClientTimeout());
+        assertEquals("Java", custom.getSerializeType());
+        assertEquals("[group]echo-2", declared.getBindID());
+        assertEquals(1200, declared.getClientTimeout());
+        assertEquals("Json", declared.getSerializeType());
+        assertEquals(declared.getBindID(), this.container.getRsfBindInfo(AnnotatedEcho.class).getBindID());
+    }
+
+    @Test
     public void builderOverridesIdentityTimeoutAndSerializationDefaults() {
         // 显式设置坐标、超时和序列化方式，覆盖配置默认值。
         var builder = this.publisher.rsfService(Echo.class);

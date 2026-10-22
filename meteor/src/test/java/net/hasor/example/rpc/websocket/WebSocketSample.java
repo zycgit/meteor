@@ -6,7 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.rpc.websocket;
-import net.hasor.meteor.MetMessage;
+import net.hasor.meteor.annotation.MetMessage;
 
 /** 普通业务接口；不感知 WebSocket 握手或帧。 */
 public interface WebSocketSample {

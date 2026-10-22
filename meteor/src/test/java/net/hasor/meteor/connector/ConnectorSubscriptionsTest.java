@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -146,7 +147,7 @@ public class ConnectorSubscriptionsTest {
     private ConnectorConfig config() {
         Map<String, String> options = new HashMap<>();
         options.put("workerThread", "1");
-        ProtocolConfig protocol = new ProtocolConfig("wirea", "a", Collections.emptyMap());
+        ProtocolConfig protocol = ProtocolConfig.newConfig("wirea", "a", Collections.emptyMap());
         InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "test");
         return new ConnectorConfig("subscriptions", address, options, List.of(protocol), true);
     }

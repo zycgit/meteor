@@ -11,6 +11,7 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.TransportFactory;
 import net.hasor.meteor.connector.transport.TransportPlan;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Discovers connector SPIs and compiles immutable startup plans without allocating network resources. */
 final class PlanCompiler {

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -53,7 +54,7 @@ public class ServiceRouteMountsTest {
         Set<String> originalPaths = snapshot.get("httpa").getContextPath().getPaths();
         assertEquals(Set.of("/orders", "/inventory"), originalPaths);
         ContextPath otherPaths = new ContextPath(Set.of("/other"), false);
-        ProtocolMeta other = new ProtocolMeta(service, otherPaths, Map.of());
+        ProtocolMeta other = new ProtocolMeta(service, otherPaths, null, Map.of());
         assertThrows(UnsupportedOperationException.class, () -> snapshot.put("httpb", other));
         assertThrows(UnsupportedOperationException.class, () -> originalPaths.add("/other"));
 

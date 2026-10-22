@@ -11,6 +11,7 @@ import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.function.Supplier;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.annotation.MetMessage;
 
 /**
  * 服务配置器
@@ -152,8 +153,8 @@ public interface MetPublisher {
          */
         ConfigurationBuilder<T> serialize(String serializeType);
 
-        /** 绑定协议扩展使用的本地资源；null 表示不绑定，框架不解析或传输该对象。 */
-        ConfigurationBuilder<T> bindResource(Object bindResource);
+        /** 按非空协议 SPI 名称设置或覆盖本地契约资源；null 表示清空，框架不解析或传输该对象。 */
+        ConfigurationBuilder<T> bindResource(String protocol, Object bindResource);
 
         /**
          * 按 SPI 名称选择服务暴露的协议，忽略大小写；未设置时覆盖所有已配置协议接入点。

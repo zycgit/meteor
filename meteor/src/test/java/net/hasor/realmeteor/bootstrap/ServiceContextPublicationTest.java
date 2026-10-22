@@ -11,14 +11,133 @@ import java.util.Set;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetPublisher;
+import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 /** 验证公开配置及服务发布入口，不启动网络监听器。 */
 public class ServiceContextPublicationTest {
+    @MetService(name = " ", group = "\t", version = " ", serializeType = " ", clientTimeout = 0)
+    public interface BlankAnnotatedService extends Runnable {
+    }
+
+    @Test
+    public void sameInterfaceRegistrationsKeepIndependentConfiguration() throws Exception {
+        // 只配置出站通道，先启动容器，再分别注册同一接口的两套配置。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("tcp").protocol("rsf");
+        try (MetContext context = configuration.buildContext()) {
+            context.start();
+            MetBindInfo<Runnable> first = context.publisher().rsfService(Runnable.class) //
+                    .group("first").name("task").version("1") //
+                    .timeout(1200).serialize("Json").asMessage().register();
+            MetBindInfo<Runnable> second = context.publisher().rsfService(Runnable.class) //
+                    .group("second").name("task").version("2") //
+                    .timeout(2400).serialize("Java").register();
+
+            // 后注册的身份、调用选项和消息模式不会覆盖前一份注册。
+            assertEquals("[first]task-1", first.getBindID());
+            assertEquals(1200, first.getClientTimeout());
+            assertEquals("Json", first.getSerializeType());
+            assertTrue(first.isMessage());
+            assertEquals("[second]task-2", second.getBindID());
+            assertEquals(2400, second.getClientTimeout());
+            assertEquals("Java", second.getSerializeType());
+            assertFalse(second.isMessage());
+            assertEquals(2, context.getServiceIDs().size());
+        }
+    }
+
+    @Test
+    public void sameInterfaceUsesTheDefaultsOfEachContext() throws Exception {
+        // 同一接口可用于两个配置不同的实例，共享声明不共享最终注册值。
+        MetConfiguration firstConfig = new MetConfiguration();
+        firstConfig.setDefaultGroup("first").setDefaultVersion("1").setRequestTimeout(1500);
+        firstConfig.connector("tcp").protocol("rsf");
+        MetConfiguration secondConfig = new MetConfiguration();
+        secondConfig.setDefaultGroup("second").setDefaultVersion("2").setRequestTimeout(2500);
+        secondConfig.connector("tcp").protocol("rsf");
+
+        try (MetContext first = firstConfig.buildContext(); //
+             MetContext second = secondConfig.buildContext()) {
+            first.start();
+            second.start();
+            MetBindInfo<Runnable> firstService = first.publisher().rsfService(Runnable.class).register();
+            MetBindInfo<Runnable> secondService = second.publisher().rsfService(Runnable.class).register();
+
+            // 各自按类型查询时仍使用自身配置的默认坐标。
+            assertEquals("[first]java.lang.Runnable-1", firstService.getBindID());
+            assertEquals(1500, firstService.getClientTimeout());
+            assertEquals("[second]java.lang.Runnable-2", secondService.getBindID());
+            assertEquals(2500, secondService.getClientTimeout());
+            assertEquals(firstService.getBindID(), first.getServiceInfo(Runnable.class).getBindID());
+            assertEquals(secondService.getBindID(), second.getServiceInfo(Runnable.class).getBindID());
+        }
+    }
+
+    @Test
+    public void requestTimeoutTakesPrecedenceOverTheGlobalDefault() throws Exception {
+        // 未声明接口超时时，优先使用当前容器的请求超时。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.setRequestTimeout(1500).setDefaultTimeout(7000);
+        configuration.connector("tcp").protocol("rsf");
+        try (MetContext context = configuration.buildContext()) {
+            context.start();
+            MetBindInfo<Runnable> service = context.publisher().rsfService(Runnable.class).register();
+            assertEquals(1500, service.getClientTimeout());
+        }
+    }
+
+    @Test
+    public void zeroRequestTimeoutFallsBackToTheGlobalDefault() throws Exception {
+        // 零表示没有指定请求超时，最终值从全局默认超时取得。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.setRequestTimeout(0).setDefaultTimeout(7000);
+        configuration.connector("tcp").protocol("rsf");
+        try (MetContext context = configuration.buildContext()) {
+            context.start();
+            MetBindInfo<Runnable> service = context.publisher().rsfService(Runnable.class).register();
+            assertEquals(7000, service.getClientTimeout());
+        }
+    }
+
+    @Test
+    public void negativeRequestTimeoutFallsBackToTheGlobalDefault() throws Exception {
+        // 负值同样表示未指定请求超时，不能保留模型原有的硬编码超时。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.setRequestTimeout(-1).setDefaultTimeout(7000);
+        configuration.connector("tcp").protocol("rsf");
+        try (MetContext context = configuration.buildContext()) {
+            context.start();
+            MetBindInfo<Runnable> service = context.publisher().rsfService(Runnable.class).register();
+            assertEquals(7000, service.getClientTimeout());
+        }
+    }
+
+    @Test
+    public void blankAnnotationValuesUseTheContextsDefaults() throws Exception {
+        // 空白声明按未指定处理，坐标和调用选项采用当前容器的默认值。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.setDefaultGroup("configured").setDefaultVersion("7").setRequestTimeout(2300);
+        configuration.connector("tcp").protocol("rsf");
+        try (MetContext context = configuration.buildContext()) {
+            context.start();
+            MetBindInfo<BlankAnnotatedService> service = context.publisher() //
+                    .rsfService(BlankAnnotatedService.class).register();
+
+            // 按类型查询沿用同一份合并规则，编码器仍留给协议端点决定。
+            assertEquals("configured", service.getBindGroup());
+            assertEquals(BlankAnnotatedService.class.getName(), service.getBindName());
+            assertEquals("7", service.getBindVersion());
+            assertEquals(2300, service.getClientTimeout());
+            assertNull(service.getSerializeType());
+            assertEquals(service.getBindID(), context.getServiceInfo(BlankAnnotatedService.class).getBindID());
+        }
+    }
+
     @Test
     public void additionalContextsLeaveAutomaticDefaultAtRoot() throws Exception {
         // 单个 HTTP 协议增加可选上下文，不改变原本自动确定的根路径默认值。

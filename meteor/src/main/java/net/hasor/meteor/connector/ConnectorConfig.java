@@ -8,6 +8,7 @@
 package net.hasor.meteor.connector;
 import java.util.*;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** 固定的连接端点及协议挂载，协议参数在启动前完成准备。 */
 public final class ConnectorConfig {
@@ -26,7 +27,8 @@ public final class ConnectorConfig {
 
         Map<String, ProtocolConfig> routes = new LinkedHashMap<>();
         for (ProtocolConfig protocol : protocols) {
-            ProtocolConfig previous = routes.putIfAbsent(protocol.name(), protocol.snapshot());
+            ProtocolConfig snapshot = ProtocolConfig.newConfig(protocol.name(), protocol.scheme(), protocol.options());
+            ProtocolConfig previous = routes.putIfAbsent(protocol.name(), snapshot);
             if (previous != null) {
                 throw new IllegalArgumentException(//
                         "Duplicate protocol on endpoint " + name + ": " + protocol.name());

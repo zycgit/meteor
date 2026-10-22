@@ -19,6 +19,7 @@ import net.hasor.meteor.connector.transport.ChannelListenerFactory;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.NetworkConnector;
 import net.hasor.meteor.connector.transport.NetworkListen;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 
 /** Owns one configured endpoint, its listeners, transport connections and protocol channels. */

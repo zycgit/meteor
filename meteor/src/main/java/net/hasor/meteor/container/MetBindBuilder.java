@@ -10,18 +10,21 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.*;
+import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetFilter;
+import net.hasor.meteor.MetPublisher;
+import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.RouteTypeEnum;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.ContextPath;
 import net.hasor.meteor.domain.MetServiceType;
-import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /**
  * 服务注册器
@@ -85,16 +88,7 @@ final class MetBindBuilder implements MetPublisher {
         private final ServiceDefine<T> serviceDefine;
 
         private LinkedBuilderImpl(Class<T> serviceType) {
-            this.serviceDefine = new ServiceDefine<T>(serviceType);
-            MetSettings settings = MetBindBuilder.this.getSettings();
-            MetService serviceInfo = new AnnoMetServiceValue(settings, serviceType);
-            ServiceDomain<T> domain = this.serviceDefine.getDomain();
-            domain.setServiceType(MetServiceType.Consumer);
-            domain.setBindGroup(serviceInfo.group());
-            domain.setBindName(serviceInfo.name());
-            domain.setBindVersion(serviceInfo.version());
-            domain.setSerializeType(serviceInfo.serializeType());
-            domain.setClientTimeout(serviceInfo.clientTimeout());
+            this.serviceDefine = MetBindBuilder.this.container.createServiceDefine(serviceType);
         }
 
         @Override
@@ -160,8 +154,9 @@ final class MetBindBuilder implements MetPublisher {
         }
 
         @Override
-        public ConfigurationBuilder<T> bindResource(Object bindResource) {
-            this.serviceDefine.getDomain().setBindResource(bindResource);
+        public ConfigurationBuilder<T> bindResource(String protocol, Object bindResource) {
+            String name = this.protocolSelector(protocol);
+            this.serviceDefine.getDomain().setBindResource(name, bindResource);
             return this;
         }
 
@@ -185,9 +180,7 @@ final class MetBindBuilder implements MetPublisher {
             List<String> paths = new ArrayList<>(additionalContextPaths.length + 1);
             // 保持声明顺序；所选路径不含挂载默认目录时，出站使用首项。
             paths.add(defaultContextPath);
-            for (String additionalPath : additionalContextPaths) {
-                paths.add(additionalPath);
-            }
+            Collections.addAll(paths, additionalContextPaths);
 
             String protocolName = this.protocolSelector(protocol);
             ContextPath context = new ContextPath(paths, false);
@@ -201,9 +194,7 @@ final class MetBindBuilder implements MetPublisher {
             List<String> paths = new ArrayList<>(additionalPaths.length + 1);
             // 首项用作出站默认精确地址，其余地址必须按声明顺序追加。
             paths.add(path);
-            for (String additionalPath : additionalPaths) {
-                paths.add(additionalPath);
-            }
+            Collections.addAll(paths, additionalPaths);
 
             String protocolName = this.protocolSelector(protocol);
             ContextPath context = new ContextPath(paths, true);

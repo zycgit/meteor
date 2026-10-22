@@ -21,6 +21,7 @@ import net.hasor.example.connector.protocol.EndpointTestProtocols.*;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -520,8 +521,8 @@ public class EndpointRoutingTest {
             secondOptions = Map.of("contextPath", "/b///");
         }
 
-        ProtocolConfig first = new ProtocolConfig(firstProtocol, firstScheme, firstOptions);
-        ProtocolConfig second = new ProtocolConfig(secondProtocol, secondScheme, secondOptions);
+        ProtocolConfig first = ProtocolConfig.newConfig(firstProtocol, firstScheme, firstOptions);
+        ProtocolConfig second = ProtocolConfig.newConfig(secondProtocol, secondScheme, secondOptions);
         // UDP 要求显式非零监听端口；TCP 和 HTTP 仍由 bind 分配端口。
         int port = 0;
         if (StringUtils.equals(transport, "udp")) {
@@ -539,8 +540,8 @@ public class EndpointRoutingTest {
     private static ConnectorConfig rsfEndpointConfig(String alternateProtocol) {
         Map<String, String> options = new HashMap<>();
         options.put("workerThread", "1");
-        ProtocolConfig rsf = new ProtocolConfig("rsf", "rsf", Map.of());
-        ProtocolConfig other = new ProtocolConfig(alternateProtocol, "b", Map.of());
+        ProtocolConfig rsf = ProtocolConfig.newConfig("rsf", "rsf", Map.of());
+        ProtocolConfig other = ProtocolConfig.newConfig(alternateProtocol, "b", Map.of());
         InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "test");
         return new ConnectorConfig("shared", address, options, Arrays.asList(rsf, other), true);
     }

@@ -9,6 +9,7 @@ package net.hasor.meteor.domain;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,7 +17,8 @@ import java.util.concurrent.ConcurrentMap;
 import net.hasor.cobble.ClassUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
-import net.hasor.meteor.MetIgnore;
+import net.hasor.meteor.domain.meta.MethodMeta;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 
 /**
  *
@@ -28,6 +30,19 @@ public class MetRuntimeUtils {
     private static final ConcurrentMap<Class<?>, ConcurrentMap<String, Method>> methodCache = new ConcurrentHashMap<>();
 
     private MetRuntimeUtils() {
+    }
+
+    /** 读取公共描述中的远程名称，Dispatcher 继续使用原始 Java 方法签名。 */
+    public static String getProtocolMethodName(Method method) {
+        return ServiceMetaParser.method(method).getName();
+    }
+
+    public static String getProtocolParameterName(Parameter parameter) {
+        return ServiceMetaParser.parameter(parameter).getName();
+    }
+
+    public static String getProtocolTypeName(Class<?> type) {
+        return ServiceMetaParser.type(type).getName();
     }
 
     /**使用指定的ClassLoader将一个asm类型转化为Class对象。*/
@@ -109,10 +124,8 @@ public class MetRuntimeUtils {
     /** 获取发布类型允许暴露的公开实例方法，包括继承的方法。 */
     public static Method[] getServiceMethods(Class<?> serviceType) {
         List<Method> methods = new ArrayList<>();
-        for (Method method : serviceType.getMethods()) {
-            if (isServiceMethod(method)) {
-                methods.add(method);
-            }
+        for (MethodMeta method : ServiceMetaParser.parse(serviceType).getMethods()) {
+            methods.add(method.getJavaMethod());
         }
         return methods.toArray(Method[]::new);
     }
@@ -121,7 +134,7 @@ public class MetRuntimeUtils {
         int modifiers = method.getModifiers();
         boolean instanceMethod = Modifier.isPublic(modifiers) && !Modifier.isStatic(modifiers);
         boolean objectMethod = method.getDeclaringClass() == Object.class;
-        return instanceMethod && !objectMethod && !method.isAnnotationPresent(MetIgnore.class);
+        return instanceMethod && !objectMethod && !ServiceMetaParser.method(method).isIgnored();
     }
 
     /** 查找可调用的服务方法，被忽略的方法与非服务方法不进入缓存。 */

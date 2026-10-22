@@ -12,6 +12,7 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Protocol-scoped network channel. An isolated close leaves sibling protocol channels open. */
 final class ProtocolNetworkChannel<M> implements NetworkChannel<M> {

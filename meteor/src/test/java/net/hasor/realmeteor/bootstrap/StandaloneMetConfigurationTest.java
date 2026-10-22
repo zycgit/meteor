@@ -17,7 +17,7 @@ import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import net.hasor.meteor.serialize.coder.JsonSerializeCoder;
 import org.junit.Test;

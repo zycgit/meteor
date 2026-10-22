@@ -18,6 +18,7 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.*;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static org.junit.Assert.*;

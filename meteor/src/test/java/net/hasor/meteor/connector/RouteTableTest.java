@@ -8,6 +8,7 @@
 package net.hasor.meteor.connector;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -127,7 +128,7 @@ public class RouteTableTest {
     }
 
     private RouteDefinition<String> route(String contextPath) {
-        ProtocolConfig config = new ProtocolConfig("test", "test", Map.of("contextPath", contextPath));
+        ProtocolConfig config = ProtocolConfig.newConfig("test", "test", Map.of("contextPath", contextPath));
         RouteMountIndex mounts = new RouteMountIndex("unit", config);
         return new RouteDefinition<>(Map.of(), mounts, message -> RouteProbeResult.MATCH);
     }

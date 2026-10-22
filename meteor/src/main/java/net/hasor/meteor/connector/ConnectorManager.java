@@ -28,6 +28,7 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.transport.SocketRuntime;
 import net.hasor.meteor.connector.transport.TransportRuntimeServices;
 import net.hasor.meteor.domain.MetException;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 

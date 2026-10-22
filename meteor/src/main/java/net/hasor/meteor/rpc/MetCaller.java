@@ -26,8 +26,8 @@ import net.hasor.meteor.address.provider.AddressProvider;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ConnectorManager;
 import net.hasor.meteor.connector.MetChannel;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.*;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -143,7 +143,7 @@ public final class MetCaller implements AutoCloseable {
         request.setPeerAddress(targetAddress);
         request.setFlags(flags);
         request.setSerializeType(bindInfo.getSerializeType());
-        request.setMessage(bindInfo.isMessage() || targetMethod.isAnnotationPresent(MetMessage.class));
+        request.setMessage(bindInfo.isMessage() || ServiceMetaParser.method(targetMethod).isMessage());
         request.setTimeout(this.timeout(bindInfo.getClientTimeout()));
 
         // 创建时复制默认选项，后续由调用方覆盖或删除。

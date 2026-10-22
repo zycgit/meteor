@@ -14,13 +14,17 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolProvider;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -41,8 +45,8 @@ public class TextProtocol implements TestHttpCodec, ProtocolProvider<HttpExchang
     }
 
     @Override
-    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
-        return config.build(null);
+    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        return meta.build(config, null);
     }
 
     public Class<HttpExchange> messageType() {

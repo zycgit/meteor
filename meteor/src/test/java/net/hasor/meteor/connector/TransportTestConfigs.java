@@ -9,6 +9,7 @@ package net.hasor.meteor.connector;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.hasor.meteor.connector.transport.TransportConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Builds the immutable transport view used by direct transport tests. */
 public final class TransportTestConfigs {

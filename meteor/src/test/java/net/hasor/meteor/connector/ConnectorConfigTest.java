@@ -8,6 +8,7 @@
 package net.hasor.meteor.connector;
 import java.util.*;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -17,7 +18,7 @@ public class ConnectorConfigTest {
         // 端点地址声明底层传输，普通选项不再携带连接器身份。
         Map<String, String> options = new HashMap<>();
         options.put("workerThread", "1");
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", Collections.emptyMap());
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "rsf", Collections.emptyMap());
         InterAddress address = EndpointFixture.address("tcp");
         List<ProtocolConfig> protocols = Collections.singletonList(protocol);
         ConnectorConfig config = new ConnectorConfig("endpoint", address, options, protocols, false);
@@ -32,7 +33,7 @@ public class ConnectorConfigTest {
         // 挂载协议复制可变选项，再加入连接器配置。
         Map<String, String> protocolOptions = new HashMap<>();
         protocolOptions.put("maxFrameSize", "1024");
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "RSF", protocolOptions);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "RSF", protocolOptions);
         InterAddress address = EndpointFixture.address("tcp");
         Map<String, String> options = Map.of();
         List<ProtocolConfig> protocols = Collections.singletonList(protocol);
@@ -47,7 +48,7 @@ public class ConnectorConfigTest {
     @Test
     public void mountedProtocolsSnapshotIsDetachedFromItsBuilder() {
         // 使用可变列表提供协议挂载。
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", Collections.emptyMap());
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "rsf", Collections.emptyMap());
         List<ProtocolConfig> protocols = new ArrayList<>(Collections.singletonList(protocol));
         InterAddress address = EndpointFixture.address("tcp");
         Map<String, String> options = Map.of();
@@ -63,7 +64,7 @@ public class ConnectorConfigTest {
     @Test
     public void mountedProtocolsAreReadOnly() {
         // 配置快照公开协议挂载集合。
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", Collections.emptyMap());
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "rsf", Collections.emptyMap());
         InterAddress address = EndpointFixture.address("tcp");
         Map<String, String> options = Map.of();
         List<ProtocolConfig> protocols = Collections.singletonList(protocol);
@@ -78,7 +79,7 @@ public class ConnectorConfigTest {
     public void protocolOptionsAreReadOnly() {
         // 协议配置公开自己的选项快照。
         Map<String, String> options = Map.of("maxFrameSize", "1024");
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "RSF", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "RSF", options);
         Map<String, String> exposed = protocol.options();
 
         // 协议选项禁止调用方直接修改。
@@ -102,8 +103,8 @@ public class ConnectorConfigTest {
     @Test
     public void duplicatePublishedSchemesAreIndexedByDistinctProtocolNames() {
         // 同一个端点可以通过完整路由区分具有相同公开 scheme 的协议挂载。
-        ProtocolConfig first = new ProtocolConfig("first", "rsf", Collections.emptyMap());
-        ProtocolConfig second = new ProtocolConfig("second", "RSF", Collections.emptyMap());
+        ProtocolConfig first = ProtocolConfig.newConfig("first", "rsf", Collections.emptyMap());
+        ProtocolConfig second = ProtocolConfig.newConfig("second", "RSF", Collections.emptyMap());
         List<ProtocolConfig> protocols = Arrays.asList(first, second);
         InterAddress address = EndpointFixture.address("tcp");
         Map<String, String> options = Map.of();
@@ -120,8 +121,8 @@ public class ConnectorConfigTest {
     @Test
     public void duplicateProtocolNamesOnOneEndpointAreRejected() {
         // 一个协议挂载已经可以声明多个 HTTP 上下文，同一端点无需重复挂载同一协议。
-        ProtocolConfig first = new ProtocolConfig("orders", "http", Collections.emptyMap());
-        ProtocolConfig second = new ProtocolConfig("ORDERS", "https", Collections.emptyMap());
+        ProtocolConfig first = ProtocolConfig.newConfig("orders", "http", Collections.emptyMap());
+        ProtocolConfig second = ProtocolConfig.newConfig("ORDERS", "https", Collections.emptyMap());
         InterAddress address = EndpointFixture.address("http");
         Map<String, String> options = Map.of();
 
@@ -136,8 +137,8 @@ public class ConnectorConfigTest {
     @Test
     public void sharedPublishedSchemeDoesNotSelectAProtocol() {
         // 两个挂载共享同一个公开 scheme，协议身份仍由各自名字确定。
-        ProtocolConfig first = new ProtocolConfig("first", "shared", Collections.emptyMap());
-        ProtocolConfig second = new ProtocolConfig("second", "shared", Collections.emptyMap());
+        ProtocolConfig first = ProtocolConfig.newConfig("first", "shared", Collections.emptyMap());
+        ProtocolConfig second = ProtocolConfig.newConfig("second", "shared", Collections.emptyMap());
         InterAddress address = EndpointFixture.address("tcp");
         Map<String, String> options = Map.of();
         ConnectorConfig config = new ConnectorConfig("endpoint", address, options, List.of(first, second), true);
@@ -149,7 +150,7 @@ public class ConnectorConfigTest {
     @Test
     public void sameProtocolNameOnDifferentEndpointsKeepsIndependentPreparationState() {
         // 两个端点使用同一份协议输入，各自复制准备阶段的上下文选项。
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsf", Map.of("contextPath", "/original"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "rsf", Map.of("contextPath", "/original"));
         InterAddress address = EndpointFixture.address("tcp");
         ConnectorConfig first = new ConnectorConfig("first", address, Map.of(), List.of(protocol), false);
         ConnectorConfig second = new ConnectorConfig("second", address, Map.of(), List.of(protocol), false);
@@ -167,7 +168,7 @@ public class ConnectorConfigTest {
     @Test
     public void publishedSchemeCannotSelectTheOnlyProtocol() {
         // 单个协议的公开地址前缀与 SPI 名字不同。
-        ProtocolConfig protocol = new ProtocolConfig("rsf", "rsfs", Map.of());
+        ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "rsfs", Map.of());
         InterAddress address = EndpointFixture.address("tcp");
         ConnectorConfig config = new ConnectorConfig("endpoint", address, Map.of(), List.of(protocol), false);
 
@@ -178,8 +179,8 @@ public class ConnectorConfigTest {
     @Test
     public void protocolNameCannotSelectAnotherProtocolsScheme() {
         // 首个协议的地址前缀恰好等于另一个协议的名字。
-        ProtocolConfig first = new ProtocolConfig("first", "second", Map.of());
-        ProtocolConfig second = new ProtocolConfig("second", "http", Map.of());
+        ProtocolConfig first = ProtocolConfig.newConfig("first", "second", Map.of());
+        ProtocolConfig second = ProtocolConfig.newConfig("second", "http", Map.of());
         InterAddress address = EndpointFixture.address("http");
         ConnectorConfig config = new ConnectorConfig("endpoint", address, Map.of(), List.of(first, second), false);
 

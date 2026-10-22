@@ -23,6 +23,7 @@ import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.connector.transport.tcp.TcpTransportFactory;
 import net.hasor.meteor.connector.transport.udp.UdpTransportFactory;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;

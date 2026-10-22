@@ -15,17 +15,22 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolProvider;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
+import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 
 /** 用最小报文观察协议选择、共享端口和通道生命周期。 */
 public final class EndpointTestProtocols {
@@ -64,7 +69,7 @@ public final class EndpointTestProtocols {
         }
 
         @Override
-        public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
+        public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
             // 显式故障撤销本次登记；普通能力拒绝只影响当前协议端点。
             if (Boolean.parseBoolean(config.option("failService", "false"))) {
                 throw new IllegalArgumentException("Invalid test protocol definition");
@@ -75,9 +80,14 @@ public final class EndpointTestProtocols {
             // 每个端点保存自己的定义；未配置时直接使用应用提供的绑定资源。
             Object definition = config.option("definition", null);
             if (definition == null) {
-                definition = meta.getService().getBindResource();
+                definition = meta.getBindResource();
             }
-            return config.build(definition);
+            if (Boolean.parseBoolean(config.option("captureMeta", "false"))) {
+                ProtocolMeta published = MetBindInfoWrap.unwrap(meta.getService()).getProtocolMeta(config.name());
+                definition = Map.of("meta", meta, "preparedEndpoints", meta.getEndpoints().size(), //
+                        "published", published == meta);
+            }
+            return meta.build(config, definition);
         }
 
         public Class<HttpExchange> messageType() {
@@ -147,8 +157,8 @@ public final class EndpointTestProtocols {
         }
 
         @Override
-        public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
-            return config.build(null);
+        public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+            return meta.build(config, null);
         }
 
         public Class<byte[]> messageType() {

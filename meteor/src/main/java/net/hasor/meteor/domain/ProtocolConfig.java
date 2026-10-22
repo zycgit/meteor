@@ -5,10 +5,9 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.connector;
+package net.hasor.meteor.domain;
 import java.util.*;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.domain.ProtocolBinding;
 
 /** One protocol mount: protocol/provider identity and published address scheme. */
 public final class ProtocolConfig {
@@ -16,7 +15,7 @@ public final class ProtocolConfig {
     private final String              scheme;
     private       Map<String, String> options;
 
-    ProtocolConfig(String name, String scheme, Map<String, String> options) {
+    private ProtocolConfig(String name, String scheme, Map<String, String> options) {
         this.name = Objects.requireNonNull(name, "name").toLowerCase(Locale.ROOT);
         this.scheme = Objects.requireNonNull(scheme, "scheme").toLowerCase(Locale.ROOT);
         this.setOptions(options);
@@ -45,22 +44,12 @@ public final class ProtocolConfig {
         return this.scheme;
     }
 
-    /** 使用当前端点的协议参数构建发布结果；有效路径由路由组装阶段补齐。 */
-    public ProtocolBinding build(Object definition) {
-        return new ProtocolBinding(this.scheme, this.options, null, definition);
-    }
-
-    /** Create the endpoint-owned mount snapshot without sharing mutable preparation state. */
-    ProtocolConfig snapshot() {
-        return new ProtocolConfig(this.name, this.scheme, this.options);
-    }
-
     public Map<String, String> options() {
         return this.options;
     }
 
-    /** 构建阶段更新参数；复制输入以隔离用户配置和其他上下文。 */
-    void setOptions(Map<String, String> options) {
+    /** 启动前准备协议参数；复制输入以隔离用户配置和其他端点，运行期不再修改。 */
+    public void setOptions(Map<String, String> options) {
         this.options = Collections.unmodifiableMap(new LinkedHashMap<>(options));
     }
 

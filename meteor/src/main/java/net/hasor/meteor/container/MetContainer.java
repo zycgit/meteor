@@ -20,9 +20,13 @@ import net.hasor.meteor.address.AddressBucket;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.AddressTypeEnum;
 import net.hasor.meteor.address.RouteTypeEnum;
+import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.meta.ServiceMeta;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 
 /**
  *
@@ -164,24 +168,11 @@ public class MetContainer {
      * @param serviceType 服务类型。
      */
     public <T> MetBindInfo<T> getRsfBindInfo(Class<T> serviceType) {
-        String serviceGroup = this.settings.getDefaultGroup();
-        String serviceName = serviceType.getName();
-        String serviceVersion = this.settings.getDefaultVersion();
-
-        //覆盖
-        MetService serviceInfo = serviceType.getAnnotation(MetService.class);
-        if (serviceInfo != null) {
-            if (!StringUtils.isBlank(serviceInfo.group())) {
-                serviceGroup = serviceInfo.group();
-            }
-            if (!StringUtils.isBlank(serviceInfo.name())) {
-                serviceName = serviceInfo.name();
-            }
-            if (!StringUtils.isBlank(serviceInfo.version())) {
-                serviceVersion = serviceInfo.version();
-            }
-        }
-
+        // 按类型查询使用默认坐标，与注册时采用相同的声明和默认值合并规则。
+        ServiceMeta serviceInfo = ServiceMetaParser.parse(serviceType);
+        String serviceGroup = this.resolveServiceGroup(serviceInfo);
+        String serviceName = this.resolveServiceName(serviceInfo);
+        String serviceVersion = this.resolveServiceVersion(serviceInfo);
         return (MetBindInfo<T>) this.getRsfBindInfo(serviceGroup, serviceName, serviceVersion);
     }
 
@@ -221,6 +212,47 @@ public class MetContainer {
     /**创建{@link MetPublisher}。*/
     public MetPublisher createPublisher() {
         return new MetBindBuilder(this);
+    }
+
+    /** 为一次服务注册合并声明与当前容器配置，后续 Builder 只覆盖本次注册。 */
+    <T> ServiceDefine<T> createServiceDefine(Class<T> serviceType) {
+        ServiceDefine<T> definition = new ServiceDefine<>(serviceType);
+        ServiceDomain<T> domain = definition.getDomain();
+        ServiceMeta declaration = domain.getServiceMeta();
+
+        // 服务坐标与按类型查询共用解析逻辑，不修改按接口共享的原始声明。
+        domain.setBindName(this.resolveServiceName(declaration));
+        domain.setBindGroup(this.resolveServiceGroup(declaration));
+        domain.setBindVersion(this.resolveServiceVersion(declaration));
+
+        // 未显式指定编码器时留给协议端点选择，超时依次采用请求配置和全局默认值。
+        String serializeType = declaration.getSerializeType();
+        domain.setSerializeType(StringUtils.isBlank(serializeType) ? null : serializeType);
+        int timeout = declaration.getClientTimeout();
+        if (timeout <= 0) {
+            timeout = this.settings.getRequestTimeout();
+        }
+        if (timeout <= 0) {
+            timeout = this.settings.getDefaultTimeout();
+        }
+        domain.setClientTimeout(timeout);
+        domain.setServiceType(MetServiceType.Consumer);
+        return definition;
+    }
+
+    private String resolveServiceName(ServiceMeta declaration) {
+        String name = declaration.getName();
+        return StringUtils.isBlank(name) ? declaration.getJavaType().getName() : name;
+    }
+
+    private String resolveServiceGroup(ServiceMeta declaration) {
+        String group = declaration.getGroup();
+        return StringUtils.isBlank(group) ? this.settings.getDefaultGroup() : group;
+    }
+
+    private String resolveServiceVersion(ServiceMeta declaration) {
+        String version = declaration.getVersion();
+        return StringUtils.isBlank(version) ? this.settings.getDefaultVersion() : version;
     }
 
     /**

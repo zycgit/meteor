@@ -29,6 +29,7 @@ import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.connector.transport.tcp.TcpTransportFactory;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.neta.channel.ProtoBuildContext;
@@ -233,7 +234,7 @@ public class ProtocolSpiTest {
         Class<?>[] protocols = { CustomProtocol.class };
         ClassLoader loader = this.loader(transports, protocols);
         InterAddress local = InterAddress.forBinding("custom", "127.0.0.1", 0, "test");
-        ProtocolConfig protocol = new ProtocolConfig("custom-protocol", "published", Map.of());
+        ProtocolConfig protocol = ProtocolConfig.newConfig("custom-protocol", "published", Map.of());
         ConnectorConfig config = new ConnectorConfig("server", local, //
                 Map.of("workerThread", "1"), List.of(protocol), true);
         try (ConnectorManager manager = this.manager(loader, config)) {
@@ -533,7 +534,7 @@ public class ProtocolSpiTest {
 
     private static ConnectorConfig config(String protocol, Map<String, String> extensions) {
         InterAddress localAddress = InterAddress.forBinding("custom", "127.0.0.1", 0, "test");
-        ProtocolConfig mount = new ProtocolConfig(protocol, "custom", Collections.emptyMap());
+        ProtocolConfig mount = ProtocolConfig.newConfig(protocol, "custom", Collections.emptyMap());
         Map<String, String> options = new LinkedHashMap<>();
         options.put("workerThread", "1");
         options.putAll(extensions);

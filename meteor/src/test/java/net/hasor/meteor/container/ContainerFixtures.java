@@ -8,12 +8,13 @@
 package net.hasor.meteor.container;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
-import net.hasor.meteor.MetFilter;
-import net.hasor.meteor.MetFilterChain;
-import net.hasor.meteor.MetRequest;
-import net.hasor.meteor.MetResponse;
-import net.hasor.meteor.MetService;
-import net.hasor.meteor.MetSettings;
+import java.util.List;
+import java.util.Map;
+import net.hasor.meteor.*;
+import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.annotation.MetService;
+import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** 容器单测共享的无资源配置和业务模型。 */
 public final class ContainerFixtures {
@@ -35,6 +36,11 @@ public final class ContainerFixtures {
                     return 3000;
                 case "getUnitName":
                     return "unit";
+                case "getConnectorConfigs":
+                    ProtocolConfig protocol = ProtocolConfig.newConfig("rsf", "rsf", Map.of());
+                    InterAddress address = InterAddress.forBinding("tcp", "127.0.0.1", 0, "unit");
+                    ConnectorConfig connector = new ConnectorConfig("tcp", address, Map.of(), List.of(protocol), false);
+                    return List.of(connector);
                 default:
                     throw new AssertionError("Unexpected setting: " + method.getName());
             }

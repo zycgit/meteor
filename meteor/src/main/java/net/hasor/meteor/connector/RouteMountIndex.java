@@ -12,7 +12,8 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.domain.ContextPath;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.utils.ContextPathUtils;
 

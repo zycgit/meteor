@@ -19,6 +19,7 @@ import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.RouteReceiver;
 import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.http.channel.*;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.neta.channel.NetChannel;
 import net.hasor.neta.channel.SoConfig;
 import net.hasor.neta.channel.transport.tcp.TcpSoConfig;

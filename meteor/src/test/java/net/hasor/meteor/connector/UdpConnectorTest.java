@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.concurrent.*;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -311,7 +312,7 @@ public class UdpConnectorTest {
     public void rejectsZeroListenPortWhenStartingInbound() throws Exception {
         // 地址模型允许表达零端口，但 UDP 监听必须明确拒绝这个配置。
         Map<String, String> options = Map.of("workerThread", "1");
-        ProtocolConfig protocol = new ProtocolConfig("testprotocol", "udp", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("testprotocol", "udp", options);
         InterAddress address = InterAddress.forBinding("udp", "127.0.0.1", 0, "default");
         ConnectorConfig config = new ConnectorConfig("udp", address, options, List.of(protocol), true);
         try (ConnectorManager manager = SocketTestSupport.manager(config)) {

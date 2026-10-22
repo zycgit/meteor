@@ -19,6 +19,7 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** SPI 单元测试的配置与上下文桩；初始化和关闭由测试方法负责。 */
 public final class SocketTestSupport {
@@ -49,7 +50,7 @@ public final class SocketTestSupport {
     private static ConnectorConfig config(//
             String transport, String scheme, String protocol, Map<String, String> options, int port) {
         InterAddress local = InterAddress.forBinding(transport, "127.0.0.1", port, "default");
-        ProtocolConfig mount = new ProtocolConfig(protocol, scheme, options);
+        ProtocolConfig mount = ProtocolConfig.newConfig(protocol, scheme, options);
         List<ProtocolConfig> mounts = Collections.singletonList(mount);
         return new ConnectorConfig(scheme, local, options, mounts, true);
     }

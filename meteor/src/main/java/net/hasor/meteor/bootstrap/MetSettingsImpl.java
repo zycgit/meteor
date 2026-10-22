@@ -13,7 +13,7 @@ import net.hasor.meteor.MetOptionSet;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.SendLimitPolicy;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Read-only MetSettings implementation owned by its context. */
 final class MetSettingsImpl implements MetSettings {

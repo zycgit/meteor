@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.hasor.meteor.domain.*;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.utils.ContextPathUtils;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -20,7 +21,7 @@ public class RouteMountIndexTest {
         // 声明名字和 scheme 不同的协议，并准备多个挂载目录。
         String declaredPaths = "[\"/first\",\"/latest\",\"/other\"]";
         Map<String, String> options = Map.of("contextPath", "/", "contextPaths", declaredPaths);
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "grpcwire", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "grpcwire", options);
         RouteMountIndex routes = new RouteMountIndex("unit", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
 
@@ -40,7 +41,7 @@ public class RouteMountIndexTest {
     public void publishedSchemeDoesNotSelectServiceContexts() {
         // 准备两个可选目录，协议名与 scheme 使用不同标识。
         Map<String, String> options = Map.of("contextPath", "/", "contextPaths", "[\"/first\",\"/latest\"]");
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "grpcwire", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "grpcwire", options);
         RouteMountIndex routes = new RouteMountIndex("unit", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
 
@@ -57,7 +58,7 @@ public class RouteMountIndexTest {
         // 准备三个可选目录，用于重复设置同一个协议名。
         String declaredPaths = "[\"/first\",\"/second\",\"/latest\"]";
         Map<String, String> options = Map.of("contextPath", "/", "contextPaths", declaredPaths);
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "grpcwire", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "grpcwire", options);
         RouteMountIndex routes = new RouteMountIndex("unit", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
 
@@ -72,7 +73,7 @@ public class RouteMountIndexTest {
     @Test
     public void publishedSchemeDoesNotBindAServiceToTheProtocol() {
         // 服务直接声明只在地址前缀对应的标识下发布。
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "grpcwire", Map.of("contextPath", "/"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "grpcwire", Map.of("contextPath", "/"));
         RouteMountIndex routes = new RouteMountIndex("unit", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.addBindProtocol("grpcwire");
@@ -113,7 +114,7 @@ public class RouteMountIndexTest {
     @Test
     public void compiledIndexDoesNotChangeWhenPreparationOptionsChange() {
         // 运行期索引保存当前端点已编译的目录，不再借用可变配置。
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "http", Map.of("contextPath", "/original"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "http", Map.of("contextPath", "/original"));
         RouteMountIndex routes = new RouteMountIndex("unit", protocol);
 
         // 后续配置准备只影响新编译的索引，已经运行的路由保持原有快照。
@@ -127,7 +128,7 @@ public class RouteMountIndexTest {
     public void explicitContextsKeepTheConfiguredDefaultForOutgoingRequests() {
         // 服务声明多个已挂载目录，默认目录不是声明中的第一个。
         Map<String, String> options = Map.of("contextPath", "/default", "contextPaths", "[\"/other\"]");
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "http", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "http", options);
         RouteMountIndex routes = new RouteMountIndex("unit", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.setBindContextPaths("grpc", new ContextPath(List.of("/other", "/default"), false));
@@ -140,7 +141,7 @@ public class RouteMountIndexTest {
     public void outgoingRequestUsesTheFirstExplicitNonDefaultContext() {
         // 服务仅暴露额外目录，默认目录不在服务选择范围中。
         Map<String, String> options = Map.of("contextPath", "/default", "contextPaths", "[\"/orders\"]");
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "http", options);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "http", options);
         RouteMountIndex routes = new RouteMountIndex("unit", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.setBindContextPaths("grpc", new ContextPath(List.of("/orders"), false));
@@ -152,7 +153,7 @@ public class RouteMountIndexTest {
     @Test
     public void exactServicePathDoesNotExposeADirectoryAtTheSameLocation() {
         // 相同文本分别表示协议目录与服务精确地址，二者不能互相扩大发布范围。
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "http", Map.of("contextPath", "/echo"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "http", Map.of("contextPath", "/echo"));
         RouteMountIndex routes = new RouteMountIndex("unit", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.setBindContextPaths("grpc", new ContextPath(List.of("/echo"), true));
@@ -165,7 +166,7 @@ public class RouteMountIndexTest {
     @Test
     public void exactServicePathRejectsAnUndeclaredOutgoingMethod() {
         // 服务的精确声明只允许一个完整调用路径。
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "http", Map.of("contextPath", "/rpc"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "http", Map.of("contextPath", "/rpc"));
         RouteMountIndex routes = new RouteMountIndex("unit", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.setBindContextPaths("grpc", new ContextPath(List.of("/echo"), true));
@@ -180,7 +181,7 @@ public class RouteMountIndexTest {
     @Test
     public void outgoingRequestRejectsAServiceBoundToAnotherProtocol() {
         // 配置存在合法目录，但服务只绑定另外一个协议。
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "http", Map.of("contextPath", "/rpc"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "http", Map.of("contextPath", "/rpc"));
         RouteMountIndex routes = new RouteMountIndex("unit", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.addBindProtocol("soap");
@@ -195,7 +196,7 @@ public class RouteMountIndexTest {
     @Test
     public void providerWithoutAcceptedPublicationHasNoInboundRoute() {
         // 本地提供者已经存在，但协议还没有接受它，声明目录不能直接开放网络入口。
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "http", Map.of("contextPath", "/rpc"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "http", Map.of("contextPath", "/rpc"));
         RouteMountIndex routes = new RouteMountIndex("public-http", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.setServiceType(MetServiceType.Provider);
@@ -209,14 +210,14 @@ public class RouteMountIndexTest {
     @Test
     public void providerIsRoutableOnlyOnTheEndpointThatAcceptedIt() {
         // 同名协议的两个端点拥有相同目录，服务只在其中一个端点通过校验。
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "http", Map.of("contextPath", "/rpc"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "http", Map.of("contextPath", "/rpc"));
         RouteMountIndex accepted = new RouteMountIndex("accepted-http", protocol);
         RouteMountIndex rejected = new RouteMountIndex("rejected-http", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.setServiceType(MetServiceType.Provider);
         ContextPath effective = new ContextPath(List.of("/rpc"), false);
-        ProtocolBinding binding = new ProtocolBinding("http", Map.of(), effective, null);
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of("accepted-http", binding));
+        ProtocolBinding binding = new ProtocolBinding(effective, null);
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of("accepted-http", binding));
         service.replaceProtocolPublication(Map.of("grpc", meta));
 
         // 接受结果依据真实端点，而非只要同名协议存在就允许入站。
@@ -231,7 +232,7 @@ public class RouteMountIndexTest {
     @Test
     public void consumerPathSelectionDoesNotRequireProviderPublication() {
         // 消费者只有出站声明，不必先在本机发布协议定义和监听端点。
-        ProtocolConfig protocol = new ProtocolConfig("grpc", "http", Map.of("contextPath", "/rpc"));
+        ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "http", Map.of("contextPath", "/rpc"));
         RouteMountIndex routes = new RouteMountIndex("outgoing-http", protocol);
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.setServiceType(MetServiceType.Consumer);

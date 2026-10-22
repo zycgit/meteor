@@ -10,6 +10,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import net.hasor.meteor.*;
+import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.ProtocolStatus;
 import org.junit.Test;

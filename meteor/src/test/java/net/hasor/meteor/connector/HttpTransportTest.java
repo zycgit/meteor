@@ -25,6 +25,7 @@ import net.hasor.example.connector.protocol.*;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -50,7 +51,7 @@ public class HttpTransportTest {
         options.put("protocol", protocol.getSimpleName().toLowerCase(Locale.ROOT));
         String protocolName = options.getOrDefault("protocol", schema);
         InterAddress localAddress = InterAddress.forBinding("http", "127.0.0.1", port, "default");
-        ProtocolConfig mount = new ProtocolConfig(protocolName, protocolName, options);
+        ProtocolConfig mount = ProtocolConfig.newConfig(protocolName, protocolName, options);
         return new ConnectorConfig(schema, localAddress, options, Collections.singletonList(mount), true);
     }
 
@@ -533,7 +534,7 @@ public class HttpTransportTest {
         options.put("protocol", "wirea");
         InterAddress localAddress = new InterAddress("http://127.0.0.1:" + port() + "/default");
         String protocolName = options.getOrDefault("protocol", "http");
-        ProtocolConfig mount = new ProtocolConfig(protocolName, "http", options);
+        ProtocolConfig mount = ProtocolConfig.newConfig(protocolName, "http", options);
         List<ProtocolConfig> configMounts = Collections.singletonList(mount);
         ConnectorConfig config = new ConnectorConfig("http", localAddress, options, configMounts, true);
         try (ConnectorManager manager = subscribedManager(runtimeContext(config), RECEIVER)) {

@@ -10,46 +10,60 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.MetMessage;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
+import net.hasor.meteor.domain.meta.ServiceMeta;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 
 /**
- * 服务的描述信息，包括了服务的发布和订阅信息。
+ * 一次服务注册的有效配置与协议发布信息，公共 Java 声明由 ServiceMeta 共享。
  * @version : 2014年9月12日
  * @author 赵永春 (zyc@hasor.net)
  */
 public class ServiceDomain<T> implements MetBindInfo<T> {
-    private          String                    bindID             = null;      // 服务ID
-    private          String                    bindName           = null;      // 服务名
-    private          String                    bindGroup          = "default"; // 服务分组
-    private          String                    bindVersion        = "1.0.0";   // 服务版本
-    private          Map<String, String>       aliasNameMap       = null;      // 别名
-    private          Class<T>                  bindType           = null;      // 服务类型
-    private          boolean                   asMessage          = false;     // 是否为消息接口
-    private          boolean                   asShadow           = false;     // 是否为消息接口
-    private          boolean                   asDistributedCall  = false;     // 是否强制进入分布式调用链
-    private          boolean                   isSharedThreadPool = true;      // 是否共享调用线程池(提供者)
-    private          int                       clientTimeout      = 6000;      // 调用超时（毫秒）
-    private          String                    serializeType      = null;      // 传输序列化类型
-    private          Object                    bindResource       = null;      // 协议扩展使用的本地绑定资源
-    private          MetServiceType            serviceType        = null;      // 服务类型（提供者 or 消费者）
-    private          Set<String>               bindProtocols      = null;      // 服务特殊置顶的协议类型
+    private          String                    bindID;                                      // 服务ID
+    private          String                    bindName;                                    // 服务名
+    private          String                    bindGroup;                                   // 服务分组
+    private          String                    bindVersion;                                 // 服务版本
+    private final    Map<String, String>       aliasNameMap       = new HashMap<>();         // 别名
+    private final    Class<T>                  bindType;                                    // 服务类型
+    private          boolean                   asMessage;                                   // 是否由注册主动启用消息模式
+    private          boolean                   asShadow;                                    // 是否隐藏服务
+    private          boolean                   asDistributedCall;                           // 是否强制进入分布式调用链
+    private          boolean                   isSharedThreadPool = true;                   // 是否共享调用线程池(提供者)
+    private          int                       clientTimeout;                               // 调用超时（毫秒）
+    private          String                    serializeType;                               // 传输序列化类型
+    private          MetServiceType            serviceType;                                 // 服务类型（提供者 or 消费者）
+    private final    Set<String>               bindProtocols      = new HashSet<>();        // 服务指定的协议类型
     private final    Map<String, Object>       metadata           = new ConcurrentHashMap<>();
     private volatile Map<String, ProtocolMeta> protocols          = Map.of();
+    private final    ServiceMeta               serviceMeta;
 
     public ServiceDomain(Class<T> bindType) {
         this.bindType = bindType;
-        this.asMessage = bindType.isAnnotationPresent(MetMessage.class);
-        this.aliasNameMap = new HashMap<>();
-        this.bindProtocols = new HashSet<>();
+        this.serviceMeta = ServiceMetaParser.parse(bindType);
     }
 
-    @Override
-    public Object getBindResource() {
-        return this.bindResource;
+    /** Java 公共声明，不包含端点选项或协议编译结果。 */
+    public ServiceMeta getServiceMeta() {
+        return this.serviceMeta;
     }
 
-    public void setBindResource(Object bindResource) {
-        this.bindResource = bindResource;
+    /** 设置或清空原始资源声明，保留同一协议的路径声明与发布结果。 */
+    public void setBindResource(String protocol, Object bindResource) {
+        Map<String, ProtocolMeta> selected = new LinkedHashMap<>(this.protocols);
+        String name = protocol.trim().toLowerCase(Locale.ROOT);
+
+        ProtocolMeta previous = selected.get(name);
+        ContextPath paths = previous == null ? null : previous.getContextPath();
+        Map<String, ProtocolBinding> endpoints = previous == null ? Map.of() : previous.getEndpoints();
+
+        boolean declared = paths != null || bindResource != null;
+        if (declared || !endpoints.isEmpty()) {
+            selected.put(name, new ProtocolMeta(this, paths, bindResource, endpoints));
+        } else {
+            selected.remove(name);
+        }
+        this.protocols = Collections.unmodifiableMap(selected);
     }
 
     public String getBindID() {
@@ -74,12 +88,12 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
         this.bindName = bindName;
     }
 
-    /**获取发布服务的分组名称（默认是：default）。*/
+    /**获取发布服务的有效分组名称。*/
     public String getBindGroup() {
         return this.bindGroup;
     }
 
-    /**设置发布服务的分组名称（默认是：default）。*/
+    /**设置发布服务的有效分组名称。*/
     public void setBindGroup(String bindGroup) {
         this.bindGroup = bindGroup;
     }
@@ -113,7 +127,7 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
 
     /**是否为消息接口。*/
     public boolean isMessage() {
-        return this.asMessage || this.bindType.isAnnotationPresent(MetMessage.class);
+        return this.asMessage || this.serviceMeta.isMessage();
     }
 
     /** 设置接口的工作状态,如果接口标记了@MetMessage,那么无论设置什么值 isMessage 都会返回true。 */
@@ -199,27 +213,31 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
         return this.protocols.get(protocol.toLowerCase(Locale.ROOT));
     }
 
+    /** 整体提交已准备好的协议元信息，声明与端点结果由发布准备阶段补全。 */
     public void replaceProtocolPublication(Map<String, ProtocolMeta> protocols) {
-        // 清理旧发布结果时保留原始声明，下一轮发布仍能恢复相同的路径选择。
         Map<String, ProtocolMeta> selected = new LinkedHashMap<>();
-        for (Map.Entry<String, ProtocolMeta> entry : this.protocols.entrySet()) {
-            ProtocolMeta meta = entry.getValue();
-            if (meta.getContextPath() != null) {
-                ProtocolMeta declaration = new ProtocolMeta(meta.getService(), meta.getContextPath(), Map.of());
-                selected.put(entry.getKey(), declaration);
-            }
-        }
-
-        // 新结果逐协议替换，不保留既无声明也无接受端点的空分组。
+        // 直接接收本轮完整元信息，不在提交阶段重新合并或包装。
         for (Map.Entry<String, ProtocolMeta> entry : protocols.entrySet()) {
             String name = entry.getKey().toLowerCase(Locale.ROOT);
             ProtocolMeta meta = entry.getValue();
-            ProtocolMeta declaration = selected.get(name);
-            if (meta.getContextPath() == null && declaration != null) {
-                meta = new ProtocolMeta(meta.getService(), declaration.getContextPath(), meta.getEndpoints());
-            }
-            if (meta.getContextPath() != null || !meta.getEndpoints().isEmpty()) {
+            boolean declared = meta.getContextPath() != null || meta.getBindResource() != null;
+            if (declared || !meta.getEndpoints().isEmpty()) {
                 selected.put(name, meta);
+            }
+        }
+
+        // 未纳入新结果的协议只保留原始声明，旧对象和在途请求持有的绑定保持不变。
+        for (Map.Entry<String, ProtocolMeta> entry : this.protocols.entrySet()) {
+            if (selected.containsKey(entry.getKey())) {
+                continue;
+            }
+
+            ProtocolMeta meta = entry.getValue();
+            if (meta.getContextPath() != null || meta.getBindResource() != null) {
+                if (!meta.getEndpoints().isEmpty()) {
+                    meta = new ProtocolMeta(meta.getService(), meta.getContextPath(), meta.getBindResource(), Map.of());
+                }
+                selected.put(entry.getKey(), meta);
             }
         }
         this.protocols = Collections.unmodifiableMap(selected);
@@ -237,7 +255,9 @@ public class ServiceDomain<T> implements MetBindInfo<T> {
         String key = protocol.trim().toLowerCase(Locale.ROOT);
         ProtocolMeta previous = selected.remove(key);
         Map<String, ProtocolBinding> endpoints = previous == null ? Map.of() : previous.getEndpoints();
-        selected.put(key, new ProtocolMeta(this, context, endpoints));
+        Object resource = previous == null ? null : previous.getBindResource();
+
+        selected.put(key, new ProtocolMeta(this, context, resource, endpoints));
         this.protocols = Collections.unmodifiableMap(selected);
     }
 

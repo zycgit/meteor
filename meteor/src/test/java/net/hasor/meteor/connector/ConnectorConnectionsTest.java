@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.domain.MetException;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import org.junit.Test;
 import static org.junit.Assert.*;

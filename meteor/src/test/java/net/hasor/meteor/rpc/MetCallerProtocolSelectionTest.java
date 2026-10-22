@@ -27,7 +27,6 @@ import net.hasor.meteor.address.provider.InstanceAddressProvider;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ConnectorManager;
 import net.hasor.meteor.connector.MetChannel;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.*;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;

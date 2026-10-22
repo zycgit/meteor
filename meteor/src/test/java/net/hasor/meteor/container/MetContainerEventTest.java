@@ -8,22 +8,14 @@
 package net.hasor.meteor.container;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import net.hasor.cobble.concurrent.future.Cancellable;
-import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.MetContextEvent;
-import net.hasor.meteor.MetContextEventType;
-import net.hasor.meteor.MetContextListener;
-import net.hasor.meteor.MetPublisher;
-import net.hasor.meteor.MetSettings;
+import net.hasor.meteor.*;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.container.ContainerFixtures.Echo;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
+import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -237,7 +229,8 @@ public class MetContainerEventTest {
             if (event.getType() != MetContextEventType.REGISTERED) {
                 return;
             }
-            if (event.getServiceInfo().getBindResource() != originalResource) {
+            ProtocolMeta meta = MetBindInfoWrap.unwrap(event.getServiceInfo()).getProtocolMeta("rsf");
+            if (meta == null || meta.getBindResource() != originalResource) {
                 return;
             }
             // 回调挂起时让测试线程完成回收和替换，再放行原登记失败。
@@ -256,7 +249,7 @@ public class MetContainerEventTest {
         try {
             Future<MetBindInfo<Echo>> original = worker.submit(() -> {
                 var builder = publisher.rsfService(Echo.class);
-                builder.bindResource(originalResource);
+                builder.bindResource("rsf", originalResource);
                 return builder.register();
             });
             assertTrue(checking.await(5, TimeUnit.SECONDS));
@@ -272,7 +265,7 @@ public class MetContainerEventTest {
             assertSame(rejected, failure.getCause());
             MetBindInfo<Echo> surviving = local.getRsfBindInfo(Echo.class);
             assertEquals(replacement.getBindID(), surviving.getBindID());
-            assertNull(surviving.getBindResource());
+            assertNull(MetBindInfoWrap.unwrap(surviving).getProtocolMeta("rsf"));
         } finally {
             release.countDown();
             worker.shutdownNow();

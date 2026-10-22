@@ -13,10 +13,14 @@ import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolProvider;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -49,8 +53,8 @@ public final class UdpTestProtocol implements ProtocolProvider<byte[]> {
     }
 
     @Override
-    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
-        return config.build(null);
+    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        return meta.build(config, null);
     }
 
     @Override

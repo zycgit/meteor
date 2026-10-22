@@ -22,7 +22,6 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.transport.ChannelListener;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.NetworkConnector;
@@ -31,6 +30,7 @@ import net.hasor.meteor.connector.transport.http.HttpTlsObservationPipeline.Obse
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;

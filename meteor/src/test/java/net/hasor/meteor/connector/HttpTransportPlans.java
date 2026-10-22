@@ -9,6 +9,7 @@ package net.hasor.meteor.connector;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Builds the compiled route view used by direct HTTP transport tests. */
 public final class HttpTransportPlans {

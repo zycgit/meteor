@@ -10,11 +10,38 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ServiceMetadataTest {
+    @MetMessage
+    interface MessageService extends Runnable {
+    }
+
+    @Test
+    public void programmaticMessageModeDoesNotChangeAnotherRegistration() {
+        // 两次注册共享接口声明，但 Builder 的消息模式只作用于自身注册。
+        ServiceDomain<Runnable> first = new ServiceDomain<>(Runnable.class);
+        ServiceDomain<Runnable> second = new ServiceDomain<>(Runnable.class);
+        first.setMessage(true);
+
+        // 一份注册的修改不会写回公共声明或改变另一份注册。
+        assertSame(first.getServiceMeta(), second.getServiceMeta());
+        assertTrue(first.isMessage());
+        assertFalse(second.isMessage());
+        assertFalse(first.getServiceMeta().isMessage());
+    }
+
+    @Test
+    public void serviceMessageAnnotationCannotBeClearedByRegistrationFlag() {
+        // 注册标记只允许额外启用消息模式，不能关闭接口上明确声明的消息模式。
+        ServiceDomain<MessageService> service = new ServiceDomain<>(MessageService.class);
+        service.setMessage(false);
+        assertTrue(service.isMessage());
+    }
+
     @Test
     public void metadataKeysAreReadOnlySnapshotsThroughTheBindingWrapper() {
         // 绑定包装器暴露只读快照，后续元信息更新不改变旧快照。

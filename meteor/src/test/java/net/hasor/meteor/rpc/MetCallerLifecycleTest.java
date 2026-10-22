@@ -25,6 +25,7 @@ import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.*;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.provider.InstanceAddressProvider;
+import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.domain.*;
 import net.hasor.meteor.domain.payload.Payload;
@@ -148,6 +149,7 @@ public class MetCallerLifecycleTest {
         // 接口级注解保持原有语义，方法本身无需重复声明。
         try (Host host = new Host(1)) {
             ServiceDomain<MessageService> service = new ServiceDomain<>(MessageService.class);
+            service.setClientTimeout(host.service.getClientTimeout());
             InstanceAddressProvider target = new InstanceAddressProvider(host.peer);
             Class<?>[] types = { String.class };
             Object[] arguments = { "value" };
@@ -178,6 +180,7 @@ public class MetCallerLifecycleTest {
         // 子接口直接继承父接口声明的消息方法。
         try (Host host = new Host(1)) {
             ServiceDomain<InheritedEcho> service = new ServiceDomain<>(InheritedEcho.class);
+            service.setClientTimeout(host.service.getClientTimeout());
             InstanceAddressProvider target = new InstanceAddressProvider(host.peer);
             Class<?>[] types = { String.class };
             Object[] arguments = { "value" };

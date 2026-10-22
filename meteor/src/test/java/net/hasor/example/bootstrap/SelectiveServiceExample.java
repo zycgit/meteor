@@ -7,7 +7,7 @@
  */
 package net.hasor.example.bootstrap;
 import java.util.concurrent.atomic.AtomicInteger;
-import net.hasor.meteor.MetIgnore;
+import net.hasor.meteor.annotation.MetIgnore;
 
 /** 服务端发布契约与不带限制的客户端契约。 */
 public class SelectiveServiceExample {
