@@ -14,9 +14,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import hprose.io.HproseReader;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.annotation.MetIgnore;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
@@ -29,6 +31,159 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class HproseHttpCodecTest {
+    @Test
+    public void inheritedParameterUsesThePublishedDtoType() throws Exception {
+        // 父接口的 T 由具体服务绑定为 Person，线数据只携带普通 Map。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<?> service = context.publisher()//
+                    .rsfService(PersonEcho.class, value -> value).name("Generic").register();
+            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            ProtocolConfig config = endpoint.protocol("hprose");
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
+            RequestPayload request = this.genericRequest(service, Map.of("name", "Ada"));
+
+            // 不依赖报文中的 Java 类名，按公共描述恢复具体 DTO。
+            HproseDecodedInvocation decoded = codec.decodeRequest(codec.encodeRequest(request));
+            assertNull(decoded.calls().get(0).failure());
+            Object value = decoded.calls().get(0).request().getParameterValues().get(0);
+            assertEquals("Ada", ((Person) value).name);
+        }
+    }
+
+    @Test
+    public void inheritedContainerParameterRetainsItsDtoElements() throws Exception {
+        // 父接口的 T 在此服务中绑定为 List<Person>。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<?> service = context.publisher().rsfService(PeopleEcho.class, value -> value) //
+                    .name("Generic").register();
+            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            ProtocolConfig config = endpoint.protocol("hprose");
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
+            RequestPayload request = this.genericRequest(service, List.of(Map.of("name", "Ada")));
+
+            // 转为 Hprose Type 时保留容器参数，元素不能退化为普通 Map。
+            HproseDecodedInvocation decoded = codec.decodeRequest(codec.encodeRequest(request));
+            assertNull(decoded.calls().get(0).failure());
+            List<?> values = (List<?>) decoded.calls().get(0).request().getParameterValues().get(0);
+            assertEquals("Ada", ((Person) values.get(0)).name);
+        }
+    }
+
+    @Test
+    public void inheritedReturnUsesTheConsumerDtoType() throws Exception {
+        // 消费者的返回值继承自泛型父接口，远端响应为普通 Map。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<?> service = context.publisher().rsfService(PersonEcho.class).name("Generic").register();
+            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            ProtocolConfig config = endpoint.protocol("hprose");
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
+            RequestPayload request = this.genericRequest(service, null);
+            ResponsePayload result = new ResponsePayload();
+            result.setStatus(ProtocolStatus.OK);
+            result.setReturnData(Map.of("name", "Ada"));
+            HproseDecodedCall call = new HproseDecodedCall(request, false, null);
+
+            // 请求仍保留 JVM 擦除签名，返回数据按消费者的实际泛型恢复。
+            ResponsePayload decoded = codec.decodeResponse(request, this.response(codec, call, result));
+            assertEquals("Ada", ((Person) decoded.getReturnData()).name);
+        }
+    }
+
+    @Test
+    public void inheritedContainerReturnRetainsItsDtoElements() throws Exception {
+        // 消费者绑定 List<Person>，响应中不携带服务端 Java 类型。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<?> service = context.publisher().rsfService(PeopleEcho.class).name("Generic").register();
+            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            ProtocolConfig config = endpoint.protocol("hprose");
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
+            RequestPayload request = this.genericRequest(service, null);
+            ResponsePayload result = new ResponsePayload();
+            result.setStatus(ProtocolStatus.OK);
+            result.setReturnData(List.of(Map.of("name", "Ada")));
+            HproseDecodedCall call = new HproseDecodedCall(request, false, null);
+
+            // 返回容器的元素类型来自公共方法描述。
+            ResponsePayload decoded = codec.decodeResponse(request, this.response(codec, call, result));
+            List<?> values = (List<?>) decoded.getReturnData();
+            assertEquals("Ada", ((Person) values.get(0)).name);
+        }
+    }
+
+    @Test
+    public void inheritedGenericArrayParameterRetainsContainerElements() throws Exception {
+        // T 绑定为 List<Person>[]，数组元素的泛型也必须传递给 Hprose。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<?> service = context.publisher().rsfService(PeopleArrayEcho.class, value -> value) //
+                    .name("Generic").register();
+            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            ProtocolConfig config = endpoint.protocol("hprose");
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
+            Object[] values = { List.of(Map.of("name", "Ada")) };
+            RequestPayload request = this.genericRequest(service, values);
+
+            // 数组保持 List[]，每个 List 内的成员按公共描述转换为 Person。
+            HproseDecodedInvocation decoded = codec.decodeRequest(codec.encodeRequest(request));
+            assertNull(decoded.calls().get(0).failure());
+            List<?>[] result = (List<?>[]) decoded.calls().get(0).request().getParameterValues().get(0);
+            assertEquals("Ada", ((Person) result[0].get(0)).name);
+        }
+    }
+
+    @Test
+    public void inheritedGenericArrayReturnRetainsContainerElements() throws Exception {
+        // 响应数组的元素仍为未携带 Java 类名的列表与 Map。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<?> service = context.publisher().rsfService(PeopleArrayEcho.class).name("Generic").register();
+            ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+            ProtocolConfig config = endpoint.protocol("hprose");
+            HproseHttpCodec codec = new HproseHttpCodec(config, this.routes(context, config), context);
+            RequestPayload request = this.genericRequest(service, null);
+            ResponsePayload result = new ResponsePayload();
+            result.setStatus(ProtocolStatus.OK);
+            result.setReturnData(new Object[] { List.of(Map.of("name", "Ada")) });
+            HproseDecodedCall call = new HproseDecodedCall(request, false, null);
+
+            // 完整返回类型保留数组、列表及 DTO 三层声明。
+            ResponsePayload decoded = codec.decodeResponse(request, this.response(codec, call, result));
+            List<?>[] values = (List<?>[]) decoded.getReturnData();
+            assertEquals("Ada", ((Person) values[0].get(0)).name);
+        }
+    }
+
+    private RequestPayload genericRequest(MetBindInfo<?> service, Object value) {
+        RequestPayload request = new RequestPayload();
+        request.setServiceGroup(service.getBindGroup());
+        request.setServiceName(service.getBindName());
+        request.setServiceVersion(service.getBindVersion());
+        request.setTargetMethod("echo");
+        request.addParameter(Object.class.getName(), value);
+        return request;
+    }
+
+    public interface GenericEcho<T> {
+        T echo(T value);
+    }
+
+    public interface PersonEcho extends GenericEcho<Person> {
+    }
+
+    public interface PeopleEcho extends GenericEcho<List<Person>> {
+    }
+
+    public interface PeopleArrayEcho extends GenericEcho<List<Person>[]> {
+    }
+
+    public static class Person {
+        public String name;
+    }
+
     public interface Parent {
         @MetIgnore
         default String inheritedHidden() {

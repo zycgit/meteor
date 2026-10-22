@@ -9,13 +9,17 @@ package net.hasor.meteor.protocol.hprose.codec;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Array;
+import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.util.*;
 import java.util.concurrent.Flow;
 import com.fasterxml.jackson.databind.JsonNode;
 import hprose.io.HproseReader;
 import hprose.io.HproseWriter;
 import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.reflect.resolvable.ResolvableType;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.RouteMount;
@@ -27,6 +31,7 @@ import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.domain.meta.MethodMeta;
 import net.hasor.meteor.domain.meta.ServiceMetaParser;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -199,12 +204,17 @@ public final class HproseHttpCodec {
 
         HproseServiceCatalog.ResolvedMethod resolved = this.services.resolve(name, parameterCount, mount);
         Method method = resolved.method();
+        MetBindInfo<?> service = resolved.service();
+        MethodMeta description = ServiceMetaParser.method(service.getBindType(), method);
         Object[] values = new Object[parameterCount];
         if (reader != null) {
-            reader.readArray(method.getGenericParameterTypes(), values, parameterCount);
+            Type[] types = new Type[parameterCount];
+            for (int index = 0; index < types.length; index++) {
+                types[index] = wireType(description.getParameters().get(index).getType());
+            }
+            reader.readArray(types, values, parameterCount);
         }
 
-        MetBindInfo<?> service = resolved.service();
         RequestPayload call = new RequestPayload();
         call.setServiceGroup(service.getBindGroup());
         call.setServiceName(service.getBindName());
@@ -213,7 +223,7 @@ public final class HproseHttpCodec {
         call.setSerializeType(HproseSerializeCoder.SERIALIZE_TYPE);
         call.setClientTimeout(this.context.getSettings().getDefaultTimeout());
         call.setReceiveTime(System.currentTimeMillis());
-        call.setMessage(service.isMessage() || ServiceMetaParser.method(method).isMessage());
+        call.setMessage(service.isMessage() || description.isMessage());
 
         for (Map.Entry<String, List<String>> field : request.headers().entrySet()) {
             if (!field.getValue().isEmpty()) {
@@ -361,7 +371,8 @@ public final class HproseHttpCodec {
         if (input.read() != 'R') {
             throw new IOException("Invalid Hprose result tag");
         }
-        Object value = new HproseReader(input).unserialize(method.getGenericReturnType());
+        MethodMeta description = ServiceMetaParser.method(service.getBindType(), method);
+        Object value = new HproseReader(input).unserialize(wireType(description.getReturnType()));
         if (input.read() != 'z' || input.read() != -1) {
             throw new IOException("Invalid Hprose response terminator");
         }
@@ -381,6 +392,28 @@ public final class HproseHttpCodec {
         } catch (ReflectiveOperationException failure) {
             throw new IOException("Hprose consumer method is unavailable", failure);
         }
+    }
+
+    /** Hprose 接收 JDK Type；只转换公共描述已经解析的类型，不再解释声明中的类型变量。 */
+    private static Type wireType(ResolvableType type) {
+        if (type.isArray()) {
+            Type component = wireType(type.getComponentType());
+            if (component instanceof Class<?> raw) {
+                return Array.newInstance(raw, 0).getClass();
+            }
+            return (GenericArrayType) () -> component;
+        }
+
+        Class<?> raw = type.resolve(Object.class);
+        ResolvableType[] generics = type.getGenerics().clone();
+        if (generics.length == 0) {
+            return raw;
+        }
+
+        for (int index = 0; index < generics.length; index++) {
+            generics[index] = ResolvableType.forType(wireType(generics[index]));
+        }
+        return ResolvableType.forClassWithGenerics(raw, generics).getType();
     }
 
     public HttpResponse encodeErrorResponse(HttpRequest request, Throwable error) {
