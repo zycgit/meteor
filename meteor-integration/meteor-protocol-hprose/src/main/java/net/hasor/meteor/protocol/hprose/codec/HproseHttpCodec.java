@@ -11,14 +11,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.Flow;
 import com.fasterxml.jackson.databind.JsonNode;
 import hprose.io.HproseReader;
 import hprose.io.HproseWriter;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetMessage;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.RouteSelection;
@@ -26,7 +25,9 @@ import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetRuntimeUtils;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 
@@ -42,6 +43,33 @@ public final class HproseHttpCodec {
         this.protocol = protocol;
         this.routes = routes;
         this.services = new HproseServiceCatalog(context, routes);
+    }
+
+    /** 发布时固定函数名及 Java 方法，运行时不再读取名称注解。 */
+    public static Map<Method, String> prepareService(MetBindInfo<?> service) {
+        String alias = service.getAliasName(HproseSerializeCoder.SERIALIZE_TYPE);
+        if (StringUtils.isBlank(alias)) {
+            return null;
+        }
+        Map<Method, String> methods = new LinkedHashMap<>();
+        Set<String> signatures = new HashSet<>();
+        for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
+            if (method.isBridge() || method.isSynthetic()) {
+                continue;
+            }
+            String name = alias + "_" + MetRuntimeUtils.getProtocolMethodName(method);
+            String signature = name.toLowerCase(Locale.ROOT) + "/" + method.getParameterCount();
+            if (!signatures.add(signature) || Flow.Publisher.class.isAssignableFrom(method.getReturnType())) {
+                return null;
+            }
+            for (Class<?> type : method.getParameterTypes()) {
+                if (Flow.Publisher.class.isAssignableFrom(type)) {
+                    return null;
+                }
+            }
+            methods.put(method, name);
+        }
+        return Collections.unmodifiableMap(methods);
     }
 
     public HproseDecodedInvocation decodeRequest(HttpRequest request) throws Exception {
@@ -185,7 +213,7 @@ public final class HproseHttpCodec {
         call.setSerializeType(HproseSerializeCoder.SERIALIZE_TYPE);
         call.setClientTimeout(this.context.getSettings().getDefaultTimeout());
         call.setReceiveTime(System.currentTimeMillis());
-        call.setMessage(service.isMessage() || method.isAnnotationPresent(MetMessage.class));
+        call.setMessage(service.isMessage() || ServiceMetaParser.method(method).isMessage());
 
         for (Map.Entry<String, List<String>> field : request.headers().entrySet()) {
             if (!field.getValue().isEmpty()) {
@@ -241,9 +269,10 @@ public final class HproseHttpCodec {
 
         MetBindInfo<?> service = this.context.getServiceInfo( //
                 request.getServiceGroup(), request.getServiceName(), request.getServiceVersion());
-        String alias = service.getAliasName(HproseSerializeCoder.SERIALIZE_TYPE);
+        Method method = this.method(service, request);
+        String name = this.services.methods(service).get(method);
         String uri = this.routes.contextPath(service);
-        byte[] body = HproseWireCodec.encodeRequest(alias, request);
+        byte[] body = HproseWireCodec.encodeRequest(name, request);
         return HttpRequest.newBuffered("POST", uri, headers, body, 1, Map.of());
     }
 
@@ -327,14 +356,7 @@ public final class HproseHttpCodec {
     private void decodeResult(RequestPayload request, byte[] body, ResponsePayload result) throws Exception {
         MetBindInfo<?> service = this.context.getServiceInfo( //
                 request.getServiceGroup(), request.getServiceName(), request.getServiceVersion());
-        Class<?>[] parameterTypes = new Class<?>[request.getParameterTypes().size()];
-        for (int index = 0; index < parameterTypes.length; index++) {
-            String type = request.getParameterTypes().get(index);
-            parameterTypes[index] = MetRuntimeUtils.toJavaType(type, this.context.getClassLoader());
-        }
-
-        Method method = MetRuntimeUtils.getServiceMethod( //
-                service.getBindType(), request.getTargetMethod(), parameterTypes);
+        Method method = this.method(service, request);
         ByteArrayInputStream input = new ByteArrayInputStream(body);
         if (input.read() != 'R') {
             throw new IOException("Invalid Hprose result tag");
@@ -346,6 +368,19 @@ public final class HproseHttpCodec {
 
         result.setReturnType(method.getReturnType().getName());
         result.setReturnData(value);
+    }
+
+    private Method method(MetBindInfo<?> service, RequestPayload request) throws IOException {
+        try {
+            Class<?>[] parameterTypes = new Class<?>[request.getParameterTypes().size()];
+            for (int index = 0; index < parameterTypes.length; index++) {
+                String type = request.getParameterTypes().get(index);
+                parameterTypes[index] = MetRuntimeUtils.toJavaType(type, this.context.getClassLoader());
+            }
+            return MetRuntimeUtils.getServiceMethod(service.getBindType(), request.getTargetMethod(), parameterTypes);
+        } catch (ReflectiveOperationException failure) {
+            throw new IOException("Hprose consumer method is unavailable", failure);
+        }
     }
 
     public HttpResponse encodeErrorResponse(HttpRequest request, Throwable error) {

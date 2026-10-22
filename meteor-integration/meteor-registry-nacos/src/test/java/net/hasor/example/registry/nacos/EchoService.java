@@ -6,7 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.registry.nacos;
-import net.hasor.meteor.MetService;
+import net.hasor.meteor.annotation.MetService;
 
 /** 最小业务接口，用于验证注册、发现后的服务可调用。 */
 @MetService(group = "nacos-example")

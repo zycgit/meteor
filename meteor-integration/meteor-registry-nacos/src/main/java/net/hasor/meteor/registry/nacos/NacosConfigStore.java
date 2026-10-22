@@ -63,8 +63,14 @@ final class NacosConfigStore implements AutoCloseable {
     }
 
     <T> void update(String key, Class<T> type, UnaryOperator<T> mutation) throws Exception {
-        for (int attempt = 0; attempt < 8; attempt++) {
-            backoff(attempt);
+        // Config 查询快照可能晚于持久 CAS，自动合并在既有请求超时内等待可见版本。
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(this.timeout);
+        for (int attempt = 0; System.nanoTime() < deadline; attempt++) {
+            backoff(Math.min(attempt, 4));
+            if (System.nanoTime() >= deadline) {
+                break;
+            }
+
             String previous = this.read(key);
             T old = previous == null ? null : RegistryJson.read(previous, type);
             String content = RegistryJson.write(mutation.apply(old));
@@ -78,8 +84,14 @@ final class NacosConfigStore implements AutoCloseable {
     void index(String kind, String id, String key) throws Exception {
         int bucket = Math.floorMod(id.hashCode(), INDEX_BUCKETS);
         String indexKey = "index." + kind + "." + bucket;
-        for (int attempt = 0; attempt < 8; attempt++) {
-            backoff(attempt);
+        // 不同应用可合法共享索引桶，读取追上后重新合并，保留其他应用的目录条目。
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(this.timeout);
+        for (int attempt = 0; System.nanoTime() < deadline; attempt++) {
+            backoff(Math.min(attempt, 4));
+            if (System.nanoTime() >= deadline) {
+                break;
+            }
+
             String previous = this.read(indexKey);
             Map<String, String> entries = entries(previous);
             if (StringUtils.equals(key, entries.put(id, key))) {

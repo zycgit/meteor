@@ -17,10 +17,10 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.domain.MetException;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -246,7 +246,7 @@ public class HproseContextPathTest {
             assertNull(call.request());
             assertTrue(call.failure() instanceof MetException);
             MetException failure = (MetException) call.failure();
-            assertEquals(ProtocolStatus.Forbidden, failure.getStatus());
+            assertEquals(ProtocolStatus.NotFound, failure.getStatus());
         }
     }
 

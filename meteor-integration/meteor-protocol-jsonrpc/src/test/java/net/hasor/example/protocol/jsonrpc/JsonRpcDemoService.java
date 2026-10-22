@@ -7,7 +7,7 @@
  */
 package net.hasor.example.protocol.jsonrpc;
 import java.util.List;
-import net.hasor.meteor.MetMessage;
+import net.hasor.meteor.annotation.MetMessage;
 
 /** 普通 Java 接口通过协议别名公开为 JSON-RPC 方法。 */
 public interface JsonRpcDemoService {

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import com.alibaba.nacos.api.config.ConfigService;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
@@ -19,6 +20,8 @@ import org.junit.Test;
 import static net.hasor.meteor.registry.nacos.NacosTestData.instance;
 import static net.hasor.meteor.registry.nacos.NacosTestData.service;
 import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 public class NacosRuleStorageTest {
     @Test
@@ -198,6 +201,55 @@ public class NacosRuleStorageTest {
             assertThrows(ConcurrentModificationException.class, //
                     () -> storage.saveRule(null, "echo", RuleKind.SERVICE_ROUTE, stale));
             assertFalse(storage.getRule(null, "echo", RuleKind.SERVICE_ROUTE).getData().isEnabled());
+        }
+    }
+
+    @Test
+    public void staleCachedRuleBodyCannotBypassPersistentRevisionCheck() throws Exception {
+        // 先保存旧快照，再成功提交新正文，持久版本已经推进。
+        try (MockNacosSdk sdk = new MockNacosSdk(); //
+             StorageAccess storage = sdk.configuration().openStorage()) {
+            String key = "governance.services.echo.rule.SERVICE_ROUTE";
+            String oldBody = "<route><old/></route>";
+            String newBody = "<route><current/></route>";
+            storage.saveRule(null, "echo", RuleKind.SERVICE_ROUTE, rule(oldBody, true));
+            EntityRecord<EntRuleConfigurationData> stale = storage.getRule(null, "echo", RuleKind.SERVICE_ROUTE);
+            EntityRecord<EntRuleConfigurationData> current = storage.getRule(null, "echo", RuleKind.SERVICE_ROUTE);
+            current.getData().setRule(newBody);
+            storage.saveRule(null, "echo", RuleKind.SERVICE_ROUTE, current);
+
+            // 只让查询继续返回旧正文，SDK 的 CAS 仍针对已经更新的持久数据。
+            ConfigService configs = sdk.configClients.get(0);
+            when(configs.getConfig(eq(key), eq("test"), anyLong())).thenReturn(oldBody);
+            clearInvocations(configs);
+
+            // 请求正文恰好等于旧查询缓存，也必须拒绝旧 revision，不能静默报告成功。
+            assertThrows(ConcurrentModificationException.class, //
+                    () -> storage.saveRule(null, "echo", RuleKind.SERVICE_ROUTE, stale));
+            verify(configs).publishConfigCas(eq(key), eq("test"), eq(oldBody), anyString(), eq("xml"));
+            assertEquals(newBody, sdk.documents.get(key));
+        }
+    }
+
+    @Test
+    public void unchangedRuleBodyWithCurrentRevisionStillValidatesPersistentCas() throws Exception {
+        // 当前快照与持久正文相同；相同内容提交仍是合法操作。
+        try (MockNacosSdk sdk = new MockNacosSdk(); //
+             StorageAccess storage = sdk.configuration().openStorage()) {
+            String key = "governance.services.echo.rule.SERVICE_ROUTE";
+            String body = "<route/>";
+            storage.saveRule(null, "echo", RuleKind.SERVICE_ROUTE, rule(body, false));
+            EntityRecord<EntRuleConfigurationData> current = storage.getRule(null, "echo", RuleKind.SERVICE_ROUTE);
+            String revision = current.getRevision();
+            ConfigService configs = sdk.configClients.get(0);
+            clearInvocations(configs);
+
+            // 即便内容未变也执行一次真实版本校验，并保持相同正文与版本。
+            storage.saveRule(null, "echo", RuleKind.SERVICE_ROUTE, current);
+
+            verify(configs).publishConfigCas(eq(key), eq("test"), eq(body), anyString(), eq("xml"));
+            assertEquals(body, sdk.documents.get(key));
+            assertEquals(revision, storage.getRule(null, "echo", RuleKind.SERVICE_ROUTE).getRevision());
         }
     }
 

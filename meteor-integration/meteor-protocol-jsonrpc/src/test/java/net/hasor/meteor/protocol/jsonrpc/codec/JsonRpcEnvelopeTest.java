@@ -9,8 +9,8 @@ package net.hasor.meteor.protocol.jsonrpc.codec;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 

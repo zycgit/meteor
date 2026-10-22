@@ -13,7 +13,7 @@ import java.io.Writer;
 import java.util.*;
 import java.util.concurrent.Flow;
 import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.MetMessage;
+import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -410,7 +410,7 @@ public class HessianCodecTest {
     @Test
     public void ordinaryServiceNeedsNoBindingResource() {
         // Hessian 根据 Java 方法声明发布，不需要 IDL。
-        assertTrue(HessianCodec.validateService(this.service(Unary.class)));
+        assertNotNull(HessianCodec.prepareService(this.service(Unary.class)));
     }
 
     @Test
@@ -420,7 +420,7 @@ public class HessianCodecTest {
         service.putAliasName("hessian", ".");
 
         // 在发布阶段明确拒绝，避免运行期匹配到错误的挂载点。
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
@@ -430,27 +430,27 @@ public class HessianCodecTest {
         service.putAliasName("hessian", "..");
 
         // 在发布阶段拒绝跨目录的别名。
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
     public void voidServiceIsPublishable() {
         // null 是 Hessian 原生值，void 服务无需额外配置。
-        assertTrue(HessianCodec.validateService(this.service(VoidReturn.class)));
+        assertNotNull(HessianCodec.prepareService(this.service(VoidReturn.class)));
     }
 
     @Test
     public void messageInterfaceIsRejectedAtPublication() {
         // Hessian 请求响应协议不支持接口级消息模式。
         ServiceDomain<MessageService> service = this.service(MessageService.class);
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
     public void messageMethodIsRejectedAtPublication() {
         // 单个方法也不能声明无需响应。
         ServiceDomain<MessageMethod> service = this.service(MessageMethod.class);
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
@@ -458,49 +458,49 @@ public class HessianCodecTest {
         // 编程式消息声明与注解遵守相同边界。
         ServiceDomain<Unary> service = this.service(Unary.class);
         service.setMessage(true);
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
     public void publisherParameterIsRejectedAtPublication() {
         // 持续输入流不能作为完整 Hessian 值发送。
         ServiceDomain<PublisherInput> service = this.service(PublisherInput.class);
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
     public void publisherReturnIsRejectedAtPublication() {
         // 持续结果流不属于本插件的单次响应模型。
         ServiceDomain<PublisherOutput> service = this.service(PublisherOutput.class);
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
     public void inputStreamIsRejectedAtPublication() {
         // 二进制内容应使用 byte[]，不能发送流对象。
         ServiceDomain<BinaryInput> service = this.service(BinaryInput.class);
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
     public void outputStreamIsRejectedAtPublication() {
         // OutputStream 不能作为远程写通道。
         ServiceDomain<BinaryOutput> service = this.service(BinaryOutput.class);
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
     public void readerIsRejectedAtPublication() {
         // Reader 不是可完整序列化的业务对象。
         ServiceDomain<TextInput> service = this.service(TextInput.class);
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
     public void writerIsRejectedAtPublication() {
         // Writer 不能充当 Hessian 返回值。
         ServiceDomain<TextOutput> service = this.service(TextOutput.class);
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     @Test
@@ -508,7 +508,7 @@ public class HessianCodecTest {
         // 协议选择归发布编排；签名判断不受其他协议声明干扰。
         ServiceDomain<PublisherOutput> service = this.service(PublisherOutput.class);
         service.addBindProtocol("grpc");
-        assertFalse(HessianCodec.validateService(service));
+        assertNull(HessianCodec.prepareService(service));
     }
 
     private <T> ServiceDomain<T> service(Class<T> type) {

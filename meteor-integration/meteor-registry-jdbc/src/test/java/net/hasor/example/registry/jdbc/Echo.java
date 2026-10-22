@@ -4,7 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.example.registry.jdbc;
-import net.hasor.meteor.MetService;
+import net.hasor.meteor.annotation.MetService;
 
 /** JDBC 注册发现使用的普通 Java 服务。 */
 @MetService(group = "h2-test")

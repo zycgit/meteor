@@ -10,12 +10,9 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.Flow;
+import java.util.Map;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -24,13 +21,14 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.reflect.resolvable.ResolvableType;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -148,26 +146,25 @@ public final class JsonRpcCodec {
             if (scopedService != null && !StringUtils.equals(scopedService, alias)) {
                 continue;
             }
-            for (Method candidate : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
-                if (candidate.isBridge() || candidate.isSynthetic()) {
-                    continue;
-                }
-                String exposedName = alias + "." + candidate.getName();
+            for (Map.Entry<String, List<Method>> entry : this.binding(service).methods.entrySet()) {
+                String exposedName = alias + "." + entry.getKey();
                 if (scopedService != null) {
-                    exposedName = candidate.getName();
+                    exposedName = entry.getKey();
                 }
                 if (!StringUtils.equals(name, exposedName)) {
                     continue;
                 }
                 nameFound = true;
-                if (candidate.getParameterCount() != argumentCount) {
-                    continue;
+                for (Method candidate : entry.getValue()) {
+                    if (candidate.getParameterCount() != argumentCount) {
+                        continue;
+                    }
+                    if (selectedMethod != null) {
+                        throw new JsonRpcException(-32602, "Invalid params", "Ambiguous overloaded method");
+                    }
+                    selectedService = service;
+                    selectedMethod = candidate;
                 }
-                if (selectedMethod != null) {
-                    throw new JsonRpcException(-32602, "Invalid params", "Ambiguous overloaded method");
-                }
-                selectedService = service;
-                selectedMethod = candidate;
             }
         }
         if (selectedMethod == null) {
@@ -196,21 +193,22 @@ public final class JsonRpcCodec {
         request.setReceiveTime(System.currentTimeMillis());
         request.setClientTimeout(this.context.getSettings().getDefaultTimeout());
 
-        // 命名参数依赖接口编译时保留的参数名，不猜测 arg0 等位置名。
+        // 优先读取显式参数名，再使用真实反射名称，不猜测 arg0 等位置名。
         Parameter[] parameters = method.getParameters();
         for (int index = 0; index < parameters.length; index++) {
             Parameter parameter = parameters[index];
             JsonNode value;
             if (params.isObject()) {
-                if (!parameter.isNamePresent() || !params.has(parameter.getName())) {
+                String name = this.binding(service).parameterName(method, index);
+                if (name == null || !params.has(name)) {
                     throw new JsonRpcException(-32602, "Invalid params", "Named parameters require declared names");
                 }
-                value = params.get(parameter.getName());
+                value = params.get(name);
             } else {
                 value = params.get(index);
             }
             try {
-                Object decoded = this.convert(value, parameter.getParameterizedType());
+                Object decoded = this.convert(value, this.binding(service).parameterType(method, index));
                 request.addParameter(parameter.getType().getName(), decoded);
             } catch (IllegalArgumentException failure) {
                 throw new JsonRpcException(-32602, "Invalid params", null);
@@ -219,30 +217,8 @@ public final class JsonRpcCodec {
         return request;
     }
 
-    /** 检查接口是否能由 JSON-RPC 表达，不重复筛选服务的协议声明。 */
-    public static boolean validateService(MetBindInfo<?> service) {
-        String alias = alias(service);
-        boolean reservedAlias = StringUtils.equals(alias, "rpc") || StringUtils.startsWith(alias, "rpc.");
-        if (StringUtils.isBlank(alias) || reservedAlias) {
-            return false;
-        }
-        // 与入站定位保持一致：方法名和参数数量必须能唯一确定一个入口。
-        Set<String> signatures = new HashSet<>();
-        for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
-            if (method.isBridge() || method.isSynthetic()) {
-                continue;
-            }
-            String signature = method.getName() + "/" + method.getParameterCount();
-            if (!signatures.add(signature) || Flow.Publisher.class.isAssignableFrom(method.getReturnType())) {
-                return false;
-            }
-            for (Class<?> parameter : method.getParameterTypes()) {
-                if (Flow.Publisher.class.isAssignableFrom(parameter)) {
-                    return false;
-                }
-            }
-        }
-        return true;
+    private JsonRpcServiceBinding binding(MetBindInfo<?> service) {
+        return (JsonRpcServiceBinding) this.routes.binding(service).getDefinition();
     }
 
     private static String alias(MetBindInfo<?> service) {
@@ -253,13 +229,14 @@ public final class JsonRpcCodec {
     public byte[] encodeRequest(RequestPayload request) throws IOException {
         MetBindInfo<?> service = this.service(request);
         String serviceAlias = alias(service);
-        String name = serviceAlias + "." + request.getTargetMethod();
+        String methodName = this.binding(service).name(this.method(request));
+        String name = serviceAlias + "." + methodName;
         String scopedService = this.protocol.option("service", null);
         if (scopedService != null) {
             if (!StringUtils.equals(scopedService, serviceAlias)) {
                 throw new IOException("Service is not selected by this JSON-RPC endpoint");
             }
-            name = request.getTargetMethod();
+            name = methodName;
         }
 
         ObjectNode call = JSON.createObjectNode();
@@ -362,7 +339,7 @@ public final class JsonRpcCodec {
         Object value = null;
         if (method.getReturnType() != void.class) {
             try {
-                value = this.convert(response.get("result"), method.getGenericReturnType());
+                value = this.convert(response.get("result"), this.binding(this.service(request)).returnType(method));
             } catch (IllegalArgumentException failure) {
                 throw new IOException("Invalid JSON-RPC result type", failure);
             }
@@ -419,9 +396,25 @@ public final class JsonRpcCodec {
         return response;
     }
 
-    private Object convert(JsonNode value, Type type) {
-        JavaType target = JSON.getTypeFactory().constructType(type);
+    private Object convert(JsonNode value, ResolvableType type) {
+        JavaType target = this.javaType(type);
         return JSON.convertValue(value, target);
+    }
+
+    private JavaType javaType(ResolvableType type) {
+        Class<?> raw = type.resolve(Object.class);
+        if (raw.isArray()) {
+            return JSON.getTypeFactory().constructArrayType(this.javaType(type.getComponentType()));
+        }
+        ResolvableType[] generics = type.getGenerics();
+        if (generics.length == 0) {
+            return JSON.getTypeFactory().constructType(raw);
+        }
+        JavaType[] arguments = new JavaType[generics.length];
+        for (int index = 0; index < arguments.length; index++) {
+            arguments[index] = this.javaType(generics[index]);
+        }
+        return JSON.getTypeFactory().constructParametricType(raw, arguments);
     }
 
     private Method method(RequestPayload request) throws IOException {

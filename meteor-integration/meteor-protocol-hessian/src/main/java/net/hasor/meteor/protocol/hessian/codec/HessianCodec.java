@@ -18,13 +18,13 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.function.EConsumer;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetMessage;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 
@@ -99,7 +99,7 @@ public final class HessianCodec {
 
             String name = input.readMethod();
             int argumentCount = input.readMethodArgLength();
-            Method method = this.resolve(service, name, argumentCount);
+            Method method = this.binding(service).resolve(name, argumentCount);
 
             // 按已发布 Java 签名读取参数，保留原生对象引用与自引用图。
             RequestPayload request = new RequestPayload();
@@ -130,20 +130,8 @@ public final class HessianCodec {
 
         MetBindInfo<?> service = this.service(request);
         Method method = this.method(request, service);
-        String name = method.getName();
-
-        int overloads = 0;
-        for (Method candidate : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
-            if (StringUtils.equals(candidate.getName(), name) && !candidate.isBridge() && !candidate.isSynthetic()) {
-                overloads++;
-            }
-        }
-        if (overloads > 1) {
-            name = AbstractSkeleton.mangleName(method, false);
-        }
-
-        // 非重载方法使用普通名称；重载名称遵循官方 Java 客户端的 mangling。
-        String wireMethod = name;
+        // 名称表在发布时生成；对象序列化仍保留原生 Java 类名。
+        String wireMethod = this.binding(service).name(method);
         Object[] parameters = request.getParameterValues().toArray();
         return this.encode(this.version, output -> output.call(wireMethod, parameters));
     }
@@ -229,42 +217,46 @@ public final class HessianCodec {
     }
 
     /** 发布时验证服务签名与官方重载命名，避免运行期出现不可区分的方法。 */
-    public static boolean validateService(MetBindInfo<?> service) {
+    public static HessianServiceBinding prepareService(MetBindInfo<?> service) {
         String alias = alias(service);
         boolean relativePath = StringUtils.equals(alias, ".") || StringUtils.equals(alias, "..");
         if (relativePath || StringUtils.isBlank(alias) || !alias.matches("[A-Za-z0-9_.-]+")) {
-            return false;
+            return null;
         }
         if (service.isMessage()) {
-            return false;
+            return null;
         }
 
-        Map<String, Method> names = new LinkedHashMap<>();
+        Map<String, Method> signatures = new LinkedHashMap<>();
+        Map<Method, String> names = new LinkedHashMap<>();
         for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
             if (method.isBridge() || method.isSynthetic()) {
                 continue;
             }
 
-            if (method.isAnnotationPresent(MetMessage.class)) {
-                return false;
+            if (ServiceMetaParser.method(method).isMessage()) {
+                return null;
             }
             if (isStream(method.getReturnType())) {
-                return false;
+                return null;
             }
 
             for (Class<?> type : method.getParameterTypes()) {
                 if (isStream(type)) {
-                    return false;
+                    return null;
                 }
             }
 
-            String mangled = AbstractSkeleton.mangleName(method, false);
-            Method previous = names.putIfAbsent(mangled, method);
+            String name = MetRuntimeUtils.getProtocolMethodName(method);
+            String standard = AbstractSkeleton.mangleName(method, false);
+            String mangled = name + standard.substring(method.getName().length());
+            Method previous = signatures.putIfAbsent(mangled, method);
             if (previous != null && !previous.equals(method)) {
-                return false;
+                return null;
             }
+            names.put(method, name);
         }
-        return true;
+        return new HessianServiceBinding(names);
     }
 
     private byte[] encode(int version, EConsumer<AbstractHessianOutput, IOException> action) throws IOException {
@@ -336,35 +328,8 @@ public final class HessianCodec {
         return selected;
     }
 
-    private Method resolve(MetBindInfo<?> service, String name, int argumentCount) {
-        Method selected = null;
-        boolean ambiguous = false;
-        for (Method candidate : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
-            if (candidate.isBridge() || candidate.isSynthetic()) {
-                continue;
-            }
-            if (argumentCount >= 0 && argumentCount != candidate.getParameterCount()) {
-                continue;
-            }
-
-            // 零参数重载的标准名称与普通方法名相同，优先选择完全匹配的 mangling。
-            String mangled = AbstractSkeleton.mangleName(candidate, false);
-            if (StringUtils.equals(name, mangled)) {
-                return candidate;
-            }
-
-            if (StringUtils.equals(name, candidate.getName())) {
-                ambiguous |= selected != null;
-                selected = candidate;
-            }
-        }
-        if (ambiguous) {
-            throw new HessianFaultException("NoSuchMethodException", "Ambiguous overloaded Hessian method");
-        }
-        if (selected == null) {
-            throw new HessianFaultException("NoSuchMethodException", "Hessian method not found: " + name);
-        }
-        return selected;
+    private HessianServiceBinding binding(MetBindInfo<?> service) {
+        return (HessianServiceBinding) this.routes.binding(service).getDefinition();
     }
 
     private Method method(RequestPayload request, MetBindInfo<?> service) throws IOException {

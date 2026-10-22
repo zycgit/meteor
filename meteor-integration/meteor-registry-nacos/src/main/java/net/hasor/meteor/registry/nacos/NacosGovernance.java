@@ -173,7 +173,8 @@ final class NacosGovernance implements AutoCloseable {
             if (old != null) {
                 this.configs.removeRule(key);
             }
-        } else if (!StringUtils.equals(old, body) && !this.configs.compareAndSetRule(key, old, body)) {
+        } else if (!this.configs.compareAndSetRule(key, old, body)) {
+            // 正文等于查询快照也必须由持久 CAS 确认版本，缓存落后不能让旧快照绕过校验。
             throw new ConcurrentModificationException("Rule changed: " + key);
         }
 

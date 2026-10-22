@@ -65,11 +65,11 @@ final class HproseWireCodec {
         output.write('z');
     }
 
-    static byte[] encodeRequest(String alias, RequestPayload request) throws IOException {
+    static byte[] encodeRequest(String name, RequestPayload request) throws IOException {
         ByteArrayOutputStream frame = new ByteArrayOutputStream();
         frame.write('C');
         HproseWriter writer = new HproseWriter(frame);
-        writer.writeString(alias + "_" + request.getTargetMethod());
+        writer.writeString(name);
         writer.reset();
         writer.writeArray(request.getParameterValues().toArray());
         frame.write('z');

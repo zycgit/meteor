@@ -8,13 +8,18 @@
 package net.hasor.meteor.protocol.hessian;
 import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolProvider;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodec;
+import net.hasor.meteor.protocol.hessian.codec.HessianServiceBinding;
 import net.hasor.meteor.protocol.hessian.session.HessianSession;
 
 /** Hessian RPC 协议入口，按 HTTP 挂载点发布普通 Java 服务。 */
@@ -40,8 +45,9 @@ public final class HessianProtocol implements ProtocolProvider<HttpExchange> {
     }
 
     @Override
-    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
-        return HessianCodec.validateService(meta.getService()) ? config.build(null) : null;
+    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        HessianServiceBinding binding = HessianCodec.prepareService(meta.getService());
+        return binding == null ? null : meta.build(config, binding);
     }
 
     @Override

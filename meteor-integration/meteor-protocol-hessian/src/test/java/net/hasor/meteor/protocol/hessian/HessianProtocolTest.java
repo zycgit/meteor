@@ -11,14 +11,14 @@ import java.util.ServiceLoader;
 import java.util.concurrent.Flow;
 import net.hasor.cobble.StringUtils;
 import net.hasor.example.protocol.hessian.HessianDemoService;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -60,14 +60,12 @@ public class HessianProtocolTest {
         service.setBindName("echo");
         service.putAliasName("hessian", "echo");
         ProtocolConfig config = this.protocol();
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
-        ProtocolBinding binding = new HessianProtocol().validate(config, meta, null);
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        ProtocolBinding binding = new HessianProtocol().validate(config, null, meta);
 
         // 无需定义文件也会生成当前挂载自己的接入结果。
         assertNotNull(binding);
-        assertEquals("hessian", binding.getScheme());
-        assertEquals(config.options(), binding.getOptions());
-        assertNull(binding.getDefinition());
+        assertNotNull(binding.getDefinition());
     }
 
     @Test
@@ -80,8 +78,8 @@ public class HessianProtocolTest {
         ProtocolConfig config = this.protocol();
 
         // Hessian 不接受该挂载，其他已配置协议仍可独立判断服务签名。
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
-        assertNull(provider.validate(config, meta, null));
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        assertNull(provider.validate(config, null, meta));
     }
 
     private ProtocolConfig protocol() {

@@ -8,13 +8,17 @@
 package net.hasor.meteor.protocol.jsonrpc;
 import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolProvider;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
-import net.hasor.meteor.protocol.jsonrpc.codec.JsonRpcCodec;
+import net.hasor.meteor.protocol.jsonrpc.codec.JsonRpcServiceBinding;
 import net.hasor.meteor.protocol.jsonrpc.session.JsonRpcSession;
 
 /** JSON-RPC 2.0 uses HTTP or an upgraded WebSocket on the same transport SPI. */
@@ -40,8 +44,9 @@ public final class JsonRpcProtocol implements ProtocolProvider<HttpExchange> {
     }
 
     @Override
-    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
-        return JsonRpcCodec.validateService(meta.getService()) ? config.build(null) : null;
+    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        JsonRpcServiceBinding methods = JsonRpcServiceBinding.prepare(meta.getService());
+        return methods == null ? null : meta.build(config, methods);
     }
 
     @Override

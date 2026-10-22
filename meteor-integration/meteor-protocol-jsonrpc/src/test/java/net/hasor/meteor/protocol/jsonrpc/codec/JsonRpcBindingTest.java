@@ -12,11 +12,13 @@ import java.util.Map;
 import java.util.concurrent.Flow;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetIgnore;
-import net.hasor.meteor.MetMessage;
+import net.hasor.meteor.annotation.MetIgnore;
+import net.hasor.meteor.annotation.MetMessage;
+import net.hasor.meteor.annotation.MetMethod;
+import net.hasor.meteor.annotation.MetParam;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
@@ -48,6 +50,30 @@ public class JsonRpcBindingTest {
     @After
     public void closeContext() throws Exception {
         this.context.close();
+    }
+
+    @Test
+    public void remoteMethodAndParameterNamesResolveToJavaSignature() {
+        // 协议名称与 Java 名称不同，命名参数按显式映射恢复。
+        JsonRpcCall call = this.decode("math.wireRename", "{\"wireInput\":\"mapped\"}", "7");
+
+        // Dispatcher 接收原始 Java 方法名和参数，不接收协议别名。
+        RequestPayload request = call.request();
+        assertNotNull(request);
+        assertEquals("localRename", request.getTargetMethod());
+        assertEquals(List.of("mapped"), request.getParameterValues());
+    }
+
+    @Test
+    public void outboundMethodUsesRemoteName() throws Exception {
+        // 入站恢复的 Java 请求模拟同一服务的本地调用签名。
+        RequestPayload request = this.decode("math.wireRename", "[\"mapped\"]", "7").request();
+
+        // 出站仍使用契约名称，不能把 Java 重命名泄漏到报文中。
+        byte[] body = this.codec.encodeRequest(request);
+        String document = new String(body, StandardCharsets.UTF_8);
+        assertTrue(document.contains("\"method\":\"math.wireRename\""));
+        assertFalse(document.contains("localRename"));
     }
 
     @Test
@@ -413,6 +439,11 @@ public class JsonRpcBindingTest {
     }
 
     public interface Methods {
+        @MetMethod(name = "wireRename")
+        default String localRename(@MetParam(name = "wireInput") String javaInput) {
+            return javaInput;
+        }
+
         default int add(int left, int right) {
             return left + right;
         }
