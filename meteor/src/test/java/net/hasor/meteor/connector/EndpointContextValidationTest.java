@@ -23,6 +23,107 @@ import static org.junit.Assert.*;
 
 public class EndpointContextValidationTest {
     @Test
+    public void endpointDescriptionRetainsExactContextSelection() {
+        // 精确路径和目录前缀不能仅通过相同的路径字符串区分。
+        ConnectorConfig endpoint = this.endpoint(ProtocolConfig.newConfig("httpa", "http", Map.of()));
+        ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
+        service.setServiceType(MetServiceType.Provider);
+        service.setBindContextPaths("httpa", new ContextPath(List.of("/tasks/run"), true));
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(service);
+            ProtocolBinding binding = service.getProtocolMeta("httpa").getEndpoint(endpoint.name());
+
+            // 描述与有效路径来自同一个绑定，管理查询能够辨别实际路由策略。
+            assertTrue(binding.getDescription().path("contextExact").asBoolean());
+            assertEquals(Set.of("/tasks/run"), binding.getContextPath().getPaths());
+        }
+    }
+
+    @Test
+    public void preparedDescriptionsKeepEndpointDefinitionsIndependent() {
+        // 相同协议的两个端点具有不同配置定义，描述也必须分别保存。
+        ConnectorConfig first = this.endpoint("first", ProtocolConfig.newConfig("httpa", "http", //
+                Map.of("definition", "first-definition")));
+        ConnectorConfig second = this.endpoint("second", ProtocolConfig.newConfig("httpa", "http", //
+                Map.of("definition", "second-definition")));
+        ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
+        service.setServiceType(MetServiceType.Provider);
+        try (ValidationRuntime runtime = this.runtime(first, second)) {
+            runtime.register(service);
+            ProtocolMeta meta = service.getProtocolMeta("httpa");
+
+            // 查询各自已提交的绑定，不按协议名选择第一个定义。
+            assertEquals("first-definition", meta.getEndpoint("first").getDescription().path("definition").asText());
+            assertEquals("second-definition", meta.getEndpoint("second").getDescription().path("definition").asText());
+        }
+    }
+
+    @Test
+    public void resourceReplacementCommitsANewDescriptionWithoutChangingThePreviousBinding() {
+        // 首次发布后保留旧绑定，模拟在途调用仍持有该版本。
+        ConnectorConfig endpoint = this.endpoint(ProtocolConfig.newConfig("httpa", "http", Map.of()));
+        ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
+        service.setServiceType(MetServiceType.Provider);
+        service.setBindResource("httpa", "original");
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(service);
+            ProtocolBinding original = service.getProtocolMeta("httpa").getEndpoint(endpoint.name());
+
+            // 新资源完成准备后统一替换；旧绑定和旧描述保持不变。
+            service.setBindResource("httpa", "replacement");
+            runtime.register(service);
+            ProtocolBinding current = service.getProtocolMeta("httpa").getEndpoint(endpoint.name());
+            assertNotSame(original, current);
+            assertEquals("replacement", current.getDescription().path("definition").asText());
+            assertEquals("original", original.getDescription().path("definition").asText());
+        }
+    }
+
+    @Test
+    public void clearedResourceDoesNotLeaveTheOldDescription() {
+        // 清空资源声明后，重新准备结果不能沿用旧资源的描述。
+        ConnectorConfig endpoint = this.endpoint(ProtocolConfig.newConfig("httpa", "http", Map.of()));
+        ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
+        service.setServiceType(MetServiceType.Provider);
+        service.setBindResource("httpa", "original");
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(service);
+            service.setBindResource("httpa", null);
+            runtime.register(service);
+
+            // 有效绑定仍然存在，其契约描述已经清除原资源的信息。
+            ProtocolBinding current = service.getProtocolMeta("httpa").getEndpoint(endpoint.name());
+            assertNull(current.getDefinition());
+            assertFalse(current.getDescription().has("definition"));
+        }
+    }
+
+    @Test
+    public void laterEndpointDescriptionFailurePreservesAllCommittedBindings() {
+        // 第二个端点仅在描述新资源时失败，第一端点已经完成本轮准备。
+        ConnectorConfig first = this.endpoint("first", ProtocolConfig.newConfig("httpa", "http", Map.of()));
+        ConnectorConfig second = this.endpoint("second", ProtocolConfig.newConfig("httpa", "http", //
+                Map.of("failDescription", "true")));
+        ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
+        service.setServiceType(MetServiceType.Provider);
+        service.setBindResource("httpa", "original");
+        try (ValidationRuntime runtime = this.runtime(first, second)) {
+            runtime.register(service);
+            ProtocolBinding originalFirst = service.getProtocolMeta("httpa").getEndpoint("first");
+            ProtocolBinding originalSecond = service.getProtocolMeta("httpa").getEndpoint("second");
+
+            // 描述失败与其他发布准备失败一样，不能提交部分端点或替换旧描述。
+            service.setBindResource("httpa", "description-error");
+            assertThrows(IllegalArgumentException.class, () -> runtime.register(service));
+            ProtocolMeta retained = service.getProtocolMeta("httpa");
+            assertSame(originalFirst, retained.getEndpoint("first"));
+            assertSame(originalSecond, retained.getEndpoint("second"));
+            assertEquals("original", originalFirst.getDescription().path("definition").asText());
+            assertEquals("original", originalSecond.getDescription().path("definition").asText());
+        }
+    }
+
+    @Test
     public void exactRoutesUseEachEndpointsProtocolOptions() {
         // 同一协议挂到两个端点，使用不同配置并共享一个服务精确地址。
         ProtocolConfig first = ProtocolConfig.newConfig("httpa", "http", //

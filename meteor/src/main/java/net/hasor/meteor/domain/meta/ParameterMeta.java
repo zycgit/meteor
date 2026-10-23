@@ -15,15 +15,15 @@ import net.hasor.meteor.annotation.MetParam;
 /** 参数的 Java 位置、完整声明类型与可选的公共名称、编号。 */
 public final class ParameterMeta {
     private final Parameter      javaParameter;
-    private final int            position;
+    private final int            argIndex;
     private final ResolvableType type;
     private final String         declaredName;
     private final int            id;
     private final boolean        declared;
 
-    ParameterMeta(Parameter parameter, int position, ResolvableType type, MetParam declaration) {
+    ParameterMeta(Parameter parameter, int argIndex, ResolvableType type, MetParam declaration) {
         this.javaParameter = parameter;
-        this.position = position;
+        this.argIndex = argIndex;
         this.type = type;
         this.declared = declaration != null;
         this.declaredName = declaration == null ? "" : declaration.name();
@@ -34,8 +34,8 @@ public final class ParameterMeta {
         return this.javaParameter;
     }
 
-    public int getPosition() {
-        return this.position;
+    public int getArgIndex() {
+        return this.argIndex;
     }
 
     public ResolvableType getType() {

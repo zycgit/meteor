@@ -10,11 +10,11 @@ import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.tcp.TcpProtocolProvider;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
@@ -22,7 +22,7 @@ import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 
 /** 只写原始字节的测试协议，用于观察真实 TCP 写入与关闭。 */
-public class RawSocketTestProtocol implements ProtocolProvider<byte[]> {
+public class RawSocketTestProtocol implements TcpProtocolProvider {
     public static final int WRITE_SIZE = 8 * 1024 * 1024;
 
     @Override
@@ -31,17 +31,7 @@ public class RawSocketTestProtocol implements ProtocolProvider<byte[]> {
     }
 
     @Override
-    public String transportType() {
-        return "tcp";
-    }
-
-    @Override
-    public Class<byte[]> messageType() {
-        return byte[].class;
-    }
-
-    @Override
-    public RouteProbeResult probe(ProtocolConfig config, byte[] message) {
+    public RouteProbeResult probeProtocol(ProtocolConfig config, byte[] message) {
         return RouteProbeResult.REJECT;
     }
 
@@ -51,8 +41,8 @@ public class RawSocketTestProtocol implements ProtocolProvider<byte[]> {
     }
 
     @Override
-    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
-        return meta.build(config, null);
+    public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        return meta.build(config, null, meta.createServiceDescription(config, this.defaultSerialize()));
     }
 
     @Override

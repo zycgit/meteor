@@ -130,6 +130,6 @@ public class RouteTableTest {
     private RouteDefinition<String> route(String contextPath) {
         ProtocolConfig config = ProtocolConfig.newConfig("test", "test", Map.of("contextPath", contextPath));
         RouteMountIndex mounts = new RouteMountIndex("unit", config);
-        return new RouteDefinition<>(Map.of(), mounts, message -> RouteProbeResult.MATCH);
+        return new RouteDefinition<>(Map.of(), mounts, null);
     }
 }

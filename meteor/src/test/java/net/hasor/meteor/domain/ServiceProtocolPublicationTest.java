@@ -77,7 +77,7 @@ public class ServiceProtocolPublicationTest {
         // 已准备的端点结果与原始资源声明分别保存。
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         Object resource = new Object();
-        ProtocolBinding endpoint = new ProtocolBinding(null, new Object());
+        ProtocolBinding endpoint = new ProtocolBinding(null, new Object(), null);
         ProtocolMeta publication = new ProtocolMeta(service, null, resource, Map.of("http", endpoint));
         service.replaceProtocolPublication(Map.of("grpc", publication));
 
@@ -95,7 +95,7 @@ public class ServiceProtocolPublicationTest {
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         Object resource = new Object();
         service.setBindResource("grpc", resource);
-        ProtocolBinding binding = new ProtocolBinding(null, new Object());
+        ProtocolBinding binding = new ProtocolBinding(null, new Object(), null);
         ProtocolMeta publication = new ProtocolMeta(service, null, resource, Map.of("http", binding));
         service.replaceProtocolPublication(Map.of("grpc", publication));
 
@@ -151,7 +151,7 @@ public class ServiceProtocolPublicationTest {
         // 协议名统一查找，端点名保持连接器自己的标识。
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         Object definition = new Object();
-        ProtocolBinding endpoint = new ProtocolBinding(null, definition);
+        ProtocolBinding endpoint = new ProtocolBinding(null, definition, null);
         ProtocolMeta publication = new ProtocolMeta(service, null, null, Map.of("public-http", endpoint));
 
         service.replaceProtocolPublication(Map.of("GRPC", publication));
@@ -168,7 +168,7 @@ public class ServiceProtocolPublicationTest {
     public void publicationCopiesTheProtocolIndex() {
         // 服务整体替换协议索引，调用方仍可复用组装时使用的索引。
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
-        ProtocolBinding endpoint = new ProtocolBinding(null, new Object());
+        ProtocolBinding endpoint = new ProtocolBinding(null, new Object(), null);
         ProtocolMeta publication = new ProtocolMeta(service, null, null, Map.of("public-http", endpoint));
         Map<String, ProtocolMeta> protocols = new LinkedHashMap<>();
         protocols.put("grpc", publication);
@@ -186,7 +186,7 @@ public class ServiceProtocolPublicationTest {
     public void publishedProtocolIndexCannotBeModifiedThroughService() {
         // 协议索引由服务整体替换，查询方不能直接增删其中的协议分组。
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
-        ProtocolBinding endpoint = new ProtocolBinding(null, null);
+        ProtocolBinding endpoint = new ProtocolBinding(null, null, null);
         ProtocolMeta publication = new ProtocolMeta(service, null, null, Map.of("main-tcp", endpoint));
         service.replaceProtocolPublication(Map.of("rsf", publication));
 
@@ -200,15 +200,15 @@ public class ServiceProtocolPublicationTest {
     public void replacingPublicationDropsUndeclaredProtocolsOutsideTheNewSnapshot() {
         // 首次接受多个协议，后续完整快照不合并旧的接受结果。
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
-        ProtocolBinding original = new ProtocolBinding(null, new Object());
-        ProtocolBinding rsf = new ProtocolBinding(null, null);
+        ProtocolBinding original = new ProtocolBinding(null, new Object(), null);
+        ProtocolBinding rsf = new ProtocolBinding(null, null, null);
         ProtocolMeta grpc = new ProtocolMeta(service, null, null, Map.of("public-http", original));
         ProtocolMeta rsfPublication = new ProtocolMeta(service, null, null, Map.of("main-tcp", rsf));
         service.replaceProtocolPublication(Map.of("grpc", grpc, "rsf", rsfPublication));
         Map<String, ProtocolBinding> previousEndpoints = service.getProtocolMeta("grpc").getEndpoints();
 
         // 同名协议使用新的端点，其它未声明协议被移除，旧查询快照仍稳定。
-        ProtocolBinding replacement = new ProtocolBinding(null, new Object());
+        ProtocolBinding replacement = new ProtocolBinding(null, new Object(), null);
         ProtocolMeta refreshed = new ProtocolMeta(service, null, null, Map.of("internal-http", replacement));
         service.replaceProtocolPublication(Map.of("grpc", refreshed));
 
@@ -222,7 +222,7 @@ public class ServiceProtocolPublicationTest {
     public void emptyPublicationClearsAcceptedProtocolsWithoutDeclarations() {
         // 没有原始路径声明时，清理接受结果后恢复为未准备状态。
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
-        ProtocolBinding endpoint = new ProtocolBinding(null, null);
+        ProtocolBinding endpoint = new ProtocolBinding(null, null, null);
         ProtocolMeta publication = new ProtocolMeta(service, null, null, Map.of("main-tcp", endpoint));
         service.replaceProtocolPublication(Map.of("rsf", publication));
 
@@ -239,7 +239,7 @@ public class ServiceProtocolPublicationTest {
         ContextPath declaredPaths = new ContextPath(Set.of("/orders", "/internal/orders"), false);
         service.setBindContextPaths("grpc", declaredPaths);
         ContextPath effectivePaths = new ContextPath(Set.of("/internal/orders"), false);
-        ProtocolBinding endpoint = new ProtocolBinding(effectivePaths, new Object());
+        ProtocolBinding endpoint = new ProtocolBinding(effectivePaths, new Object(), null);
         ProtocolMeta publication = new ProtocolMeta(service, declaredPaths, null, Map.of("internal-http", endpoint));
         service.replaceProtocolPublication(Map.of("grpc", publication));
         ProtocolMeta previousPublication = service.getProtocolMeta("grpc");
@@ -262,7 +262,7 @@ public class ServiceProtocolPublicationTest {
         Object resource = new Object();
         service.setBindContextPaths("grpc", declared);
         service.setBindResource("grpc", resource);
-        ProtocolBinding endpoint = new ProtocolBinding(declared, new Object());
+        ProtocolBinding endpoint = new ProtocolBinding(declared, new Object(), null);
         ProtocolMeta prepared = new ProtocolMeta(service, declared, resource, Map.of("http", endpoint));
 
         // 提交直接安装同一份完整元信息，不再重新合并或创建包装对象。
@@ -277,7 +277,7 @@ public class ServiceProtocolPublicationTest {
     public void acceptedEndpointDoesNotRequireAnAdditionalDefinition() {
         // 简单协议的端点没有额外定义对象，端点存在仍代表已接受服务。
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
-        ProtocolBinding endpoint = new ProtocolBinding(null, null);
+        ProtocolBinding endpoint = new ProtocolBinding(null, null, null);
         ProtocolMeta publication = new ProtocolMeta(service, null, null, Map.of("main-tcp", endpoint));
 
         service.replaceProtocolPublication(Map.of("rsf", publication));
@@ -294,7 +294,7 @@ public class ServiceProtocolPublicationTest {
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         MetBindInfo<Runnable> binding = new MetBindInfoWrap<>(new MetBindInfoWrap<>(service));
         Object definition = new Object();
-        ProtocolBinding endpoint = new ProtocolBinding(null, definition);
+        ProtocolBinding endpoint = new ProtocolBinding(null, definition, null);
         ProtocolMeta publication = new ProtocolMeta(service, null, null, Map.of("public-http", endpoint));
 
         // 内部协作方解包得到同一状态来源，无需在公共绑定接口转发协议状态。

@@ -8,6 +8,8 @@
 package net.hasor.meteor.domain.meta;
 import java.util.List;
 import java.util.Map;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.domain.ContextPath;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
@@ -25,15 +27,23 @@ public class ProtocolMetaTest {
         ProtocolConfig second = ProtocolConfig.newConfig("http", "https", Map.of("contextPath", "/inventory"));
         Object firstDefinition = new Object();
         Object secondDefinition = new Object();
+        ObjectNode firstDescription = JsonNodeFactory.instance.objectNode().put("definition", "orders");
+        ObjectNode secondDescription = JsonNodeFactory.instance.objectNode().put("definition", "inventory");
 
         // 默认路径按当前配置合并，构建绑定不发布端点，也不覆盖共享声明。
-        ProtocolBinding orders = meta.build(first, firstDefinition);
-        ProtocolBinding inventory = meta.build(second, secondDefinition);
+        ProtocolBinding orders = meta.build(first, firstDefinition, firstDescription);
+        ProtocolBinding inventory = meta.build(second, secondDefinition, secondDescription);
         assertNotSame(orders, inventory);
         assertEquals(new ContextPath(List.of("/orders"), false), orders.getContextPath());
         assertEquals(new ContextPath(List.of("/inventory"), false), inventory.getContextPath());
         assertSame(firstDefinition, orders.getDefinition());
         assertSame(secondDefinition, inventory.getDefinition());
+        assertSame(firstDescription, orders.getDescription());
+        assertSame(secondDescription, inventory.getDescription());
+        assertEquals("orders", orders.getDescription().path("definition").asText());
+        assertEquals("inventory", inventory.getDescription().path("definition").asText());
+        assertFalse(orders.getDescription().path("contextExact").asBoolean());
+        assertFalse(inventory.getDescription().path("contextExact").asBoolean());
         assertNull(meta.getContextPath());
         assertTrue(meta.getEndpoints().isEmpty());
     }
@@ -47,7 +57,7 @@ public class ProtocolMetaTest {
         ProtocolConfig config = ProtocolConfig.newConfig("http", "http", Map.of("contextPath", "/default"));
 
         // 完整采用声明中的目录，不隐含加入端点默认目录。
-        ProtocolBinding binding = meta.build(config, null);
+        ProtocolBinding binding = meta.build(config, null, null);
         assertSame(declared, binding.getContextPath());
         assertEquals(List.of("/orders", "/inventory"), List.copyOf(binding.getContextPath().getPaths()));
         assertSame(declared, meta.getContextPath());
@@ -62,9 +72,11 @@ public class ProtocolMetaTest {
         ProtocolConfig config = ProtocolConfig.newConfig("http", "http", Map.of("contextPath", "/default"));
 
         // 构建不把精确地址转换为目录，也不移除有效的尾斜杠。
-        ProtocolBinding binding = meta.build(config, null);
+        ObjectNode description = JsonNodeFactory.instance.objectNode();
+        ProtocolBinding binding = meta.build(config, null, description);
         assertSame(declared, binding.getContextPath());
         assertTrue(binding.getContextPath().isExact());
+        assertTrue(binding.getDescription().path("contextExact").asBoolean());
         assertEquals(List.of("/orders/echo/"), List.copyOf(binding.getContextPath().getPaths()));
     }
 
@@ -76,10 +88,12 @@ public class ProtocolMetaTest {
         ProtocolConfig config = ProtocolConfig.newConfig("rsf", "rsf", Map.of());
 
         // 非空绑定本身代表接受服务，路径和定义均允许为空。
-        ProtocolBinding binding = meta.build(config, null);
+        ObjectNode description = JsonNodeFactory.instance.objectNode();
+        ProtocolBinding binding = meta.build(config, null, description);
         assertNotNull(binding);
         assertNull(binding.getContextPath());
         assertNull(binding.getDefinition());
+        assertFalse(binding.getDescription().path("contextExact").asBoolean());
     }
 
     @Test
@@ -90,7 +104,7 @@ public class ProtocolMetaTest {
         ProtocolConfig config = ProtocolConfig.newConfig("http", "http", Map.of("contextPaths", "[\"/extra\"]"));
 
         // 构建保持未选择状态，不把额外挂载擅自用作默认入口。
-        ProtocolBinding binding = meta.build(config, null);
+        ProtocolBinding binding = meta.build(config, null, null);
         assertNull(binding.getContextPath());
         assertNull(meta.getContextPath());
     }
@@ -101,9 +115,11 @@ public class ProtocolMetaTest {
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
         ProtocolConfig config = ProtocolConfig.newConfig("http", "http", Map.of("contextPath", "relative"));
+        ObjectNode description = JsonNodeFactory.instance.objectNode();
 
         // 构建失败保留原始声明与空端点结果，交由外层撤销本轮发布。
-        assertThrows(IllegalArgumentException.class, () -> meta.build(config, null));
+        assertThrows(IllegalArgumentException.class, () -> meta.build(config, null, description));
+        assertTrue(description.isEmpty());
         assertNull(meta.getContextPath());
         assertTrue(meta.getEndpoints().isEmpty());
     }

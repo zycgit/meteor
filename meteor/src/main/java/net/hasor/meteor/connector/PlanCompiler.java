@@ -11,6 +11,8 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.TransportFactory;
 import net.hasor.meteor.connector.transport.TransportPlan;
+import net.hasor.meteor.connector.transport.tcp.TcpProtocolProvider;
+import net.hasor.meteor.connector.transport.udp.UdpProtocolProvider;
 import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Discovers connector SPIs and compiles immutable startup plans without allocating network resources. */
@@ -64,8 +66,22 @@ final class PlanCompiler {
     private <M> void prepare(ConnectorConfig config, TransportFactory<M> transport) {
         // 参数优先级：协议显式配置 > 端点公共参数 > 协议默认值。
         Map<String, Map<String, String>> routes = new LinkedHashMap<>();
+        boolean sharedListener = config.bindEnabled() && config.protocols().size() > 1;
         for (ProtocolConfig mount : config.protocols()) {
             ProtocolProvider<M> protocol = this.resolve(mount, transport);
+
+            // 多协议监听需要识别入站报文；纯出站已指定协议，无需探测。
+            if (sharedListener) {
+                boolean missingTcpProbe = StringUtils.equalsIgnoreCase(transport.name(), "tcp") &&//
+                        !(protocol instanceof TcpProtocolProvider);
+                boolean missingUdpProbe = StringUtils.equalsIgnoreCase(transport.name(), "udp") &&//
+                        !(protocol instanceof UdpProtocolProvider);
+                if (missingTcpProbe || missingUdpProbe) {
+                    String message = "Shared byte transport requires protocol probing: " + protocol.name();
+                    throw new IllegalArgumentException(message);
+                }
+            }
+
             Map<String, String> options = new LinkedHashMap<>();
             copyProtocolOptions(config.options(), options);
             copyProtocolOptions(mount.options(), options);

@@ -8,11 +8,10 @@
 package net.hasor.example.rpc.websocket;
 import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
@@ -20,15 +19,10 @@ import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 
 /** 用户可以自定义应用协议；WebSocket 适配器本身不规定 RPC 信封。 */
-public final class JsonWebSocketProtocol implements ProtocolProvider<HttpExchange> {
+public final class JsonWebSocketProtocol implements HttpProtocolProvider {
     @Override
     public String name() {
         return "jsonws";
-    }
-
-    @Override
-    public String transportType() {
-        return "http";
     }
 
     @Override
@@ -37,19 +31,9 @@ public final class JsonWebSocketProtocol implements ProtocolProvider<HttpExchang
     }
 
     @Override
-    public Class<HttpExchange> messageType() {
-        return HttpExchange.class;
-    }
-
-    @Override
-    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+    public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
         // 示例接受普通发布接口，方法签名在每个请求到达时解析。
-        return meta.build(config, null);
-    }
-
-    @Override
-    public RouteProbeResult probe(ProtocolConfig config, HttpExchange exchange) {
-        return RouteProbeResult.REJECT;
+        return meta.build(config, null, meta.createServiceDescription(config, this.defaultSerialize()));
     }
 
     @Override

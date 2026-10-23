@@ -40,9 +40,9 @@ public class RsfsSchemeTest {
         assertEquals("rsf", plain.scheme());
         assertEquals("rsfs", secure.scheme());
         assertEquals("tcp", protocol.transportType());
-        assertEquals(RouteProbeResult.MATCH, protocol.probe(secure, new byte[] { (byte) 0xb1 }));
-        assertEquals(RouteProbeResult.NEED_MORE, protocol.probe(secure, new byte[0]));
-        assertEquals(RouteProbeResult.REJECT, protocol.probe(secure, new byte[] { 0 }));
+        assertEquals(RouteProbeResult.MATCH, protocol.probeProtocol(secure, new byte[] { (byte) 0xb1 }));
+        assertEquals(RouteProbeResult.NEED_MORE, protocol.probeProtocol(secure, new byte[0]));
+        assertEquals(RouteProbeResult.REJECT, protocol.probeProtocol(secure, new byte[] { 0 }));
     }
 
     @Test

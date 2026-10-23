@@ -153,7 +153,7 @@ public class ServiceMetaParserTest {
         // field id 为 7 的参数仍然位于 Java 参数数组的第零项。
         Method method = Base.class.getMethod("echo", Object.class);
         ParameterMeta parameter = ServiceMetaParser.method(Orders.class, method).getParameters().get(0);
-        assertEquals(0, parameter.getPosition());
+        assertEquals(0, parameter.getArgIndex());
         assertEquals(7, parameter.getId());
         assertEquals("request", parameter.getName());
     }

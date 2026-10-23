@@ -19,6 +19,8 @@ import net.hasor.meteor.connector.transport.ChannelListenerFactory;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.NetworkConnector;
 import net.hasor.meteor.connector.transport.NetworkListen;
+import net.hasor.meteor.connector.transport.tcp.TcpProtocolProvider;
+import net.hasor.meteor.connector.transport.udp.UdpProtocolProvider;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 
@@ -50,19 +52,30 @@ final class ConnectorEndpoint<M> {
     }
 
     private RouteTable<M> createRoutes() {
-        // 根据当前端点的协议挂载创建路由定义，报文探测留到收包时执行。
+        // 按挂载创建路由；只有 TCP/UDP 协议适配器提供报文探测，HTTP 使用路径选路。
         Map<String, RouteDefinition<M>> definitions = new LinkedHashMap<>();
         for (ProtocolMountBinding<M> binding : this.plan.protocolBindings().values()) {
             ProtocolConfig protocol = binding.config();
             ProtocolProvider<M> provider = binding.provider();
-            Function<M, RouteProbeResult> probe = message -> provider.probe(protocol, message);
-            RouteDefinition<M> definition = new RouteDefinition<>(protocol.options(), binding.routes(), probe);
+            Function<M, RouteProbeResult> protocolProbe = this.protocolProbe(provider, protocol);
+            RouteDefinition<M> definition = new RouteDefinition<>(protocol.options(), binding.routes(), protocolProbe);
             definitions.put(protocol.name(), definition);
         }
 
         // 路由表由端点持有，静态索引在构造时一次生成，动态查询由管理器提供。
         Function<String, RouteSelection> exactResolver = this.manager.routeResolver(this.plan.config().name());
         return new RouteTable<>(definitions, exactResolver);
+    }
+
+    private Function<M, RouteProbeResult> protocolProbe(ProtocolProvider<M> provider, ProtocolConfig config) {
+        // TCP 识别连接前缀，UDP 识别完整数据报；消息类型已在计划准备时校验。
+        if (provider instanceof TcpProtocolProvider tcp) {
+            return message -> tcp.probeProtocol(config, (byte[]) message);
+        }
+        if (provider instanceof UdpProtocolProvider udp) {
+            return message -> udp.probeProtocol(config, (byte[]) message);
+        }
+        return null;
     }
 
     ConnectorConfig config() {

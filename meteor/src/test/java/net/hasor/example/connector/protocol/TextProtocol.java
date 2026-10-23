@@ -14,11 +14,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
@@ -30,27 +29,14 @@ import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 
 /** HTTP 传输测试使用的协议夹具。 */
-public class TextProtocol implements TestHttpCodec, ProtocolProvider<HttpExchange> {
-    @Override
-    public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
-        return RouteProbeResult.REJECT;
-    }
-
+public class TextProtocol implements TestHttpCodec, HttpProtocolProvider {
     public String defaultSerialize() {
         return "Java";
     }
 
-    public String transportType() {
-        return "http";
-    }
-
     @Override
-    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
-        return meta.build(config, null);
-    }
-
-    public Class<HttpExchange> messageType() {
-        return HttpExchange.class;
+    public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        return meta.build(config, null, meta.createServiceDescription(config, this.defaultSerialize()));
     }
 
     public String name() {

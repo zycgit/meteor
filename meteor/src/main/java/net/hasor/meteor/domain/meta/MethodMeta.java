@@ -9,6 +9,7 @@ package net.hasor.meteor.domain.meta;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.concurrent.Flow;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.reflect.resolvable.ResolvableType;
@@ -52,6 +53,15 @@ public final class MethodMeta {
 
     public String getJavaName() {
         return this.javaMethod.getName();
+    }
+
+    /** Java 调用签名用于对应端点操作，公共改名不改变此身份。 */
+    public String getJavaSignature() {
+        StringJoiner arguments = new StringJoiner(",", this.getJavaName() + "(", ")");
+        for (Class<?> argument : this.javaMethod.getParameterTypes()) {
+            arguments.add(argument.getTypeName());
+        }
+        return arguments.toString();
     }
 
     public String getDeclaredName() {

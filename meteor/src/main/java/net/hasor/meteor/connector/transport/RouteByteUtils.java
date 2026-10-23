@@ -35,7 +35,7 @@ public final class RouteByteUtils {
         String selected = null;
         boolean more = false;
         for (Map.Entry<String, RouteDefinition<byte[]>> route : routes.entrySet()) {
-            RouteProbeResult probe = route.getValue().probe(prefix);
+            RouteProbeResult probe = route.getValue().protocolProbe().apply(prefix);
             if (probe == RouteProbeResult.MATCH) {
                 if (selected != null) {
                     String message = "Ambiguous network route: " + selected + " and " + route.getKey();

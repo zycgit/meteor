@@ -14,7 +14,7 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 
-/** Protocol SPI for metadata, service validation, route probing and session creation. */
+/** Protocol SPI for metadata, service binding preparation and session creation. */
 public interface ProtocolProvider<M> {
     String name();
 
@@ -25,11 +25,8 @@ public interface ProtocolProvider<M> {
 
     Class<M> messageType();
 
-    /** 校验服务声明，通过 meta.build 创建完整绑定；null 表示拒绝，异常撤销本次登记。 */
-    ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta);
-
-    /** Inspect data without consuming it when the transport needs content-based routing. */
-    RouteProbeResult probe(ProtocolConfig config, M message);
+    /** 校验服务并准备定义与描述，通过 meta.build 创建完整绑定；null 表示拒绝，异常撤销本次登记。 */
+    ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta);
 
     ProtocolSession<M> createSession(ProtocolConfig config, ProtocolSessionContext context, //
             NetworkChannel<M> connection, ObjLongConsumer<Payload> messages);

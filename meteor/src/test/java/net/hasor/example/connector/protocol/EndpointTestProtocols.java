@@ -11,18 +11,22 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.ObjLongConsumer;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.connector.transport.tcp.TcpProtocolProvider;
+import net.hasor.meteor.connector.transport.udp.UdpProtocolProvider;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
@@ -38,7 +42,7 @@ public final class EndpointTestProtocols {
     }
 
     public static class IncompleteProbe extends WireA {
-        public RouteProbeResult probe(ProtocolConfig config, byte[] prefix) {
+        public RouteProbeResult probeProtocol(ProtocolConfig config, byte[] prefix) {
             return RouteProbeResult.NEED_MORE;
         }
     }
@@ -54,22 +58,13 @@ public final class EndpointTestProtocols {
         return response;
     }
 
-    public static class HttpA implements ProtocolProvider<HttpExchange>, TestHttpCodec {
-        @Override
-        public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
-            return RouteProbeResult.REJECT;
-        }
-
+    public static class HttpA implements HttpProtocolProvider, TestHttpCodec {
         public String defaultSerialize() {
             return "Java";
         }
 
-        public String transportType() {
-            return "http";
-        }
-
         @Override
-        public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
             // 显式故障撤销本次登记；普通能力拒绝只影响当前协议端点。
             if (Boolean.parseBoolean(config.option("failService", "false"))) {
                 throw new IllegalArgumentException("Invalid test protocol definition");
@@ -87,11 +82,16 @@ public final class EndpointTestProtocols {
                 definition = Map.of("meta", meta, "preparedEndpoints", meta.getEndpoints().size(), //
                         "published", published == meta);
             }
-            return meta.build(config, definition);
-        }
-
-        public Class<HttpExchange> messageType() {
-            return HttpExchange.class;
+            // 在返回绑定前导出描述，失败时不会把半成品加入本轮端点。
+            ObjectNode description = meta.createServiceDescription(config, this.defaultSerialize());
+            if (definition instanceof String value) {
+                boolean fail = Boolean.parseBoolean(config.option("failDescription", "false"));
+                if (fail && StringUtils.equals("description-error", value)) {
+                    throw new IllegalArgumentException("Cannot describe test binding");
+                }
+                description.put("definition", value);
+            }
+            return meta.build(config, definition, description);
         }
 
         public String name() {
@@ -147,20 +147,19 @@ public final class EndpointTestProtocols {
         }
     }
 
-    public static class WireA implements ProtocolProvider<byte[]> {
+    public static class WireA implements TcpProtocolProvider {
         public String defaultSerialize() {
             return "Java";
         }
 
-        public String transportType() {
-            return "tcp";
-        }
-
         @Override
-        public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
-            return meta.build(config, null);
+        public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+            ObjectNode description = meta.createServiceDescription(config, this.defaultSerialize());
+            return meta.build(config, null, description);
         }
 
+        // UDP 子类同时继承两种传输接口，由共用的具体实现消解相同消息类型的默认方法冲突。
+        @Override
         public Class<byte[]> messageType() {
             return byte[].class;
         }
@@ -173,7 +172,7 @@ public final class EndpointTestProtocols {
             return "AA";
         }
 
-        public RouteProbeResult probe(ProtocolConfig config, byte[] prefix) {
+        public RouteProbeResult probeProtocol(ProtocolConfig config, byte[] prefix) {
             byte[] marker = this.marker().getBytes(StandardCharsets.US_ASCII);
             int compared = Math.min(prefix.length, marker.length);
             for (int i = 0; i < compared; i++) {
@@ -211,7 +210,7 @@ public final class EndpointTestProtocols {
 
     public static class RsfDelayedCandidate extends WireA {
         @Override
-        public RouteProbeResult probe(ProtocolConfig config, byte[] prefix) {
+        public RouteProbeResult probeProtocol(ProtocolConfig config, byte[] prefix) {
             if (prefix.length == 0) {
                 return RouteProbeResult.NEED_MORE;
             }
@@ -225,14 +224,14 @@ public final class EndpointTestProtocols {
         }
     }
 
-    public static class DatagramWireA extends WireA {
+    public static class DatagramWireA extends WireA implements UdpProtocolProvider {
         public String transportType() {
             return "udp";
         }
 
     }
 
-    public static class DatagramWireB extends WireB {
+    public static class DatagramWireB extends WireB implements UdpProtocolProvider {
         public String transportType() {
             return "udp";
         }

@@ -7,18 +7,17 @@
  */
 package net.hasor.meteor.connector;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 
-/** One runtime route with protocol options, context mounts and a non-consuming message probe. */
+/** One runtime route with protocol options, context mounts and an optional transport protocol probe. */
 public final class RouteDefinition<M> {
     private final Map<String, String>           options;
-    private final Function<M, RouteProbeResult> probe;
+    private final Function<M, RouteProbeResult> protocolProbe;
     private final RouteMountIndex               mountIndex;
 
-    RouteDefinition(Map<String, String> options, RouteMountIndex mountIndex, Function<M, RouteProbeResult> probe) {
+    RouteDefinition(Map<String, String> options, RouteMountIndex mountIndex, Function<M, RouteProbeResult> protocolProbe) {
         this.options = Map.copyOf(options);
-        this.probe = Objects.requireNonNull(probe, "probe");
+        this.protocolProbe = protocolProbe;
         this.mountIndex = mountIndex;
     }
 
@@ -26,8 +25,9 @@ public final class RouteDefinition<M> {
         return this.options;
     }
 
-    public RouteProbeResult probe(M message) {
-        return this.probe.apply(message);
+    /** Transport message probe, or null when the route does not require content probing. */
+    public Function<M, RouteProbeResult> protocolProbe() {
+        return this.protocolProbe;
     }
 
     RouteMountIndex mountIndex() {

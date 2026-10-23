@@ -216,7 +216,7 @@ public class RouteMountIndexTest {
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
         service.setServiceType(MetServiceType.Provider);
         ContextPath effective = new ContextPath(List.of("/rpc"), false);
-        ProtocolBinding binding = new ProtocolBinding(effective, null);
+        ProtocolBinding binding = new ProtocolBinding(effective, null, null);
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of("accepted-http", binding));
         service.replaceProtocolPublication(Map.of("grpc", meta));
 

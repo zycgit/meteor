@@ -13,11 +13,11 @@ import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.udp.UdpProtocolProvider;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
@@ -26,24 +26,14 @@ import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 
 /** 报文类型、请求号和 UTF-8 正文组成的 UDP 测试对端协议。 */
-public final class UdpTestProtocol implements ProtocolProvider<byte[]> {
+public final class UdpTestProtocol implements UdpProtocolProvider {
     @Override
     public String name() {
         return "testprotocol";
     }
 
     @Override
-    public String transportType() {
-        return "udp";
-    }
-
-    @Override
-    public Class<byte[]> messageType() {
-        return byte[].class;
-    }
-
-    @Override
-    public RouteProbeResult probe(ProtocolConfig config, byte[] message) {
+    public RouteProbeResult probeProtocol(ProtocolConfig config, byte[] message) {
         return RouteProbeResult.REJECT;
     }
 
@@ -53,8 +43,8 @@ public final class UdpTestProtocol implements ProtocolProvider<byte[]> {
     }
 
     @Override
-    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
-        return meta.build(config, null);
+    public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        return meta.build(config, null, meta.createServiceDescription(config, this.defaultSerialize()));
     }
 
     @Override

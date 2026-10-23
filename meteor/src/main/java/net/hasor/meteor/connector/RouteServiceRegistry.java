@@ -234,8 +234,8 @@ final class RouteServiceRegistry {
                     metas.put(name, meta);
                 }
 
-                // 协议使用自己的配置构建绑定，有效路径不会回写到共享声明中。
-                ProtocolBinding prepared = protocol.provider().validate(config, context, meta);
+                // 协议一次准备完整定义、描述和路径，不修改已提交绑定或共享声明。
+                ProtocolBinding prepared = protocol.provider().prepareBinding(config, context, meta);
                 if (prepared == null) {
                     String message = "Protocol " + name + " rejected service " + service.getBindID();
                     logger.warn(message + " at endpoint " + this.config.name());
