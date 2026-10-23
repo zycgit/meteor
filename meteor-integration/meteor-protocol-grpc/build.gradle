@@ -10,4 +10,12 @@ dependencies {
     api "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
     api "com.squareup.wire:wire-schema-jvm:${property('lib.wire')}"
     api "com.google.protobuf:protobuf-java-util:${property('lib.protobuf')}"
+
+    // for test
+    testImplementation "io.grpc:grpc-netty-shaded:${property('lib.grpc')}"
+    testImplementation "io.grpc:grpc-stub:${property('lib.grpc')}"
+    testImplementation "io.grpc:grpc-protobuf:${property('lib.grpc')}"
+    testImplementation "com.linecorp.armeria:armeria-grpc:${property('lib.armeria')}"
+    testImplementation "com.connectrpc:connect-kotlin-okhttp:${property('lib.connect.kotlin')}"
+    testImplementation "com.connectrpc:connect-kotlin-google-java-ext:${property('lib.connect.kotlin')}"
 }

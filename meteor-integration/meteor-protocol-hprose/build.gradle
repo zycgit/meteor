@@ -8,4 +8,7 @@ description = 'HTTP/Hprose protocol plugin and Hprose serialization'
 dependencies {
     api project(':meteor')
     api "org.hprose:hprose-java:${property('lib.hprose')}"
+
+    // for test
+    testImplementation "org.hprose:hprose-java:${property('lib.hprose')}"
 }

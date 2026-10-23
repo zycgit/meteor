@@ -8,4 +8,7 @@ description = 'Dubbo binary RPC for native Dubbo 2 and 3 services over TCP and T
 dependencies {
     api project(':meteor')
     api "com.caucho:hessian:${property('lib.hessian')}"
+
+    // for test
+    testImplementation "org.apache.dubbo:dubbo:${property('lib.dubbo')}"
 }

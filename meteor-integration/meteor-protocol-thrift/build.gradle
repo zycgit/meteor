@@ -9,7 +9,8 @@ dependencies {
     api project(':meteor')
     api "org.apache.thrift:libthrift:${property('lib.thrift')}"
 
-    // Thrift 官方生成的测试代码直接引用 SDK 的日志 API。
+    // for test
+    testImplementation "org.apache.thrift:libthrift:${property('lib.thrift')}"
     testImplementation "org.slf4j:slf4j-api:${property('lib.slf4j')}"
     testImplementation "org.mockito:mockito-core:${property('lib.mockito')}"
 }

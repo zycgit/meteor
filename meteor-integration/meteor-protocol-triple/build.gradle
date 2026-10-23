@@ -8,4 +8,8 @@ description = 'Apache Dubbo Triple RPC over HTTP and HTTP/2 for Java interfaces 
 dependencies {
     api project(':meteor-protocol-grpc')
     api "com.caucho:hessian:${property('lib.hessian')}"
+
+    // for test
+    // 原版 3.3.6 服务端发送非法 HTTP/2 响应 TE，双向基础例统一使用原版 3.2.20。
+    testImplementation "org.apache.dubbo:dubbo:${property('lib.dubbo.legacy')}"
 }

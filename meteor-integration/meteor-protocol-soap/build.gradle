@@ -11,4 +11,5 @@ dependencies {
 
     // for test
     testImplementation "org.eclipse.angus:angus-mail:${property('lib.angus.mail')}"
+    testImplementation "com.sun.xml.ws:jaxws-rt:${property('lib.jaxws')}"
 }

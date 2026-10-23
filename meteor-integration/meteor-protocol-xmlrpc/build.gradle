@@ -7,4 +7,8 @@ description = 'XML-RPC protocol over HTTP and HTTPS'
 
 dependencies {
     api project(':meteor')
+
+    // for test
+    testImplementation "org.apache.xmlrpc:xmlrpc-client:${property('lib.xmlrpc')}"
+    testImplementation "org.apache.xmlrpc:xmlrpc-server:${property('lib.xmlrpc')}"
 }

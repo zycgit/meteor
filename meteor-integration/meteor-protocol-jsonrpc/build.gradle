@@ -7,6 +7,9 @@ description = 'JSON-RPC 2.0 protocol over HTTP and WebSocket'
 
 dependencies {
     api project(':meteor')
+
+    // for test
+    testImplementation "com.github.briandilley.jsonrpc4j:jsonrpc4j:${property('lib.jsonrpc4j')}"
 }
 
 // 命名参数示例保留 Java 接口中的真实参数名。

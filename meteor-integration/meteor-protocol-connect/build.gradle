@@ -7,4 +7,8 @@ description = 'Connect RPC over HTTP and HTTPS for ordinary and Flow-based Meteo
 
 dependencies {
     api project(':meteor-protocol-grpc')
+
+    // for test
+    testImplementation "com.connectrpc:connect-kotlin-okhttp:${property('lib.connect.kotlin')}"
+    testImplementation "com.connectrpc:connect-kotlin-google-java-ext:${property('lib.connect.kotlin')}"
 }
