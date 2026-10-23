@@ -1,0 +1,11 @@
+plugins {
+    id 'java-library'
+}
+
+ext.pomName = 'Meteor Protocol Triple'
+description = 'Apache Dubbo Triple RPC over HTTP and HTTP/2 for Java interfaces and Protobuf services'
+
+dependencies {
+    api project(':meteor-protocol-grpc')
+    api "com.caucho:hessian:${property('lib.hessian')}"
+}
