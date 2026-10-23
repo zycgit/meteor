@@ -10,7 +10,6 @@ import java.io.*;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.Flow;
@@ -21,13 +20,14 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetMessage;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.domain.meta.MethodMeta;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.protocol.xmlrpc.XmlRpcException;
@@ -61,6 +61,7 @@ public final class XmlRpcCodec {
         } catch (IOException failure) {
             throw new XmlRpcException(-32700, "Parse error");
         }
+
         String scopedService = this.protocol.option("service", null);
         MetBindInfo<?> selectedService = null;
         Method selectedMethod = null;
@@ -73,25 +74,27 @@ public final class XmlRpcCodec {
             if (!provider || service.isShadow() || !this.routes.accepts(service, mount)) {
                 continue;
             }
+
             String alias = alias(service);
             if (scopedService != null && !StringUtils.equals(scopedService, alias)) {
                 continue;
             }
-            for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
-                if (method.isBridge() || method.isSynthetic()) {
-                    continue;
-                }
-                String name = alias + "." + method.getName();
+
+            for (Map.Entry<Method, String> entry : this.methods(service).entrySet()) {
+                Method method = entry.getKey();
+                String name = alias + "." + entry.getValue();
                 if (scopedService != null) {
-                    name = method.getName();
+                    name = entry.getValue();
                 }
                 if (!StringUtils.equals(name, call.methodName())) {
                     continue;
                 }
+
                 nameFound = true;
                 if (method.getParameterCount() != call.parameters().size()) {
                     continue;
                 }
+
                 if (selectedMethod != null) {
                     throw new XmlRpcException(-32602, "Ambiguous overloaded method");
                 }
@@ -116,11 +119,11 @@ public final class XmlRpcCodec {
         request.setMessage(false);
         request.setReceiveTime(System.currentTimeMillis());
         request.setClientTimeout(this.context.getSettings().getDefaultTimeout());
-        Type[] types = selectedMethod.getGenericParameterTypes();
+        MethodMeta description = ServiceMetaParser.method(selectedService.getBindType(), selectedMethod);
+        JavaType[] types = ServiceMetaParser.parameterTypes(description, MAPPER.getTypeFactory());
         try {
             for (int index = 0; index < types.length; index++) {
-                JavaType target = this.memberType(selectedService, selectedMethod, types[index]);
-                Object value = this.convert(call.parameters().get(index), target);
+                Object value = this.convert(call.parameters().get(index), types[index]);
                 request.addParameter(selectedMethod.getParameterTypes()[index].getName(), value);
             }
         } catch (IllegalArgumentException failure) {
@@ -130,39 +133,45 @@ public final class XmlRpcCodec {
     }
 
     /** 检查 XML-RPC 是否支持当前接口；未启用 nil 的空返回值不属于该端点。 */
-    public static boolean validateService(ProtocolConfig protocol, MetBindInfo<?> service) {
+    public static Map<Method, String> prepareService(ProtocolConfig protocol, MetBindInfo<?> service) {
         String alias = alias(service);
         if (StringUtils.isBlank(alias) || !alias.matches("[A-Za-z0-9_.:/]+")) {
-            return false;
+            return null;
         }
         if (service.isMessage()) {
-            return false;
+            return null;
         }
+
         boolean allowNil = Boolean.parseBoolean(protocol.option("allowNil", "false"));
         Set<String> signatures = new HashSet<>();
+        Map<Method, String> methods = new LinkedHashMap<>();
         for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
             if (method.isBridge() || method.isSynthetic()) {
                 continue;
             }
-            String signature = method.getName() + "/" + method.getParameterCount();
+            String name = MetRuntimeUtils.getProtocolMethodName(method);
+            String signature = name + "/" + method.getParameterCount();
             if (!signatures.add(signature)) {
-                return false;
+                return null;
             }
-            if (!method.getName().matches("[A-Za-z0-9_]+") || method.isAnnotationPresent(MetMessage.class)) {
-                return false;
+            if (!name.matches("[A-Za-z0-9_.:/]+") || ServiceMetaParser.method(method).isMessage()) {
+                return null;
             }
+
             Class<?> result = method.getReturnType();
             boolean empty = result == void.class || result == Void.class;
             if (empty && !allowNil || unsupportedStream(result)) {
-                return false;
+                return null;
             }
+
             for (Class<?> parameter : method.getParameterTypes()) {
                 if (unsupportedStream(parameter)) {
-                    return false;
+                    return null;
                 }
             }
+            methods.put(method, name);
         }
-        return true;
+        return Collections.unmodifiableMap(methods);
     }
 
     private static boolean unsupportedStream(Class<?> type) {
@@ -176,15 +185,17 @@ public final class XmlRpcCodec {
         if (request.isMessage()) {
             throw new IOException("XML-RPC does not support notifications");
         }
+
         MetBindInfo<?> service = this.service(request);
         String alias = alias(service);
-        String name = alias + "." + request.getTargetMethod();
+        String methodName = this.methods(service).get(this.method(request));
+        String name = alias + "." + methodName;
         String scopedService = this.protocol.option("service", null);
         if (scopedService != null) {
             if (!StringUtils.equals(scopedService, alias)) {
                 throw new IOException("Service is not selected by this XML-RPC endpoint");
             }
-            name = request.getTargetMethod();
+            name = methodName;
         }
 
         // 对象转为结构体时保留 Date 与 byte[]，由 XML 编码器选择各自的类型标签。
@@ -207,6 +218,7 @@ public final class XmlRpcCodec {
         if (response.getStatus() != ProtocolStatus.OK) {
             return this.encodeError(response.getFailure());
         }
+
         try {
             Object value = this.normalize(response.getReturnData(), new IdentityHashMap<>(), 1);
             return this.wire.encodeResponse(value);
@@ -220,6 +232,7 @@ public final class XmlRpcCodec {
         while (cause instanceof InvocationTargetException) {
             cause = cause.getCause();
         }
+
         if (cause instanceof XmlRpcException error) {
             return this.wire.encodeFault(error.getCode(), error.getMessage());
         }
@@ -232,7 +245,9 @@ public final class XmlRpcCodec {
         Object value = null;
         if (method.getReturnType() != void.class) {
             try {
-                JavaType target = this.memberType(this.service(request), method, method.getGenericReturnType());
+                Class<?> serviceType = this.service(request).getBindType();
+                MethodMeta description = ServiceMetaParser.method(serviceType, method);
+                JavaType target = ServiceMetaParser.returnType(description, MAPPER.getTypeFactory());
                 value = this.convert(decoded, target);
             } catch (IllegalArgumentException failure) {
                 throw new IOException("Invalid XML-RPC result type", failure);
@@ -240,6 +255,7 @@ public final class XmlRpcCodec {
         } else if (decoded != null) {
             throw new IOException("XML-RPC void result must be nil");
         }
+
         ResponsePayload result = new ResponsePayload();
         result.setRequestID(request.getRequestID());
         result.setStatus(ProtocolStatus.OK);
@@ -248,12 +264,6 @@ public final class XmlRpcCodec {
         result.setReturnType(method.getReturnType().getName());
         result.setReturnData(value);
         return result;
-    }
-
-    private JavaType memberType(MetBindInfo<?> service, Method method, Type type) {
-        JavaType declared = MAPPER.getTypeFactory().constructType(service.getBindType());
-        JavaType owner = declared.findSuperType(method.getDeclaringClass());
-        return MAPPER.getTypeFactory().resolveMemberType(type, owner.getBindings());
     }
 
     private Object convert(Object value, JavaType target) {
@@ -332,6 +342,7 @@ public final class XmlRpcCodec {
         if (result == null) {
             throw new IllegalArgumentException("XML-RPC DTO requires a no-argument constructor");
         }
+
         Map<String, BeanPropertyDefinition> properties = new LinkedHashMap<>();
         for (BeanPropertyDefinition property : bean.findProperties()) {
             properties.put(property.getName(), property);
@@ -372,6 +383,7 @@ public final class XmlRpcCodec {
         if (value instanceof Character) {
             return value.toString();
         }
+
         Class<?> valueType = value.getClass();
         if (unsupportedStream(valueType)) {
             throw new IllegalArgumentException("XML-RPC does not support streaming type: " + valueType.getName());
@@ -424,6 +436,11 @@ public final class XmlRpcCodec {
         } finally {
             visiting.remove(value);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Method, String> methods(MetBindInfo<?> service) {
+        return (Map<Method, String>) this.routes.binding(service).getDefinition();
     }
 
     private Method method(RequestPayload request) throws IOException {

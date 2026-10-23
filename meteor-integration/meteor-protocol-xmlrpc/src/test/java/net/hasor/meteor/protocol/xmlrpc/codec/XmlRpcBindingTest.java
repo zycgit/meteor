@@ -14,10 +14,10 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetIgnore;
+import net.hasor.meteor.annotation.MetIgnore;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
@@ -385,6 +385,17 @@ public class XmlRpcBindingTest {
         assertEquals(-32700, error.getCode());
     }
 
+    @Test
+    public void methodTypeVariableShadowsThePublishedClassVariable() throws Exception {
+        // 方法的 <T> 遮蔽父类的 T，不应被具体发布类上的 Person 绑定替换。
+        this.context.publisher().rsfService(ShadowPersonService.class, new ShadowPersonService()) //
+                .name("shadow").register();
+
+        // 未确定的方法类型保持普通值，不把整数误当作 Person 结构体。
+        RequestPayload request = this.decode("shadow.select", List.of(7));
+        assertEquals(List.of(7), request.getParameterValues());
+    }
+
     private RequestPayload decode(String method, List<?> values) throws Exception {
         byte[] body = this.wire.encodeRequest(method, values);
         return this.codec.decodeRequest(body, this.routes.match("/rpc"));
@@ -487,6 +498,15 @@ public class XmlRpcBindingTest {
     }
 
     public static class PersonService extends GenericService<Person> {
+    }
+
+    public static class ShadowGenericService<T> {
+        public <T> T select(T value) {
+            return value;
+        }
+    }
+
+    public static class ShadowPersonService extends ShadowGenericService<Person> {
     }
 
     public static class Person {

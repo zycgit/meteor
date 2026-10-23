@@ -22,7 +22,7 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.protocol.xmlrpc.XmlRpcException;
 
 /** XML-RPC document grammar and standard wire values, independent of service dispatch. */

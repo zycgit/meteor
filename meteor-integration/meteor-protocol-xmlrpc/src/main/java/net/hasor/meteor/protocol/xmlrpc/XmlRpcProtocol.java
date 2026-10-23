@@ -6,27 +6,28 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.xmlrpc;
+import java.lang.reflect.Method;
+import java.util.Map;
 import java.util.function.ObjLongConsumer;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.protocol.xmlrpc.codec.XmlRpcCodec;
 import net.hasor.meteor.protocol.xmlrpc.session.XmlRpcSession;
 
 /** XML-RPC publishes ordinary HTTP request/response methods through the protocol SPI. */
-public final class XmlRpcProtocol implements ProtocolProvider<HttpExchange> {
+public final class XmlRpcProtocol implements HttpProtocolProvider {
     @Override
     public String name() {
         return "xmlrpc";
-    }
-
-    @Override
-    public String transportType() {
-        return "http";
     }
 
     @Override
@@ -35,18 +36,14 @@ public final class XmlRpcProtocol implements ProtocolProvider<HttpExchange> {
     }
 
     @Override
-    public Class<HttpExchange> messageType() {
-        return HttpExchange.class;
-    }
+    public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        Map<Method, String> methods = XmlRpcCodec.prepareService(config, meta.getService());
+        if (methods == null) {
+            return null;
+        }
 
-    @Override
-    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
-        return XmlRpcCodec.validateService(config, meta.getService()) ? config.build(null) : null;
-    }
-
-    @Override
-    public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
-        return RouteProbeResult.REJECT;
+        ObjectNode description = meta.createServiceDescription(config, this.defaultSerialize(), methods);
+        return meta.build(config, methods, description);
     }
 
     @Override

@@ -22,11 +22,14 @@ import net.hasor.example.protocol.xmlrpc.XmlRpcDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.ProtocolSessionContextTestAccess;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -41,12 +44,10 @@ public class XmlRpcSessionTest {
     public void factoryDeclaresHttpMessageTransport() {
         // XML-RPC 扩展复用 HTTP 传输，不新增专属网络实现。
         XmlRpcProtocol factory = new XmlRpcProtocol();
-        ProtocolConfig config = configuration();
         assertEquals("xmlrpc", factory.name());
         assertEquals("http", factory.transportType());
         assertEquals("Json", factory.defaultSerialize());
         assertEquals(HttpExchange.class, factory.messageType());
-        assertEquals(RouteProbeResult.REJECT, factory.probe(config, exchange("<invalid/>")));
     }
 
     @Test

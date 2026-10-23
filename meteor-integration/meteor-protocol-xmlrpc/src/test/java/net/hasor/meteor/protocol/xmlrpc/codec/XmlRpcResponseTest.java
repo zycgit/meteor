@@ -11,8 +11,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -289,6 +289,20 @@ public class XmlRpcResponseTest {
         byte[] body = this.wire.encodeResponse(Map.of("name", "Ada"));
         ResponsePayload response = this.codec.decodeResponse(request, body);
         assertEquals("Ada", ((XmlRpcBindingTest.Person) response.getReturnData()).getName());
+    }
+
+    @Test
+    public void methodReturnVariableShadowsTheConsumerClassVariable() throws Exception {
+        // 消费者的类变量绑定为 Person，返回类型来自独立的方法变量 T。
+        this.context.publisher().rsfService(XmlRpcBindingTest.ShadowPersonService.class).name("shadow").register();
+        RequestPayload request = this.request("select");
+        request.setServiceName("shadow");
+        request.addParameter(Object.class.getName(), null);
+
+        // 公共描述保留方法变量作用域，整数响应不会被误解码为 Person。
+        byte[] body = this.wire.encodeResponse(7);
+        ResponsePayload response = this.codec.decodeResponse(request, body);
+        assertEquals(7, response.getReturnData());
     }
 
     @Test

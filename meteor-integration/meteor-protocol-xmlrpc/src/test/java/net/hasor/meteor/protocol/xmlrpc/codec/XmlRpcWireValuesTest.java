@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 

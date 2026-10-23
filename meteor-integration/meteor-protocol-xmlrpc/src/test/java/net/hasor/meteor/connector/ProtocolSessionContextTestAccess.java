@@ -10,6 +10,7 @@ import java.util.function.BiFunction;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Thin test access to the package-owned protocol context constructor. */
 public final class ProtocolSessionContextTestAccess {
