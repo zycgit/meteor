@@ -1,0 +1,18 @@
+plugins {
+    id 'java-library'
+}
+
+ext.pomName = 'Meteor Registry Dubbo'
+description = 'Native Apache Dubbo service registration and discovery for Meteor'
+
+dependencies {
+    api project(':meteor-protocol-dubbo')
+    api "org.apache.dubbo:dubbo:${property('lib.dubbo')}"
+    api "org.apache.curator:curator-recipes:${property('lib.curator')}"
+    api platform("io.netty:netty-bom:${property('lib.netty')}")
+    api "io.netty:netty-handler-proxy:${property('lib.netty')}"
+    runtimeOnly "org.apache.curator:curator-x-discovery:${property('lib.curator')}"
+
+    // for test
+    testImplementation "org.apache.curator:curator-test:${property('lib.curator')}"
+}

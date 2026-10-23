@@ -1,0 +1,1 @@
+meteor-peer-host-netty=net.hasor.meteor.registry.dubbo.metadata.DubboMetadataTransporter
