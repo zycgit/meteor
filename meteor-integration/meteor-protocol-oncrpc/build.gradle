@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+ext.pomName = 'Meteor Protocol ONC RPC'
+description = 'ONC RPC version 2 and XDR over TCP and UDP.'
+
+dependencies {
+    api project(':meteor')
+
+    // for test
+    testImplementation "org.mockito:mockito-core:${property('lib.mockito')}"
+}
