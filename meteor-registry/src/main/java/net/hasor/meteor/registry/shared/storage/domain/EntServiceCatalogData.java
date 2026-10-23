@@ -8,6 +8,7 @@ package net.hasor.meteor.registry.shared.storage.domain;
 /** 持久服务声明；不包含成员和治理配置。 */
 public class EntServiceCatalogData {
     private String serviceId;
+    private Long   contractId;
     private String group;
     private String name;
     private String version;
@@ -19,6 +20,15 @@ public class EntServiceCatalogData {
 
     public void setServiceId(String serviceId) {
         this.serviceId = serviceId;
+    }
+
+    /** 数值契约服务编号；未声明时为 null，与服务目录 key 无关。 */
+    public Long getContractId() {
+        return this.contractId;
+    }
+
+    public void setContractId(Long contractId) {
+        this.contractId = contractId;
     }
 
     public String getGroup() {

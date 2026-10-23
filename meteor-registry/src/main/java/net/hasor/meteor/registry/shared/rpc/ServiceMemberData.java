@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.shared.rpc;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public final class ServiceMemberData {
     private ServiceEndpointData[] endpoints              = new ServiceEndpointData[0];
@@ -14,6 +15,15 @@ public final class ServiceMemberData {
     private ServiceData           service                = null;
     private boolean               enabled                = true;
     private ConfigurationData     effectiveConfiguration = null;
+    private ObjectNode            description;
+
+    public ObjectNode getDescription() {
+        return this.description;
+    }
+
+    public void setDescription(ObjectNode description) {
+        this.description = description;
+    }
 
     /** 消费者当前服务地址本中的协议，去重排序；不表示历史调用统计。 */
     private String[] usedProtocols = new String[0];

@@ -7,7 +7,7 @@
  */
 package net.hasor.meteor.registry.shared;
 import java.util.function.BooleanSupplier;
-import net.hasor.meteor.MetService;
+import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;

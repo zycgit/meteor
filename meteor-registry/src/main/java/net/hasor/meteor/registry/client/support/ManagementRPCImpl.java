@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.registry.client.support;
 import java.util.*;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
@@ -15,9 +16,12 @@ import net.hasor.meteor.MetUpdater;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
-import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolConfig;
+import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
+import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.registry.shared.rpc.*;
 import net.hasor.meteor.registry.shared.storage.domain.EntConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.EntInstanceRuntimeData;
@@ -89,7 +93,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
         }
     }
 
-    /** 只采集服务登记和协议端点；运行配置、方法详情及地址本留在应用进程中。 */
+    /** 公共声明与实际端点契约随实例服务整体上报，运行对象和地址本不参与序列化。 */
     RegistrationSnapshot snapshot(String serviceId) throws Exception {
         RegistrationSnapshot record = new RegistrationSnapshot();
         record.setInstanceId(this.context.getInstanceID());
@@ -107,18 +111,24 @@ public final class ManagementRPCImpl implements ManagementRPC {
             services = List.of(this.requireService(serviceId));
         }
         for (MetBindInfo<?> service : services) {
-            // 服务目录只保存稳定身份，不复制调用参数和完整方法签名。
+            // 同一次采集借用同一份已提交发布结果，完整描述归属实例服务。
+            ServiceDomain<?> domain = MetBindInfoWrap.unwrap(service);
+            Map<String, ProtocolMeta> publications = domain.getProtocolMetas();
             String id = service.getBindID();
             EntServiceRuntimeData registration = new EntServiceRuntimeData();
             registration.setServiceId(id);
+            long contractId = domain.getServiceMeta().getId();
+            registration.setContractId(contractId == -1L ? null : contractId);
             registration.setGroup(service.getBindGroup());
             registration.setName(service.getBindName());
             registration.setVersion(service.getBindVersion());
             registration.setType(service.getBindType().getName());
             registration.setRole(service.getServiceType());
             registration.setEnabled(this.governance.isServiceEnabled(id));
-            RefProtocolMountData[] endpoints = RegistryJson.copy(this.endpoints(service), RefProtocolMountData[].class);
+            ServiceEndpointData[] selected = this.endpoints(service, publications);
+            RefProtocolMountData[] endpoints = RegistryJson.copy(selected, RefProtocolMountData[].class);
             registration.setEndpoints(endpoints);
+            registration.setDescription(this.description(service, publications, selected));
             registration.setUsedProtocols(this.usedProtocols(service));
             boolean provider = service.getServiceType() == MetServiceType.Provider;
 
@@ -136,6 +146,12 @@ public final class ManagementRPCImpl implements ManagementRPC {
                 }
             }
 
+            // 竞争中的撤回或重新发布交给下一轮采集，保留存储中的上一份完整记录。
+            MetBindInfo<?> current = this.context.getServiceInfo(id);
+            boolean removed = current == null || MetBindInfoWrap.unwrap(current) != domain;
+            if (removed || domain.getProtocolMetas() != publications) {
+                throw new ConcurrentModificationException("Service publication changed during snapshot: " + id);
+            }
             registration.setAddresses(published.toArray(String[]::new));
             record.getServices().add(registration);
         }
@@ -230,12 +246,14 @@ public final class ManagementRPCImpl implements ManagementRPC {
     public ServiceMemberData service(String serviceId) {
         // 直连查询只读取本地端点，不生成向注册中心发布的地址。
         MetBindInfo<?> service = this.requireService(serviceId);
-        ServiceEndpointData[] endpoints = this.endpoints(service);
+        Map<String, ProtocolMeta> publications = MetBindInfoWrap.unwrap(service).getProtocolMetas();
+        ServiceEndpointData[] endpoints = this.endpoints(service, publications);
         ServiceMemberData member = new ServiceMemberData();
         member.setInstance(this.instance());
         member.setService(this.serviceSnapshot(service, endpoints));
         member.setEndpoints(endpoints);
         member.setUsedProtocols(this.usedProtocols(service));
+        member.setDescription(this.description(service, publications, endpoints));
         member.setEnabled(this.governance.isServiceEnabled(serviceId));
         member.setEffectiveConfiguration(this.effectiveConfiguration(serviceId));
         return RegistryJson.copy(member, ServiceMemberData.class);
@@ -558,6 +576,8 @@ public final class ManagementRPCImpl implements ManagementRPC {
     private ServiceData serviceSnapshot(MetBindInfo<?> service, ServiceEndpointData[] endpoints) {
         ServiceData result = new ServiceData();
         result.setServiceId(service.getBindID());
+        long contractId = MetBindInfoWrap.unwrap(service).getServiceMeta().getId();
+        result.setContractId(contractId == -1L ? null : contractId);
         result.setGroup(service.getBindGroup());
         result.setName(service.getBindName());
         result.setVersion(service.getBindVersion());
@@ -590,6 +610,10 @@ public final class ManagementRPCImpl implements ManagementRPC {
     }
 
     private ServiceEndpointData[] endpoints(MetBindInfo<?> service) {
+        return this.endpoints(service, MetBindInfoWrap.unwrap(service).getProtocolMetas());
+    }
+
+    private ServiceEndpointData[] endpoints(MetBindInfo<?> service, Map<String, ProtocolMeta> publications) {
         List<ServiceEndpointData> result = new ArrayList<>();
         for (ConnectorConfig connector : this.context.getSettings().getConnectorConfigs()) {
             boolean provider = service.getServiceType() == MetServiceType.Provider;
@@ -598,15 +622,18 @@ public final class ManagementRPCImpl implements ManagementRPC {
             }
 
             for (ProtocolConfig protocol : connector.protocols()) {
-                RouteMountIndex routes = new RouteMountIndex(connector.name(), protocol);
-                if (!routes.accepts(service)) {
+                ProtocolMeta meta = publications.get(protocol.name());
+                ProtocolBinding binding = meta == null ? null : meta.getEndpoint(connector.name());
+                if (binding == null) {
                     continue;
                 }
 
                 // 服务只上报实际选择的上下文；不使用上下文的协议仍保留一个端点。
-                List<String> paths = routes.contextPaths(service);
-                if (routes.contextPaths().isEmpty()) {
+                List<String> paths;
+                if (binding.getContextPath() == null) {
                     paths = Collections.singletonList(null);
+                } else {
+                    paths = List.copyOf(binding.getContextPath().getPaths());
                 }
 
                 InterAddress listen = connector.bindEnabled() ? this.context.getListenAddress(//
@@ -628,6 +655,35 @@ public final class ManagementRPCImpl implements ManagementRPC {
         }
 
         return result.toArray(ServiceEndpointData[]::new);
+    }
+
+    private ObjectNode description(MetBindInfo<?> service, Map<String, ProtocolMeta> publications, //
+            ServiceEndpointData[] endpoints) {
+        ObjectNode description = MetBindInfoWrap.unwrap(service).getServiceMeta().createServiceDescription();
+        description.put("role", service.getServiceType().name());
+        description.put("message", service.isMessage());
+        if (service.isMessage()) {
+            description.withArray("methods").forEach(method -> ((ObjectNode) method).put("message", true));
+        }
+
+        // 多个 context 共用同一绑定描述；只复制本次实际上报的端点。
+        ObjectNode protocols = description.putObject("protocols");
+        for (ServiceEndpointData endpoint : endpoints) {
+            String protocol = endpoint.getProtocolName();
+            String connector = endpoint.getConnectorName();
+            ObjectNode bindings = (ObjectNode) protocols.get(protocol);
+            if (bindings == null) {
+                bindings = protocols.putObject(protocol);
+            }
+            if (!bindings.has(connector)) {
+                ProtocolBinding binding = publications.get(protocol).getEndpoint(connector);
+                ObjectNode contract = binding.getDescription();
+                if (contract != null) {
+                    bindings.set(connector, contract.deepCopy());
+                }
+            }
+        }
+        return description;
     }
 
     private InterAddress toPublishAddress(InterAddress address) throws Exception {

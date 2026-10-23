@@ -7,7 +7,7 @@
  */
 package net.hasor.meteor.registry.shared.rpc;
 import java.util.Map;
-import net.hasor.meteor.MetService;
+import net.hasor.meteor.annotation.MetService;
 
 /** 目标实例的管理通信契约，服务操作通过 serviceId 选择本地服务，独立于管理 API 和存储访问。 */
 @MetService(group = "meteor-management", version = "1", serializeType = "Json")

@@ -4,6 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.meteor.registry.shared.storage.domain;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.domain.MetServiceType;
 
 /** 实例下独立登记的服务正文；包含声明、身份与实际挂载，随会话退出。 */
@@ -13,6 +14,16 @@ public class EntServiceRuntimeData extends EntServiceCatalogData {
     private RefProtocolMountData[] endpoints     = new RefProtocolMountData[0];
     private String[]               addresses     = new String[0];
     private String[]               usedProtocols = new String[0];
+    private ObjectNode             description;
+
+    /** 当前实例的完整服务声明和实际端点契约，随本服务登记整体替换。 */
+    public ObjectNode getDescription() {
+        return this.description;
+    }
+
+    public void setDescription(ObjectNode description) {
+        this.description = description;
+    }
 
     public MetServiceType getRole() {
         return this.role;

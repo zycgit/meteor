@@ -9,11 +9,13 @@ package net.hasor.meteor.registry.admin.support;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.admin.*;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
+import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
 /** 通过管理 RPC 操作目标实例中的一个服务，不查询注册中心成员。 */
@@ -53,6 +55,16 @@ final class TargetServiceAdmin implements MetServiceAdmin {
     @Override
     public MetServiceInfo info() {
         return RegistryJson.copy(this.rpc.service(this.serviceId).getService(), MetServiceInfo.class);
+    }
+
+    @Override
+    public Map<String, ObjectNode> descriptions() {
+        ServiceMemberData service = this.rpc.service(this.serviceId);
+        ObjectNode description = service.getDescription();
+        if (description == null) {
+            return Collections.emptyMap();
+        }
+        return Collections.singletonMap(service.getInstance().getInstanceId(), description.deepCopy());
     }
 
     private List<MetServiceMember> members(MetServiceType role, MetEndpointFilter filter) {

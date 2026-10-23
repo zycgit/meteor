@@ -17,14 +17,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.*;
+import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetClient;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetPublisher.ConfigurationBuilder;
+import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.annotation.MetIgnore;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.*;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.TargetAdmin;
@@ -303,10 +307,10 @@ public class ManagementPublicationTest {
             // 观察视图模拟两个已发布的运行端点，服务接受结果与该视图保持一致。
             ServiceDomain<?> declaration = (ServiceDomain<?>) context.getServiceInfo(serviceId);
             ContextPath contexts = declaration.getProtocolMeta("registry-http").getContextPath();
-            ProtocolBinding bindingA = edgeA.protocol("registry-http").build(null).withContextPaths(contexts);
-            ProtocolBinding bindingB = edgeB.protocol("registry-http").build(null).withContextPaths(contexts);
+            ProtocolBinding bindingA = new ProtocolBinding(contexts, null, null);
+            ProtocolBinding bindingB = new ProtocolBinding(contexts, null, null);
             Map<String, ProtocolBinding> bindings = Map.of("edge-a", bindingA, "edge-b", bindingB);
-            ProtocolMeta meta = new ProtocolMeta(declaration, contexts, bindings);
+            ProtocolMeta meta = new ProtocolMeta(declaration, contexts, null, bindings);
             declaration.replaceProtocolPublication(Map.of("registry-http", meta));
 
             // 完整快照按协议名查询地址，实例按 connector#scheme 去重，服务保留每个上下文挂载。

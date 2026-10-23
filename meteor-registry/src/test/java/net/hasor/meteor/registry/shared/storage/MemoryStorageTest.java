@@ -47,6 +47,69 @@ public class MemoryStorageTest {
     }
 
     @Test
+    public void serviceCatalogUpdatesPreserveContractIdWhenItIsNotSpecified() throws Exception {
+        // 目录允许管理端只更新部分身份字段，已上报的完整编号不能因此丢失。
+        MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
+        try (StorageAccess storage = configuration.openStorage()) {
+            EntServiceCatalogData original = new EntServiceCatalogData();
+            original.setServiceId("orders");
+            original.setContractId(0xffff_ffffL);
+            original.setVersion("release-1.0");
+            storage.saveService(original);
+
+            // 后续不携带编号的目录写入只合并已有字段，字符串版本保持原义。
+            EntServiceCatalogData partial = new EntServiceCatalogData();
+            partial.setServiceId("orders");
+            partial.setName("OrderService");
+            storage.saveService(partial);
+            EntServiceCatalogData stored = storage.getService("orders");
+            assertEquals(Long.valueOf(0xffff_ffffL), stored.getContractId());
+            assertEquals("release-1.0", stored.getVersion());
+            assertEquals("OrderService", stored.getName());
+        }
+    }
+
+    @Test
+    public void zeroContractIdReplacesAnExistingCatalogNumber() throws Exception {
+        // 零是有效的数值声明，不能与缺省编号混为一谈。
+        MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
+        try (StorageAccess storage = configuration.openStorage()) {
+            EntServiceCatalogData service = new EntServiceCatalogData();
+            service.setServiceId("orders");
+            service.setContractId(0xffff_ffffL);
+            storage.saveService(service);
+
+            // 显式写入零覆盖已有编号，目录 key 继续使用字符串服务 ID。
+            service.setContractId(0L);
+            storage.saveService(service);
+            assertEquals(Long.valueOf(0), storage.getService("orders").getContractId());
+            assertEquals("orders", storage.getService("orders").getServiceId());
+        }
+    }
+
+    @Test
+    public void differentInstancesKeepTheirOwnContractIds() throws Exception {
+        // 同一字符串服务 ID 可以由不同接口契约版本提供，各实例保留自己的声明。
+        MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
+        try (StorageAccess first = configuration.openStorage(); //
+             StorageAccess second = configuration.openStorage()) {
+            first.registerInstance(instance("first", "orders", "east"));
+            second.registerInstance(instance("second", "orders", "east"));
+            EntServiceRuntimeData original = service("orders", MetServiceType.Provider);
+            original.setContractId(0xffff_ffffL);
+            first.registerService("first", original);
+            EntServiceRuntimeData unspecified = service("orders", MetServiceType.Provider);
+            second.registerService("second", unspecified);
+
+            // 缺省编号不从共享目录回填，成员查询与实例点查都维持实例隔离。
+            assertEquals(Long.valueOf(0xffff_ffffL), first.getInstanceService("first", "orders").getContractId());
+            assertNull(second.getInstanceService("second", "orders").getContractId());
+            RefServiceRelationData member = first.getMember("orders", MetServiceType.Provider, "second");
+            assertNull(member.getService().getContractId());
+        }
+    }
+
+    @Test
     public void rollingUpgradeOnlyDiscoversInstancesActuallyProvidingTheService() throws Exception {
         MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
         try (StorageAccess old = configuration.openStorage(); //

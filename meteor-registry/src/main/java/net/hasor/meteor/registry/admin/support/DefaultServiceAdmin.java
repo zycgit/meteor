@@ -6,10 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.admin.support;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.admin.*;
@@ -50,6 +48,38 @@ final class DefaultServiceAdmin implements MetServiceAdmin {
             } else {
                 return new String[] { status.getInstance().getUnitName() };
             }
+        });
+    }
+
+    @Override
+    public Map<String, ObjectNode> descriptions() {
+        return call(() -> {
+            Map<String, ObjectNode> descriptions = new LinkedHashMap<>();
+            StorageAccess storage = this.governance.storage();
+            if (this.instanceId != null) {
+                EntServiceRuntimeData service = storage.getInstanceService(this.instanceId, this.serviceId);
+                if (service != null && service.getDescription() != null) {
+                    descriptions.put(this.instanceId, service.getDescription().deepCopy());
+                }
+                return descriptions;
+            }
+
+            // 各实例保留自己的接口和端点版本，不合并同名方法或 DTO。
+            for (MetServiceType role : MetServiceType.values()) {
+                DirectoryQuery query = new DirectoryQuery();
+                query.setLimit(1000);
+                do {
+                    RecordPage<RefServiceRelationData> page = storage.members(this.serviceId, role, query);
+                    for (RefServiceRelationData member : page.getItems()) {
+                        ObjectNode description = member.getService().getDescription();
+                        if (description != null) {
+                            descriptions.put(member.getInstance().getInstanceId(), description.deepCopy());
+                        }
+                    }
+                    query.setCursor(page.getNextCursor());
+                } while (query.getCursor() != null);
+            }
+            return descriptions;
         });
     }
 
