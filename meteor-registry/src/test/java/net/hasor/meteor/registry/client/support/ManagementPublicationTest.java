@@ -31,6 +31,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.domain.*;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
+import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.TargetAdmin;
@@ -40,6 +41,8 @@ import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.DecoratedRegistryConfiguration;
 import net.hasor.meteor.registry.shared.StorageProbe;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
+import net.hasor.meteor.registry.shared.rpc.ServiceData;
+import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
@@ -99,6 +102,105 @@ public class ManagementPublicationTest {
             assertTrue(StringUtils.equals("Provider", summaryRole));
             assertFalse(summary.has("contractServiceId"));
             assertFalse(summary.has("type"));
+        }
+    }
+
+    @Test
+    public void returnedMemberDoesNotShareMutableStateWithPublicationsOrOtherSnapshots() throws Exception {
+        // 经公开入口发布一个同时挂载 RSF 和多个 HTTP 上下文的服务。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        configuration.connector("http").bind("127.0.0.1", 0).protocol("registry-http") //
+                .contextPath("/orders").addContextPath("/admin");
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<Echo> published = context.publisher().rsfService(Echo.class, value -> value) //
+                    .contextPathByPrefix("registry-http", "/orders", "/admin").register();
+            ManagementRPCImpl management = new ManagementRPCImpl(context, "127.0.0.1");
+            String serviceId = published.getBindID();
+            ServiceDomain<?> domain = MetBindInfoWrap.unwrap(published);
+            ProtocolBinding binding = domain.getProtocolMeta("registry-http").getEndpoint("http-1");
+            ObjectNode committedDescription = binding.getDescription().deepCopy();
+
+            // 保留另一份查询快照，随后修改返回结果中的摘要、端点和嵌套描述。
+            ServiceMemberData changed = management.service(serviceId);
+            ServiceMemberData retained = management.service(serviceId);
+            ObjectNode expectedDescription = changed.getDescription().deepCopy();
+            changed.getInstance().setApplicationName("changed");
+            changed.getInstance().getManagementAddress().put("changed", "rsf://127.0.0.1:1/default");
+            changed.getInstance().getListenAddresses().clear();
+            changed.getService().setName("changed");
+            changed.getService().getProtocols()[0] = "changed";
+            changed.getEndpoints()[0].setProtocolName("changed");
+            changed.getEndpoints()[1].setContextPath("/changed");
+            ObjectNode commonMethod = (ObjectNode) changed.getDescription().withArray("methods").get(0);
+            commonMethod.put("name", "changed");
+            ObjectNode contract = (ObjectNode) changed.getDescription() //
+                    .path("protocols").path("registry-http").path("http-1");
+            ObjectNode contractMethod = (ObjectNode) contract.withArray("methods").get(0);
+            contractMethod.put("name", "changed");
+
+            // 之前的快照与下一次查询保持原值，协议准备结果和本地声明也不受影响。
+            ServiceMemberData current = management.service(serviceId);
+            assertEquals(expectedDescription, retained.getDescription());
+            assertEquals(expectedDescription, current.getDescription());
+            assertEquals(committedDescription, binding.getDescription());
+            assertEquals(context.getApplicationName(), retained.getInstance().getApplicationName());
+            assertEquals(context.getApplicationName(), current.getInstance().getApplicationName());
+            assertTrue(current.getInstance().getManagementAddress().isEmpty());
+            assertEquals(published.getBindName(), retained.getService().getName());
+            assertEquals(published.getBindName(), current.getService().getName());
+            assertArrayEquals(new String[] { "registry-http", "rsf" }, current.getService().getProtocols());
+            assertEquals("rsf", retained.getEndpoints()[0].getProtocolName());
+            assertEquals("rsf", current.getEndpoints()[0].getProtocolName());
+            assertEquals("/orders", retained.getEndpoints()[1].getContextPath());
+            assertEquals("/orders", current.getEndpoints()[1].getContextPath());
+        }
+    }
+
+    @Test
+    public void consumerSummarySamplesUsedProtocolsOncePerQuery() throws Exception {
+        // 订阅服务具备两类可用挂载，地址本包含重复的 RSF 地址和另一个协议地址。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("tcp").protocol("rsf");
+        configuration.connector("http").protocol("registry-http").addressScheme("http");
+        try (MetContext context = configuration.buildContext()) {
+            String serviceId = context.publisher().rsfService(Echo.class).register().getBindID();
+            InterAddress first = new InterAddress("rsf://127.0.0.1:2181/default");
+            InterAddress second = new InterAddress("rsf://127.0.0.1:2182/default");
+            InterAddress third = new InterAddress("http://127.0.0.1:8080/default");
+            context.getUpdater().appendStaticAddress(serviceId, List.of(first, second, third));
+
+            // 只观察公开上下文的地址本访问次数，不替换采样内容或服务定义。
+            AtomicInteger addressQueries = new AtomicInteger();
+            InvocationHandler observer = (proxy, method, args) -> {
+                if (StringUtils.equals(method.getName(), "getUpdater")) {
+                    addressQueries.incrementAndGet();
+                }
+                try {
+                    return method.invoke(context, args);
+                } catch (InvocationTargetException failure) {
+                    throw failure.getCause();
+                }
+            };
+            MetContext observed = (MetContext) Proxy.newProxyInstance(this.getClass().getClassLoader(), //
+                    new Class<?>[] { MetContext.class }, observer);
+            ManagementRPCImpl management = new ManagementRPCImpl(observed, "127.0.0.1");
+            addressQueries.set(0);
+
+            // 成员摘要和 usedProtocols 使用同一轮采样，同时仍提供独立的返回数组。
+            ServiceMemberData member = management.service(serviceId);
+            assertEquals(1, addressQueries.get());
+            assertArrayEquals(new String[] { "http", "rsf" }, member.getService().getProtocols());
+            assertArrayEquals(new String[] { "http", "rsf" }, member.getUsedProtocols());
+            member.getUsedProtocols()[0] = "changed";
+            assertArrayEquals(new String[] { "http", "rsf" }, member.getService().getProtocols());
+
+            // 列表摘要沿用相同采样规则，不把 HTTP 挂载名冒充当前地址协议。
+            addressQueries.set(0);
+            ServiceData[] services = management.services();
+            assertEquals(1, addressQueries.get());
+            assertEquals(1, services.length);
+            assertArrayEquals(new String[] { "http", "rsf" }, services[0].getProtocols());
         }
     }
 
@@ -291,6 +393,9 @@ public class ManagementPublicationTest {
             MetServiceEndpoint[] published = member(admin, service.getBindID()).getEndpoints();
             assertEquals(1, published.length);
             assertEquals("rsf", published[0].getProtocolName());
+            ManagementRPC rpc = context.getServiceProvider(context.getServiceInfo(ManagementRPC.class)).get();
+            assertArrayEquals(new String[] { "rsf" }, rpc.service(service.getBindID()).getService().getProtocols());
+            assertArrayEquals(new String[] { "rsf" }, rpc.services()[0].getProtocols());
             MetBindInfo<?> local = context.getServiceInfo(service.getBindID());
             assertNotNull(local);
             assertEquals(service.getBindID(), local.getBindID());
@@ -383,6 +488,8 @@ public class ManagementPublicationTest {
             assertEndpoint(endpoints[2], "edge-b", "/orders", edgeB.address().toString(), listenB.toString(), publishedB);
             assertEndpoint(endpoints[3], "edge-b", "/admin", edgeB.address().toString(), listenB.toString(), publishedB);
             assertEquals(Set.of(publishedA, publishedB), Set.of(service.getAddresses()));
+            assertArrayEquals(new String[] { "registry-http" }, rpc.service(serviceId).getService().getProtocols());
+            assertArrayEquals(new String[] { "registry-http" }, rpc.services()[0].getProtocols());
         }
     }
 

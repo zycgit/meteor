@@ -234,7 +234,9 @@ public final class ManagementRPCImpl implements ManagementRPC {
     public ServiceData[] services() {
         List<ServiceData> services = new ArrayList<>();
         for (MetBindInfo<?> service : this.bindings()) {
-            services.add(this.serviceSnapshot(service, this.endpoints(service)));
+            ServiceEndpointData[] endpoints = this.endpoints(service);
+            String[] usedProtocols = this.usedProtocols(service);
+            services.add(this.serviceSnapshot(service, endpoints, usedProtocols));
         }
         return services.toArray(ServiceData[]::new);
     }
@@ -245,14 +247,17 @@ public final class ManagementRPCImpl implements ManagementRPC {
         MetBindInfo<?> service = this.requireService(serviceId);
         Map<String, ProtocolMeta> publications = MetBindInfoWrap.unwrap(service).getProtocolMetas();
         ServiceEndpointData[] endpoints = this.endpoints(service, publications);
+        String[] usedProtocols = this.usedProtocols(service);
+
+        // 返回对象和端点均由本次采集创建，描述在接入已提交协议契约时复制可变树。
         ServiceMemberData member = new ServiceMemberData();
         member.setInstance(this.instance());
-        member.setService(this.serviceSnapshot(service, endpoints));
+        member.setService(this.serviceSnapshot(service, endpoints, usedProtocols));
         member.setEndpoints(endpoints);
-        member.setUsedProtocols(this.usedProtocols(service));
+        member.setUsedProtocols(usedProtocols);
         member.setDescription(this.description(service, publications, endpoints));
         member.setEnabled(this.governance.isServiceEnabled(serviceId));
-        return RegistryJson.copy(member, ServiceMemberData.class);
+        return member;
     }
 
     @Override
@@ -558,7 +563,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
         return service;
     }
 
-    private ServiceData serviceSnapshot(MetBindInfo<?> service, ServiceEndpointData[] endpoints) {
+    private ServiceData serviceSnapshot(MetBindInfo<?> service, ServiceEndpointData[] endpoints, String[] usedProtocols) {
         ServiceData result = new ServiceData();
         result.setServiceId(service.getBindID());
         result.setGroup(service.getBindGroup());
@@ -571,9 +576,17 @@ public final class ManagementRPCImpl implements ManagementRPC {
             result.setConsumerCount(1);
         }
 
+        // 发布协议来自实际接受端点；订阅协议来自本次地址本采样。
         Set<String> protocols = new TreeSet<>();
-        for (ServiceEndpointData endpoint : endpoints) {
-            protocols.add(endpoint.getProtocolName());
+        if (service.getServiceType() == MetServiceType.Consumer) {
+            Collections.addAll(protocols, usedProtocols);
+        } else {
+            for (ServiceEndpointData endpoint : endpoints) {
+                String name = endpoint.getProtocolName();
+                if (StringUtils.isNotBlank(name)) {
+                    protocols.add(name);
+                }
+            }
         }
         result.setProtocols(protocols.toArray(String[]::new));
         return result;

@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.registry.admin;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
@@ -181,6 +182,7 @@ public class TargetAdminTest {
             consumer.publisher().rsfService(Echo.class).register();
             provider.start();
             consumer.start();
+            consumer.getExtension(RegistryClient.class).pullSync().get(5, TimeUnit.SECONDS);
             TargetAdmin targets = provider.getExtension(TargetAdmin.class);
             assertTrue(provider.getServiceInfo(ManagementRPC.class).isDistributedCall());
 
@@ -212,6 +214,106 @@ public class TargetAdminTest {
             assertEquals(provider.getListenAddress("rsf").toString(), member.getEndpoints()[0].getListenAddress());
             assertNull(member.getEndpoints()[0].getPublishedAddress());
             assertEquals(2, probe.openedSessions());
+        }
+    }
+
+    @Test
+    public void directConsumerSummaryHasNoUsedProtocolWithoutAddresses() throws Exception {
+        // 目标订阅两个协议并监听管理 RPC，但业务地址本保持为空。
+        MemoryRegistryConfiguration registry = new MemoryRegistryConfiguration();
+        registry.setManagementToken("secret");
+        registry.setPublishHost("127.0.0.1");
+        registry.setRefreshMillis(600000);
+        MetConfiguration server = new MetConfiguration().addExtension(registry);
+        server.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        server.connector("http").protocol("registry-http").addressScheme("http");
+        MetConfiguration client = new MetConfiguration();
+        client.addExtension(new RegistryConfiguration().setOnline(false));
+        client.connector("tcp").protocol("rsf");
+
+        try (MetContext target = server.buildContext(); //
+             MetContext caller = client.buildContext()) {
+            String id = target.publisher().rsfService(Echo.class).register().getBindID();
+            target.start();
+            caller.start();
+            target.getExtension(RegistryClient.class).pushSync().get(5, TimeUnit.SECONDS);
+
+            // 通过真实管理 RPC 查询目标，再和同一实例的注册摘要比较。
+            TargetAdmin targets = caller.getExtension(TargetAdmin.class);
+            InterAddress address = target.getListenAddress("rsf");
+            MetInstanceAdmin direct = targets.getInstanceAdminByAddress(address);
+            MetServiceAdmin service = targets.getServiceAdminByAddress(address, id);
+            RegistryAdmin admin = target.getExtension(RegistryAdmin.class);
+            MetInstanceAdmin stored = admin.getInstanceAdmin(target.getInstanceID());
+            assertArrayEquals(new String[0], service.info().getProtocols());
+            assertArrayEquals(new String[0], direct.getServiceById(id).getProtocols());
+            assertArrayEquals(new String[0], stored.getServiceById(id).getProtocols());
+            assertEquals(MetServiceType.Consumer, service.info().getRole());
+            assertEquals(1, service.info().getConsumerCount());
+
+            // 配置挂载继续保留，但目录协议筛选不能把它们当作当前使用协议。
+            MetServiceMember member = service.consumers(null, null).getItems().get(0);
+            assertEquals(2, member.getEndpoints().length);
+            assertArrayEquals(new String[0], member.getUsedProtocols());
+            MetDirectoryQuery query = new MetDirectoryQuery();
+            query.setProtocol("rsf");
+            assertTrue(direct.getServiceList(query).getItems().isEmpty());
+            assertTrue(stored.getServiceList(query).getItems().isEmpty());
+            assertTrue(service.consumers(null, query).getItems().isEmpty());
+        }
+    }
+
+    @Test
+    public void directConsumerSummaryAndFilteringUseCurrentAddressProtocols() throws Exception {
+        // 目标拥有 RSF 和 HTTP 挂载，两个协议名与 HTTP 的地址前缀分别保留。
+        MemoryRegistryConfiguration registry = new MemoryRegistryConfiguration();
+        registry.setManagementToken("secret");
+        registry.setPublishHost("127.0.0.1");
+        registry.setRefreshMillis(600000);
+        MetConfiguration server = new MetConfiguration().addExtension(registry);
+        server.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        server.connector("http").protocol("registry-http").addressScheme("http");
+        MetConfiguration client = new MetConfiguration();
+        client.addExtension(new RegistryConfiguration().setOnline(false));
+        client.connector("tcp").protocol("rsf");
+
+        try (MetContext target = server.buildContext(); //
+             MetContext caller = client.buildContext()) {
+            String id = target.publisher().rsfService(Echo.class).register().getBindID();
+            target.start();
+            caller.start();
+            InterAddress first = new InterAddress("rsf://127.0.0.1:2181/default");
+            InterAddress second = new InterAddress("rsf://127.0.0.1:2182/default");
+            InterAddress http = new InterAddress("http://127.0.0.1:8080/default");
+            target.getUpdater().appendStaticAddress(id, List.of(first, second, http));
+            target.getExtension(RegistryClient.class).pushSync().get(5, TimeUnit.SECONDS);
+
+            // 真实 RPC 与注册目录使用同一份去重排序后的当前地址协议摘要。
+            TargetAdmin targets = caller.getExtension(TargetAdmin.class);
+            InterAddress address = target.getListenAddress("rsf");
+            MetInstanceAdmin direct = targets.getInstanceAdminByAddress(address);
+            MetServiceAdmin service = targets.getServiceAdminByAddress(address, id);
+            RegistryAdmin admin = target.getExtension(RegistryAdmin.class);
+            MetInstanceAdmin stored = admin.getInstanceAdmin(target.getInstanceID());
+            String[] protocols = { "http", "rsf" };
+            assertArrayEquals(protocols, service.info().getProtocols());
+            assertArrayEquals(protocols, direct.getServiceById(id).getProtocols());
+            assertArrayEquals(protocols, stored.getServiceById(id).getProtocols());
+            MetServiceMember member = service.consumers(null, null).getItems().get(0);
+            assertArrayEquals(protocols, member.getUsedProtocols());
+
+            // 目录按地址前缀筛选消费协议；具体挂载筛选仍使用端点协议名。
+            MetDirectoryQuery query = new MetDirectoryQuery();
+            query.setProtocol("http");
+            assertEquals(1, direct.getServiceList(query).getItems().size());
+            assertEquals(1, stored.getServiceList(query).getItems().size());
+            assertEquals(1, service.consumers(null, query).getItems().size());
+            query.setProtocol("registry-http");
+            assertTrue(direct.getServiceList(query).getItems().isEmpty());
+            assertTrue(stored.getServiceList(query).getItems().isEmpty());
+            MetEndpointFilter endpoint = new MetEndpointFilter();
+            endpoint.setProtocol("registry-http");
+            assertEquals(1, service.consumers(endpoint, null).getItems().size());
         }
     }
 

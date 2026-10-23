@@ -107,6 +107,177 @@ public class MemoryStorageTest {
     }
 
     @Test
+    public void registrationSnapshotsDoNotBorrowCallerOwnedData() throws Exception {
+        // 实例和服务都带上可变的嵌套正文，登记后由存储拥有独立快照。
+        MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
+        try (StorageAccess storage = configuration.openStorage()) {
+            EntInstanceRuntimeData instance = instance("one", "orders", "east");
+            instance.getListenAddresses().put("primary#rsf", "rsf://127.0.0.1:8000");
+            instance.setRoles(new MetServiceType[] { MetServiceType.Provider });
+            storage.registerInstance(instance);
+            EntServiceRuntimeData service = service("A", MetServiceType.Provider, "rsf://127.0.0.1:8000");
+            RefProtocolMountData endpoint = new RefProtocolMountData();
+            endpoint.setProtocolName("rsf");
+            endpoint.setPublishedAddress("rsf://127.0.0.1:8000");
+            service.setEndpoints(new RefProtocolMountData[] { endpoint });
+            service.setDescription(RegistryJson.copy(Map.of("javaType", "example.OriginalService"), ObjectNode.class));
+            storage.registerService("one", service);
+
+            // 调用方继续改写原对象，不能改到任一内部索引。
+            instance.setIpAddress("changed");
+            instance.getListenAddresses().clear();
+            instance.getRoles()[0] = MetServiceType.Consumer;
+            service.getAddresses()[0] = "rsf://127.0.0.1:9000";
+            endpoint.setPublishedAddress("rsf://127.0.0.1:9000");
+            service.getDescription().put("javaType", "example.ChangedService");
+
+            EntInstanceRuntimeData storedInstance = storage.getInstance("one").getRuntime();
+            RefServiceRelationData member = storage.getMember("A", MetServiceType.Provider, "one");
+            EntServiceRuntimeData storedService = storage.getInstanceService("one", "A");
+            assertEquals("127.0.0.1", storedInstance.getIpAddress());
+            assertEquals(MetServiceType.Provider, storedInstance.getRoles()[0]);
+            assertEquals("rsf://127.0.0.1:8000", storedInstance.getListenAddresses().get("primary#rsf"));
+            assertEquals("127.0.0.1", member.getInstance().getIpAddress());
+            assertEquals(storedInstance.getListenAddresses(), member.getInstance().getListenAddresses());
+            assertEquals("rsf://127.0.0.1:8000", storedService.getAddresses()[0]);
+            assertEquals("rsf://127.0.0.1:8000", storedService.getEndpoints()[0].getPublishedAddress());
+            assertEquals("example.OriginalService", storedService.getDescription().path("javaType").asText());
+            assertEquals(storedService.getDescription(), member.getService().getDescription());
+        }
+    }
+
+    @Test
+    public void serviceReregistrationReplacesBothIndexesAndKeepsEarlierReadsStable() throws Exception {
+        // 先分别取得实例方向和成员方向的查询结果。
+        MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
+        try (StorageAccess storage = configuration.openStorage()) {
+            storage.registerInstance(instance("one", "orders", "east"));
+            EntServiceRuntimeData service = service("A", MetServiceType.Provider, "rsf://127.0.0.1:8000");
+            service.setDescription(RegistryJson.copy(Map.of("javaType", "example.OriginalService"), ObjectNode.class));
+            storage.registerService("one", service);
+            EntServiceRuntimeData previous = storage.getInstanceService("one", "A");
+            RefServiceRelationData previousMember = storage.getMember("A", MetServiceType.Provider, "one");
+
+            // 同实例重新登记整份服务，两个方向都替换为新正文。
+            service.setAddresses(new String[] { "rsf://127.0.0.1:9000" });
+            service.getDescription().put("javaType", "example.ReplacementService");
+            storage.registerService("one", service);
+            EntServiceRuntimeData current = storage.getInstanceService("one", "A");
+            RefServiceRelationData currentMember = storage.getMember("A", MetServiceType.Provider, "one");
+            assertEquals("rsf://127.0.0.1:9000", current.getAddresses()[0]);
+            assertEquals("example.ReplacementService", current.getDescription().path("javaType").asText());
+            assertEquals(current.getDescription(), currentMember.getService().getDescription());
+            assertEquals(current.getAddresses()[0], currentMember.getService().getAddresses()[0]);
+
+            // 已返回的查询快照保留更新前的正文。
+            assertEquals("rsf://127.0.0.1:8000", previous.getAddresses()[0]);
+            assertEquals("example.OriginalService", previous.getDescription().path("javaType").asText());
+            assertEquals(previous.getDescription(), previousMember.getService().getDescription());
+            assertEquals(previous.getAddresses()[0], previousMember.getService().getAddresses()[0]);
+        }
+    }
+
+    @Test
+    public void instanceReregistrationRefreshesOnlyItsMembersAndKeepsEarlierReadsStable() throws Exception {
+        // 同服务由两个实例登记，第一实例还有另一项服务。
+        MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
+        try (StorageAccess storage = configuration.openStorage()) {
+            EntInstanceRuntimeData first = instance("first", "orders", "east");
+            first.getManagementAddresses().put("primary#rsf", "rsf://127.0.0.1:8000");
+            storage.registerInstance(first);
+            storage.registerInstance(instance("second", "orders", "east"));
+            storage.registerService("first", service("A", MetServiceType.Provider, "rsf://127.0.0.1:8000"));
+            storage.registerService("first", service("B", MetServiceType.Provider, "rsf://127.0.0.1:8000"));
+            storage.registerService("second", service("A", MetServiceType.Provider, "rsf://127.0.0.1:9000"));
+            RefServiceRelationData previous = storage.getMember("A", MetServiceType.Provider, "first");
+
+            // 身份更新传播到本实例的成员，继续隔离调用方后续的修改。
+            first.setUnitName("west");
+            first.getManagementAddresses().put("primary#rsf", "rsf://127.0.0.1:8100");
+            storage.registerInstance(first);
+            first.getManagementAddresses().clear();
+            RefServiceRelationData current = storage.getMember("A", MetServiceType.Provider, "first");
+            RefServiceRelationData anotherService = storage.getMember("B", MetServiceType.Provider, "first");
+            RefServiceRelationData otherInstance = storage.getMember("A", MetServiceType.Provider, "second");
+            assertEquals("west", current.getInstance().getUnitName());
+            assertEquals("west", anotherService.getInstance().getUnitName());
+            Map<String, String> currentAddresses = current.getInstance().getManagementAddresses();
+            Map<String, String> otherServiceAddresses = anotherService.getInstance().getManagementAddresses();
+            assertEquals("rsf://127.0.0.1:8100", currentAddresses.get("primary#rsf"));
+            assertEquals(currentAddresses, otherServiceAddresses);
+            assertEquals("east", otherInstance.getInstance().getUnitName());
+            assertTrue(otherInstance.getInstance().getManagementAddresses().isEmpty());
+
+            // 历史查询结果和原服务正文都不随身份更新改变。
+            assertEquals("east", previous.getInstance().getUnitName());
+            assertEquals("rsf://127.0.0.1:8000", previous.getInstance().getManagementAddresses().get("primary#rsf"));
+            assertEquals("rsf://127.0.0.1:8000", current.getService().getAddresses()[0]);
+            assertEquals("rsf://127.0.0.1:8000", storage.getInstanceService("first", "A").getAddresses()[0]);
+        }
+    }
+
+    @Test
+    public void serviceSnapshotsStayIsolatedWhenReusingInputAcrossInstances() throws Exception {
+        // 同一调用方对象复用到两个实例，各次登记保留自己当时的正文。
+        MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
+        try (StorageAccess storage = configuration.openStorage()) {
+            storage.registerInstance(instance("first", "orders", "east"));
+            storage.registerInstance(instance("second", "orders", "east"));
+            EntServiceRuntimeData service = service("A", MetServiceType.Provider, "rsf://127.0.0.1:8000");
+            service.setDescription(RegistryJson.copy(Map.of("javaType", "example.FirstService"), ObjectNode.class));
+            storage.registerService("first", service);
+            service.getAddresses()[0] = "rsf://127.0.0.1:9000";
+            service.getDescription().put("javaType", "example.SecondService");
+            storage.registerService("second", service);
+
+            // 两个方向都保留所属实例的正文，不能被后一次登记覆盖。
+            EntServiceRuntimeData first = storage.getInstanceService("first", "A");
+            EntServiceRuntimeData second = storage.getInstanceService("second", "A");
+            RefServiceRelationData firstMember = storage.getMember("A", MetServiceType.Provider, "first");
+            RefServiceRelationData secondMember = storage.getMember("A", MetServiceType.Provider, "second");
+            assertEquals("rsf://127.0.0.1:8000", first.getAddresses()[0]);
+            assertEquals("example.FirstService", first.getDescription().path("javaType").asText());
+            assertEquals(first.getDescription(), firstMember.getService().getDescription());
+            assertEquals("rsf://127.0.0.1:9000", second.getAddresses()[0]);
+            assertEquals("example.SecondService", second.getDescription().path("javaType").asText());
+            assertEquals(second.getDescription(), secondMember.getService().getDescription());
+            assertEquals("east", secondMember.getInstance().getUnitName());
+        }
+    }
+
+    @Test
+    public void pagedQueriesReturnDetachedNestedData() throws Exception {
+        // 通过两个分页入口读取同一项完整服务登记。
+        MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
+        try (StorageAccess storage = configuration.openStorage()) {
+            storage.registerInstance(instance("one", "orders", "east"));
+            EntServiceRuntimeData service = service("A", MetServiceType.Provider, "rsf://127.0.0.1:8000");
+            service.setDescription(RegistryJson.copy(Map.of("javaType", "example.OriginalService"), ObjectNode.class));
+            storage.registerService("one", service);
+            DirectoryQuery query = new DirectoryQuery();
+            RecordPage<EntServiceRuntimeData> services = storage.instanceServices("one", query);
+            RecordPage<RefServiceRelationData> members = storage.members("A", MetServiceType.Provider, query);
+
+            // 改写分页结果中的数组、JSON 和实例，不影响任一方向保存的正文。
+            EntServiceRuntimeData servicePage = services.getItems().get(0);
+            RefServiceRelationData memberPage = members.getItems().get(0);
+            servicePage.getAddresses()[0] = "changed";
+            servicePage.getDescription().removeAll();
+            memberPage.getInstance().setUnitName("changed");
+            memberPage.getService().getAddresses()[0] = "changed";
+            memberPage.getService().getDescription().removeAll();
+
+            EntServiceRuntimeData current = storage.getInstanceService("one", "A");
+            RefServiceRelationData currentMember = storage.getMember("A", MetServiceType.Provider, "one");
+            assertEquals("rsf://127.0.0.1:8000", current.getAddresses()[0]);
+            assertEquals("example.OriginalService", current.getDescription().path("javaType").asText());
+            assertEquals(current.getDescription(), currentMember.getService().getDescription());
+            assertEquals(current.getAddresses()[0], currentMember.getService().getAddresses()[0]);
+            assertEquals("east", currentMember.getInstance().getUnitName());
+        }
+    }
+
+    @Test
     public void rollingUpgradeOnlyDiscoversInstancesActuallyProvidingTheService() throws Exception {
         MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
         try (StorageAccess old = configuration.openStorage(); //

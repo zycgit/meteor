@@ -69,40 +69,84 @@ final class DirectoryMapping {
     }
 
     private static <T> boolean matches(T item, DirectoryQuery query, String identity) {
-        Object record;
-        if (item instanceof MetServiceMember member) {
-            if (StringUtils.isNotBlank(query.getUnitName()) && !StringUtils.equals(query.getUnitName(), member.getInstance().getUnitName())) {
+        MetServiceMember member = null;
+        MetServiceInfo service;
+        if (item instanceof MetServiceMember registration) {
+            member = registration;
+            service = member.getService();
+            String unitName = query.getUnitName();
+            if (StringUtils.isNotBlank(unitName) && !StringUtils.equals(unitName, member.getInstance().getUnitName())) {
                 return false;
             }
-
-            RefServiceRelationData registration = RegistryJson.copy(member, RefServiceRelationData.class);
-            registration.getService().setUsedProtocols(member.getUsedProtocols());
-            registration.getService().setEndpoints(RegistryJson.copy(member.getEndpoints(), RefProtocolMountData[].class));
-            record = registration;
-        } else if (item instanceof MetServiceInfo service) {
-            EntServiceRuntimeData registration = RegistryJson.copy(service, EntServiceRuntimeData.class);
-            registration.setUsedProtocols(service.getProtocols());
-            List<RefProtocolMountData> endpoints = new ArrayList<>();
-            for (String protocol : service.getProtocols()) {
-                RefProtocolMountData endpoint = new RefProtocolMountData();
-                endpoint.setProtocolName(protocol);
-                endpoints.add(endpoint);
-            }
-            registration.setEndpoints(endpoints.toArray(RefProtocolMountData[]::new));
-            record = registration;
+        } else if (item instanceof MetServiceInfo summary) {
+            service = summary;
         } else {
             throw new IllegalArgumentException("Unsupported direct directory object");
         }
 
-        if (!DirectoryFilter.protocol(record, query.getProtocol())) {
+        String protocol = query.getProtocol();
+        if (StringUtils.isNotBlank(protocol) && !protocolNames(service, member).contains(protocol)) {
             return false;
         }
         if (StringUtils.isBlank(query.getSearch())) {
             return true;
         }
 
-        String text = DirectoryFilter.text(record, query.getField(), identity);
+        String text = text(service, member, query.getField(), identity);
         return text.toLowerCase(Locale.ROOT).contains(query.getSearch().toLowerCase(Locale.ROOT));
+    }
+
+    private static Set<String> protocolNames(MetServiceInfo service, MetServiceMember member) {
+        if (member == null) {
+            return new TreeSet<>(Arrays.asList(service.getProtocols()));
+        }
+        if (service.getRole() == MetServiceType.Consumer) {
+            return new TreeSet<>(Arrays.asList(member.getUsedProtocols()));
+        }
+
+        Set<String> names = new TreeSet<>();
+        for (MetServiceEndpoint endpoint : member.getEndpoints()) {
+            String name = endpoint.getProtocolName();
+            if (StringUtils.isNotBlank(name)) {
+                names.add(name);
+            }
+        }
+        return names;
+    }
+
+    private static String text(MetServiceInfo service, MetServiceMember member, String field, String identity) {
+        if (StringUtils.isBlank(field) || StringUtils.equals(field, "id") || StringUtils.equals(field, "instance")) {
+            return identity;
+        }
+        if (member != null) {
+            if (StringUtils.equals(field, "application")) {
+                return StringUtils.defaultString(member.getInstance().getApplicationName());
+            }
+            if (StringUtils.equals(field, "unit")) {
+                return StringUtils.defaultString(member.getInstance().getUnitName());
+            }
+        }
+        if (StringUtils.equals(field, "role")) {
+            return service.getRole() == MetServiceType.Provider ? "发布 提供者 Provider" : "订阅 消费者 Consumer";
+        }
+        if (StringUtils.equals(field, "protocol")) {
+            return String.join(" ", protocolNames(service, member));
+        }
+        if (StringUtils.equals(field, "address")) {
+            Set<String> addresses = new TreeSet<>();
+            if (member != null) {
+                for (MetServiceEndpoint endpoint : member.getEndpoints()) {
+                    if (endpoint.getPublishedAddress() != null) {
+                        addresses.add(endpoint.getPublishedAddress());
+                    }
+                    if (endpoint.getListenAddress() != null) {
+                        addresses.add(endpoint.getListenAddress());
+                    }
+                }
+            }
+            return String.join(" ", addresses);
+        }
+        throw new IllegalArgumentException("Unsupported directory search field: " + field);
     }
 
     public static String memberIdentity(MetServiceMember member) {
@@ -124,11 +168,11 @@ final class DirectoryMapping {
     }
 
     public static MetServiceInfo service(EntServiceCatalogData declaration, ServiceSummary summary) {
-        MetServiceInfo info = RegistryJson.copy(declaration, MetServiceInfo.class);
+        MetServiceInfo info = serviceInfo(declaration);
         if (summary != null) {
             info.setProviderCount(summary.getProviderCount());
             info.setConsumerCount(summary.getConsumerCount());
-            info.setProtocols(summary.getProtocols());
+            info.setProtocols(summary.getProtocols().clone());
             if (summary.getProviderCount() > 0) {
                 info.setRole(MetServiceType.Provider);
             } else if (summary.getConsumerCount() > 0) {
@@ -139,20 +183,22 @@ final class DirectoryMapping {
     }
 
     public static MetServiceInfo service(EntServiceRuntimeData registration) {
-        MetServiceInfo result = RegistryJson.copy(registration, MetServiceInfo.class);
+        MetServiceInfo result = serviceInfo(registration);
+        result.setRole(registration.getRole());
         boolean provider = registration.getRole() == MetServiceType.Provider;
         result.setProviderCount(provider ? 1 : 0);
         result.setConsumerCount(provider ? 0 : 1);
-        Set<String> protocols = new TreeSet<>();
-        if (provider) {
-            for (RefProtocolMountData endpoint : registration.getEndpoints()) {
-                protocols.add(endpoint.getProtocolName());
-            }
-        } else {
-            protocols.addAll(Arrays.asList(registration.getUsedProtocols()));
-        }
-        result.setProtocols(protocols.toArray(String[]::new));
+        result.setProtocols(DirectoryFilter.protocolNames(registration).toArray(String[]::new));
         return result;
+    }
+
+    private static MetServiceInfo serviceInfo(EntServiceCatalogData declaration) {
+        MetServiceInfo info = new MetServiceInfo();
+        info.setServiceId(declaration.getServiceId());
+        info.setGroup(declaration.getGroup());
+        info.setName(declaration.getName());
+        info.setVersion(declaration.getVersion());
+        return info;
     }
 
     public static MetServiceMember member(RefServiceRelationData record) {

@@ -287,7 +287,8 @@ final class MemoryStorage implements StorageAccess {
             EntInstanceCatalogData catalog = copy(instance, EntInstanceCatalogData.class);
             this.database.instances.put(id, catalog);
             this.database.applicationInstances.computeIfAbsent(application, key -> new TreeMap<>()).put(id, catalog);
-            this.database.runtime.put(id, copy(instance, EntInstanceRuntimeData.class));
+            EntInstanceRuntimeData snapshot = copy(instance, EntInstanceRuntimeData.class);
+            this.database.runtime.put(id, snapshot);
             this.database.sessions.put(id, this.sessionId);
             this.registeredInstances.add(id);
 
@@ -295,7 +296,7 @@ final class MemoryStorage implements StorageAccess {
             NavigableMap<String, EntServiceRuntimeData> services = this.database.instanceServices.get(id);
             if (services != null) {
                 for (EntServiceRuntimeData service : services.values()) {
-                    this.putMember(instance, service);
+                    this.putMember(snapshot, service);
                 }
             }
         }
@@ -329,15 +330,17 @@ final class MemoryStorage implements StorageAccess {
                 this.memberDirectory(serviceId, previous.getRole()).remove(instanceId);
             }
 
-            entries.put(serviceId, copy(service, EntServiceRuntimeData.class));
-            this.putMember(instance, service);
+            // 两个索引共用存储拥有的快照；后续登记整体替换，不修改旧快照。
+            EntServiceRuntimeData snapshot = copy(service, EntServiceRuntimeData.class);
+            entries.put(serviceId, snapshot);
+            this.putMember(instance, snapshot);
         }
     }
 
     private void putMember(EntInstanceRuntimeData instance, EntServiceRuntimeData service) {
         RefServiceRelationData member = new RefServiceRelationData();
-        member.setInstance(copy(instance, EntInstanceRuntimeData.class));
-        member.setService(copy(service, EntServiceRuntimeData.class));
+        member.setInstance(instance);
+        member.setService(service);
         Map<MetServiceType, NavigableMap<String, RefServiceRelationData>> roles = this.database.members.computeIfAbsent(service.getServiceId(), key -> new EnumMap<>(MetServiceType.class));
         roles.computeIfAbsent(service.getRole(), key -> new TreeMap<>()).put(instance.getInstanceId(), member);
         this.updateSummary(service.getServiceId());

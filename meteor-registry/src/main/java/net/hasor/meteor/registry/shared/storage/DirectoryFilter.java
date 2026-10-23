@@ -73,7 +73,7 @@ public final class DirectoryFilter {
             throw new IllegalArgumentException("Protocol filtering requires a service registration directory");
         }
 
-        return Arrays.asList(protocols(service).split(" ")).contains(protocol);
+        return protocolNames(service).contains(protocol);
     }
 
     public static Set<String> protocolNames(EntServiceRuntimeData service) {
@@ -92,17 +92,7 @@ public final class DirectoryFilter {
     }
 
     public static String protocols(EntServiceRuntimeData service) {
-        if (service.getRole() == MetServiceType.Consumer) {
-            return String.join(" ", service.getUsedProtocols());
-        }
-
-        Set<String> values = new TreeSet<>();
-        for (RefProtocolMountData endpoint : service.getEndpoints()) {
-            if (endpoint.getProtocolName() != null) {
-                values.add(endpoint.getProtocolName());
-            }
-        }
-        return String.join(" ", values);
+        return String.join(" ", protocolNames(service));
     }
 
     public static String addresses(EntServiceRuntimeData service) {
