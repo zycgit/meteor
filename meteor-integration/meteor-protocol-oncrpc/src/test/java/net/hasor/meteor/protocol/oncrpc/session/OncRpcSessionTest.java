@@ -19,6 +19,8 @@ import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.annotation.MetMethod;
+import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.ProtocolSessionContextTestAccess;
@@ -30,8 +32,6 @@ import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProcedure;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
 import net.hasor.meteor.protocol.oncrpc.binding.OncRpcServiceResource;
 import net.hasor.meteor.protocol.oncrpc.codec.*;
 import org.junit.Test;
@@ -41,9 +41,9 @@ import static org.junit.Assert.*;
 public class OncRpcSessionTest {
     private static final long PROGRAM = 0x2000_0001L;
 
-    @OncRpcProgram(id = PROGRAM, version = 1)
+    @MetService(id = PROGRAM)
     public interface Service {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         String echo(String value);
     }
 

@@ -53,10 +53,19 @@ public final class RpcbindCodecs {
 
     /** Bind these schemas when directly publishing or subscribing one of the supplied standard control contracts. */
     public static OncRpcServiceResource resource(Class<?> type) {
-        if (type != PortMapperService.class && type != RpcbindV3Service.class && type != RpcbindV4Service.class) {
+        // 相同程序号的三个标准版本在资源入口明确选择，不复用业务服务版本。
+        long version;
+        if (type == PortMapperService.class) {
+            version = 2;
+        } else if (type == RpcbindV3Service.class) {
+            version = 3;
+        } else if (type == RpcbindV4Service.class) {
+            version = 4;
+        } else {
             throw new IllegalArgumentException("Unsupported rpcbind control contract");
         }
         OncRpcServiceResource resource = new OncRpcServiceResource(type);
+        resource.setVersion(version);
         resource.codec(long.class, XdrCodecs.UNSIGNED_INT);
         resource.codec(PortMapperMapping.class, PORT_MAPPING);
         resource.codec(RpcbindMapping.class, RPC_MAPPING);

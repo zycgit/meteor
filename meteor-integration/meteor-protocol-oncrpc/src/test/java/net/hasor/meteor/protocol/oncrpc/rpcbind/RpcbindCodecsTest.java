@@ -107,6 +107,22 @@ public class RpcbindCodecsTest {
     }
 
     @Test
+    public void portMapperResourceSelectsStandardVersion2() {
+        // 程序号来自公共服务声明，控制版本由 rpcbind 资源入口显式设置。
+        OncRpcServiceResource resource = RpcbindCodecs.resource(PortMapperService.class);
+        assertEquals(100000, resource.getProgram());
+        assertEquals(2, resource.getVersion());
+    }
+
+    @Test
+    public void rpcbindResourceSelectsStandardVersion3() {
+        // V3 不沿用资源默认版本 1，也不依赖字符串服务版本。
+        OncRpcServiceResource resource = RpcbindCodecs.resource(RpcbindV3Service.class);
+        assertEquals(100000, resource.getProgram());
+        assertEquals(3, resource.getVersion());
+    }
+
+    @Test
     public void version4RetainsInheritedProceduresAndExactLookup() {
         // 版本 4 保留版本 3 的控制过程，并额外声明过程 9。
         OncRpcServiceResource resource = RpcbindCodecs.resource(RpcbindV4Service.class);

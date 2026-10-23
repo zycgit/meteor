@@ -6,42 +6,42 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.protocol.oncrpc;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProcedure;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
+import net.hasor.meteor.annotation.MetMethod;
+import net.hasor.meteor.annotation.MetService;
 
 /** 对应 src/test/rpc/interop.x，过程编号由业务 IDL 固定。 */
-@OncRpcProgram(id = 0x31234567L, version = 1)
+@MetService(id = 0x31234567L)
 public interface OncRpcDemoService {
-    @OncRpcProcedure(id = 1)
+    @MetMethod(id = 1)
     String echo(String value);
 
-    @OncRpcProcedure(id = 2)
+    @MetMethod(id = 2)
     int add(int left, int right);
 
-    @OncRpcProcedure(id = 3)
+    @MetMethod(id = 3)
     OncRpcSample mirror(OncRpcSample value);
 
-    @OncRpcProcedure(id = 4)
+    @MetMethod(id = 4)
     void ping();
 
-    @OncRpcProcedure(id = 5)
+    @MetMethod(id = 5)
     void crash();
 
-    @OncRpcProcedure(id = 6)
+    @MetMethod(id = 6)
     String auth();
 
-    @OncRpcProcedure(id = 7)
+    @MetMethod(id = 7)
     int delay(int milliseconds);
 
-    @OncRpcProcedure(id = 8)
+    @MetMethod(id = 8)
     int increment(int delta);
 
-    @OncRpcProcedure(id = 9)
+    @MetMethod(id = 9)
     int count();
 
-    @OncRpcProcedure(id = 10)
+    @MetMethod(id = 10)
     void reset();
 
-    @OncRpcProcedure(id = 11)
+    @MetMethod(id = 11)
     byte[] bytes(byte[] value);
 }

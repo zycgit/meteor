@@ -9,41 +9,41 @@ package net.hasor.meteor.protocol.oncrpc.binding;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
+import net.hasor.meteor.domain.meta.MethodMeta;
 import net.hasor.meteor.domain.meta.ServiceMetaParser;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProcedure;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrCodec;
 
 /** Local ONC RPC contract and explicit XDR codecs. Configure before publishing or subscribing the service. */
 public final class OncRpcServiceResource {
     private final Class<?>                   serviceType;
     private final long                       program;
-    private final long                       version;
+    private       long                       version = 1L;
     private final Map<Long, Method>          methods;
     private final Map<String, Method>        namedMethods;
-    private final Map<Class<?>, XdrCodec<?>> codecs = new LinkedHashMap<>();
+    private final Map<Class<?>, XdrCodec<?>> codecs  = new LinkedHashMap<>();
 
     public OncRpcServiceResource(Class<?> serviceType) {
         this.serviceType = Objects.requireNonNull(serviceType, "serviceType");
         if (!serviceType.isInterface()) {
             throw new IllegalArgumentException("ONC RPC service type must be an interface");
         }
-        OncRpcProgram declaration = program(serviceType);
-        if (declaration == null) {
-            throw new IllegalArgumentException("ONC RPC service must declare @OncRpcProgram");
+
+        long id = ServiceMetaParser.parse(serviceType).getId();
+        if (id == -1L) {
+            throw new IllegalArgumentException("ONC RPC service must declare MetService.id");
         }
-        this.program = unsigned(declaration.id(), "Program");
-        this.version = unsigned(declaration.version(), "Version");
-        if (this.version == 0) {
-            throw new IllegalArgumentException("ONC RPC program version must not be zero");
-        }
+        this.program = unsigned(id, "Program");
 
         // Resolve the wire procedures once; no implementation object is retained or invoked here.
         Map<Long, Method> procedures = new LinkedHashMap<>();
         Map<String, Method> names = new LinkedHashMap<>();
         for (Method method : serviceType.getMethods()) {
-            boolean excluded = Modifier.isStatic(method.getModifiers()) || ServiceMetaParser.method(method).isIgnored();
-            if (excluded || method.isBridge() || method.isSynthetic()) {
+            boolean generated = method.isBridge() || method.isSynthetic();
+            if (Modifier.isStatic(method.getModifiers()) || generated) {
+                continue;
+            }
+            MethodMeta mapping = ServiceMetaParser.method(serviceType, method);
+            if (mapping.isIgnored()) {
                 continue;
             }
             String name = method.getName();
@@ -52,19 +52,15 @@ public final class OncRpcServiceResource {
                 if (!Arrays.equals(previous.getParameterTypes(), method.getParameterTypes())) {
                     throw new IllegalArgumentException("ONC RPC does not support overloaded methods: " + name);
                 }
-                OncRpcProcedure previousId = previous.getAnnotation(OncRpcProcedure.class);
-                OncRpcProcedure currentId = method.getAnnotation(OncRpcProcedure.class);
-                boolean different = previousId == null || currentId == null || previousId.id() != currentId.id();
+                long previousId = ServiceMetaParser.method(serviceType, previous).getId();
+                long currentId = mapping.getId();
+                boolean different = previousId == 0 || currentId == 0 || previousId != currentId;
                 if (different) {
                     throw new IllegalArgumentException("Ambiguous inherited ONC RPC procedure: " + method.getName());
                 }
                 continue;
             }
-            OncRpcProcedure procedure = method.getAnnotation(OncRpcProcedure.class);
-            if (procedure == null) {
-                throw new IllegalArgumentException("ONC RPC method must declare @OncRpcProcedure: " + method.getName());
-            }
-            long number = unsigned(procedure.id(), "Procedure");
+            long number = unsigned(mapping.getId(), "Procedure");
             if (number == 0) {
                 throw new IllegalArgumentException("ONC RPC procedure zero is reserved for NULL");
             }
@@ -78,18 +74,22 @@ public final class OncRpcServiceResource {
 
     /** 普通接口缺少 ONC 声明或具有重载签名时，拒绝当前协议而保留其他发布方式。 */
     static OncRpcServiceResource infer(Class<?> serviceType) {
-        if (!serviceType.isInterface() || program(serviceType) == null) {
+        if (!serviceType.isInterface() || ServiceMetaParser.parse(serviceType).getId() == -1L) {
             return null;
         }
 
         // 显式注解损坏仍由构造阶段报错，缺少协议契约只表示不支持该接口。
         Map<String, Method> names = new LinkedHashMap<>();
         for (Method method : serviceType.getMethods()) {
-            boolean excluded = Modifier.isStatic(method.getModifiers()) || ServiceMetaParser.method(method).isIgnored();
-            if (excluded || method.isBridge() || method.isSynthetic()) {
+            boolean generated = method.isBridge() || method.isSynthetic();
+            if (Modifier.isStatic(method.getModifiers()) || generated) {
                 continue;
             }
-            if (!method.isAnnotationPresent(OncRpcProcedure.class)) {
+            MethodMeta mapping = ServiceMetaParser.method(serviceType, method);
+            if (mapping.isIgnored()) {
+                continue;
+            }
+            if (mapping.getId() == 0) {
                 return null;
             }
             Method previous = names.putIfAbsent(method.getName(), method);
@@ -112,6 +112,15 @@ public final class OncRpcServiceResource {
         return this.version;
     }
 
+    /** 设置本服务的 ONC 程序版本；发布和订阅前配置，默认 1，与公共服务版本无关。 */
+    public void setVersion(long version) {
+        long selected = unsigned(version, "Version");
+        if (selected == 0) {
+            throw new IllegalArgumentException("ONC RPC program version must not be zero");
+        }
+        this.version = selected;
+    }
+
     public Map<Long, Method> getMethods() {
         return this.methods;
     }
@@ -128,26 +137,6 @@ public final class OncRpcServiceResource {
 
     public XdrCodec<?> getCodec(Class<?> type) {
         return this.codecs.get(type);
-    }
-
-    static OncRpcProgram program(Class<?> type) {
-        OncRpcProgram selected = type.getDeclaredAnnotation(OncRpcProgram.class);
-        if (selected != null) {
-            return selected;
-        }
-        for (Class<?> parent : type.getInterfaces()) {
-            OncRpcProgram inherited = program(parent);
-            if (inherited == null) {
-                continue;
-            }
-            boolean different = selected != null && //
-                    (selected.id() != inherited.id() || selected.version() != inherited.version());
-            if (different) {
-                throw new IllegalArgumentException("Ambiguous inherited ONC RPC program");
-            }
-            selected = inherited;
-        }
-        return selected;
     }
 
     private static long unsigned(long number, String description) {

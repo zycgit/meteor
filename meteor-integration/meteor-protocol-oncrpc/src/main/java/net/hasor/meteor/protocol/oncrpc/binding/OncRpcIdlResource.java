@@ -11,10 +11,8 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.Map;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.domain.MetRuntimeUtils;
+import net.hasor.meteor.domain.meta.MethodMeta;
 import net.hasor.meteor.domain.meta.ServiceMetaParser;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProcedure;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
 import net.hasor.meteor.protocol.oncrpc.definition.OncRpcIdlProcedure;
 import net.hasor.meteor.protocol.oncrpc.definition.OncRpcIdlProgram;
 import net.hasor.meteor.protocol.oncrpc.definition.XdrIdlDocument;
@@ -48,13 +46,13 @@ public final class OncRpcIdlResource {
     }
 
     OncRpcIdlProgram program(Class<?> service) {
-        OncRpcProgram mapping = OncRpcServiceResource.program(service);
+        long id = ServiceMetaParser.parse(service).getId();
         OncRpcIdlProgram selected = null;
         for (OncRpcIdlProgram program : this.document.programs.values()) {
             if (this.programName != null && !StringUtils.equals(program.name, this.programName)) {
                 continue;
             }
-            if (mapping != null && program.id != mapping.id()) {
+            if (id != -1L && program.id != id) {
                 continue;
             }
             if (selected != null) {
@@ -68,31 +66,26 @@ public final class OncRpcIdlResource {
         return selected;
     }
 
-    long version(Class<?> service, OncRpcIdlProgram program) {
-        OncRpcProgram mapping = OncRpcServiceResource.program(service);
+    long version(OncRpcIdlProgram program) {
+        // 文件版本只取自显式选择器或唯一声明，不读取公共服务的字符串版本。
         Long selected = this.version;
-        if (selected == null && mapping != null) {
-            selected = mapping.version();
-        }
         if (selected == null && program.versions.size() == 1) {
             selected = program.versions.keySet().iterator().next();
         }
-        boolean exists = selected != null && program.versions.containsKey(selected);
-        boolean matches = mapping == null || selected != null && selected == mapping.version();
-        if (!exists || !matches) {
-            throw this.error("RPC version selection or annotation does not match the file");
+        if (selected == null || !program.versions.containsKey(selected)) {
+            throw this.error("RPC version selection does not match the file");
         }
         return selected;
     }
 
     OncRpcIdlProcedure procedure(Map<String, OncRpcIdlProcedure> procedures, Method method) {
-        OncRpcProcedure mapping = method.getAnnotation(OncRpcProcedure.class);
-        boolean named = ServiceMetaParser.method(method).getDeclaredName() != null;
-        String name = MetRuntimeUtils.getProtocolMethodName(method);
+        MethodMeta mapping = ServiceMetaParser.method(method);
+        boolean named = mapping.getDeclaredName() != null;
+        String name = mapping.getName();
         OncRpcIdlProcedure selected = null;
-        if (mapping != null) {
+        if (mapping.getId() != 0) {
             for (OncRpcIdlProcedure procedure : procedures.values()) {
-                if (procedure.id == mapping.id()) {
+                if (procedure.id == mapping.getId()) {
                     selected = procedure;
                 }
             }

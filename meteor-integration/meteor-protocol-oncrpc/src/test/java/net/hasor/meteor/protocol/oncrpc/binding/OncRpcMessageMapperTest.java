@@ -18,17 +18,13 @@ import java.util.Set;
 import java.util.concurrent.Flow;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetSettings;
-import net.hasor.meteor.annotation.MetEnumValue;
-import net.hasor.meteor.annotation.MetIgnore;
-import net.hasor.meteor.annotation.MetMessage;
+import net.hasor.meteor.annotation.*;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.*;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.protocol.oncrpc.OncRpcProtocol;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProcedure;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
 import net.hasor.meteor.protocol.oncrpc.codec.*;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -233,6 +229,7 @@ public class OncRpcMessageMapperTest {
         ServiceDomain<Arithmetic> service = service(Arithmetic.class);
         OncRpcMessageMapper mapper = mapper(config(), service);
         OncRpcServiceResource resource = new OncRpcServiceResource(Arithmetic.class);
+        resource.setVersion(2);
         OncRpcServiceBinding definition = new OncRpcServiceBinding(resource, service, config());
         ProtocolBinding binding = new ProtocolBinding(null, definition, null);
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of("another-endpoint", binding));
@@ -298,7 +295,9 @@ public class OncRpcMessageMapperTest {
     public void incomingProcedureNotOnPublishedFacadeIsUnavailable() {
         // 本地资源可以包含完整 IDL，发布的 Java 门面只暴露其中一部分。
         ServiceDomain<PingFacade> service = service(PingFacade.class);
-        service.setBindResource("oncrpc", new OncRpcServiceResource(Arithmetic.class));
+        OncRpcServiceResource resource = new OncRpcServiceResource(Arithmetic.class);
+        resource.setVersion(2);
+        service.setBindResource("oncrpc", resource);
         OncRpcMessageMapper mapper = mapper(config(), service);
         OncRpcException failure = assertThrows(OncRpcException.class, () -> mapper.decodeRequest(call(1, new byte[8])));
         assertEquals(OncRpcMessage.PROC_UNAVAIL, failure.getAcceptStatus());
@@ -725,6 +724,7 @@ public class OncRpcMessageMapperTest {
         // 未知 DTO 只通过本地显式编码器绑定，不根据 Java 字段反射猜测 IDL。
         ServiceDomain<StructContract> service = service(StructContract.class);
         OncRpcServiceResource resource = new OncRpcServiceResource(StructContract.class);
+        resource.setVersion(2);
         resource.codec(Point.class, pointCodec());
         service.setBindResource("oncrpc", resource);
         OncRpcMessageMapper mapper = mapper(config(), service);
@@ -746,6 +746,7 @@ public class OncRpcMessageMapperTest {
         // IDL 枚举编号不连续时，显式编码器覆盖默认 ordinal 映射。
         ServiceDomain<CollectionsContract> service = service(CollectionsContract.class);
         OncRpcServiceResource resource = new OncRpcServiceResource(CollectionsContract.class);
+        resource.setVersion(2);
         resource.codec(Tone.class, new XdrCodec<>() {
             public Tone read(XdrInput input) {
                 return input.readInt() == 23 ? Tone.BLUE : Tone.RED;
@@ -796,6 +797,7 @@ public class OncRpcMessageMapperTest {
         // 借入的契约保留身份，端点各自准备类型和方法绑定。
         ServiceDomain<Arithmetic> service = service(Arithmetic.class);
         OncRpcServiceResource resource = new OncRpcServiceResource(Arithmetic.class);
+        resource.setVersion(2);
         ProtocolConfig protocol = config();
         ProtocolMeta meta = new ProtocolMeta(service, null, resource, Map.of());
         OncRpcServiceBinding binding = OncRpcMessageMapper.prepareServiceDefinition(protocol, meta);
@@ -884,6 +886,7 @@ public class OncRpcMessageMapperTest {
         // 启动校验认可资源中明确提供的结构映射。
         ServiceDomain<StructContract> service = service(StructContract.class);
         OncRpcServiceResource resource = new OncRpcServiceResource(StructContract.class);
+        resource.setVersion(2);
         resource.codec(Point.class, pointCodec());
         ProtocolConfig protocol = config();
         ProtocolMeta declaration = new ProtocolMeta(service, null, resource, Map.of());
@@ -988,6 +991,7 @@ public class OncRpcMessageMapperTest {
         // 某个 IDL 的固定长度序列不应强制采用默认的变长 List 布局。
         ServiceDomain<CollectionsContract> service = service(CollectionsContract.class);
         OncRpcServiceResource resource = new OncRpcServiceResource(CollectionsContract.class);
+        resource.setVersion(2);
         resource.codec(List.class, new XdrCodec<>() {
             @Override
             public List read(XdrInput input) {
@@ -1023,7 +1027,9 @@ public class OncRpcMessageMapperTest {
     public void ignoredFacadeMethodCannotBeInvokedThroughItsBoundResource() {
         // 绑定完整资源不会把用户通过 @MetIgnore 隐藏的方法重新发布。
         ServiceDomain<IgnoredFacade> service = service(IgnoredFacade.class);
-        service.setBindResource("oncrpc", new OncRpcServiceResource(Arithmetic.class));
+        OncRpcServiceResource resource = new OncRpcServiceResource(Arithmetic.class);
+        resource.setVersion(2);
+        service.setBindResource("oncrpc", resource);
         OncRpcMessageMapper mapper = mapper(config(), service);
         OncRpcException failure = assertThrows(OncRpcException.class, () -> mapper.decodeRequest(call(2, new byte[0])));
         assertEquals(OncRpcMessage.PROC_UNAVAIL, failure.getAcceptStatus());
@@ -1055,6 +1061,19 @@ public class OncRpcMessageMapperTest {
         ServiceDomain<T> service = new ServiceDomain<>(type);
         service.setBindName(type.getSimpleName());
         service.setServiceType(MetServiceType.Provider);
+
+        // 编解码夹具显式配置程序版本，业务接口不再携带 ONC 版本注解。
+        OncRpcServiceResource resource = OncRpcServiceResource.infer(type);
+        if (resource != null) {
+            long version = 2;
+            if (type == VersionOne.class) {
+                version = 1;
+            } else if (type == VersionThree.class) {
+                version = 3;
+            }
+            resource.setVersion(version);
+            service.setBindResource("oncrpc", resource);
+        }
         return service;
     }
 
@@ -1144,41 +1163,41 @@ public class OncRpcMessageMapperTest {
         };
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface Arithmetic {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         int subtract(int left, int right);
 
-        @OncRpcProcedure(id = 2)
+        @MetMethod(id = 2)
         void ping();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     public interface VersionOne extends Arithmetic {
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 3)
+    @MetService(id = 0x20000001L)
     public interface VersionThree extends Arithmetic {
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface CollectionsContract {
-        @OncRpcProcedure(id = 3)
+        @MetMethod(id = 3)
         int[] array(int[] values);
 
-        @OncRpcProcedure(id = 4)
+        @MetMethod(id = 4)
         List<Integer> list(List<Integer> values);
 
-        @OncRpcProcedure(id = 5)
+        @MetMethod(id = 5)
         byte[] bytes(byte[] values);
 
-        @OncRpcProcedure(id = 6)
+        @MetMethod(id = 6)
         Tone tone(Tone value);
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface StructContract {
-        @OncRpcProcedure(id = 7)
+        @MetMethod(id = 7)
         Point mirror(Point value);
     }
 
@@ -1210,9 +1229,9 @@ public class OncRpcMessageMapperTest {
         void ping();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface ScalarContract {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         String scalars(long count, boolean enabled, float ratio, double total, String value);
     }
 
@@ -1224,65 +1243,65 @@ public class OncRpcMessageMapperTest {
         long subtract(int left, int right);
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface UnknownDto {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         Object unknown(Object value);
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface MessageMethod {
         @MetMessage
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         void notifyPeer();
     }
 
     @MetMessage
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface MessageType {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         void notifyPeer();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface InputContract {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         InputStream read();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface OutputContract {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         void write(OutputStream value);
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface ReaderContract {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         Reader read();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface WriterContract {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         void write(Writer value);
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface PublisherContract {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         Flow.Publisher<String> events();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface MapContract {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         Map<String, Integer> lookup();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L)
     public interface GenericContract<T> {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         T lookup();
     }
 }

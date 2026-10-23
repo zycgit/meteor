@@ -10,13 +10,13 @@ import java.lang.reflect.Method;
 import java.util.Map;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.annotation.MetIgnore;
+import net.hasor.meteor.annotation.MetMethod;
+import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.protocol.oncrpc.OncRpcProtocol;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProcedure;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrCodec;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrCodecs;
 import org.junit.Test;
@@ -43,11 +43,62 @@ public class OncRpcServiceResourceTest {
 
     @Test
     public void resourceExposesDeclaredServiceIdentity() {
-        // 直接从接口声明获取程序号和版本，不需要创建业务实现。
+        // 公共注解声明程序号，协议资源使用默认版本一，不创建业务实现。
         OncRpcServiceResource resource = new OncRpcServiceResource(Echo.class);
         assertSame(Echo.class, resource.getServiceType());
         assertEquals(0x20000001L, resource.getProgram());
         assertEquals(1, resource.getVersion());
+    }
+
+    @Test
+    public void resourceVersionCanBeSelectedWithoutChangingItsServiceIdentity() {
+        // 协议版本是资源配置，公共服务版本保留业务坐标语义。
+        OncRpcServiceResource resource = new OncRpcServiceResource(Echo.class);
+        resource.setVersion(7);
+
+        // 修改版本不会丢失程序号或已经解析的过程映射。
+        assertEquals(7, resource.getVersion());
+        assertEquals(0x20000001L, resource.getProgram());
+        assertTrue(resource.getMethods().containsKey(1L));
+    }
+
+    @Test
+    public void methodNumberCanBeCombinedWithAPublicRemoteName() throws Exception {
+        // 公共方法注解在同一处声明过程号和线上名称。
+        OncRpcServiceResource resource = new OncRpcServiceResource(RenamedEcho.class);
+        Method local = RenamedEcho.class.getMethod("localEcho", String.class);
+
+        // 过程表保留 Java 方法，自动契约使用公共远程名称。
+        assertEquals(local, resource.getMethods().get(11L));
+        assertEquals(local, resource.getMethod("localEcho"));
+        ServiceDomain<RenamedEcho> service = new ServiceDomain<>(RenamedEcho.class);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("oncrpc", null, Map.of());
+        OncRpcServiceBinding binding = new OncRpcServiceBinding(resource, service, protocol);
+        String source = binding.getSources().values().iterator().next();
+        assertTrue(source.contains("echo("));
+        assertFalse(source.contains("localEcho("));
+    }
+
+    @Test
+    public void changingAResourceVersionKeepsThePreparedEndpointVersion() {
+        // 同一资源先准备版本二的端点，描述与定义在同一次绑定中确定。
+        OncRpcServiceResource resource = new OncRpcServiceResource(Echo.class);
+        resource.setVersion(2);
+        ServiceDomain<Echo> service = new ServiceDomain<>(Echo.class);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("oncrpc", null, Map.of());
+        ProtocolMeta meta = new ProtocolMeta(service, null, resource, Map.of());
+        OncRpcProtocol provider = new OncRpcProtocol();
+        ProtocolBinding first = provider.prepareBinding(protocol, null, meta);
+
+        // 下一端点采用新版本，已准备端点继续持有自己的版本和描述。
+        resource.setVersion(3);
+        ProtocolBinding second = provider.prepareBinding(protocol, null, meta);
+        OncRpcServiceBinding previousDefinition = (OncRpcServiceBinding) first.getDefinition();
+        OncRpcServiceBinding nextDefinition = (OncRpcServiceBinding) second.getDefinition();
+        assertEquals(2, previousDefinition.getVersion());
+        assertEquals(2, first.getDescription().path("version").asLong());
+        assertEquals(3, nextDefinition.getVersion());
+        assertEquals(3, second.getDescription().path("version").asLong());
     }
 
     @Test
@@ -149,27 +200,31 @@ public class OncRpcServiceResourceTest {
 
     @Test
     public void zeroVersionNumberIsRejected() {
-        // RFC 5531 要求发布的程序版本非零，不能将版本零注册为有效契约。
-        assertThrows(IllegalArgumentException.class, () -> new OncRpcServiceResource(ZeroVersion.class));
+        // 显式版本配置不能使用保留的零值。
+        OncRpcServiceResource resource = new OncRpcServiceResource(Echo.class);
+        assertThrows(IllegalArgumentException.class, () -> resource.setVersion(0));
     }
 
     @Test
     public void versionNumberAcceptsTheUnsignedUpperBoundary() {
         // 版本号保留无符号数的完整值。
-        OncRpcServiceResource resource = new OncRpcServiceResource(MaximumVersion.class);
+        OncRpcServiceResource resource = new OncRpcServiceResource(Echo.class);
+        resource.setVersion(0xffffffffL);
         assertEquals(0xffffffffL, resource.getVersion());
     }
 
     @Test
     public void negativeVersionNumberIsRejected() {
         // 负版本不能进入已解析的服务资源。
-        assertThrows(IllegalArgumentException.class, () -> new OncRpcServiceResource(NegativeVersion.class));
+        OncRpcServiceResource resource = new OncRpcServiceResource(Echo.class);
+        assertThrows(IllegalArgumentException.class, () -> resource.setVersion(-1));
     }
 
     @Test
     public void versionNumberAboveTheUnsignedRangeIsRejected() {
         // 超过线上字段宽度的版本声明立即报错。
-        assertThrows(IllegalArgumentException.class, () -> new OncRpcServiceResource(OversizedVersion.class));
+        OncRpcServiceResource resource = new OncRpcServiceResource(Echo.class);
+        assertThrows(IllegalArgumentException.class, () -> resource.setVersion(0x100000000L));
     }
 
     @Test
@@ -198,7 +253,7 @@ public class OncRpcServiceResourceTest {
     }
 
     @Test
-    public void methodWithoutProcedureAnnotationIsRejected() {
+    public void methodWithoutProcedureNumberIsRejected() {
         // 每个实例方法都需要明确过程号。
         assertThrows(IllegalArgumentException.class, () -> new OncRpcServiceResource(MissingProcedure.class));
     }
@@ -272,9 +327,11 @@ public class OncRpcServiceResourceTest {
     }
 
     @Test
-    public void conflictingInheritedProgramVersionsAreRejected() {
-        // 程序号相同但版本不同仍然是有歧义的声明。
-        assertThrows(IllegalArgumentException.class, () -> new OncRpcServiceResource(ConflictingVersionParents.class));
+    public void inheritedStringServiceVersionsDoNotBecomeProgramVersions() {
+        // 相同程序号的父接口可以声明不同业务版本，协议资源仍使用默认版本一。
+        OncRpcServiceResource resource = new OncRpcServiceResource(DifferentServiceVersionParents.class);
+        assertEquals(0x20000001L, resource.getProgram());
+        assertEquals(1, resource.getVersion());
     }
 
     @Test
@@ -282,7 +339,7 @@ public class OncRpcServiceResourceTest {
         // 子接口显式指定自身身份后，不再通过父接口选择程序号。
         OncRpcServiceResource resource = new OncRpcServiceResource(ExplicitProgram.class);
         assertEquals(0x20000003L, resource.getProgram());
-        assertEquals(3, resource.getVersion());
+        assertEquals(1, resource.getVersion());
     }
 
     @Test
@@ -309,7 +366,7 @@ public class OncRpcServiceResourceTest {
     }
 
     @Test
-    public void missingInheritedProcedureAnnotationIsRejected() {
+    public void missingInheritedProcedureNumberIsRejected() {
         // 重复签名中有未声明过程的父方法时，不能静默使用另一个父方法。
         assertThrows(IllegalArgumentException.class, () -> new OncRpcServiceResource(MissingInheritedProcedure.class));
     }
@@ -359,99 +416,89 @@ public class OncRpcServiceResourceTest {
         assertThrows(NullPointerException.class, () -> resource.codec(Integer.class, null));
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface Echo {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         String echo(String value);
     }
 
+    @MetService(id = 0x20000001L)
+    private interface RenamedEcho {
+        @MetMethod(id = 11, name = "echo")
+        String localEcho(String value);
+    }
+
     private interface NoProgram {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         void ping();
     }
 
-    @OncRpcProgram(id = 0, version = 1)
+    @MetService(id = 0)
     private interface ZeroProgram {
     }
 
-    @OncRpcProgram(id = 0xffffffffL, version = 1)
+    @MetService(id = 0xffffffffL)
     private interface MaximumProgram {
     }
 
-    @OncRpcProgram(id = -1, version = 1)
+    @MetService(id = -2)
     private interface NegativeProgram {
     }
 
-    @OncRpcProgram(id = 0x100000000L, version = 1)
+    @MetService(id = 0x100000000L)
     private interface OversizedProgram {
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 0)
-    private interface ZeroVersion {
-    }
-
-    @OncRpcProgram(id = 0x20000001L, version = 0xffffffffL)
-    private interface MaximumVersion {
-    }
-
-    @OncRpcProgram(id = 0x20000001L, version = -1)
-    private interface NegativeVersion {
-    }
-
-    @OncRpcProgram(id = 0x20000001L, version = 0x100000000L)
-    private interface OversizedVersion {
-    }
-
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface MaximumProcedure {
-        @OncRpcProcedure(id = 0xffffffffL)
+        @MetMethod(id = 0xffffffffL)
         void ping();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface NullProcedure {
-        @OncRpcProcedure(id = 0)
+        @MetMethod(id = 0)
         void ping();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface NegativeProcedure {
-        @OncRpcProcedure(id = -1)
+        @MetMethod(id = -1)
         void ping();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface OversizedProcedure {
-        @OncRpcProcedure(id = 0x100000000L)
+        @MetMethod(id = 0x100000000L)
         void ping();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface MissingProcedure {
         void ping();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface OverloadedProcedure {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         void call(int value);
 
-        @OncRpcProcedure(id = 2)
+        @MetMethod(id = 2)
         void call(String value);
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface DuplicateProcedure {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         void first();
 
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         void second();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface StaticUtility {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         void ping();
 
         static String description() {
@@ -459,16 +506,16 @@ public class OncRpcServiceResourceTest {
         }
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface IgnoredMethod {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         void ping();
 
         @MetIgnore
         void local();
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface EmptyProgram {
     }
 
@@ -478,15 +525,15 @@ public class OncRpcServiceResourceTest {
     private interface DeepInheritedEcho extends InheritedEcho {
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 1)
+    @MetService(id = 0x20000001L)
     private interface SameProgram {
     }
 
-    @OncRpcProgram(id = 0x20000002L, version = 1)
+    @MetService(id = 0x20000002L)
     private interface OtherProgram {
     }
 
-    @OncRpcProgram(id = 0x20000001L, version = 2)
+    @MetService(id = 0x20000001L, version = "business-v2")
     private interface OtherVersion {
     }
 
@@ -496,10 +543,10 @@ public class OncRpcServiceResourceTest {
     private interface ConflictingProgramParents extends Echo, OtherProgram {
     }
 
-    private interface ConflictingVersionParents extends Echo, OtherVersion {
+    private interface DifferentServiceVersionParents extends Echo, OtherVersion {
     }
 
-    @OncRpcProgram(id = 0x20000003L, version = 3)
+    @MetService(id = 0x20000003L)
     private interface ExplicitProgram extends Echo, OtherProgram {
     }
 
@@ -510,12 +557,12 @@ public class OncRpcServiceResourceTest {
     }
 
     private interface SameProcedure {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         String echo(String value);
     }
 
     private interface OtherProcedure {
-        @OncRpcProcedure(id = 2)
+        @MetMethod(id = 2)
         String echo(String value);
     }
 

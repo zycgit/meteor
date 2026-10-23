@@ -12,13 +12,9 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.reflect.resolvable.ResolvableType;
-import net.hasor.meteor.annotation.MetField;
-import net.hasor.meteor.annotation.MetMethod;
-import net.hasor.meteor.annotation.MetParam;
-import net.hasor.meteor.annotation.MetType;
+import net.hasor.meteor.annotation.*;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrCodec;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrInput;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrOutput;
@@ -183,6 +179,72 @@ public class OncRpcIdlBindingTest {
     }
 
     @Test
+    public void matchingPublicProgramNumberAcceptsTheExistingFile() throws Exception {
+        // 显式公共服务编号与文件程序号保持一致。
+        ProtocolConfig protocol = ProtocolConfig.newConfig("oncrpc", null, Map.of());
+        ServiceDomain<MatchingProgram> service = new ServiceDomain<>(MatchingProgram.class);
+        OncRpcServiceBinding binding = new OncRpcServiceBinding(this.resource(), service, protocol);
+
+        // 只校验程序身份，不把业务版本当作 ONC 版本。
+        assertEquals(0x20001111L, binding.getProgram());
+        assertEquals(1, binding.getVersion());
+    }
+
+    @Test
+    public void explicitProcedureNumberSelectsAFileMethodWithADifferentJavaName() throws Exception {
+        // 未声明公共远程名时，仅编号即可从文件定位原有过程。
+        ProtocolConfig protocol = ProtocolConfig.newConfig("oncrpc", null, Map.of());
+        ServiceDomain<NumberedEcho> service = new ServiceDomain<>(NumberedEcho.class);
+        OncRpcServiceBinding binding = new OncRpcServiceBinding(this.resource(), service, protocol);
+
+        // Java 方法名不必与文件名一致，线上过程号保持文件定义。
+        assertEquals(1, binding.getProcedure("localEcho"));
+        assertEquals("localEcho", binding.getMethods().get(1L).getName());
+    }
+
+    @Test
+    public void matchingProcedureNumberAndNameAcceptTheFileMethod() throws Exception {
+        // 同一公共注解可以同时校验过程编号和文件名称。
+        ProtocolConfig protocol = ProtocolConfig.newConfig("oncrpc", null, Map.of());
+        ServiceDomain<NamedNumberedEcho> service = new ServiceDomain<>(NamedNumberedEcho.class);
+        OncRpcServiceBinding binding = new OncRpcServiceBinding(this.resource(), service, protocol);
+
+        assertEquals(1, binding.getProcedure("localEcho"));
+    }
+
+    @Test
+    public void explicitProcedureNumberAndNameMustSelectTheSameFileMethod() throws Exception {
+        // 编号指向 echo，显式名称却指向 subtract，不允许静默选择其中之一。
+        OncRpcIdlResource resource = this.resource();
+        ProtocolConfig protocol = ProtocolConfig.newConfig("oncrpc", null, Map.of());
+        ServiceDomain<MismatchedProcedure> service = new ServiceDomain<>(MismatchedProcedure.class);
+
+        assertThrows(IllegalArgumentException.class, () -> new OncRpcServiceBinding(resource, service, protocol));
+    }
+
+    @Test
+    public void explicitProcedureNumberMustExistInTheSelectedFile() throws Exception {
+        // 有编号时不再退回到同名文件过程。
+        OncRpcIdlResource resource = this.resource();
+        ProtocolConfig protocol = ProtocolConfig.newConfig("oncrpc", null, Map.of());
+        ServiceDomain<UnknownProcedure> service = new ServiceDomain<>(UnknownProcedure.class);
+
+        assertThrows(IllegalArgumentException.class, () -> new OncRpcServiceBinding(resource, service, protocol));
+    }
+
+    @Test
+    public void fileVersionSelectorDoesNotConsumeTheStringServiceVersion() throws Exception {
+        // 业务版本是字符串服务坐标，显式选择器只读取文件程序版本。
+        OncRpcIdlResource resource = this.resource().selectProgram("Example", 1);
+        ProtocolConfig protocol = ProtocolConfig.newConfig("oncrpc", null, Map.of());
+        ServiceDomain<MatchingProgram> service = new ServiceDomain<>(MatchingProgram.class);
+        OncRpcServiceBinding binding = new OncRpcServiceBinding(resource, service, protocol);
+
+        assertEquals("application-v3", service.getServiceMeta().getVersion());
+        assertEquals(1, binding.getVersion());
+    }
+
+    @Test
     public void selectedVersionMustExistInTheFile() throws Exception {
         // 选择器只选已有版本，不创建文件未声明的新版本。
         OncRpcIdlResource resource = this.resource().selectProgram("Example", 2);
@@ -236,8 +298,32 @@ public class OncRpcIdlBindingTest {
         Holder details(Holder value);
     }
 
-    @OncRpcProgram(id = 0x20009999)
+    @MetService(id = 0x20009999)
     public interface WrongProgram extends Functions {
+    }
+
+    @MetService(id = 0x20001111L, version = "application-v3")
+    public interface MatchingProgram extends Functions {
+    }
+
+    public interface NumberedEcho {
+        @MetMethod(id = 1)
+        Point localEcho(Point input);
+    }
+
+    public interface NamedNumberedEcho {
+        @MetMethod(id = 1, name = "echo")
+        Point localEcho(Point input);
+    }
+
+    public interface MismatchedProcedure {
+        @MetMethod(id = 1, name = "subtract")
+        Point localEcho(Point input);
+    }
+
+    public interface UnknownProcedure {
+        @MetMethod(id = 99, name = "echo")
+        Point localEcho(Point input);
     }
 
     public static class Point {

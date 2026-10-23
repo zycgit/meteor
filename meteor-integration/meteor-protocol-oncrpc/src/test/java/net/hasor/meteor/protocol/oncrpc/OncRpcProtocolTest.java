@@ -13,6 +13,8 @@ import java.util.ServiceLoader;
 import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.annotation.MetMethod;
+import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.ProtocolSession;
@@ -22,8 +24,6 @@ import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProcedure;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
 import net.hasor.meteor.protocol.oncrpc.session.OncRpcSession;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -271,7 +271,7 @@ public class OncRpcProtocolTest {
     }
 
     @Test
-    public void publicPublisherSkipsMissingOncRpcProgram() throws Exception {
+    public void publicPublisherSkipsMissingProgramId() throws Exception {
         // 普通接口缺少 ONC RPC 契约时只拒绝此协议，服务登记仍然保留。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
         configuration.connector("tcp").protocol("oncrpc");
@@ -311,9 +311,9 @@ public class OncRpcProtocolTest {
                 .putInt(xid).putInt(type).putInt(rpcVersion).array();
     }
 
-    @OncRpcProgram(id = 0x20000077, version = 1)
+    @MetService(id = 0x20000077)
     public interface NativeContract {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         int increment(int value);
     }
 }

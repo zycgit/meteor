@@ -46,7 +46,7 @@ public final class OncRpcServiceBinding {
             OncRpcIdlProgram program = file.program(service.getBindType());
             this.programName = program.name;
             this.program = program.id;
-            this.version = file.version(service.getBindType(), program);
+            this.version = file.version(program);
             this.prepareFile(file, program.versions.get(this.version), service, maxBytes, maxElements);
         } else {
             OncRpcServiceResource declaration = (OncRpcServiceResource) resource;

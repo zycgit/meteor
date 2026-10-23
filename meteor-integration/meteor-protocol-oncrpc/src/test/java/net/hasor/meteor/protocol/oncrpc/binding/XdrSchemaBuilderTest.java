@@ -10,8 +10,8 @@ import java.util.List;
 import net.hasor.cobble.reflect.resolvable.ResolvableType;
 import net.hasor.meteor.annotation.MetEnumValue;
 import net.hasor.meteor.annotation.MetField;
+import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.annotation.MetType;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrCodec;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrInput;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrOutput;
@@ -180,7 +180,7 @@ public class XdrSchemaBuilderTest {
         return new XdrSchemaBuilder(new OncRpcServiceResource(Contract.class), 1024, 100);
     }
 
-    @OncRpcProgram(id = 0x20000001)
+    @MetService(id = 0x20000001)
     public interface Contract {
     }
 

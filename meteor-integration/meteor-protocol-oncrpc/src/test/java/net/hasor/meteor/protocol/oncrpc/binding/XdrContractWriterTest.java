@@ -13,8 +13,6 @@ import java.util.Map;
 import net.hasor.meteor.annotation.*;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProcedure;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrCodec;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrInput;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrOutput;
@@ -120,13 +118,12 @@ public class XdrContractWriterTest {
         assertThrows(UnsupportedOperationException.class, binding::getSources);
     }
 
-    @OncRpcProgram(id = 0x20002222)
+    @MetService(id = 0x20002222)
     public interface Notes {
-        @MetMethod(name = "Echo")
-        @OncRpcProcedure(id = 1)
+        @MetMethod(name = "Echo", id = 1)
         Note mirror(Note input);
 
-        @OncRpcProcedure(id = 7)
+        @MetMethod(id = 7)
         long add(@MetParam(name = "left") int first, @MetParam(name = "right") long second);
     }
 
@@ -144,9 +141,9 @@ public class XdrContractWriterTest {
         @MetEnumValue(name = "NO_MODE", id = 0) NONE
     }
 
-    @OncRpcProgram(id = 0x20002223)
+    @MetService(id = 0x20002223)
     public interface GenericNotes {
-        @OncRpcProcedure(id = 1)
+        @MetMethod(id = 1)
         Pair mirror(Pair value);
     }
 

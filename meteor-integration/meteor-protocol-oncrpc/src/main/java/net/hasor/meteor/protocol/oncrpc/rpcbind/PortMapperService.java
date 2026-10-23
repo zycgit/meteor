@@ -6,21 +6,21 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.oncrpc.rpcbind;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProcedure;
-import net.hasor.meteor.protocol.oncrpc.annotation.OncRpcProgram;
+import net.hasor.meteor.annotation.MetMethod;
+import net.hasor.meteor.annotation.MetService;
 
 /** Standard Port Mapper version 2 procedures; forwarding CALLIT is intentionally not part of this contract. */
-@OncRpcProgram(id = 100000, version = 2)
+@MetService(id = 100000)
 public interface PortMapperService {
-    @OncRpcProcedure(id = 1)
+    @MetMethod(id = 1)
     boolean set(PortMapperMapping mapping) throws Exception;
 
-    @OncRpcProcedure(id = 2)
+    @MetMethod(id = 2)
     boolean unset(PortMapperMapping mapping) throws Exception;
 
-    @OncRpcProcedure(id = 3)
+    @MetMethod(id = 3)
     long getPort(PortMapperMapping mapping) throws Exception;
 
-    @OncRpcProcedure(id = 4)
+    @MetMethod(id = 4)
     PortMapperMapping[] dump() throws Exception;
 }
