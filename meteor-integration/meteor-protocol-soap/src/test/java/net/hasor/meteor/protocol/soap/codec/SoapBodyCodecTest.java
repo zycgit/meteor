@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.soap.codec;
-
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +19,7 @@ import net.hasor.meteor.protocol.soap.definition.SoapBody;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionAccess;
 import net.hasor.meteor.protocol.soap.definition.SoapPart;
 import net.hasor.meteor.protocol.soap.definition.SoapVersion;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import org.junit.Test;
 import org.w3c.dom.Element;
 import static org.junit.Assert.*;
@@ -40,7 +40,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(null, //
                 List.of(firstPart, secondPart), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         String first = "<a:value xmlns:a='urn:first'>a</a:value>";
         String second = "<b:value xmlns:b='urn:second'>b</b:value>";
         Element body = this.body(first + second);
@@ -56,7 +57,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, STRING, 0, 1), this.part(OTHER, STRING, 1, 1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<other>present</other>");
 
         // 缺省参数映射为 null，不影响相邻参数位置。
@@ -70,7 +72,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, STRING, 0, -1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<value>a</value><value>b</value>");
 
         // 重复顺序保留在集合中。
@@ -85,7 +88,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, integer, 1, -1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<value>3</value><value>5</value>");
 
         // 反序列化保留数组元素的具体类型与顺序。
@@ -99,7 +103,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, STRING, 0, -1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
 
         // 无元素表示空集合，与 choice 未选择分支的 null 区分。
         Type[] types = { STRINGS };
@@ -113,7 +118,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, integer, 1, 1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<value xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xsi:nil='true'/>");
 
         // 正文解码阶段就暴露 Java 类型与空值的不一致。
@@ -128,7 +134,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, STRING, 2, -1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<value>one</value>");
 
         // 最小次数不能因 Java 参数是集合而丢失。
@@ -143,7 +150,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, STRING, 0, 2)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<value>a</value><value>b</value><value>c</value>");
 
         // 超量元素不能静默截断。
@@ -153,18 +161,37 @@ public class SoapBodyCodecTest {
     }
 
     @Test
-    public void repeatedPartRequiresAConcreteElementType() throws Exception {
-        // 原始 List 没有声明元素类型，不能确定每个重复 part 如何解码。
+    public void repeatedRawCollectionUsesOpenElementValues() throws Exception {
+        // 原始 List 的元素声明为 Object，没有类型信息的文本保持字符串。
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, STRING, 0, -1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<value>a</value>");
 
-        // 不把未知集合元素默认为任意 Object。
+        // 没有泛型不会从报文文本猜测 Java 数值类型。
         Type[] types = { List.class };
-        RuntimeException failure = assertThrows(IllegalArgumentException.class, () -> codec.read(body, binding, types));
-        assertTrue(failure.getMessage().contains("typed collection"));
+        assertEquals(List.of("a"), codec.read(body, binding, types)[0]);
+    }
+
+    @Test
+    public void repeatedAnyTypePartsRetainScalarTypes() throws Exception {
+        // 外部 WSDL 可以将重复的 anyType part 绑定到 List<Object>。
+        QName anyType = new QName(XMLConstants.W3C_XML_SCHEMA_NS_URI, "anyType");
+        SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
+                List.of(this.part(VALUE, anyType, 0, -1)), //
+                List.of(), "literal", null);
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
+        Type[] types = { new TypeReference<List<Object>>() {
+        }.getType() };
+        Element body = this.body("");
+        Object[] arguments = { List.of(30, true, "30") };
+
+        // 逐个 part 写入标准类型信息，接收端保持数字、布尔与文本的区别。
+        codec.write(body, binding, types, arguments, new LinkedHashMap<>());
+        assertEquals(arguments[0], codec.read(body, binding, types)[0]);
     }
 
     @Test
@@ -173,7 +200,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, STRING, 0, -1), this.part(OTHER, STRING, 0, 1)), //
                 List.of(SoapDefinitionAccess.choice(1, List.of(0, 1))), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<other>selected</other>");
 
         // 未选集合保持 null，避免回写时凭空选择该分支。
@@ -185,7 +213,8 @@ public class SoapBodyCodecTest {
     public void requiredChoiceRejectsAnAbsentSelection() throws Exception {
         // choice 的各分支都可缺省，但整个组要求选择一次。
         SoapBody binding = this.choice();
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("");
 
         // 组约束独立于每个 part 的最小次数。
@@ -197,7 +226,8 @@ public class SoapBodyCodecTest {
     public void choiceRejectsTwoSelectedBranches() throws Exception {
         // 必选 choice 中两个不同分支同时出现。
         SoapBody binding = this.choice();
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<value>a</value><other>b</other>");
 
         // 不把同时存在的分支当作普通 sequence。
@@ -209,7 +239,8 @@ public class SoapBodyCodecTest {
     public void writeChoiceRejectsTwoNonNullArguments() throws Exception {
         // Java 参数同时提供两个 choice 分支。
         SoapBody binding = this.choice();
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.body("");
         Type[] types = { String.class, String.class };
         Object[] values = { "a", "b" };
@@ -227,7 +258,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(OTHER, STRING, 0, 1), this.part(VALUE, STRING, 0, -1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.body("");
         Type[] types = { String.class, STRINGS };
         Object[] values = { null, List.of("a", "b") };
@@ -245,7 +277,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, STRING, 1, 1), this.part(OTHER, STRING, 1, 1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<other>b</other><value>a</value>");
 
         // 值映射按 QName 查找，完整 compositor 约束由契约 Schema 校验。
@@ -259,7 +292,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, STRING, 1, 1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.wrapped("<x:value xmlns:x='urn:wrong'>a</x:value>");
 
         // 错误字段在 Java 反序列化前被拒绝。
@@ -274,7 +308,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, STRING, 1, 1)), //
                 List.of(), "literal", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.body("<m:call xmlns:m='urn:test:body'><value>a</value></m:call><multiRef id='x'/>");
 
         // encoded 的多引用例外不能用于放宽 literal Body。
@@ -288,7 +323,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(null, //
                 List.of(this.part(VALUE, null, 1, 1)), //
                 List.of(), "encoded", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_11, mapping);
         Element body = this.body("");
         Type[] types = { String[].class };
         Object[] values = { new String[] { "a", "b" } };
@@ -305,7 +341,8 @@ public class SoapBodyCodecTest {
         SoapBody binding = SoapDefinitionAccess.body(WRAPPER, //
                 List.of(this.part(VALUE, null, 1, 1)), //
                 List.of(), "encoded", null);
-        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_12, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapBodyCodec codec = new SoapBodyCodec(SoapVersion.SOAP_12, mapping);
         String xml = """
                 <s:Body xmlns:s="http://www.w3.org/2003/05/soap-envelope"
                         xmlns:enc="http://www.w3.org/2003/05/soap-encoding"

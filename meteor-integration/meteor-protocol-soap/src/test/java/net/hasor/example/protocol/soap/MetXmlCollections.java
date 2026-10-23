@@ -7,19 +7,25 @@
  */
 package net.hasor.example.protocol.soap;
 import java.util.List;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlElement;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlElementWrapper;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlType;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+import net.hasor.meteor.annotation.MetField;
+import net.hasor.meteor.annotation.MetType;
 
 /** 对比集合容器、重复数组元素和重复枚举元素的直接 XML 表达。 */
-@MetXmlType(name = "Collections", namespace = MetXmlOrder.TYPES, propOrder = { "wrapped", "unwrapped", "states" })
+@MetType(name = "Collections")
+@JacksonXmlRootElement(namespace = MetXmlOrder.TYPES)
 public class MetXmlCollections {
-    @MetXmlElementWrapper(name = "items")
-    @MetXmlElement(name = "item")
+    @MetField(name = "item")
+    @JacksonXmlElementWrapper(localName = "items")
+    @JsonProperty(index = 10)
     private List<String>      wrapped;
-    @MetXmlElement(name = "number")
+    @MetField(name = "number")
+    @JsonProperty(index = 20)
     private Integer[]         unwrapped;
-    @MetXmlElement(name = "state")
+    @MetField(name = "state")
+    @JsonProperty(index = 30)
     private List<MetXmlState> states;
 
     public List<String> getWrapped() {

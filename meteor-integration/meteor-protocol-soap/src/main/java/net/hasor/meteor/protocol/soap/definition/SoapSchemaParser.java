@@ -25,6 +25,9 @@ import javax.xml.transform.stream.StreamResult;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.ObjectUtils;
 import net.hasor.cobble.StringUtils;
 import org.w3c.dom.*;
@@ -63,6 +66,73 @@ final class SoapSchemaParser {
     private final Map<QName, WrapperDefinition> wrappers;
     private final Map<Element, Set<String>>     indexedViews;
     private final Schema                        validationSchema;
+
+    /** 导出已索引的用户 XSD 组件；内置 XML/SOAP 类型继续按标准 QName 引用。 */
+    ObjectNode describeSchemas() {
+        ObjectNode result = JsonNodeFactory.instance.objectNode();
+        this.describeComponents(this.elements, result.putObject("elements"));
+        this.describeComponents(this.types, result.putObject("types"));
+        this.describeComponents(this.attributes, result.putObject("attributes"));
+        this.describeComponents(this.attributeGroups, result.putObject("attributeGroups"));
+        return result;
+    }
+
+    private void describeComponents(Map<QName, SchemaComponent> components, ObjectNode target) {
+        for (Map.Entry<QName, SchemaComponent> component : components.entrySet()) {
+            String namespace = component.getKey().getNamespaceURI();
+            boolean standard = Set.of(SOAP_11_ENCODING, SOAP_12_ENCODING, SOAP_11_ENVELOPE, //
+                    SOAP_12_ENVELOPE, XML_NAMESPACE, SoapWsdlParser.XSD_NAMESPACE).contains(namespace);
+            if (!standard) {
+                SchemaComponent value = component.getValue();
+                target.set(component.getKey().toString(), describeElement(value.element(), value.view()));
+            }
+        }
+    }
+
+    private static ObjectNode describeElement(Element element, SchemaView view) {
+        ObjectNode result = JsonNodeFactory.instance.objectNode();
+        result.put("kind", element.getLocalName());
+        ObjectNode attributes = result.putObject("attributes");
+        NamedNodeMap values = element.getAttributes();
+        for (int index = 0; index < values.getLength(); index++) {
+            Node attribute = values.item(index);
+            if (StringUtils.equals(XMLConstants.XMLNS_ATTRIBUTE_NS_URI, attribute.getNamespaceURI())) {
+                continue;
+            }
+            String name = attribute.getNodeName();
+            String value = attribute.getNodeValue();
+            boolean reference = Set.of("type", "base", "ref", "itemType", "substitutionGroup").contains(name);
+            if (reference) {
+                value = describeReference(element, value, view);
+            } else if (StringUtils.equals("memberTypes", name)) {
+                StringJoiner members = new StringJoiner(" ");
+                for (String member : value.trim().split("\\s+")) {
+                    members.add(describeReference(element, member, view));
+                }
+                value = members.toString();
+            }
+            attributes.put(name, value);
+        }
+        ArrayNode children = result.putArray("children");
+        for (Node child = element.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child instanceof Element component) {
+                children.add(describeElement(component, view));
+            }
+        }
+        return result;
+    }
+
+    private static String describeReference(Element element, String value, SchemaView view) {
+        String lexical = value.trim();
+        int separator = lexical.indexOf(':');
+        String prefix = separator < 0 ? null : lexical.substring(0, separator);
+        String local = separator < 0 ? lexical : lexical.substring(separator + 1);
+        String namespace = element.lookupNamespaceURI(prefix);
+        if (prefix == null && StringUtils.isBlank(namespace) && view.chameleon()) {
+            namespace = view.namespace();
+        }
+        return new QName(namespace, local).toString();
+    }
 
     SoapSchemaParser(Collection<SoapXmlResource> resources, SoapXmlResource entry) throws IOException {
         if (resources == null || entry == null) {

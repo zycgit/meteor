@@ -18,14 +18,23 @@ import java.util.Map;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilderFactory;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlText;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.annotation.*;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
-import net.hasor.meteor.protocol.soap.annotation.*;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 import static org.junit.Assert.*;
 
 public class SoapXmlSchemaMappingTest {
@@ -48,7 +57,7 @@ public class SoapXmlSchemaMappingTest {
 
     @Test
     public void propertyOrderDeterminesTheGeneratedSequence() throws Exception {
-        // propOrder 使用 Java 属性名，元素名称由独立的 Element 注解控制。
+        // 成员 order 数字越小越靠前，元素名称仍由 name 独立配置。
         SoapGeneratedDefinitionResource resource = this.resource(OrderedService.class);
         String body = "<arg0><lastName>last</lastName><firstName>first</firstName></arg0>";
 
@@ -58,12 +67,27 @@ public class SoapXmlSchemaMappingTest {
 
     @Test
     public void propertyOrderRejectsAReversedWireSequence() {
-        // 使用与 propOrder 相反的字段顺序。
+        // 使用与成员 order 升序相反的字段顺序。
         SoapGeneratedDefinitionResource resource = this.resource(OrderedService.class);
         String body = "<arg0><firstName>first</firstName><lastName>last</lastName></arg0>";
 
         // Schema 不应继续接受与实际声明不一致的字段顺序。
         assertThrows(IOException.class, () -> this.validate(resource, body));
+    }
+
+    @Test
+    public void attributeOrderDeterminesTheGeneratedDeclarationOrder() throws Exception {
+        // 报文属性和 Schema 声明共用数字 order，此处验证 Schema 中的声明排列。
+        SoapGeneratedDefinitionResource resource = this.resource(OrderedAttributeService.class);
+        Document types = this.parse(resource.renderResource("types.xsd", ENDPOINT));
+        Element type = this.named(types, "complexType", "OrderedAttributes");
+
+        // 未指定 order 的属性使用 0，位于负数与正数之间。
+        NodeList attributes = type.getElementsByTagNameNS(XMLConstants.W3C_XML_SCHEMA_NS_URI, "attribute");
+        assertEquals(3, attributes.getLength());
+        assertEquals("first", ((Element) attributes.item(0)).getAttribute("name"));
+        assertEquals("middle", ((Element) attributes.item(1)).getAttribute("name"));
+        assertEquals("last", ((Element) attributes.item(2)).getAttribute("name"));
     }
 
     @Test
@@ -146,20 +170,42 @@ public class SoapXmlSchemaMappingTest {
         // 存在集合并只包含一个空元素。
         SoapGeneratedDefinitionResource resource = this.resource(CollectionService.class);
 
-        // item 的 nillable 与 wrapper 的 nillable 相互独立。
+        // item 与 wrapper 共享 nillable，两者均允许显式 nil。
         this.validate(resource, "<arg0 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">" //
                 + "<entries><entry xsi:nil=\"true\"/></entries></arg0>");
     }
 
     @Test
     public void foreignCollectionWrapperIsPublishedAsAGlobalElement() throws Exception {
-        // 集合外层容器与内部条目可以位于两个命名空间。
+        // namespace 同时指定集合外层容器和内部条目的命名空间。
+        SoapGeneratedDefinitionResource resource = this.resource(QualifiedCollectionService.class);
+        String body = "<arg0 xmlns:i=\"urn:meteor:test:items\">" //
+                + "<i:entries><i:entry>one</i:entry><i:entry>two</i:entry></i:entries></arg0>";
+
+        // 外部 wrapper 与 item 使用同一 namespace 的全局声明。
+        this.validate(resource, body);
+    }
+
+    @Test
+    public void collectionWrapperRejectsADifferentNamespace() {
+        // 即使 localName 相同，容器也必须使用元素声明的 namespace。
         SoapGeneratedDefinitionResource resource = this.resource(QualifiedCollectionService.class);
         String body = "<arg0 xmlns:w=\"urn:meteor:test:wrappers\" xmlns:i=\"urn:meteor:test:items\">" //
-                + "<w:entries><i:entry>one</i:entry><i:entry>two</i:entry></w:entries></arg0>";
+                + "<w:entries><i:entry>one</i:entry></w:entries></arg0>";
 
-        // 引用外部 wrapper 的 Schema 同时导入 item 的定义。
-        this.validate(resource, body);
+        // 不允许为外层容器隐式保留一套不同的 namespace。
+        assertThrows(IOException.class, () -> this.validate(resource, body));
+    }
+
+    @Test
+    public void collectionItemRejectsADifferentNamespace() {
+        // 容器使用正确 namespace，内部条目不能退回无 namespace。
+        SoapGeneratedDefinitionResource resource = this.resource(QualifiedCollectionService.class);
+        String body = "<arg0 xmlns:i=\"urn:meteor:test:items\">" //
+                + "<i:entries><entry>one</entry></i:entries></arg0>";
+
+        // namespace 对包装层和条目同时生效。
+        assertThrows(IOException.class, () -> this.validate(resource, body));
     }
 
     @Test
@@ -180,7 +226,7 @@ public class SoapXmlSchemaMappingTest {
         SoapOperation operation = resource.definition().operation("echo");
         assertEquals(List.of(new QName(SERVICE_NAMESPACE, "request")), operation.parameterElements());
         assertEquals(new QName("urn:meteor:test:results", "result"), operation.resultElement());
-        assertEquals(0, operation.inputBody().parts().get(0).minOccurs());
+        assertEquals(1, operation.inputBody().parts().get(0).minOccurs());
     }
 
     @Test
@@ -246,7 +292,7 @@ public class SoapXmlSchemaMappingTest {
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
             this.resource(CollectionService.class, config);
         });
-        assertTrue(failure.getMessage().contains("SOAP encoded values do not support XML collection wrappers"));
+        assertTrue(failure.getMessage().contains("SOAP encoded values do not support XML element wrappers"));
     }
 
     @Test
@@ -332,11 +378,62 @@ public class SoapXmlSchemaMappingTest {
 
     @Test
     public void requiredCollectionWrapperCannotBeOmitted() {
-        // wrapper 的 required 约束独立于 item 的最小数量。
+        // required 同时约束 wrapper 的存在和 item 的最小数量。
         SoapGeneratedDefinitionResource resource = this.resource(RequiredWrapperService.class);
 
-        // 即使允许空集合，整个容器也不能缺省。
+        // 容器不能缺省。
         assertThrows(IOException.class, () -> this.validate(resource, "<arg0/>"));
+    }
+
+    @Test
+    public void requiredCollectionWrapperCannotBeEmpty() {
+        // 已出现的 required 容器还要求至少存在一个条目。
+        SoapGeneratedDefinitionResource resource = this.resource(RequiredWrapperService.class);
+
+        // 只有空容器不能满足共享的 required 约束。
+        assertThrows(IOException.class, () -> this.validate(resource, "<arg0><entries/></arg0>"));
+    }
+
+    @Test
+    public void requiredCollectionWrapperAcceptsAnItem() throws Exception {
+        // 容器和条目均出现，满足两层共享的 required 约束。
+        SoapGeneratedDefinitionResource resource = this.resource(RequiredWrapperService.class);
+
+        // 单个 required 属性同时表达容器和条目的必需性。
+        this.validate(resource, "<arg0><entries><values>one</values></entries></arg0>");
+    }
+
+    @Test
+    public void requiredNillableCollectionWrapperAcceptsExplicitNil() throws Exception {
+        // required 要求容器出现，nillable 允许出现的容器显式表示 null。
+        SoapGeneratedDefinitionResource resource = this.resource(RequiredWrapperService.class);
+        String parameter = "<arg0 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">" //
+                + "<entries xsi:nil=\"true\"/></arg0>";
+
+        // nil 容器无需包含 item，与非 nil 的空容器保持区别。
+        this.validate(resource, parameter);
+    }
+
+    @Test
+    public void nonNillableCollectionWrapperRejectsExplicitNil() {
+        // nillable=false 同时禁止集合容器和条目声明 xsi:nil。
+        SoapGeneratedDefinitionResource resource = this.resource(NonNillableCollectionService.class);
+        String parameter = "<arg0 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">" //
+                + "<entries xsi:nil=\"true\"/></arg0>";
+
+        // 容器不能单独保留默认的可空设置。
+        assertThrows(IOException.class, () -> this.validate(resource, parameter));
+    }
+
+    @Test
+    public void nonNillableCollectionItemRejectsExplicitNil() {
+        // 相同的 nillable=false 也作用于容器中的每一个条目。
+        SoapGeneratedDefinitionResource resource = this.resource(NonNillableCollectionService.class);
+        String parameter = "<arg0 xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">" //
+                + "<entries><entry xsi:nil=\"true\"/></entries></arg0>";
+
+        // 存在非空容器也不能使其中的 nil 条目合法。
+        assertThrows(IOException.class, () -> this.validate(resource, parameter));
     }
 
     @Test
@@ -432,7 +529,7 @@ public class SoapXmlSchemaMappingTest {
         ServiceDomain<?> service = new ServiceDomain<>(type);
         service.setBindName(type.getName());
         service.putAliasName("soap", "MappedService");
-        return new SoapGeneratedDefinitionResource(service, config);
+        return new SoapGeneratedDefinitionResource(service, config, SoapXmlMapping.newMapper());
     }
 
     private void validate(SoapGeneratedDefinitionResource resource, String parameter) throws Exception {
@@ -468,12 +565,31 @@ public class SoapXmlSchemaMappingTest {
         Ordered echo(Ordered value);
     }
 
-    @MetXmlType(name = "Ordered", namespace = "urn:meteor:test:types", propOrder = { "last", "first" })
+    @MetType(name = "Ordered")
+    @JacksonXmlRootElement(namespace = "urn:meteor:test:types")
     public static class Ordered {
-        @MetXmlElement(name = "firstName", required = true)
+        @MetField(name = "firstName")
+        @JsonProperty(index = 20, required = true)
         public String first;
-        @MetXmlElement(name = "lastName", required = true)
+        @MetField(name = "lastName")
+        @JsonProperty(index = 10, required = true)
         public String last;
+    }
+
+    private interface OrderedAttributeService {
+        OrderedAttributes echo(OrderedAttributes value);
+    }
+
+    @MetType(name = "OrderedAttributes")
+    public static class OrderedAttributes {
+        @JacksonXmlProperty(isAttribute = true)
+        @JsonProperty(index = 20)
+        public String last;
+        @JacksonXmlProperty(isAttribute = true)
+        @JsonProperty(index = -10)
+        public String first;
+        @JacksonXmlProperty(isAttribute = true)
+        public String middle;
     }
 
     private interface AttributeService {
@@ -481,7 +597,8 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class AttributeValue {
-        @MetXmlAttribute(required = true)
+        @JacksonXmlProperty(isAttribute = true)
+        @JsonProperty(required = true)
         public String id;
         public String name;
     }
@@ -491,7 +608,8 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class QualifiedAttribute {
-        @MetXmlAttribute(namespace = "urn:meteor:test:attributes", required = true)
+        @JacksonXmlProperty(isAttribute = true, namespace = "urn:meteor:test:attributes")
+        @JsonProperty(required = true)
         public String id;
     }
 
@@ -499,11 +617,14 @@ public class SoapXmlSchemaMappingTest {
         QNameValue echo(QNameValue value);
     }
 
-    @MetXmlType(propOrder = { "buyer", "delivery" })
     public static class QNameValue {
-        @MetXmlElement(name = "name", namespace = "urn:meteor:test:buyer", required = true)
+        @MetField(name = "name")
+        @JacksonXmlProperty(namespace = "urn:meteor:test:buyer")
+        @JsonProperty(index = 10, required = true)
         public String buyer;
-        @MetXmlElement(name = "name", namespace = "urn:meteor:test:delivery", required = true)
+        @MetField(name = "name")
+        @JacksonXmlProperty(namespace = "urn:meteor:test:delivery")
+        @JsonProperty(index = 20, required = true)
         public String delivery;
     }
 
@@ -512,9 +633,10 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class Amount {
-        @MetXmlAttribute(required = true)
+        @JacksonXmlProperty(isAttribute = true)
+        @JsonProperty(required = true)
         public String     currency;
-        @MetXmlValue
+        @JacksonXmlText
         public BigDecimal value;
     }
 
@@ -523,8 +645,8 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class CollectionValue {
-        @MetXmlElementWrapper(name = "entries")
-        @MetXmlElement(name = "entry")
+        @MetField(name = "entry")
+        @JacksonXmlElementWrapper(localName = "entries")
         public List<String> values;
     }
 
@@ -533,8 +655,30 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class QualifiedCollection {
-        @MetXmlElementWrapper(name = "entries", namespace = "urn:meteor:test:wrappers")
-        @MetXmlElement(name = "entry", namespace = "urn:meteor:test:items")
+        @MetField(name = "entry")
+        @JacksonXmlProperty(namespace = "urn:meteor:test:items")
+        @JacksonXmlElementWrapper(localName = "entries", namespace = "urn:meteor:test:items")
+        public List<String> values;
+    }
+
+    public static class User {
+        @JacksonXmlProperty(isAttribute = true)
+        public String id;
+    }
+
+    @MetType(name = "LocalQualifiedSingle")
+    @JacksonXmlRootElement(namespace = "urn:meteor:test:users")
+    public static class LocalQualifiedSingle {
+        @MetField(name = "user")
+        @JacksonXmlProperty(namespace = "urn:meteor:test:users")
+        @JacksonXmlElementWrapper(localName = "users", namespace = "urn:meteor:test:users")
+        public User users;
+    }
+
+    public static class RepeatedWrapper {
+        @MetField(name = "value")
+        @JacksonXmlProperty(namespace = "urn:meteor:test:shared")
+        @JacksonXmlElementWrapper(localName = "values", namespace = "urn:meteor:test:shared")
         public List<String> values;
     }
 
@@ -543,36 +687,37 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public enum State {
-        @MetXmlEnumValue("in-progress") ACTIVE,
+        @MetEnumValue(name = "in-progress") ACTIVE,
         CLOSED
     }
 
     private interface ParameterService {
-        @MetXmlElement(name = "result", namespace = "urn:meteor:test:results")
-        String echo(@MetXmlElement(name = "request", namespace = SERVICE_NAMESPACE) String value);
+        @MetReturn(name = "result")
+        @JacksonXmlProperty(namespace = "urn:meteor:test:results")
+        String echo(@MetParam(name = "request") @JacksonXmlProperty(namespace = SERVICE_NAMESPACE) String value);
     }
 
     private interface TypeCollisionService {
         CollisionOne echo(CollisionTwo value);
     }
 
-    @MetXmlType(name = "Conflict")
+    @MetType(name = "Conflict")
     public static class CollisionOne {
         public String one;
     }
 
-    @MetXmlType(name = "Conflict")
+    @MetType(name = "Conflict")
     public static class CollisionTwo {
         public String two;
     }
 
     private interface ElementCollisionService {
-        String echo(@MetXmlElement(name = "value", namespace = "urn:meteor:test:collision") String one, //
-                @MetXmlElement(name = "value", namespace = "urn:meteor:test:collision") Integer two);
+        String echo(@MetParam(name = "value") @JacksonXmlProperty(namespace = "urn:meteor:test:collision") String one, //
+                @MetParam(name = "value") @JacksonXmlProperty(namespace = "urn:meteor:test:collision") Integer two);
     }
 
     private interface PrimitiveParameterService {
-        int echo(@MetXmlElement(name = "number") int value);
+        int echo(@MetParam(name = "number") int value);
     }
 
     private interface PrimitiveArrayService {
@@ -583,7 +728,7 @@ public class SoapXmlSchemaMappingTest {
         DefaultNamed echo(ReservedName value);
     }
 
-    @MetXmlType(name = "Type2")
+    @MetType(name = "Type2")
     public static class ReservedName {
         public String value;
     }
@@ -597,12 +742,14 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class SharedOne {
-        @MetXmlElement(name = "value", namespace = "urn:meteor:test:shared")
+        @MetField(name = "value")
+        @JacksonXmlProperty(namespace = "urn:meteor:test:shared")
         public String first;
     }
 
     public static class SharedTwo {
-        @MetXmlElement(name = "value", namespace = "urn:meteor:test:shared")
+        @MetField(name = "value")
+        @JacksonXmlProperty(namespace = "urn:meteor:test:shared")
         public String second;
     }
 
@@ -611,12 +758,14 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class ConflictingAttributeOne {
-        @MetXmlAttribute(name = "id", namespace = "urn:meteor:test:attributes")
+        @MetField(name = "id")
+        @JacksonXmlProperty(isAttribute = true, namespace = "urn:meteor:test:attributes")
         public String id;
     }
 
     public static class ConflictingAttributeTwo {
-        @MetXmlAttribute(name = "id", namespace = "urn:meteor:test:attributes")
+        @MetField(name = "id")
+        @JacksonXmlProperty(isAttribute = true, namespace = "urn:meteor:test:attributes")
         public Integer id;
     }
 
@@ -625,7 +774,20 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class RequiredWrapper {
-        @MetXmlElementWrapper(name = "entries", required = true)
+        @MetField
+        @JacksonXmlElementWrapper(localName = "entries")
+        @JsonProperty(required = true)
+        public List<String> values;
+    }
+
+    private interface NonNillableCollectionService {
+        NonNillableCollection echo(NonNillableCollection value);
+    }
+
+    public static class NonNillableCollection {
+        @MetField(name = "entry")
+        @JacksonXmlElementWrapper(localName = "entries")
+        @JsonSetter(nulls = Nulls.FAIL)
         public List<String> values;
     }
 
@@ -634,7 +796,8 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class NonNillable {
-        @MetXmlElement(nillable = false)
+        @MetField
+        @JsonSetter(nulls = Nulls.FAIL)
         public String value;
     }
 
@@ -643,7 +806,8 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class LanguageValue {
-        @MetXmlAttribute(name = "lang", namespace = XMLConstants.XML_NS_URI)
+        @MetField(name = "lang")
+        @JacksonXmlProperty(isAttribute = true, namespace = XMLConstants.XML_NS_URI)
         public String language;
         public String value;
     }
@@ -653,7 +817,7 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class ReferenceAttribute {
-        @MetXmlAttribute
+        @JacksonXmlProperty(isAttribute = true)
         public String href;
     }
 
@@ -662,7 +826,8 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class Soap12ControlAttribute {
-        @MetXmlAttribute(name = "ref", namespace = "http://www.w3.org/2003/05/soap-encoding")
+        @MetField(name = "ref")
+        @JacksonXmlProperty(isAttribute = true, namespace = "http://www.w3.org/2003/05/soap-encoding")
         public String reference;
     }
 
@@ -671,15 +836,16 @@ public class SoapXmlSchemaMappingTest {
     }
 
     public static class InstanceControlAttribute {
-        @MetXmlAttribute(name = "type", namespace = XMLConstants.W3C_XML_SCHEMA_INSTANCE_NS_URI)
+        @MetField(name = "type")
+        @JacksonXmlProperty(isAttribute = true, namespace = XMLConstants.W3C_XML_SCHEMA_INSTANCE_NS_URI)
         public String type;
     }
 
     private interface BareService {
-        String echo(@MetXmlElement(name = "request") String value);
+        String echo(@MetParam(name = "request") String value);
     }
 
     private interface ReservedOperationNamespaceService {
-        String echo(@MetXmlElement(name = "request", namespace = XMLConstants.XML_NS_URI) String value);
+        String echo(@MetParam(name = "request") @JacksonXmlProperty(namespace = XMLConstants.XML_NS_URI) String value);
     }
 }

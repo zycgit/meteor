@@ -6,12 +6,15 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.protocol.soap;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlElement;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
+import net.hasor.meteor.annotation.MetParam;
+import net.hasor.meteor.annotation.MetReturn;
 
 /** 参数与结果元素命名由接口表达，操作名仍使用 Java 方法名。 */
 public interface MetXmlOrderService {
     String NAMESPACE = "urn:hasor:meteor:soap:MetXmlOrderService";
 
-    @MetXmlElement(name = "result", namespace = NAMESPACE)
-    MetXmlOrder echo(@MetXmlElement(name = "order", namespace = NAMESPACE) MetXmlOrder order);
+    @MetReturn(name = "result")
+    @JacksonXmlProperty(namespace = NAMESPACE)
+    MetXmlOrder echo(@MetParam(name = "order") @JacksonXmlProperty(namespace = NAMESPACE) MetXmlOrder order);
 }

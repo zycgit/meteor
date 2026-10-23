@@ -9,6 +9,7 @@ package net.hasor.meteor.protocol.soap.channel;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.payload.RequestPayload;
+import net.hasor.meteor.protocol.soap.codec.SoapMessageCodec;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionResource;
 import net.hasor.meteor.protocol.soap.definition.SoapOperation;
 
@@ -19,14 +20,16 @@ final class SoapPendingExchange {
     private final SoapOperation          operation;
     private final MetBindInfo<?>         service;
     private final SoapDefinitionResource resource;
+    private final SoapMessageCodec       codec;
 
     SoapPendingExchange(HttpExchange exchange, RequestPayload request, SoapOperation operation, //
-            MetBindInfo<?> service, SoapDefinitionResource resource) {
+            MetBindInfo<?> service, SoapDefinitionResource resource, SoapMessageCodec codec) {
         this.exchange = exchange;
         this.request = request;
         this.operation = operation;
         this.service = service;
         this.resource = resource;
+        this.codec = codec;
     }
 
     HttpExchange exchange() {
@@ -43,6 +46,10 @@ final class SoapPendingExchange {
 
     MetBindInfo<?> service() {
         return this.service;
+    }
+
+    SoapMessageCodec codec() {
+        return this.codec;
     }
 
     SoapDefinitionResource resource() {

@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.soap.codec;
-
 import java.lang.reflect.Type;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,6 +15,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import com.fasterxml.jackson.core.type.TypeReference;
 import net.hasor.example.protocol.soap.codec.LiteralBinaryAttribute;
 import net.hasor.example.protocol.soap.codec.LiteralBinaryBean;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -24,7 +24,7 @@ import static org.junit.Assert.*;
 public class SoapLiteralValueCodecTest {
     @Test
     public void rootBinaryRetainsItsFinalDocumentElement() throws Exception {
-        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(SoapMessageCodec.newXmlMapper());
+        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(new SoapXmlMapping(SoapMessageCodec.newXmlMapper()));
         // 根参数为真正的 byte[]，目标元素已经属于最终 SOAP 文档。
         Element target = this.target();
         byte[] value = { 1, 2, 3 };
@@ -40,7 +40,7 @@ public class SoapLiteralValueCodecTest {
 
     @Test
     public void beanBinaryFieldsAreCapturedWithoutReReadingGetters() throws Exception {
-        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(SoapMessageCodec.newXmlMapper());
+        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(new SoapXmlMapping(SoapMessageCodec.newXmlMapper()));
         // 普通字符串与二进制属性具有相同 base64 文本，集合内也包含真正的二进制。
         LiteralBinaryBean value = new LiteralBinaryBean();
         value.setData(new byte[] { 1, 2, 3 });
@@ -72,7 +72,7 @@ public class SoapLiteralValueCodecTest {
 
     @Test
     public void base64TextIsNotAnAttachmentCandidate() throws Exception {
-        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(SoapMessageCodec.newXmlMapper());
+        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(new SoapXmlMapping(SoapMessageCodec.newXmlMapper()));
         // 普通字符串恰好是合法 base64，也不能据此推断二进制类型。
         Element target = this.target();
         Map<Element, byte[]> binaries = new LinkedHashMap<>();
@@ -85,7 +85,7 @@ public class SoapLiteralValueCodecTest {
 
     @Test
     public void binaryXmlAttributeRemainsInline() throws Exception {
-        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(SoapMessageCodec.newXmlMapper());
+        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(new SoapXmlMapping(SoapMessageCodec.newXmlMapper()));
         // 属性使用 byte[] 值，但 MTOM 只允许替换元素内容。
         LiteralBinaryAttribute value = new LiteralBinaryAttribute();
         value.setData(new byte[] { 1, 2, 3 });
@@ -100,7 +100,7 @@ public class SoapLiteralValueCodecTest {
 
     @Test
     public void nullLiteralRemainsNil() throws Exception {
-        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(SoapMessageCodec.newXmlMapper());
+        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(new SoapXmlMapping(SoapMessageCodec.newXmlMapper()));
         // 必需元素可以显式携带 xsi:nil，而不是消失。
         Element target = this.target();
 
@@ -112,7 +112,7 @@ public class SoapLiteralValueCodecTest {
 
     @Test
     public void emptyLiteralCollectionRemainsEmpty() throws Exception {
-        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(SoapMessageCodec.newXmlMapper());
+        SoapLiteralValueCodec codec = new SoapLiteralValueCodec(new SoapXmlMapping(SoapMessageCodec.newXmlMapper()));
         // 集合类型的单个 XML 元素内部没有 item，区别于重复 part 的缺省。
         Element target = this.target();
         Type type = new TypeReference<List<String>>() {

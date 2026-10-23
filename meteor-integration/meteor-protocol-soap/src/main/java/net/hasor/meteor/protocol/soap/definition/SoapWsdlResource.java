@@ -23,6 +23,7 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -71,6 +72,11 @@ public final class SoapWsdlResource extends SoapDefinitionResource {
     @Override
     public SoapDefinition definition() {
         return this.definition;
+    }
+
+    @Override
+    public ObjectNode describeSchemas() {
+        return this.schemas.describeSchemas();
     }
 
     @Override
@@ -501,6 +507,11 @@ public final class SoapWsdlResource extends SoapDefinitionResource {
         @Override
         public SoapDefinition definition() {
             return this.definition;
+        }
+
+        @Override
+        public ObjectNode describeSchemas() {
+            return this.source.describeSchemas();
         }
 
         @Override

@@ -10,6 +10,7 @@ import java.util.function.BiFunction;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Thin test access to the package-owned protocol context constructor. */
 public final class SoapProtocolTestAccess {
@@ -18,12 +19,12 @@ public final class SoapProtocolTestAccess {
 
     public static ProtocolSessionContext context( //
             MetContext context, BiFunction<Runnable, Long, Cancellable> scheduler, //
-            InterAddress bindAddress, boolean outbound) {
-        return new ProtocolSessionContext(context, scheduler, bindAddress, outbound);
+            InterAddress bindAddress, boolean outbound, RouteMountIndex routes) {
+        return new ProtocolSessionContext(context, scheduler, bindAddress, outbound, routes);
     }
 
-    public static RouteSelection selection(ProtocolConfig config, String uri) {
-        RouteMount mount = config.matchContext(uri);
-        return new RouteSelection(config.mountId(), mount, config.options());
+    public static RouteSelection selection(String endpointName, ProtocolConfig config, String uri) {
+        RouteMount mount = new RouteMountIndex(endpointName, config).match(uri);
+        return new RouteSelection(config.name(), mount, config.options());
     }
 }

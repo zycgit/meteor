@@ -19,6 +19,7 @@ import net.hasor.example.protocol.soap.SignalService;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.annotation.MetParam;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
@@ -26,17 +27,140 @@ import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpMessageUtils;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
+import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.protocol.soap.SoapProtocol;
+import net.hasor.meteor.protocol.soap.definition.SoapDefinitionResource;
+import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 /** 会话生命周期单元测试：真实编解码器配合可控的有序传输，不启动网络监听。 */
 public class SoapSessionTest {
+    @Test
+    public void replacingAResourceUpdatesTheNextRequestOnTheSameSession() throws Exception {
+        // 首次请求使用生成契约，参数顺序与 Java 声明相同。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<Arithmetic> service = context.publisher().rsfService(Arithmetic.class, Integer::sum) //
+                    .aliasName("soap", "RpcService").register();
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = this.session(context, network, received, false);
+            session.connected();
+            session.receive(this.arithmeticCall(context, "urn:hasor:meteor:soap:RpcService", //
+                    "urn:hasor:meteor:soap:RpcService/add", "<left>3</left><right>7</right>"));
+            assertEquals(List.of(3, 7), ((RequestPayload) received.get(0)).getParameterValues());
+
+            // 新 WSDL 的 parameterOrder 为 right left，在同一服务对象上提交新端点绑定。
+            SoapWsdlResource resource = new SoapWsdlResource( //
+                    this.getClass().getResource("/wsdl/styles/rpc-parameter-order.wsdl"));
+            this.replaceArithmeticBinding(context, service, resource);
+            session.receive(this.arithmeticCall(context, "urn:meteor:test:styles:rpc:body", //
+                    "urn:meteor:test:styles:rpc:add", "<right>7</right><left>3</left>"));
+
+            // 已有会话必须使用新参数对应表，不能复用该服务之前的编码器。
+            assertEquals(2, received.size());
+            assertEquals(List.of(3, 7), ((RequestPayload) received.get(1)).getParameterValues());
+        }
+    }
+
+    @Test
+    public void clearingAResourceRestoresGeneratedMappingOnTheSameSession() throws Exception {
+        // 首次发布使用参数顺序相反的外部契约。
+        MetConfiguration configuration = this.configuration();
+        SoapWsdlResource resource = new SoapWsdlResource( //
+                this.getClass().getResource("/wsdl/styles/rpc-parameter-order.wsdl"));
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<Arithmetic> service = context.publisher().rsfService(Arithmetic.class, Integer::sum) //
+                    .aliasName("soap", "RpcService").bindResource("soap", resource).register();
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = this.session(context, network, received, false);
+            session.connected();
+            session.receive(this.arithmeticCall(context, "urn:meteor:test:styles:rpc:body", //
+                    "urn:meteor:test:styles:rpc:add", "<right>7</right><left>3</left>"));
+            assertEquals(List.of(3, 7), ((RequestPayload) received.get(0)).getParameterValues());
+
+            // 清空资源后提交新生成的绑定，连接和服务对象都继续复用。
+            this.replaceArithmeticBinding(context, service, null);
+            session.receive(this.arithmeticCall(context, "urn:hasor:meteor:soap:RpcService", //
+                    "urn:hasor:meteor:soap:RpcService/add", "<left>3</left><right>7</right>"));
+
+            // 后续调用恢复 Java 参数顺序，旧 WSDL 的顺序不再参与解码。
+            assertEquals(2, received.size());
+            assertEquals(List.of(3, 7), ((RequestPayload) received.get(1)).getParameterValues());
+        }
+    }
+
+    @Test
+    public void replacingAResourcePreservesTheAcceptedResponsesOriginalBinding() throws Exception {
+        // 旧契约的调用已交给业务层，尚未产生最终响应。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<Arithmetic> service = context.publisher().rsfService(Arithmetic.class, Integer::sum) //
+                    .aliasName("soap", "RpcService").register();
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = this.session(context, network, received, false);
+            session.connected();
+            HttpExchange exchange = this.arithmeticCall(context, "urn:hasor:meteor:soap:RpcService", //
+                    "urn:hasor:meteor:soap:RpcService/add", "<left>3</left><right>7</right>");
+            session.receive(exchange);
+            RequestPayload request = (RequestPayload) received.get(0);
+
+            // 资源更新影响新调用，在途调用继续持有自己的原始编码器及契约。
+            SoapWsdlResource resource = new SoapWsdlResource( //
+                    this.getClass().getResource("/wsdl/styles/rpc-parameter-order.wsdl"));
+            this.replaceArithmeticBinding(context, service, resource);
+            ResponsePayload response = this.response(request.getRequestID(), ProtocolStatus.OK);
+            response.setReturnData(10);
+            response.setReturnType("int");
+            Future<Void> sent = session.send(response);
+            String body = new String(exchange.response().getResult().body(), StandardCharsets.UTF_8);
+            assertTrue(body.contains("urn:hasor:meteor:soap:RpcService"));
+
+            // 旧响应正常写完并释放，绑定替换不会结束已有调用。
+            network.writeResults.get(0).completed(null);
+            network.runTasks();
+            sent.get(1, TimeUnit.SECONDS);
+            assertNull(request.completion().getCause());
+        }
+    }
+
+    private void replaceArithmeticBinding(MetContext context, MetBindInfo<?> service, SoapDefinitionResource resource) {
+        ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+        ProtocolConfig config = endpoint.protocol("soap");
+        ProtocolMeta candidate = new ProtocolMeta(service, null, resource, new LinkedHashMap<>());
+        ProtocolBinding accepted = new SoapProtocol().prepareBinding(config, context, candidate);
+        assertNotNull(accepted);
+        candidate.getEndpoints().put(endpoint.name(), accepted);
+        MetBindInfoWrap.unwrap(service).replaceProtocolPublication(Map.of("soap", candidate));
+    }
+
+    private HttpExchange arithmeticCall(MetContext context, String namespace, String action, String parameters) {
+        String body = "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body>" //
+                + "<m:add xmlns:m=\"" + namespace + "\">" + parameters + "</m:add></s:Body></s:Envelope>";
+        Map<String, List<String>> headers = Map.of(//
+                "Content-Type", List.of("text/xml; charset=utf-8"), //
+                "SOAPAction", List.of("\"" + action + "\""));
+        HttpRequest request = HttpRequest.newBuffered("POST", "/services/RpcService", headers, //
+                body.getBytes(StandardCharsets.UTF_8), 1, Map.of());
+        return new HttpExchange(this.route(context, request));
+    }
+
+    public interface Arithmetic {
+        int add(@MetParam(name = "left") int left, @MetParam(name = "right") int right);
+    }
+
     @Test
     public void connectedCompletesReadiness() throws Exception {
         // 仅构建运行时元数据，协议会话在物理连接通知前保持未就绪。
@@ -102,6 +226,38 @@ public class SoapSessionTest {
             sent.get(1, TimeUnit.SECONDS);
             assertEquals(200, exchange.response().getResult().status());
             assertTrue(request.completion().isDone());
+        }
+    }
+
+    @Test
+    public void clearingPublishedMetadataDoesNotInvalidateAnAcceptedResponse() throws Exception {
+        // 请求已经完成 SOAP 解码并进入上层，等待业务结果。
+        MetConfiguration configuration = this.configuration();
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<EchoService> service = context.publisher().rsfService(EchoService.class, value -> value) //
+                    .aliasName("soap", "EchoService").register();
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = this.session(context, network, received, false);
+            session.connected();
+            HttpExchange exchange = this.echoCall(context);
+            session.receive(exchange);
+            RequestPayload request = (RequestPayload) received.get(0);
+
+            // 模拟服务回收清空发布结果；当前调用仍持有原来的契约和编码器。
+            ServiceDomain<?> published = MetBindInfoWrap.unwrap(service);
+            published.replaceProtocolPublication(Map.of());
+            assertNull(published.getProtocolMeta("soap"));
+            Future<Void> sent = session.send(this.response(request.getRequestID(), ProtocolStatus.OK));
+            assertEquals(200, exchange.response().getResult().status());
+            assertEquals(List.of(exchange), network.writes);
+
+            // 物理写入完成后正常释放，不因实时服务定义消失而转成 Fault。
+            network.writeResults.get(0).completed(null);
+            network.runTasks();
+            sent.get(1, TimeUnit.SECONDS);
+            assertTrue(request.completion().isDone());
+            assertNull(request.completion().getCause());
         }
     }
 
@@ -630,10 +786,12 @@ public class SoapSessionTest {
 
     private ProtocolSession<HttpExchange> session(MetContext context, ControlledNetwork network, //
             List<Payload> received, boolean outbound) {
-        ProtocolConfig config = context.getSettings().getConnectorConfigs().iterator().next().protocol("soap");
+        ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+        ProtocolConfig config = endpoint.protocol("soap");
+        RouteMountIndex routes = new RouteMountIndex(endpoint.name(), config);
         ProtocolSessionContext protocolContext = SoapProtocolTestAccess.context(context, (action, delay) -> {
             throw new AssertionError("SOAP session must use RPC deadlines");
-        }, network.getLocal(), outbound);
+        }, network.getLocal(), outbound, routes);
         return new SoapProtocol().createSession( //
                 config, protocolContext, network, (payload, id) -> received.add(payload));
     }
@@ -663,8 +821,9 @@ public class SoapSessionTest {
     }
 
     private HttpRequest route(MetContext context, HttpRequest request) {
-        ProtocolConfig config = context.getSettings().getConnectorConfigs().iterator().next().protocol("soap");
-        RouteSelection selection = SoapProtocolTestAccess.selection(config, request.uri());
+        ConnectorConfig endpoint = context.getSettings().getConnectorConfigs().iterator().next();
+        ProtocolConfig config = endpoint.protocol("soap");
+        RouteSelection selection = SoapProtocolTestAccess.selection(endpoint.name(), config, request.uri());
         HttpMessageUtils.route(request, selection);
         return request;
     }

@@ -10,6 +10,7 @@ import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilderFactory;
 import net.hasor.meteor.protocol.soap.definition.SoapVersion;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -27,7 +28,8 @@ public class SoapEncodedValueCodecTest {
     public void soap11ScalarCarriesItsXmlSchemaType() throws Exception {
         // 准备 SOAP 1.1 Body，并按 encoded 规则写入一个整数 accessor。
         Message message = this.message(SOAP_11);
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, mapping);
         SoapEncodedValueCodec.Encoder encoder = codec.encoder(message.document(), message.body());
         Element accessor = encoder.write(message.body(), new QName("value"), null, Integer.class, 17);
         encoder.finish();
@@ -43,7 +45,8 @@ public class SoapEncodedValueCodecTest {
     public void soap11NullUsesXsiNil() throws Exception {
         // 准备带声明类型的空值，使编码器保留 accessor 的契约信息。
         Message message = this.message(SOAP_11);
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, mapping);
         SoapEncodedValueCodec.Encoder encoder = codec.encoder(message.document(), message.body());
         QName stringType = new QName(XSD_NAMESPACE, "string", "xsd");
         Element accessor = encoder.write(message.body(), new QName("value"), stringType, String.class, null);
@@ -59,7 +62,8 @@ public class SoapEncodedValueCodecTest {
     public void soap11ArrayUsesHrefAndArrayType() throws Exception {
         // 准备 SOAP 1.1 数组，由 accessor 指向 Body 中的独立图节点。
         Message message = this.message(SOAP_11);
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, mapping);
         SoapEncodedValueCodec.Encoder encoder = codec.encoder(message.document(), message.body());
         Element accessor = encoder.write(message.body(), new QName("values"), null, String[].class, //
                 new String[] { "first", "second" });
@@ -78,7 +82,8 @@ public class SoapEncodedValueCodecTest {
     public void soap12ArrayUsesEncodingQualifiedGraphAttributes() throws Exception {
         // 准备 SOAP 1.2 数组，验证其专属的图和数组属性。
         Message message = this.message(SOAP_12);
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, mapping);
         SoapEncodedValueCodec.Encoder encoder = codec.encoder(message.document(), message.body());
         Element accessor = encoder.write(message.body(), new QName("values"), null, Integer[].class, //
                 new Integer[] { 3, 5 });
@@ -98,7 +103,8 @@ public class SoapEncodedValueCodecTest {
     public void soap11MultidimensionalArrayUsesCommaSeparatedDimensions() throws Exception {
         // 准备一个矩形二维数组，其值按最后一维优先展平。
         Message message = this.message(SOAP_11);
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, mapping);
         SoapEncodedValueCodec.Encoder encoder = codec.encoder(message.document(), message.body());
         int[][] expected = new int[][] { { 1, 2, 3 }, { 4, 5, 6 } };
         Element accessor = encoder.write(message.body(), new QName("values"), null, int[][].class, expected);
@@ -116,7 +122,8 @@ public class SoapEncodedValueCodecTest {
     public void soap12MultidimensionalArrayUsesSpaceSeparatedDimensions() throws Exception {
         // 准备 SOAP 1.2 矩形二维数组。
         Message message = this.message(SOAP_12);
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, mapping);
         SoapEncodedValueCodec.Encoder encoder = codec.encoder(message.document(), message.body());
         Integer[][] expected = new Integer[][] { { 1, 2 }, { 3, 4 } };
         Element accessor = encoder.write(message.body(), new QName("values"), null, Integer[][].class, expected);
@@ -140,8 +147,8 @@ public class SoapEncodedValueCodecTest {
         this.item(graphNode, "8");
 
         // offset 之前与未传输的位置保持 null。
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, //
-                SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, mapping);
         SoapEncodedValueCodec.Decoder decoder = codec.decoder(message.body());
         Integer[] decoded = (Integer[]) decoder.read(accessor, null, Integer[].class);
         assertArrayEquals(new Integer[] { null, null, 7, 8, null }, decoded);
@@ -159,8 +166,8 @@ public class SoapEncodedValueCodecTest {
         second.setAttributeNS(SOAP_11_ENCODING, "enc:position", "[4]");
 
         // position 之间的空洞保留为 null。
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, //
-                SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, mapping);
         SoapEncodedValueCodec.Decoder decoder = codec.decoder(message.body());
         String[] decoded = (String[]) decoder.read(accessor, null, String[].class);
         assertArrayEquals(new String[] { null, "first", null, null, "last" }, decoded);
@@ -177,8 +184,8 @@ public class SoapEncodedValueCodecTest {
         this.item(accessor, "4");
 
         // 四个成员与固定次维推导出 2 x 2 结构。
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, //
-                SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, mapping);
         SoapEncodedValueCodec.Decoder decoder = codec.decoder(message.body());
         Integer[][] decoded = (Integer[][]) decoder.read(accessor, null, Integer[][].class);
         assertArrayEquals(new Integer[] { 1, 2 }, decoded[0]);
@@ -192,8 +199,8 @@ public class SoapEncodedValueCodecTest {
         message.body().setAttributeNS(SOAP_12, "soap:encodingStyle", "urn:test:unknown-encoding");
 
         // 未知编码无法安全还原值图，建立解码上下文时即失败。
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, //
-                SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, mapping);
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
                 () -> codec.decoder(message.body()));
         assertEquals("Unsupported SOAP encodingStyle: urn:test:unknown-encoding", failure.getMessage());
@@ -203,7 +210,8 @@ public class SoapEncodedValueCodecTest {
     public void encoderRejectsValueOutsideItsDeclaredJavaType() throws Exception {
         // 准备声明为 String 却传入 Integer 的 accessor。
         Message message = this.message(SOAP_11);
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, mapping);
         SoapEncodedValueCodec.Encoder encoder = codec.encoder(message.document(), message.body());
 
         // 值类型不能绕过 Java 服务契约。
@@ -220,8 +228,8 @@ public class SoapEncodedValueCodecTest {
         this.item(accessor, "not-an-integer");
 
         // 它不能按 Java Integer[] 契约解码。
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, //
-                SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, mapping);
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> //
                 codec.decoder(message.body()).read(accessor, null, Integer[].class));
         assertTrue(failure.getMessage().contains("cannot map to"));
@@ -231,7 +239,8 @@ public class SoapEncodedValueCodecTest {
     public void sharedDtoDecodesToOneObjectIdentity() throws Exception {
         // 同一个 DTO 从两个参数位置引用，只应产生一个独立图节点。
         Message message = this.message(SOAP_11);
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, mapping);
         SoapEncodedValueCodec.Encoder encoder = codec.encoder(message.document(), message.body());
         Link shared = new Link();
         shared.setName("shared");
@@ -254,7 +263,8 @@ public class SoapEncodedValueCodecTest {
     public void cyclicDtoRoundTripPreservesItsBackReference() throws Exception {
         // 构造指向自身的对象图，验证编码过程不会递归展开至溢出。
         Message message = this.message(SOAP_12);
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, mapping);
         SoapEncodedValueCodec.Encoder encoder = codec.encoder(message.document(), message.body());
         Link cycle = new Link();
         cycle.setName("cycle");
@@ -278,8 +288,8 @@ public class SoapEncodedValueCodecTest {
         message.body().appendChild(accessor);
 
         // 建立解码上下文时立即拒绝悬空引用。
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, //
-                SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_11, mapping);
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
                 () -> codec.decoder(message.body()));
         assertEquals("SOAP Encoding reference does not resolve: missing", failure.getMessage());
@@ -297,8 +307,8 @@ public class SoapEncodedValueCodecTest {
         message.body().appendChild(second);
 
         // 重复标识无法唯一还原对象图，必须在读取 part 之前失败。
-        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, //
-                SoapMessageCodec.newXmlMapper());
+        SoapXmlMapping mapping = new SoapXmlMapping(SoapMessageCodec.newXmlMapper());
+        SoapEncodedValueCodec codec = new SoapEncodedValueCodec(SoapVersion.SOAP_12, mapping);
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
                 () -> codec.decoder(message.body()));
         assertEquals("Duplicate SOAP Encoding id: same", failure.getMessage());

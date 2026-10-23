@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:hasor:meteor:soap:NamedEcho"
+                  targetNamespace="urn:hasor:meteor:soap:NamedEcho">
+    <wsdl:types>
+        <xs:schema targetNamespace="urn:hasor:meteor:soap:NamedEcho" elementFormDefault="unqualified">
+            <xs:element name="Echo">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="message" type="xs:string" minOccurs="0" nillable="true"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element name="EchoResponse">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="answer" type="xs:string" minOccurs="0" nillable="true"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:schema>
+    </wsdl:types>
+    <wsdl:message name="Input">
+        <wsdl:part name="parameters" element="tns:Echo"/>
+    </wsdl:message>
+    <wsdl:message name="Output">
+        <wsdl:part name="parameters" element="tns:EchoResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="NamedEcho">
+        <wsdl:operation name="Echo">
+            <wsdl:input message="tns:Input"/>
+            <wsdl:output message="tns:Output"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="NamedEchoBinding" type="tns:NamedEcho">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="Echo">
+            <soap:operation soapAction="urn:hasor:meteor:soap:NamedEcho/Echo"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="NamedEcho">
+        <wsdl:port name="NamedEchoPort" binding="tns:NamedEchoBinding">
+            <soap:address location="http://localhost/services/NamedEcho"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

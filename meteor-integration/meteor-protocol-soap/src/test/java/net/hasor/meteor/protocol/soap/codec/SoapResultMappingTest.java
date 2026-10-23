@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.soap.codec;
-
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,11 +14,14 @@ import java.util.SortedMap;
 import javax.xml.namespace.QName;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import net.hasor.example.protocol.soap.codec.MetXmlEncodedValue;
 import net.hasor.example.protocol.soap.codec.ResultMappingValues.*;
+import net.hasor.meteor.annotation.MetField;
 import net.hasor.meteor.protocol.soap.definition.SoapBody;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionAccess;
 import net.hasor.meteor.protocol.soap.definition.SoapPart;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -166,7 +168,7 @@ public class SoapResultMappingTest {
         }.getType();
 
         // 构建映射时直接报告具体 part，不延迟为反射错误。
-        RuntimeException failure = assertThrows(IllegalArgumentException.class, //
+        RuntimeException failure = assertThrows(UnsupportedOperationException.class, //
                 () -> this.mapper(type, "missing", "first"));
         assertEquals("SOAP output part has no Java result property: missing", failure.getMessage());
     }
@@ -243,7 +245,7 @@ public class SoapResultMappingTest {
         }.getType();
 
         // 不创建表面类型正确、实际键类型错误的返回 Map。
-        RuntimeException failure = assertThrows(IllegalArgumentException.class, //
+        RuntimeException failure = assertThrows(UnsupportedOperationException.class, //
                 () -> this.mapper(type, "first", "second"));
         assertEquals("SOAP output Map keys must accept String part names", failure.getMessage());
     }
@@ -289,7 +291,7 @@ public class SoapResultMappingTest {
         SoapPart second = SoapDefinitionAccess.part("secondPart", secondName, null, 1, 1);
         SoapBody body = SoapDefinitionAccess.body(null, List.of(second, first), List.of(), "literal", null);
         SoapResultMapping mapping = new SoapResultMapping(body, //
-                MetXmlEncodedValue.class, SoapMessageCodec.newXmlMapper());
+                MetXmlEncodedValue.class, new SoapXmlMapping(SoapMessageCodec.newXmlMapper()));
         MetXmlEncodedValue value = new MetXmlEncodedValue();
         value.first = "first";
         value.second = "second";
@@ -306,7 +308,7 @@ public class SoapResultMappingTest {
         SoapPart second = SoapDefinitionAccess.part("secondPart", secondName, null, 1, 1);
         SoapBody body = SoapDefinitionAccess.body(null, List.of(second, first), List.of(), "literal", null);
         SoapResultMapping mapping = new SoapResultMapping(body, //
-                MetXmlEncodedValue.class, SoapMessageCodec.newXmlMapper());
+                MetXmlEncodedValue.class, new SoapXmlMapping(SoapMessageCodec.newXmlMapper()));
 
         // 值回到声明的属性，不能都写入同一个 localName 属性。
         MetXmlEncodedValue result = (MetXmlEncodedValue) mapping.join(new Object[] { "second", "first" });
@@ -323,8 +325,60 @@ public class SoapResultMappingTest {
 
         // 不能随机选择第一个同名字段，映射构建时明确拒绝歧义。
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
-                () -> new SoapResultMapping(body, MetXmlEncodedValue.class, SoapMessageCodec.newXmlMapper()));
+                () -> new SoapResultMapping(body, MetXmlEncodedValue.class, new SoapXmlMapping(SoapMessageCodec.newXmlMapper())));
         assertEquals("Ambiguous SOAP output part property: value", failure.getMessage());
+    }
+
+    @Test
+    public void multipartQualifiedNameCannotSelectAnAttribute() {
+        // 聚合 DTO 的属性 QName 与 WSDL part 一致，但聚合对象本身没有 XML 元素。
+        QName identifier = new QName("urn:meteor:xml:attributes", "identifier");
+        SoapPart id = SoapDefinitionAccess.part("idPart", identifier, null, 1, 1);
+        QName value = new QName("urn:meteor:xml:first", "value");
+        SoapPart first = SoapDefinitionAccess.part("firstPart", value, null, 1, 1);
+        SoapBody body = SoapDefinitionAccess.body(null, List.of(id, first), List.of(), "literal", null);
+
+        // 类型上的 MetType 只命名类型，不能为聚合属性提供实际父元素。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> new SoapResultMapping(body, MetXmlEncodedValue.class, new SoapXmlMapping(SoapMessageCodec.newXmlMapper())));
+        assertTrue(failure.getMessage().contains("XML attribute has no parent element"));
+        assertTrue(failure.getMessage().contains(MetXmlEncodedValue.class.getName() + ".id"));
+    }
+
+    @Test
+    public void multipartPartNameCannotSelectAnAttribute() {
+        // QName 不匹配时，旧的 Java 属性名回退规则仍不能把 attribute 当作独立 part。
+        Type result = MetXmlEncodedValue.class;
+
+        // 选中 id 后立即拒绝，错误指向具体聚合 DTO 和成员。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> this.mapper(result, "id", "first"));
+        assertTrue(failure.getMessage().contains("XML attribute has no parent element"));
+        assertTrue(failure.getMessage().contains(MetXmlEncodedValue.class.getName() + ".id"));
+    }
+
+    @Test
+    public void multipartGetterAttributeIsRejected() {
+        // 属性标记只在 getter 上，setter 和字段仍参与同一个 Java 属性。
+        Type result = GetterAttributeResult.class;
+
+        // 发布前的类型发现也要合并读取方向的注解，不能只检查可写字段。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> this.mapper(result, "id", "second"));
+        assertTrue(failure.getMessage().contains("XML attribute has no parent element"));
+        assertTrue(failure.getMessage().contains(GetterAttributeResult.class.getName() + ".id"));
+    }
+
+    @Test
+    public void multipartSetterAttributeIsRejected() {
+        // 属性标记只在 setter 上，getter 本身没有重复声明。
+        Type result = SetterAttributeResult.class;
+
+        // 写入方向的注解不能因读取方向的元信息合并而丢失。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> this.mapper(result, "id", "second"));
+        assertTrue(failure.getMessage().contains("XML attribute has no parent element"));
+        assertTrue(failure.getMessage().contains(SetterAttributeResult.class.getName() + ".id"));
     }
 
     private SoapResultMapping mapper(Type resultType, String... names) {
@@ -334,6 +388,36 @@ public class SoapResultMappingTest {
             parts.add(SoapDefinitionAccess.part(names[index], element, null, 1, 1));
         }
         SoapBody body = SoapDefinitionAccess.body(null, parts, List.of(), "literal", null);
-        return new SoapResultMapping(body, resultType, SoapMessageCodec.newXmlMapper());
+        return new SoapResultMapping(body, resultType, new SoapXmlMapping(SoapMessageCodec.newXmlMapper()));
+    }
+
+    public static class GetterAttributeResult {
+        private String id;
+        public  String second;
+
+        @MetField(name = "identifier")
+        @JacksonXmlProperty(isAttribute = true)
+        public String getId() {
+            return this.id;
+        }
+
+        public void setId(String id) {
+            this.id = id;
+        }
+    }
+
+    public static class SetterAttributeResult {
+        private String id;
+        public  String second;
+
+        public String getId() {
+            return this.id;
+        }
+
+        @MetField(name = "identifier")
+        @JacksonXmlProperty(isAttribute = true)
+        public void setId(String id) {
+            this.id = id;
+        }
     }
 }

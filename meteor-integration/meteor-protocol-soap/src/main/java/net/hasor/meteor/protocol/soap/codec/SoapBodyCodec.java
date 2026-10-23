@@ -13,6 +13,7 @@ import javax.xml.namespace.QName;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import net.hasor.meteor.protocol.soap.definition.*;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
@@ -23,11 +24,11 @@ final class SoapBodyCodec {
     private final SoapEncodedValueCodec encoded;
     private final XmlMapper             mapper;
 
-    SoapBodyCodec(SoapVersion version, XmlMapper mapper) {
+    SoapBodyCodec(SoapVersion version, SoapXmlMapping mapping) {
         this.version = version;
-        this.mapper = mapper;
-        this.literal = new SoapLiteralValueCodec(mapper);
-        this.encoded = new SoapEncodedValueCodec(version, mapper);
+        this.mapper = mapping.mapper();
+        this.literal = new SoapLiteralValueCodec(mapping);
+        this.encoded = new SoapEncodedValueCodec(version, mapping);
     }
 
     Object[] read(Element body, SoapBody binding, Type[] types) throws Exception {
@@ -235,7 +236,7 @@ final class SoapBodyCodec {
         boolean array = collection.isArrayType();
         boolean iterable = Collection.class.isAssignableFrom(collection.getRawClass());
         JavaType content = collection.getContentType();
-        if ((!array && !iterable) || content == null || content.hasRawClass(Object.class)) {
+        if ((!array && !iterable) || content == null) {
             throw new IllegalArgumentException("Repeated SOAP part requires an array or typed collection: " + type);
         }
         return collection;

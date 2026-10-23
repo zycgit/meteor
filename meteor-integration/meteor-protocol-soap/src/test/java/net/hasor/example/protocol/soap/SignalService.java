@@ -6,7 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.protocol.soap;
-import net.hasor.meteor.MetMessage;
+import net.hasor.meteor.annotation.MetMessage;
 
 /** 只接收通知、不返回业务结果的 SOAP one-way 示例。 */
 public interface SignalService {

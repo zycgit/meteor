@@ -8,33 +8,56 @@
 package net.hasor.example.protocol.soap;
 import java.util.List;
 import javax.xml.XMLConstants;
-import net.hasor.meteor.protocol.soap.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+import net.hasor.meteor.annotation.MetField;
+import net.hasor.meteor.annotation.MetType;
 
-/** 通过 Meteor 注解表达属性、命名空间、集合容器和枚举，无需 JAXB 注解。 */
-@MetXmlType(name = "Order", namespace = MetXmlOrder.TYPES, //
-        propOrder = { "buyer", "delivery", "lines", "state", "memo" })
+/** 公共注解声明名称，Jackson XML 声明属性、命名空间和集合容器。 */
+@MetType(name = "Order")
+@JacksonXmlRootElement(namespace = MetXmlOrder.TYPES)
 public class MetXmlOrder {
     public static final String TYPES      = "urn:meteor:xml:types";
     public static final String BUYER      = "urn:meteor:xml:buyer";
     public static final String DELIVERY   = "urn:meteor:xml:delivery";
     public static final String ATTRIBUTES = "urn:meteor:xml:attributes";
 
-    @MetXmlAttribute(name = "id", namespace = ATTRIBUTES, required = true)
+    @MetField(name = "id")
+    @JacksonXmlProperty(isAttribute = true, namespace = ATTRIBUTES)
+    @JsonProperty(index = 0, required = true)
     private String       id;
-    @MetXmlAttribute(name = "lang", namespace = XMLConstants.XML_NS_URI)
+    @MetField(name = "lang")
+    @JacksonXmlProperty(isAttribute = true, namespace = XMLConstants.XML_NS_URI)
+    @JsonProperty(index = 1)
     private String       language;
-    @MetXmlElement(name = "name", namespace = BUYER, required = true, nillable = false)
+    @MetField(name = "name")
+    @JacksonXmlProperty(namespace = BUYER)
+    @JsonProperty(index = 10, required = true)
+    @JsonSetter(nulls = Nulls.FAIL)
     private String       buyer;
-    @MetXmlElement(name = "name", namespace = DELIVERY, required = true, nillable = false)
+    @MetField(name = "name")
+    @JacksonXmlProperty(namespace = DELIVERY)
+    @JsonProperty(index = 20, required = true)
+    @JsonSetter(nulls = Nulls.FAIL)
     private String       delivery;
-    @MetXmlElementWrapper(name = "lines", namespace = TYPES)
-    @MetXmlElement(name = "line", namespace = TYPES)
+    @MetField(name = "line")
+    @JacksonXmlProperty(namespace = TYPES)
+    @JacksonXmlElementWrapper(localName = "lines", namespace = TYPES)
+    @JsonProperty(index = 30)
     private List<String> lines;
-    @MetXmlElement(name = "status", namespace = TYPES)
+    @MetField(name = "status")
+    @JacksonXmlProperty(namespace = TYPES)
+    @JsonProperty(index = 40)
     private MetXmlState  state;
-    @MetXmlElement(name = "note")
+    @MetField(name = "note")
+    @JsonProperty(index = 50)
     private String       memo;
-    @MetXmlTransient
+    @JsonIgnore
     private String       internalToken;
 
     public String getId() {

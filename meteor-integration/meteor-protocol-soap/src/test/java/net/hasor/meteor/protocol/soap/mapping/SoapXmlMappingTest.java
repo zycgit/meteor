@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.soap.mapping;
+import java.util.ArrayList;
 import java.util.List;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
@@ -13,8 +14,13 @@ import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
-import net.hasor.meteor.protocol.soap.annotation.*;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlText;
+import net.hasor.meteor.annotation.MetEnumValue;
+import net.hasor.meteor.annotation.MetField;
+import net.hasor.meteor.annotation.MetType;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -59,6 +65,7 @@ public class SoapXmlMappingTest {
         // 字段与访问器合并为一个 XML 属性。
         assertEquals(1, type.getProperties().size());
         assertEquals(new QName("urn:message", "text"), type.getProperties().get(0).getName());
+        assertEquals(5, type.getProperties().get(0).getOrder());
     }
 
     @Test
@@ -100,15 +107,15 @@ public class SoapXmlMappingTest {
     }
 
     @Test
-    public void meteorElementOverridesJacksonXmlProperty() {
-        // 已有 Jackson 名称和命名空间保留为兼容信息，显式 Meteor 映射优先。
+    public void commonNamePreservesJacksonNamespaceAndAttributeKind() {
+        // 公共名称覆盖 localName，Jackson 的命名空间和节点类别继续生效。
         JavaType javaType = this.mapper.constructType(MeteorOverridesJacksonXml.class);
         SoapXmlType type = this.mapping.type(javaType);
 
-        // 不让 Jackson 的属性标记把 Meteor 元素变成 XML attribute。
+        // 不把公共名称解释为元素类别声明。
         SoapXmlProperty property = type.getProperties().get(0);
-        assertEquals(new QName("urn:meteor", "message"), property.getName());
-        assertFalse(property.isAttribute());
+        assertEquals(new QName("urn:jackson", "message"), property.getName());
+        assertTrue(property.isAttribute());
     }
 
     @Test
@@ -143,55 +150,147 @@ public class SoapXmlMappingTest {
     }
 
     @Test
-    public void propertyOrderUsesJavaPropertyNames() {
-        // propOrder 指定 Java 属性名，XML 名称可以完全不同。
+    public void propertyOrderUsesIncreasingElementOrder() {
+        // 每个元素独立声明数字顺序，不依赖 Java 属性名或 XML 名称。
         JavaType javaType = this.mapper.constructType(OrderedBean.class);
         SoapXmlType type = this.mapping.type(javaType);
 
-        // Schema 顺序和消息写入顺序共享同一份属性列表。
+        // 数字较小的 second 在前，Schema 与消息写入共享此属性顺序。
+        List<String> expected = new ArrayList<>();
+        expected.add("second");
+        expected.add("first");
         List<String> names = type.getProperties().stream() //
                 .map(SoapXmlProperty::getJavaName) //
                 .toList();
-        assertEquals(List.of("second", "first"), names);
+        assertEquals(expected, names);
+        assertEquals(10, type.getProperties().get(0).getOrder());
+        assertEquals(20, type.getProperties().get(1).getOrder());
     }
 
     @Test
-    public void unknownPropertyOrderEntryIsRejected() {
-        // 误写的 propOrder 名称不能被静默忽略。
-        JavaType javaType = this.mapper.constructType(UnknownOrderBean.class);
+    public void defaultOrderKeepsPropertyDiscoveryOrder() {
+        // 未标注、默认 公共名称与 XML 配置 和显式 order=0 都沿用同一个默认顺序。
+        JavaType javaType = this.mapper.constructType(DefaultOrderBean.class);
+        SoapXmlType type = this.mapping.type(javaType);
 
-        // 避免生成的 XSD 与用户声明顺序不一致。
-        assertThrows(IllegalArgumentException.class, () -> this.mapping.type(javaType));
+        // 同值保持 Jackson 原映射发现顺序，不改成字段名或声明位置排序。
+        List<String> expected = new ArrayList<>();
+        expected.add("third");
+        expected.add("first");
+        expected.add("second");
+        List<String> names = type.getProperties().stream() //
+                .map(SoapXmlProperty::getJavaName) //
+                .toList();
+        assertEquals(expected, names);
+        assertTrue(type.getProperties().stream().allMatch(property -> property.getOrder() == 0));
     }
 
     @Test
-    public void incompletePropertyOrderIsRejected() {
-        // 显式顺序应列出全部元素，不能让遗漏字段依赖反射顺序补齐。
-        JavaType javaType = this.mapper.constructType(IncompleteOrderBean.class);
+    public void equalExplicitOrdersKeepPropertyDiscoveryOrder() {
+        // 各元素都配置相同的非零数字，排序仍需稳定。
+        JavaType javaType = this.mapper.constructType(EqualOrderBean.class);
+        SoapXmlType type = this.mapping.type(javaType);
 
-        // 顺序声明与实际契约不一致时直接报错。
-        assertThrows(IllegalArgumentException.class, () -> this.mapping.type(javaType));
+        // 相同 order 不丢失原有 Jackson 映射顺序。
+        List<String> expected = new ArrayList<>();
+        expected.add("second");
+        expected.add("first");
+        expected.add("third");
+        List<String> names = type.getProperties().stream() //
+                .map(SoapXmlProperty::getJavaName) //
+                .toList();
+        assertEquals(expected, names);
     }
 
     @Test
-    public void duplicatedPropertyOrderEntryIsRejected() {
-        // 同一个 Java 属性不能在 sequence 中重复出现。
-        JavaType javaType = this.mapper.constructType(DuplicateOrderBean.class);
+    public void negativeOrderPrecedesDefaultAndPositiveOrder() {
+        // 负数可用于把属性放在默认顺序之前，正数排在其后。
+        JavaType javaType = this.mapper.constructType(NegativeOrderBean.class);
+        SoapXmlType type = this.mapping.type(javaType);
 
-        // 重复项不应覆盖或隐藏其它元素。
-        assertThrows(IllegalArgumentException.class, () -> this.mapping.type(javaType));
+        // order 使用完整有符号整数顺序。
+        List<String> expected = new ArrayList<>();
+        expected.add("negativeValue");
+        expected.add("defaultValue");
+        expected.add("positiveValue");
+        List<String> names = type.getProperties().stream() //
+                .map(SoapXmlProperty::getJavaName) //
+                .toList();
+        assertEquals(expected, names);
     }
 
     @Test
-    public void attributeNeedNotAppearInElementOrder() {
-        // XML attribute 不参与子元素 sequence 的顺序。
+    public void integerBoundaryOrdersDoNotOverflow() {
+        // 最大值、最小值与默认值同时出现，比较不能通过整数相减实现。
+        JavaType javaType = this.mapper.constructType(BoundaryOrderBean.class);
+        SoapXmlType type = this.mapping.type(javaType);
+
+        // 完整 int 范围内仍按从小到大的顺序排列。
+        List<String> expected = new ArrayList<>();
+        expected.add("minimum");
+        expected.add("zero");
+        expected.add("maximum");
+        List<String> names = type.getProperties().stream() //
+                .map(SoapXmlProperty::getJavaName) //
+                .toList();
+        assertEquals(expected, names);
+    }
+
+    @Test
+    public void attributeOrderUsesIncreasingValues() {
+        // XML attribute 也能独立配置顺序，默认值为零。
         JavaType javaType = this.mapper.constructType(OrderedAttributeBean.class);
         SoapXmlType type = this.mapping.type(javaType);
 
-        // 只列出元素仍是完整的顺序声明。
-        assertEquals(2, type.getProperties().size());
-        long attributes = type.getProperties().stream().filter(SoapXmlProperty::isAttribute).count();
-        assertEquals(1L, attributes);
+        // 编译后的属性列表与 XSD attribute 声明沿用数字升序。
+        List<String> expected = new ArrayList<>();
+        expected.add("second");
+        expected.add("third");
+        expected.add("first");
+        List<String> names = type.getProperties().stream() //
+                .filter(SoapXmlProperty::isAttribute) //
+                .map(SoapXmlProperty::getJavaName) //
+                .toList();
+        assertEquals(expected, names);
+    }
+
+    @Test
+    public void textPropertyUsesJacksonPropertyOrder() {
+        // JacksonXmlText 没有顺序配置，与未标注属性一样使用零。
+        JavaType javaType = this.mapper.constructType(OrderedTextBean.class);
+        SoapXmlType type = this.mapping.type(javaType);
+
+        // 文本在负数与正数顺序的属性之间，仍保持 simpleContent 结构。
+        List<String> expected = new ArrayList<>();
+        expected.add("before");
+        expected.add("text");
+        expected.add("after");
+        List<String> names = type.getProperties().stream() //
+                .map(SoapXmlProperty::getJavaName) //
+                .toList();
+        assertEquals(expected, names);
+        assertTrue(type.getProperties().get(1).isText());
+        assertEquals(1, type.getProperties().get(1).getOrder());
+    }
+
+    @Test
+    public void conflictingFieldAndGetterOrdersAreRejected() {
+        // 同一 Java 属性的字段和 getter 不能声明不同的元素顺序。
+        JavaType javaType = this.mapper.constructType(ConflictingElementOrderAccessors.class);
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> //
+                this.mapping.type(javaType));
+        assertTrue(failure.getMessage().contains("conflicting JsonProperty mappings"));
+    }
+
+    @Test
+    public void conflictingFieldAndSetterAttributeOrdersAreRejected() {
+        // XML attribute 的读写成员同样必须对顺序达成一致。
+        JavaType javaType = this.mapper.constructType(ConflictingAttributeOrderAccessors.class);
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> //
+                this.mapping.type(javaType));
+        assertTrue(failure.getMessage().contains("conflicting JsonProperty mappings"));
     }
 
     @Test
@@ -230,6 +329,26 @@ public class SoapXmlMappingTest {
         // 定义生成和消息校验读取同一组约束。
         assertTrue(property.isRequired());
         assertFalse(property.isNillable());
+    }
+
+    @Test
+    public void commonNameCanDescribeAnAttribute() {
+        // 公共名称不指定 XML 节点类别，与 attribute 可以组合。
+        JavaType javaType = this.mapper.constructType(ElementAttributeConflict.class);
+        SoapXmlProperty property = this.mapping.type(javaType).getProperties().get(0);
+
+        assertTrue(property.isAttribute());
+        assertEquals("code", property.getName().getLocalPart());
+    }
+
+    @Test
+    public void fieldAndGetterCannotDeclareDifferentXmlKinds() {
+        // 字段和 getter 属于同一个 Java 属性，声明位置不同也不能改变节点角色。
+        JavaType javaType = this.mapper.constructType(FieldGetterKindConflict.class);
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> //
+                this.mapping.type(javaType));
+        assertTrue(failure.getMessage().contains("conflicting JacksonXmlProperty mappings"));
     }
 
     @Test
@@ -294,18 +413,18 @@ public class SoapXmlMappingTest {
     }
 
     @Test
-    public void collectionWrapperAndItemKeepIndependentQNames() {
-        // 集合容器与内部条目分别指定名称和命名空间。
+    public void collectionWrapperAndItemShareNamespaceAndConstraints() {
+        // 集合容器和条目保留各自名称，共用命名空间、必填及可空设置。
         JavaType javaType = this.mapper.constructType(WrappedCollectionBean.class);
         SoapXmlProperty property = this.mapping.type(javaType).getProperties().get(0);
 
-        // wrapper 的出现和 nil 约束不覆盖 item 本身的约束。
-        assertEquals(new QName("urn:containers", "messages"), property.getWrapper());
+        // 同一个注解声明同时约束容器和条目。
+        assertEquals(new QName("urn:items", "messages"), property.getWrapper());
         assertEquals(new QName("urn:items", "message"), property.getName());
         assertTrue(property.isWrapperRequired());
         assertFalse(property.isWrapperNillable());
-        assertFalse(property.isRequired());
-        assertTrue(property.isNillable());
+        assertTrue(property.isRequired());
+        assertFalse(property.isNillable());
     }
 
     @Test
@@ -321,24 +440,35 @@ public class SoapXmlMappingTest {
     }
 
     @Test
-    public void primitiveArrayValueAndWrapperKeepIndependentNilConstraints() {
-        // 集合包装层与属性值分别声明约束，不由 primitive 内容类型覆盖。
+    public void primitiveArrayValueAndWrapperShareTheNonNillableConstraint() {
+        // 集合包装层与条目使用同一个非空声明。
         JavaType javaType = this.mapper.constructType(WrappedPrimitiveArrayBean.class);
         SoapXmlProperty property = this.mapping.type(javaType).getProperties().get(0);
 
-        // 包装层允许 nil，属性值则保留显式配置的非空约束。
+        // 包装层和条目都保留显式配置的非空约束。
         assertEquals(new QName("", "values"), property.getWrapper());
-        assertTrue(property.isWrapperNillable());
+        assertFalse(property.isWrapperNillable());
         assertFalse(property.isNillable());
     }
 
     @Test
-    public void wrapperOnScalarPropertyIsRejected() {
-        // 普通字符串不是集合，不能额外声明集合 wrapper。
-        JavaType javaType = this.mapper.constructType(ScalarWrapperBean.class);
+    public void jacksonWrapperRemainsWhenMeteorDoesNotDeclareAWrap() {
+        // 元素命名与现有 Jackson 容器映射可以一起使用。
+        JavaType javaType = this.mapper.constructType(JacksonWrappedCollectionBean.class);
+        SoapXmlProperty property = this.mapping.type(javaType).getProperties().get(0);
 
-        // 明确拒绝不成立的结构，而不是偷偷改写其类型。
-        assertThrows(IllegalArgumentException.class, () -> this.mapping.type(javaType));
+        assertEquals(new QName("urn:legacy", "entries"), property.getWrapper());
+        assertEquals(new QName("", "item"), property.getName());
+    }
+
+    @Test
+    public void commonNamePreservesTheJacksonCollectionWrapper() {
+        // 显式 wrap 配置覆盖旧容器，集合项仍使用自己的名称。
+        JavaType javaType = this.mapper.constructType(MeteorWrappedCollectionBean.class);
+        SoapXmlProperty property = this.mapping.type(javaType).getProperties().get(0);
+
+        assertEquals(new QName("urn:legacy", "entries"), property.getWrapper());
+        assertEquals(new QName("urn:meteor", "item"), property.getName());
     }
 
     @Test
@@ -409,14 +539,14 @@ public class SoapXmlMappingTest {
     }
 
     @Test
-    public void meteorElementIncludesAnOtherwiseIgnoredProperty() {
-        // 显式 XML 契约可以纳入仅在 JSON 中忽略的字段。
+    public void commonNamePreservesJsonIgnore() {
+        // 公共名称只负责命名，不撤销 Jackson 的忽略指令。
         JavaType javaType = this.mapper.constructType(MeteorOverridesIgnoreBean.class);
         SoapXmlType type = this.mapping.type(javaType);
 
-        // JsonIgnore 不应覆盖 Meteor 明确声明的 XML 元素。
+        // 被忽略字段仍不进入 XML 契约。
         assertEquals(1, type.getProperties().size());
-        assertEquals(new QName("", "message"), type.getProperties().get(0).getName());
+        assertEquals(new QName("", "visible"), type.getProperties().get(0).getName());
     }
 
     @Test
@@ -431,16 +561,13 @@ public class SoapXmlMappingTest {
     }
 
     @Test
-    public void meteorElementOverridesJsonReadOnlyAccess() {
-        // JSON 只读声明不限制显式 XML 元素的双向映射。
+    public void commonNamePreservesJsonReadOnlyAccess() {
+        // 公共注解不能把只读属性变成可写属性。
         JavaType javaType = this.mapper.constructType(MeteorOverridesReadOnlyBean.class);
-        SoapXmlType type = this.mapping.type(javaType);
-        SoapXmlProperty property = type.getProperties().get(0);
-        Object bean = type.newInstance();
+        SoapXmlProperty property = this.mapping.type(javaType).getProperties().get(0);
 
-        // SOAP 仍能把对端值写回同一个业务属性。
-        property.write(bean, "received");
-        assertEquals("received", property.read(bean));
+        assertTrue(property.isReadable());
+        assertFalse(property.isWritable());
     }
 
     @Test
@@ -526,12 +653,52 @@ public class SoapXmlMappingTest {
     }
 
     @Test
+    public void emptyElementNameUsesTheJavaEnumConstantName() {
+        // 枚举常量也可以只标注 公共名称与 XML 配置，空名称沿用 Java 常量名称。
+        String value = this.mapping.enumValue(DefaultElementState.READY);
+
+        assertEquals("READY", value);
+        assertEquals(DefaultElementState.READY, this.mapping.enumValue(DefaultElementState.class, value));
+    }
+
+    @Test
+    public void emptyEnumNamePreservesTheJacksonAlias() {
+        // 没有公共名称声明时沿用 Jackson 的枚举名称。
+        String value = this.mapping.enumValue(EmptyOverrideState.READY);
+
+        assertEquals("jackson-ready", value);
+        assertEquals(EmptyOverrideState.READY, this.mapping.enumValue(EmptyOverrideState.class, value));
+    }
+
+    @Test
+    public void enumElementNameCanContainSpaces() {
+        // 枚举的 name 表示 XML 文本，可以包含 XML 元素名称不允许的空格。
+        JavaType javaType = this.mapper.constructType(TextState.class);
+        this.mapping.type(javaType);
+        String value = this.mapping.enumValue(TextState.READY);
+
+        assertEquals("ready to send", value);
+        assertEquals(TextState.READY, this.mapping.enumValue(TextState.class, value));
+    }
+
+    @Test
     public void duplicateEnumAliasesAreRejected() {
         // 两个枚举常量不能共享同一个 XML 字面量。
         JavaType javaType = this.mapper.constructType(DuplicateState.class);
 
         // 定义阶段拒绝不能确定反向映射的枚举。
         assertThrows(IllegalArgumentException.class, () -> this.mapping.type(javaType));
+    }
+
+    @Test
+    public void enumConstantAttributeHasNoParentElement() {
+        // 枚举常量生成的是文本，不存在可承载此常量属性的 DTO 元素。
+        JavaType javaType = this.mapper.constructType(AttributeState.class);
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> //
+                this.mapping.type(javaType));
+        assertTrue(failure.getMessage().contains("XML attribute has no parent element"));
+        assertTrue(failure.getMessage().contains(AttributeState.class.getName() + "#READY"));
     }
 
     @Test
@@ -544,21 +711,21 @@ public class SoapXmlMappingTest {
     }
 
     @Test
-    public void unsupportedJacksonIdentityMappingIsRejected() {
-        // 对象 ID 语义不属于普通 XSD 值映射。
+    public void jacksonIdentityUsesAnOpenValueMapping() {
+        // 对象 ID 语义由 Jackson 负责，Schema 不把动态引用当成普通字段。
         JavaType javaType = this.mapper.constructType(IdentityBean.class);
 
-        // 不允许 Schema 与 Jackson 实际输出的结构背离。
-        assertThrows(IllegalArgumentException.class, () -> this.mapping.type(javaType));
+        // 开放值交给 Jackson 编解码，不猜测其结构。
+        assertTrue(this.mapping.type(javaType).isJacksonValue());
     }
 
     @Test
-    public void customJsonValueEnumMappingIsRejected() {
+    public void customJsonValueEnumUsesAnOpenValueMapping() {
         // 自定义 JsonValue 可能把枚举输出为任意结构，不能冒充 XSD 枚举字面量。
         JavaType javaType = this.mapper.constructType(CustomValueState.class);
 
-        // 定义阶段报告不支持的枚举映射。
-        assertThrows(IllegalArgumentException.class, () -> this.mapping.type(javaType));
+        // JsonValue 的输出由 Jackson 决定，不生成错误的固定枚举列表。
+        assertTrue(this.mapping.type(javaType).isJacksonValue());
     }
 
     @Test
@@ -587,10 +754,14 @@ public class SoapXmlMappingTest {
     }
 
     public static class MatchingAccessors {
-        @MetXmlElement(name = "text", namespace = "urn:message")
+        @MetField(name = "text")
+        @JacksonXmlProperty(namespace = "urn:message")
+        @JsonProperty(index = 5)
         private String message;
 
-        @MetXmlElement(name = "text", namespace = "urn:message")
+        @MetField(name = "text")
+        @JacksonXmlProperty(namespace = "urn:message")
+        @JsonProperty(index = 5)
         public String getMessage() {
             return this.message;
         }
@@ -601,10 +772,10 @@ public class SoapXmlMappingTest {
     }
 
     public static class ConflictingAccessors {
-        @MetXmlElement(name = "field")
+        @MetField(name = "field")
         private String message;
 
-        @MetXmlElement(name = "getter")
+        @MetField(name = "getter")
         public String getMessage() {
             return this.message;
         }
@@ -615,24 +786,24 @@ public class SoapXmlMappingTest {
     }
 
     public static class ConflictingSetter {
-        @MetXmlElement(name = "field")
+        @MetField(name = "field")
         private String message;
 
         public String getMessage() {
             return this.message;
         }
 
-        @MetXmlElement(name = "setter")
+        @MetField(name = "setter")
         public void setMessage(String message) {
             this.message = message;
         }
     }
 
     public interface ConflictingInterface {
-        @MetXmlElement(name = "left")
+        @MetField(name = "left")
         String getMessage();
 
-        @MetXmlElement(name = "right")
+        @MetField(name = "right")
         void setMessage(String message);
     }
 
@@ -651,10 +822,12 @@ public class SoapXmlMappingTest {
     }
 
     public interface MatchingInterface {
-        @MetXmlElement(name = "text", namespace = "urn:interface")
+        @MetField(name = "text")
+        @JacksonXmlProperty(namespace = "urn:interface")
         String getMessage();
 
-        @MetXmlElement(name = "text", namespace = "urn:interface")
+        @MetField(name = "text")
+        @JacksonXmlProperty(namespace = "urn:interface")
         void setMessage(String message);
     }
 
@@ -674,13 +847,14 @@ public class SoapXmlMappingTest {
 
     public static class MeteorOverridesJacksonXml {
         @JacksonXmlProperty(localName = "legacy", namespace = "urn:jackson", isAttribute = true)
-        @MetXmlElement(name = "message", namespace = "urn:meteor")
+        @MetField(name = "message")
         public String message;
     }
 
     public static class MeteorOverridesJacksonJson {
         @JsonProperty("legacy")
-        @MetXmlElement(name = "message", namespace = "urn:meteor")
+        @MetField(name = "message")
+        @JacksonXmlProperty(namespace = "urn:meteor")
         public String message;
     }
 
@@ -689,40 +863,118 @@ public class SoapXmlMappingTest {
         public String message;
     }
 
-    @MetXmlType(name = "MessageType", namespace = "urn:types")
+    @MetType(name = "MessageType")
+    @JacksonXmlRootElement(namespace = "urn:types")
     public static class NamedBean {
         public String message;
     }
 
-    @MetXmlType(propOrder = { "second", "first" })
     public static class OrderedBean {
-        @MetXmlElement(name = "a")
+        @MetField(name = "a")
+        @JsonProperty(index = 20)
         public String first;
-        @MetXmlElement(name = "b")
+        @MetField(name = "b")
+        @JsonProperty(index = 10)
         public String second;
     }
 
-    @MetXmlType(propOrder = { "missing" })
-    public static class UnknownOrderBean {
-        public String message;
-    }
-
-    @MetXmlType(propOrder = { "first" })
-    public static class IncompleteOrderBean {
+    @JsonPropertyOrder({ "third", "first", "second" })
+    public static class DefaultOrderBean {
         public String first;
+        @MetField
         public String second;
+        @MetField
+        @JsonProperty(index = 0)
+        public String third;
     }
 
-    @MetXmlType(propOrder = { "message", "message" })
-    public static class DuplicateOrderBean {
-        public String message;
+    @JsonPropertyOrder({ "second", "first", "third" })
+    public static class EqualOrderBean {
+        @MetField
+        @JsonProperty(index = 5)
+        public String first;
+        @MetField
+        @JsonProperty(index = 5)
+        public String second;
+        @MetField
+        @JsonProperty(index = 5)
+        public String third;
     }
 
-    @MetXmlType(propOrder = { "message" })
+    public static class NegativeOrderBean {
+        public String defaultValue;
+        @MetField
+        @JsonProperty(index = -10)
+        public String negativeValue;
+        @MetField
+        @JsonProperty(index = 10)
+        public String positiveValue;
+    }
+
+    public static class BoundaryOrderBean {
+        @MetField
+        @JsonProperty(index = Integer.MAX_VALUE)
+        public String maximum;
+        @MetField
+        @JsonProperty(index = Integer.MIN_VALUE)
+        public String minimum;
+        public String zero;
+    }
+
     public static class OrderedAttributeBean {
         public String message;
-        @MetXmlAttribute
-        public String language;
+        @JacksonXmlProperty(isAttribute = true)
+        @JsonProperty(index = 20)
+        public String first;
+        @JacksonXmlProperty(isAttribute = true)
+        @JsonProperty(index = -10)
+        public String second;
+        @JacksonXmlProperty(isAttribute = true)
+        public String third;
+    }
+
+    public static class OrderedTextBean {
+        @JacksonXmlText
+        @JsonProperty(index = 1)
+        public String text;
+        @JacksonXmlProperty(isAttribute = true)
+        @JsonProperty(index = 0)
+        public String before;
+        @JacksonXmlProperty(isAttribute = true)
+        @JsonProperty(index = 2)
+        public String after;
+    }
+
+    public static class ConflictingElementOrderAccessors {
+        @MetField
+        @JsonProperty(index = 1)
+        private String message;
+
+        @MetField
+        @JsonProperty(index = 2)
+        public String getMessage() {
+            return this.message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
+        }
+    }
+
+    public static class ConflictingAttributeOrderAccessors {
+        @JacksonXmlProperty(isAttribute = true)
+        @JsonProperty(index = 1)
+        private String message;
+
+        public String getMessage() {
+            return this.message;
+        }
+
+        @JacksonXmlProperty(isAttribute = true)
+        @JsonProperty(index = 2)
+        public void setMessage(String message) {
+            this.message = message;
+        }
     }
 
     public static class GenericCollectionBean {
@@ -730,53 +982,83 @@ public class SoapXmlMappingTest {
     }
 
     public static class PrivateFieldBean {
-        @MetXmlElement(name = "text")
+        @MetField(name = "text")
         private String message;
     }
 
     public static class RequiredElementBean {
-        @MetXmlElement(required = true, nillable = false)
+        @MetField
+        @JsonProperty(required = true)
+        @JsonSetter(nulls = Nulls.FAIL)
         public String message;
     }
 
     public static class AttributeBean {
-        @MetXmlAttribute(name = "code", namespace = "urn:attributes", required = true)
+        @MetField(name = "code")
+        @JacksonXmlProperty(isAttribute = true, namespace = "urn:attributes")
+        @JsonProperty(required = true)
         public String code;
     }
 
+    public static class ElementAttributeConflict {
+        @MetField(name = "code")
+        @JacksonXmlProperty(isAttribute = true)
+        public String value;
+    }
+
+    public static class FieldGetterKindConflict {
+        @MetField
+        @JacksonXmlProperty(isAttribute = false)
+        private String value;
+
+        @JacksonXmlProperty(isAttribute = true)
+        public String getValue() {
+            return this.value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
+        }
+    }
+
     public static class NamespaceDeclarationBean {
-        @MetXmlAttribute(name = "xmlns")
+        @MetField(name = "xmlns")
+        @JacksonXmlProperty(isAttribute = true)
         public String namespace;
     }
 
     public static class ReservedNamespaceBean {
-        @MetXmlElement(namespace = XMLConstants.XMLNS_ATTRIBUTE_NS_URI)
+        @MetField
+        @JacksonXmlProperty(namespace = XMLConstants.XMLNS_ATTRIBUTE_NS_URI)
         public String message;
     }
 
     public static class TextWithAttribute {
-        @MetXmlValue
+        @JacksonXmlText
         public String text;
-        @MetXmlAttribute
+        @JacksonXmlProperty(isAttribute = true)
         public String language;
     }
 
     public static class MixedContentBean {
-        @MetXmlValue
+        @JacksonXmlText
         public String text;
         public String message;
     }
 
     public static class DuplicateTextBean {
-        @MetXmlValue
+        @JacksonXmlText
         public String first;
-        @MetXmlValue
+        @JacksonXmlText
         public String second;
     }
 
     public static class WrappedCollectionBean {
-        @MetXmlElementWrapper(name = "messages", namespace = "urn:containers", required = true, nillable = false)
-        @MetXmlElement(name = "message", namespace = "urn:items")
+        @MetField(name = "message")
+        @JacksonXmlProperty(namespace = "urn:items")
+        @JacksonXmlElementWrapper(localName = "messages", namespace = "urn:items")
+        @JsonProperty(required = true)
+        @JsonSetter(nulls = Nulls.FAIL)
         public List<String> messages;
     }
 
@@ -785,45 +1067,57 @@ public class SoapXmlMappingTest {
     }
 
     public static class WrappedPrimitiveArrayBean {
-        @MetXmlElementWrapper(nillable = true)
-        @MetXmlElement(name = "value", nillable = false)
+        @MetField(name = "value")
+        @JacksonXmlElementWrapper(localName = "values")
+        @JsonSetter(nulls = Nulls.FAIL)
         public int[] values;
     }
 
-    public static class ScalarWrapperBean {
-        @MetXmlElementWrapper
-        public String message;
+    public static class JacksonWrappedCollectionBean {
+        @JacksonXmlElementWrapper(localName = "entries", namespace = "urn:legacy")
+        @MetField(name = "item")
+        public List<String> values;
+    }
+
+    public static class MeteorWrappedCollectionBean {
+        @JacksonXmlElementWrapper(localName = "entries", namespace = "urn:legacy")
+        @MetField(name = "item")
+        @JacksonXmlProperty(namespace = "urn:meteor")
+        public List<String> values;
     }
 
     public static class ComplexAttributeBean {
-        @MetXmlAttribute
+        @JacksonXmlProperty(isAttribute = true)
         public PlainBean value;
     }
 
     public static class NamespacedSiblings {
-        @MetXmlElement(name = "value", namespace = "urn:first")
+        @MetField(name = "value")
+        @JacksonXmlProperty(namespace = "urn:first")
         public String first;
-        @MetXmlElement(name = "value", namespace = "urn:second")
+        @MetField(name = "value")
+        @JacksonXmlProperty(namespace = "urn:second")
         public String second;
     }
 
     public static class DuplicateElementBean {
-        @MetXmlElement(name = "value")
+        @MetField(name = "value")
         public String first;
-        @MetXmlElement(name = "value")
+        @MetField(name = "value")
         public String second;
     }
 
     public static class ElementAndAttributeBean {
-        @MetXmlElement(name = "value")
+        @MetField(name = "value")
         public String element;
-        @MetXmlAttribute(name = "value")
+        @MetField(name = "value")
+        @JacksonXmlProperty(isAttribute = true)
         public String attribute;
     }
 
     public static class TransientBean {
         public String message;
-        @MetXmlTransient
+        @JsonIgnore
         public String localOnly;
     }
 
@@ -834,33 +1128,31 @@ public class SoapXmlMappingTest {
     }
 
     public static class MeteorOverridesIgnoreBean {
+        public String visible;
         @JsonIgnore
-        @MetXmlElement
+        @MetField
         public String message;
     }
 
     public static class TransientElementBean {
         public String message;
-        @MetXmlTransient
-        @MetXmlElement
+        @JsonIgnore
+        @MetField
         public String localOnly;
     }
 
     public static class MeteorOverridesReadOnlyBean {
         @JsonProperty(access = JsonProperty.Access.READ_ONLY)
-        @MetXmlElement
+        @MetField
         public String message;
     }
 
-    public static class GetterOnlyPartBean {
-        private final String state;
+    public record GetterOnlyPartBean(String state) {
 
-        public GetterOnlyPartBean(String state) {
-            this.state = state;
-        }
-
-        @MetXmlElement(name = "status", namespace = "urn:parts")
-        public String getState() {
+        @Override
+        @MetField(name = "status")
+        @JacksonXmlProperty(namespace = "urn:parts")
+        public String state() {
             return this.state;
         }
     }
@@ -879,11 +1171,15 @@ public class SoapXmlMappingTest {
     }
 
     public enum MeteorState {
-        @MetXmlEnumValue("ready-for-use") READY
+        @MetEnumValue(name = "ready-for-use") READY
     }
 
     public enum PlainState {
         READY
+    }
+
+    public enum AttributeState {
+        @JacksonXmlProperty(isAttribute = true) READY
     }
 
     public enum JacksonState {
@@ -891,12 +1187,24 @@ public class SoapXmlMappingTest {
     }
 
     public enum OverrideState {
-        @JsonProperty("jackson-ready") @MetXmlEnumValue("meteor-ready") READY
+        @JsonProperty("jackson-ready") @MetEnumValue(name = "meteor-ready") READY
+    }
+
+    public enum DefaultElementState {
+        @MetEnumValue READY
+    }
+
+    public enum EmptyOverrideState {
+        @JsonProperty("jackson-ready") @MetEnumValue(name = "") READY
+    }
+
+    public enum TextState {
+        @MetEnumValue(name = "ready to send") READY
     }
 
     public enum DuplicateState {
-        @MetXmlEnumValue("same") FIRST,
-        @MetXmlEnumValue("same") SECOND
+        @MetEnumValue(name = "same") FIRST,
+        @MetEnumValue(name = "same") SECOND
     }
 
     public enum CustomValueState {

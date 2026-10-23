@@ -7,16 +7,22 @@
  */
 package net.hasor.example.protocol.soap;
 import java.math.BigDecimal;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlAttribute;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlType;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlValue;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlText;
+import net.hasor.meteor.annotation.MetField;
+import net.hasor.meteor.annotation.MetType;
 
 /** XML simpleContent：金额保存为文本，币种保存为属性。 */
-@MetXmlType(name = "Amount", namespace = MetXmlOrder.TYPES, propOrder = { "value" })
+@MetType(name = "Amount")
+@JacksonXmlRootElement(namespace = MetXmlOrder.TYPES)
 public class MetXmlAmount {
-    @MetXmlValue
+    @JacksonXmlText
     private BigDecimal value;
-    @MetXmlAttribute(name = "currency", required = true)
+    @MetField(name = "currency")
+    @JacksonXmlProperty(isAttribute = true)
+    @JsonProperty(required = true)
     private String     currency;
 
     public BigDecimal getValue() {

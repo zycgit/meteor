@@ -16,38 +16,40 @@ import net.hasor.cobble.text.StringEscapeUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.protocol.soap.codec.SoapInboundResult;
 import net.hasor.meteor.protocol.soap.codec.SoapMessageCodec;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionResource;
+import net.hasor.meteor.protocol.soap.definition.SoapProtocolMeta;
 import net.hasor.meteor.utils.ContextPathUtils;
 
 /** SOAP 目录、服务端点和定义资源的内部 HTTP 路由；公开路径查询用于协议入口组装。 */
 public final class SoapEndpointRouter {
-    private final ProtocolConfig                                   config;
-    private final MetContext                                       context;
-    private final InterAddress                                     bindAddress;
-    private final SoapMessageCodec                                 codec;
-    private final Function<MetBindInfo<?>, SoapDefinitionResource> resources;
-    private final String                                           directoryPath;
+    private final ProtocolConfig                             config;
+    private final RouteMountIndex                            routes;
+    private final MetContext                                 context;
+    private final InterAddress                               bindAddress;
+    private final Function<MetBindInfo<?>, SoapMessageCodec> codecs;
+    private final String                                     directoryPath;
 
-    SoapEndpointRouter(ProtocolConfig config, MetContext context, InterAddress bindAddress, //
-            SoapMessageCodec codec, Function<MetBindInfo<?>, SoapDefinitionResource> resources) {
+    SoapEndpointRouter(ProtocolConfig config, RouteMountIndex routes, MetContext context, //
+            InterAddress bindAddress, Function<MetBindInfo<?>, SoapMessageCodec> codecs) {
         this.config = config;
+        this.routes = routes;
         this.context = context;
         this.bindAddress = bindAddress;
-        this.codec = codec;
-        this.resources = resources;
-        this.directoryPath = SoapEndpointRouter.directoryPath(config);
+        this.codecs = codecs;
+        this.directoryPath = SoapEndpointRouter.directoryPath(config, routes);
     }
 
     /** 解析目录地址，供协议入口校验和内部路由共同使用。 */
-    public static String directoryPath(ProtocolConfig config) {
+    public static String directoryPath(ProtocolConfig config, RouteMountIndex routes) {
         boolean enabled = Boolean.parseBoolean(config.option("directoryEnabled", "false"));
         String path = config.option("directoryPath", null);
         if (!enabled || StringUtils.isBlank(path)) {
@@ -55,30 +57,30 @@ public final class SoapEndpointRouter {
         }
 
         String configured = ContextPathUtils.exactPath(path);
-        if (config.matchContext(configured) == null) {
+        if (routes.match(configured) == null) {
             throw new IllegalArgumentException("SOAP directoryPath must be inside a SOAP context: " + configured);
         }
         return configured;
     }
 
     /** 列出服务端点，供协议入口校验和内部路由共同使用。 */
-    public static List<String> serviceEndpoints(ProtocolConfig config, MetBindInfo<?> service) {
+    public static List<String> serviceEndpoints(RouteMountIndex routes, MetBindInfo<?> service) {
         if (service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
             return List.of();
         }
         String alias = service.getAliasName("soap");
-        if (!config.accepts(service.getBindProtocols()) || StringUtils.isBlank(alias)) {
+        if (!routes.accepts(service) || StringUtils.isBlank(alias)) {
             return List.of();
         }
 
-        Set<String> exact = config.exactPaths(service);
+        Set<String> exact = routes.exactPaths(service);
         if (!exact.isEmpty()) {
             return List.copyOf(exact);
         }
         List<String> paths = new ArrayList<>();
-        for (RouteMount mount : config.mountIndex().mounts()) {
+        for (RouteMount mount : routes.mounts()) {
             String endpoint = mount.prefix() + alias;
-            if (config.accepts(service, mount) && config.matchContext(endpoint) == mount) {
+            if (routes.accepts(service, mount) && routes.match(endpoint) == mount) {
                 paths.add(endpoint);
             }
         }
@@ -92,7 +94,7 @@ public final class SoapEndpointRouter {
         }
 
         RouteSelection route = request.route();
-        if (route == null || !StringUtils.equals(this.config.mountId(), route.mountId())) {
+        if (route == null || !StringUtils.equals(this.config.name(), route.protocolName())) {
             return SoapInboundResult.response(this.simple(404));
         }
 
@@ -100,7 +102,8 @@ public final class SoapEndpointRouter {
         if (service == null) {
             return SoapInboundResult.response(this.simple(404));
         }
-        SoapDefinitionResource resource = this.resources.apply(service);
+        SoapProtocolMeta definition = (SoapProtocolMeta) this.routes.binding(service).getDefinition();
+        SoapDefinitionResource resource = definition.resource();
 
         boolean get = StringUtils.equalsIgnoreCase(request.method(), "GET");
         boolean head = StringUtils.equalsIgnoreCase(request.method(), "HEAD");
@@ -108,7 +111,7 @@ public final class SoapEndpointRouter {
         if ((get || head) && (query == null || !query.startsWith("method="))) {
             return SoapInboundResult.response(this.definition(request, service, resource, route.mount(), head));
         }
-        return this.codec.receive(request, service, resource, requestId, requestTimeout);
+        return this.codecs.apply(service).receive(request, service, resource, requestId, requestTimeout);
     }
 
     private MetBindInfo<?> select(HttpRequest request, RouteMount mount) {
@@ -119,7 +122,7 @@ public final class SoapEndpointRouter {
             if (service == null || service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
                 continue;
             }
-            if (!this.config.accepts(service, mount)) {
+            if (!this.routes.accepts(service, mount)) {
                 continue;
             }
 
@@ -138,6 +141,19 @@ public final class SoapEndpointRouter {
     private HttpResponse directory(HttpRequest request) {
         if (this.directoryPath == null || !StringUtils.equals(this.directoryPath, this.path(request.uri()))) {
             return null;
+        }
+
+        // 目录只在实际访问时检查当前发布结果，动态发布不能遮蔽业务端点。
+        for (String id : this.context.getServiceIDs()) {
+            MetBindInfo<?> service = this.context.getServiceInfo(id);
+            if (service == null) {
+                continue;
+            }
+            List<String> endpoints = SoapEndpointRouter.serviceEndpoints(this.routes, service);
+            if (endpoints.contains(this.directoryPath)) {
+                String message = "SOAP service endpoint conflicts with directoryPath: ";
+                throw new IllegalArgumentException(message + this.directoryPath);
+            }
         }
 
         boolean get = StringUtils.equalsIgnoreCase(request.method(), "GET");
@@ -213,8 +229,8 @@ public final class SoapEndpointRouter {
             if (service == null) {
                 continue;
             }
-            Map<String, String> selected = this.config.exactPaths(service).isEmpty() ? services : exactServices;
-            for (String endpoint : SoapEndpointRouter.serviceEndpoints(this.config, service)) {
+            Map<String, String> selected = this.routes.exactPaths(service).isEmpty() ? services : exactServices;
+            for (String endpoint : SoapEndpointRouter.serviceEndpoints(this.routes, service)) {
                 selected.put(endpoint, service.getAliasName("soap"));
             }
         }

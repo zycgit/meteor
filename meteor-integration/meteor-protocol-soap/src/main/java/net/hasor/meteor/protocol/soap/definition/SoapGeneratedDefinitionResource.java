@@ -23,12 +23,15 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.MetMessage;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.domain.MetRuntimeUtils;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlElement;
+import net.hasor.meteor.domain.ProtocolConfig;
+import net.hasor.meteor.domain.meta.ParameterMeta;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -45,20 +48,11 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
     private final        boolean               bare;
     private final        SoapSchemaParser      schemas;
 
-    SoapGeneratedDefinitionResource(MetBindInfo<?> service, ProtocolConfig config) {
+    SoapGeneratedDefinitionResource(MetBindInfo<?> service, ProtocolConfig config, XmlMapper mapper) {
         SoapVersion version = SoapVersion.from(config);
-        this.style = this.option(config, "soapStyle", "document", Set.of("document", "rpc"));
-        this.use = this.option(config, "soapUse", "literal", Set.of("literal", "encoded"));
-        boolean encodedDocument = StringUtils.equals("document", this.style) && StringUtils.equals("encoded", this.use);
-        String defaultParameters = encodedDocument ? "bare" : "wrapped";
-        String parameters = this.option(config, "soapParameterStyle", defaultParameters, Set.of("wrapped", "bare"));
-        this.bare = StringUtils.equals("bare", parameters);
-        if (StringUtils.equals("rpc", this.style) && this.bare) {
-            throw new IllegalArgumentException("RPC SOAP style requires wrapped parameters");
-        }
-        if (encodedDocument && !this.bare) {
-            throw new IllegalArgumentException("Document encoded SOAP requires bare parameters");
-        }
+        this.style = config.option("soapStyle", "document");
+        this.use = config.option("soapUse", "literal");
+        this.bare = StringUtils.equals("bare", SoapDefinitionResource.parameterStyle(config));
         String alias = service.getAliasName("soap");
         this.wsdl = SoapXmlUtils.newDocument();
         SoapXmlUtils.requireName(this.wsdl, alias, "SOAP service alias");
@@ -68,17 +62,19 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         Method[] methods = MetRuntimeUtils.getServiceMethods(service.getBindType());
         Arrays.sort(methods, Comparator.comparing(Method::getName));
         SoapVersion encodingVersion = StringUtils.equals("encoded", this.use) ? version : null;
-        SoapSchemaGenerator schemaGenerator = new SoapSchemaGenerator(namespace, encodingVersion);
+        SoapSchemaGenerator schemaGenerator = new SoapSchemaGenerator(namespace, encodingVersion, mapper);
         Set<String> names = new HashSet<>();
         Set<String> wrappers = new HashSet<>();
         List<SoapOperation> operations = new ArrayList<>();
+
         for (Method method : methods) {
-            String name = method.getName();
+            String name = MetRuntimeUtils.getProtocolMethodName(method);
             SoapXmlUtils.requireName(this.wsdl, name, "SOAP operation");
             if (!names.add(name)) {
                 throw new IllegalArgumentException("SOAP service does not support overloaded method: " + name);
             }
-            boolean oneWay = service.isMessage() || method.isAnnotationPresent(MetMessage.class);
+
+            boolean oneWay = service.isMessage() || ServiceMetaParser.method(method).isMessage();
             if (oneWay && method.getReturnType() != void.class) {
                 throw new IllegalArgumentException("SOAP one-way method must return void: " + name);
             }
@@ -88,7 +84,8 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
                     this.requireWrapper(wrappers, name + "Response");
                 }
             }
-            schemaGenerator.operation(method, oneWay);
+
+            schemaGenerator.operation(service.getBindType(), method, oneWay);
             SoapBody input = this.generatedBody(schemaGenerator, namespace, method, false, version, wrappers);
             SoapBody output = oneWay ? null //
                     : this.generatedBody(schemaGenerator, namespace, method, true, version, wrappers);
@@ -116,6 +113,11 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
     @Override
     public SoapDefinition definition() {
         return this.definition;
+    }
+
+    @Override
+    public ObjectNode describeSchemas() {
+        return this.schemas.describeSchemas();
     }
 
     @Override
@@ -148,6 +150,7 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
             this.rewriteSchemaLocations(document, this.endpoint(endpoint));
             return serialize(document);
         }
+
         Set<String> standards = Set.of("xml-namespace.xsd", "soap-encoding-1.1.xsd", "soap-encoding-1.2.xsd");
         if (standards.contains(name)) {
             String resourceName = "/META-INF/meteor/protocol/soap/" + name;
@@ -165,6 +168,7 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         if (endpoint == null || !endpoint.isAbsolute() || endpoint.isOpaque()) {
             throw new IOException("SOAP endpoint must be an absolute hierarchical URI.");
         }
+
         try {
             return new URI(endpoint.getScheme(), endpoint.getAuthority(), endpoint.getPath(), null, null);
         } catch (URISyntaxException failure) {
@@ -184,17 +188,9 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         }
     }
 
-    private String option(ProtocolConfig config, String name, String defaultValue, Set<String> values) {
-        String selected = config.option(name, defaultValue);
-        if (!values.contains(selected)) {
-            throw new IllegalArgumentException("Unsupported SOAP " + name + ": " + selected);
-        }
-        return selected;
-    }
-
     private SoapBody generatedBody(SoapSchemaGenerator generator, String namespace, Method method, boolean output, //
             SoapVersion version, Set<String> names) {
-        String operation = method.getName();
+        String operation = MetRuntimeUtils.getProtocolMethodName(method);
         Document schemaDocument = generator.document();
         String wrapperName = output ? operation + "Response" : operation;
         Element schema = schemaDocument.getDocumentElement();
@@ -217,20 +213,23 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
             if (!(node instanceof Element element)) {
                 continue;
             }
+
             QName valueName = generator.elementName(element);
             QName type = generator.elementType(element);
             String name = valueName.getLocalPart();
             if (this.bare) {
-                MetXmlElement annotation;
+                boolean explicitName;
                 if (output) {
-                    annotation = method.getAnnotation(MetXmlElement.class);
+                    String annotation = ServiceMetaParser.method(method).getReturnName();
+                    explicitName = annotation != null && !annotation.isEmpty();
                 } else {
-                    annotation = method.getParameters()[parameter].getAnnotation(MetXmlElement.class);
+                    ParameterMeta annotation = ServiceMetaParser.parameter(method.getParameters()[parameter]);
+                    explicitName = !annotation.getDeclaredName().isEmpty();
                 }
-                boolean explicitName = false;
-                if (annotation != null) {
-                    explicitName = !annotation.name().isEmpty() || !annotation.namespace().isEmpty();
-                }
+
+                JacksonXmlProperty xml = output ? method.getAnnotation(JacksonXmlProperty.class) //
+                        : method.getParameters()[parameter].getAnnotation(JacksonXmlProperty.class);
+                explicitName |= xml != null && !xml.namespace().isEmpty();
                 if (!explicitName) {
                     String globalName = output ? operation + "Result" : operation + "Arg" + parameter;
                     this.requireWrapper(names, globalName);
@@ -241,14 +240,17 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
                     name = valueName.getLocalPart();
                 }
             }
+
             int minimum = StringUtils.equals("0", element.getAttribute("minOccurs")) ? 0 : 1;
             parts.add(new SoapPart(name, valueName, type, minimum, 1));
             parameter++;
         }
+
         QName bodyWrapper = this.bare ? null : new QName(namespace, wrapperName);
         if (this.bare || StringUtils.equals("rpc", this.style)) {
             schema.removeChild(wrapper);
         }
+
         String encoding = "";
         if (StringUtils.equals("encoded", this.use)) {
             encoding = version == SoapVersion.SOAP_11 //
@@ -294,6 +296,7 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
                 this.message(definitions, operation.name() + "Response", operation.outputBody());
             }
         }
+
         Element portType = SoapXmlUtils.append(definitions, WSDL_NAMESPACE, "wsdl:portType");
         portType.setAttribute("name", alias + "PortType");
         Element binding = SoapXmlUtils.append(definitions, WSDL_NAMESPACE, "wsdl:binding");
@@ -309,6 +312,7 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
             if (!operation.oneWay()) {
                 this.portMessage(portOperation, "output", operation.name() + "Response");
             }
+
             Element boundOperation = SoapXmlUtils.append(binding, WSDL_NAMESPACE, "wsdl:operation");
             boundOperation.setAttribute("name", operation.name());
             Element soapOperation = SoapXmlUtils.append(boundOperation, bindingNamespace, "soap:operation");
@@ -316,11 +320,13 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
             if (this.definition.version() == SoapVersion.SOAP_12) {
                 soapOperation.setAttribute("soapActionRequired", Boolean.toString(operation.actionRequired()));
             }
+
             this.boundBody(boundOperation, "input", operation.inputBody());
             if (!operation.oneWay()) {
                 this.boundBody(boundOperation, "output", operation.outputBody());
             }
         }
+
         Element service = SoapXmlUtils.append(definitions, WSDL_NAMESPACE, "wsdl:service");
         service.setAttribute("name", alias);
         Element port = SoapXmlUtils.append(service, WSDL_NAMESPACE, "wsdl:port");
@@ -338,6 +344,7 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
             part.setAttribute("element", "tns:" + body.wrapper().getLocalPart());
             return;
         }
+
         for (SoapPart value : body.parts()) {
             Element part = SoapXmlUtils.append(message, WSDL_NAMESPACE, "wsdl:part");
             part.setAttribute("name", value.name());
@@ -355,6 +362,7 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         if (namespace.isEmpty()) {
             return name.getLocalPart();
         }
+
         String prefix = definitions.lookupPrefix(namespace);
         if (prefix == null) {
             prefix = "ns" + definitions.getAttributes().getLength();
@@ -373,9 +381,11 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         String bindingNamespace = this.definition.version().bindingNamespace();
         Element body = SoapXmlUtils.append(content, bindingNamespace, "soap:body");
         body.setAttribute("use", description.use());
+
         if (StringUtils.equals("rpc", this.style) || description.encoded()) {
             body.setAttribute("namespace", this.definition.targetNamespace());
         }
+
         boolean document12 = this.definition.version() == SoapVersion.SOAP_12 //
                 && StringUtils.equals("document", this.style);
         if (!description.encodingStyle().isEmpty() && !document12) {

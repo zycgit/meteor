@@ -6,13 +6,13 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.protocol.soap.codec;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlAttribute;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlValue;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlText;
 
 /** simpleContent 的真实二进制文本可以作为附件，标量属性仍保持内联。 */
 public class MetXmlBinaryText {
-    @MetXmlValue
+    @JacksonXmlText
     public byte[] value;
-    @MetXmlAttribute
+    @JacksonXmlProperty(isAttribute = true)
     public byte[] signature;
 }

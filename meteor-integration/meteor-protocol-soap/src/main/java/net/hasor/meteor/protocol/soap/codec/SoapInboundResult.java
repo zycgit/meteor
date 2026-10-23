@@ -19,23 +19,25 @@ public final class SoapInboundResult {
     private final HttpResponse           response;
     private final MetBindInfo<?>         service;
     private final SoapDefinitionResource resource;
+    private final SoapMessageCodec       codec;
 
     private SoapInboundResult(RequestPayload request, SoapOperation operation, HttpResponse response, //
-            MetBindInfo<?> service, SoapDefinitionResource resource) {
+            MetBindInfo<?> service, SoapDefinitionResource resource, SoapMessageCodec codec) {
         this.request = request;
         this.operation = operation;
         this.response = response;
         this.service = service;
         this.resource = resource;
+        this.codec = codec;
     }
 
     static SoapInboundResult request(RequestPayload request, SoapOperation operation, //
-            MetBindInfo<?> service, SoapDefinitionResource resource) {
-        return new SoapInboundResult(request, operation, null, service, resource);
+            MetBindInfo<?> service, SoapDefinitionResource resource, SoapMessageCodec codec) {
+        return new SoapInboundResult(request, operation, null, service, resource, codec);
     }
 
     public static SoapInboundResult response(HttpResponse response) {
-        return new SoapInboundResult(null, null, response, null, null);
+        return new SoapInboundResult(null, null, response, null, null, null);
     }
 
     public RequestPayload request() {
@@ -52,6 +54,10 @@ public final class SoapInboundResult {
 
     public MetBindInfo<?> service() {
         return this.service;
+    }
+
+    public SoapMessageCodec codec() {
+        return this.codec;
     }
 
     public SoapDefinitionResource resource() {

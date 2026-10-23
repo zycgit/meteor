@@ -6,116 +6,135 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.soap;
-import java.lang.reflect.GenericArrayType;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.io.Writer;
 import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Flow;
+import java.util.function.Function;
 import java.util.function.ObjLongConsumer;
 import javax.xml.namespace.QName;
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.MetMessage;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.MetContext;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.MetRuntimeUtils;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.domain.ProtocolConfig;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 import net.hasor.meteor.domain.payload.Payload;
-import net.hasor.meteor.protocol.soap.channel.SoapEndpointRouter;
+import net.hasor.meteor.protocol.soap.annotation.SoapGet;
 import net.hasor.meteor.protocol.soap.channel.SoapSession;
 import net.hasor.meteor.protocol.soap.codec.SoapMessageCodec;
-import net.hasor.meteor.protocol.soap.definition.SoapDefinitionResource;
-import net.hasor.meteor.protocol.soap.definition.SoapOperation;
-import net.hasor.meteor.protocol.soap.definition.SoapPart;
-import net.hasor.meteor.protocol.soap.definition.SoapVersion;
+import net.hasor.meteor.protocol.soap.definition.*;
+import net.hasor.meteor.protocol.soap.mapping.SoapMethodTypes;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlProperty;
 
 /** SOAP 1.1/1.2 协议入口及 Java 服务映射校验。 */
-public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
-    private final XmlMapper                                                        xmlMapper  = SoapXmlMapping.newMapper();
-    private final SoapXmlMapping                                                   xmlMapping = new SoapXmlMapping(this.xmlMapper);
-    private final Map<ProtocolConfig, Map<MetBindInfo<?>, SoapDefinitionResource>> resources  = new ConcurrentHashMap<>();
-    private final Map<ProtocolConfig, SoapMessageCodec>                            codecs     = new ConcurrentHashMap<>();
-
+public final class SoapProtocol implements HttpProtocolProvider {
     @Override
     public String name() {
         return "soap";
     }
 
     @Override
-    public String transportType() {
-        return "http";
-    }
-
-    @Override
-    public String defaultSerializeType() {
+    public String defaultSerialize() {
         return "Xml";
     }
 
     @Override
-    public Class<HttpExchange> messageType() {
-        return HttpExchange.class;
-    }
-
-    @Override
-    public void validateService(ProtocolConfig config, MetBindInfo<?> service) {
+    public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        MetBindInfo<?> service = meta.getService();
         this.validateAttachments(config);
         String alias = service.getAliasName(this.name());
         if (StringUtils.isBlank(alias)) {
-            throw new IllegalArgumentException("SOAP service must declare a soap alias");
+            return null;
+        }
+        if (!this.supports(service)) {
+            return null;
         }
         if (!this.isPathSegment(alias)) {
             throw new IllegalArgumentException("SOAP service alias must be one URI path segment: " + alias);
         }
-        this.validateDirectoryPath(config, service);
-        SoapDefinitionResource resource = SoapDefinitionResource.create(config, service);
-        boolean externalDefinition = service.getBindResource() instanceof SoapDefinitionResource;
+        XmlMapper template = context == null ? null : context.getExtension(XmlMapper.class);
+        XmlMapper mapper = SoapXmlMapping.configuredMapper(template);
         SoapVersion version = SoapVersion.from(config);
+        boolean externalDefinition = meta.getBindResource() instanceof SoapDefinitionResource;
+        if (!externalDefinition) {
+            // 先区分无效选项和无法映射的签名，再进入 WSDL/XSD 生成。
+            SoapDefinitionResource.parameterStyle(config);
+            SoapVersion encoding = StringUtils.equals("encoded", config.option("soapUse", "literal")) ? version : null;
+            if (!this.supportsGeneratedTypes(service, encoding, mapper)) {
+                return null;
+            }
+        }
+        SoapDefinitionResource resource = SoapDefinitionResource.create(config, meta, mapper);
+
+        // 先确认方法集合，再准备一次 Java 访问和参数顺序映射。
+        for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
+            SoapOperation operation = resource.definition().operation(MetRuntimeUtils.getProtocolMethodName(method));
+            if (operation == null || operation.inputBody().parts().size() != method.getParameterCount()) {
+                return null;
+            }
+        }
+        SoapProtocolMeta prepared = new SoapProtocolMeta(resource, new SoapXmlMapping(mapper), service);
 
         // Java 方法和 WSDL operation 必须一一对应；重载无法映射到 SOAP operation 名称。
         Set<String> methods = new HashSet<>();
         for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
-            if (!methods.add(method.getName())) {
-                String message = "SOAP service does not support overloaded method: " + method.getName();
-                throw new IllegalArgumentException(message);
-            }
+            SoapMethodTypes methodTypes = prepared.types(method);
+            methods.add(MetRuntimeUtils.getProtocolMethodName(method));
 
-            SoapOperation operation = resource.definition().operation(method.getName());
-            if (operation == null) {
-                throw new IllegalArgumentException("WSDL operation not found for Java method: " + method.getName());
+            SoapOperation operation = resource.definition().operation(MetRuntimeUtils.getProtocolMethodName(method));
+            if (!this.supportsParts(operation.inputBody().parts(), prepared.wireParameterTypes(method), mapper)) {
+                return null;
             }
-            if (operation.inputBody().parts().size() != method.getParameterCount()) {
-                String message = "WSDL parameter count does not match Java method: " + method.getName();
-                throw new IllegalArgumentException(message);
-            }
-            this.requirePartTypes(operation.inputBody().parts(), method.getGenericParameterTypes(), method.getName());
             if (externalDefinition) {
                 SoapVersion encoding = operation.inputBody().encoded() ? version : null;
-                this.requireXmlTypes(method.getGenericParameterTypes(), encoding);
+                if (!this.supportsXmlTypes(methodTypes.getParameterTypes(), encoding, mapper)) {
+                    return null;
+                }
             }
             if (operation.oneWay() && method.getReturnType() != void.class) {
-                throw new IllegalArgumentException("SOAP one-way method must return void: " + method.getName());
+                return null;
             }
             boolean returnsValue = method.getReturnType() != void.class;
             boolean declaresResult = !operation.oneWay() && !operation.outputBody().parts().isEmpty();
             if (!operation.oneWay() && returnsValue != declaresResult) {
-                String message = "WSDL result does not match Java return type: " + method.getName();
-                throw new IllegalArgumentException(message);
+                return null;
             }
             if (declaresResult) {
-                Type[] resultTypes = SoapMessageCodec.resultTypes( //
-                        operation.outputBody(), method.getGenericReturnType());
-                this.requirePartTypes(operation.outputBody().parts(), resultTypes, method.getName());
+                Type[] resultTypes;
+                try {
+                    resultTypes = SoapMessageCodec.resultTypes( //
+                            operation.outputBody(), methodTypes.getReturnType(), mapper);
+                } catch (UnsupportedOperationException incompatibleResult) {
+                    // 合法 WSDL 的输出无法由当前 Java 返回类型承载，只拒绝此协议端点。
+                    return null;
+                }
+                if (!this.supportsParts(operation.outputBody().parts(), resultTypes, mapper)) {
+                    return null;
+                }
                 if (externalDefinition) {
                     SoapVersion encoding = operation.outputBody().encoded() ? version : null;
-                    this.requireXmlTypes(resultTypes, encoding);
+                    if (!this.supportsXmlTypes(resultTypes, encoding, mapper)) {
+                        return null;
+                    }
                 }
             }
-            boolean messageMode = service.isMessage() || method.isAnnotationPresent(MetMessage.class);
+            boolean messageMode = service.isMessage() || ServiceMetaParser.method(method).isMessage();
             if (method.isAnnotationPresent(SoapGet.class)) {
                 if (method.getParameterCount() != 0) {
                     String message = "SOAP GET method must not declare parameters: ";
@@ -127,43 +146,111 @@ public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
                 }
             }
             if (messageMode != operation.oneWay()) {
-                String message = "SOAP message mode does not match WSDL operation: " + method.getName();
-                throw new IllegalArgumentException(message);
+                return null;
             }
         }
 
         for (SoapOperation operation : resource.definition().operations()) {
             if (!methods.contains(operation.name())) {
-                throw new IllegalArgumentException("Java method not found for WSDL operation: " + operation.name());
+                return null;
             }
         }
-        this.cacheResource(config, service, resource);
+        // 定义与描述复用同一份准备结果，绑定只在全部映射成功后创建。
+        ObjectNode description = meta.createServiceDescription(config, this.defaultSerialize());
+        prepared.describeContract(description);
+        return meta.build(config, prepared, description);
     }
 
-    private void requireXmlTypes(Type[] types, SoapVersion encodingVersion) {
-        // 自动生成契约时已遍历类型图；外部 WSDL 同样要在发布前发现嵌套 DTO 的映射错误。
+    private boolean supports(MetBindInfo<?> service) {
+        Set<String> methods = new HashSet<>();
+        Set<String> javaNames = new HashSet<>();
+        for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
+            boolean duplicateJavaName = !javaNames.add(method.getName());
+            boolean duplicateRemoteName = !methods.add(MetRuntimeUtils.getProtocolMethodName(method));
+            boolean streamingResult = this.stream(method.getReturnType());
+            if (duplicateJavaName || duplicateRemoteName || streamingResult) {
+                return false;
+            }
+            if (method.getReturnType() == void.class && ServiceMetaParser.method(method).getReturnName() != null) {
+                throw new IllegalArgumentException("Void SOAP method cannot declare MetReturn: " + method);
+            }
+            boolean message = service.isMessage() || ServiceMetaParser.method(method).isMessage();
+            if (message && method.getReturnType() != void.class) {
+                return false;
+            }
+            for (Class<?> parameter : method.getParameterTypes()) {
+                if (this.stream(parameter)) {
+                    return false;
+                }
+            }
+        }
+        return !methods.isEmpty();
+    }
+
+    private boolean stream(Class<?> type) {
+        return Flow.Publisher.class.isAssignableFrom(type) || InputStream.class.isAssignableFrom(type) //
+                || OutputStream.class.isAssignableFrom(type) || Reader.class.isAssignableFrom(type) //
+                || Writer.class.isAssignableFrom(type);
+    }
+
+    private boolean supportsGeneratedTypes(MetBindInfo<?> service, SoapVersion encodingVersion, XmlMapper mapper) {
+        for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
+            SoapMethodTypes types = new SoapMethodTypes(mapper, service.getBindType(), method);
+            if (!this.supportsXmlTypes(types.getParameterTypes(), encodingVersion, mapper)) {
+                return false;
+            }
+            if (method.getReturnType() != void.class) {
+                Type[] result = { types.getReturnType() };
+                if (!this.supportsXmlTypes(result, encodingVersion, mapper)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private boolean supportsXmlTypes(Type[] types, SoapVersion encodingVersion, XmlMapper mapper) {
+        // 自动与外部契约共用类型图预检，生成前就拒绝无法承载的 Java 绑定。
+        SoapXmlMapping mapping = new SoapXmlMapping(mapper);
         Set<JavaType> visited = new HashSet<>();
         for (Type type : types) {
-            this.requireXmlType(this.xmlMapper.constructType(type), encodingVersion, visited);
+            if (!this.supportsXmlType(mapper.constructType(type), encodingVersion, visited, mapping)) {
+                return false;
+            }
         }
+        return true;
     }
 
-    private void requireXmlType(JavaType type, SoapVersion encodingVersion, Set<JavaType> visited) {
+    private boolean supportsXmlType(JavaType type, SoapVersion encodingVersion, //
+            Set<JavaType> visited, SoapXmlMapping mapping) {
+        if (encodingVersion != null && !mapping.supportsEncodedType(type)) {
+            return false;
+        }
         if (SoapXmlMapping.isScalar(type) || !visited.add(type)) {
-            return;
+            return true;
+        }
+        if (type.hasRawClass(Object.class)) {
+            return encodingVersion == null;
+        }
+        if (SoapXmlMapping.isMap(type)) {
+            if (encodingVersion != null) {
+                return false;
+            }
+            JavaType key = type.getKeyType();
+            if (key != null && !key.hasRawClass(String.class)) {
+                return false;
+            }
+            mapping.type(type);
+            return this.supportsXmlType(type.getContentType(), null, visited, mapping);
         }
         if (SoapXmlMapping.isCollection(type)) {
             JavaType content = type.getContentType();
-            if (content == null || content.hasRawClass(Object.class)) {
-                throw new IllegalArgumentException("SOAP collection elements require a concrete Java type");
+            if (encodingVersion != null && (content == null || content.hasRawClass(Object.class))) {
+                return false;
             }
-            if (encodingVersion == null && SoapXmlMapping.isCollection(content)) {
-                throw new IllegalArgumentException("Nested SOAP literal collections require an explicit DTO wrapper");
-            }
-            this.requireXmlType(content, encodingVersion, visited);
-            return;
+            return content == null || this.supportsXmlType(content, encodingVersion, visited, mapping);
         }
-        for (SoapXmlProperty property : this.xmlMapping.type(type).getProperties()) {
+        for (SoapXmlProperty property : mapping.type(type).getProperties()) {
             boolean literalShape = property.isText() || property.getWrapper() != null;
             if (encodingVersion != null && literalShape) {
                 throw new IllegalArgumentException("SOAP encoded values do not support XML text or element wrappers");
@@ -171,8 +258,11 @@ public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
             if (encodingVersion != null && property.isAttribute()) {
                 this.requireEncodedAttribute(property.getName(), encodingVersion);
             }
-            this.requireXmlType(property.getJavaType(), encodingVersion, visited);
+            if (!this.supportsXmlType(property.getJavaType(), encodingVersion, visited, mapping)) {
+                return false;
+            }
         }
+        return true;
     }
 
     private void requireEncodedAttribute(QName name, SoapVersion version) {
@@ -197,43 +287,20 @@ public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
         }
     }
 
-    private void validateDirectoryPath(ProtocolConfig config, MetBindInfo<?> service) {
-        String directory = SoapEndpointRouter.directoryPath(config);
-        if (directory == null) {
-            return;
-        }
-
-        // 目录与业务服务使用不同的入口，避免打开目录后遮蔽已有服务。
-        for (String endpoint : SoapEndpointRouter.serviceEndpoints(config, service)) {
-            if (StringUtils.equals(directory, endpoint)) {
-                throw new IllegalArgumentException("SOAP service endpoint conflicts with directoryPath: " + directory);
-            }
-        }
-    }
-
-    private void requirePartTypes(List<SoapPart> parts, Type[] types, String method) {
+    private boolean supportsParts(List<SoapPart> parts, Type[] types, XmlMapper mapper) {
         for (int index = 0; index < parts.size(); index++) {
             SoapPart part = parts.get(index);
+            JavaType javaType = mapper.constructType(types[index]);
             boolean repeated = part.maxOccurs() < 0 || part.maxOccurs() > 1;
-            if (repeated && !this.isRepeatedType(types[index])) {
-                String message = "Repeated SOAP part requires an array or collection: ";
-                throw new IllegalArgumentException(message + method + " -> " + part.name());
+            boolean repeatedType = javaType.isArrayType() || Collection.class.isAssignableFrom(javaType.getRawClass());
+            if (repeated && !repeatedType) {
+                return false;
             }
-            if (part.minOccurs() == 0 && !repeated && types[index] instanceof Class<?> type && type.isPrimitive()) {
-                String message = "Optional SOAP part requires a nullable Java type: ";
-                throw new IllegalArgumentException(message + method + " -> " + part.name());
+            if (part.minOccurs() == 0 && !repeated && javaType.isPrimitive()) {
+                return false;
             }
         }
-    }
-
-    private boolean isRepeatedType(Type type) {
-        if (type instanceof GenericArrayType) {
-            return true;
-        }
-        if (type instanceof ParameterizedType parameterized) {
-            type = parameterized.getRawType();
-        }
-        return type instanceof Class<?> raw && (raw.isArray() || Collection.class.isAssignableFrom(raw));
+        return true;
     }
 
     private boolean isPathSegment(String alias) {
@@ -253,43 +320,22 @@ public final class SoapProtocol implements ProtocolFactory<HttpExchange> {
     }
 
     @Override
-    public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
-        return RouteProbeResult.REJECT;
-    }
-
-    @Override
     public ProtocolSession<HttpExchange> createSession(ProtocolConfig config, ProtocolSessionContext context, //
             NetworkChannel<HttpExchange> connection, ObjLongConsumer<Payload> messages) {
-        SoapMessageCodec codec = this.codecs.computeIfAbsent(config, value -> //
-                new SoapMessageCodec(value, context.metContext().getExtension(SoapHeaderHandler.class)));
-        return new SoapSession(config, context, connection, messages, codec, //
-                service -> this.resource(config, service));
-    }
-
-    private SoapDefinitionResource resource(ProtocolConfig config, MetBindInfo<?> service) {
-        Map<MetBindInfo<?>, SoapDefinitionResource> byService = this.resourceCache(config);
-        synchronized (byService) {
-            this.removePreviousDeclaration(byService, service);
-            return byService.computeIfAbsent(service, value -> SoapDefinitionResource.create(config, value));
-        }
-    }
-
-    private void cacheResource(ProtocolConfig config, MetBindInfo<?> service, SoapDefinitionResource resource) {
-        Map<MetBindInfo<?>, SoapDefinitionResource> byService = this.resourceCache(config);
-        synchronized (byService) {
-            this.removePreviousDeclaration(byService, service);
-            byService.put(service, resource);
-        }
-    }
-
-    private Map<MetBindInfo<?>, SoapDefinitionResource> resourceCache(ProtocolConfig config) {
-        return this.resources.computeIfAbsent(config, value -> new WeakHashMap<>());
-    }
-
-    private void removePreviousDeclaration(Map<MetBindInfo<?>, SoapDefinitionResource> byService, //
-            MetBindInfo<?> service) {
-        // 重新发布同一服务时淘汰旧声明，缓存只随当前声明和协议挂载存在。
-        byService.keySet().removeIf(previous -> previous != service //
-                && StringUtils.equals(previous.getBindID(), service.getBindID()));
+        SoapHeaderHandler headerHandler = context.metContext().getExtension(SoapHeaderHandler.class);
+        XmlMapper template = context.metContext().getExtension(XmlMapper.class);
+        SoapMessageCodec fallback = SoapMessageCodec.newFaults(config, context.routes(), //
+                headerHandler, new SoapXmlMapping(SoapXmlMapping.configuredMapper(template)));
+        // 缓存跟随已提交的端点绑定更新；编码器只持有定义，不反向持有作为弱键的绑定。
+        // 在途请求独立持有原编码器，新请求在资源更新后取得新绑定对应的编码器。
+        Map<ProtocolBinding, SoapMessageCodec> mounted = new WeakHashMap<>();
+        Function<MetBindInfo<?>, SoapMessageCodec> codecs = service -> {
+            ProtocolBinding binding = context.routes().binding(service);
+            return mounted.computeIfAbsent(binding, accepted -> {
+                SoapProtocolMeta definition = (SoapProtocolMeta) accepted.getDefinition();
+                return SoapMessageCodec.newService(config, context.routes(), headerHandler, definition);
+            });
+        };
+        return new SoapSession(config, context, connection, messages, fallback, codecs);
     }
 }

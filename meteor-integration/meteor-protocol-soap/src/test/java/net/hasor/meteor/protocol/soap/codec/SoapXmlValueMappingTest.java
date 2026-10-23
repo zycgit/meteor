@@ -10,20 +10,44 @@ import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.util.*;
 import javax.xml.XMLConstants;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import net.hasor.example.protocol.soap.MetXmlAmount;
 import net.hasor.example.protocol.soap.MetXmlOrder;
 import net.hasor.example.protocol.soap.MetXmlState;
 import net.hasor.example.protocol.soap.codec.MetXmlBinaryText;
 import net.hasor.example.protocol.soap.codec.MetXmlEncodedValue;
 import net.hasor.example.protocol.soap.codec.MetXmlNullableValue;
+import net.hasor.meteor.annotation.MetField;
 import net.hasor.meteor.protocol.soap.definition.SoapXmlUtils;
+import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import static org.junit.Assert.*;
 
 public class SoapXmlValueMappingTest {
+    @Test
+    public void literalPropertiesFollowAscendingNumericOrder() throws Exception {
+        // 声明顺序不同于 order，未标注的 middle 按默认 0 排列。
+        SoapLiteralValueCodec codec = this.codec();
+        Element target = this.target();
+        NumericOrderValue value = new NumericOrderValue();
+        value.last = "last";
+        value.first = "first";
+        value.middle = "middle";
+
+        // 实际 XML 子元素顺序与数字升序一致。
+        codec.write(target, NumericOrderValue.class, value, new LinkedHashMap<>());
+        assertEquals(3, target.getChildNodes().getLength());
+        assertEquals("first", target.getChildNodes().item(0).getLocalName());
+        assertEquals("middle", target.getChildNodes().item(1).getLocalName());
+        assertEquals("last", target.getChildNodes().item(2).getLocalName());
+    }
+
     @Test
     public void literalSiblingsKeepTheirDistinctNamespaceIdentities() throws Exception {
         // 两个业务字段具有相同 localName，完整 QName 不同。
@@ -109,7 +133,7 @@ public class SoapXmlValueMappingTest {
 
     @Test
     public void literalWrappedNullCollectionRemainsNull() throws Exception {
-        // 集合容器允许 nil，成员的可空性与容器无关。
+        // 集合容器和成员共享可空设置，容器自身可以为 nil。
         SoapLiteralValueCodec codec = this.codec();
         Element target = this.target();
         MetXmlOrder value = this.order();
@@ -141,13 +165,27 @@ public class SoapXmlValueMappingTest {
         SoapLiteralValueCodec codec = this.codec();
         Element target = this.target();
         MetXmlOrder value = this.order();
-        value.setLines(Arrays.asList((String) null));
+        value.setLines(Collections.singletonList((String) null));
 
         // 单个 null 成员与 nil 容器、空容器保持区别。
         codec.write(target, MetXmlOrder.class, value, new LinkedHashMap<>());
         List<String> decoded = ((MetXmlOrder) codec.read(target, MetXmlOrder.class)).getLines();
         assertEquals(1, decoded.size());
         assertNull(decoded.get(0));
+    }
+
+    @Test
+    public void literalRequiredNillableWrapperCanRepresentANullCollection() throws Exception {
+        // required 要求容器出现，nillable 仍允许容器表示 null 集合。
+        SoapLiteralValueCodec codec = this.codec();
+        Element target = this.target();
+        RequiredNillableCollection value = new RequiredNillableCollection();
+
+        // nil 容器与非 nil 的空容器使用不同规则，null 可以双向还原。
+        codec.write(target, RequiredNillableCollection.class, value, new LinkedHashMap<>());
+        Element wrapper = (Element) target.getElementsByTagName("entries").item(0);
+        assertEquals("true", wrapper.getAttributeNS(XMLConstants.W3C_XML_SCHEMA_INSTANCE_NS_URI, "nil"));
+        assertNull(((RequiredNillableCollection) codec.read(target, RequiredNillableCollection.class)).entries);
     }
 
     @Test
@@ -192,16 +230,102 @@ public class SoapXmlValueMappingTest {
 
     @Test
     public void literalEmptyWrapperCannotSatisfyARequiredItem() {
-        // 容器允许为空引用，但出现的容器要求至少一个成员。
+        // required 同时要求容器存在且至少包含一个成员。
         SoapLiteralValueCodec codec = this.codec();
         Element target = this.target();
         MetXmlNullableValue value = new MetXmlNullableValue();
         value.entries = List.of();
 
-        // required 成员约束独立于容器的 required 约束。
+        // 空容器不能满足共享的 required 约束。
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
                 () -> codec.write(target, MetXmlNullableValue.class, value, new LinkedHashMap<>()));
         assertTrue(failure.getMessage().contains("entry"));
+    }
+
+    @Test
+    public void literalMissingRequiredWrapperIsRejected() {
+        // 普通 required 字段存在，但省略 required 集合容器。
+        SoapLiteralValueCodec codec = this.codec();
+        Element target = this.target();
+        SoapXmlUtils.append(target, "", "required").setTextContent("present");
+
+        // 夹具中的集合默认值不能掩盖传入报文缺少容器的问题。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> codec.read(target, MetXmlNullableValue.class));
+        assertTrue(failure.getMessage().contains("wrapper"));
+    }
+
+    @Test
+    public void literalEmptyRequiredWrapperIsRejectedWhenReading() {
+        // required 集合容器已经出现，但没有任何 entry。
+        SoapLiteralValueCodec codec = this.codec();
+        Element target = this.target();
+        SoapXmlUtils.append(target, "", "required").setTextContent("present");
+        SoapXmlUtils.append(target, "", "entries");
+
+        // 解码同样要求至少一项，不能用空容器满足 required。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> codec.read(target, MetXmlNullableValue.class));
+        assertTrue(failure.getMessage().contains("entry"));
+    }
+
+    @Test
+    public void literalRequiredNonNillableNullWrapperIsRejectedWhenWriting() {
+        // 集合必须存在且禁止 nil，无法将 null 引用编码为合法容器。
+        SoapLiteralValueCodec codec = this.codec();
+        Element target = this.target();
+        MetXmlNullableValue value = new MetXmlNullableValue();
+        value.entries = null;
+
+        // nillable=false 直接作用于容器。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> codec.write(target, MetXmlNullableValue.class, value, new LinkedHashMap<>()));
+        assertTrue(failure.getMessage().contains("wrapper"));
+    }
+
+    @Test
+    public void literalNonNillableWrapperRejectsExplicitNil() {
+        // 接收报文显式将受 nillable=false 约束的容器设为 nil。
+        SoapLiteralValueCodec codec = this.codec();
+        Element target = this.target();
+        SoapXmlUtils.append(target, "", "required").setTextContent("present");
+        Element wrapper = SoapXmlUtils.append(target, "", "entries");
+        wrapper.setAttributeNS(XMLConstants.W3C_XML_SCHEMA_INSTANCE_NS_URI, "xsi:nil", "true");
+
+        // RPC/literal 未运行文档 Schema 校验时仍执行共享约束。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> codec.read(target, MetXmlNullableValue.class));
+        assertTrue(failure.getMessage().contains("nillable"));
+    }
+
+    @Test
+    public void literalNonNillableCollectionRejectsANilItemWhenWriting() {
+        // 同一个 nillable=false 也约束容器中的 entry。
+        SoapLiteralValueCodec codec = this.codec();
+        Element target = this.target();
+        MetXmlNullableValue value = new MetXmlNullableValue();
+        value.entries = Collections.singletonList((String) null);
+
+        // 非空集合中的 null 成员不能被写成 xsi:nil。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> codec.write(target, MetXmlNullableValue.class, value, new LinkedHashMap<>()));
+        assertTrue(failure.getMessage().contains("nillable"));
+    }
+
+    @Test
+    public void literalNonNillableCollectionRejectsANilItemWhenReading() {
+        // 容器非 nil，但内部条目显式声明为 nil。
+        SoapLiteralValueCodec codec = this.codec();
+        Element target = this.target();
+        SoapXmlUtils.append(target, "", "required").setTextContent("present");
+        Element wrapper = SoapXmlUtils.append(target, "", "entries");
+        Element item = SoapXmlUtils.append(wrapper, "", "entry");
+        item.setAttributeNS(XMLConstants.W3C_XML_SCHEMA_INSTANCE_NS_URI, "xsi:nil", "true");
+
+        // 解码不能接受与共享 nillable 约束冲突的成员。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> codec.read(target, MetXmlNullableValue.class));
+        assertTrue(failure.getMessage().contains("nillable"));
     }
 
     @Test
@@ -264,10 +388,10 @@ public class SoapXmlValueMappingTest {
         MetXmlEncodedValue value = new MetXmlEncodedValue();
         value.next = value;
 
-        // 明确失败而不是发生栈溢出；Encoding 对象图由另一组测试覆盖。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+        // Jackson 明确拒绝自身引用而不是发生栈溢出；encoded 对象图由另一组测试覆盖。
+        JsonMappingException failure = assertThrows(JsonMappingException.class, //
                 () -> codec.write(target, MetXmlEncodedValue.class, value, new LinkedHashMap<>()));
-        assertTrue(failure.getMessage().contains("circular"));
+        assertTrue(failure.getMessage().contains("self-reference"));
     }
 
     @Test
@@ -320,7 +444,7 @@ public class SoapXmlValueMappingTest {
     }
 
     private SoapLiteralValueCodec codec() {
-        return new SoapLiteralValueCodec(SoapMessageCodec.newXmlMapper());
+        return new SoapLiteralValueCodec(new SoapXmlMapping(SoapMessageCodec.newXmlMapper()));
     }
 
     private MetXmlOrder order() {
@@ -337,5 +461,27 @@ public class SoapXmlValueMappingTest {
         Element target = document.createElementNS("urn:test:xml", "value");
         document.appendChild(target);
         return target;
+    }
+
+    public static class RequiredNillableCollection {
+        @MetField(name = "entry")
+        @JacksonXmlElementWrapper(localName = "entries")
+        @JsonProperty(required = true)
+        public List<String> entries;
+    }
+
+    public static class UserValue {
+        @JacksonXmlProperty(isAttribute = true)
+        public String id;
+    }
+
+    public static class NumericOrderValue {
+        @MetField
+        @JsonProperty(index = 20)
+        public String last;
+        @MetField
+        @JsonProperty(index = -10)
+        public String first;
+        public String middle;
     }
 }

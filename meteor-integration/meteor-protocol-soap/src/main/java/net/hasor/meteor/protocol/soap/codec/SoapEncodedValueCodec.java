@@ -18,7 +18,7 @@ import javax.xml.namespace.QName;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlType;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 import net.hasor.meteor.protocol.soap.definition.SoapVersion;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlProperty;
@@ -47,10 +47,10 @@ final class SoapEncodedValueCodec {
                 Double.class, BigInteger.class, BigDecimal.class, Date.class);
     }
 
-    SoapEncodedValueCodec(SoapVersion version, XmlMapper mapper) {
+    SoapEncodedValueCodec(SoapVersion version, SoapXmlMapping mapping) {
         this.version = version;
-        this.mapper = mapper;
-        this.mapping = new SoapXmlMapping(mapper);
+        this.mapper = mapping.mapper();
+        this.mapping = mapping;
     }
 
     Encoder encoder(Document document, Element body) {
@@ -106,12 +106,23 @@ final class SoapEncodedValueCodec {
 
         private void writeAccessor(Element accessor, QName declaredXmlType, //
                 JavaType declaredJavaType, Object value) throws Exception {
+            if (SoapXmlMapping.isMap(declaredJavaType) || value instanceof Map<?, ?>) {
+                String reason = "dynamic Map mappings are not supported";
+                throw SoapEncodedValueCodec.this.unsupported(declaredJavaType, reason);
+            }
+            if (!declaredJavaType.hasRawClass(Object.class)) {
+                // Encoding 仍直接维护 id/href 对象图，不能绕过 Jackson creator 或自定义绑定规则。
+                SoapEncodedValueCodec.this.mapping.requireEncodedType(declaredJavaType);
+            }
             if (value == null) {
                 this.writeNil(accessor, declaredXmlType);
                 return;
             }
 
             JavaType valueType = SoapEncodedValueCodec.this.valueType(declaredJavaType, value);
+            if (!valueType.equals(declaredJavaType)) {
+                SoapEncodedValueCodec.this.mapping.requireEncodedType(valueType);
+            }
             boolean scalar = SoapEncodedValueCodec.this.scalar(valueType);
             boolean referenceScalar = SoapEncodedValueCodec.this.referenceScalar(valueType);
             if (scalar && !referenceScalar) {
@@ -214,7 +225,7 @@ final class SoapEncodedValueCodec {
                     QName name = property.getName();
                     String qualified = SoapEncodedValueCodec.this.qName(target, name);
                     String text = SoapEncodedValueCodec.this.scalarText(propertyValue);
-                    target.setAttributeNS(name.getNamespaceURI(), qualified, text);
+                    SoapXmlOutputUtils.attribute(target, name, qualified, text);
                     continue;
                 }
                 if (propertyValue == null && !property.isNillable()) {
@@ -320,6 +331,11 @@ final class SoapEncodedValueCodec {
         }
 
         private Object readValue(Element element, QName declaredXmlType, JavaType javaType) throws Exception {
+            if (SoapXmlMapping.isMap(javaType)) {
+                throw SoapEncodedValueCodec.this.unsupported(javaType, "dynamic Map mappings are not supported");
+            }
+            // 在 nil、共享引用缓存和空构造之前检查，避免不支持的绑定退化成晚期反射错误。
+            SoapEncodedValueCodec.this.mapping.requireEncodedType(javaType);
             String id = this.id(element);
             if (id != null && this.values.containsKey(id)) {
                 return this.values.get(id);
@@ -1015,7 +1031,7 @@ final class SoapEncodedValueCodec {
     }
 
     private QName namedXmlType(JavaType type) {
-        if (!type.getRawClass().isAnnotationPresent(MetXmlType.class)) {
+        if (!ServiceMetaParser.type(type.getRawClass()).isDeclared()) {
             return null;
         }
         SoapXmlType xml = this.mapping.type(type);
@@ -1186,8 +1202,11 @@ final class SoapEncodedValueCodec {
     }
 
     private void requireEncodedProperty(SoapXmlProperty property) {
+        if (SoapXmlMapping.isMap(property.getJavaType())) {
+            throw this.unsupported(property.getJavaType(), "dynamic Map mappings are not supported");
+        }
         if (property.isText() || property.getWrapper() != null) {
-            String reason = "SOAP Encoding does not support XML text or collection wrapper properties";
+            String reason = "SOAP Encoding does not support XML text or element wrapper properties";
             throw new IllegalArgumentException(reason);
         }
         QName name = property.getName();

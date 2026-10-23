@@ -10,7 +10,7 @@ import java.util.Set;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** SOAP 消息、HTTP 媒体类型和 WSDL binding 的共同版本。 */
 public enum SoapVersion {

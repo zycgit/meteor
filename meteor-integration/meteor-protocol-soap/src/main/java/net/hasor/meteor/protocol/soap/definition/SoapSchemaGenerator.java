@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.soap.definition;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.math.BigDecimal;
@@ -13,10 +14,17 @@ import java.math.BigInteger;
 import java.util.*;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlElement;
+import net.hasor.meteor.domain.MetRuntimeUtils;
+import net.hasor.meteor.domain.meta.ParameterMeta;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
+import net.hasor.meteor.protocol.soap.mapping.SoapMethodTypes;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlProperty;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlType;
@@ -24,11 +32,11 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
-/** 共用运行期 XML 属性模型，生成完整 QName、属性和集合包装的 XML Schema。 */
+/** 共用运行期 XML 属性模型，生成完整 QName、属性和元素包装的 XML Schema。 */
 final class SoapSchemaGenerator {
     private static final String                XSD_NAMESPACE = SoapWsdlParser.XSD_NAMESPACE;
-    private final        XmlMapper             mapper        = SoapXmlMapping.newMapper();
-    private final        SoapXmlMapping        mapping       = new SoapXmlMapping(this.mapper);
+    private final        XmlMapper             mapper;
+    private final        SoapXmlMapping        mapping;
     private final        String                namespace;
     private final        SoapVersion           encodingVersion;
     private final        Map<String, Document> schemas       = new LinkedHashMap<>();
@@ -38,7 +46,9 @@ final class SoapSchemaGenerator {
     private final        Map<QName, String>    elements      = new LinkedHashMap<>();
     private final        Map<QName, QName>     attributes    = new LinkedHashMap<>();
 
-    SoapSchemaGenerator(String namespace, SoapVersion encodingVersion) {
+    SoapSchemaGenerator(String namespace, SoapVersion encodingVersion, XmlMapper mapper) {
+        this.mapper = mapper;
+        this.mapping = new SoapXmlMapping(mapper);
         this.namespace = namespace;
         this.encodingVersion = encodingVersion;
         this.schema(namespace);
@@ -56,35 +66,40 @@ final class SoapSchemaGenerator {
         return documents;
     }
 
-    void operation(Method method, boolean oneWay) {
-        // 未标注的方法继续使用稳定的 argN/return 名称，不依赖编译器保存形参名。
-        Element input = this.wrapper(method.getName());
+    void operation(Class<?> serviceType, Method method, boolean oneWay) {
+        String operation = MetRuntimeUtils.getProtocolMethodName(method);
+        Element input = this.wrapper(operation);
         Parameter[] parameters = method.getParameters();
+        SoapMethodTypes methodTypes = new SoapMethodTypes(this.mapper, serviceType, method);
+        JavaType[] parameterTypes = methodTypes.getParameterTypes();
         for (int index = 0; index < parameters.length; index++) {
-            Parameter parameter = parameters[index];
-            JavaType type = this.mapper.constructType(parameter.getParameterizedType());
-            this.operationValue(input, "arg" + index, type, parameter.getAnnotation(MetXmlElement.class));
+            ParameterMeta annotation = ServiceMetaParser.parameter(parameters[index]);
+            String name = annotation.getDeclaredName().isEmpty() ? "arg" + index : annotation.getDeclaredName();
+            this.operationValue(input, name, parameterTypes[index], parameters[index]);
         }
+
         if (!oneWay) {
-            Element output = this.wrapper(method.getName() + "Response");
+            Element output = this.wrapper(operation + "Response");
             if (method.getReturnType() != void.class) {
-                JavaType type = this.mapper.constructType(method.getGenericReturnType());
-                this.operationValue(output, "return", type, method.getAnnotation(MetXmlElement.class));
+                String annotation = ServiceMetaParser.method(method).getReturnName();
+                String name = annotation == null ? "return" : annotation;
+                this.operationValue(output, name, methodTypes.getReturnType(), method);
             }
         }
     }
 
-    private void operationValue(Element parent, String fallback, JavaType type, MetXmlElement annotation) {
-        String name = annotation == null || annotation.name().isEmpty() ? fallback : annotation.name();
-        String namespace = annotation == null ? "" : annotation.namespace();
-        boolean xml = StringUtils.equals(XMLConstants.XML_NS_URI, namespace);
-        boolean xmlns = StringUtils.equals(XMLConstants.XMLNS_ATTRIBUTE_NS_URI, namespace);
-        if (xml || xmlns) {
-            String reason = "SOAP operation element cannot use a reserved XML namespace: " + namespace;
-            throw new IllegalArgumentException(reason);
+    private void operationValue(Element parent, String name, JavaType type, AnnotatedElement member) {
+        JacksonXmlProperty xml = member.getAnnotation(JacksonXmlProperty.class);
+        String namespace = xml == null ? "" : xml.namespace();
+        boolean xmlNamespace = StringUtils.equals(XMLConstants.XML_NS_URI, namespace);
+        boolean xmlnsNamespace = StringUtils.equals(XMLConstants.XMLNS_ATTRIBUTE_NS_URI, namespace);
+        if (xmlNamespace || xmlnsNamespace) {
+            throw new IllegalArgumentException("SOAP operation element cannot use a reserved XML namespace");
         }
-        boolean required = type.isPrimitive() || annotation == null || annotation.required();
-        boolean nillable = !type.isPrimitive() && (annotation == null || annotation.nillable());
+        JsonProperty property = member.getAnnotation(JsonProperty.class);
+        JsonSetter setter = member.getAnnotation(JsonSetter.class);
+        boolean required = type.isPrimitive() || property == null || property.required();
+        boolean nillable = !type.isPrimitive() && (setter == null || setter.nulls() != Nulls.FAIL);
         this.value(parent, new QName(namespace, name), type, required, nillable, false);
     }
 
@@ -180,9 +195,18 @@ final class SoapSchemaGenerator {
     }
 
     private QName typeName(JavaType type) {
+        if (this.encodingVersion != null) {
+            this.mapping.requireEncodedType(type);
+        } else if (this.mapping.isJacksonValue(type)) {
+            // 任意用户序列化器或多态标记不能由 Bean 字段猜测为固定结构。
+            return new QName(XSD_NAMESPACE, "anyType");
+        }
         String scalar = this.scalar(type.getRawClass());
         if (scalar != null) {
             return new QName(XSD_NAMESPACE, scalar);
+        }
+        if (type.hasRawClass(Object.class) && this.encodingVersion == null) {
+            return new QName(XSD_NAMESPACE, "anyType");
         }
         QName existing = this.types.get(type);
         if (existing != null) {
@@ -191,8 +215,11 @@ final class SoapSchemaGenerator {
         if (this.types.size() >= 256) {
             throw this.unsupported(type, "more than 256 distinct XML types");
         }
-        if (type.hasRawClass(Object.class) || type.isMapLikeType() || type.isReferenceType()) {
+        if (type.hasRawClass(Object.class) || type.isReferenceType()) {
             throw this.unsupported(type, "a concrete XML value type is required");
+        }
+        if (SoapXmlMapping.isMap(type) && this.encodingVersion != null) {
+            throw this.unsupported(type, "SOAP encoded values do not support dynamic XML maps");
         }
         SoapXmlType mapping = this.mapping.type(type);
         String name = mapping.getName().isEmpty() ? this.generatedTypeName() : mapping.getName();
@@ -209,6 +236,8 @@ final class SoapSchemaGenerator {
         this.types.put(type, typeName);
         if (type.isEnumType()) {
             this.enumeration(type, typeName);
+        } else if (SoapXmlMapping.isMap(type)) {
+            this.map(type, typeName);
         } else if (SoapXmlMapping.isCollection(type)) {
             this.array(type, typeName);
         } else {
@@ -261,12 +290,11 @@ final class SoapSchemaGenerator {
 
     private JavaType contentType(JavaType type) {
         JavaType content = type.getContentType();
-        if (content == null || content.hasRawClass(Object.class)) {
-            throw this.unsupported(type, "collection elements require a concrete Java type");
+        if (content == null) {
+            content = this.mapper.constructType(Object.class);
         }
-        boolean nested = SoapXmlMapping.isCollection(content) && this.scalar(content.getRawClass()) == null;
-        if (this.encodingVersion == null && nested) {
-            throw this.unsupported(type, "nested collections do not retain their structure in XML");
+        if (this.encodingVersion != null && content.hasRawClass(Object.class)) {
+            throw this.unsupported(type, "collection elements require a concrete Java type");
         }
         return content;
     }
@@ -306,6 +334,32 @@ final class SoapSchemaGenerator {
         }
     }
 
+    private void map(JavaType type, QName name) {
+        // 按声明的 V 递归发布类型，不能根据某次请求的 key 或 value 决定固定契约。
+        QName valueType = this.typeName(type.getContentType());
+        Element complex = this.namedType(name, "complexType");
+        String valueNamespace = valueType.getNamespaceURI();
+        boolean builtin = StringUtils.equals(XSD_NAMESPACE, valueNamespace);
+        boolean sameNamespace = StringUtils.equals(name.getNamespaceURI(), valueNamespace);
+        if (!builtin && !sameNamespace) {
+            this.importNamespace(complex.getOwnerDocument().getDocumentElement(), valueNamespace);
+        }
+        Element sequence = this.append(complex, "sequence");
+        Element entries = this.append(sequence, "any");
+        entries.setAttribute("minOccurs", "0");
+        entries.setAttribute("maxOccurs", "unbounded");
+        // 同一个 Map 类型可用于不同 namespace；不让动态 key 碰巧命中其他全局元素的契约。
+        // xs:any 不能限定所有条目为 V；精确 QName 和声明值类型由运行期映射负责。
+        entries.setAttribute("namespace", "##any");
+        entries.setAttribute("processContents", "skip");
+    }
+
+    private QName attributeType(JavaType type) {
+        JavaType value = SoapXmlMapping.isMap(type) ? type.getContentType() : type;
+        // XML attribute 始终只有简单文本，不能沿用元素 Object 的 anyType 复杂内容模型。
+        return value.hasRawClass(Object.class) ? new QName(XSD_NAMESPACE, "anySimpleType") : this.typeName(value);
+    }
+
     private void enumeration(JavaType type, QName name) {
         Element restriction = this.append(this.namedType(name, "simpleType"), "restriction");
         restriction.setAttribute("base", "xsd:string");
@@ -325,7 +379,7 @@ final class SoapSchemaGenerator {
         SoapXmlProperty text = null;
         for (SoapXmlProperty property : mapping.getProperties()) {
             if (this.encodingVersion != null && property.getWrapper() != null) {
-                throw this.unsupported(javaType, "SOAP encoded values do not support XML collection wrappers");
+                throw this.unsupported(javaType, "SOAP encoded values do not support XML element wrappers");
             }
             if (property.isText()) {
                 if (this.encodingVersion != null) {
@@ -337,7 +391,9 @@ final class SoapSchemaGenerator {
         Element content;
         if (text != null) {
             content = this.append(this.append(complex, "simpleContent"), "extension");
-            content.setAttribute("base", this.reference(content, this.typeName(text.getJavaType())));
+            QName textType = text.isJacksonValue() ? new QName(XSD_NAMESPACE, "anySimpleType") //
+                    : this.typeName(text.getJavaType());
+            content.setAttribute("base", this.reference(content, textType));
         } else {
             content = complex;
             Element sequence = this.append(content, "sequence");
@@ -347,11 +403,36 @@ final class SoapSchemaGenerator {
                 }
             }
         }
+        List<SoapXmlProperty> attributes = new ArrayList<>();
         for (SoapXmlProperty property : mapping.getProperties()) {
             if (property.isAttribute()) {
                 this.requireEncodedAttribute(mapping.getJavaType(), property.getName());
-                this.attribute(content, property);
+                attributes.add(property);
             }
+        }
+        this.attributes(content, attributes);
+    }
+
+    private void attributes(Element parent, List<SoapXmlProperty> properties) {
+        Set<String> namespaces = new LinkedHashSet<>();
+        for (SoapXmlProperty property : properties) {
+            if (SoapXmlMapping.isMap(property.getJavaType())) {
+                if (this.encodingVersion != null) {
+                    String reason = "SOAP encoded values do not support dynamic XML maps";
+                    throw this.unsupported(property.getJavaType(), reason);
+                }
+                this.attributeType(property.getJavaType());
+                String namespace = property.getName().getNamespaceURI();
+                namespaces.add(namespace.isEmpty() ? "##local" : namespace);
+            } else {
+                this.attribute(parent, property);
+            }
+        }
+        if (!namespaces.isEmpty()) {
+            // XSD 1.0 每个类型只能有一个 anyAttribute；同一父元素的不同 namespace 合并为并集。
+            Element wildcard = this.append(parent, "anyAttribute");
+            wildcard.setAttribute("namespace", String.join(" ", namespaces));
+            wildcard.setAttribute("processContents", "skip");
         }
     }
 
@@ -359,26 +440,52 @@ final class SoapSchemaGenerator {
         JavaType type = property.getJavaType();
         boolean collection = SoapXmlMapping.isCollection(type) && this.scalar(type.getRawClass()) == null;
         boolean repeated = this.encodingVersion == null && collection;
+        JavaType valueType = repeated ? this.contentType(type) : type;
+        if (property.isJacksonValue()) {
+            valueType = this.mapper.constructType(Object.class);
+        }
         if (property.getWrapper() != null) {
-            JavaType contentType = this.contentType(type);
-            this.collectionWrapper(sequence, property, contentType);
+            this.elementWrapper(sequence, property, valueType, repeated);
         } else {
-            JavaType valueType = repeated ? this.contentType(type) : type;
-            this.value(sequence, property.getName(), valueType, property.isRequired(), property.isNillable(), repeated);
+            this.propertyValue(sequence, property, valueType, repeated);
         }
     }
 
-    private void collectionWrapper(Element sequence, SoapXmlProperty property, JavaType contentType) {
+    private void propertyValue(Element parent, SoapXmlProperty property, JavaType type, boolean repeated) {
+        if (property.getAliases().isEmpty()) {
+            this.value(parent, property.getName(), type, property.isRequired(), property.isNillable(), repeated);
+            return;
+        }
+        // 读取别名与规范名称表达同一属性，不要求请求同时提供两个元素。
+        Element choice = this.append(parent, "choice");
+        if (!property.isRequired()) {
+            choice.setAttribute("minOccurs", "0");
+        }
+        if (repeated) {
+            choice.setAttribute("maxOccurs", "unbounded");
+        }
+        Set<QName> names = new LinkedHashSet<>();
+        names.add(property.getName());
+        for (String alias : property.getAliases()) {
+            names.add(new QName(property.getName().getNamespaceURI(), alias));
+        }
+        for (QName name : names) {
+            this.value(choice, name, type, true, property.isNillable(), false);
+        }
+    }
+
+    private void elementWrapper(Element sequence, SoapXmlProperty property, JavaType valueType, boolean repeated) {
         QName wrapperName = property.getWrapper();
         String owner = this.ownerNamespace(sequence);
         String wrapperNamespace = wrapperName.getNamespaceURI();
         boolean foreign = !wrapperNamespace.isEmpty() && !StringUtils.equals(owner, wrapperNamespace);
         Element wrapper;
         if (foreign) {
-            QName itemType = this.typeName(contentType);
+            QName xmlType = this.typeName(valueType);
             String occurrence = property.isNillable() + ":" + property.isRequired();
-            String itemContract = property.getName() + ":" + itemType + ":" + occurrence;
-            String contract = "wrapper:" + property.isWrapperNillable() + ":" + itemContract;
+            String valueContract = property.getName() + ":" + xmlType + ":" + occurrence + ":" + repeated //
+                    + ":" + property.getAliases();
+            String contract = "wrapper:" + property.isWrapperNillable() + ":" + valueContract;
             String previous = this.elements.putIfAbsent(wrapperName, contract);
             if (previous != null && !StringUtils.equals(previous, contract)) {
                 throw new IllegalArgumentException("Conflicting SOAP global XML element: " + wrapperName);
@@ -386,7 +493,7 @@ final class SoapSchemaGenerator {
             if (previous == null) {
                 Element global = this.append(this.schema(wrapperName.getNamespaceURI()), "element");
                 global.setAttribute("name", wrapperName.getLocalPart());
-                this.wrapperContent(global, property, contentType);
+                this.wrapperContent(global, property, valueType, repeated);
             }
             wrapper = this.append(sequence, "element");
             wrapper.setAttribute("ref", this.reference(wrapper, wrapperName));
@@ -396,19 +503,19 @@ final class SoapSchemaGenerator {
             if (!wrapperName.getNamespaceURI().isEmpty()) {
                 wrapper.setAttribute("form", "qualified");
             }
-            this.wrapperContent(wrapper, property, contentType);
+            this.wrapperContent(wrapper, property, valueType, repeated);
         }
         if (!property.isWrapperRequired()) {
             wrapper.setAttribute("minOccurs", "0");
         }
     }
 
-    private void wrapperContent(Element wrapper, SoapXmlProperty property, JavaType contentType) {
+    private void wrapperContent(Element wrapper, SoapXmlProperty property, JavaType valueType, boolean repeated) {
         if (property.isWrapperNillable()) {
             wrapper.setAttribute("nillable", "true");
         }
         Element sequence = this.append(this.append(wrapper, "complexType"), "sequence");
-        this.value(sequence, property.getName(), contentType, property.isRequired(), property.isNillable(), true);
+        this.propertyValue(sequence, property, valueType, repeated);
     }
 
     private void requireEncodedAttribute(JavaType type, QName name) {
@@ -418,8 +525,21 @@ final class SoapSchemaGenerator {
     }
 
     private void attribute(Element parent, SoapXmlProperty property) {
-        QName name = property.getName();
-        QName type = this.typeName(property.getJavaType());
+        QName type = property.isJacksonValue() ? new QName(XSD_NAMESPACE, "anySimpleType") //
+                : this.attributeType(property.getJavaType());
+        Set<QName> names = new LinkedHashSet<>();
+        names.add(property.getName());
+        for (String alias : property.getAliases()) {
+            names.add(new QName(property.getName().getNamespaceURI(), alias));
+        }
+        // XSD attribute 没有 choice；别名均声明可选，必填值由编解码器检查。
+        boolean required = property.isRequired() && names.size() == 1;
+        for (QName name : names) {
+            this.attributeValue(parent, property, name, type, required);
+        }
+    }
+
+    private void attributeValue(Element parent, SoapXmlProperty property, QName name, QName type, boolean required) {
         Element attribute = this.append(parent, "attribute");
         String owner = this.ownerNamespace(parent);
         if (StringUtils.equals(XMLConstants.XML_NS_URI, name.getNamespaceURI())) {
@@ -447,7 +567,7 @@ final class SoapSchemaGenerator {
             }
             attribute.setAttribute("ref", this.reference(attribute, name));
         }
-        if (property.isRequired()) {
+        if (required) {
             attribute.setAttribute("use", "required");
         }
     }

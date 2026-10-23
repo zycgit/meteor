@@ -15,11 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import jakarta.activation.DataSource;
 import jakarta.mail.BodyPart;
 import jakarta.mail.Header;
@@ -539,15 +534,8 @@ final class SoapAttachmentCodec {
     }
 
     private static byte[] xml(Document document, int maxBytes) throws Exception {
-        TransformerFactory factory = TransformerFactory.newInstance();
-        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
-        Transformer transformer = factory.newTransformer();
-        transformer.setOutputProperty(OutputKeys.ENCODING, StandardCharsets.UTF_8.name());
-        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
         LimitedOutput output = new LimitedOutput(maxBytes);
-        transformer.transform(new DOMSource(document), new StreamResult(output));
+        SoapXmlOutputUtils.write(document, output);
         return output.bytes();
     }
 

@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import net.hasor.cobble.ClassUtils;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.protocol.soap.definition.SoapBody;
@@ -32,10 +33,10 @@ final class SoapResultMapping {
     private final List<BeanPropertyDefinition> readableProperties;
     private final List<BeanPropertyDefinition> writableProperties;
 
-    SoapResultMapping(SoapBody binding, Type resultType, XmlMapper mapper) {
+    SoapResultMapping(SoapBody binding, Type resultType, SoapXmlMapping mapping) {
         this.binding = binding;
-        this.mapper = mapper;
-        this.mapping = new SoapXmlMapping(mapper);
+        this.mapper = mapping.bindings();
+        this.mapping = mapping;
         this.resultType = this.mapper.constructType(resultType);
         BeanDescription readable = this.mapper.getSerializationConfig().introspect(this.resultType);
         BeanDescription writable = this.mapper.getDeserializationConfig().introspect(this.resultType);
@@ -48,7 +49,7 @@ final class SoapResultMapping {
             } else if (this.resultType.isMapLikeType()) {
                 Class<?> keyType = this.resultType.getKeyType().getRawClass();
                 if (!keyType.isAssignableFrom(String.class)) {
-                    throw new IllegalArgumentException("SOAP output Map keys must accept String part names");
+                    throw new UnsupportedOperationException("SOAP output Map keys must accept String part names");
                 }
                 this.types[index] = this.resultType.getContentType();
             } else {
@@ -59,7 +60,7 @@ final class SoapResultMapping {
                     property = this.property(this.readableProperties, part);
                 }
                 if (property == null) {
-                    throw new IllegalArgumentException("SOAP output part has no Java result property: " + name);
+                    throw new UnsupportedOperationException("SOAP output part has no Java result property: " + name);
                 }
                 this.types[index] = property.getPrimaryType();
             }
@@ -110,6 +111,7 @@ final class SoapResultMapping {
         } else {
             result = ClassUtils.newInstance(this.resultType.getRawClass());
         }
+
         for (int index = 0; index < values.length; index++) {
             SoapPart part = this.binding.parts().get(index);
             this.assign(result, part, values[index]);
@@ -124,6 +126,7 @@ final class SoapResultMapping {
             ((Map<String, Object>) map).put(name, value);
             return;
         }
+
         BeanPropertyDefinition property = this.property(this.writableProperties, part);
         AnnotatedMember mutator = property == null ? null : property.getNonConstructorMutator();
         if (mutator == null) {
@@ -145,7 +148,7 @@ final class SoapResultMapping {
             }
         }
         if (selected != null) {
-            return selected;
+            return this.requireElement(selected);
         }
 
         // RPC part 的消息名可以独立于 XML 元素名，保留原有按 part 名聚合结果的约定。
@@ -161,6 +164,37 @@ final class SoapResultMapping {
                 selected = property;
             }
         }
-        return selected;
+        return this.requireElement(selected);
+    }
+
+    private BeanPropertyDefinition requireElement(BeanPropertyDefinition property) {
+        if (property == null) {
+            return null;
+        }
+
+        String name = property.getInternalName();
+        // 聚合对象不会生成 XML 元素；只检查实际被选为 part 的属性，并合并两个方向的成员声明。
+        if (this.hasAttribute(this.readableProperties, name) || this.hasAttribute(this.writableProperties, name)) {
+            String member = this.resultType.toCanonical() + "." + name;
+            throw new IllegalArgumentException("XML attribute has no parent element for SOAP output part: " + member);
+        }
+        return property;
+    }
+
+    private boolean hasAttribute(List<BeanPropertyDefinition> properties, String name) {
+        for (BeanPropertyDefinition property : properties) {
+            if (!StringUtils.equals(name, property.getInternalName())) {
+                continue;
+            }
+
+            AnnotatedMember[] members = { property.getField(), property.getGetter(), property.getSetter() };
+            for (AnnotatedMember member : members) {
+                JacksonXmlProperty declaration = member == null ? null : member.getAnnotation(JacksonXmlProperty.class);
+                if (declaration != null && declaration.isAttribute()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

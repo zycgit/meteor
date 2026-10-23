@@ -6,13 +6,13 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.protocol.soap;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlElement;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlValue;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlText;
+import net.hasor.meteor.annotation.MetField;
 
 /** 非法映射示例：simpleContent 文本不能同时包含子元素。 */
 public class MetXmlConflictingValue {
-    @MetXmlValue
+    @JacksonXmlText
     public String text;
-    @MetXmlElement
+    @MetField
     public String child;
 }

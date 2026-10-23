@@ -6,11 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.protocol.soap.codec;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlEnumValue;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlType;
+import net.hasor.meteor.annotation.MetEnumValue;
+import net.hasor.meteor.annotation.MetType;
 
 /** 枚举类型名称固定，类型命名空间沿用服务契约。 */
-@MetXmlType(name = "LocalState")
+@MetType(name = "LocalState")
 public enum MetXmlLocalState {
-    @MetXmlEnumValue("ready-to-send") READY
+    @MetEnumValue(name = "ready-to-send") READY
 }

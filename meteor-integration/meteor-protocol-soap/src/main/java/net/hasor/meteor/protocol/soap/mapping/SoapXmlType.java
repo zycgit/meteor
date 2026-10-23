@@ -17,14 +17,16 @@ public final class SoapXmlType {
     private final String                namespace;
     private final List<SoapXmlProperty> properties;
     private final AnnotatedConstructor  constructor;
+    private final boolean               jacksonValue;
 
     SoapXmlType(JavaType javaType, String name, String namespace, // 类型名称
-            List<SoapXmlProperty> properties, AnnotatedConstructor constructor) {
+            List<SoapXmlProperty> properties, AnnotatedConstructor constructor, boolean jacksonValue) {
         this.javaType = javaType;
         this.name = name;
         this.namespace = namespace;
         this.properties = List.copyOf(properties);
         this.constructor = constructor;
+        this.jacksonValue = jacksonValue;
         if (this.constructor != null) {
             this.constructor.fixAccess(true);
         }
@@ -44,6 +46,14 @@ public final class SoapXmlType {
 
     public List<SoapXmlProperty> getProperties() {
         return this.properties;
+    }
+
+    public boolean isJacksonValue() {
+        return this.jacksonValue;
+    }
+
+    public boolean hasDefaultConstructor() {
+        return this.constructor != null;
     }
 
     public Object newInstance() {

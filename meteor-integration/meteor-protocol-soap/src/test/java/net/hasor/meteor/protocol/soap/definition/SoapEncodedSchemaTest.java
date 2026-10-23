@@ -15,8 +15,9 @@ import java.util.Map;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilderFactory;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -180,7 +181,7 @@ public class SoapEncodedSchemaTest {
         // 配置错误在生成契约时明确拒绝。
         URI endpoint = URI.create("http://localhost/service");
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
-                () -> SoapDefinitionResource.create(config, service).renderWsdl(endpoint));
+                () -> SoapDefinitionResource.create(config, new ProtocolMeta(service, null, null, Map.of())).renderWsdl(endpoint));
         assertEquals("Document encoded SOAP requires bare parameters", failure.getMessage());
     }
 
@@ -191,7 +192,7 @@ public class SoapEncodedSchemaTest {
         ProtocolConfig config = ProtocolConfig.newConfig("soap", "soap", //
                 Map.of("soapVersion", version, "soapStyle", style, "soapUse", "encoded"));
         URI endpoint = URI.create("http://localhost/EncodedSchema");
-        return SoapDefinitionResource.create(config, service).renderWsdl(endpoint);
+        return SoapDefinitionResource.create(config, new ProtocolMeta(service, null, null, Map.of())).renderWsdl(endpoint);
     }
 
     private Document document(byte[] wsdl) throws Exception {

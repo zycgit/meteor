@@ -7,16 +7,23 @@
  */
 package net.hasor.example.protocol.soap.codec;
 import java.util.List;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlElement;
-import net.hasor.meteor.protocol.soap.annotation.MetXmlElementWrapper;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
+import net.hasor.meteor.annotation.MetField;
 
-/** 显式区分元素可选、元素可空以及集合容器和成员的约束。 */
+/** 显式区分元素可选、元素可空，以及集合容器和成员共享的约束。 */
 public class MetXmlNullableValue {
-    @MetXmlElement(nillable = false)
+    @MetField
+    @JsonSetter(nulls = Nulls.FAIL)
     public String       optional;
-    @MetXmlElement(required = true)
+    @MetField
+    @JsonProperty(required = true)
     public String       required = "present";
-    @MetXmlElementWrapper(name = "entries", nillable = false)
-    @MetXmlElement(name = "entry", required = true)
-    public List<String> entries;
+    @MetField(name = "entry")
+    @JacksonXmlElementWrapper(localName = "entries")
+    @JsonProperty(required = true)
+    @JsonSetter(nulls = Nulls.FAIL)
+    public List<String> entries  = List.of("present");
 }

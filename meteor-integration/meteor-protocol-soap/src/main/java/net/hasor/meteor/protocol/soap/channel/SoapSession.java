@@ -18,12 +18,13 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -32,30 +33,33 @@ import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.protocol.soap.codec.SoapInboundResult;
 import net.hasor.meteor.protocol.soap.codec.SoapMessageCodec;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionResource;
+import net.hasor.meteor.protocol.soap.definition.SoapProtocolMeta;
 
 /** 一个 HTTP 连接上的 SOAP 内部通道；公开构造仅用于协议入口组装。 */
 public final class SoapSession implements ProtocolSession<HttpExchange> {
-    private final NetworkChannel<HttpExchange>                     connection;
-    private final MetContext                                       context;
-    private final SoapMessageCodec                                 codec;
-    private final SoapEndpointRouter                               router;
-    private final Function<MetBindInfo<?>, SoapDefinitionResource> resources;
-    private final boolean                                          outbound;
-    private final ObjLongConsumer<Payload>                         messages;
-    private final BasicFuture<Void>                                ready   = new BasicFuture<>();
-    private final Map<Long, SoapPendingExchange>                   pending = new HashMap<>();
-    private       long                                             incomingId;
+    private final RouteMountIndex                            routes;
+    private final NetworkChannel<HttpExchange>               connection;
+    private final MetContext                                 context;
+    private final SoapMessageCodec                           codec;
+    private final SoapEndpointRouter                         router;
+    private final Function<MetBindInfo<?>, SoapMessageCodec> codecs;
+    private final boolean                                    outbound;
+    private final ObjLongConsumer<Payload>                   messages;
+    private final BasicFuture<Void>                          ready   = new BasicFuture<>();
+    private final Map<Long, SoapPendingExchange>             pending = new HashMap<>();
+    private       long                                       incomingId;
 
     public SoapSession(ProtocolConfig config, ProtocolSessionContext context, NetworkChannel<HttpExchange> connection, //
             ObjLongConsumer<Payload> messages, SoapMessageCodec codec, //
-            Function<MetBindInfo<?>, SoapDefinitionResource> resources) {
+            Function<MetBindInfo<?>, SoapMessageCodec> codecs) {
+        this.routes = context.routes();
         this.connection = connection;
         this.context = context.metContext();
-        this.resources = resources;
+        this.codecs = codecs;
         this.codec = codec;
         this.outbound = context.isOutbound();
         this.router = this.outbound ? null : new SoapEndpointRouter(//
-                config, this.context, context.bindAddress(), this.codec, resources);
+                config, context.routes(), this.context, context.bindAddress(), codecs);
         this.messages = messages;
     }
 
@@ -100,7 +104,7 @@ public final class SoapSession implements ProtocolSession<HttpExchange> {
             RequestPayload request = inbound.request();
             long requestId = request.getRequestID();
             SoapPendingExchange item = new SoapPendingExchange(exchange, request, inbound.operation(), //
-                    inbound.service(), inbound.resource());
+                    inbound.service(), inbound.resource(), inbound.codec());
             this.pending.put(requestId, item);
             request.completion().onFinal(done -> this.connection.execute(() -> {
                 if (!this.pending.remove(requestId, item)) {
@@ -146,8 +150,10 @@ public final class SoapSession implements ProtocolSession<HttpExchange> {
         }
 
         MetBindInfo<?> service = this.service(request);
-        SoapDefinitionResource resource = this.resources.apply(service);
-        HttpExchange exchange = new HttpExchange(this.codec.encode(request, service, resource));
+        SoapProtocolMeta definition = (SoapProtocolMeta) this.routes.binding(service).getDefinition();
+        SoapDefinitionResource resource = definition.resource();
+        SoapMessageCodec codec = this.codecs.apply(service);
+        HttpExchange exchange = new HttpExchange(codec.encode(request, service, resource));
         request.completion().onFinal(done -> {
             if (!exchange.completion().isDone()) {
                 Throwable failure = done.getCause();
@@ -168,7 +174,7 @@ public final class SoapSession implements ProtocolSession<HttpExchange> {
             }
 
             try {
-                ResponsePayload response = this.codec.decode(request, done.getResult(), service, resource);
+                ResponsePayload response = codec.decode(request, done.getResult(), service, resource);
                 this.messages.accept(response, response.getRequestID());
                 request.complete(null);
             } catch (Exception failure) {
@@ -205,7 +211,8 @@ public final class SoapSession implements ProtocolSession<HttpExchange> {
         this.pending.remove(response.getRequestID(), item);
         HttpResponse encoded;
         try {
-            encoded = this.codec.encode(item.exchange(), item.request(), item.operation(), response, //
+            SoapMessageCodec codec = item.codec();
+            encoded = codec.encode(item.exchange(), item.request(), item.operation(), response, //
                     item.service(), item.resource());
         } catch (Exception failure) {
             encoded = this.codec.error(failure);

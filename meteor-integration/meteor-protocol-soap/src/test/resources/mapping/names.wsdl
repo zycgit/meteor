@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:meteor:mapping" targetNamespace="urn:meteor:mapping">
+    <wsdl:types>
+        <xs:schema targetNamespace="urn:meteor:mapping">
+            <xs:element name="Join">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="left" type="xs:string"/>
+                        <xs:element name="right" type="xs:int"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element name="JoinResponse">
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="result" type="xs:string"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:schema>
+    </wsdl:types>
+    <wsdl:message name="Input">
+        <wsdl:part name="parameters" element="tns:Join"/>
+    </wsdl:message>
+    <wsdl:message name="Output">
+        <wsdl:part name="parameters" element="tns:JoinResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="Names">
+        <wsdl:operation name="Join">
+            <wsdl:input message="tns:Input"/>
+            <wsdl:output message="tns:Output"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="NamesBinding" type="tns:Names">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="Join">
+            <soap:operation soapAction="urn:meteor:mapping/Join"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="Names">
+        <wsdl:port name="NamesPort" binding="tns:NamesBinding">
+            <soap:address location="http://localhost/services/Names"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>
