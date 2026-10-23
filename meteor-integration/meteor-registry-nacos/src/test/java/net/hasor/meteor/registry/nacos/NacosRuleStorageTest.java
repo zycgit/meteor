@@ -407,6 +407,8 @@ public class NacosRuleStorageTest {
              StorageAccess storage = sdk.configuration().openStorage()) {
             EntServiceRuntimeData declaration = service("echo");
             declaration.setName("EchoService");
+            declaration.setGroup("orders");
+            declaration.setVersion("2");
             storage.saveService(declaration);
             sdk.conflicts = 1;
             sdk.conflictPrefix = "services.echo";
@@ -414,7 +416,12 @@ public class NacosRuleStorageTest {
 
             // 合并重试后两类字段都保留。
             assertEquals("EchoService", storage.getService("echo").getName());
+            assertEquals("orders", storage.getService("echo").getGroup());
+            assertEquals("2", storage.getService("echo").getVersion());
             assertFalse(storage.getRule(null, "echo", RuleKind.SERVICE_ROUTE).getData().isEnabled());
+            Map<?, ?> detail = RegistryJson.read(sdk.documents.get("services.echo"), Map.class);
+            assertFalse(detail.containsKey("type"));
+            assertFalse(detail.containsKey("description"));
         }
     }
 

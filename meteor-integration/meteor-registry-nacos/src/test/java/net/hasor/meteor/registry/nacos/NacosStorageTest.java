@@ -218,10 +218,14 @@ public class NacosStorageTest {
                 // 从实例与服务两个目录点查，同一登记的正文和身份均完整可用。
                 EntServiceRuntimeData declaration = reader.getInstanceService("one", "A");
                 assertEquals("A", declaration.getName());
+                assertEquals(0, declaration.getEndpoints().length);
+                assertArrayEquals(new String[] { "rsf://127.0.0.1:8000" }, declaration.getAddresses());
                 RefServiceRelationData member = reader.getMember("A", MetServiceType.Provider, "one");
                 assertEquals("orders", member.getInstance().getApplicationName());
                 assertEquals(Long.valueOf(123), member.getInstance().getProcessId());
                 assertEquals("A", member.getService().getName());
+                assertEquals(0, member.getService().getEndpoints().length);
+                assertArrayEquals(declaration.getAddresses(), member.getService().getAddresses());
             }
         }
     }
@@ -519,7 +523,6 @@ public class NacosStorageTest {
             EntServiceRuntimeData consumer = service("B", MetServiceType.Consumer);
             consumer.setUsedProtocols(new String[] { "http" });
             RefProtocolMountData endpoint = new RefProtocolMountData();
-            endpoint.setProtocol("rsf");
             endpoint.setProtocolName("rsf");
             endpoint.setPublishedAddress("rsf://127.0.0.1:8000");
             consumer.setEndpoints(new RefProtocolMountData[] { endpoint });
@@ -545,7 +548,6 @@ public class NacosStorageTest {
             EntServiceRuntimeData consumer = service("B", MetServiceType.Consumer);
             consumer.setUsedProtocols(new String[] { "http" });
             RefProtocolMountData endpoint = new RefProtocolMountData();
-            endpoint.setProtocol("rsf");
             endpoint.setProtocolName("rsf");
             endpoint.setPublishedAddress("rsf://127.0.0.1:8000");
             consumer.setEndpoints(new RefProtocolMountData[] { endpoint });
@@ -568,7 +570,6 @@ public class NacosStorageTest {
             storage.registerInstance(instance("two", "orders", "west"));
             EntServiceRuntimeData provider = service("A", MetServiceType.Provider);
             RefProtocolMountData endpoint = new RefProtocolMountData();
-            endpoint.setProtocol("rsf");
             endpoint.setProtocolName("rsf");
             endpoint.setPublishedAddress("rsf://127.0.0.1:8000");
             provider.setEndpoints(new RefProtocolMountData[] { endpoint });

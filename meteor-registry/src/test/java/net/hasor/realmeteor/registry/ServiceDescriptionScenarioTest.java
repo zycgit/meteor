@@ -8,10 +8,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.annotation.*;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.TargetAdmin;
@@ -110,6 +112,8 @@ public class ServiceDescriptionScenarioTest {
             assertEquals(service.getBindName(), rsf.path("name").asText());
             assertFalse(description.has("contractId"));
             assertFalse(description.has("id"));
+            assertFalse(description.has("role"));
+            assertTrue(StringUtils.equals(Contract.class.getName(), description.path("javaType").asText()));
             assertFalse(method.has("contractId"));
             assertFalse(method.has("id"));
             assertFalse(method.path("parameters").get(0).has("id"));
@@ -123,16 +127,32 @@ public class ServiceDescriptionScenarioTest {
             ObjectNode storedRuntime = RegistryJson.copy(runtime, ObjectNode.class);
             assertFalse(storedCatalog.has("contractServiceId"));
             assertFalse(storedRuntime.has("contractServiceId"));
+            assertFalse(storedCatalog.has("type"));
+            assertFalse(storedRuntime.has("type"));
+            assertFalse(storedCatalog.has("javaType"));
+            assertFalse(storedRuntime.has("javaType"));
+            assertEquals(MetServiceType.Provider, runtime.getRole());
+            assertEquals(1, storedRuntime.path("addresses").size());
+            JsonNode endpoint = storedRuntime.path("endpoints").get(0);
+            assertTrue(StringUtils.equals("rsf", endpoint.path("protocolName").asText()));
+            assertFalse(endpoint.has("protocol"));
             assertEquals(0xffff_ffffL, storedRuntime.path("description").path("contractServiceId").asLong());
             assertEquals("release-1.0", runtime.getVersion());
             RegistryAdmin admin = context.getExtension(RegistryAdmin.class);
             MetServiceInfo info = admin.getInstanceAdmin(context.getInstanceID()).getServiceById(serviceId);
             assertEquals(serviceId, info.getServiceId());
-            assertFalse(RegistryJson.copy(info, ObjectNode.class).has("contractServiceId"));
+            ObjectNode summary = RegistryJson.copy(info, ObjectNode.class);
+            assertFalse(summary.has("contractServiceId"));
+            assertFalse(summary.has("type"));
+            assertFalse(summary.has("javaType"));
+            assertEquals(MetServiceType.Provider, info.getRole());
             assertEquals("release-1.0", info.getVersion());
             MetServiceInfo catalog = admin.getClusterAdmin().services(serviceId, null).getItems().get(0);
             assertEquals(serviceId, catalog.getServiceId());
-            assertFalse(RegistryJson.copy(catalog, ObjectNode.class).has("contractServiceId"));
+            ObjectNode catalogSummary = RegistryJson.copy(catalog, ObjectNode.class);
+            assertFalse(catalogSummary.has("contractServiceId"));
+            assertFalse(catalogSummary.has("type"));
+            assertFalse(catalogSummary.has("javaType"));
 
             // 管理 API 的类型化 DTO 延续限定编号和公共名称，不重新暴露无前缀的编号。
             var serviceAdmin = admin.getServiceAdmin(serviceId);
@@ -146,6 +166,8 @@ public class ServiceDescriptionScenarioTest {
             assertEquals(rsf.path("name"), returnedProtocol.path("name"));
             assertFalse(serialized.has("contractId"));
             assertFalse(serialized.has("id"));
+            assertFalse(serialized.has("role"));
+            assertTrue(StringUtils.equals(Contract.class.getName(), serialized.path("javaType").asText()));
             assertFalse(returnedMethod.has("contractId"));
             assertFalse(returnedMethod.has("id"));
             assertFalse(returnedProtocol.has("serviceName"));
@@ -220,10 +242,12 @@ public class ServiceDescriptionScenarioTest {
             MetBindInfo<Contract> service = context.publisher().rsfService(Contract.class).register();
             context.getExtension(RegistryClient.class).pushSync().get(10, TimeUnit.SECONDS);
 
-            // 消费声明保留自己的方法描述，不伪装成远端提供者契约。
-            ObjectNode description = storage.getInstanceService(context.getInstanceID(), service.getBindID()) //
-                    .getDescription();
-            assertEquals("Consumer", description.path("role").asText());
+            // 消费角色归实例正文，完整声明只保留自己的 Java 定位和方法描述。
+            EntServiceRuntimeData runtime = storage.getInstanceService(context.getInstanceID(), service.getBindID());
+            ObjectNode description = runtime.getDescription();
+            assertEquals(MetServiceType.Consumer, runtime.getRole());
+            assertFalse(description.has("role"));
+            assertTrue(StringUtils.equals(Contract.class.getName(), description.path("javaType").asText()));
             assertEquals("Lookup", description.path("methods").get(0).path("name").asText());
             assertEquals(0xffff_ffffL, description.path("contractServiceId").asLong());
             assertNull(context.getListenAddress("rsf"));

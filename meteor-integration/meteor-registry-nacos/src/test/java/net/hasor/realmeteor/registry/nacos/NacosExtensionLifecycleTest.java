@@ -16,6 +16,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.admin.MetDirectoryQuery;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
+import net.hasor.meteor.registry.admin.MetServiceMember;
 import net.hasor.meteor.registry.nacos.MockNacosSdk;
 import net.hasor.meteor.registry.nacos.NacosRegistryConfiguration;
 import org.junit.Test;
@@ -53,6 +54,9 @@ public class NacosExtensionLifecycleTest {
                 // 独立消费者通过发现的地址调用服务，实际执行 TCP RPC。
                 EchoService remote = client.getRsfClient().wrapper(EchoService.class);
                 assertEquals("sdk:hello", remote.echo("hello"));
+                MetServiceAdmin serviceAdmin = client.getExtension(RegistryAdmin.class).getServiceAdmin(serviceId);
+                MetServiceMember member = serviceAdmin.providers(null, new MetDirectoryQuery()).getItems().get(0);
+                assertEquals("rsf", member.getEndpoints()[0].getProtocolName());
             }
         }
     }

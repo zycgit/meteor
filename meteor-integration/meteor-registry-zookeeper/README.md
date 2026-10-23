@@ -143,7 +143,6 @@ putMeta("team","orders");
   "group": "default",
   "name": "EchoService",
   "version": "1.0.0",
-  "type": "com.example.EchoService",
   "ruleEnabled": {"SERVICE_ROUTE": false}
 }
 ```
@@ -169,7 +168,7 @@ putMeta("team","orders");
 
 实例档案持久保留，运行详情属于临时数据。实例服务详情关联对应服务定义，提供者和消费者目录按实例 ID 引用该关系。
 
-字符串 `serviceId` 用于登记和查询，数值契约服务编号保存在实例服务的 `description.contractServiceId` 中，未指定时为 `null`。实例服务正文中的 `description` 保存本实例的方法、参数、返回值、DTO 类型图，实际协议契约位于 `protocols[protocolName][connectorName]`。描述中的服务、方法及字段编号分别为 `contractServiceId`、`methodId`、`fieldId`；`argIndex` 是从零开始的 Java 参数位置，协议端点的 `name` 是实际绑定的服务名。描述随实例服务节点整体替换和清理，完整内容通过服务管理接口的 `descriptions()` 查询，正文大小受 ZooKeeper 单节点容量限制。
+字符串 `serviceId` 用于登记和查询，数值契约服务编号保存在实例服务的 `description.contractServiceId` 中，未指定时为 `null`。实例服务正文中的 `description` 保存本实例的 Java 接口名 `javaType`、方法、参数、返回值、DTO 类型图，实际协议契约位于 `protocols[protocolName][connectorName]`。描述中的服务、方法及字段编号分别为 `contractServiceId`、`methodId`、`fieldId`；`argIndex` 是从零开始的 Java 参数位置，协议端点的 `name` 是实际绑定的服务名。描述随实例服务节点整体替换和清理，完整内容通过服务管理接口的 `descriptions()` 查询，正文大小受 ZooKeeper 单节点容量限制。
 
 ### 治理数据
 

@@ -101,9 +101,6 @@ public final class DirectoryFilter {
             if (endpoint.getProtocolName() != null) {
                 values.add(endpoint.getProtocolName());
             }
-            if (endpoint.getProtocol() != null) {
-                values.add(endpoint.getProtocol());
-            }
         }
         return String.join(" ", values);
     }

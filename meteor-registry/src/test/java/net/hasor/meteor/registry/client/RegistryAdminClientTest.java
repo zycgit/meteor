@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.ObjectUtils;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
@@ -94,6 +95,7 @@ public class RegistryAdminClientTest {
             assertFalse(catalog.containsKey("methods"));
             assertFalse(catalog.containsKey("timeout"));
             assertFalse(catalog.containsKey("serializeType"));
+            assertFalse(catalog.containsKey("type"));
             assertEquals(provider.getBindName(), catalog.get("name"));
 
             // 管理查询从存储记录还原完整服务身份及成员信息。
@@ -268,7 +270,7 @@ public class RegistryAdminClientTest {
                 assertTrue(callerAdmin.instance().getManagementAddress().isEmpty());
                 MetServiceAdmin service = admin.getServiceAdmin(binding.getBindID());
                 MetServiceMember member = service.providers(null, null).getItems().get(0);
-                assertEquals("rsf", member.getEndpoints()[0].getProtocol());
+                assertTrue(StringUtils.equals("rsf", member.getEndpoints()[0].getProtocolName()));
                 assertEquals(server.getListenAddress("rsf").toString(), member.getEndpoints()[0].getPublishedAddress());
                 assertArrayEquals(new String[] { server.getListenAddress("rsf").toString() }, member.getAddresses());
             }

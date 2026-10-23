@@ -56,7 +56,6 @@ public class MemoryStorageTest {
             EntServiceCatalogData original = new EntServiceCatalogData();
             original.setServiceId("orders");
             original.setGroup("orders-group");
-            original.setType("example.OrderService");
             original.setVersion("release-1.0");
             storage.saveService(original);
 
@@ -67,9 +66,11 @@ public class MemoryStorageTest {
             storage.saveService(partial);
             EntServiceCatalogData stored = storage.getService("orders");
             assertEquals("orders-group", stored.getGroup());
-            assertEquals("example.OrderService", stored.getType());
             assertEquals("release-1.0", stored.getVersion());
             assertEquals("OrderService", stored.getName());
+            ObjectNode catalog = RegistryJson.copy(stored, ObjectNode.class);
+            assertFalse(catalog.has("type"));
+            assertFalse(catalog.has("javaType"));
         }
     }
 
@@ -261,7 +262,6 @@ public class MemoryStorageTest {
             storage.registerInstance(instance("two", "orders", "west"));
             EntServiceRuntimeData provider = service("A", MetServiceType.Provider);
             RefProtocolMountData endpoint = new RefProtocolMountData();
-            endpoint.setProtocol("rsf");
             endpoint.setProtocolName("rsf");
             endpoint.setPublishedAddress("rsf://127.0.0.1:8000");
             provider.setEndpoints(new RefProtocolMountData[] { endpoint });

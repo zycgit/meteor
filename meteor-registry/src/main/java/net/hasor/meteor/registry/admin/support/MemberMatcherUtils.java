@@ -36,7 +36,7 @@ final class MemberMatcherUtils {
         for (MetServiceEndpoint endpoint : member.getEndpoints()) {
             boolean connector = matches(filter.getConnectorName(), endpoint.getConnectorName(), false);
             boolean transport = matches(filter.getTransport(), endpoint.getTransport(), true);
-            boolean protocol = matches(filter.getProtocol(), endpoint.getProtocol(), true);
+            boolean protocol = matches(filter.getProtocol(), endpoint.getProtocolName(), true);
             boolean scheme = matches(filter.getScheme(), endpoint.getScheme(), true);
             boolean path = matches(filter.getContextPath(), endpoint.getContextPath(), false);
             if (!connector || !transport || !protocol || !scheme || !path) {

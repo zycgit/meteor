@@ -11,8 +11,7 @@ package net.hasor.meteor.registry.shared.rpc;
 public final class ServiceEndpointData {
     private String  connectorName     = null; // 实例内的连接器名称
     private String  transport         = null; // 传输 SPI 名称，如 tcp、http
-    private String  protocolName      = null; // 协议挂载名称
-    private String  protocol          = null; // 协议 SPI 名称，如 rsf、hprose
+    private String  protocolName      = null; // 协议 SPI 名称
     private String  scheme            = null; // 协议地址 scheme
     private String  contextPath       = null; // 协议上下文路径；未配置时为空
     private boolean bindEnabled       = false; // 是否配置监听
@@ -42,14 +41,6 @@ public final class ServiceEndpointData {
 
     public void setProtocolName(String protocolName) {
         this.protocolName = protocolName;
-    }
-
-    public String getProtocol() {
-        return this.protocol;
-    }
-
-    public void setProtocol(String protocol) {
-        this.protocol = protocol;
     }
 
     public String getScheme() {

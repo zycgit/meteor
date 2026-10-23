@@ -14,7 +14,6 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.admin.description.*;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
 import org.junit.Test;
@@ -29,7 +28,6 @@ public class DescriptionMappingTest {
                 {
                   "javaType": "example.LookupService",
                   "contractServiceId": 4294967295,
-                  "role": "Provider",
                   "message": false,
                   "methods": [{
                     "javaSignature": "lookup(example.Query,int)",
@@ -74,7 +72,6 @@ public class DescriptionMappingTest {
         MetServiceDescription description = DescriptionMapping.service(source);
         assertEquals("example.LookupService", description.getJavaType());
         assertEquals(Long.valueOf(0xffff_ffffL), description.getContractServiceId());
-        assertEquals(MetServiceType.Provider, description.getRole());
         assertFalse(description.isMessage());
         assertEquals(1, description.getMethods().size());
         MetMethodDescription method = description.getMethods().get(0);
@@ -391,9 +388,9 @@ public class DescriptionMappingTest {
 
     @Test
     public void serializesServiceIdentityBeforeItsBodyAndExtensions() {
-        // 服务编号和接口类型先于方法、类型图及端点，实例状态与扩展随后输出。
+        // 服务编号和接口类型先于方法、类型图及端点，消息标记与扩展随后输出。
         String[] expected = { "contractServiceId", "javaType", "methods", "types", "protocols", //
-                "role", "message", "extensions" };
+                "message", "extensions" };
         assertArrayEquals(expected, serializedFields(new MetServiceDescription()));
     }
 

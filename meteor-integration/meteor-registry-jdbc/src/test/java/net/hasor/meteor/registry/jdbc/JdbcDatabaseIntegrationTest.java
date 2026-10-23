@@ -186,7 +186,7 @@ public class JdbcDatabaseIntegrationTest {
             assertNull(reader.getMetadata("one", "echo"));
             RefServiceRelationData survivor = reader.getMember("echo", MetServiceType.Provider, "two");
             assertEquals("two", survivor.getInstance().getInstanceId());
-            assertEquals("rsf", survivor.getService().getEndpoints()[0].getProtocol());
+            assertEquals("rsf", survivor.getService().getEndpoints()[0].getProtocolName());
             assertEquals(revision, reader.getMetadata("two", "echo").getRevision());
             ServiceSummary summary = reader.serviceSummaries(List.of("echo")).get("echo");
             assertEquals(1, summary.getProviderCount());
@@ -356,7 +356,8 @@ public class JdbcDatabaseIntegrationTest {
             EntServiceCatalogData complete = new EntServiceCatalogData();
             complete.setServiceId("echo");
             complete.setName("EchoService");
-            complete.setType("example.EchoService");
+            complete.setGroup("orders");
+            complete.setVersion("1.0");
 
             // 屏障让两个独立数据库会话同时执行首次写入。
             Future<?> first = workers.submit(() -> {
@@ -375,7 +376,8 @@ public class JdbcDatabaseIntegrationTest {
             // 不论创建顺序如何，简略声明都不能覆盖完整服务信息。
             EntServiceCatalogData saved = manager.getService("echo");
             assertEquals("EchoService", saved.getName());
-            assertEquals("example.EchoService", saved.getType());
+            assertEquals("orders", saved.getGroup());
+            assertEquals("1.0", saved.getVersion());
         } finally {
             workers.shutdownNow();
         }

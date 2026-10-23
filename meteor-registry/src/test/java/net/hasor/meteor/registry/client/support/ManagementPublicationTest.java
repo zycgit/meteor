@@ -57,7 +57,7 @@ public class ManagementPublicationTest {
     }
 
     @Test
-    public void managementSnapshotsKeepContractIdOnlyInFullDescription() throws Exception {
+    public void managementSnapshotsKeepContractIdentityOnlyInFullDescription() throws Exception {
         // 通过公开发布入口建立带数值编号的服务，再观察内部管理快照的序列化边界。
         MetConfiguration configuration = new MetConfiguration();
         configuration.connector("tcp").protocol("rsf");
@@ -67,19 +67,38 @@ public class ManagementPublicationTest {
             ManagementRPCImpl management = new ManagementRPCImpl(context, "127.0.0.1");
             String serviceId = published.getBindID();
 
-            // 注册上报正文只在 description 内保存编号。
+            // 注册上报正文只在 description 内保存编号和 Java 类型，运行地址仍属于登记正文。
             RegistrationSnapshot snapshot = management.snapshot(serviceId);
             ObjectNode runtime = RegistryJson.copy(snapshot.getServices().get(0), ObjectNode.class);
+            ObjectNode runtimeDescription = (ObjectNode) runtime.path("description");
             assertFalse(runtime.has("contractServiceId"));
-            assertEquals(0xffff_ffffL, runtime.path("description").path("contractServiceId").asLong());
+            assertFalse(runtime.has("type"));
+            assertTrue(runtime.has("addresses"));
+            String runtimeRole = runtime.path("role").asText();
+            assertTrue(StringUtils.equals("Provider", runtimeRole));
+            assertEquals(0xffff_ffffL, runtimeDescription.path("contractServiceId").asLong());
+            assertFalse(runtimeDescription.has("role"));
+            String runtimeJavaType = runtimeDescription.path("javaType").asText();
+            assertTrue(StringUtils.equals(NumberedEcho.class.getName(), runtimeJavaType));
 
-            // 管理 RPC 的成员描述携带编号，服务摘要与列表摘要不携带。
+            // 管理 RPC 的成员描述保存契约，成员和摘要不重复传输派生字段。
             ObjectNode member = RegistryJson.copy(management.service(serviceId), ObjectNode.class);
             ObjectNode summary = RegistryJson.copy(management.services()[0], ObjectNode.class);
-            assertEquals(0xffff_ffffL, member.path("description").path("contractServiceId").asLong());
+            ObjectNode memberDescription = (ObjectNode) member.path("description");
+            assertEquals(0xffff_ffffL, memberDescription.path("contractServiceId").asLong());
+            assertFalse(memberDescription.has("role"));
+            String memberJavaType = memberDescription.path("javaType").asText();
+            assertTrue(StringUtils.equals(NumberedEcho.class.getName(), memberJavaType));
+            assertFalse(member.has("addresses"));
+            assertFalse(member.has("effectiveConfiguration"));
             assertFalse(member.path("service").has("contractServiceId"));
-            assertEquals(serviceId, summary.path("serviceId").asText());
+            assertFalse(member.path("service").has("type"));
+            String summaryServiceId = summary.path("serviceId").asText();
+            assertTrue(StringUtils.equals(serviceId, summaryServiceId));
+            String summaryRole = summary.path("role").asText();
+            assertTrue(StringUtils.equals("Provider", summaryRole));
             assertFalse(summary.has("contractServiceId"));
+            assertFalse(summary.has("type"));
         }
     }
 
@@ -225,7 +244,8 @@ public class ManagementPublicationTest {
             Map<String, String> expected = Map.of("http-0#http", httpAddress.toString());
             assertEquals(expected, instance.getManagementAddress());
             assertEquals(httpAddress.toString(), instance.getListenAddresses().get("http-0#http"));
-            assertEquals(Echo.class.getName(), admin.getServiceAdmin(provider).info().getType());
+            String javaType = admin.getServiceAdmin(provider).descriptions().get(context.getInstanceID()).getJavaType();
+            assertTrue(StringUtils.equals(Echo.class.getName(), javaType));
             assertArrayEquals(new String[] { "registry-http" }, admin.getServiceAdmin(provider).info().getProtocols());
 
             // 提供者仅公告所选协议的监听端点。
@@ -392,7 +412,9 @@ public class ManagementPublicationTest {
             assertEquals("http-1", endpoints[0].getConnectorName());
             assertEquals("http", endpoints[0].getTransport());
             assertEquals("registry-http", endpoints[0].getProtocolName());
-            assertEquals("registry-http", endpoints[0].getProtocol());
+            ObjectNode endpointBody = RegistryJson.copy(endpoints[0], ObjectNode.class);
+            assertTrue(endpointBody.has("protocolName"));
+            assertFalse(endpointBody.has("protocol"));
             assertEquals("public-http", endpoints[0].getScheme());
         }
     }
@@ -572,7 +594,6 @@ public class ManagementPublicationTest {
         assertEquals(connectorName, endpoint.getConnectorName());
         assertEquals("http", endpoint.getTransport());
         assertEquals("registry-http", endpoint.getProtocolName());
-        assertEquals("registry-http", endpoint.getProtocol());
         assertEquals("http", endpoint.getScheme());
         assertEquals(contextPath, endpoint.getContextPath());
         assertTrue(endpoint.isBindEnabled());

@@ -223,9 +223,6 @@ final class JdbcStorage implements StorageAccess {
         if (service.getName() != null) {
             merged.setName(service.getName());
         }
-        if (service.getType() != null) {
-            merged.setType(service.getType());
-        }
         if (service.getGroup() != null) {
             merged.setGroup(service.getGroup());
         }

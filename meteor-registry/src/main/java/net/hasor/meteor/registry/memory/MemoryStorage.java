@@ -108,9 +108,6 @@ final class MemoryStorage implements StorageAccess {
                 if (merged.getName() == null) {
                     merged.setName(previous.getName());
                 }
-                if (merged.getType() == null) {
-                    merged.setType(previous.getType());
-                }
                 if (merged.getGroup() == null) {
                     merged.setGroup(previous.getGroup());
                 }

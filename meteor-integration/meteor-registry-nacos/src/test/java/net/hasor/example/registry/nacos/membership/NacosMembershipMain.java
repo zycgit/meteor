@@ -63,7 +63,7 @@ public class NacosMembershipMain extends AbstractNacosExample {
             MetServiceMember member = service.providers(null, query).getItems().get(0);
             assertEquals(server.getInstanceID(), member.getInstance().getInstanceId());
             assertEquals("nacos-example-server", member.getInstance().getApplicationName());
-            assertEquals("rsf", member.getEndpoints()[0].getProtocol());
+            assertEquals("rsf", member.getEndpoints()[0].getProtocolName());
             assertEquals(1, member.getAddresses().length);
         }
     }
@@ -93,7 +93,7 @@ public class NacosMembershipMain extends AbstractNacosExample {
             MetServiceMember member = service.consumers(null, query).getItems().get(0);
             assertEquals(client.getInstanceID(), member.getInstance().getInstanceId());
             assertEquals("nacos-example-client", member.getInstance().getApplicationName());
-            assertEquals("rsf", member.getEndpoints()[0].getProtocol());
+            assertEquals("rsf", member.getEndpoints()[0].getProtocolName());
             assertEquals(0, member.getAddresses().length);
         }
     }

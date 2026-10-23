@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.admin;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetServiceType;
@@ -19,6 +20,7 @@ import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class EndpointFilterTest {
 
@@ -79,8 +81,9 @@ public class EndpointFilterTest {
             filter.setAddress(http.getConfiguredAddress());
             assertEquals(1, api.consumers(filter, null).getItems().size());
             MetServiceMember detached = api.consumers(filter, null).getItems().get(0);
-            detached.getEndpoints()[0].setProtocol("changed");
-            assertEquals("rsf", api.consumers(filter, null).getItems().get(0).getEndpoints()[0].getProtocol());
+            detached.getEndpoints()[0].setProtocolName("changed");
+            MetServiceMember fresh = api.consumers(filter, null).getItems().get(0);
+            assertTrue(StringUtils.equals("rsf", fresh.getEndpoints()[0].getProtocolName()));
         }
     }
 
@@ -116,7 +119,6 @@ public class EndpointFilterTest {
         result.setConnectorName(connector);
         result.setTransport(transport);
         result.setProtocolName(protocol);
-        result.setProtocol(protocol);
         result.setScheme(protocol);
         result.setContextPath(path);
         result.setConfiguredAddress(transport + "://0.0.0.0:0/default");

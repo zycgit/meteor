@@ -145,7 +145,7 @@ public class ZookeeperDirectoryTest {
 
     private static RefProtocolMountData rsfEndpoint() {
         RefProtocolMountData endpoint = new RefProtocolMountData();
-        endpoint.setProtocol("rsf");
+        endpoint.setConnectorName("tcp");
         endpoint.setProtocolName("rsf");
         endpoint.setPublishedAddress("rsf://127.0.0.1:8000");
         return endpoint;

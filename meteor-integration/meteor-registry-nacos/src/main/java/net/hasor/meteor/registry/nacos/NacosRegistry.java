@@ -86,7 +86,7 @@ final class NacosRegistry implements StorageAccess {
         Map<String, Object> declaration = RegistryJson.copy(value, Map.class);
         this.configStore.update(key, Map.class, previous -> {
             Map<String, Object> document = previous == null ? new LinkedHashMap<>() : previous;
-            for (String field : List.of("serviceId", "group", "name", "version", "type")) {
+            for (String field : List.of("serviceId", "group", "name", "version")) {
                 Object item = declaration.get(field);
                 if (item != null) {
                     document.put(field, item);
@@ -280,7 +280,6 @@ final class NacosRegistry implements StorageAccess {
         value.setGroup(catalog.getGroup());
         value.setName(catalog.getName());
         value.setVersion(catalog.getVersion());
-        value.setType(catalog.getType());
         value.setRole(role);
         RefServiceRelationData result = new RefServiceRelationData();
         result.setInstance(instance.getRuntime());

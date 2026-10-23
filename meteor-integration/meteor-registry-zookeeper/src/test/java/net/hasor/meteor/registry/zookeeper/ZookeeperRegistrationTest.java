@@ -7,6 +7,7 @@ package net.hasor.meteor.registry.zookeeper;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.domain.MetServiceType;
@@ -274,6 +275,171 @@ public class ZookeeperRegistrationTest {
                 assertFalse(memberJson.has("contractServiceId"));
                 assertFalse(memberJson.get("service").has("contractServiceId"));
                 assertEquals(description, memberJson.get("service").get("description"));
+            }
+        }
+    }
+
+    @Test
+    public void storedServiceBodiesKeepJavaTypeOnlyInInstanceDescription() throws Exception {
+        // 正式存储入口登记实例声明，两个连接器使用相同的真实协议名。
+        try (TestingServer server = new TestingServer()) {
+            ZookeeperRegistryConfiguration configuration = new ZookeeperRegistryConfiguration();
+            configuration.setAddress(server.getConnectString());
+            ExponentialBackoffRetry retry = new ExponentialBackoffRetry(50, 3);
+            try (StorageAccess storage = configuration.openStorage(); //
+                 CuratorFramework client = CuratorFrameworkFactory.newClient(server.getConnectString(), retry)) {
+                client.start();
+                assertTrue(client.blockUntilConnected(5, TimeUnit.SECONDS));
+                storage.registerInstance(instance("one", "orders", "east"));
+                EntServiceRuntimeData service = service("contract", MetServiceType.Provider, //
+                        "rsf://127.0.0.1:8000", "rsf://127.0.0.1:9000");
+                ObjectNode description = JsonNodeFactory.instance.objectNode();
+                description.put("javaType", "sample.OrderService");
+                service.setDescription(description);
+                RefProtocolMountData primary = new RefProtocolMountData();
+                primary.setConnectorName("primary");
+                primary.setProtocolName("rsf");
+                primary.setPublishedAddress("rsf://127.0.0.1:8000");
+                RefProtocolMountData backup = new RefProtocolMountData();
+                backup.setConnectorName("backup");
+                backup.setProtocolName("rsf");
+                backup.setPublishedAddress("rsf://127.0.0.1:9000");
+                service.setEndpoints(new RefProtocolMountData[] { primary, backup });
+                storage.registerService("one", service);
+
+                // 原始目录不写 Java 类型，运行角色仍保留在服务正文顶层。
+                ObjectNode catalog = readBody(client, "/meteor/services/Y29udHJhY3Q/info");
+                assertFalse(catalog.has("type"));
+                assertFalse(catalog.has("javaType"));
+                assertFalse(catalog.has("description"));
+                ObjectNode runtime = readBody(client, "/meteor/instances/b25l/services/Y29udHJhY3Q");
+                assertFalse(runtime.has("type"));
+                assertFalse(runtime.has("javaType"));
+                assertEquals("Provider", runtime.get("role").textValue());
+                assertEquals(description, runtime.get("description"));
+                assertFalse(runtime.get("description").has("role"));
+
+                // 每个端点只保存 protocolName，连接器名称区分同协议的两个地址。
+                JsonNode endpoints = runtime.get("endpoints");
+                assertEquals(2, endpoints.size());
+                assertEquals("primary", endpoints.get(0).get("connectorName").textValue());
+                assertEquals("backup", endpoints.get(1).get("connectorName").textValue());
+                for (JsonNode endpoint : endpoints) {
+                    assertEquals("rsf", endpoint.get("protocolName").textValue());
+                    assertFalse(endpoint.has("protocol"));
+                }
+                ServiceSummary summary = storage.serviceSummaries(List.of("contract")).get("contract");
+                assertArrayEquals(new String[] { "rsf" }, summary.getProtocols());
+            }
+        }
+    }
+
+    @Test
+    public void javaTypeDescriptionsRemainIndependentAcrossInstances() throws Exception {
+        // 同一服务由两个不同 Java 声明和一个未声明 Java 类型的实例提供。
+        try (TestingServer server = new TestingServer()) {
+            ZookeeperRegistryConfiguration configuration = new ZookeeperRegistryConfiguration();
+            configuration.setAddress(server.getConnectString());
+            try (StorageAccess storage = configuration.openStorage()) {
+                storage.registerInstance(instance("one", "orders", "east"));
+                storage.registerInstance(instance("two", "orders", "east"));
+                storage.registerInstance(instance("three", "orders", "east"));
+                EntServiceRuntimeData first = service("contract", MetServiceType.Provider);
+                ObjectNode firstDescription = JsonNodeFactory.instance.objectNode();
+                firstDescription.put("javaType", "sample.FirstOrderService");
+                first.setDescription(firstDescription);
+                storage.registerService("one", first);
+                EntServiceRuntimeData second = service("contract", MetServiceType.Provider);
+                ObjectNode secondDescription = JsonNodeFactory.instance.objectNode();
+                secondDescription.put("javaType", "sample.SecondOrderService");
+                second.setDescription(secondDescription);
+                storage.registerService("two", second);
+                EntServiceRuntimeData untyped = service("contract", MetServiceType.Provider);
+                ObjectNode untypedDescription = JsonNodeFactory.instance.objectNode();
+                untypedDescription.put("name", "orders");
+                untyped.setDescription(untypedDescription);
+                storage.registerService("three", untyped);
+
+                // 实例与成员查询都只返回自己的完整描述，空缺类型不会从共享目录回填。
+                assertEquals(firstDescription, storage.getInstanceService("one", "contract").getDescription());
+                assertEquals(secondDescription, storage.getInstanceService("two", "contract").getDescription());
+                RefServiceRelationData firstMember = storage.getMember("contract", MetServiceType.Provider, "one");
+                RefServiceRelationData secondMember = storage.getMember("contract", MetServiceType.Provider, "two");
+                RefServiceRelationData untypedMember = storage.getMember("contract", MetServiceType.Provider, "three");
+                assertEquals(firstDescription, firstMember.getService().getDescription());
+                assertEquals(secondDescription, secondMember.getService().getDescription());
+                assertEquals(untypedDescription, untypedMember.getService().getDescription());
+                assertFalse(untypedMember.getService().getDescription().has("javaType"));
+            }
+        }
+    }
+
+    @Test
+    public void catalogUpdatePreservesInstanceDescriptionAndEndpoints() throws Exception {
+        // 同一服务的两个实例具有各自的运行描述和地址。
+        try (TestingServer server = new TestingServer()) {
+            ZookeeperRegistryConfiguration configuration = new ZookeeperRegistryConfiguration();
+            configuration.setAddress(server.getConnectString());
+            ExponentialBackoffRetry retry = new ExponentialBackoffRetry(50, 3);
+            try (StorageAccess storage = configuration.openStorage(); //
+                 CuratorFramework client = CuratorFrameworkFactory.newClient(server.getConnectString(), retry)) {
+                client.start();
+                assertTrue(client.blockUntilConnected(5, TimeUnit.SECONDS));
+                storage.registerInstance(instance("one", "orders", "east"));
+                storage.registerInstance(instance("two", "orders", "west"));
+                EntServiceRuntimeData first = service("contract", MetServiceType.Provider, "rsf://127.0.0.1:8000");
+                ObjectNode description = JsonNodeFactory.instance.objectNode();
+                description.put("javaType", "sample.OrderService");
+                first.setDescription(description);
+                RefProtocolMountData endpoint = new RefProtocolMountData();
+                endpoint.setConnectorName("tcp");
+                endpoint.setProtocolName("rsf");
+                endpoint.setPublishedAddress("rsf://127.0.0.1:8000");
+                first.setEndpoints(new RefProtocolMountData[] { endpoint });
+                storage.registerService("one", first);
+                EntServiceRuntimeData second = service("contract", MetServiceType.Provider, "rsf://127.0.0.1:9000");
+                storage.registerService("two", second);
+                String firstPath = "/meteor/instances/b25l/services/Y29udHJhY3Q";
+                String secondPath = "/meteor/instances/dHdv/services/Y29udHJhY3Q";
+                ObjectNode firstBefore = readBody(client, firstPath);
+                ObjectNode secondBefore = readBody(client, secondPath);
+
+                // 局部更新持久目录名称，不能将实例描述复制到目录或改写任一运行正文。
+                EntServiceCatalogData update = new EntServiceCatalogData();
+                update.setServiceId("contract");
+                update.setName("RenamedOrders");
+                storage.saveService(update);
+                ObjectNode catalog = readBody(client, "/meteor/services/Y29udHJhY3Q/info");
+                assertEquals("RenamedOrders", catalog.get("name").textValue());
+                assertFalse(catalog.has("type"));
+                assertFalse(catalog.has("javaType"));
+                assertFalse(catalog.has("description"));
+                assertEquals(firstBefore, readBody(client, firstPath));
+                assertEquals(secondBefore, readBody(client, secondPath));
+            }
+        }
+    }
+
+    @Test
+    public void addressOnlyProviderRemainsDiscoverableWithoutEndpoints() throws Exception {
+        // 存储允许只发布地址的提供者，不强制补充协议端点。
+        try (TestingServer server = new TestingServer()) {
+            ZookeeperRegistryConfiguration configuration = new ZookeeperRegistryConfiguration();
+            configuration.setAddress(server.getConnectString());
+            try (StorageAccess storage = configuration.openStorage()) {
+                storage.registerInstance(instance("one", "orders", "east"));
+                String address = "rsf://127.0.0.1:8000";
+                storage.registerService("one", service("contract", MetServiceType.Provider, address));
+
+                // 服务成员保持地址，查询结果不凭地址生成端点或协议摘要。
+                RecordPage<RefServiceRelationData> providers = storage.members("contract", MetServiceType.Provider, //
+                        new DirectoryQuery());
+                assertEquals(1, providers.getItems().size());
+                EntServiceRuntimeData registered = providers.getItems().get(0).getService();
+                assertArrayEquals(new String[] { address }, registered.getAddresses());
+                assertEquals(0, registered.getEndpoints().length);
+                ServiceSummary summary = storage.serviceSummaries(List.of("contract")).get("contract");
+                assertEquals(0, summary.getProtocols().length);
             }
         }
     }

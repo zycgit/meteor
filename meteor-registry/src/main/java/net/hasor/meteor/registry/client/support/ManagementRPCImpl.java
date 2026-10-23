@@ -120,7 +120,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
             registration.setGroup(service.getBindGroup());
             registration.setName(service.getBindName());
             registration.setVersion(service.getBindVersion());
-            registration.setType(service.getBindType().getName());
             registration.setRole(service.getServiceType());
             registration.setEnabled(this.governance.isServiceEnabled(id));
             ServiceEndpointData[] selected = this.endpoints(service, publications);
@@ -253,7 +252,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
         member.setUsedProtocols(this.usedProtocols(service));
         member.setDescription(this.description(service, publications, endpoints));
         member.setEnabled(this.governance.isServiceEnabled(serviceId));
-        member.setEffectiveConfiguration(this.effectiveConfiguration(serviceId));
         return RegistryJson.copy(member, ServiceMemberData.class);
     }
 
@@ -378,17 +376,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
 
     ////////////////////////////////////////////////////////////////////////////////////////
     // 通过现有 API 应用配置；值只存于应用，不建立本地覆盖层。
-    private ConfigurationData effectiveConfiguration(String id) {
-        ConfigurationData result = new ConfigurationData();
-        result.setEnabled(this.governance.isServiceEnabled(id));
-        for (RuleTypeData type : RuleTypeData.values()) {
-            setRule(result, type, this.readRule(id, type));
-        }
-
-        result.setMetadata(this.fetchServiceMeta(id));
-        return result;
-    }
-
     private void applyCurrent(MetBindInfo<?> service, ConfigurationData config) {
         String id = service.getBindID();
         for (RuleTypeData type : RuleTypeData.values()) {
@@ -577,7 +564,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
         result.setGroup(service.getBindGroup());
         result.setName(service.getBindName());
         result.setVersion(service.getBindVersion());
-        result.setType(service.getBindType().getName());
         result.setRole(service.getServiceType());
         if (service.getServiceType() == MetServiceType.Provider) {
             result.setProviderCount(1);
@@ -639,7 +625,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
                     endpoint.setConnectorName(connector.name());
                     endpoint.setTransport(connector.transportType());
                     endpoint.setProtocolName(protocol.name());
-                    endpoint.setProtocol(protocol.name());
                     endpoint.setScheme(protocol.scheme());
                     endpoint.setContextPath(path);
                     endpoint.setBindEnabled(connector.bindEnabled());
@@ -656,7 +641,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
     private ObjectNode description(MetBindInfo<?> service, Map<String, ProtocolMeta> publications, //
             ServiceEndpointData[] endpoints) {
         ObjectNode description = MetBindInfoWrap.unwrap(service).getServiceMeta().createServiceDescription();
-        description.put("role", service.getServiceType().name());
         description.put("message", service.isMessage());
         if (service.isMessage()) {
             description.withArray("methods").forEach(method -> ((ObjectNode) method).put("message", true));

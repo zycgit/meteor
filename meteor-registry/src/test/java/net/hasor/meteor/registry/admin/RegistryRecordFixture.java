@@ -42,7 +42,7 @@ final class RegistryRecordFixture {
             EntServiceRuntimeData service = RegistryJson.copy(member.getService(), EntServiceRuntimeData.class);
             service.setEnabled(member.isEnabled());
             service.setEndpoints(RegistryJson.copy(member.getEndpoints(), RefProtocolMountData[].class));
-            service.setAddresses(member.getAddresses());
+            service.setAddresses(RegistryJson.copy(member, MetServiceMember.class).getAddresses());
             service.setUsedProtocols(member.getUsedProtocols());
             storage.registerService(instanceId, service);
         }

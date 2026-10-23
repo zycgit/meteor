@@ -11,7 +11,6 @@ public class EntServiceCatalogData {
     private String group;
     private String name;
     private String version;
-    private String type;
 
     public String getServiceId() {
         return this.serviceId;
@@ -45,11 +44,4 @@ public class EntServiceCatalogData {
         this.version = version;
     }
 
-    public String getType() {
-        return this.type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
 }

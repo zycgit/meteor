@@ -25,7 +25,7 @@ final class DescriptionMapping {
         JsonNode types = remaining.remove("types");
         JsonNode protocols = remaining.remove("protocols");
         MetServiceDescription result = read(remaining, MetServiceDescription.class, //
-                MetServiceDescription::setExtensions, "contractServiceId", "javaType", "role", "message");
+                MetServiceDescription::setExtensions, "contractServiceId", "javaType", "message");
 
         // 公共方法保留声明顺序，类型图保留完整泛型引用，不尝试加载用户类。
         if (methods != null) {

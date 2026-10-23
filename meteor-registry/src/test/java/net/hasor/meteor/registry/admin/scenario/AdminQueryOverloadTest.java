@@ -431,7 +431,6 @@ public class AdminQueryOverloadTest {
         endpoint.setConnectorName(connector);
         endpoint.setTransport("tcp");
         endpoint.setProtocolName("rsf");
-        endpoint.setProtocol("rsf");
 
         EntServiceRuntimeData result = new EntServiceRuntimeData();
         result.setServiceId(id);

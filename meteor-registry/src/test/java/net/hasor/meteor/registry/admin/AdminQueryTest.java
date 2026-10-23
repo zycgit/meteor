@@ -57,13 +57,17 @@ public class AdminQueryTest {
             MetServiceInfo info = service.info();
             assertEquals(1, info.getProviderCount());
             assertEquals(1, info.getConsumerCount());
-            assertEquals("example.Echo", info.getType());
+            assertTrue(StringUtils.equals("group", info.getGroup()));
+            assertTrue(StringUtils.equals("Echo", info.getName()));
+            assertTrue(StringUtils.equals("1.0", info.getVersion()));
             assertEquals(MetServiceType.Provider, info.getRole());
             assertArrayEquals(new String[] { "hprose", "rsf" }, info.getProtocols());
 
             // 集群列表保留相同的服务信息，协议按当前成员汇总。
             MetServiceInfo listed = admin.getClusterAdmin().services("echo", null).getItems().get(0);
-            assertEquals(info.getType(), listed.getType());
+            assertTrue(StringUtils.equals(info.getGroup(), listed.getGroup()));
+            assertTrue(StringUtils.equals(info.getName(), listed.getName()));
+            assertTrue(StringUtils.equals(info.getVersion(), listed.getVersion()));
             assertEquals(info.getRole(), listed.getRole());
             assertEquals(info.getProviderCount(), listed.getProviderCount());
             assertEquals(info.getConsumerCount(), listed.getConsumerCount());
@@ -79,7 +83,10 @@ public class AdminQueryTest {
             assertEquals(0, scoped.providers(null, null).getItems().size());
             assertEquals(1, scoped.consumers(null, null).getItems().size());
             MetServiceInfo consumerInfo = admin.getInstanceAdmin("a-consumer").getServiceList(null).getItems().get(0);
-            assertEquals(local.getType(), consumerInfo.getType());
+            assertTrue(StringUtils.equals(local.getServiceId(), consumerInfo.getServiceId()));
+            assertTrue(StringUtils.equals(local.getGroup(), consumerInfo.getGroup()));
+            assertTrue(StringUtils.equals(local.getName(), consumerInfo.getName()));
+            assertTrue(StringUtils.equals(local.getVersion(), consumerInfo.getVersion()));
             assertEquals(local.getRole(), consumerInfo.getRole());
             assertArrayEquals(local.getProtocols(), consumerInfo.getProtocols());
 
@@ -108,12 +115,16 @@ public class AdminQueryTest {
             assertEquals(0, inactive.getConsumerCount());
             assertEquals("echo", inactive.getServiceId());
             assertEquals("Echo", inactive.getName());
-            assertEquals("example.Echo", inactive.getType());
+            assertTrue(StringUtils.equals("group", inactive.getGroup()));
+            assertTrue(StringUtils.equals("1.0", inactive.getVersion()));
             assertEquals(0, inactive.getProtocols().length);
             assertNull(inactive.getRole());
             List<MetServiceInfo> directory = admin.getClusterAdmin().services("echo", null).getItems();
             assertEquals(1, directory.size());
-            assertEquals(inactive.getType(), directory.get(0).getType());
+            assertTrue(StringUtils.equals(inactive.getServiceId(), directory.get(0).getServiceId()));
+            assertTrue(StringUtils.equals(inactive.getGroup(), directory.get(0).getGroup()));
+            assertTrue(StringUtils.equals(inactive.getName(), directory.get(0).getName()));
+            assertTrue(StringUtils.equals(inactive.getVersion(), directory.get(0).getVersion()));
             assertEquals(0, directory.get(0).getProtocols().length);
             assertNull(directory.get(0).getRole());
         }
@@ -134,7 +145,9 @@ public class AdminQueryTest {
             assertEquals(1, instance.getServiceList(null).getItems().size());
             MetServiceInfo service = instance.getServiceById("echo");
             assertEquals(1, service.getProviderCount());
-            assertEquals("example.Echo", service.getType());
+            assertTrue(StringUtils.equals("group", service.getGroup()));
+            assertTrue(StringUtils.equals("Echo", service.getName()));
+            assertTrue(StringUtils.equals("1.0", service.getVersion()));
             assertEquals(MetServiceType.Provider, service.getRole());
             assertArrayEquals(new String[] { "rsf" }, service.getProtocols());
             assertThrows(IllegalArgumentException.class, () -> instance.getServiceById("missing"));
@@ -293,7 +306,6 @@ public class AdminQueryTest {
         declaration.setName("Echo");
         declaration.setVersion("1.0");
         declaration.setRole(role);
-        declaration.setType("example.Echo");
         ServiceMemberData member = new ServiceMemberData();
         member.setInstance(instance);
         member.setService(declaration);
@@ -302,7 +314,6 @@ public class AdminQueryTest {
         }
         ServiceEndpointData endpoint = new ServiceEndpointData();
         endpoint.setProtocolName(protocol);
-        endpoint.setProtocol(protocol);
         member.setEndpoints(new ServiceEndpointData[] { endpoint });
         return new RegistryRecordFixture(instance, member);
     }

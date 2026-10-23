@@ -48,7 +48,7 @@ final class JdbcStorageData {
 
     static RefProtocolMountData rsfEndpoint() {
         RefProtocolMountData endpoint = new RefProtocolMountData();
-        endpoint.setProtocol("rsf");
+        endpoint.setConnectorName("primary");
         endpoint.setProtocolName("rsf");
         endpoint.setPublishedAddress("rsf://127.0.0.1:8000");
         return endpoint;

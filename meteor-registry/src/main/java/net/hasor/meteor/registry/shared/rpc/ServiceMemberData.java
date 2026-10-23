@@ -9,12 +9,10 @@ package net.hasor.meteor.registry.shared.rpc;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public final class ServiceMemberData {
-    private ServiceEndpointData[] endpoints              = new ServiceEndpointData[0];
-    private String[]              addresses              = new String[0];
-    private InstanceData          instance               = null;
-    private ServiceData           service                = null;
-    private boolean               enabled                = true;
-    private ConfigurationData     effectiveConfiguration = null;
+    private ServiceEndpointData[] endpoints = new ServiceEndpointData[0];
+    private InstanceData          instance  = null;
+    private ServiceData           service   = null;
+    private boolean               enabled   = true;
     private ObjectNode            description;
 
     public ObjectNode getDescription() {
@@ -45,14 +43,6 @@ public final class ServiceMemberData {
         this.endpoints = endpoints;
     }
 
-    public String[] getAddresses() {
-        return this.addresses;
-    }
-
-    public void setAddresses(String[] addresses) {
-        this.addresses = addresses;
-    }
-
     public InstanceData getInstance() {
         return this.instance;
     }
@@ -75,14 +65,6 @@ public final class ServiceMemberData {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public ConfigurationData getEffectiveConfiguration() {
-        return this.effectiveConfiguration;
-    }
-
-    public void setEffectiveConfiguration(ConfigurationData effectiveConfiguration) {
-        this.effectiveConfiguration = effectiveConfiguration;
     }
 
 }

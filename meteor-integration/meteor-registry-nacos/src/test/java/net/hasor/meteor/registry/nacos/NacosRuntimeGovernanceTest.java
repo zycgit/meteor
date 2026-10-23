@@ -8,12 +8,11 @@
 package net.hasor.meteor.registry.nacos;
 import java.util.ConcurrentModificationException;
 import java.util.Map;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
-import net.hasor.meteor.registry.shared.storage.domain.EntMetadataData;
-import net.hasor.meteor.registry.shared.storage.domain.EntRuleConfigurationData;
-import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
-import net.hasor.meteor.registry.shared.storage.domain.RuleKind;
+import net.hasor.meteor.registry.shared.storage.domain.*;
 import org.junit.Test;
 import static net.hasor.meteor.registry.nacos.NacosTestData.instance;
 import static net.hasor.meteor.registry.nacos.NacosTestData.service;
@@ -46,13 +45,30 @@ public class NacosRuntimeGovernanceTest {
              StorageAccess application = sdk.configuration().openStorage(); //
              StorageAccess admin = sdk.configuration().openStorage()) {
             application.registerInstance(instance("one"));
-            application.registerService("one", service("echo"));
+            EntServiceRuntimeData registration = service("echo");
+            ObjectNode description = JsonNodeFactory.instance.objectNode();
+            description.put("javaType", "net.hasor.example.EchoService");
+            registration.setDescription(description);
+            RefProtocolMountData endpoint = new RefProtocolMountData();
+            endpoint.setConnectorName("primary");
+            endpoint.setProtocolName("rsf");
+            endpoint.setPublishedAddress("rsf://127.0.0.1:8000");
+            registration.setEndpoints(new RefProtocolMountData[] { endpoint });
+            application.registerService("one", registration);
             admin.saveMetadata("one", "echo", metadata("blue"));
 
-            // 应用重复上报登记不能把治理字段恢复为空。
+            // 应用更新服务地址和描述，不能把已有治理字段恢复为空。
+            description.put("javaType", "net.hasor.example.UpdatedEchoService");
+            endpoint.setPublishedAddress("rsf://127.0.0.1:9000");
+            registration.setAddresses(new String[] { "rsf://127.0.0.1:9000" });
             application.registerInstance(instance("one"));
-            application.registerService("one", service("echo"));
+            application.registerService("one", registration);
             assertEquals("blue", admin.getMetadata("one", "echo").getData().getMetadata().get("team"));
+            EntServiceRuntimeData refreshed = admin.getInstanceService("one", "echo");
+            assertEquals(description, refreshed.getDescription());
+            assertEquals("rsf", refreshed.getEndpoints()[0].getProtocolName());
+            assertEquals("primary", refreshed.getEndpoints()[0].getConnectorName());
+            assertEquals("rsf://127.0.0.1:9000", refreshed.getEndpoints()[0].getPublishedAddress());
         }
     }
 

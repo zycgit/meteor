@@ -14,7 +14,6 @@ public final class ServiceData {
     private String         group         = null;
     private String         name          = null;
     private String         version       = null;
-    private String         type          = null;
     private MetServiceType role          = null;
     private String[]       protocols     = new String[0];
     private int            providerCount = 0;
@@ -50,14 +49,6 @@ public final class ServiceData {
 
     public void setVersion(String version) {
         this.version = version;
-    }
-
-    public String getType() {
-        return this.type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
     }
 
     public MetServiceType getRole() {

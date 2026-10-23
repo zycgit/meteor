@@ -26,6 +26,135 @@ import static org.junit.Assert.*;
 /** 使用 H2 验证正式存储契约，不替代应用接入与 RPC 场景。 */
 public class JdbcStorageTest {
     @Test
+    public void serviceShapeStoresJavaTypeOnlyInDescriptionAndProtocolNameOnlyInEndpoints() throws Exception {
+        // 准备带 Java 声明、协议端点及发布地址的实例服务。
+        String url = createDatabase();
+        JdbcRegistryConfiguration configuration = configuration(url);
+        try (StorageAccess storage = configuration.openStorage(); //
+             Connection connection = DriverManager.getConnection(url, "", "")) {
+            storage.registerInstance(instance("one", "orders", "east"));
+            EntServiceRuntimeData published = service();
+            ObjectNode description = JsonNodeFactory.instance.objectNode();
+            description.put("javaType", "example.EchoService");
+            published.setDescription(description);
+            published.setEndpoints(new RefProtocolMountData[] { rsfEndpoint() });
+            storage.registerService("one", published);
+
+            // 直接核对持久正文，目录只保存服务身份，运行正文保留角色和地址。
+            JdbcTemplate jdbc = new JdbcTemplate(connection);
+            String catalogBody = jdbc.queryForList("SELECT body FROM meteor_services", String.class).get(0);
+            String runtimeBody = jdbc.queryForList("SELECT body FROM meteor_instance_services", String.class).get(0);
+            ObjectNode catalog = RegistryJson.read(catalogBody, ObjectNode.class);
+            ObjectNode runtime = RegistryJson.read(runtimeBody, ObjectNode.class);
+            ObjectNode storedDescription = (ObjectNode) runtime.get("description");
+            ObjectNode endpoint = (ObjectNode) runtime.get("endpoints").get(0);
+            assertFalse(catalog.has("type"));
+            assertFalse(catalog.has("javaType"));
+            assertFalse(catalog.has("description"));
+            assertFalse(runtime.has("type"));
+            assertFalse(runtime.has("javaType"));
+            assertEquals("Provider", runtime.get("role").textValue());
+            assertEquals(description, storedDescription);
+            assertFalse(storedDescription.has("role"));
+            assertEquals("rsf", endpoint.get("protocolName").textValue());
+            assertFalse(endpoint.has("protocol"));
+            assertEquals("rsf://127.0.0.1:8000", runtime.get("addresses").get(0).textValue());
+
+            // 成员发现仍返回同一份实例声明和实际端点。
+            EntServiceRuntimeData member = storage.getMember("echo", MetServiceType.Provider, "one").getService();
+            assertEquals(description, member.getDescription());
+            assertEquals("rsf", member.getEndpoints()[0].getProtocolName());
+            assertArrayEquals(published.getAddresses(), member.getAddresses());
+        }
+    }
+
+    @Test
+    public void javaTypesStayWithTheirOwnInstance() throws Exception {
+        // 同一服务由不同 Java 声明的实例和未提供 Java 声明的实例登记。
+        JdbcRegistryConfiguration configuration = configuration(createDatabase());
+        try (StorageAccess storage = configuration.openStorage()) {
+            storage.registerInstance(instance("first", "orders", "east"));
+            storage.registerInstance(instance("second", "orders", "east"));
+            storage.registerInstance(instance("untyped", "orders", "east"));
+            EntServiceRuntimeData first = service();
+            ObjectNode firstDescription = JsonNodeFactory.instance.objectNode();
+            firstDescription.put("javaType", "example.FirstEcho");
+            first.setDescription(firstDescription);
+            storage.registerService("first", first);
+            EntServiceRuntimeData second = service();
+            ObjectNode secondDescription = JsonNodeFactory.instance.objectNode();
+            secondDescription.put("javaType", "example.SecondEcho");
+            second.setDescription(secondDescription);
+            storage.registerService("second", second);
+            storage.registerService("untyped", service());
+
+            // 两个查询方向都使用实例自己的描述，不从共享目录回填 Java 类型。
+            assertEquals(firstDescription, storage.getInstanceService("first", "echo").getDescription());
+            assertEquals(secondDescription, storage.getInstanceService("second", "echo").getDescription());
+            assertNull(storage.getInstanceService("untyped", "echo").getDescription());
+            RefServiceRelationData firstMember = storage.getMember("echo", MetServiceType.Provider, "first");
+            RefServiceRelationData secondMember = storage.getMember("echo", MetServiceType.Provider, "second");
+            RefServiceRelationData untypedMember = storage.getMember("echo", MetServiceType.Provider, "untyped");
+            assertEquals(firstDescription, firstMember.getService().getDescription());
+            assertEquals(secondDescription, secondMember.getService().getDescription());
+            assertNull(untypedMember.getService().getDescription());
+            assertFalse(RegistryJson.copy(storage.getService("echo"), ObjectNode.class).has("javaType"));
+        }
+    }
+
+    @Test
+    public void partialCatalogUpdateKeepsInstanceDescriptionAndEndpoints() throws Exception {
+        // 发布完整目录字段和实例独立的描述及端点。
+        JdbcRegistryConfiguration configuration = configuration(createDatabase());
+        try (StorageAccess storage = configuration.openStorage()) {
+            storage.registerInstance(instance());
+            EntServiceRuntimeData published = service();
+            published.setName("EchoService");
+            published.setGroup("orders");
+            published.setVersion("1.0");
+            ObjectNode description = JsonNodeFactory.instance.objectNode();
+            description.put("javaType", "example.EchoService");
+            published.setDescription(description);
+            published.setEndpoints(new RefProtocolMountData[] { rsfEndpoint() });
+            storage.registerService("one", published);
+
+            // 管理端仅更新目录版本，未指定字段和实例完整登记继续保持原值。
+            EntServiceCatalogData update = new EntServiceCatalogData();
+            update.setServiceId("echo");
+            update.setVersion("2.0");
+            storage.saveService(update);
+            EntServiceCatalogData catalog = storage.getService("echo");
+            assertEquals("EchoService", catalog.getName());
+            assertEquals("orders", catalog.getGroup());
+            assertEquals("2.0", catalog.getVersion());
+            EntServiceRuntimeData runtime = storage.getInstanceService("one", "echo");
+            assertEquals("1.0", runtime.getVersion());
+            assertEquals(description, runtime.getDescription());
+            assertEquals("primary", runtime.getEndpoints()[0].getConnectorName());
+            assertEquals("rsf", runtime.getEndpoints()[0].getProtocolName());
+            assertArrayEquals(published.getAddresses(), runtime.getAddresses());
+        }
+    }
+
+    @Test
+    public void addressesOnlyRegistrationRemainsDiscoverable() throws Exception {
+        // 无端点明细的存储登记仍可以提供完整地址。
+        JdbcRegistryConfiguration configuration = configuration(createDatabase());
+        try (StorageAccess storage = configuration.openStorage()) {
+            storage.registerInstance(instance());
+            storage.registerService("one", service());
+
+            // 实例服务和成员两个方向都保留地址，不强制补造端点。
+            EntServiceRuntimeData runtime = storage.getInstanceService("one", "echo");
+            RefServiceRelationData member = storage.getMember("echo", MetServiceType.Provider, "one");
+            assertArrayEquals(new String[] { "rsf://127.0.0.1:8000" }, runtime.getAddresses());
+            assertEquals(0, runtime.getEndpoints().length);
+            assertArrayEquals(runtime.getAddresses(), member.getService().getAddresses());
+            assertEquals(0, member.getService().getEndpoints().length);
+        }
+    }
+
+    @Test
     public void zeroContractServiceIdSurvivesStorageRoundTrip() throws Exception {
         // 零编号只属于实例的完整描述，字符串服务 ID 继续用于目录定位。
         String url = createDatabase();
@@ -537,7 +666,6 @@ public class JdbcStorageTest {
             storage.registerInstance(instance("consumer", "orders", "west"));
             EntServiceRuntimeData provider = service("A", MetServiceType.Provider);
             RefProtocolMountData http = new RefProtocolMountData();
-            http.setProtocol("http");
             http.setProtocolName("http");
             http.setPublishedAddress("http://127.0.0.1:8001");
             provider.setEndpoints(new RefProtocolMountData[] { rsfEndpoint(), http });
@@ -591,7 +719,7 @@ public class JdbcStorageTest {
             storage.registerInstance(instance("two", "orders", "west"));
             EntServiceRuntimeData provider = service("A", MetServiceType.Provider);
             RefProtocolMountData secondary = rsfEndpoint();
-            secondary.setProtocolName("rsf-backup");
+            secondary.setConnectorName("backup");
             secondary.setPublishedAddress("rsf://127.0.0.1:9000");
             provider.setEndpoints(new RefProtocolMountData[] { rsfEndpoint(), secondary });
             storage.registerService("one", provider);

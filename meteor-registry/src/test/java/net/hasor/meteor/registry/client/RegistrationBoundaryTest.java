@@ -61,7 +61,8 @@ public class RegistrationBoundaryTest {
                 for (EntServiceRuntimeData service : services.getItems()) {
                     RefServiceRelationData member = storage.getMember(service.getServiceId(), service.getRole(), instanceId);
                     assertEquals(data.getIpAddress(), member.getInstance().getIpAddress());
-                    assertEquals(service.getType(), member.getService().getType());
+                    assertTrue(StringUtils.equals(service.getServiceId(), member.getService().getServiceId()));
+                    assertEquals(service.getDescription(), member.getService().getDescription());
                 }
             }
 
