@@ -33,7 +33,7 @@ import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.protocol.connect.ConnectStatusException;
 import net.hasor.meteor.protocol.connect.codec.ConnectEnvelope;
 import net.hasor.meteor.protocol.connect.codec.ConnectHttpCodec;
-import net.hasor.meteor.protocol.grpc.codec.GrpcMethodShape;
+import net.hasor.meteor.protocol.grpc.binding.GrpcMethodShape;
 import net.hasor.meteor.rpc.MetCaller;
 
 /** 一次 Connect 流调用独占其 HTTP 交换、两个有界字节方向和业务 Flow 订阅。 */
@@ -63,7 +63,7 @@ final class ConnectStreamingCall {
             Consumer<Runnable> serial, ObjLongConsumer<Payload> messages) {
         this.request = request;
         this.codec = codec;
-        this.method = new GrpcMethodShape(codec.target(request));
+        this.method = codec.shape(request);
         this.client = client;
         this.workers = workers;
         this.serial = serial;

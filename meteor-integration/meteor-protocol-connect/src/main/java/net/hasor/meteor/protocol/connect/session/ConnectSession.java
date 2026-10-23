@@ -31,7 +31,7 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.protocol.connect.codec.ConnectCors;
 import net.hasor.meteor.protocol.connect.codec.ConnectHttpCodec;
-import net.hasor.meteor.protocol.grpc.codec.GrpcMethodShape;
+import net.hasor.meteor.protocol.grpc.binding.GrpcMethodShape;
 
 /**
  * Maps RPC requests to HTTP exchanges; the underlying channel owns HTTP wire ordering.
@@ -118,7 +118,7 @@ public final class ConnectSession implements ProtocolSession<HttpExchange> {
         try {
             RequestPayload request = this.codec.open(exchange.request());
             request.setRequestID(++this.requestId);
-            GrpcMethodShape shape = new GrpcMethodShape(this.codec.target(request));
+            GrpcMethodShape shape = this.codec.shape(request);
             if (shape.streaming()) {
                 if (shape.streamingRequest() && shape.streamingResponse() && exchange.request().version() != 2) {
                     throw new UnsupportedOperationException("Bidirectional Connect streaming requires HTTP/2");
@@ -235,7 +235,7 @@ public final class ConnectSession implements ProtocolSession<HttpExchange> {
         }
         try {
             if (payload instanceof RequestPayload request && this.context.isOutbound()) {
-                if (new GrpcMethodShape(this.codec.target(request)).streaming()) {
+                if (this.codec.shape(request).streaming()) {
                     this.requestStream(request, sent);
                 } else {
                     this.request(request, sent);
@@ -283,7 +283,7 @@ public final class ConnectSession implements ProtocolSession<HttpExchange> {
         }
         ConnectStreamingCall call = this.stream(request, this.messages);
         HttpRequest message = this.codec.streamRequest(request, call.output());
-        GrpcMethodShape shape = new GrpcMethodShape(this.codec.target(request));
+        GrpcMethodShape shape = this.codec.shape(request);
         if (shape.streamingRequest() && shape.streamingResponse() && message.version() != 2) {
             throw new UnsupportedOperationException("Bidirectional Connect streaming requires HTTP/2");
         }
@@ -305,7 +305,7 @@ public final class ConnectSession implements ProtocolSession<HttpExchange> {
         if (exchange.request().stream() == null) {
             throw new IllegalArgumentException("Configure streamBody=true on the Connect protocol mount");
         }
-        GrpcMethodShape method = new GrpcMethodShape(this.codec.target(request));
+        GrpcMethodShape method = this.codec.shape(request);
         BasicFuture<Void> reading = new BasicFuture<>();
         ConnectStreamingCall call = this.stream(request, (payload, id) -> {
             if (!(payload instanceof RequestPayload) || reading.completed(null)) {

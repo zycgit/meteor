@@ -10,7 +10,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -20,7 +21,7 @@ public class ConnectMountRuntimeTest {
         // 同一挂载的两条会话复用 worker，单个会话退出不会中断另一条会话。
         try (MetContext context = new MetConfiguration().buildContext()) {
             ProtocolConfig config = ProtocolConfig.newConfig("connect", "connect", Map.of("streamWorkers", "2"));
-            ConnectMountRuntime runtime = new ConnectMountRuntime(config);
+            ConnectMountRuntime runtime = new ConnectMountRuntime(config, new RouteMountIndex("connect-test", config));
             ExecutorService first = (ExecutorService) runtime.retain(context).workers();
             ExecutorService second = (ExecutorService) runtime.retain(context).workers();
             try {
@@ -43,7 +44,7 @@ public class ConnectMountRuntimeTest {
         // 挂载没有活动会话后可再次接入连接，新会话得到新的 worker 池。
         try (MetContext context = new MetConfiguration().buildContext()) {
             ProtocolConfig config = ProtocolConfig.newConfig("connect", "connect", Map.of());
-            ConnectMountRuntime runtime = new ConnectMountRuntime(config);
+            ConnectMountRuntime runtime = new ConnectMountRuntime(config, new RouteMountIndex("connect-test", config));
             ExecutorService previous = (ExecutorService) runtime.retain(context).workers();
             runtime.release();
             ExecutorService current = (ExecutorService) runtime.retain(context).workers();

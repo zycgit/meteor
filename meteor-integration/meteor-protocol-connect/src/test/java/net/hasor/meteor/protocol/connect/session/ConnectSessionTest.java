@@ -23,16 +23,17 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.ProtocolSessionContextTestAccess;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.MetTimeoutException;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -423,11 +424,14 @@ public class ConnectSessionTest {
             ControlledNetwork network = new ControlledNetwork();
             List<Payload> received = new ArrayList<>();
             AtomicReference<Runnable> deadline = new AtomicReference<>();
+            ProtocolConfig config = config();
+            String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+            RouteMountIndex routes = new RouteMountIndex(endpointName, config);
             ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext(context, (action, delay) -> {
                 deadline.set(action);
                 return () -> true;
-            }, network.getLocal(), false);
-            ConnectMountRuntime mount = new ConnectMountRuntime(config()).retain(context);
+            }, network.getLocal(), false, routes);
+            ConnectMountRuntime mount = new ConnectMountRuntime(config, routes).retain(context);
             ConnectSession session = new ConnectSession( //
                     runtime, network, (payload, id) -> received.add(payload), mount);
             try {
@@ -468,11 +472,14 @@ public class ConnectSessionTest {
             List<Payload> received = new ArrayList<>();
             AtomicReference<Runnable> deadline = new AtomicReference<>();
             AtomicBoolean cancelled = new AtomicBoolean();
+            ProtocolConfig config = config();
+            String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+            RouteMountIndex routes = new RouteMountIndex(endpointName, config);
             ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext(context, (action, delay) -> {
                 deadline.set(action);
                 return () -> cancelled.compareAndSet(false, true);
-            }, network.getLocal(), false);
-            ConnectMountRuntime mount = new ConnectMountRuntime(config()).retain(context);
+            }, network.getLocal(), false, routes);
+            ConnectMountRuntime mount = new ConnectMountRuntime(config, routes).retain(context);
             ConnectSession session = new ConnectSession( //
                     runtime, network, (payload, id) -> received.add(payload), mount);
             try {
@@ -565,7 +572,9 @@ public class ConnectSessionTest {
     }
 
     private static MetContext context() throws Exception {
-        MetContext context = new MetConfiguration().setDefaultGroup("wire").buildContext();
+        MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
+        configuration.connector("http").protocol("connect").contextPath("/connect");
+        MetContext context = configuration.buildContext();
         context.publisher().rsfService(Echo.class, value -> value) //
                 .name("Echo") //
                 .aliasName("connect", "example.Echo") //
@@ -579,16 +588,22 @@ public class ConnectSessionTest {
     }
 
     private static ConnectHttpCodec codec(MetContext context) {
-        return new ConnectHttpCodec(config(), context);
+        ProtocolConfig config = config();
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        RouteMountIndex routes = new RouteMountIndex(endpointName, config);
+        return new ConnectHttpCodec(config, routes, context);
     }
 
     private static ProtocolSession<HttpExchange> session(MetContext context, ControlledNetwork network, //
             List<Payload> received, boolean outbound) {
         // 增量正文分发前允许注册读取期限，分发后的 RPC 期限仍由 Caller 管理。
+        ProtocolConfig config = config();
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        RouteMountIndex routes = new RouteMountIndex(endpointName, config);
         ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext(context, (action, delay) -> {
             return () -> true;
-        }, network.getLocal(), outbound);
-        ConnectMountRuntime mount = new ConnectMountRuntime(config());
+        }, network.getLocal(), outbound, routes);
+        ConnectMountRuntime mount = new ConnectMountRuntime(config, routes);
         return new ConnectSession(runtime, network, (payload, id) -> received.add(payload), mount.retain(context));
     }
 

@@ -8,10 +8,10 @@
 package net.hasor.meteor.protocol.connect.codec;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 

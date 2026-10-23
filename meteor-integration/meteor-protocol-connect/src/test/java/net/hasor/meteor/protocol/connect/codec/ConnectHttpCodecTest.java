@@ -24,12 +24,13 @@ import net.hasor.example.protocol.connect.ConnectMessage;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetTimeoutException;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -779,7 +780,7 @@ public class ConnectHttpCodecTest {
         GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/connect-demo.proto"));
         return context.publisher().rsfService(ConnectDemoService.class, new ConnectDemoServiceImpl()) //
                 .aliasName("connect", "meteor.connect.demo.ConnectDemoService") //
-                .serialize("Json").bindResource(resource).register();
+                .serialize("Json").bindResource("connect", resource).register();
     }
 
     private MetConfiguration configuration() {
@@ -795,7 +796,10 @@ public class ConnectHttpCodecTest {
         options.put("httpVersion", "2");
         options.put("maxMessageSize", "4096");
         options.putAll(extra);
-        return new ConnectHttpCodec(ProtocolConfig.newConfig("connect", "connect", options), context);
+        ProtocolConfig config = ProtocolConfig.newConfig("connect", "connect", options);
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        RouteMountIndex routes = new RouteMountIndex(endpointName, config);
+        return new ConnectHttpCodec(config, routes, context);
     }
 
     private RequestPayload payload(MetBindInfo<?> service, String method) {

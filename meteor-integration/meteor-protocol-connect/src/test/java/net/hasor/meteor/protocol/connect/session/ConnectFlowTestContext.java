@@ -13,10 +13,12 @@ import java.util.concurrent.Flow;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -41,8 +43,10 @@ final class ConnectFlowTestContext implements AutoCloseable {
         this.context = configuration.buildContext();
         MetBindInfo<Messages> service = this.context.publisher().rsfService(Messages.class) //
                 .aliasName("connect", "example.Messages").serialize("Json").register();
-        ProtocolConfig config = this.context.getSettings().getConnectorConfigs().iterator().next().protocol("connect");
-        this.codec = new ConnectHttpCodec(config, this.context);
+        ConnectorConfig endpoint = this.context.getSettings().getConnectorConfigs().iterator().next();
+        ProtocolConfig config = endpoint.protocol("connect");
+        RouteMountIndex routes = new RouteMountIndex(endpoint.name(), config);
+        this.codec = new ConnectHttpCodec(config, routes, this.context);
         this.request = new RequestPayload();
         this.request.setRequestID(101);
         this.request.setServiceGroup(service.getBindGroup());

@@ -21,15 +21,18 @@ import net.hasor.example.protocol.connect.ConnectDemoServiceImpl;
 import net.hasor.example.protocol.connect.ConnectMessage;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetMessage;
+import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.protocol.connect.ConnectStatusException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.meteor.protocol.grpc.GrpcProtoSchema;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -45,7 +48,7 @@ public class ConnectProtoMappingTest {
             byte[] encoded = codec.encodeValue(request, ConnectMessage.of("proto", 7), true);
 
             // 用标准 Protobuf 描述独立解析正文。
-            Descriptor descriptor = resource.method(this.alias(), "echo").getInputType();
+            Descriptor descriptor = GrpcProtoSchema.fromResource(resource).method(this.alias(), "echo").getInputType();
             DynamicMessage message = DynamicMessage.parseFrom(descriptor, encoded);
             assertEquals("proto", message.getField(descriptor.findFieldByNumber(1)));
             assertEquals(7, message.getField(descriptor.findFieldByNumber(2)));
@@ -58,7 +61,7 @@ public class ConnectProtoMappingTest {
         try (MetContext context = this.configuration().buildContext()) {
             GrpcProtoResource resource = this.resource();
             MetBindInfo<?> service = this.publish(context, resource);
-            Descriptor descriptor = resource.method(this.alias(), "echo").getInputType();
+            Descriptor descriptor = GrpcProtoSchema.fromResource(resource).method(this.alias(), "echo").getInputType();
             byte[] body = DynamicMessage.newBuilder(descriptor) //
                     .setField(descriptor.findFieldByNumber(1), "decoded") //
                     .setField(descriptor.findFieldByNumber(2), 9).build().toByteArray();
@@ -80,7 +83,7 @@ public class ConnectProtoMappingTest {
             RequestPayload request = this.payload(service, "Protobuf");
             ConnectMessage message = (ConnectMessage) this.codec(context) //
                     .decodeValue(request, ConnectMessage.class, new byte[0], true);
-            assertNull(message.getText());
+            assertEquals("", message.getText());
             assertEquals(0, message.getNumber());
         }
     }
@@ -91,7 +94,7 @@ public class ConnectProtoMappingTest {
         try (MetContext context = this.configuration().buildContext()) {
             GrpcProtoResource resource = this.resource();
             MetBindInfo<?> service = this.publish(context, resource);
-            Descriptor descriptor = resource.method(this.alias(), "echo").getInputType();
+            Descriptor descriptor = GrpcProtoSchema.fromResource(resource).method(this.alias(), "echo").getInputType();
             DynamicMessage message = DynamicMessage.newBuilder(descriptor) //
                     .setField(descriptor.findFieldByNumber(1), "dynamic").build();
             byte[] encoded = this.codec(context).encodeValue(this.payload(service, "Protobuf"), message, true);
@@ -105,7 +108,7 @@ public class ConnectProtoMappingTest {
         try (MetContext context = this.configuration().buildContext()) {
             GrpcProtoResource resource = this.resource();
             MetBindInfo<?> service = this.publish(context, resource);
-            Descriptor descriptor = resource.method(this.alias(), "echo").getInputType();
+            Descriptor descriptor = GrpcProtoSchema.fromResource(resource).method(this.alias(), "echo").getInputType();
             byte[] bytes = DynamicMessage.newBuilder(descriptor) //
                     .setField(descriptor.findFieldByNumber(1), "dynamic").build().toByteArray();
             Object decoded = this.codec(context).decodeValue(this.payload(service, "Protobuf"), //
@@ -121,7 +124,7 @@ public class ConnectProtoMappingTest {
         try (MetContext context = this.configuration().buildContext()) {
             GrpcProtoResource resource = this.resource();
             MetBindInfo<?> service = this.publish(context, resource);
-            Descriptor output = resource.method(this.alias(), "echo").getOutputType();
+            Descriptor output = GrpcProtoSchema.fromResource(resource).method(this.alias(), "echo").getOutputType();
             DynamicMessage message = DynamicMessage.newBuilder(output).build();
 
             // 不能仅凭相同字段字节接受错误消息类型。
@@ -136,7 +139,8 @@ public class ConnectProtoMappingTest {
         try (MetContext context = this.configuration().buildContext()) {
             GrpcProtoResource resource = this.resource();
             context.publisher().rsfService(ConnectDemoService.class, new ConnectDemoServiceImpl()) //
-                    .aliasName("connect", this.alias()).serialize("Protobuf").bindResource(resource).register();
+                    .aliasName("connect", this.alias()).serialize("Protobuf") //
+                    .bindResource("connect", resource).register();
             byte[] body = "{\"text\":\"json\",\"number\":3}".getBytes(StandardCharsets.UTF_8);
             Map<String, List<String>> headers = Map.of("content-type", List.of("application/json"));
             String path = "/" + this.alias() + "/echo";
@@ -186,7 +190,7 @@ public class ConnectProtoMappingTest {
             RequestPayload request = this.payload(service, "Protobuf");
             ConnectStatusException failure = assertThrows(ConnectStatusException.class, //
                     () -> this.codec(context).encodeValue(request, ConnectMessage.of("value", 1), true));
-            assertEquals("Protobuf service must bind proto file.", failure.getDescription());
+            assertEquals("Protobuf service has no prepared definition", failure.getDescription());
         }
     }
 
@@ -265,7 +269,8 @@ public class ConnectProtoMappingTest {
         try (MetContext context = this.configuration().buildContext()) {
             GrpcProtoResource resource = this.numericResource();
             MetBindInfo<?> service = context.publisher().rsfService(NumericService.class) //
-                    .aliasName("connect", "numeric.Service").serialize("Json").bindResource(resource).register();
+                    .aliasName("connect", "numeric.Service").serialize("Json") //
+                    .bindResource("connect", resource).register();
             RequestPayload request = this.payload(service, "Json");
             NumericMessage value = new NumericMessage();
             value.setNumber(9007199254740993L);
@@ -282,7 +287,7 @@ public class ConnectProtoMappingTest {
         try (MetContext context = this.configuration().buildContext()) {
             MetBindInfo<?> service = context.publisher().rsfService(NumericService.class) //
                     .aliasName("connect", "numeric.Service").serialize("Json") //
-                    .bindResource(this.numericResource()).register();
+                    .bindResource("connect", this.numericResource()).register();
             RequestPayload request = this.payload(service, "Json");
             byte[] json = "{\"number\":\"9007199254740993\"}".getBytes(StandardCharsets.UTF_8);
 
@@ -299,17 +304,19 @@ public class ConnectProtoMappingTest {
         ServiceDomain<ConnectDemoService> service = new ServiceDomain<>(ConnectDemoService.class);
         service.putAliasName("connect", this.alias());
         service.setSerializeType("Json");
-        ConnectHttpCodec.validateService(this.protocol(), service);
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        assertNotNull(ConnectHttpCodec.prepareServiceDefinition(this.protocol(), meta));
     }
 
     @Test
     public void publicationRejectsProtobufWithoutProto() {
-        // Protobuf 服务在发布校验阶段就必须具备绑定描述。
+        // 缺少绑定描述的 Protobuf 服务不参与当前协议发布。
         ServiceDomain<ConnectDemoService> service = new ServiceDomain<>(ConnectDemoService.class);
         service.putAliasName("connect", this.alias());
         service.setSerializeType("Protobuf");
         ProtocolConfig protocol = this.protocol();
-        assertThrows(IllegalArgumentException.class, () -> ConnectHttpCodec.validateService(protocol, service));
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        assertNull(ConnectHttpCodec.prepareServiceDefinition(protocol, meta));
     }
 
     @Test
@@ -319,7 +326,8 @@ public class ConnectProtoMappingTest {
         service.putAliasName("connect", this.alias());
         service.setSerializeType("Java");
         ProtocolConfig protocol = this.protocol();
-        assertThrows(IllegalArgumentException.class, () -> ConnectHttpCodec.validateService(protocol, service));
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        assertNull(ConnectHttpCodec.prepareServiceDefinition(protocol, meta));
     }
 
     @Test
@@ -329,7 +337,8 @@ public class ConnectProtoMappingTest {
         service.putAliasName("connect", "example.Overloaded");
         service.setSerializeType("Json");
         ProtocolConfig protocol = this.protocol();
-        assertThrows(IllegalArgumentException.class, () -> ConnectHttpCodec.validateService(protocol, service));
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        assertNull(ConnectHttpCodec.prepareServiceDefinition(protocol, meta));
     }
 
     @Test
@@ -339,7 +348,8 @@ public class ConnectProtoMappingTest {
         service.putAliasName("connect", "example.Message");
         service.setSerializeType("Json");
         ProtocolConfig protocol = this.protocol();
-        assertThrows(IllegalArgumentException.class, () -> ConnectHttpCodec.validateService(protocol, service));
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        assertNull(ConnectHttpCodec.prepareServiceDefinition(protocol, meta));
     }
 
     @Test
@@ -349,7 +359,8 @@ public class ConnectProtoMappingTest {
         service.putAliasName("connect", "example.Multiple");
         service.setSerializeType("Json");
         ProtocolConfig protocol = this.protocol();
-        assertThrows(IllegalArgumentException.class, () -> ConnectHttpCodec.validateService(protocol, service));
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        assertNull(ConnectHttpCodec.prepareServiceDefinition(protocol, meta));
     }
 
     @Test
@@ -358,9 +369,10 @@ public class ConnectProtoMappingTest {
         ServiceDomain<WrongFlowService> service = new ServiceDomain<>(WrongFlowService.class);
         service.putAliasName("connect", this.alias());
         service.setSerializeType("Json");
-        service.setBindResource(this.resource());
+        Object bindResource = this.resource();
         ProtocolConfig protocol = this.protocol();
-        assertThrows(IllegalArgumentException.class, () -> ConnectHttpCodec.validateService(protocol, service));
+        ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
+        assertNull(ConnectHttpCodec.prepareServiceDefinition(protocol, meta));
     }
 
     private MetConfiguration configuration() {
@@ -372,7 +384,7 @@ public class ConnectProtoMappingTest {
 
     private MetBindInfo<?> publish(MetContext context, GrpcProtoResource resource) {
         return context.publisher().rsfService(ConnectDemoService.class, new ConnectDemoServiceImpl()) //
-                .aliasName("connect", this.alias()).serialize("Json").bindResource(resource).register();
+                .aliasName("connect", this.alias()).serialize("Json").bindResource("connect", resource).register();
     }
 
     private GrpcProtoResource resource() throws Exception {
@@ -394,7 +406,10 @@ public class ConnectProtoMappingTest {
     }
 
     private ConnectHttpCodec codec(MetContext context) {
-        return new ConnectHttpCodec(this.protocol(), context);
+        ProtocolConfig config = this.protocol();
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        RouteMountIndex routes = new RouteMountIndex(endpointName, config);
+        return new ConnectHttpCodec(config, routes, context);
     }
 
     private ProtocolConfig protocol() {

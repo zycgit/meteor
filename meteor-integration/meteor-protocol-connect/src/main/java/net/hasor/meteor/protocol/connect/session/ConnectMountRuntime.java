@@ -8,28 +8,31 @@
 package net.hasor.meteor.protocol.connect.session;
 import java.util.concurrent.*;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.protocol.connect.codec.ConnectCors;
 import net.hasor.meteor.protocol.connect.codec.ConnectHttpCodec;
 
 /** 一个协议挂载共享编解码器和有界工作池，最后一个会话退出时释放自行创建的线程。 */
 public final class ConnectMountRuntime {
     private final ProtocolConfig   config;
+    private final RouteMountIndex  routes;
     private final int              messageLimit;
     private final ConnectCors      cors;
     private       ConnectHttpCodec codec;
     private       ExecutorService  workers;
     private       int              sessions;
 
-    public ConnectMountRuntime(ProtocolConfig config) {
+    public ConnectMountRuntime(ProtocolConfig config, RouteMountIndex routes) {
         this.config = config;
+        this.routes = routes;
         this.cors = new ConnectCors(config);
         this.messageLimit = config.integer("maxMessageSize", 4 * 1024 * 1024);
     }
 
     public synchronized ConnectMountRuntime retain(MetContext context) {
         if (this.sessions == 0) {
-            this.codec = new ConnectHttpCodec(this.config, context);
+            this.codec = new ConnectHttpCodec(this.config, this.routes, context);
             this.workers = this.createWorkers(context.getClassLoader());
         }
         this.sessions++;
