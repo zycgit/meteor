@@ -1,0 +1,11 @@
+plugins {
+    id 'java-library'
+}
+
+ext.pomName = 'Meteor Protocol Dubbo'
+description = 'Dubbo binary RPC for native Dubbo 2 and 3 services over TCP and TLS.'
+
+dependencies {
+    api project(':meteor')
+    api "com.caucho:hessian:${property('lib.hessian')}"
+}
