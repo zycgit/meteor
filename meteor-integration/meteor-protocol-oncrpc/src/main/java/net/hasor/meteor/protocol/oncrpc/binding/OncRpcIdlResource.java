@@ -46,7 +46,7 @@ public final class OncRpcIdlResource {
     }
 
     OncRpcIdlProgram program(Class<?> service) {
-        long id = ServiceMetaParser.parse(service).getId();
+        long id = ServiceMetaParser.parse(service).getContractServiceId();
         OncRpcIdlProgram selected = null;
         for (OncRpcIdlProgram program : this.document.programs.values()) {
             if (this.programName != null && !StringUtils.equals(program.name, this.programName)) {
@@ -83,9 +83,9 @@ public final class OncRpcIdlResource {
         boolean named = mapping.getDeclaredName() != null;
         String name = mapping.getName();
         OncRpcIdlProcedure selected = null;
-        if (mapping.getId() != 0) {
+        if (mapping.getMethodId() != 0) {
             for (OncRpcIdlProcedure procedure : procedures.values()) {
-                if (procedure.id == mapping.getId()) {
+                if (procedure.id == mapping.getMethodId()) {
                     selected = procedure;
                 }
             }

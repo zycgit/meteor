@@ -23,50 +23,68 @@ import static org.junit.Assert.*;
 /** 使用 H2 验证正式存储契约，不替代应用接入与 RPC 场景。 */
 public class JdbcStorageTest {
     @Test
-    public void zeroServiceContractIdSurvivesStorageRoundTrip() throws Exception {
+    public void zeroContractServiceIdSurvivesStorageRoundTrip() throws Exception {
         // 契约编号为零与未声明编号分别保存，字符串服务 ID 继续用于目录定位。
         JdbcRegistryConfiguration configuration = configuration(createDatabase());
         try (StorageAccess storage = configuration.openStorage()) {
             storage.registerInstance(instance("one", "orders", "east"));
             EntServiceRuntimeData service = service("contract", MetServiceType.Provider);
-            service.setContractId(0L);
+            service.setContractServiceId(0L);
             storage.registerService("one", service);
 
             // 持久声明与实例运行信息都保留数值编号，不改写字符串标识。
             EntServiceCatalogData catalog = storage.getService("contract");
             EntServiceRuntimeData registered = storage.getInstanceService("one", "contract");
-            assertEquals(Long.valueOf(0), catalog.getContractId());
-            assertEquals(Long.valueOf(0), registered.getContractId());
+            assertEquals(Long.valueOf(0), catalog.getContractServiceId());
+            assertEquals(Long.valueOf(0), registered.getContractServiceId());
             assertEquals("contract", registered.getServiceId());
         }
     }
 
     @Test
-    public void unsignedServiceContractIdSurvivesStorageRoundTrip() throws Exception {
+    public void negativeContractServiceIdSurvivesStorageRoundTrip() throws Exception {
+        // 存储保留公共数值声明，具体协议的合法编号范围由协议扩展校验。
+        JdbcRegistryConfiguration configuration = configuration(createDatabase());
+        try (StorageAccess storage = configuration.openStorage()) {
+            storage.registerInstance(instance("one", "orders", "east"));
+            EntServiceRuntimeData service = service("contract", MetServiceType.Provider);
+            service.setContractServiceId(-1L);
+            storage.registerService("one", service);
+
+            // 负值也按 Long 原样读回，不与缺省编号或字符串 serviceId 混淆。
+            EntServiceCatalogData catalog = storage.getService("contract");
+            EntServiceRuntimeData registered = storage.getInstanceService("one", "contract");
+            assertEquals(Long.valueOf(-1), catalog.getContractServiceId());
+            assertEquals(Long.valueOf(-1), registered.getContractServiceId());
+        }
+    }
+
+    @Test
+    public void unsignedContractServiceIdSurvivesStorageRoundTrip() throws Exception {
         // ONC 程序号的无符号 32 位上界不能在存储时缩为 Java int。
         JdbcRegistryConfiguration configuration = configuration(createDatabase());
         try (StorageAccess storage = configuration.openStorage()) {
             storage.registerInstance(instance("one", "orders", "east"));
             EntServiceRuntimeData service = service("contract", MetServiceType.Provider);
-            service.setContractId(0xffffffffL);
+            service.setContractServiceId(0xffffffffL);
             storage.registerService("one", service);
 
             // 服务目录与成员查询都返回完整 long 数值。
             EntServiceCatalogData catalog = storage.getService("contract");
             RefServiceRelationData member = storage.getMember("contract", MetServiceType.Provider, "one");
-            assertEquals(Long.valueOf(0xffffffffL), catalog.getContractId());
-            assertEquals(Long.valueOf(0xffffffffL), member.getService().getContractId());
+            assertEquals(Long.valueOf(0xffffffffL), catalog.getContractServiceId());
+            assertEquals(Long.valueOf(0xffffffffL), member.getService().getContractServiceId());
         }
     }
 
     @Test
-    public void partialServiceDeclarationKeepsExistingContractId() throws Exception {
+    public void partialServiceDeclarationKeepsExistingContractServiceId() throws Exception {
         // 首次声明保存契约编号，后续只更新服务名称。
         JdbcRegistryConfiguration configuration = configuration(createDatabase());
         try (StorageAccess storage = configuration.openStorage()) {
             EntServiceCatalogData initial = new EntServiceCatalogData();
             initial.setServiceId("contract");
-            initial.setContractId(0xffffffffL);
+            initial.setContractServiceId(0xffffffffL);
             storage.saveService(initial);
 
             // 缺省的契约编号不清空旧声明，同时本次名称更新正常保存。
@@ -75,28 +93,28 @@ public class JdbcStorageTest {
             partial.setName("Renamed");
             storage.saveService(partial);
             EntServiceCatalogData current = storage.getService("contract");
-            assertEquals(Long.valueOf(0xffffffffL), current.getContractId());
+            assertEquals(Long.valueOf(0xffffffffL), current.getContractServiceId());
             assertEquals("Renamed", current.getName());
         }
     }
 
     @Test
-    public void serviceContractIdsStayWithTheirOwnInstance() throws Exception {
+    public void contractServiceIdsStayWithTheirOwnInstance() throws Exception {
         // 同一服务的两个实例分别声明编号和不声明编号。
         JdbcRegistryConfiguration configuration = configuration(createDatabase());
         try (StorageAccess storage = configuration.openStorage()) {
             storage.registerInstance(instance("numbered", "orders", "east"));
             storage.registerInstance(instance("unnumbered", "orders", "east"));
             EntServiceRuntimeData numbered = service("contract", MetServiceType.Provider);
-            numbered.setContractId(0xffffffffL);
+            numbered.setContractServiceId(0xffffffffL);
             storage.registerService("numbered", numbered);
             storage.registerService("unnumbered", service("contract", MetServiceType.Provider));
 
             // 共享服务目录不能覆盖各实例自己的声明，未指定时仍返回 null。
             EntServiceRuntimeData first = storage.getInstanceService("numbered", "contract");
             EntServiceRuntimeData second = storage.getInstanceService("unnumbered", "contract");
-            assertEquals(Long.valueOf(0xffffffffL), first.getContractId());
-            assertNull(second.getContractId());
+            assertEquals(Long.valueOf(0xffffffffL), first.getContractServiceId());
+            assertNull(second.getContractServiceId());
         }
     }
 

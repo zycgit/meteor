@@ -135,7 +135,7 @@ public class NacosLayoutTest {
              StorageAccess storage = sdk.configuration().openStorage()) {
             storage.registerInstance(instance("node"));
             EntServiceRuntimeData registration = service("echo");
-            registration.setContractId(0xffffffffL);
+            registration.setContractServiceId(0xffffffffL);
             storage.registerService("node", registration);
 
             // 关系只保存自身属性，主实体正文仅出现在对应主节点。
@@ -144,10 +144,16 @@ public class NacosLayoutTest {
             assertEquals(keys, sdk.nodes.keySet());
             Instance membership = sdk.nodes.get("services.echo.providers").get("node");
             Map<?, ?> body = RegistryJson.read(membership.getMetadata().get("body"), Map.class);
-            Set<String> fields = Set.of("contractId", "enabled", "endpoints", //
+            Set<String> fields = Set.of("contractServiceId", "enabled", "endpoints", //
                     "addresses", "usedProtocols");
             assertEquals(fields, body.keySet());
-            assertEquals(0xffffffffL, ((Number) body.get("contractId")).longValue());
+            assertEquals(0xffffffffL, ((Number) body.get("contractServiceId")).longValue());
+            Map<?, ?> catalog = RegistryJson.read(sdk.documents.get("services.echo"), Map.class);
+            assertEquals(0xffffffffL, ((Number) catalog.get("contractServiceId")).longValue());
+            assertFalse(body.containsKey("id"));
+            assertFalse(catalog.containsKey("id"));
+            assertFalse(body.containsKey("contractId"));
+            assertFalse(catalog.containsKey("contractId"));
             Instance applicationMember = sdk.nodes.get("applications.orders.instances").get("node");
             assertEquals(Map.of("instanceId", "node"), applicationMember.getMetadata());
         }

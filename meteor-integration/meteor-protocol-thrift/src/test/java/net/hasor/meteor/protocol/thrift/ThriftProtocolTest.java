@@ -15,7 +15,10 @@ import java.util.function.ObjLongConsumer;
 import net.hasor.example.protocol.thrift.ThriftDemoService;
 import net.hasor.example.protocol.thrift.generated.ExtendedInteropService;
 import net.hasor.meteor.annotation.MetParam;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolProvider;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
@@ -40,7 +43,7 @@ public class ThriftProtocolTest {
         // 没有官方 Processor 时，仍按普通注解契约编译。
         ProtocolBinding binding = new ThriftProtocol().prepareBinding(this.config(Map.of()), null, meta);
         assertTrue(binding.getDefinition() instanceof ThriftServiceSchema);
-        assertEquals("Iface", binding.getDescription().path("serviceName").asText());
+        assertEquals("Iface", binding.getDescription().path("name").asText());
         assertFalse(binding.getDescription().path("methods").isEmpty());
         assertFalse(binding.getDescription().path("types").isEmpty());
     }

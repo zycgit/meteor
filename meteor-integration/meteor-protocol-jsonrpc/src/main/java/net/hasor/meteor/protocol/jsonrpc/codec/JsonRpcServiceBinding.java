@@ -95,13 +95,13 @@ public final class JsonRpcServiceBinding {
         for (Map.Entry<Method, String> entry : this.names.entrySet()) {
             Method method = entry.getKey();
             ObjectNode operation = methods.addObject();
-            operation.put("javaSignature", ServiceMetaParser.method(method).getJavaSignature());
             operation.put("name", entry.getValue());
+            operation.put("javaSignature", ServiceMetaParser.method(method).getJavaSignature());
             ArrayNode parameters = operation.putArray("parameters");
             for (int index = 0; index < method.getParameterCount(); index++) {
                 ObjectNode parameter = parameters.addObject();
-                parameter.put("argIndex", index);
                 parameter.put("name", this.parameterName(method, index));
+                parameter.put("argIndex", index);
                 parameter.put("type", this.parameterType(method, index).toString());
             }
             operation.putObject("returns").put("type", this.returnType(method).toString());

@@ -145,7 +145,7 @@ Naming（临时成员）
 ```json
 {
   "serviceId": "echo",
-  "contractId": null,
+  "contractServiceId": null,
   "group": "default",
   "name": "EchoService",
   "version": "1.0.0",
@@ -178,7 +178,7 @@ Naming 的 metadata 为字符串 Map，结构如下：
 
 `endpoints` 的元素包含 `connectorName`、`transport`、`protocolName`、`protocol`、`scheme`、`contextPath`、`bindEnabled`、`configuredAddress`、`listenAddress`、`publishedAddress`。
 
-服务定义的 `contractId` 保存数值契约服务编号，未指定时为 `null`，字符串 `serviceId` 用于登记和查询。`description` 保存本实例的服务方法、参数、返回值和 DTO 类型图，服务及方法编号均使用 `contractId`，协议端点描述位于 `protocols[protocolName][connectorName]`。`argIndex` 是从零开始的 Java 参数位置，`fieldId` 是契约字段编号。描述与该成员正文一起替换、撤回，完整内容通过服务管理接口的 `descriptions()` 查询。Naming 的 metadata 容量需覆盖端点及完整服务描述，超限错误由上报调用返回。
+服务定义的 `contractServiceId` 保存数值契约服务编号，未指定时为 `null`，字符串 `serviceId` 用于登记和查询。`description` 保存本实例的服务方法、参数、返回值和 DTO 类型图，协议端点描述位于 `protocols[protocolName][connectorName]`。描述中的服务、方法及字段编号分别为 `contractServiceId`、`methodId`、`fieldId`；`argIndex` 是从零开始的 Java 参数位置，协议端点的 `name` 是实际绑定的服务名。描述与该成员正文一起替换、撤回，完整内容通过服务管理接口的 `descriptions()` 查询。Naming 的 metadata 容量需覆盖端点及完整服务描述，超限错误由上报调用返回。
 
 应用和服务定义持久保留。实例运行信息、成员关系及实例治理随临时登记清理；每次进程启动使用独立实例 ID。服务端可能暂存退出成员的管理元信息，同一进程撤回后再次登记相同服务时可能恢复这些配置。
 

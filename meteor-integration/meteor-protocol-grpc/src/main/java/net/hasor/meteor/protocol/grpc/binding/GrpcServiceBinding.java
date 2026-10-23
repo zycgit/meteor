@@ -139,14 +139,14 @@ public final class GrpcServiceBinding {
     /** 从已编译的操作和消息图导出端点契约，外部 proto 和自动生成入口共用。 */
     public ObjectNode describeContract(ObjectNode description) {
         if (this.service != null) {
-            description.put("serviceName", this.service.getFullName());
+            description.put("name", this.service.getFullName());
         }
         ArrayNode methods = description.putArray("methods");
         ObjectNode types = description.putObject("types");
         for (Method method : this.javaMethods.values()) {
             ObjectNode operation = methods.addObject();
-            operation.put("javaSignature", ServiceMetaParser.method(method).getJavaSignature());
             operation.put("name", this.remoteName(method));
+            operation.put("javaSignature", ServiceMetaParser.method(method).getJavaSignature());
             GrpcMethodShape shape = this.shape(method);
             MethodDescriptor descriptor = this.descriptors.get(method);
             if (descriptor == null) {
@@ -174,14 +174,8 @@ public final class GrpcServiceBinding {
         ArrayNode fields = message.putArray("fields");
         for (FieldDescriptor field : descriptor.getFields()) {
             ObjectNode member = fields.addObject();
-            member.put("name", field.getName());
-            member.put("jsonName", field.getJsonName());
             member.put("fieldId", field.getNumber());
-            member.put("repeated", field.isRepeated());
-            member.put("required", field.isRequired());
-            if (field.getContainingOneof() != null) {
-                member.put("oneof", field.getContainingOneof().getName());
-            }
+            member.put("name", field.getName());
             if (field.getJavaType() == FieldDescriptor.JavaType.MESSAGE) {
                 member.put("type", describeMessage(field.getMessageType(), types));
             } else if (field.getJavaType() == FieldDescriptor.JavaType.ENUM) {
@@ -194,12 +188,18 @@ public final class GrpcServiceBinding {
                     ArrayNode constants = values.putArray("values");
                     for (EnumValueDescriptor constant : enumeration.getValues()) {
                         ObjectNode value = constants.addObject();
-                        value.put("name", constant.getName());
                         value.put("fieldId", constant.getNumber());
+                        value.put("name", constant.getName());
                     }
                 }
             } else {
                 member.put("type", field.getType().name());
+            }
+            member.put("jsonName", field.getJsonName());
+            member.put("repeated", field.isRepeated());
+            member.put("required", field.isRequired());
+            if (field.getContainingOneof() != null) {
+                member.put("oneof", field.getContainingOneof().getName());
             }
         }
         return name;

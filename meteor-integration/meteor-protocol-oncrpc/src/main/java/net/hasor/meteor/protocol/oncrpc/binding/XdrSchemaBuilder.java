@@ -233,7 +233,7 @@ final class XdrSchemaBuilder {
         for (Object constant : raw.getEnumConstants()) {
             EnumValueMeta mapping = ServiceMetaParser.enumValue((Enum<?>) constant);
             Integer id = type.enumeration.get(mapping.getName());
-            if (id == null || mapping.isDeclared() && mapping.getId() != id) {
+            if (id == null || mapping.isDeclared() && mapping.getFieldId() != id) {
                 throw new IllegalArgumentException("Java enum name/id differs from XDR: " + constant);
             }
             if (values.putIfAbsent(id, constant) != null) {
@@ -336,11 +336,11 @@ final class XdrSchemaBuilder {
             if (!mapping.isDeclared()) {
                 return null;
             }
-            if (values.putIfAbsent(mapping.getId(), constant) != null) {
-                throw new IllegalArgumentException("Duplicate XDR enum id: " + mapping.getId());
+            if (values.putIfAbsent(mapping.getFieldId(), constant) != null) {
+                throw new IllegalArgumentException("Duplicate XDR enum id: " + mapping.getFieldId());
             }
-            numbers.put(constant, mapping.getId());
-            if (definition.enumeration.putIfAbsent(mapping.getName(), mapping.getId()) != null) {
+            numbers.put(constant, mapping.getFieldId());
+            if (definition.enumeration.putIfAbsent(mapping.getName(), mapping.getFieldId()) != null) {
                 throw new IllegalArgumentException("Duplicate XDR enum symbol: " + mapping.getName());
             }
         }
@@ -360,7 +360,7 @@ final class XdrSchemaBuilder {
             if (!property.isDeclared()) {
                 continue;
             }
-            int id = property.getId();
+            int id = property.getFieldId();
             if (id <= 0) {
                 String message = "XDR properties require a positive @MetField id: ";
                 throw new IllegalArgumentException(message + raw.getName() + "." + property.getJavaName());
@@ -373,7 +373,7 @@ final class XdrSchemaBuilder {
         if (properties.isEmpty()) {
             return null;
         }
-        properties.sort(Comparator.comparingInt(PropertyMeta::getId));
+        properties.sort(Comparator.comparingInt(PropertyMeta::getFieldId));
 
         // 递归回边先登记，全部成员准备成功后再返回当前协议绑定。
         XdrStructCodec codec = new XdrStructCodec(raw);

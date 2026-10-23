@@ -12,6 +12,7 @@ import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
@@ -27,6 +28,26 @@ import static org.junit.Assert.*;
 public class SoapXmlMappingTest {
     private final XmlMapper      mapper  = SoapXmlMapping.newMapper();
     private final SoapXmlMapping mapping = new SoapXmlMapping(this.mapper);
+
+    @Test
+    public void descriptionListsPublicPropertyNameBeforeJavaAndXmlDetails() {
+        // 使用已有公共注解映射，让导出描述保留实际 XML 名称与 Java 属性的区别。
+        JavaType javaType = this.mapper.constructType(OrderedBean.class);
+        this.mapping.prepare(javaType);
+        JsonNode type = this.mapping.describeTypes().path(javaType.toCanonical());
+        JsonNode property = type.path("properties").get(0);
+
+        // 先展示公共名称、Java 定位与类型，最后展示 XML 专属设置。
+        List<String> typeFields = new ArrayList<>();
+        type.fieldNames().forEachRemaining(typeFields::add);
+        assertArrayEquals(new String[] { "name", "properties", "namespace" }, typeFields.toArray(String[]::new));
+        List<String> propertyFields = new ArrayList<>();
+        property.fieldNames().forEachRemaining(propertyFields::add);
+        String[] expected = { "name", "javaName", "type", "namespace", "attribute", "text", "required", "nillable" };
+        assertArrayEquals(expected, propertyFields.toArray(String[]::new));
+        assertEquals("b", property.path("name").asText());
+        assertEquals("second", property.path("javaName").asText());
+    }
 
     @Test
     public void unannotatedFieldKeepsItsUnqualifiedName() {

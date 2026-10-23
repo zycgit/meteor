@@ -7,6 +7,8 @@
  */
 package net.hasor.meteor.protocol.soap.definition;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -49,6 +51,29 @@ public class SoapProtocolMetaTest {
         assertEquals("payload", method.path("parameters").get(0).path("name").asText());
         assertEquals("answer", method.path("returns").get(0).path("name").asText());
         assertFalse(description.path("schemas").path("elements").isEmpty());
+    }
+
+    @Test
+    public void descriptionListsPublicNamesBeforeJavaAndSoapDetails() {
+        // 同一份 SOAP 契约先呈现公共名称与 Java 定位，再呈现消息主体和协议扩展。
+        SoapProtocolMeta binding = this.prepare(GeneratedNames.class, null);
+        ObjectNode description = binding.describeContract(JsonNodeFactory.instance.objectNode());
+        JsonNode method = description.path("methods").get(0);
+        JsonNode parameter = method.path("parameters").get(0);
+        JsonNode result = method.path("returns").get(0);
+
+        // 名称与公共注解一致，XML 专属信息排在主体之后。
+        String[] serviceFields = { "methods", "types", "schemas", "version", "namespace" };
+        assertArrayEquals(serviceFields, fieldNames(description));
+        String[] methodFields = { "name", "javaSignature", "message", "parameters", "returns", "faults", //
+                "soapAction", "style", "use", "requestWrapper", "responseWrapper" };
+        assertArrayEquals(methodFields, fieldNames(method));
+        String[] parameterFields = { "name", "argIndex", "type", "element", "minOccurs", "maxOccurs" };
+        assertArrayEquals(parameterFields, fieldNames(parameter));
+        assertEquals("payload", parameter.path("name").asText());
+        assertEquals(0, parameter.path("argIndex").asInt());
+        assertArrayEquals(new String[] { "name", "type", "element", "minOccurs", "maxOccurs" }, fieldNames(result));
+        assertEquals("answer", result.path("name").asText());
     }
 
     @Test
@@ -119,6 +144,12 @@ public class SoapProtocolMetaTest {
         ProtocolBinding result = new SoapProtocol().prepareBinding(config, null, meta);
         assertNotNull(result);
         return (SoapProtocolMeta) result.getDefinition();
+    }
+
+    private static String[] fieldNames(JsonNode description) {
+        List<String> fields = new ArrayList<>();
+        description.fieldNames().forEachRemaining(fields::add);
+        return fields.toArray(String[]::new);
     }
 
     private SoapWsdlResource resource() throws Exception {

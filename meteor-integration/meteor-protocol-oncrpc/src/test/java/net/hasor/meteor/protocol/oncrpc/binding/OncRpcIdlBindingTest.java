@@ -6,6 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.oncrpc.binding;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -36,9 +38,45 @@ public class OncRpcIdlBindingTest {
 
         // 文件顺序为 left、right，Java 调用顺序为 right、left。
         assertNotNull(selected);
+        assertEquals("Example", description.path("name").asText());
+        assertFalse(description.has("serviceName"));
+        assertEquals(0x20001111L, description.path("program").asLong());
+        assertEquals(1, description.path("version").asLong());
+        assertEquals(2, selected.path("procedureId").asLong());
+        List<String> methodFields = new ArrayList<>();
+        selected.fieldNames().forEachRemaining(methodFields::add);
+        List<String> expectedFields = List.of("procedureId", "name", "javaSignature", //
+                "argIndexes", "requestType", "responseType");
+        assertEquals(expectedFields, methodFields);
         assertEquals(1, selected.path("argIndexes").get(0).asInt());
         assertEquals(0, selected.path("argIndexes").get(1).asInt());
         assertFalse(description.path("types").isEmpty());
+    }
+
+    @Test
+    public void descriptionPreservesFileEnumNamesAndFieldIds() throws Exception {
+        // 文件枚举值为 NONE=0、TEXT=7、DATA=42，不能改用 Java ordinal。
+        ObjectNode description = this.binding().describeContract(JsonNodeFactory.instance.objectNode());
+        JsonNode selected = null;
+        for (JsonNode type : description.path("types")) {
+            if (StringUtils.equals("Mode", type.path("name").asText())) {
+                selected = type;
+            }
+        }
+
+        // 每个枚举值先给出 fieldId 再给出 name，保留文件中的零编号。
+        assertNotNull(selected);
+        JsonNode constants = selected.path("values");
+        assertEquals(3, constants.size());
+        assertEquals("NONE", constants.get(0).path("name").asText());
+        assertEquals(0, constants.get(0).path("fieldId").asInt());
+        assertEquals("TEXT", constants.get(1).path("name").asText());
+        assertEquals(7, constants.get(1).path("fieldId").asInt());
+        assertEquals("DATA", constants.get(2).path("name").asText());
+        assertEquals(42, constants.get(2).path("fieldId").asInt());
+        List<String> constantFields = new ArrayList<>();
+        constants.get(0).fieldNames().forEachRemaining(constantFields::add);
+        assertEquals(List.of("fieldId", "name"), constantFields);
     }
 
     @Test

@@ -20,20 +20,19 @@ import net.hasor.meteor.annotation.MetService;
 
 /** Java 服务的公共声明；服务配置直接读取注解，最终注册值由 ServiceDomain 管理。 */
 public final class ServiceMeta {
-    private final long                                    id;
+    private final long                                    contractServiceId;
     private final Class<?>                                javaType;
-    private final MetService                              declaration;
     private final List<MethodMeta>                        exposedMethods;
-    private final boolean                                 message;
     private final Map<Method, MethodMeta>                 methods;
+    private final MetService                              declaration;
+    private final boolean                                 message;
     private final ConcurrentMap<ResolvableType, TypeMeta> types = new ConcurrentHashMap<>();
 
     ServiceMeta(Class<?> javaType, MetService declaration, boolean message, Map<Method, MethodMeta> methods) {
+        this.contractServiceId = ServiceMetaParser.contractServiceId(javaType, declaration);
         this.javaType = javaType;
-        this.declaration = declaration;
-        this.id = ServiceMetaParser.serviceId(javaType, declaration);
-        this.message = message;
-        this.methods = Collections.unmodifiableMap(methods);
+
+        // 公共服务先固定方法主体，注解声明和解析缓存仍由当前描述持有。
         List<MethodMeta> exposed = new ArrayList<>();
         for (MethodMeta method : methods.values()) {
             if (!method.isIgnored()) {
@@ -41,19 +40,35 @@ public final class ServiceMeta {
             }
         }
         this.exposedMethods = List.copyOf(exposed);
+        this.methods = Collections.unmodifiableMap(methods);
+        this.declaration = declaration;
+        this.message = message;
     }
 
-    public Class<?> getJavaType() {
-        return this.javaType;
+    /** 数值契约编号可从父接口继承，和当前注册的字符串服务 ID 分开管理。 */
+    public long getContractServiceId() {
+        return this.contractServiceId;
     }
 
     public String getName() {
         return this.declaration == null ? "" : this.declaration.name();
     }
 
-    /** 数值契约编号可从父接口继承，和当前注册的字符串服务 ID 分开管理。 */
-    public long getId() {
-        return this.id;
+    public Class<?> getJavaType() {
+        return this.javaType;
+    }
+
+    public Collection<MethodMeta> getMethods() {
+        return this.exposedMethods;
+    }
+
+    public MethodMeta getMethod(Method method) {
+        return this.methods.get(method);
+    }
+
+    /** DTO 按完整声明类型复用描述，泛型实参不同的类型分别保存。 */
+    public TypeMeta getType(ResolvableType type) {
+        return this.types.computeIfAbsent(type, ServiceMetaParser::type);
     }
 
     public String getGroup() {
@@ -76,31 +91,18 @@ public final class ServiceMeta {
         return this.message;
     }
 
-    public Collection<MethodMeta> getMethods() {
-        return this.exposedMethods;
-    }
-
-    public MethodMeta getMethod(Method method) {
-        return this.methods.get(method);
-    }
-
-    /** DTO 按完整声明类型复用描述，泛型实参不同的类型分别保存。 */
-    public TypeMeta getType(ResolvableType type) {
-        return this.types.computeIfAbsent(type, ServiceMetaParser::type);
-    }
-
     /** 导出公共声明的纯数据描述；不包含反射对象、业务实例或协议配置。 */
     public ObjectNode createServiceDescription() {
         ObjectNode description = JsonNodeFactory.instance.objectNode();
-        description.put("javaType", this.javaType.getName());
-        if (this.id == -1L) {
-            description.putNull("contractId");
+        if (this.contractServiceId == -1L) {
+            description.putNull("contractServiceId");
         } else {
-            description.put("contractId", this.id);
+            description.put("contractServiceId", this.contractServiceId);
         }
-        description.put("message", this.message);
+        description.put("javaType", this.javaType.getName());
         ArrayNode methods = description.putArray("methods");
         ObjectNode types = description.putObject("types");
+        description.put("message", this.message);
 
         // Java 参数列表决定调用位置；契约编号与名称分别保留。
         for (MethodMeta method : this.exposedMethods) {
@@ -108,25 +110,24 @@ public final class ServiceMeta {
                 continue;
             }
             ObjectNode entry = methods.addObject();
+            if (method.getMethodId() == 0L) {
+                entry.putNull("methodId");
+            } else {
+                entry.put("methodId", method.getMethodId());
+            }
+            entry.put("name", method.getName());
             entry.put("javaSignature", method.getJavaSignature());
             entry.put("javaName", method.getJavaName());
-            entry.put("name", method.getName());
-            if (method.getId() == 0L) {
-                entry.putNull("contractId");
-            } else {
-                entry.put("contractId", method.getId());
-            }
-            entry.put("message", this.message || method.isMessage());
             ArrayNode parameters = entry.putArray("parameters");
             for (ParameterMeta parameter : method.getParameters()) {
                 ObjectNode argument = parameters.addObject();
-                argument.put("argIndex", parameter.getArgIndex());
-                argument.put("name", parameter.getName());
-                if (parameter.getId() != 0) {
-                    argument.put("fieldId", parameter.getId());
+                if (parameter.getFieldId() != 0) {
+                    argument.put("fieldId", parameter.getFieldId());
                 } else {
                     argument.putNull("fieldId");
                 }
+                argument.put("name", parameter.getName());
+                argument.put("argIndex", parameter.getArgIndex());
                 argument.put("type", this.describeType(parameter.getType(), types));
             }
 
@@ -137,6 +138,7 @@ public final class ServiceMeta {
             for (Class<?> exception : method.getExceptionTypes()) {
                 exceptions.add(this.describeType(ResolvableType.forClass(exception), types));
             }
+            entry.put("message", this.message || method.isMessage());
         }
         return description;
     }
@@ -151,8 +153,8 @@ public final class ServiceMeta {
         TypeMeta meta = this.getType(type);
         Class<?> raw = meta.getRawType();
         ObjectNode description = types.putObject(reference);
-        description.put("javaType", raw.getTypeName());
         description.put("name", meta.getName());
+        description.put("javaType", raw.getTypeName());
         String kind = typeKind(type, raw);
         description.put("kind", kind);
         if (type.isArray()) {
@@ -169,25 +171,25 @@ public final class ServiceMeta {
             ArrayNode values = description.putArray("values");
             for (EnumValueMeta constant : meta.getEnumValues().values()) {
                 ObjectNode value = values.addObject();
-                value.put("javaName", constant.getJavaName());
-                value.put("name", constant.getName());
                 if (constant.isDeclared()) {
-                    value.put("fieldId", constant.getId());
+                    value.put("fieldId", constant.getFieldId());
                 } else {
                     value.putNull("fieldId");
                 }
+                value.put("name", constant.getName());
+                value.put("javaName", constant.getJavaName());
             }
         } else if (StringUtils.equals("object", kind)) {
             ArrayNode properties = description.putArray("properties");
             for (PropertyMeta property : meta.getProperties().values()) {
                 ObjectNode member = properties.addObject();
-                member.put("javaName", property.getJavaName());
-                member.put("name", property.getName());
-                if (property.getId() != 0) {
-                    member.put("fieldId", property.getId());
+                if (property.getFieldId() != 0) {
+                    member.put("fieldId", property.getFieldId());
                 } else {
                     member.putNull("fieldId");
                 }
+                member.put("name", property.getName());
+                member.put("javaName", property.getJavaName());
                 member.put("type", this.describeType(property.getType(), types));
             }
         }

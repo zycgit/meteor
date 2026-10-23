@@ -222,7 +222,7 @@ public final class OncRpcServiceBinding {
 
     /** 程序、过程和 XDR 类型均读取本端点已准备的定义，不重新解析 IDL。 */
     public ObjectNode describeContract(ObjectNode description) {
-        description.put("serviceName", this.programName);
+        description.put("name", this.programName);
         description.put("program", this.program);
         description.put("version", this.version);
         ArrayNode methods = description.putArray("methods");
@@ -231,17 +231,17 @@ public final class OncRpcServiceBinding {
         for (OncRpcIdlProcedure procedure : this.definitions) {
             Method method = this.methods.get(procedure.id);
             ObjectNode operation = methods.addObject();
-            operation.put("javaSignature", ServiceMetaParser.method(method).getJavaSignature());
-            operation.put("name", procedure.name);
             operation.put("procedureId", procedure.id);
-            String requestType = this.describeType(procedure.input, procedure.name + ".input", types, visited);
-            operation.put("requestType", requestType);
-            String responseType = this.describeType(procedure.result, procedure.name + ".result", types, visited);
-            operation.put("responseType", responseType);
+            operation.put("name", procedure.name);
+            operation.put("javaSignature", ServiceMetaParser.method(method).getJavaSignature());
             ArrayNode order = operation.putArray("argIndexes");
             for (int index = 0; index < method.getParameterCount(); index++) {
                 order.add(this.parameterIndex(method.getName(), index));
             }
+            String requestType = this.describeType(procedure.input, procedure.name + ".input", types, visited);
+            operation.put("requestType", requestType);
+            String responseType = this.describeType(procedure.result, procedure.name + ".result", types, visited);
+            operation.put("responseType", responseType);
         }
         return description;
     }
@@ -264,8 +264,6 @@ public final class OncRpcServiceBinding {
         ObjectNode value = types.putObject(reference);
         value.put("name", type.name);
         value.put("kind", type.kind);
-        value.put("fixed", type.fixed);
-        value.put("length", type.length);
         if (type.element != null) {
             value.put("elementType", this.describeType(type.element, reference + ".element", types, visited));
         }
@@ -279,9 +277,11 @@ public final class OncRpcServiceBinding {
         ArrayNode constants = value.putArray("values");
         for (Map.Entry<String, Integer> constant : type.enumeration.entrySet()) {
             ObjectNode entry = constants.addObject();
-            entry.put("name", constant.getKey());
             entry.put("fieldId", constant.getValue());
+            entry.put("name", constant.getKey());
         }
+        value.put("fixed", type.fixed);
+        value.put("length", type.length);
         return reference;
     }
 

@@ -8,6 +8,7 @@
 package net.hasor.meteor.protocol.grpc.binding;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,7 +45,7 @@ public class GrpcServiceBindingTest {
         ObjectNode description = binding.describeContract(JsonNodeFactory.instance.objectNode());
 
         // 公共 Java 名称为 text，线上字段名称和编号来自实际消息图。
-        assertEquals("mapping.Notes", description.path("serviceName").asText());
+        assertEquals("mapping.Notes", description.path("name").asText());
         assertEquals("Echo", description.path("methods").get(0).path("name").asText());
         JsonNode fields = description.path("types").path("mapping.Note").path("fields");
         JsonNode field = null;
@@ -55,6 +56,42 @@ public class GrpcServiceBindingTest {
         }
         assertNotNull(field);
         assertEquals("description", field.path("name").asText());
+    }
+
+    @Test
+    public void contractDescriptionPlacesFieldIdsBeforeNamesAndMappingDetails() throws Exception {
+        // 编译同一份公共注解，保留实际 Protobuf 字段和枚举编号。
+        GrpcServiceBinding binding = this.binding(Notes.class, null);
+        ObjectNode description = binding.describeContract(JsonNodeFactory.instance.objectNode());
+
+        // 操作先展示协议名称，再展示 Java 定位和请求响应主体。
+        JsonNode method = description.path("methods").get(0);
+        List<String> methodFields = this.fieldNames(method);
+        assertEquals("name", methodFields.get(0));
+        assertEquals("javaSignature", methodFields.get(1));
+        assertFalse(description.has("serviceName"));
+
+        // 字段先展示 fieldId/name/type，再展示 JSON 名称和 Protobuf 扩展标记。
+        JsonNode fields = description.path("types").path("mapping.Note").path("fields");
+        JsonNode number = null;
+        for (JsonNode field : fields) {
+            if (field.path("fieldId").asInt() == 2) {
+                number = field;
+            }
+        }
+        assertNotNull(number);
+        assertEquals("number", number.path("name").asText());
+        assertEquals("INT32", number.path("type").asText());
+        String[] fieldOrder = { "fieldId", "name", "type", "jsonName", "repeated", "required" };
+        assertArrayEquals(fieldOrder, this.fieldNames(number).toArray(String[]::new));
+        assertFalse(number.has("id"));
+
+        // 零值同样保留契约编号，枚举成员的编号也位于名称之前。
+        JsonNode unset = description.path("types").path("mapping.State").path("values").get(0);
+        assertEquals("UNSET", unset.path("name").asText());
+        assertEquals(0, unset.path("fieldId").asInt());
+        String[] enumOrder = { "fieldId", "name" };
+        assertArrayEquals(enumOrder, this.fieldNames(unset).toArray(String[]::new));
     }
 
     @Test
@@ -294,6 +331,12 @@ public class GrpcServiceBindingTest {
         // 静态定义准备只读取声明，首个业务对象由实际解码创建。
         assertNotNull(binding);
         assertEquals(0, ImmutableNote.CREATED.get());
+    }
+
+    private List<String> fieldNames(JsonNode node) {
+        List<String> names = new ArrayList<>();
+        node.fieldNames().forEachRemaining(names::add);
+        return names;
     }
 
     private <T> GrpcServiceBinding binding(Class<T> type, Object resource) {

@@ -127,7 +127,7 @@ public final class ThriftServiceResource {
                 for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
                     for (Parameter parameter : method.getParameters()) {
                         ParameterMeta mapping = ServiceMetaParser.parameter(parameter);
-                        if (mapping.getId() == 0) {
+                        if (mapping.getFieldId() == 0) {
                             return null;
                         }
                     }

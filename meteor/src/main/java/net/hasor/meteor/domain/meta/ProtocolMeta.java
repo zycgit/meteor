@@ -22,15 +22,15 @@ import net.hasor.meteor.domain.ProtocolConfig;
 public final class ProtocolMeta {
     private final MetBindInfo<?>               service;
     private final ContextPath                  contextPath;
-    private final Object                       bindResource;
     private final Map<String, ProtocolBinding> endpoints;
+    private final Object                       bindResource;
 
     public ProtocolMeta(MetBindInfo<?> service, ContextPath contextPath, //
             Object bindResource, Map<String, ProtocolBinding> endpoints) {
         this.service = service;
         this.contextPath = contextPath;
-        this.bindResource = bindResource;
         this.endpoints = endpoints;
+        this.bindResource = bindResource;
     }
 
     public MetBindInfo<?> getService() {
@@ -45,6 +45,15 @@ public final class ProtocolMeta {
     /** 原始路径声明；未指定时为 null，与各端点的有效默认路径分别保存。 */
     public ContextPath getContextPath() {
         return this.contextPath;
+    }
+
+    /** 按连接器名称返回发布结果。 */
+    public Map<String, ProtocolBinding> getEndpoints() {
+        return this.endpoints;
+    }
+
+    public ProtocolBinding getEndpoint(String connectorName) {
+        return this.endpoints.get(connectorName);
     }
 
     /** 当前协议绑定的本地资源；未绑定时返回 null。 */
@@ -68,20 +77,11 @@ public final class ProtocolMeta {
         return new ProtocolBinding(effective, definition, description);
     }
 
-    /** 按连接器名称返回发布结果。 */
-    public Map<String, ProtocolBinding> getEndpoints() {
-        return this.endpoints;
-    }
-
-    public ProtocolBinding getEndpoint(String connectorName) {
-        return this.endpoints.get(connectorName);
-    }
-
     /** 按公共声明导出命名协议的基本操作映射，专属契约由协议提供者补充。 */
     public ObjectNode createServiceDescription(ProtocolConfig config, String defaultSerialize) {
         ObjectNode description = JsonNodeFactory.instance.objectNode();
         String alias = this.service.getAliasName(config.name());
-        description.put("serviceName", alias == null ? this.service.getBindName() : alias);
+        description.put("name", alias == null ? this.service.getBindName() : alias);
         String coding = this.service.getSerializeType();
         if (StringUtils.isBlank(coding)) {
             coding = config.option("serializeType", defaultSerialize);
@@ -93,10 +93,11 @@ public final class ProtocolMeta {
                 continue;
             }
             ObjectNode operation = methods.addObject();
-            operation.put("javaSignature", method.getJavaSignature());
             operation.put("name", method.getName());
+            operation.put("javaSignature", method.getJavaSignature());
             operation.put("message", this.service.isMessage() || method.isMessage());
         }
+
         return description;
     }
 
@@ -108,8 +109,8 @@ public final class ProtocolMeta {
         for (Map.Entry<Method, String> entry : operations.entrySet()) {
             MethodMeta method = this.getServiceMeta().getMethod(entry.getKey());
             ObjectNode operation = methods.addObject();
-            operation.put("javaSignature", method.getJavaSignature());
             operation.put("name", entry.getValue());
+            operation.put("javaSignature", method.getJavaSignature());
             operation.put("message", this.service.isMessage() || method.isMessage());
         }
         return description;

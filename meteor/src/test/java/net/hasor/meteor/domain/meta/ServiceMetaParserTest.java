@@ -166,7 +166,7 @@ public class ServiceMetaParserTest {
         assertEquals("", service.getVersion());
         assertEquals("", service.getSerializeType());
         assertEquals(-1, service.getClientTimeout());
-        assertEquals(-1L, service.getId());
+        assertEquals(-1L, service.getContractServiceId());
     }
 
     @Test
@@ -181,14 +181,14 @@ public class ServiceMetaParserTest {
     public void partialServiceAnnotationKeepsContractNumberUnspecified() {
         // 原有名称、分组和版本声明不意味着分配了服务契约编号。
         ServiceMeta service = ServiceMetaParser.parse(Orders.class);
-        assertEquals(-1L, service.getId());
+        assertEquals(-1L, service.getContractServiceId());
     }
 
     @Test
     public void serviceContractNumberRetainsTheUnsignedHighHalf() {
         // 使用 uint32 的高半区，公共描述以 long 保留完整编号。
         ServiceMeta service = ServiceMetaParser.parse(NumberedParent.class);
-        assertEquals(0xffff_ffffL, service.getId());
+        assertEquals(0xffff_ffffL, service.getContractServiceId());
     }
 
     @Test
@@ -202,7 +202,7 @@ public class ServiceMetaParserTest {
     public void unspecifiedServiceNumberInheritsWithoutCopyingOtherIdentityFields() {
         // 子接口只声明名称，编号继承父接口，其余服务身份仍遵循当前声明。
         ServiceMeta service = ServiceMetaParser.parse(InheritedNumber.class);
-        assertEquals(0xffff_ffffL, service.getId());
+        assertEquals(0xffff_ffffL, service.getContractServiceId());
         assertEquals("Child", service.getName());
         assertEquals("", service.getGroup());
         assertEquals("", service.getVersion());
@@ -212,14 +212,14 @@ public class ServiceMetaParserTest {
     public void explicitZeroServiceNumberOverridesTheParent() {
         // 零是合法的服务编号，不能当作缺省值而回退到父接口。
         ServiceMeta service = ServiceMetaParser.parse(ZeroNumber.class);
-        assertEquals(0L, service.getId());
+        assertEquals(0L, service.getContractServiceId());
     }
 
     @Test
     public void equalServiceNumbersFromMultipleParentsRemainUnambiguous() {
         // 多个父接口声明相同编号时，继承结果仍是一份确定的服务编号。
         ServiceMeta service = ServiceMetaParser.parse(MatchingNumbers.class);
-        assertEquals(0xffff_ffffL, service.getId());
+        assertEquals(0xffff_ffffL, service.getContractServiceId());
     }
 
     @Test
@@ -232,7 +232,7 @@ public class ServiceMetaParserTest {
     public void explicitServiceNumberResolvesConflictingParentNumbers() {
         // 当前接口明确给出的编号优先，不受父接口编号冲突影响。
         ServiceMeta service = ServiceMetaParser.parse(OverriddenNumbers.class);
-        assertEquals(23L, service.getId());
+        assertEquals(23L, service.getContractServiceId());
     }
 
     @Test
@@ -240,7 +240,7 @@ public class ServiceMetaParserTest {
         // 未声明方法注解时，契约编号保持缺省，名称仍来自 Java 方法。
         Method method = Base.class.getMethod("echo", Object.class);
         MethodMeta description = ServiceMetaParser.method(method);
-        assertEquals(0L, description.getId());
+        assertEquals(0L, description.getMethodId());
         assertNull(description.getDeclaredName());
         assertEquals("echo", description.getName());
     }
@@ -250,7 +250,7 @@ public class ServiceMetaParserTest {
         // 仅指定编号，不能把注解缺省的空名称误判为显式无效名称。
         Method method = NumberedParent.class.getMethod("invoke");
         MethodMeta description = ServiceMetaParser.method(method);
-        assertEquals(0xffff_fffeL, description.getId());
+        assertEquals(0xffff_fffeL, description.getMethodId());
         assertNull(description.getDeclaredName());
         assertEquals("invoke", description.getName());
     }
@@ -277,7 +277,8 @@ public class ServiceMetaParserTest {
         Method method = Base.class.getMethod("echo", Object.class);
         ParameterMeta parameter = ServiceMetaParser.method(Orders.class, method).getParameters().get(0);
         assertEquals(0, parameter.getArgIndex());
-        assertEquals(7, parameter.getId());
+        assertEquals(7, parameter.getFieldId());
+        assertEquals("request", parameter.getDeclaredName());
         assertEquals("request", parameter.getName());
     }
 
@@ -285,6 +286,7 @@ public class ServiceMetaParserTest {
     public void returnMappingKeepsThePublisherAndItsElementType() throws Exception {
         // 返回值映射只命名协议输出，完整流类型及元素类型分别可查。
         MethodMeta method = ServiceMetaParser.method(Orders.class.getMethod("watch"));
+        assertEquals("Watch", method.getDeclaredName());
         assertEquals("Watch", method.getName());
         assertEquals("watch", method.getJavaName());
         assertEquals("events", method.getReturnName());
@@ -312,7 +314,8 @@ public class ServiceMetaParserTest {
     public void fieldAndGetterSupplyDifferentPartsOfTheSameDeclaration() {
         // 编号和名称在一个 Java 属性上合并。
         PropertyMeta property = ServiceMetaParser.type(Order.class).getProperties().get("id");
-        assertEquals(7, property.getId());
+        assertEquals(7, property.getFieldId());
+        assertEquals("order_id", property.getDeclaredName());
         assertEquals("order_id", property.getName());
         assertNotNull(property.getField());
         assertNotNull(property.getGetter());
@@ -345,9 +348,29 @@ public class ServiceMetaParserTest {
         EnumValueMeta ready = ServiceMetaParser.enumValue(Status.Ready);
         EnumValueMeta unknown = ServiceMetaParser.enumValue(Status.Unknown);
         assertTrue(ready.isDeclared());
-        assertEquals(0, ready.getId());
+        assertEquals(0, ready.getFieldId());
+        assertEquals("READY", ready.getDeclaredName());
         assertEquals("READY", ready.getName());
+        assertEquals("", unknown.getDeclaredName());
         assertFalse(unknown.isDeclared());
+    }
+
+    @Test
+    public void typeMappingKeepsTheRawNameSeparateFromTheJavaType() {
+        // 类型名称字段保存原始公共声明，Java 定位保持实际 DTO 类型。
+        TypeMeta type = ServiceMetaParser.type(Order.class);
+        assertEquals("Purchase", type.getDeclaredName());
+        assertEquals("Purchase", type.getName());
+        assertEquals(Order.class, type.getRawType());
+    }
+
+    @Test
+    public void unannotatedTypeKeepsItsRawNameAbsent() {
+        // 未声明名称时只在有效名称查询中回退，原始名称仍为 null。
+        TypeMeta type = ServiceMetaParser.type(Mixed.class);
+        assertNull(type.getDeclaredName());
+        assertEquals("Mixed", type.getName());
+        assertFalse(type.isDeclared());
     }
 
     @Test
@@ -400,9 +423,9 @@ public class ServiceMetaParserTest {
         PropertyMeta firstView = ServiceMetaParser.property(firstProperty);
         PropertyMeta secondView = ServiceMetaParser.property(secondProperty);
         assertEquals("first", firstView.getName());
-        assertEquals(1, firstView.getId());
+        assertEquals(1, firstView.getFieldId());
         assertEquals("second", secondView.getName());
-        assertEquals(2, secondView.getId());
+        assertEquals(2, secondView.getFieldId());
         assertFalse(ServiceMetaParser.type(Mixed.class).getProperties().get("value").isDeclared());
     }
 
@@ -419,7 +442,7 @@ public class ServiceMetaParserTest {
         PropertyMeta property = ServiceMetaParser.type(ReadOnly.class).getProperties().get("value");
         assertNotNull(property.getGetter());
         assertNull(property.getSetter());
-        assertEquals(1, property.getId());
+        assertEquals(1, property.getFieldId());
     }
 
 }

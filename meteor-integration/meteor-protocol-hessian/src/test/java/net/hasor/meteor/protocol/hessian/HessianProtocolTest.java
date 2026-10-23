@@ -53,8 +53,11 @@ public class HessianProtocolTest {
         assertNotNull(binding);
         assertNotNull(binding.getDefinition());
         assertNotNull(binding.getDescription());
-        assertEquals("echo", binding.getDescription().path("serviceName").asText());
+        assertEquals("echo", binding.getDescription().path("name").asText());
         assertEquals("Hessian", binding.getDescription().path("serializeType").asText());
+        assertEquals("name", binding.getDescription().fieldNames().next());
+        assertEquals("name", binding.getDescription().path("methods").get(0).fieldNames().next());
+        assertFalse(binding.getDescription().has("serviceName"));
     }
 
     @Test

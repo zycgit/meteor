@@ -12,7 +12,9 @@ import java.util.function.Consumer;
 import java.util.function.ObjLongConsumer;
 import net.hasor.example.protocol.thrift.ThriftDemoService;
 import net.hasor.example.protocol.thrift.generated.ExtendedInteropService;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolProvider;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.ProtocolBinding;
@@ -61,7 +63,7 @@ public class ThriftHttpProtocolTest {
         ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
         ProtocolBinding binding = new ThriftHttpProtocol().prepareBinding(config, null, meta);
         assertTrue(binding.getDefinition() instanceof ThriftServiceSchema);
-        assertEquals("ExtendedInteropService", binding.getDescription().path("serviceName").asText());
+        assertEquals("ExtendedInteropService", binding.getDescription().path("name").asText());
         assertFalse(binding.getDescription().path("methods").isEmpty());
         assertFalse(binding.getDescription().path("types").isEmpty());
     }

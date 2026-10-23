@@ -10,16 +10,28 @@ import net.hasor.meteor.annotation.MetEnumValue;
 
 /** 枚举常量声明；未标注和显式数值零分别保留。 */
 public final class EnumValueMeta {
+    private final int     fieldId;
+    private final String  name;
     private final Enum<?> javaValue;
-    private final String  declaredName;
-    private final int     id;
     private final boolean declared;
 
     EnumValueMeta(Enum<?> javaValue, MetEnumValue declaration) {
+        this.fieldId = declaration == null ? 0 : declaration.id();
+        this.name = declaration == null ? "" : declaration.name();
         this.javaValue = javaValue;
-        this.declaredName = declaration == null ? "" : declaration.name();
-        this.id = declaration == null ? 0 : declaration.id();
         this.declared = declaration != null;
+    }
+
+    public int getFieldId() {
+        return this.fieldId;
+    }
+
+    public String getDeclaredName() {
+        return this.name;
+    }
+
+    public String getName() {
+        return this.name.isEmpty() ? this.getJavaName() : this.name;
     }
 
     public Enum<?> getJavaValue() {
@@ -30,19 +42,7 @@ public final class EnumValueMeta {
         return this.javaValue.name();
     }
 
-    public String getDeclaredName() {
-        return this.declaredName;
-    }
-
-    public int getId() {
-        return this.id;
-    }
-
     public boolean isDeclared() {
         return this.declared;
-    }
-
-    public String getName() {
-        return this.declaredName.isEmpty() ? this.getJavaName() : this.declaredName;
     }
 }

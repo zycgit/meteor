@@ -73,7 +73,7 @@ final class GrpcValueMapping {
         List<BeanPropertyDefinition> properties = properties(type);
         for (BeanPropertyDefinition property : properties) {
             PropertyMeta mapping = ServiceMetaParser.property(property);
-            int id = mapping.getId();
+            int id = mapping.getFieldId();
             String declaredName = mapping.getDeclaredName();
             String name = property.getName();
             FieldDescriptor field = null;
@@ -160,7 +160,7 @@ final class GrpcValueMapping {
             EnumValueMeta annotation = ServiceMetaParser.enumValue(item);
             EnumValueDescriptor value;
             if (annotation.isDeclared()) {
-                value = descriptor.findValueByNumber(annotation.getId());
+                value = descriptor.findValueByNumber(annotation.getFieldId());
                 if (value != null && !StringUtils.isEmpty(annotation.getDeclaredName()) //
                         && !StringUtils.equals(annotation.getDeclaredName(), value.getName())) {
                     throw mismatch(type, item.name(), "Enum name and id differ from proto");

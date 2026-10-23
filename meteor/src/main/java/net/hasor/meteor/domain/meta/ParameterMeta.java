@@ -14,55 +14,51 @@ import net.hasor.meteor.annotation.MetParam;
 
 /** 参数的 Java 位置、完整声明类型与可选的公共名称、编号。 */
 public final class ParameterMeta {
-    private final Parameter      javaParameter;
+    private final int            fieldId;
+    private final String         name;
     private final int            argIndex;
+    private final Parameter      javaParameter;
     private final ResolvableType type;
-    private final String         declaredName;
-    private final int            id;
     private final boolean        declared;
 
     ParameterMeta(Parameter parameter, int argIndex, ResolvableType type, MetParam declaration) {
-        this.javaParameter = parameter;
+        this.fieldId = declaration == null ? 0 : declaration.id();
+        this.name = declaration == null ? "" : declaration.name();
         this.argIndex = argIndex;
+        this.javaParameter = parameter;
         this.type = type;
         this.declared = declaration != null;
-        this.declaredName = declaration == null ? "" : declaration.name();
-        this.id = declaration == null ? 0 : declaration.id();
     }
 
-    public Parameter getJavaParameter() {
-        return this.javaParameter;
+    public int getFieldId() {
+        return this.fieldId;
+    }
+
+    public String getDeclaredName() {
+        return this.name;
+    }
+
+    /** 未提供名称且编译结果没有真实参数名时返回 null，由协议决定位置参数的表达。 */
+    public String getName() {
+        if (!this.name.isEmpty()) {
+            if (StringUtils.isBlank(this.name)) {
+                throw new IllegalArgumentException("Protocol parameter name must not be blank: " + this.javaParameter);
+            }
+            return this.name;
+        }
+        return this.javaParameter.isNamePresent() ? this.javaParameter.getName() : null;
     }
 
     public int getArgIndex() {
         return this.argIndex;
     }
 
+    public Parameter getJavaParameter() {
+        return this.javaParameter;
+    }
+
     public ResolvableType getType() {
         return this.type;
-    }
-
-    public String getDeclaredName() {
-        return this.declaredName;
-    }
-
-    public int getId() {
-        return this.id;
-    }
-
-    public boolean isDeclared() {
-        return this.declared;
-    }
-
-    /** 未提供名称且编译结果没有真实参数名时返回 null，由协议决定位置参数的表达。 */
-    public String getName() {
-        if (!this.declaredName.isEmpty()) {
-            if (StringUtils.isBlank(this.declaredName)) {
-                throw new IllegalArgumentException("Protocol parameter name must not be blank: " + this.javaParameter);
-            }
-            return this.declaredName;
-        }
-        return this.javaParameter.isNamePresent() ? this.javaParameter.getName() : null;
     }
 
     public ResolvableType getMessageType() {
@@ -70,5 +66,9 @@ public final class ParameterMeta {
             return this.type.getGeneric(0);
         }
         return this.type;
+    }
+
+    public boolean isDeclared() {
+        return this.declared;
     }
 }

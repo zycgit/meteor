@@ -18,31 +18,50 @@ import net.hasor.meteor.annotation.MetReturn;
 
 /** 原始 Java 方法与公共映射；协议操作身份在插件转换时确定。 */
 public final class MethodMeta {
-    private final long                id;
+    private final long                methodId;
+    private final String              name;
     private final Class<?>            serviceType;
     private final Method              javaMethod;
-    private final String              declaredName;
+    private final List<ParameterMeta> parameters;
     private final String              returnName;
+    private final ResolvableType      returnType;
     private final boolean             message;
     private final boolean             ignored;
-    private final List<ParameterMeta> parameters;
-    private final ResolvableType      returnType;
 
     MethodMeta(Class<?> owner, Method method, MetMethod mapping, MetReturn result, boolean message, boolean ignored) {
+        this.methodId = mapping == null ? 0L : mapping.id();
+        this.name = mapping == null || mapping.name().isEmpty() ? null : mapping.name();
         this.serviceType = owner;
         this.javaMethod = method;
-        this.declaredName = mapping == null || mapping.name().isEmpty() ? null : mapping.name();
-        this.id = mapping == null ? 0L : mapping.id();
-        this.returnName = result == null ? null : result.name();
-        this.message = message;
-        this.ignored = ignored;
-        this.returnType = ServiceMetaParser.methodType(owner, method, -1);
+
         // 按 Java 参数位置逐项加入，注解编号不参与排序。
         List<ParameterMeta> parameters = new ArrayList<>();
         for (int index = 0; index < method.getParameterCount(); index++) {
             parameters.add(ServiceMetaParser.parameter(owner, method, index));
         }
         this.parameters = List.copyOf(parameters);
+        this.returnName = result == null ? null : result.name();
+        this.returnType = ServiceMetaParser.methodType(owner, method, -1);
+        this.message = message;
+        this.ignored = ignored;
+    }
+
+    public long getMethodId() {
+        return this.methodId;
+    }
+
+    public String getDeclaredName() {
+        return this.name;
+    }
+
+    public String getName() {
+        if (this.name == null) {
+            return this.getJavaName();
+        }
+        if (StringUtils.isBlank(this.name)) {
+            throw new IllegalArgumentException("Protocol method name must not be blank: " + this.javaMethod);
+        }
+        return this.name;
     }
 
     public Class<?> getServiceType() {
@@ -66,46 +85,16 @@ public final class MethodMeta {
         return arguments.toString();
     }
 
-    public String getDeclaredName() {
-        return this.declaredName;
-    }
-
-    public long getId() {
-        return this.id;
+    public List<ParameterMeta> getParameters() {
+        return this.parameters;
     }
 
     public String getReturnName() {
         return this.returnName;
     }
 
-    public boolean isMessage() {
-        return this.message;
-    }
-
-    public boolean isIgnored() {
-        return this.ignored;
-    }
-
-    public List<ParameterMeta> getParameters() {
-        return this.parameters;
-    }
-
     public ResolvableType getReturnType() {
         return this.returnType;
-    }
-
-    public Class<?>[] getExceptionTypes() {
-        return this.javaMethod.getExceptionTypes();
-    }
-
-    public String getName() {
-        if (this.declaredName == null) {
-            return this.getJavaName();
-        }
-        if (StringUtils.isBlank(this.declaredName)) {
-            throw new IllegalArgumentException("Protocol method name must not be blank: " + this.javaMethod);
-        }
-        return this.declaredName;
     }
 
     /** 保留 Publisher 本身的签名，转换消息契约时再读取其元素类型。 */
@@ -114,5 +103,17 @@ public final class MethodMeta {
             return this.returnType.getGeneric(0);
         }
         return this.returnType;
+    }
+
+    public Class<?>[] getExceptionTypes() {
+        return this.javaMethod.getExceptionTypes();
+    }
+
+    public boolean isMessage() {
+        return this.message;
+    }
+
+    public boolean isIgnored() {
+        return this.ignored;
     }
 }

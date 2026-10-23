@@ -90,7 +90,7 @@ final class GrpcProtoCompiler {
         Set<String> fields = new HashSet<>();
         for (BeanPropertyDefinition property : properties) {
             PropertyMeta mapping = ServiceMetaParser.property(property);
-            int id = mapping.getId();
+            int id = mapping.getFieldId();
             if (id == 0) {
                 return null;
             }
@@ -211,8 +211,8 @@ final class GrpcProtoCompiler {
             String symbol = annotation.getName();
             identifier(symbol);
             EnumValueDescriptorProto value = EnumValueDescriptorProto.newBuilder() //
-                    .setName(symbol).setNumber(annotation.getId()).build();
-            if (values.putIfAbsent(annotation.getId(), value) != null || !names.add(symbol)) {
+                    .setName(symbol).setNumber(annotation.getFieldId()).build();
+            if (values.putIfAbsent(annotation.getFieldId(), value) != null || !names.add(symbol)) {
                 throw new IllegalArgumentException("Duplicate Protobuf enum value: " + type + "." + symbol);
             }
         }

@@ -58,7 +58,7 @@ final class ThriftIdlBinding {
             Set<Short> used = new HashSet<>();
             for (int index = 0; index < method.getParameterCount(); index++) {
                 ParameterMeta mapping = methodMeta.getParameters().get(index);
-                int id = !mapping.isDeclared() ? 0 : mapping.getId();
+                int id = !mapping.isDeclared() ? 0 : mapping.getFieldId();
                 String parameterName = mapping.getName();
                 if (id != 0 && mapping.getDeclaredName().isEmpty()) {
                     parameterName = null;
@@ -270,7 +270,7 @@ final class ThriftIdlBinding {
             EnumValueMeta mapping = ServiceMetaParser.enumValue(enumeration);
             String name = mapping.getName();
             Integer number = definition.enumeration.get(name);
-            if (number == null || mapping.isDeclared() && mapping.getId() != number) {
+            if (number == null || mapping.isDeclared() && mapping.getFieldId() != number) {
                 throw this.error("Java enum differs from IDL: " + enumeration);
             }
             if (type.enumValues.putIfAbsent(number, constant) != null) {
@@ -340,7 +340,7 @@ final class ThriftIdlBinding {
     }
 
     private ThriftIdlField findField(List<ThriftIdlField> fields, PropertyMeta property) {
-        int id = property.getId();
+        int id = property.getFieldId();
         String name = property.getName();
         if (property.isDeclared()) {
             boolean onlyNumber = property.getDeclaredName().isEmpty() && id != 0;

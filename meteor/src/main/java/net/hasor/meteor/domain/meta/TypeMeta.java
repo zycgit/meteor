@@ -14,14 +14,28 @@ import net.hasor.meteor.annotation.MetType;
 
 /** Java 类型声明；属性类型以引用保存，递归 DTO 不展开为无限嵌套对象。 */
 public final class TypeMeta {
+    private final    String                     name;
     private final    ResolvableType             javaType;
-    private final    String                     declaredName;
     private volatile Map<String, PropertyMeta>  properties;
     private volatile Map<String, EnumValueMeta> enumValues;
 
     TypeMeta(ResolvableType javaType, MetType declaration) {
+        this.name = declaration == null ? null : declaration.name();
         this.javaType = javaType;
-        this.declaredName = declaration == null ? null : declaration.name();
+    }
+
+    public String getDeclaredName() {
+        return this.name;
+    }
+
+    public String getName() {
+        if (this.name == null) {
+            return this.getRawType().getSimpleName();
+        }
+        if (StringUtils.isBlank(this.name)) {
+            throw new IllegalArgumentException("Protocol type name must not be blank: " + this.getRawType().getName());
+        }
+        return this.name;
     }
 
     public ResolvableType getJavaType() {
@@ -32,26 +46,8 @@ public final class TypeMeta {
         return this.javaType.resolve(Object.class);
     }
 
-    public String getDeclaredName() {
-        return this.declaredName;
-    }
-
-    public boolean isDeclared() {
-        return this.declaredName != null;
-    }
-
     public List<ResolvableType> getArguments() {
         return List.of(this.javaType.getGenerics());
-    }
-
-    public String getName() {
-        if (this.declaredName == null) {
-            return this.getRawType().getSimpleName();
-        }
-        if (StringUtils.isBlank(this.declaredName)) {
-            throw new IllegalArgumentException("Protocol type name must not be blank: " + this.getRawType().getName());
-        }
-        return this.declaredName;
     }
 
     /** 按需发现 Java 属性，端点的序列化器继续决定最终参与编码的成员。 */
@@ -71,5 +67,9 @@ public final class TypeMeta {
             this.enumValues = result;
         }
         return result;
+    }
+
+    public boolean isDeclared() {
+        return this.name != null;
     }
 }

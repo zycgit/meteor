@@ -72,57 +72,62 @@ public final class SoapProtocolMeta {
     /** 导出实际 WSDL 操作、参数顺序和已编译 XML 映射，保留当前端点的资源版本。 */
     public ObjectNode describeContract(ObjectNode description) {
         SoapDefinition definition = this.resource.definition();
-        description.put("version", definition.version().displayName());
-        description.put("namespace", definition.targetNamespace());
-        description.set("types", this.mapping.describeTypes());
-        description.set("schemas", this.resource.describeSchemas());
         ArrayNode operations = description.putArray("methods");
         for (Map.Entry<String, Method> entry : this.methods.entrySet()) {
             Method method = entry.getValue();
             SoapOperation operation = definition.operation(entry.getKey());
             ObjectNode target = operations.addObject();
-            target.put("javaSignature", ServiceMetaParser.method(method).getJavaSignature());
             target.put("name", operation.name());
+            target.put("javaSignature", ServiceMetaParser.method(method).getJavaSignature());
             target.put("message", operation.oneWay());
-            target.put("soapAction", operation.soapAction());
-            target.put("style", operation.style());
-            target.put("use", operation.inputBody().use());
-            if (operation.inputBody().wrapper() != null) {
-                target.put("requestWrapper", operation.inputBody().wrapper().toString());
-            }
 
             ArrayNode parameters = target.putArray("parameters");
             List<SoapPart> parts = operation.inputBody().parts();
             int[] order = this.parameterOrder.get(method);
             for (int index = 0; index < parts.size(); index++) {
                 ObjectNode parameter = parameters.addObject();
-                parameter.put("argIndex", order.length == 1 ? order[0] : order[index]);
-                describePart(parts.get(index), parameter);
+                int argIndex = order.length == 1 ? order[0] : order[index];
+                describePart(parts.get(index), parameter, argIndex);
             }
 
             if (!operation.oneWay()) {
                 SoapBody output = operation.outputBody();
-                if (output.wrapper() != null) {
-                    target.put("responseWrapper", output.wrapper().toString());
-                }
                 ArrayNode returns = target.putArray("returns");
                 for (SoapPart part : output.parts()) {
-                    describePart(part, returns.addObject());
+                    describePart(part, returns.addObject(), null);
                 }
             }
 
             ObjectNode faults = target.putObject("faults");
             for (Map.Entry<String, SoapFaultBinding> fault : operation.faults().entrySet()) {
-                describePart(fault.getValue().part(), faults.putObject(fault.getKey()));
+                describePart(fault.getValue().part(), faults.putObject(fault.getKey()), null);
+            }
+
+            // SOAP 专属设置放在操作主体之后，先展示公共名称与 Java 参数对应关系。
+            target.put("soapAction", operation.soapAction());
+            target.put("style", operation.style());
+            target.put("use", operation.inputBody().use());
+            if (operation.inputBody().wrapper() != null) {
+                target.put("requestWrapper", operation.inputBody().wrapper().toString());
+            }
+            if (!operation.oneWay() && operation.outputBody().wrapper() != null) {
+                target.put("responseWrapper", operation.outputBody().wrapper().toString());
             }
         }
+        description.set("types", this.mapping.describeTypes());
+        description.set("schemas", this.resource.describeSchemas());
+        description.put("version", definition.version().displayName());
+        description.put("namespace", definition.targetNamespace());
         return description;
     }
 
-    private static void describePart(SoapPart part, ObjectNode description) {
+    private static void describePart(SoapPart part, ObjectNode description, Integer argIndex) {
         description.put("name", part.name());
-        description.put("element", part.element() == null ? null : part.element().toString());
+        if (argIndex != null) {
+            description.put("argIndex", argIndex);
+        }
         description.put("type", part.type() == null ? null : part.type().toString());
+        description.put("element", part.element() == null ? null : part.element().toString());
         description.put("minOccurs", part.minOccurs());
         description.put("maxOccurs", part.maxOccurs());
     }

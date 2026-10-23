@@ -51,8 +51,8 @@ public final class HessianServiceBinding {
         ArrayNode methods = description.putArray("methods");
         for (Map.Entry<Method, String> entry : this.outbound.entrySet()) {
             ObjectNode method = methods.addObject();
-            method.put("javaSignature", ServiceMetaParser.method(entry.getKey()).getJavaSignature());
             method.put("name", entry.getValue());
+            method.put("javaSignature", ServiceMetaParser.method(entry.getKey()).getJavaSignature());
         }
         return description;
     }

@@ -28,7 +28,7 @@ public final class OncRpcServiceResource {
             throw new IllegalArgumentException("ONC RPC service type must be an interface");
         }
 
-        long id = ServiceMetaParser.parse(serviceType).getId();
+        long id = ServiceMetaParser.parse(serviceType).getContractServiceId();
         if (id == -1L) {
             throw new IllegalArgumentException("ONC RPC service must declare MetService.id");
         }
@@ -52,15 +52,15 @@ public final class OncRpcServiceResource {
                 if (!Arrays.equals(previous.getParameterTypes(), method.getParameterTypes())) {
                     throw new IllegalArgumentException("ONC RPC does not support overloaded methods: " + name);
                 }
-                long previousId = ServiceMetaParser.method(serviceType, previous).getId();
-                long currentId = mapping.getId();
+                long previousId = ServiceMetaParser.method(serviceType, previous).getMethodId();
+                long currentId = mapping.getMethodId();
                 boolean different = previousId == 0 || currentId == 0 || previousId != currentId;
                 if (different) {
                     throw new IllegalArgumentException("Ambiguous inherited ONC RPC procedure: " + method.getName());
                 }
                 continue;
             }
-            long number = unsigned(mapping.getId(), "Procedure");
+            long number = unsigned(mapping.getMethodId(), "Procedure");
             if (number == 0) {
                 throw new IllegalArgumentException("ONC RPC procedure zero is reserved for NULL");
             }
@@ -74,7 +74,7 @@ public final class OncRpcServiceResource {
 
     /** 普通接口缺少 ONC 声明或具有重载签名时，拒绝当前协议而保留其他发布方式。 */
     static OncRpcServiceResource infer(Class<?> serviceType) {
-        if (!serviceType.isInterface() || ServiceMetaParser.parse(serviceType).getId() == -1L) {
+        if (!serviceType.isInterface() || ServiceMetaParser.parse(serviceType).getContractServiceId() == -1L) {
             return null;
         }
 
@@ -89,7 +89,7 @@ public final class OncRpcServiceResource {
             if (mapping.isIgnored()) {
                 continue;
             }
-            if (mapping.getId() == 0) {
+            if (mapping.getMethodId() == 0) {
                 return null;
             }
             Method previous = names.putIfAbsent(method.getName(), method);

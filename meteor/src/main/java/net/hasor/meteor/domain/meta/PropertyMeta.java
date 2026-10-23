@@ -14,21 +14,33 @@ import net.hasor.cobble.reflect.resolvable.ResolvableType;
 
 /** 一个 Java 属性上的公共声明合并结果，访问成员保留给各协议选择。 */
 public final class PropertyMeta {
+    private final int                    fieldId;
+    private final String                 name;
     private final String                 javaName;
     private final ResolvableType         type;
     private final List<AnnotatedElement> members;
-    private final String                 declaredName;
-    private final int                    id;
     private final boolean                declared;
 
     PropertyMeta(String javaName, ResolvableType type, List<AnnotatedElement> members, //
-            String declaredName, int id, boolean declared) {
+            String name, int fieldId, boolean declared) {
+        this.fieldId = fieldId;
+        this.name = name;
         this.javaName = javaName;
         this.type = type;
         this.members = List.copyOf(members);
-        this.declaredName = declaredName;
-        this.id = id;
         this.declared = declared;
+    }
+
+    public int getFieldId() {
+        return this.fieldId;
+    }
+
+    public String getDeclaredName() {
+        return this.name;
+    }
+
+    public String getName() {
+        return this.name.isEmpty() ? this.javaName : this.name;
     }
 
     public String getJavaName() {
@@ -39,24 +51,8 @@ public final class PropertyMeta {
         return this.type;
     }
 
-    public String getDeclaredName() {
-        return this.declaredName;
-    }
-
-    public int getId() {
-        return this.id;
-    }
-
-    public boolean isDeclared() {
-        return this.declared;
-    }
-
     public List<AnnotatedElement> getMembers() {
         return this.members;
-    }
-
-    public String getName() {
-        return this.declaredName.isEmpty() ? this.javaName : this.declaredName;
     }
 
     public Field getField() {
@@ -84,5 +80,9 @@ public final class PropertyMeta {
             }
         }
         return null;
+    }
+
+    public boolean isDeclared() {
+        return this.declared;
     }
 }

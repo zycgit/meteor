@@ -52,25 +52,25 @@ public final class ServiceMetaParser {
         return SERVICES.get(serviceType);
     }
 
-    static long serviceId(Class<?> type, MetService declaration) {
+    static long contractServiceId(Class<?> type, MetService declaration) {
         // 当前接口的明确编号覆盖父接口；其他服务坐标仍沿用原声明语义。
         if (declaration != null && declaration.id() != -1L) {
             return declaration.id();
         }
 
         // 多父接口只能继承同一编号，避免由反射遍历顺序决定线上身份。
-        long selected = -1L;
+        long contractServiceId = -1L;
         for (Class<?> parent : type.getInterfaces()) {
-            long inherited = parse(parent).getId();
-            if (inherited == -1L) {
+            long inheritedServiceId = parse(parent).getContractServiceId();
+            if (inheritedServiceId == -1L) {
                 continue;
             }
-            if (selected != -1L && selected != inherited) {
+            if (contractServiceId != -1L && contractServiceId != inheritedServiceId) {
                 throw new IllegalArgumentException("Conflicting inherited service ids: " + type.getName());
             }
-            selected = inherited;
+            contractServiceId = inheritedServiceId;
         }
-        return selected;
+        return contractServiceId;
     }
 
     public static MethodMeta method(Class<?> owner, Method method) {
@@ -197,18 +197,18 @@ public final class ServiceMetaParser {
     public static PropertyMeta property(String javaName, ResolvableType type, AnnotatedElement... members) {
         List<AnnotatedElement> actual = new ArrayList<>();
         List<String> names = new ArrayList<>();
-        List<Integer> ids = new ArrayList<>();
+        List<Integer> fieldIds = new ArrayList<>();
         for (AnnotatedElement member : members) {
             if (member != null) {
                 actual.add(member);
                 MetField field = member.getAnnotation(MetField.class);
                 if (field != null) {
                     names.add(field.name());
-                    ids.add(field.id());
+                    fieldIds.add(field.id());
                 }
             }
         }
-        return property(javaName, type, actual, names, ids);
+        return property(javaName, type, actual, names, fieldIds);
     }
 
     public static boolean isProperty(Annotated member) {
@@ -236,7 +236,7 @@ public final class ServiceMetaParser {
     public static PropertyMeta property(String javaName, JavaType type, List<AnnotatedMember> selected) {
         List<AnnotatedElement> members = new ArrayList<>();
         List<String> names = new ArrayList<>();
-        List<Integer> ids = new ArrayList<>();
+        List<Integer> fieldIds = new ArrayList<>();
         for (AnnotatedMember member : selected) {
             AnnotatedElement actual = (AnnotatedElement) member.getMember();
             members.add(actual);
@@ -244,27 +244,27 @@ public final class ServiceMetaParser {
             MetField effective = member.getAnnotation(MetField.class);
             // 原成员和 mixin 可分别补充名称与编号，显式原成员声明优先。
             if (raw != null || effective != null) {
-                int id = raw == null ? 0 : raw.id();
+                int fieldId = raw == null ? 0 : raw.id();
                 String name = raw == null ? "" : raw.name();
                 if (effective != null) {
-                    if (id == 0) {
-                        id = effective.id();
+                    if (fieldId == 0) {
+                        fieldId = effective.id();
                     }
                     if (name.isEmpty()) {
                         name = effective.name();
                     }
                 }
-                ids.add(id);
+                fieldIds.add(fieldId);
                 names.add(name);
             }
         }
-        return property(javaName, resolvableType(type), members, names, ids);
+        return property(javaName, resolvableType(type), members, names, fieldIds);
     }
 
     private static PropertyMeta property(String javaName, ResolvableType type, //
-            List<AnnotatedElement> members, List<String> names, List<Integer> ids) {
+            List<AnnotatedElement> members, List<String> names, List<Integer> fieldIds) {
         String name = "";
-        int id = 0;
+        int fieldId = 0;
         for (int index = 0; index < names.size(); index++) {
             String next = names.get(index);
             if (!next.isEmpty()) {
@@ -276,15 +276,15 @@ public final class ServiceMetaParser {
                 }
                 name = next;
             }
-            int nextId = ids.get(index);
-            if (nextId != 0) {
-                if (id != 0 && id != nextId) {
+            int nextFieldId = fieldIds.get(index);
+            if (nextFieldId != 0) {
+                if (fieldId != 0 && fieldId != nextFieldId) {
                     throw new IllegalArgumentException("Conflicting property ids: " + javaName);
                 }
-                id = nextId;
+                fieldId = nextFieldId;
             }
         }
-        return new PropertyMeta(javaName, type, members, name, id, !names.isEmpty());
+        return new PropertyMeta(javaName, type, members, name, fieldId, !names.isEmpty());
     }
 
     /** 当前 mapper 只提供类型工厂，继承泛型和方法变量遮蔽规则由公共层解释。 */

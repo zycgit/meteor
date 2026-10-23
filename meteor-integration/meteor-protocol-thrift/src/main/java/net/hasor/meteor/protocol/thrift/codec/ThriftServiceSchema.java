@@ -44,25 +44,25 @@ public final class ThriftServiceSchema {
 
     /** 导出统一编解码定义，编号取自实际 IDL 或注解编译结果。 */
     public ObjectNode describeContract(ObjectNode description) {
-        description.put("serviceName", this.name);
+        description.put("name", this.name);
         ArrayNode methods = description.putArray("methods");
         ObjectNode types = description.putObject("types");
         Map<ThriftType, String> visited = new IdentityHashMap<>();
         for (ThriftMethodBinding method : this.wireMethods.values()) {
             ObjectNode operation = methods.addObject();
-            operation.put("javaSignature", ServiceMetaParser.method(method.method).getJavaSignature());
             operation.put("name", method.name);
-            operation.put("message", method.oneway);
+            operation.put("javaSignature", ServiceMetaParser.method(method.method).getJavaSignature());
             ArrayNode parameters = operation.putArray("parameters");
             for (int index = 0; index < method.args.fields.size(); index++) {
                 ThriftFieldBinding field = method.args.fields.get(index);
                 ObjectNode argument = parameters.addObject();
-                argument.put("argIndex", field.position < 0 ? index : field.position);
-                describeField(field, argument, method.name + "." + field.field.name, types, visited);
+                int argIndex = field.position < 0 ? index : field.position;
+                describeField(field, argument, argIndex, method.name + "." + field.field.name, types, visited);
             }
             if (method.result != null) {
                 operation.put("responseType", describeType(method.result, method.name + ".result", types, visited));
             }
+            operation.put("message", method.oneway);
         }
         return description;
     }
@@ -76,9 +76,6 @@ public final class ThriftServiceSchema {
         visited.put(type, reference);
         ObjectNode value = types.putObject(reference);
         value.put("name", type.name);
-        value.put("wireType", type.wireType);
-        value.put("binary", type.binary);
-        value.put("union", type.union);
         if (type.key != null) {
             value.put("keyType", describeType(type.key, reference + ".key", types, visited));
         }
@@ -87,28 +84,34 @@ public final class ThriftServiceSchema {
         }
         ArrayNode fields = value.putArray("fields");
         for (ThriftFieldBinding field : type.fields) {
-            describeField(field, fields.addObject(), reference + "." + field.field.name, types, visited);
+            describeField(field, fields.addObject(), -1, reference + "." + field.field.name, types, visited);
         }
         ArrayNode constants = value.putArray("values");
         for (Map.Entry<String, Object> constant : type.enumNames.entrySet()) {
             ObjectNode entry = constants.addObject();
-            entry.put("name", constant.getKey());
             entry.put("fieldId", type.enumNumbers.get(constant.getValue()));
+            entry.put("name", constant.getKey());
         }
+        value.put("wireType", type.wireType);
+        value.put("binary", type.binary);
+        value.put("union", type.union);
         return reference;
     }
 
-    private static void describeField(ThriftFieldBinding field, ObjectNode member, String reference, //
+    private static void describeField(ThriftFieldBinding field, ObjectNode member, int argIndex, String reference, //
             ObjectNode types, Map<ThriftType, String> visited) {
-        member.put("name", field.field.name);
         member.put("fieldId", field.field.id);
+        member.put("name", field.field.name);
+        if (argIndex >= 0) {
+            member.put("argIndex", argIndex);
+        }
+        member.put("type", describeType(field.type, reference, types, visited));
         String requirement = switch (field.requirement) {
             case TFieldRequirementType.REQUIRED -> "required";
             case TFieldRequirementType.OPTIONAL -> "optional";
             default -> "default";
         };
         member.put("requirement", requirement);
-        member.put("type", describeType(field.type, reference, types, visited));
     }
 
     /** 返回导入的资源图，或由当前已编译定义生成的 IDL。 */
@@ -143,7 +146,7 @@ public final class ThriftServiceSchema {
                 ParameterMeta field = methodMeta.getParameters().get(index);
                 ResolvableType type = field.getType();
                 String fallback = method.getParameters()[index].getName();
-                int id = field.getId();
+                int id = field.getFieldId();
                 String parameterName = field.getDeclaredName();
                 ThriftFieldBinding parameter = types.annotatedField(id, parameterName, fallback, type, false);
                 parameter.position = index;

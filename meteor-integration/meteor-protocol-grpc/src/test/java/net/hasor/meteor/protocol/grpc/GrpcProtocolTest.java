@@ -41,7 +41,7 @@ public class GrpcProtocolTest {
         assertNotNull(binding);
         assertNotNull(binding.getDefinition());
         assertEquals(effective, binding.getContextPath());
-        assertEquals("example.Echo", binding.getDescription().path("serviceName").asText());
+        assertEquals("example.Echo", binding.getDescription().path("name").asText());
         assertTrue(binding.getDescription().path("types").isObject());
         assertFalse(binding.getDescription().path("contextExact").asBoolean());
         assertNull(meta.getContextPath());

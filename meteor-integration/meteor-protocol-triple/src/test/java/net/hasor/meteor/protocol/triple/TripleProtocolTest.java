@@ -111,7 +111,7 @@ public class TripleProtocolTest {
         assertNotNull(binding);
         assertSame(effective, binding.getContextPath());
         String serviceName = "meteor.triple.demo.TripleFlowService";
-        assertEquals(serviceName, binding.getDescription().path("serviceName").asText());
+        assertEquals(serviceName, binding.getDescription().path("name").asText());
         assertEquals(9, binding.getDescription().path("methods").size());
         assertTrue(binding.getDescription().path("types").size() > 0);
         assertSame(effective, meta.getContextPath());

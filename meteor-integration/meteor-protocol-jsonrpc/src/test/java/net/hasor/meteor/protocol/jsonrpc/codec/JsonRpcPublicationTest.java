@@ -7,6 +7,7 @@
  */
 package net.hasor.meteor.protocol.jsonrpc.codec;
 import java.lang.reflect.Method;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.Flow;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -129,6 +130,30 @@ public class JsonRpcPublicationTest {
         assertEquals(definition.parameterName(method, 0), parameter.path("name").asText());
         assertEquals(definition.parameterType(method, 0).toString(), parameter.path("type").asText());
         assertEquals(0, parameter.path("argIndex").asInt());
+    }
+
+    @Test
+    public void preparedDescriptionPlacesNamesBeforeJavaLocators() {
+        // 复用继承泛型与命名参数的服务，准备本端点的真实描述。
+        ServiceDomain<TextService> service = new ServiceDomain<>(TextService.class);
+        service.setBindName("text");
+        ProtocolConfig config = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", Map.of());
+        ProtocolMeta metadata = new ProtocolMeta(service, null, null, Map.of());
+        ProtocolBinding binding = new JsonRpcProtocol().prepareBinding(config, null, metadata);
+
+        // 名称先于 Java 定位和类型，服务描述不使用另一套名称别名。
+        JsonNode description = binding.getDescription();
+        assertEquals("name", description.fieldNames().next());
+        assertFalse(description.has("serviceName"));
+        JsonNode operation = description.path("methods").get(0);
+        Iterator<String> methodFields = operation.fieldNames();
+        assertEquals("name", methodFields.next());
+        assertEquals("javaSignature", methodFields.next());
+        JsonNode parameter = operation.path("parameters").get(0);
+        Iterator<String> parameterFields = parameter.fieldNames();
+        assertEquals("name", parameterFields.next());
+        assertEquals("argIndex", parameterFields.next());
+        assertEquals("type", parameterFields.next());
     }
 
     @Test

@@ -136,7 +136,7 @@ final class ThriftSchemaBuilder {
                 if (!mapping.isDeclared()) {
                     throw new IllegalArgumentException("Thrift enum requires @MetEnumValue: " + constant);
                 }
-                number = mapping.getId();
+                number = mapping.getFieldId();
                 if (type.enumNames.putIfAbsent(mapping.getName(), constant) != null) {
                     throw new IllegalArgumentException("Duplicate Thrift enum name: " + mapping.getName());
                 }
@@ -169,7 +169,7 @@ final class ThriftSchemaBuilder {
             if (!property.isDeclared()) {
                 continue;
             }
-            ThriftFieldBinding binding = this.annotatedField(property.getId(), property.getDeclaredName(), //
+            ThriftFieldBinding binding = this.annotatedField(property.getFieldId(), property.getDeclaredName(), //
                     property.getJavaName(), property.getType(), type.union);
             Field field = property.getField();
             if (field != null) {

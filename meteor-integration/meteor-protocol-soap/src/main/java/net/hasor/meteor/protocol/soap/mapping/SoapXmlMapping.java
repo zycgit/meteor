@@ -161,14 +161,13 @@ public final class SoapXmlMapping {
         for (SoapXmlType type : this.types.values()) {
             ObjectNode entry = types.putObject(type.getJavaType().toCanonical());
             entry.put("name", type.getName());
-            entry.put("namespace", type.getNamespace());
             ArrayNode fields = entry.putArray("properties");
             for (SoapXmlProperty property : type.getProperties()) {
                 ObjectNode field = fields.addObject();
-                field.put("javaName", property.getJavaName());
                 field.put("name", property.getName().getLocalPart());
-                field.put("namespace", property.getName().getNamespaceURI());
+                field.put("javaName", property.getJavaName());
                 field.put("type", property.getJavaType().toCanonical());
+                field.put("namespace", property.getName().getNamespaceURI());
                 field.put("attribute", property.isAttribute());
                 field.put("text", property.isText());
                 field.put("required", property.isRequired());
@@ -177,6 +176,7 @@ public final class SoapXmlMapping {
                     field.put("wrapper", property.getWrapper().toString());
                 }
             }
+            entry.put("namespace", type.getNamespace());
         }
         return types;
     }

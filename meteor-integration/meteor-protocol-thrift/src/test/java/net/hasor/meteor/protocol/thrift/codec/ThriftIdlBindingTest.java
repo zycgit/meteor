@@ -6,11 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.thrift.codec;
-import java.util.List;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -39,8 +40,14 @@ public class ThriftIdlBindingTest {
         JsonNode parameter = description.path("methods").get(0).path("parameters").get(0);
 
         // 编号和名称来自真实 Thrift 字段，不跟随 Java 参数位置变化。
+        assertEquals("Records", description.path("name").asText());
+        assertFalse(description.has("serviceName"));
         assertEquals(0, parameter.path("argIndex").asInt());
         assertEquals(3, parameter.path("fieldId").asInt());
+        assertFalse(parameter.has("id"));
+        List<String> parameterFields = new ArrayList<>();
+        parameter.fieldNames().forEachRemaining(parameterFields::add);
+        assertEquals(List.of("fieldId", "name", "argIndex", "type", "requirement"), parameterFields);
         String type = parameter.path("type").asText();
         assertEquals("WireRecord", description.path("types").path(type).path("name").asText());
     }
@@ -55,7 +62,11 @@ public class ThriftIdlBindingTest {
         JsonNode fields = description.path("types").path(parameter.path("type").asText()).path("fields");
 
         // 文件字段号 7 对应 remote_count，不复制 Java 的 count 属性名。
+        assertEquals("BindingService", description.path("name").asText());
         assertEquals("Echo", method.path("name").asText());
+        List<String> methodFields = new ArrayList<>();
+        method.fieldNames().forEachRemaining(methodFields::add);
+        assertEquals(List.of("name", "javaSignature", "parameters", "responseType", "message"), methodFields);
         JsonNode field = null;
         for (JsonNode candidate : fields) {
             if (candidate.path("fieldId").asInt() == 7) {
@@ -65,6 +76,10 @@ public class ThriftIdlBindingTest {
         assertNotNull(field);
         assertEquals("remote_count", field.path("name").asText());
         assertEquals("required", field.path("requirement").asText());
+        assertFalse(field.has("id"));
+        List<String> propertyFields = new ArrayList<>();
+        field.fieldNames().forEachRemaining(propertyFields::add);
+        assertEquals(List.of("fieldId", "name", "type", "requirement"), propertyFields);
     }
 
     @Test
