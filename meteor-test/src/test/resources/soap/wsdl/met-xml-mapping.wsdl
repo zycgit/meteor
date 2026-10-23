@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:meteor:xml:external"
+                  targetNamespace="urn:meteor:xml:external">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:xml:external" elementFormDefault="unqualified">
+            <xsd:complexType name="ExternalAmount">
+                <xsd:simpleContent>
+                    <xsd:extension base="xsd:decimal">
+                        <xsd:attribute name="currency" type="xsd:string" use="required"/>
+                    </xsd:extension>
+                </xsd:simpleContent>
+            </xsd:complexType>
+            <xsd:element name="amount">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="arg0" type="tns:ExternalAmount"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            <xsd:element name="amountResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="return" type="tns:ExternalAmount"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="AmountRequest">
+        <wsdl:part name="parameters" element="tns:amount"/>
+    </wsdl:message>
+    <wsdl:message name="AmountResponse">
+        <wsdl:part name="parameters" element="tns:amountResponse"/>
+    </wsdl:message>
+    <wsdl:portType name="MetXmlAmountServicePortType">
+        <wsdl:operation name="amount">
+            <wsdl:input message="tns:AmountRequest"/>
+            <wsdl:output message="tns:AmountResponse"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="MetXmlAmountServiceBinding" type="tns:MetXmlAmountServicePortType">
+        <soap:binding transport="http://schemas.xmlsoap.org/soap/http" style="document"/>
+        <wsdl:operation name="amount">
+            <soap:operation soapAction="urn:meteor:xml:external/amount"/>
+            <wsdl:input><soap:body use="literal"/></wsdl:input>
+            <wsdl:output><soap:body use="literal"/></wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="MetXmlAmountService">
+        <wsdl:port name="MetXmlAmountServicePort" binding="tns:MetXmlAmountServiceBinding">
+            <soap:address location="http://127.0.0.1/services/MetXmlAmountService"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

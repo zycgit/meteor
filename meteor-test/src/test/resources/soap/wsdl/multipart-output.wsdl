@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                  xmlns:tns="urn:meteor:parts" targetNamespace="urn:meteor:parts">
+    <wsdl:types>
+        <xsd:schema targetNamespace="urn:meteor:parts" elementFormDefault="qualified">
+            <xsd:element name="name" type="xsd:string"/>
+            <xsd:element name="greeting" type="xsd:string"/>
+            <xsd:element name="identity" type="xsd:string"/>
+        </xsd:schema>
+    </wsdl:types>
+    <wsdl:message name="Input">
+        <wsdl:part name="name" element="tns:name"/>
+    </wsdl:message>
+    <wsdl:message name="Output">
+        <wsdl:part name="greeting" element="tns:greeting"/>
+        <wsdl:part name="identity" element="tns:identity"/>
+    </wsdl:message>
+    <wsdl:portType name="Parts">
+        <wsdl:operation name="describe">
+            <wsdl:input message="tns:Input"/>
+            <wsdl:output message="tns:Output"/>
+        </wsdl:operation>
+    </wsdl:portType>
+    <wsdl:binding name="PartsBinding" type="tns:Parts">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="describe">
+            <soap:operation soapAction="urn:meteor:parts:describe"/>
+            <wsdl:input>
+                <soap:body use="literal"/>
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal"/>
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+    <wsdl:service name="PartsService">
+        <wsdl:port name="PartsPort" binding="tns:PartsBinding">
+            <soap:address location="http://localhost/parts"/>
+        </wsdl:port>
+    </wsdl:service>
+</wsdl:definitions>

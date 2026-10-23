@@ -1,0 +1,44 @@
+// 每个 SDK 保留自己的源码、锁文件及 node_modules，安装过程共用同一配置。
+def nodePeers = [Hprose: 'hprose', GrpcWeb: 'grpcweb', Connect: 'connect', JsonRpc: 'jsonrpc']
+nodePeers.each { name, directory ->
+    def sourceDirectory = "src/test/node/${directory}"
+    def peerDirectory = layout.buildDirectory.dir("${directory}-peer")
+    def prepare = tasks.register("prepare${name}Peer", Sync) {
+        from(sourceDirectory) {
+            exclude 'node_modules/**'
+        }
+        into peerDirectory
+        preserve { include 'node_modules/**' }
+    }
+    def install = tasks.register("install${name}Peer", Exec) {
+        dependsOn prepare
+        workingDir peerDirectory
+        commandLine npmCommand, 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+        inputs.files("${sourceDirectory}/package.json", "${sourceDirectory}/package-lock.json")
+        outputs.dir peerDirectory.map { it.dir('node_modules') }
+    }
+    tasks.named('test') {
+        dependsOn install
+    }
+}
+
+// gRPC-Web 浏览器使用官方生成客户端和独立 Chromium。
+tasks.register('buildGrpcWebPeer', Exec) {
+    dependsOn 'installGrpcWebPeer'
+    workingDir layout.buildDirectory.dir('grpcweb-peer')
+    commandLine 'node', 'build.js'
+    inputs.dir('src/test/node/grpcweb')
+    outputs.file layout.buildDirectory.file('grpcweb-peer/browser.bundle.js')
+}
+tasks.register('installGrpcWebBrowser', Exec) {
+    dependsOn 'installGrpcWebPeer'
+    workingDir layout.buildDirectory.dir('grpcweb-peer')
+    commandLine 'node', 'node_modules/playwright/cli.js', 'install', 'chromium'
+}
+tasks.named('test') {
+    dependsOn 'buildGrpcWebPeer', 'installGrpcWebBrowser'
+    systemProperty 'hprose.peer.dir', layout.buildDirectory.dir('hprose-peer').get().asFile.absolutePath
+    systemProperty 'grpcweb.peer.dir', layout.buildDirectory.dir('grpcweb-peer').get().asFile.absolutePath
+    systemProperty 'connect.peer.dir', layout.buildDirectory.dir('connect-peer').get().asFile.absolutePath
+    systemProperty 'jsonrpc.peer.dir', layout.buildDirectory.dir('jsonrpc-peer').get().asFile.absolutePath
+}

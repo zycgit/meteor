@@ -1,0 +1,107 @@
+// 仅有版本冲突的 SDK 对端单独解析依赖，保持宿主主测试依赖不变。
+configurations {
+    tripleLegacyPeer {
+        canBeConsumed = false
+    }
+    dubboLegacyPeer {
+        canBeConsumed = false
+    }
+    connectServerPeer {
+        canBeConsumed = false
+    }
+}
+
+dependencies {
+    testImplementation "io.grpc:grpc-netty-shaded:${property('lib.grpc')}"
+    testImplementation "io.grpc:grpc-stub:${property('lib.grpc')}"
+    testImplementation "io.grpc:grpc-services:${property('lib.grpc')}"
+    testImplementation("io.grpc:grpc-interop-testing:${property('lib.grpc')}") {
+        // 互通场景不使用指标导出和 xDS CEL，避免引入不兼容的 Protobuf 4.x。
+        exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-prometheus'
+        exclude group: 'dev.cel'
+    }
+    testImplementation "org.apache.dubbo:dubbo:${property('lib.dubbo')}"
+    testImplementation "org.apache.curator:curator-recipes:${property('lib.curator')}"
+    testImplementation "org.apache.curator:curator-x-discovery:${property('lib.curator')}"
+    testImplementation "org.eclipse.angus:angus-mail:${property('lib.angus.mail')}"
+    testImplementation "com.sun.xml.ws:jaxws-rt:${property('lib.jaxws')}"
+    testImplementation "axis:axis:${property('lib.axis')}"
+    testImplementation "com.github.briandilley.jsonrpc4j:jsonrpc4j:${property('lib.jsonrpc4j')}"
+    testImplementation "org.apache.xmlrpc:xmlrpc-client:${property('lib.xmlrpc')}"
+    testImplementation "org.acplt.remotetea:remotetea-oncrpc:${property('lib.remotetea')}"
+    testImplementation "com.connectrpc:connect-kotlin-okhttp:${property('lib.connect.kotlin')}"
+    testImplementation "com.connectrpc:connect-kotlin-google-java-ext:${property('lib.connect.kotlin')}"
+    // 只借用社区服务端的编译 API，不让它的 Protobuf 4/Netty 图进入宿主主运行依赖。
+    testImplementation("me.ivovk:connect-rpc-java-core:${property('lib.connect.java')}") {
+        transitive = false
+    }
+    testImplementation("me.ivovk:connect-rpc-java-netty:${property('lib.connect.java')}") {
+        transitive = false
+    }
+
+    // 唯一存在版本冲突的 Connect 服务端保留 SDK 原始完整图，供独立 JVM 使用。
+    connectServerPeer "me.ivovk:connect-rpc-java-netty:${property('lib.connect.java')}"
+
+    tripleLegacyPeer "org.apache.dubbo:dubbo:${property('lib.dubbo.legacy')}"
+    dubboLegacyPeer "org.apache.dubbo:dubbo:${property('lib.dubbo2')}"
+    dubboLegacyPeer "org.apache.curator:curator-recipes:${property('lib.curator')}"
+    dubboLegacyPeer "org.apache.curator:curator-x-discovery:${property('lib.curator')}"
+}
+
+tasks.named('test') {
+    inputs.files(configurations.connectServerPeer)
+    systemProperty 'dubbo.peer.output.directory', layout.buildDirectory.dir('peer-logs').get().asFile.absolutePath
+    systemProperty 'hessian.peer.output.directory', layout.buildDirectory.dir('hessian-peer-logs').get().asFile.absolutePath
+    systemProperty 'soap.peer.output.directory', layout.buildDirectory.dir('soap-peer-logs').get().asFile.absolutePath
+    systemProperty 'thrift.peer.output.directory', layout.buildDirectory.dir('thrift-peer-logs').get().asFile.absolutePath
+    def soapCertificates = layout.buildDirectory.dir('resources/test/soap/tls/acceptance')
+    systemProperty 'soap.peer.tls.directory', soapCertificates.get().asFile.absolutePath
+
+    doFirst {
+        // 一次读取已解析依赖图，各对端只获得所属官方 SDK 的传递依赖。
+        def runtime = configurations.testRuntimeClasspath.resolvedConfiguration
+        def modules = runtime.lenientConfiguration.allModuleDependencies
+        def sdkRuntime = { String group, String name ->
+            def sdk = modules.find { it.moduleGroup == group && it.moduleName == name }
+            sdk.allModuleArtifacts.collect { it.file }
+        }
+        def peerClasses = sourceSets.test.output.classesDirs
+        def dubboRuntime = sdkRuntime('org.apache.dubbo', 'dubbo')
+        def hessianRuntime = sdkRuntime('com.caucho', 'hessian')
+        def metroRuntime = sdkRuntime('com.sun.xml.ws', 'jaxws-rt')
+        def axisRuntime = sdkRuntime('axis', 'axis')
+        def thriftRuntime = sdkRuntime('org.apache.thrift', 'libthrift')
+        def jsonRpcRuntime = sdkRuntime('com.github.briandilley.jsonrpc4j', 'jsonrpc4j')
+        def xmlRpcRuntime = sdkRuntime('org.apache.xmlrpc', 'xmlrpc-client')
+        def oncRpcRuntime = sdkRuntime('org.acplt.remotetea', 'remotetea-oncrpc')
+        def connectRuntime = sdkRuntime('com.connectrpc', 'connect-kotlin-google-java-ext')
+        def connectHttpRuntime = sdkRuntime('com.connectrpc', 'connect-kotlin-okhttp')
+        systemProperty 'triple.peer.classpath', files(peerClasses, dubboRuntime).asPath
+        systemProperty 'hessian.peer.classpath', files(peerClasses, hessianRuntime).asPath
+        systemProperty 'soap.metro.peer.classpath', files(peerClasses, metroRuntime).asPath
+        systemProperty 'soap.axis.peer.classpath', files(peerClasses, axisRuntime).asPath
+        systemProperty 'thrift.peer.classpath', files(peerClasses, thriftRuntime).asPath
+        // 新增 Java 对端只借用 SDK 及其依赖，不携带 Meteor 的协议实现。
+        systemProperty 'jsonrpc.java.peer.classpath', files(peerClasses, jsonRpcRuntime).asPath
+        systemProperty 'xmlrpc.java.peer.classpath', files(peerClasses, xmlRpcRuntime).asPath
+        systemProperty 'oncrpc.java.peer.classpath', files(peerClasses, oncRpcRuntime).asPath
+        systemProperty 'connect.java.peer.classpath', files(peerClasses, connectRuntime, connectHttpRuntime).asPath
+        def connectServer = files(peerClasses, configurations.connectServerPeer)
+        systemProperty 'connect.java.server.peer.classpath', connectServer.asPath
+
+        // Dubbo 注册发现增加 Curator 客户端依赖；TLS SPI 读取标准测试资源。
+        def curatorRecipes = sdkRuntime('org.apache.curator', 'curator-recipes')
+        def curatorDiscovery = sdkRuntime('org.apache.curator', 'curator-x-discovery')
+        def dubboPeer = files(sourceSets.test.output, dubboRuntime, curatorRecipes, curatorDiscovery)
+        systemProperty 'dubbo.peer.classpath', dubboPeer.asPath
+
+        // 3.2 与 2.7 保留各自版本图；3.2 复用已解析的公共 Protobuf API。
+        def protobuf = runtime.resolvedArtifacts.find {
+            it.moduleVersion.id.group == 'com.google.protobuf' && it.name == 'protobuf-java'
+        }.file
+        def tripleLegacy = files(peerClasses, configurations.tripleLegacyPeer, protobuf)
+        systemProperty 'triple.peer.legacy.classpath', tripleLegacy.asPath
+        def dubboLegacy = files(sourceSets.test.output, configurations.dubboLegacyPeer)
+        systemProperty 'dubbo.peer.legacy.classpath', dubboLegacy.asPath
+    }
+}

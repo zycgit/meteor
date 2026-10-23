@@ -1,0 +1,38 @@
+// Copyright 2015-2026 the original author or authors.
+// Licensed under the Apache License, Version 2.0.
+syntax = "proto3";
+package meteor.scalar;
+
+enum ScalarKind {
+  RETAIL = 0;
+  WHOLESALE = 1;
+}
+
+message ScalarValue {
+  bool flag = 1;
+  int64 integer = 2;
+  // Explicit presence retains signed zero when JsonFormat prints the message.
+  optional float single = 3;
+  optional double decimal = 4;
+  optional ScalarKind kind = 5;
+  optional string note = 6;
+  string receipt = 7;
+}
+
+message ScalarMoment {
+  // java.util.Date is represented by its exact epoch millisecond value.
+  int64 instant = 1;
+  string receipt = 2;
+}
+
+message ScalarDecimal {
+  // Decimal text retains the exact BigDecimal value and scale.
+  string amount = 1;
+  string receipt = 2;
+}
+
+service ScalarValueService {
+  rpc echo (ScalarValue) returns (ScalarValue);
+  rpc echoMoment (ScalarMoment) returns (ScalarMoment);
+  rpc echoDecimal (ScalarDecimal) returns (ScalarDecimal);
+}

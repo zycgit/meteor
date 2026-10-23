@@ -1,0 +1,29 @@
+{
+  "document": {
+    "documentId": 42,
+    "customer": {
+      "code": "customer_A",
+      "name": "Alice <Retail> & \"Partners\"",
+      "verified": true,
+      "rating": 4.5
+    },
+    "lines": [
+      {"sku": "SKU_A", "quantity": 3, "unitPrice": 19.25},
+      {"sku": "SKU_B", "quantity": 4, "unitPrice": 48.5}
+    ],
+    "route": ["warehouse_A", "store_B"],
+    "receipt": "client-document"
+  },
+  "index": {
+    "revision": 9,
+    "linesByCode": {
+      "firstLine": {"sku": "SKU_A", "quantity": 3, "unitPrice": 19.25},
+      "secondLine": {"sku": "SKU_B", "quantity": 4, "unitPrice": 48.5}
+    },
+    "stockByCode": {
+      "warehouse_A": 5,
+      "warehouse_B": 7
+    },
+    "receipt": "client-index"
+  }
+}

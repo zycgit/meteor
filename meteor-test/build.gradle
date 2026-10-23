@@ -1,0 +1,49 @@
+plugins {
+    id 'java'
+}
+
+description = 'Meteor protocol, language and registry interoperability tests'
+
+dependencies {
+    testImplementation project(':meteor')
+    testImplementation project(':met-example')
+    testImplementation project(':meteor-registry')
+    testImplementation project(':meteor-registry-jdbc')
+    testImplementation project(':meteor-registry-nacos')
+    testImplementation project(':meteor-registry-zookeeper')
+    testImplementation project(':meteor-registry-dubbo')
+    testImplementation project(':meteor-protocol-grpc')
+    testImplementation project(':meteor-protocol-hprose')
+    testImplementation project(':meteor-protocol-soap')
+    testImplementation project(':meteor-protocol-jsonrpc')
+    testImplementation project(':meteor-protocol-xmlrpc')
+    testImplementation project(':meteor-protocol-hessian')
+    testImplementation project(':meteor-protocol-connect')
+    testImplementation project(':meteor-protocol-triple')
+    testImplementation project(':meteor-protocol-dubbo')
+    testImplementation project(':meteor-protocol-thrift')
+    testImplementation project(':meteor-protocol-oncrpc')
+    testImplementation "org.mockito:mockito-core:${property('lib.mockito')}"
+}
+
+// 命名参数和接口元信息使用真实参数名，不另建测试源集。
+tasks.named('compileTestJava') {
+    options.compilerArgs += '-parameters'
+}
+
+// 官方 SDK 与外语对端的构建只归属交叉测试工程。
+['java-peers', 'node-peers', 'python-peers', 'native-peers', 'registry-environments', 'reporting'].each { name ->
+    apply from: "gradle/${name}.gradle"
+}
+
+tasks.named('test') {
+    maxHeapSize = '1536m'
+    // Gradle 的筛选参数显式转交测试 JVM，结果保留实际执行范围。
+    System.properties.findAll { key, value -> key.toString().startsWith('meteor.matrix.') }.each { key, value ->
+        systemProperty key.toString(), value
+    }
+    testLogging {
+        events 'failed', 'skipped'
+        exceptionFormat = 'full'
+    }
+}

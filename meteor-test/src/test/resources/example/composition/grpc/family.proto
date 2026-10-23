@@ -1,0 +1,11 @@
+syntax = "proto3";
+package meteor.composition;
+
+message FamilyMessage {
+  string text = 1;
+  int32 number = 2;
+}
+
+service FamilyService {
+  rpc echo(FamilyMessage) returns (FamilyMessage);
+}

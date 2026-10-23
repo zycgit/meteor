@@ -1,0 +1,34 @@
+// 示例的跨协议、外语及注册发现验证在宿主中运行，业务入口仍来自示例主源码。
+configurations {
+    nacosServer {
+        canBeConsumed = false
+        transitive = false
+    }
+}
+
+dependencies {
+    nacosServer "com.alibaba.nacos:nacos-server:${property('lib.nacos')}@zip"
+    testImplementation "net.hasor:dbvisitor:${property('lib.dbvisitor')}"
+    testImplementation "com.h2database:h2:${property('lib.h2')}"
+    testImplementation "org.apache.curator:curator-test:${property('lib.curator')}"
+}
+
+def prepareNacosServer = tasks.register('prepareNacosServer', Sync) {
+    from { zipTree(configurations.nacosServer.singleFile) }
+    include 'nacos/target/nacos-server.jar'
+    into layout.buildDirectory.dir('nacos-server')
+}
+
+tasks.named('test') {
+    dependsOn prepareNacosServer
+    def serverJar = layout.buildDirectory.file('nacos-server/nacos/target/nacos-server.jar')
+    inputs.file(serverJar)
+    systemProperty 'meteor.test.nacos.serverJar', serverJar.get().asFile.absolutePath
+    // 功能矩阵放宽 SDK 对重复配置读取的本地节流；默认 5 QPS 的冒烟可通过参数单独执行。
+    systemProperty 'limitTime', System.getProperty('meteor.test.nacos.limitTime', '1000')
+
+    // 独立业务 JVM 仅加载示例 main runtime，外语调用复用对用户发布的脚本。
+    def exampleProject = project(':met-example')
+    systemProperty 'meteor.example.mainClasspath', exampleProject.sourceSets.main.runtimeClasspath.asPath
+    systemProperty 'meteor.example.clientsDirectory', exampleProject.file('src/main/clients').absolutePath
+}

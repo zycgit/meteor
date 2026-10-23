@@ -1,0 +1,1 @@
+meteor-test-peer-host-netty=net.hasor.peer.protocol.dubbo.DubboPeerHostTransporter

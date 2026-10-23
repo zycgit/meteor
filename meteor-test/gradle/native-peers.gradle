@@ -1,0 +1,35 @@
+// C 对端独立编译并链接 libtirpc，不使用 Meteor 的 Java 实现。
+def nativeOutput = layout.buildDirectory.dir('native/oncrpc')
+tasks.register('buildOncRpcNativePeers', Exec) {
+    group = 'build'
+    description = 'Compile independent rpcgen/libtirpc interoperability test peers.'
+    inputs.files(fileTree('src/test/native'), fileTree('src/test/rpc'))
+    outputs.dir nativeOutput
+    commandLine 'python3', file('src/test/native/build-native.py'), '--output', nativeOutput.get().asFile
+}
+
+tasks.named('test') {
+    dependsOn tasks.named('buildOncRpcNativePeers')
+    systemProperty 'oncrpc.peer.executable', nativeOutput.get().file('oncrpc_peer').asFile.absolutePath
+    systemProperty 'oncrpc.rpcbind.peer.executable', nativeOutput.get().file('oncrpc_rpcbind_peer').asFile.absolutePath
+    systemProperty 'oncrpc.peer.usage.file', layout.buildDirectory.file('oncrpc-native-process-usage.jsonl').get().asFile.absolutePath
+    systemProperty 'oncrpc.peer.output.directory', layout.buildDirectory.dir('oncrpc-peer-logs').get().asFile.absolutePath
+}
+
+// Official Go SDK peers remain independent processes with project-local tools and caches.
+tasks.register('buildGoOrderPeer', Exec) {
+    workingDir projectDir
+    commandLine 'python3', file('src/test/go/prepare.py').absolutePath,
+            '--build-dir', layout.buildDirectory.get().asFile.absolutePath
+    inputs.dir('src/test/go')
+    outputs.file layout.buildDirectory.file('go-peer/' + (System.getProperty('os.name').startsWith('Windows')
+            ? 'order-peer.exe' : 'order-peer'))
+}
+
+tasks.named('test') {
+    dependsOn 'buildGoOrderPeer'
+    def executable = System.getProperty('os.name').startsWith('Windows') ? 'order-peer.exe' : 'order-peer'
+    systemProperty 'go.order.peer.binary', layout.buildDirectory.file('go-peer/' + executable).get().asFile.absolutePath
+    systemProperty 'go.order.peer.cert-dir', file('src/test/resources/grpc/tls/acceptance').absolutePath
+    systemProperty 'go.order.peer.work-dir', layout.buildDirectory.dir('go-peer/runs').get().asFile.absolutePath
+}

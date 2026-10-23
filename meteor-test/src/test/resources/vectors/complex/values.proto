@@ -1,0 +1,37 @@
+// Copyright 2015-2026 the original author or authors.
+// Licensed under the Apache License, Version 2.0.
+syntax = "proto3";
+package meteor.contract;
+
+message ComplexCustomer {
+  string code = 1;
+  string name = 2;
+  bool verified = 3;
+  double rating = 4;
+}
+
+message ComplexLine {
+  string sku = 1;
+  int32 quantity = 2;
+  double unit_price = 3;
+}
+
+message ComplexDocument {
+  int32 document_id = 1;
+  ComplexCustomer customer = 2;
+  repeated ComplexLine lines = 3;
+  repeated string route = 4;
+  string receipt = 5;
+}
+
+message ComplexIndex {
+  int32 revision = 1;
+  map<string, ComplexLine> lines_by_code = 2;
+  map<string, int32> stock_by_code = 3;
+  string receipt = 4;
+}
+
+service ComplexValueService {
+  rpc acceptDocument (ComplexDocument) returns (ComplexDocument);
+  rpc acceptIndex (ComplexIndex) returns (ComplexIndex);
+}

@@ -1,0 +1,176 @@
+{
+  "values": {
+    "boolean-true": {
+      "flag": true,
+      "integer": 42,
+      "single": 1.5,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "boolean-false": {
+      "flag": false,
+      "integer": 42,
+      "single": 1.5,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "int64-minimum": {
+      "flag": true,
+      "integer": -9223372036854775808,
+      "single": 1.5,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "int64-maximum": {
+      "flag": true,
+      "integer": 9223372036854775807,
+      "single": 1.5,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "int64-above-double-precision": {
+      "flag": true,
+      "integer": 9007199254740993,
+      "single": 1.5,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "int64-below-negative-double-precision": {
+      "flag": true,
+      "integer": -9007199254740993,
+      "single": 1.5,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "float-minimum-positive": {
+      "flag": true,
+      "integer": 42,
+      "single": 1.4e-45,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "float-maximum": {
+      "flag": true,
+      "integer": 42,
+      "single": 3.4028235e+38,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "float-lowest": {
+      "flag": true,
+      "integer": 42,
+      "single": -3.4028235e+38,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "float-negative-zero": {
+      "flag": true,
+      "integer": 42,
+      "single": -0.0,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "double-minimum-positive": {
+      "flag": true,
+      "integer": 42,
+      "single": 1.5,
+      "decimal": 5e-324,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "double-maximum": {
+      "flag": true,
+      "integer": 42,
+      "single": 1.5,
+      "decimal": 1.7976931348623157e+308,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "double-lowest": {
+      "flag": true,
+      "integer": 42,
+      "single": 1.5,
+      "decimal": -1.7976931348623157e+308,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "double-negative-zero": {
+      "flag": true,
+      "integer": 42,
+      "single": 1.5,
+      "decimal": -0.0,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "enum-first-value": {
+      "flag": true,
+      "integer": 42,
+      "single": 1.5,
+      "decimal": 2.25,
+      "kind": "RETAIL",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "enum-second-value": {
+      "flag": true,
+      "integer": 42,
+      "single": 1.5,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "ASCII <tag> & \"quotes\" \\ slash",
+      "receipt": "client-value"
+    },
+    "nullable-note": {
+      "flag": true,
+      "integer": 42,
+      "single": 1.5,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": null,
+      "receipt": "client-value"
+    },
+    "empty-note": {
+      "flag": true,
+      "integer": 42,
+      "single": 1.5,
+      "decimal": 2.25,
+      "kind": "WHOLESALE",
+      "note": "",
+      "receipt": "client-value"
+    }
+  },
+  "moments": {
+    "utc-whole-second": "2026-10-19T01:02:03Z",
+    "utc-milliseconds": "2026-10-19T01:02:03.789Z",
+    "before-epoch": "1969-12-31T23:59:59.123Z"
+  },
+  "decimals": {
+    "large-exact": "9007199254740993.123456789012345678901234567890",
+    "small-exact": "0.000000000000000000000000000000123456789",
+    "negative-exact": "-9007199254740993.123456789012345678901234567890"
+  }
+}

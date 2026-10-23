@@ -1,0 +1,14 @@
+// Copyright 2015-2026 the original author or authors.
+// Licensed under the Apache License, Version 2.0.
+syntax = "proto3";
+package net.hasor.peer.protocol.triple;
+import "google/protobuf/wrappers.proto";
+service DubboProtoService {
+  rpc echo(google.protobuf.StringValue) returns (google.protobuf.StringValue);
+  rpc fail(google.protobuf.StringValue) returns (google.protobuf.StringValue);
+  rpc metadata(google.protobuf.StringValue) returns (google.protobuf.StringValue);
+  rpc slow(google.protobuf.StringValue) returns (google.protobuf.StringValue);
+  rpc count(google.protobuf.StringValue) returns (stream google.protobuf.StringValue);
+  rpc collect(stream google.protobuf.StringValue) returns (google.protobuf.StringValue);
+  rpc chat(stream google.protobuf.StringValue) returns (stream google.protobuf.StringValue);
+}
