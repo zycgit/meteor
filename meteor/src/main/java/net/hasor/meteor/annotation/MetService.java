@@ -19,6 +19,9 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface MetService {
+    /** 数值契约服务编号；-1 表示未指定，不改变服务名、分组和版本组成的服务身份。 */
+    long id() default -1L;
+
     /**服务名。*/
     String name() default "";
 

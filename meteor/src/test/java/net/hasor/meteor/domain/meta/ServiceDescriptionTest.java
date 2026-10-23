@@ -40,6 +40,49 @@ public class ServiceDescriptionTest {
     }
 
     @Test
+    public void serviceContractNumberRetainsTheUnsignedHighHalf() {
+        // 公共 JSON 以 long 导出服务编号，不截断 uint32 高半区。
+        ObjectNode description = ServiceMetaParser.parse(Named.class).createServiceDescription();
+        assertEquals(0xffff_ffffL, description.path("contractId").longValue());
+    }
+
+    @Test
+    public void methodContractNumberRetainsTheUnsignedHighHalf() {
+        // 方法编号与参数字段编号分别保存，方法名称和 Java 签名保持原值。
+        ObjectNode description = ServiceMetaParser.parse(Named.class).createServiceDescription();
+        JsonNode method = description.path("methods").get(0);
+        assertEquals(0xffff_fffeL, method.path("contractId").longValue());
+        assertEquals("Send", method.path("name").asText());
+        assertEquals("send(java.lang.String,int)", method.path("javaSignature").asText());
+        assertEquals(10, method.path("parameters").get(0).path("fieldId").asInt());
+    }
+
+    @Test
+    public void unspecifiedServiceContractNumberRemainsNull() {
+        // 无服务编号的声明显式导出 null，不能以零占位。
+        ObjectNode description = ServiceMetaParser.parse(Unnumbered.class).createServiceDescription();
+        assertTrue(description.has("contractId"));
+        assertTrue(description.path("contractId").isNull());
+    }
+
+    @Test
+    public void unspecifiedMethodContractNumberRemainsNull() {
+        // 没有方法编号时仍导出字段，供管理查询区分缺省与明确编号。
+        ObjectNode description = ServiceMetaParser.parse(Unnumbered.class).createServiceDescription();
+        JsonNode method = description.path("methods").get(0);
+        assertTrue(method.has("contractId"));
+        assertTrue(method.path("contractId").isNull());
+    }
+
+    @Test
+    public void explicitZeroServiceNumberIsExportedAsANumber() {
+        // 服务编号零为有效契约编号，不按未声明状态导出为 null。
+        ObjectNode description = ServiceMetaParser.parse(ZeroNumbered.class).createServiceDescription();
+        assertTrue(description.path("contractId").isIntegralNumber());
+        assertEquals(0L, description.path("contractId").longValue());
+    }
+
+    @Test
     public void inheritedReturnTypeUsesConcreteGenericArgument() {
         // 继承接口中的 T 在当前服务声明中解析为实际 DTO。
         ObjectNode description = ServiceMetaParser.parse(Concrete.class).createServiceDescription();
@@ -115,9 +158,14 @@ public class ServiceDescriptionTest {
         assertEquals(Dto.class.getName(), publisher.path("arguments").get(0).asText());
     }
 
+    @MetService(id = 0xffff_ffffL)
     public interface Named {
-        @MetMethod(name = "Send")
+        @MetMethod(id = 0xffff_fffeL, name = "Send")
         void send(@MetParam(name = "message", id = 10) String text, @MetParam(name = "count", id = 20) int times);
+    }
+
+    @MetService(id = 0)
+    public interface ZeroNumbered extends Named {
     }
 
     public interface Unnumbered {

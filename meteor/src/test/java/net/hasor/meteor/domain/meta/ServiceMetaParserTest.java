@@ -36,6 +36,43 @@ public class ServiceMetaParserTest {
         void notify(String value);
     }
 
+    @MetService(id = 0xffff_ffffL, name = "Numbered", group = "contracts", version = "2026.10-rc1")
+    interface NumberedParent {
+        @MetMethod(id = 0xffff_fffeL)
+        String invoke();
+    }
+
+    @MetService(name = "Child")
+    interface InheritedNumber extends NumberedParent {
+    }
+
+    @MetService(id = 0)
+    interface ZeroNumber extends NumberedParent {
+    }
+
+    @MetService(id = 7)
+    interface OtherNumber {
+    }
+
+    interface ConflictingNumbers extends NumberedParent, OtherNumber {
+    }
+
+    @MetService(id = 23)
+    interface OverriddenNumbers extends NumberedParent, OtherNumber {
+    }
+
+    @MetService(id = 0xffff_ffffL)
+    interface MatchingNumber {
+    }
+
+    interface MatchingNumbers extends NumberedParent, MatchingNumber {
+    }
+
+    interface BlankMethodName {
+        @MetMethod(id = 1, name = " \t")
+        void invalid();
+    }
+
     @MetType(name = "Purchase")
     static class Order {
         @MetField(id = 7)
@@ -129,6 +166,7 @@ public class ServiceMetaParserTest {
         assertEquals("", service.getVersion());
         assertEquals("", service.getSerializeType());
         assertEquals(-1, service.getClientTimeout());
+        assertEquals(-1L, service.getId());
     }
 
     @Test
@@ -137,6 +175,91 @@ public class ServiceMetaParserTest {
         ServiceMeta service = ServiceMetaParser.parse(Orders.class);
         assertEquals("", service.getSerializeType());
         assertEquals(-1, service.getClientTimeout());
+    }
+
+    @Test
+    public void partialServiceAnnotationKeepsContractNumberUnspecified() {
+        // 原有名称、分组和版本声明不意味着分配了服务契约编号。
+        ServiceMeta service = ServiceMetaParser.parse(Orders.class);
+        assertEquals(-1L, service.getId());
+    }
+
+    @Test
+    public void serviceContractNumberRetainsTheUnsignedHighHalf() {
+        // 使用 uint32 的高半区，公共描述以 long 保留完整编号。
+        ServiceMeta service = ServiceMetaParser.parse(NumberedParent.class);
+        assertEquals(0xffff_ffffL, service.getId());
+    }
+
+    @Test
+    public void numericServiceIdentityKeepsTheStringVersionUnchanged() {
+        // 服务契约编号与原有字符串版本是两个独立声明。
+        ServiceMeta service = ServiceMetaParser.parse(NumberedParent.class);
+        assertEquals("2026.10-rc1", service.getVersion());
+    }
+
+    @Test
+    public void unspecifiedServiceNumberInheritsWithoutCopyingOtherIdentityFields() {
+        // 子接口只声明名称，编号继承父接口，其余服务身份仍遵循当前声明。
+        ServiceMeta service = ServiceMetaParser.parse(InheritedNumber.class);
+        assertEquals(0xffff_ffffL, service.getId());
+        assertEquals("Child", service.getName());
+        assertEquals("", service.getGroup());
+        assertEquals("", service.getVersion());
+    }
+
+    @Test
+    public void explicitZeroServiceNumberOverridesTheParent() {
+        // 零是合法的服务编号，不能当作缺省值而回退到父接口。
+        ServiceMeta service = ServiceMetaParser.parse(ZeroNumber.class);
+        assertEquals(0L, service.getId());
+    }
+
+    @Test
+    public void equalServiceNumbersFromMultipleParentsRemainUnambiguous() {
+        // 多个父接口声明相同编号时，继承结果仍是一份确定的服务编号。
+        ServiceMeta service = ServiceMetaParser.parse(MatchingNumbers.class);
+        assertEquals(0xffff_ffffL, service.getId());
+    }
+
+    @Test
+    public void differentServiceNumbersFromMultipleParentsFailWithoutAnOverride() {
+        // 未明确覆盖多个父接口的不同编号时，报告公共声明冲突。
+        assertThrows(IllegalArgumentException.class, () -> ServiceMetaParser.parse(ConflictingNumbers.class));
+    }
+
+    @Test
+    public void explicitServiceNumberResolvesConflictingParentNumbers() {
+        // 当前接口明确给出的编号优先，不受父接口编号冲突影响。
+        ServiceMeta service = ServiceMetaParser.parse(OverriddenNumbers.class);
+        assertEquals(23L, service.getId());
+    }
+
+    @Test
+    public void missingMethodAnnotationKeepsTheContractNumberUnspecified() throws Exception {
+        // 未声明方法注解时，契约编号保持缺省，名称仍来自 Java 方法。
+        Method method = Base.class.getMethod("echo", Object.class);
+        MethodMeta description = ServiceMetaParser.method(method);
+        assertEquals(0L, description.getId());
+        assertNull(description.getDeclaredName());
+        assertEquals("echo", description.getName());
+    }
+
+    @Test
+    public void methodContractNumberDoesNotRequireAnExplicitName() throws Exception {
+        // 仅指定编号，不能把注解缺省的空名称误判为显式无效名称。
+        Method method = NumberedParent.class.getMethod("invoke");
+        MethodMeta description = ServiceMetaParser.method(method);
+        assertEquals(0xffff_fffeL, description.getId());
+        assertNull(description.getDeclaredName());
+        assertEquals("invoke", description.getName());
+    }
+
+    @Test
+    public void explicitlyBlankMethodNameStillFails() throws Exception {
+        // 空白字符串是显式名称错误，与未声明名称的空字符串区别处理。
+        Method method = BlankMethodName.class.getMethod("invalid");
+        assertThrows(IllegalArgumentException.class, () -> ServiceMetaParser.method(method).getName());
     }
 
     @Test

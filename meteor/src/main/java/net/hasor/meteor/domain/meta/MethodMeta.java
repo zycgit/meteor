@@ -18,6 +18,7 @@ import net.hasor.meteor.annotation.MetReturn;
 
 /** 原始 Java 方法与公共映射；协议操作身份在插件转换时确定。 */
 public final class MethodMeta {
+    private final long                id;
     private final Class<?>            serviceType;
     private final Method              javaMethod;
     private final String              declaredName;
@@ -30,7 +31,8 @@ public final class MethodMeta {
     MethodMeta(Class<?> owner, Method method, MetMethod mapping, MetReturn result, boolean message, boolean ignored) {
         this.serviceType = owner;
         this.javaMethod = method;
-        this.declaredName = mapping == null ? null : mapping.name();
+        this.declaredName = mapping == null || mapping.name().isEmpty() ? null : mapping.name();
+        this.id = mapping == null ? 0L : mapping.id();
         this.returnName = result == null ? null : result.name();
         this.message = message;
         this.ignored = ignored;
@@ -66,6 +68,10 @@ public final class MethodMeta {
 
     public String getDeclaredName() {
         return this.declaredName;
+    }
+
+    public long getId() {
+        return this.id;
     }
 
     public String getReturnName() {

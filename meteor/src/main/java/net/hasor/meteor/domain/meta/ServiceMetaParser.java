@@ -52,6 +52,27 @@ public final class ServiceMetaParser {
         return SERVICES.get(serviceType);
     }
 
+    static long serviceId(Class<?> type, MetService declaration) {
+        // 当前接口的明确编号覆盖父接口；其他服务坐标仍沿用原声明语义。
+        if (declaration != null && declaration.id() != -1L) {
+            return declaration.id();
+        }
+
+        // 多父接口只能继承同一编号，避免由反射遍历顺序决定线上身份。
+        long selected = -1L;
+        for (Class<?> parent : type.getInterfaces()) {
+            long inherited = parse(parent).getId();
+            if (inherited == -1L) {
+                continue;
+            }
+            if (selected != -1L && selected != inherited) {
+                throw new IllegalArgumentException("Conflicting inherited service ids: " + type.getName());
+            }
+            selected = inherited;
+        }
+        return selected;
+    }
+
     public static MethodMeta method(Class<?> owner, Method method) {
         MethodMeta description = parse(owner).getMethod(method);
         return description == null ? describeMethod(owner, method) : description;

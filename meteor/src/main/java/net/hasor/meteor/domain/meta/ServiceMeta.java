@@ -20,6 +20,7 @@ import net.hasor.meteor.annotation.MetService;
 
 /** Java 服务的公共声明；服务配置直接读取注解，最终注册值由 ServiceDomain 管理。 */
 public final class ServiceMeta {
+    private final long                                    id;
     private final Class<?>                                javaType;
     private final MetService                              declaration;
     private final List<MethodMeta>                        exposedMethods;
@@ -30,6 +31,7 @@ public final class ServiceMeta {
     ServiceMeta(Class<?> javaType, MetService declaration, boolean message, Map<Method, MethodMeta> methods) {
         this.javaType = javaType;
         this.declaration = declaration;
+        this.id = ServiceMetaParser.serviceId(javaType, declaration);
         this.message = message;
         this.methods = Collections.unmodifiableMap(methods);
         List<MethodMeta> exposed = new ArrayList<>();
@@ -47,6 +49,11 @@ public final class ServiceMeta {
 
     public String getName() {
         return this.declaration == null ? "" : this.declaration.name();
+    }
+
+    /** 数值契约编号可从父接口继承，和当前注册的字符串服务 ID 分开管理。 */
+    public long getId() {
+        return this.id;
     }
 
     public String getGroup() {
@@ -86,6 +93,11 @@ public final class ServiceMeta {
     public ObjectNode createServiceDescription() {
         ObjectNode description = JsonNodeFactory.instance.objectNode();
         description.put("javaType", this.javaType.getName());
+        if (this.id == -1L) {
+            description.putNull("contractId");
+        } else {
+            description.put("contractId", this.id);
+        }
         description.put("message", this.message);
         ArrayNode methods = description.putArray("methods");
         ObjectNode types = description.putObject("types");
@@ -99,6 +111,11 @@ public final class ServiceMeta {
             entry.put("javaSignature", method.getJavaSignature());
             entry.put("javaName", method.getJavaName());
             entry.put("name", method.getName());
+            if (method.getId() == 0L) {
+                entry.putNull("contractId");
+            } else {
+                entry.put("contractId", method.getId());
+            }
             entry.put("message", this.message || method.isMessage());
             ArrayNode parameters = entry.putArray("parameters");
             for (ParameterMeta parameter : method.getParameters()) {

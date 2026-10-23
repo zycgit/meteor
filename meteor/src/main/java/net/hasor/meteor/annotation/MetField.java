@@ -16,6 +16,6 @@ public @interface MetField {
     /** 字段名；为空时沿用 Java 或序列化映射名称。 */
     String name() default "";
 
-    /** 字段编号；0 表示未指定，不需要编号的协议忽略它。 */
+    /** 字段编号；0 表示未指定。生成 XDR 时按正数且唯一的编号升序排列，允许间隔；文件模式沿用契约顺序。 */
     int id() default 0;
 }
