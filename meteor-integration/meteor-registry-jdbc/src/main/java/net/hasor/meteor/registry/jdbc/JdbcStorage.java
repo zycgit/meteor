@@ -220,6 +220,9 @@ final class JdbcStorage implements StorageAccess {
         String id = key(service.getServiceId());
         this.lockOrCreate(jdbc, "meteor_services", "service_id", id, "search_text", service.getServiceId(), RegistryJson.copy(service, EntServiceCatalogData.class));
         EntServiceCatalogData merged = body(jdbc, "SELECT body FROM meteor_services WHERE service_id=?", new Object[] { id }, EntServiceCatalogData.class);
+        if (service.getContractId() != null) {
+            merged.setContractId(service.getContractId());
+        }
         if (service.getName() != null) {
             merged.setName(service.getName());
         }

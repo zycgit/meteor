@@ -140,6 +140,7 @@ putMeta("team","orders");
 ```json
 {
   "serviceId": "echo",
+  "contractId": null,
   "group": "default",
   "name": "EchoService",
   "version": "1.0.0",
@@ -169,7 +170,7 @@ putMeta("team","orders");
 
 实例档案持久保留，运行详情属于临时数据。实例服务详情关联对应服务定义，提供者和消费者目录按实例 ID 引用该关系。
 
-实例服务正文中的 `description` 保存本实例的方法、参数、返回值、DTO 类型图，以及 `protocols[protocolName][connectorName]` 下的实际协议契约。`argIndex` 是从零开始的 Java 参数位置，`fieldId` 是契约字段编号。描述随实例服务节点整体替换和清理，完整内容通过服务管理接口的 `descriptions()` 查询，正文大小受 ZooKeeper 单节点容量限制。
+服务定义的 `contractId` 保存数值契约服务编号，未指定时为 `null`，字符串 `serviceId` 用于登记和查询。实例服务正文中的 `description` 保存本实例的方法、参数、返回值、DTO 类型图，服务及方法编号均使用 `contractId`，实际协议契约位于 `protocols[protocolName][connectorName]`。`argIndex` 是从零开始的 Java 参数位置，`fieldId` 是契约字段编号。描述随实例服务节点整体替换和清理，完整内容通过服务管理接口的 `descriptions()` 查询，正文大小受 ZooKeeper 单节点容量限制。
 
 ### 治理数据
 

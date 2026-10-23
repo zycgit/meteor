@@ -13,6 +13,7 @@ import com.alibaba.nacos.api.naming.pojo.Instance;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.DirectoryQuery;
 import net.hasor.meteor.registry.shared.storage.domain.EntServiceCatalogData;
+import net.hasor.meteor.registry.shared.storage.domain.EntServiceRuntimeData;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
 import org.junit.Test;
 import static net.hasor.meteor.registry.nacos.NacosTestData.instance;
@@ -133,7 +134,9 @@ public class NacosLayoutTest {
         try (MockNacosSdk sdk = new MockNacosSdk(); //
              StorageAccess storage = sdk.configuration().openStorage()) {
             storage.registerInstance(instance("node"));
-            storage.registerService("node", service("echo"));
+            EntServiceRuntimeData registration = service("echo");
+            registration.setContractId(0xffffffffL);
+            storage.registerService("node", registration);
 
             // 关系只保存自身属性，主实体正文仅出现在对应主节点。
             Set<String> keys = Set.of("instances.node", "applications.orders.instances", "services.echo.providers", //
@@ -141,7 +144,10 @@ public class NacosLayoutTest {
             assertEquals(keys, sdk.nodes.keySet());
             Instance membership = sdk.nodes.get("services.echo.providers").get("node");
             Map<?, ?> body = RegistryJson.read(membership.getMetadata().get("body"), Map.class);
-            assertEquals(Set.of("enabled", "endpoints", "addresses", "usedProtocols"), body.keySet());
+            Set<String> fields = Set.of("contractId", "enabled", "endpoints", //
+                    "addresses", "usedProtocols");
+            assertEquals(fields, body.keySet());
+            assertEquals(0xffffffffL, ((Number) body.get("contractId")).longValue());
             Instance applicationMember = sdk.nodes.get("applications.orders.instances").get("node");
             assertEquals(Map.of("instanceId", "node"), applicationMember.getMetadata());
         }

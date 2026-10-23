@@ -96,7 +96,7 @@ try (MetContext context = configuration.buildContext()) {
 
 实例服务关系通过 `instance_id` 关联实例，通过 `service_id` 关联服务定义。关系与实例属于同一登记会话、实例运行详情非空且 `expires_at` 晚于当前时间时，成员处于在线状态。
 
-实例服务 `body.description` 保存本实例的方法、参数、返回值、DTO 类型图，以及 `protocols[protocolName][connectorName]` 下的实际协议契约。`argIndex` 是从零开始的 Java 参数位置，`fieldId` 是契约字段编号。描述与实例服务正文在同一事务中替换，完整内容通过服务管理接口的 `descriptions()` 查询。
+服务定义正文的 `contractId` 保存数值契约服务编号，未指定时为 `null`，字符串 `serviceId` 用于登记和查询。实例服务 `body.description` 保存本实例的方法、参数、返回值、DTO 类型图，服务及方法编号均使用 `contractId`，实际协议契约位于 `protocols[protocolName][connectorName]`。`argIndex` 是从零开始的 Java 参数位置，`fieldId` 是契约字段编号。描述与实例服务正文在同一事务中替换，完整内容通过服务管理接口的 `descriptions()` 查询。
 
 心跳更新实例的 `expires_at`。到期后，实例运行信息、成员关系和实例治理数据不可见。正常关闭时清空实例运行字段和 `expires_at`，保留实例档案及最近登记归属。
 
