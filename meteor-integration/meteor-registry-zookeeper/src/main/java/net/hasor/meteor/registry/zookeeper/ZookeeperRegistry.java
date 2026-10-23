@@ -302,7 +302,9 @@ final class ZookeeperRegistry implements StorageAccess {
     private void declaration(List<CuratorOp> ops, EntServiceCatalogData service) throws Exception {
         String path = this.service(service.getServiceId()) + "/info";
         Stat stat = new Stat();
-        Map<String, Object> declaration = RegistryJson.copy(service, Map.class);
+        // 运行描述属于实例登记，持久目录只保存服务声明字段。
+        EntServiceCatalogData catalog = RegistryJson.copy(service, EntServiceCatalogData.class);
+        Map<String, Object> declaration = RegistryJson.copy(catalog, Map.class);
         try {
             byte[] previous = this.client.getData().storingStatIn(stat).forPath(path);
             Map<String, Object> merged = RegistryJson.read(new String(previous, StandardCharsets.UTF_8), Map.class);

@@ -10,10 +10,12 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.domain.*;
+import net.hasor.meteor.registry.shared.utils.RegistryJson;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -47,43 +49,27 @@ public class MemoryStorageTest {
     }
 
     @Test
-    public void serviceCatalogUpdatesPreserveContractIdWhenItIsNotSpecified() throws Exception {
-        // 目录允许管理端只更新部分身份字段，已上报的完整编号不能因此丢失。
+    public void serviceCatalogUpdatesPreserveUnspecifiedIdentityFields() throws Exception {
+        // 目录允许管理端只更新部分身份字段。
         MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
         try (StorageAccess storage = configuration.openStorage()) {
             EntServiceCatalogData original = new EntServiceCatalogData();
             original.setServiceId("orders");
-            original.setContractId(0xffff_ffffL);
+            original.setGroup("orders-group");
+            original.setType("example.OrderService");
             original.setVersion("release-1.0");
             storage.saveService(original);
 
-            // 后续不携带编号的目录写入只合并已有字段，字符串版本保持原义。
+            // 后续只更新名称，已有身份与字符串版本保持原义。
             EntServiceCatalogData partial = new EntServiceCatalogData();
             partial.setServiceId("orders");
             partial.setName("OrderService");
             storage.saveService(partial);
             EntServiceCatalogData stored = storage.getService("orders");
-            assertEquals(Long.valueOf(0xffff_ffffL), stored.getContractId());
+            assertEquals("orders-group", stored.getGroup());
+            assertEquals("example.OrderService", stored.getType());
             assertEquals("release-1.0", stored.getVersion());
             assertEquals("OrderService", stored.getName());
-        }
-    }
-
-    @Test
-    public void zeroContractIdReplacesAnExistingCatalogNumber() throws Exception {
-        // 零是有效的数值声明，不能与缺省编号混为一谈。
-        MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
-        try (StorageAccess storage = configuration.openStorage()) {
-            EntServiceCatalogData service = new EntServiceCatalogData();
-            service.setServiceId("orders");
-            service.setContractId(0xffff_ffffL);
-            storage.saveService(service);
-
-            // 显式写入零覆盖已有编号，目录 key 继续使用字符串服务 ID。
-            service.setContractId(0L);
-            storage.saveService(service);
-            assertEquals(Long.valueOf(0), storage.getService("orders").getContractId());
-            assertEquals("orders", storage.getService("orders").getServiceId());
         }
     }
 
@@ -96,16 +82,26 @@ public class MemoryStorageTest {
             first.registerInstance(instance("first", "orders", "east"));
             second.registerInstance(instance("second", "orders", "east"));
             EntServiceRuntimeData original = service("orders", MetServiceType.Provider);
-            original.setContractId(0xffff_ffffL);
+            original.setDescription(RegistryJson.copy(Map.of("contractServiceId", 0xffff_ffffL), ObjectNode.class));
             first.registerService("first", original);
             EntServiceRuntimeData unspecified = service("orders", MetServiceType.Provider);
+            ObjectNode description = RegistryJson.copy(Map.of(), ObjectNode.class);
+            description.putNull("contractServiceId");
+            unspecified.setDescription(description);
             second.registerService("second", unspecified);
 
-            // 缺省编号不从共享目录回填，成员查询与实例点查都维持实例隔离。
-            assertEquals(Long.valueOf(0xffff_ffffL), first.getInstanceService("first", "orders").getContractId());
-            assertNull(second.getInstanceService("second", "orders").getContractId());
+            // 编号只归属实例的完整描述，不从共享目录或其他实例回填。
+            EntServiceRuntimeData firstService = first.getInstanceService("first", "orders");
+            EntServiceRuntimeData secondService = second.getInstanceService("second", "orders");
+            assertEquals(0xffff_ffffL, firstService.getDescription().path("contractServiceId").asLong());
+            assertTrue(secondService.getDescription().path("contractServiceId").isNull());
             RefServiceRelationData member = first.getMember("orders", MetServiceType.Provider, "second");
-            assertNull(member.getService().getContractId());
+            assertTrue(member.getService().getDescription().path("contractServiceId").isNull());
+            ObjectNode catalog = RegistryJson.copy(first.getService("orders"), ObjectNode.class);
+            assertFalse(catalog.has("contractServiceId"));
+            ObjectNode runtime = RegistryJson.copy(firstService, ObjectNode.class);
+            assertFalse(runtime.has("contractServiceId"));
+            assertEquals(0xffff_ffffL, runtime.path("description").path("contractServiceId").asLong());
         }
     }
 
@@ -122,7 +118,8 @@ public class MemoryStorageTest {
             next.registerService("new", service("B", MetServiceType.Provider, "rsf://127.0.0.1:9000"));
 
             // 能连接旧实例不等于旧实例提供 B；直接查 B 的成员只能得到新实例。
-            RecordPage<RefServiceRelationData> providers = reader.members("B", MetServiceType.Provider, new DirectoryQuery());
+            DirectoryQuery query = new DirectoryQuery();
+            RecordPage<RefServiceRelationData> providers = reader.members("B", MetServiceType.Provider, query);
             assertEquals(1, providers.getItems().size());
             assertEquals("new", providers.getItems().get(0).getInstance().getInstanceId());
             assertNull(reader.getInstanceService("old", "B"));

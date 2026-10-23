@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.admin.*;
+import net.hasor.meteor.registry.admin.description.MetServiceDescription;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
 import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
@@ -58,13 +59,13 @@ final class TargetServiceAdmin implements MetServiceAdmin {
     }
 
     @Override
-    public Map<String, ObjectNode> descriptions() {
+    public Map<String, MetServiceDescription> descriptions() {
         ServiceMemberData service = this.rpc.service(this.serviceId);
         ObjectNode description = service.getDescription();
         if (description == null) {
             return Collections.emptyMap();
         }
-        return Collections.singletonMap(service.getInstance().getInstanceId(), description.deepCopy());
+        return Collections.singletonMap(service.getInstance().getInstanceId(), DescriptionMapping.service(description));
     }
 
     private List<MetServiceMember> members(MetServiceType role, MetEndpointFilter filter) {

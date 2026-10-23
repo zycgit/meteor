@@ -10,6 +10,8 @@ import java.util.ConcurrentModificationException;
 import java.util.Map;
 import java.util.Set;
 import com.alibaba.nacos.api.naming.pojo.Instance;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.DirectoryQuery;
 import net.hasor.meteor.registry.shared.storage.domain.EntServiceCatalogData;
@@ -135,7 +137,9 @@ public class NacosLayoutTest {
              StorageAccess storage = sdk.configuration().openStorage()) {
             storage.registerInstance(instance("node"));
             EntServiceRuntimeData registration = service("echo");
-            registration.setContractServiceId(0xffffffffL);
+            ObjectNode description = JsonNodeFactory.instance.objectNode();
+            description.put("contractServiceId", 0xffffffffL);
+            registration.setDescription(description);
             storage.registerService("node", registration);
 
             // 关系只保存自身属性，主实体正文仅出现在对应主节点。
@@ -144,12 +148,14 @@ public class NacosLayoutTest {
             assertEquals(keys, sdk.nodes.keySet());
             Instance membership = sdk.nodes.get("services.echo.providers").get("node");
             Map<?, ?> body = RegistryJson.read(membership.getMetadata().get("body"), Map.class);
-            Set<String> fields = Set.of("contractServiceId", "enabled", "endpoints", //
-                    "addresses", "usedProtocols");
+            Set<String> fields = Set.of("enabled", "endpoints", "addresses", "usedProtocols", "description");
             assertEquals(fields, body.keySet());
-            assertEquals(0xffffffffL, ((Number) body.get("contractServiceId")).longValue());
+            Map<?, ?> storedDescription = (Map<?, ?>) body.get("description");
+            assertEquals(0xffffffffL, ((Number) storedDescription.get("contractServiceId")).longValue());
             Map<?, ?> catalog = RegistryJson.read(sdk.documents.get("services.echo"), Map.class);
-            assertEquals(0xffffffffL, ((Number) catalog.get("contractServiceId")).longValue());
+            assertFalse(body.containsKey("contractServiceId"));
+            assertFalse(catalog.containsKey("contractServiceId"));
+            assertFalse(catalog.containsKey("description"));
             assertFalse(body.containsKey("id"));
             assertFalse(catalog.containsKey("id"));
             assertFalse(body.containsKey("contractId"));

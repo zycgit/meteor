@@ -105,9 +105,6 @@ final class MemoryStorage implements StorageAccess {
             EntServiceCatalogData merged = copy(service, EntServiceCatalogData.class);
             EntServiceCatalogData previous = this.database.services.get(id);
             if (previous != null) {
-                if (merged.getContractId() == null) {
-                    merged.setContractId(previous.getContractId());
-                }
                 if (merged.getName() == null) {
                     merged.setName(previous.getName());
                 }

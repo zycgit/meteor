@@ -7,7 +7,7 @@
  */
 package net.hasor.meteor.registry.admin;
 import java.util.Map;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.hasor.meteor.registry.admin.description.MetServiceDescription;
 
 /** 管理一个服务；Default 操作存储配置，Target 通过已有 API 修改目标实例，范围在创建时确定。 */
 public interface MetServiceAdmin {
@@ -18,8 +18,8 @@ public interface MetServiceAdmin {
     /** 获取当前范围的服务基本信息、角色、协议及提供者和消费者数量。 */
     MetServiceInfo info();
 
-    /** 按实例 ID 查询完整服务描述；实例范围只返回目标实例，列表与 info 仍保持摘要。 */
-    Map<String, ObjectNode> descriptions();
+    /** 按实例 ID 查询独立的完整描述 DTO；扩展属性只包含 JDK 数据，修改结果不会写回。 */
+    Map<String, MetServiceDescription> descriptions();
 
     /** 查询本服务当前成员所属的单元目录。 */
     String[] units();

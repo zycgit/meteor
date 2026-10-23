@@ -11,7 +11,6 @@ import net.hasor.meteor.domain.MetServiceType;
 /** 服务基本声明及当前范围内的成员数量、角色和协议支持。 */
 public class MetServiceInfo {
     private String         serviceId     = null;
-    private Long           contractId    = null;
     private String         group         = null;
     private String         name          = null;
     private String         version       = null;
@@ -27,15 +26,6 @@ public class MetServiceInfo {
 
     public void setServiceId(String serviceId) {
         this.serviceId = serviceId;
-    }
-
-    /** 数值契约服务编号；未声明时为 null，与注册服务 ID 无关。 */
-    public Long getContractId() {
-        return this.contractId;
-    }
-
-    public void setContractId(Long contractId) {
-        this.contractId = contractId;
     }
 
     public String getGroup() {

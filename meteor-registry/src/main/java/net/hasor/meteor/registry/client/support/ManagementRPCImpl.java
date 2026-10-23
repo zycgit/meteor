@@ -117,8 +117,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
             String id = service.getBindID();
             EntServiceRuntimeData registration = new EntServiceRuntimeData();
             registration.setServiceId(id);
-            long contractId = domain.getServiceMeta().getId();
-            registration.setContractId(contractId == -1L ? null : contractId);
             registration.setGroup(service.getBindGroup());
             registration.setName(service.getBindName());
             registration.setVersion(service.getBindVersion());
@@ -576,8 +574,6 @@ public final class ManagementRPCImpl implements ManagementRPC {
     private ServiceData serviceSnapshot(MetBindInfo<?> service, ServiceEndpointData[] endpoints) {
         ServiceData result = new ServiceData();
         result.setServiceId(service.getBindID());
-        long contractId = MetBindInfoWrap.unwrap(service).getServiceMeta().getId();
-        result.setContractId(contractId == -1L ? null : contractId);
         result.setGroup(service.getBindGroup());
         result.setName(service.getBindName());
         result.setVersion(service.getBindVersion());

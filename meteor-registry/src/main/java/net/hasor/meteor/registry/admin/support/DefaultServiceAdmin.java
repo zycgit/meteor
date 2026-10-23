@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.admin.*;
+import net.hasor.meteor.registry.admin.description.MetServiceDescription;
 import net.hasor.meteor.registry.shared.rpc.ValidationData;
 import net.hasor.meteor.registry.shared.storage.DirectoryFilter;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
@@ -52,14 +53,14 @@ final class DefaultServiceAdmin implements MetServiceAdmin {
     }
 
     @Override
-    public Map<String, ObjectNode> descriptions() {
+    public Map<String, MetServiceDescription> descriptions() {
         return call(() -> {
-            Map<String, ObjectNode> descriptions = new LinkedHashMap<>();
+            Map<String, MetServiceDescription> descriptions = new LinkedHashMap<>();
             StorageAccess storage = this.governance.storage();
             if (this.instanceId != null) {
                 EntServiceRuntimeData service = storage.getInstanceService(this.instanceId, this.serviceId);
                 if (service != null && service.getDescription() != null) {
-                    descriptions.put(this.instanceId, service.getDescription().deepCopy());
+                    descriptions.put(this.instanceId, DescriptionMapping.service(service.getDescription()));
                 }
                 return descriptions;
             }
@@ -73,7 +74,7 @@ final class DefaultServiceAdmin implements MetServiceAdmin {
                     for (RefServiceRelationData member : page.getItems()) {
                         ObjectNode description = member.getService().getDescription();
                         if (description != null) {
-                            descriptions.put(member.getInstance().getInstanceId(), description.deepCopy());
+                            descriptions.put(member.getInstance().getInstanceId(), DescriptionMapping.service(description));
                         }
                     }
                     query.setCursor(page.getNextCursor());

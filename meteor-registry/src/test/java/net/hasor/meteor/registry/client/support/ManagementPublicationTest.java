@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.meteor.MetBindInfo;
@@ -25,6 +26,7 @@ import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.annotation.MetIgnore;
+import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.domain.*;
@@ -51,6 +53,33 @@ public class ManagementPublicationTest {
         @MetIgnore
         default String internal() {
             return "internal";
+        }
+    }
+
+    @Test
+    public void managementSnapshotsKeepContractIdOnlyInFullDescription() throws Exception {
+        // 通过公开发布入口建立带数值编号的服务，再观察内部管理快照的序列化边界。
+        MetConfiguration configuration = new MetConfiguration();
+        configuration.connector("tcp").protocol("rsf");
+        try (MetContext context = configuration.buildContext()) {
+            MetBindInfo<NumberedEcho> published = context.publisher() //
+                    .rsfService(NumberedEcho.class, value -> value).register();
+            ManagementRPCImpl management = new ManagementRPCImpl(context, "127.0.0.1");
+            String serviceId = published.getBindID();
+
+            // 注册上报正文只在 description 内保存编号。
+            RegistrationSnapshot snapshot = management.snapshot(serviceId);
+            ObjectNode runtime = RegistryJson.copy(snapshot.getServices().get(0), ObjectNode.class);
+            assertFalse(runtime.has("contractServiceId"));
+            assertEquals(0xffff_ffffL, runtime.path("description").path("contractServiceId").asLong());
+
+            // 管理 RPC 的成员描述携带编号，服务摘要与列表摘要不携带。
+            ObjectNode member = RegistryJson.copy(management.service(serviceId), ObjectNode.class);
+            ObjectNode summary = RegistryJson.copy(management.services()[0], ObjectNode.class);
+            assertEquals(0xffff_ffffL, member.path("description").path("contractServiceId").asLong());
+            assertFalse(member.path("service").has("contractServiceId"));
+            assertEquals(serviceId, summary.path("serviceId").asText());
+            assertFalse(summary.has("contractServiceId"));
         }
     }
 
@@ -573,5 +602,10 @@ public class ManagementPublicationTest {
         service.setRole(MetServiceType.Provider);
         service.setAddresses(addresses);
         storage.registerService("remote", service);
+    }
+
+    @MetService(id = 0xffff_ffffL)
+    public interface NumberedEcho {
+        String echo(String value);
     }
 }

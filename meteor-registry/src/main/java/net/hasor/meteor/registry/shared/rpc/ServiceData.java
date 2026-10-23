@@ -11,7 +11,6 @@ import net.hasor.meteor.domain.MetServiceType;
 /** 管理通信中的服务基本信息，与管理 API 对象保持独立。 */
 public final class ServiceData {
     private String         serviceId     = null;
-    private Long           contractId    = null;
     private String         group         = null;
     private String         name          = null;
     private String         version       = null;
@@ -27,15 +26,6 @@ public final class ServiceData {
 
     public void setServiceId(String serviceId) {
         this.serviceId = serviceId;
-    }
-
-    /** 数值契约服务编号；未声明时为 null，与注册服务 ID 无关。 */
-    public Long getContractId() {
-        return this.contractId;
-    }
-
-    public void setContractId(Long contractId) {
-        this.contractId = contractId;
     }
 
     public String getGroup() {
@@ -62,22 +52,6 @@ public final class ServiceData {
         this.version = version;
     }
 
-    public int getProviderCount() {
-        return this.providerCount;
-    }
-
-    public void setProviderCount(int providerCount) {
-        this.providerCount = providerCount;
-    }
-
-    public int getConsumerCount() {
-        return this.consumerCount;
-    }
-
-    public void setConsumerCount(int consumerCount) {
-        this.consumerCount = consumerCount;
-    }
-
     public String getType() {
         return this.type;
     }
@@ -100,5 +74,21 @@ public final class ServiceData {
 
     public void setProtocols(String[] protocols) {
         this.protocols = protocols;
+    }
+
+    public int getProviderCount() {
+        return this.providerCount;
+    }
+
+    public void setProviderCount(int providerCount) {
+        this.providerCount = providerCount;
+    }
+
+    public int getConsumerCount() {
+        return this.consumerCount;
+    }
+
+    public void setConsumerCount(int consumerCount) {
+        this.consumerCount = consumerCount;
     }
 }
