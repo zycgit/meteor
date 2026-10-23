@@ -226,6 +226,9 @@ final class NacosRegistry implements StorageAccess {
         relation.put("endpoints", value.getEndpoints());
         relation.put("addresses", value.getAddresses());
         relation.put("usedProtocols", value.getUsedProtocols());
+        if (value.getDescription() != null) {
+            relation.put("description", value.getDescription());
+        }
         String body = RegistryJson.write(relation);
         this.namingStore.publish(membersKey(id, value.getRole()), instance, Map.of("body", body));
         MetServiceType other = MetServiceType.Provider;

@@ -5,9 +5,12 @@
  */
 package net.hasor.meteor.registry.zookeeper;
 import java.util.List;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
+import net.hasor.meteor.registry.shared.utils.RegistryJson;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.instance;
@@ -16,6 +19,39 @@ import static org.junit.Assert.*;
 
 /** 登记身份、会话所有权、临时成员与持久目录的边界。 */
 public class ZookeeperRegistrationTest {
+    @Test
+    public void serviceDescriptionIsReplacedAsOneInstanceRecord() throws Exception {
+        // 准备一份带方法及类型信息的实例服务登记。
+        try (TestingServer server = new TestingServer()) {
+            ZookeeperRegistryConfiguration configuration = new ZookeeperRegistryConfiguration();
+            configuration.setAddress(server.getConnectString());
+            try (StorageAccess writer = configuration.openStorage(); //
+                 StorageAccess reader = configuration.openStorage()) {
+                writer.registerInstance(instance("one", "orders", "east"));
+                EntServiceRuntimeData service = service("description", MetServiceType.Provider, "rsf://127.0.0.1:8000");
+                ObjectNode first = JsonNodeFactory.instance.objectNode();
+                first.putArray("methods").addObject().put("name", "Before");
+                first.putObject("types").putObject("Order").put("name", "Order");
+                service.setDescription(first);
+                writer.registerService("one", service);
+                ObjectNode captured = reader.getInstanceService("one", "description").getDescription();
+                assertEquals(first, captured);
+
+                // 替换为完整的新描述，旧方法和旧类型同时消失，不影响已读取的旧值。
+                ObjectNode replacement = JsonNodeFactory.instance.objectNode();
+                replacement.putArray("methods").addObject().put("name", "After");
+                replacement.putObject("types");
+                service.setDescription(replacement);
+                writer.registerService("one", service);
+                ObjectNode current = reader.getMember("description", MetServiceType.Provider, "one") //
+                        .getService().getDescription();
+                assertEquals(replacement, current);
+                assertEquals(first, captured);
+                assertFalse(RegistryJson.copy(reader.getService("description"), ObjectNode.class).has("description"));
+            }
+        }
+    }
+
     @Test
     public void persistentDirectoriesSurviveSessionClose() throws Exception {
         // 同一注册中心分别打开登记会话和查询会话。

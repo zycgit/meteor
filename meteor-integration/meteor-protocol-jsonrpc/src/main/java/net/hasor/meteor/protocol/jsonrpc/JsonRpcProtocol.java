@@ -7,12 +7,12 @@
  */
 package net.hasor.meteor.protocol.jsonrpc;
 import java.util.function.ObjLongConsumer;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
@@ -22,15 +22,10 @@ import net.hasor.meteor.protocol.jsonrpc.codec.JsonRpcServiceBinding;
 import net.hasor.meteor.protocol.jsonrpc.session.JsonRpcSession;
 
 /** JSON-RPC 2.0 uses HTTP or an upgraded WebSocket on the same transport SPI. */
-public final class JsonRpcProtocol implements ProtocolProvider<HttpExchange> {
+public final class JsonRpcProtocol implements HttpProtocolProvider {
     @Override
     public String name() {
         return "jsonrpc";
-    }
-
-    @Override
-    public String transportType() {
-        return "http";
     }
 
     @Override
@@ -39,19 +34,14 @@ public final class JsonRpcProtocol implements ProtocolProvider<HttpExchange> {
     }
 
     @Override
-    public Class<HttpExchange> messageType() {
-        return HttpExchange.class;
-    }
-
-    @Override
-    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
-        JsonRpcServiceBinding methods = JsonRpcServiceBinding.prepare(meta.getService());
-        return methods == null ? null : meta.build(config, methods);
-    }
-
-    @Override
-    public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
-        return RouteProbeResult.REJECT;
+    public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        JsonRpcServiceBinding definition = JsonRpcServiceBinding.prepare(meta.getService());
+        if (definition == null) {
+            return null;
+        }
+        ObjectNode description = meta.createServiceDescription(config, this.defaultSerialize());
+        definition.describeContract(description);
+        return meta.build(config, definition, description);
     }
 
     @Override

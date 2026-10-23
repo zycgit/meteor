@@ -27,7 +27,6 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.ProtocolSessionContextTestAccess;
-import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
@@ -49,12 +48,10 @@ public class JsonRpcSessionTest {
     public void factoryDeclaresHttpMessageTransport() {
         // 同一个 SPI 同时承载普通 HTTP 和升级后的 WebSocket，不按编码再造传输层。
         JsonRpcProtocol factory = new JsonRpcProtocol();
-        ProtocolConfig config = configuration();
         assertEquals("jsonrpc", factory.name());
         assertEquals("http", factory.transportType());
         assertEquals("Json", factory.defaultSerialize());
         assertEquals(HttpExchange.class, factory.messageType());
-        assertEquals(RouteProbeResult.REJECT, factory.probe(config, exchange("{}")));
     }
 
     @Test

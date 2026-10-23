@@ -7,12 +7,12 @@
  */
 package net.hasor.meteor.protocol.hessian;
 import java.util.function.ObjLongConsumer;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
@@ -23,15 +23,10 @@ import net.hasor.meteor.protocol.hessian.codec.HessianServiceBinding;
 import net.hasor.meteor.protocol.hessian.session.HessianSession;
 
 /** Hessian RPC 协议入口，按 HTTP 挂载点发布普通 Java 服务。 */
-public final class HessianProtocol implements ProtocolProvider<HttpExchange> {
+public final class HessianProtocol implements HttpProtocolProvider {
     @Override
     public String name() {
         return "hessian";
-    }
-
-    @Override
-    public String transportType() {
-        return "http";
     }
 
     @Override
@@ -40,19 +35,14 @@ public final class HessianProtocol implements ProtocolProvider<HttpExchange> {
     }
 
     @Override
-    public Class<HttpExchange> messageType() {
-        return HttpExchange.class;
-    }
-
-    @Override
-    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
-        HessianServiceBinding binding = HessianCodec.prepareService(meta.getService());
-        return binding == null ? null : meta.build(config, binding);
-    }
-
-    @Override
-    public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
-        return RouteProbeResult.REJECT;
+    public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        HessianServiceBinding definition = HessianCodec.prepareService(meta.getService());
+        if (definition == null) {
+            return null;
+        }
+        ObjectNode description = meta.createServiceDescription(config, this.defaultSerialize());
+        definition.describeContract(description);
+        return meta.build(config, definition, description);
     }
 
     @Override

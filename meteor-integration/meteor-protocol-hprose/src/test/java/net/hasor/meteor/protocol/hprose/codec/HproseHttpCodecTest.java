@@ -22,15 +22,33 @@ import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
-import net.hasor.meteor.domain.MetException;
-import net.hasor.meteor.domain.ProtocolConfig;
-import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.domain.*;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
+import net.hasor.meteor.protocol.hprose.HproseProtocol;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class HproseHttpCodecTest {
+    @Test
+    public void providerPreparesTheAliasedOperationDescriptionTogetherWithTheBinding() {
+        // Hprose 的线上名称包含服务别名，服务描述应复用同一份已准备的操作表。
+        ServiceDomain<PersonEcho> service = new ServiceDomain<>(PersonEcho.class);
+        service.setBindName("people");
+        service.putAliasName("Hprose", "People");
+        ProtocolConfig protocol = ProtocolConfig.newConfig("hprose", "hprose", Map.of());
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        ProtocolBinding binding = new HproseProtocol().prepareBinding(protocol, null, meta);
+
+        // 返回时定义与描述均已就绪，不需要单独导出或设置描述。
+        Map<?, ?> definition = (Map<?, ?>) binding.getDefinition();
+        String operationName = binding.getDescription().path("methods").get(0).path("name").asText();
+        assertTrue(definition.containsValue(operationName));
+        assertTrue(operationName.startsWith("People_"));
+        assertEquals("Hprose", binding.getDescription().path("serializeType").asText());
+    }
+
     @Test
     public void inheritedParameterUsesThePublishedDtoType() throws Exception {
         // 父接口的 T 由具体服务绑定为 Person，线数据只携带普通 Map。

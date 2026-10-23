@@ -10,6 +10,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.*;
 import java.util.concurrent.Flow;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.reflect.resolvable.ResolvableType;
 import net.hasor.meteor.MetBindInfo;
@@ -85,6 +87,26 @@ public final class JsonRpcServiceBinding {
 
     String name(Method method) {
         return this.names.get(method);
+    }
+
+    /** 导出已经确定的命名参数和操作名；Java 位置独立于 JSON 名称。 */
+    public ObjectNode describeContract(ObjectNode description) {
+        ArrayNode methods = description.putArray("methods");
+        for (Map.Entry<Method, String> entry : this.names.entrySet()) {
+            Method method = entry.getKey();
+            ObjectNode operation = methods.addObject();
+            operation.put("javaSignature", ServiceMetaParser.method(method).getJavaSignature());
+            operation.put("name", entry.getValue());
+            ArrayNode parameters = operation.putArray("parameters");
+            for (int index = 0; index < method.getParameterCount(); index++) {
+                ObjectNode parameter = parameters.addObject();
+                parameter.put("argIndex", index);
+                parameter.put("name", this.parameterName(method, index));
+                parameter.put("type", this.parameterType(method, index).toString());
+            }
+            operation.putObject("returns").put("type", this.returnType(method).toString());
+        }
+        return description;
     }
 
     String parameterName(Method method, int index) {

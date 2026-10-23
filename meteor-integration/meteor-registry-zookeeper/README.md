@@ -155,7 +155,7 @@ putMeta("team","orders");
 | `applications/{applicationName}/info`         | 应用名                                                                            |
 | `instances/{instanceId}/info`                 | 实例 ID、应用名、IP、进程 ID、单元名称                                            |
 | `instances/{instanceId}/runtime`              | 实例身份、角色、阻断状态、监听地址、管理地址及规则开关                            |
-| `instances/{instanceId}/services/{serviceId}` | 服务定义、`role`、`enabled`、`endpoints`、`addresses`、`usedProtocols` 及规则开关 |
+| `instances/{instanceId}/services/{serviceId}` | 服务定义、`role`、`enabled`、`endpoints`、`addresses`、`usedProtocols`、`description` 及规则开关 |
 | `services/{serviceId}/providers/{instanceId}` | 实例 ID 引用                                                                      |
 | `services/{serviceId}/consumers/{instanceId}` | 实例 ID 引用                                                                      |
 
@@ -168,6 +168,8 @@ putMeta("team","orders");
 ```
 
 实例档案持久保留，运行详情属于临时数据。实例服务详情关联对应服务定义，提供者和消费者目录按实例 ID 引用该关系。
+
+实例服务正文中的 `description` 保存本实例的方法、参数、返回值、DTO 类型图，以及 `protocols[protocolName][connectorName]` 下的实际协议契约。`argIndex` 是从零开始的 Java 参数位置，`fieldId` 是契约字段编号。描述随实例服务节点整体替换和清理，完整内容通过服务管理接口的 `descriptions()` 查询，正文大小受 ZooKeeper 单节点容量限制。
 
 ### 治理数据
 

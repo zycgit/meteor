@@ -9,6 +9,7 @@ package net.hasor.meteor.protocol.jsonrpc.codec;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.Flow;
+import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.meteor.annotation.MetMethod;
 import net.hasor.meteor.annotation.MetParam;
 import net.hasor.meteor.domain.ProtocolBinding;
@@ -105,9 +106,29 @@ public class JsonRpcPublicationTest {
         service.setBindName("unary");
         ProtocolConfig config = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", Map.of());
         ProtocolMeta metadata = new ProtocolMeta(service, null, null, Map.of());
-        ProtocolBinding binding = new JsonRpcProtocol().validate(config, null, metadata);
+        ProtocolBinding binding = new JsonRpcProtocol().prepareBinding(config, null, metadata);
         assertNotNull(binding);
         assertNotNull(binding.getDefinition());
+    }
+
+    @Test
+    public void providerPreparesTheGenericContractDescriptionTogetherWithTheBinding() throws Exception {
+        // 公共泛型描述和命名参数沿用同一次协议定义准备结果。
+        ServiceDomain<TextService> service = new ServiceDomain<>(TextService.class);
+        service.setBindName("text");
+        ProtocolConfig config = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", Map.of());
+        ProtocolMeta metadata = new ProtocolMeta(service, null, null, Map.of());
+        ProtocolBinding binding = new JsonRpcProtocol().prepareBinding(config, null, metadata);
+
+        // 定义中的线上名称、参数名和实际类型与随绑定返回的描述一致。
+        JsonRpcServiceBinding definition = (JsonRpcServiceBinding) binding.getDefinition();
+        Method method = TextService.class.getMethod("repeat", Object.class);
+        JsonNode operation = binding.getDescription().path("methods").get(0);
+        JsonNode parameter = operation.path("parameters").get(0);
+        assertEquals(definition.name(method), operation.path("name").asText());
+        assertEquals(definition.parameterName(method, 0), parameter.path("name").asText());
+        assertEquals(definition.parameterType(method, 0).toString(), parameter.path("type").asText());
+        assertEquals(0, parameter.path("argIndex").asInt());
     }
 
     @Test
@@ -117,7 +138,7 @@ public class JsonRpcPublicationTest {
         service.setBindName("stream");
         ProtocolConfig config = ProtocolConfig.newConfig("jsonrpc", "jsonrpc", Map.of());
         ProtocolMeta metadata = new ProtocolMeta(service, null, null, Map.of());
-        ProtocolBinding binding = new JsonRpcProtocol().validate(config, null, metadata);
+        ProtocolBinding binding = new JsonRpcProtocol().prepareBinding(config, null, metadata);
         assertNull(binding);
     }
 

@@ -12,6 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import com.caucho.services.server.AbstractSkeleton;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.hasor.meteor.domain.meta.ServiceMetaParser;
 
 /** 发布时编译普通名称与官方重载名称，保留原始 Java 方法用于派发。 */
 public final class HessianServiceBinding {
@@ -41,6 +44,17 @@ public final class HessianServiceBinding {
 
     String name(Method method) {
         return this.outbound.get(method);
+    }
+
+    /** 保留实际出站的重载名称，避免把公共方法名当成 Hessian mangling 名称。 */
+    public ObjectNode describeContract(ObjectNode description) {
+        ArrayNode methods = description.putArray("methods");
+        for (Map.Entry<Method, String> entry : this.outbound.entrySet()) {
+            ObjectNode method = methods.addObject();
+            method.put("javaSignature", ServiceMetaParser.method(entry.getKey()).getJavaSignature());
+            method.put("name", entry.getValue());
+        }
+        return description;
     }
 
     Method resolve(String name, int argumentCount) {

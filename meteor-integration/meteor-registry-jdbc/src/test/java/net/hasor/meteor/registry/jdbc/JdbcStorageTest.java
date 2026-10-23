@@ -8,9 +8,12 @@ import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
+import net.hasor.meteor.registry.shared.utils.RegistryJson;
 import org.junit.Test;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.configuration;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.createDatabase;
@@ -19,6 +22,36 @@ import static org.junit.Assert.*;
 
 /** 使用 H2 验证正式存储契约，不替代应用接入与 RPC 场景。 */
 public class JdbcStorageTest {
+    @Test
+    public void serviceDescriptionIsReplacedAsOneInstanceRecord() throws Exception {
+        // 准备一份带方法及类型信息的实例服务登记。
+        JdbcRegistryConfiguration configuration = configuration(createDatabase());
+        try (StorageAccess writer = configuration.openStorage(); //
+             StorageAccess reader = configuration.openStorage()) {
+            writer.registerInstance(instance("one", "orders", "east"));
+            EntServiceRuntimeData service = service("description", MetServiceType.Provider, "rsf://127.0.0.1:8000");
+            ObjectNode first = JsonNodeFactory.instance.objectNode();
+            first.putArray("methods").addObject().put("name", "Before");
+            first.putObject("types").putObject("Order").put("name", "Order");
+            service.setDescription(first);
+            writer.registerService("one", service);
+            ObjectNode captured = reader.getInstanceService("one", "description").getDescription();
+            assertEquals(first, captured);
+
+            // 替换为完整的新描述，旧方法和旧类型同时消失，不影响已读取的旧值。
+            ObjectNode replacement = JsonNodeFactory.instance.objectNode();
+            replacement.putArray("methods").addObject().put("name", "After");
+            replacement.putObject("types");
+            service.setDescription(replacement);
+            writer.registerService("one", service);
+            ObjectNode current = reader.getMember("description", MetServiceType.Provider, "one") //
+                    .getService().getDescription();
+            assertEquals(replacement, current);
+            assertEquals(first, captured);
+            assertFalse(RegistryJson.copy(reader.getService("description"), ObjectNode.class).has("description"));
+        }
+    }
+
     @Test
     public void directLookupsReturnServiceDeclarationAndInstanceIdentity() throws Exception {
         // 准备应用实例及其实际发布的服务。

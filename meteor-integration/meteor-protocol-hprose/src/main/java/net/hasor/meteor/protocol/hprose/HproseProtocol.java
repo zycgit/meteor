@@ -10,12 +10,12 @@ import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ObjLongConsumer;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
-import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
@@ -25,13 +25,8 @@ import net.hasor.meteor.protocol.hprose.codec.HproseHttpCodec;
 import net.hasor.meteor.protocol.hprose.session.HproseSession;
 
 /** Hprose SPI provider using the same session contract as every other protocol. */
-public final class HproseProtocol implements ProtocolProvider<HttpExchange> {
+public final class HproseProtocol implements HttpProtocolProvider {
     private final Map<ProtocolConfig, HproseHttpCodec> codecs = new ConcurrentHashMap<>();
-
-    @Override
-    public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
-        return RouteProbeResult.REJECT;
-    }
 
     @Override
     public String name() {
@@ -44,19 +39,13 @@ public final class HproseProtocol implements ProtocolProvider<HttpExchange> {
     }
 
     @Override
-    public String transportType() {
-        return "http";
-    }
-
-    @Override
-    public ProtocolBinding validate(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+    public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
         Map<Method, String> methods = HproseHttpCodec.prepareService(meta.getService());
-        return methods == null ? null : meta.build(config, methods);
-    }
-
-    @Override
-    public Class<HttpExchange> messageType() {
-        return HttpExchange.class;
+        if (methods == null) {
+            return null;
+        }
+        ObjectNode description = meta.createServiceDescription(config, this.defaultSerialize(), methods);
+        return meta.build(config, methods, description);
     }
 
     @Override
