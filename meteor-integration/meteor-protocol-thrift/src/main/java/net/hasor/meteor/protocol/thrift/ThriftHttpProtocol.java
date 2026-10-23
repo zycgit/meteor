@@ -7,26 +7,25 @@
  */
 package net.hasor.meteor.protocol.thrift;
 import java.util.function.ObjLongConsumer;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
-import net.hasor.meteor.protocol.thrift.codec.ThriftCodec;
+import net.hasor.meteor.protocol.thrift.codec.ThriftServiceSchema;
 import net.hasor.meteor.protocol.thrift.session.ThriftHttpSession;
 
 /** Thrift HTTP 入口；挂载目录和 HTTP/1、HTTP/2、安全传输均沿用内核。 */
-public final class ThriftHttpProtocol implements ProtocolProvider<HttpExchange> {
+public final class ThriftHttpProtocol implements HttpProtocolProvider {
     @Override
     public String name() {
         return "thrift-http";
-    }
-
-    @Override
-    public String transportType() {
-        return "http";
     }
 
     @Override
@@ -35,19 +34,16 @@ public final class ThriftHttpProtocol implements ProtocolProvider<HttpExchange> 
     }
 
     @Override
-    public Class<HttpExchange> messageType() {
-        return HttpExchange.class;
-    }
+    public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+        ThriftServiceSchema definition = ThriftServiceResource.compile(config, meta);
+        if (definition == null) {
+            return null;
+        }
 
-    @Override
-    public ProtocolBinding validate(ProtocolConfig config, ProtocolMeta meta, MetContext context) {
-        ThriftServiceResource definition = ThriftCodec.validateService(config, meta.getService());
-        return definition == null ? null : config.build(definition);
-    }
-
-    @Override
-    public RouteProbeResult probe(ProtocolConfig config, HttpExchange message) {
-        return RouteProbeResult.REJECT;
+        // 从本端点已准备的契约导出描述，再一次创建完整绑定。
+        ObjectNode description = meta.createServiceDescription(config, this.defaultSerialize());
+        definition.describeContract(description);
+        return meta.build(config, definition, description);
     }
 
     @Override

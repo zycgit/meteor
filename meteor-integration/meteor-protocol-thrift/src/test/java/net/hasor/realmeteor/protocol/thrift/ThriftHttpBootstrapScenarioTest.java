@@ -33,9 +33,9 @@ public class ThriftHttpBootstrapScenarioTest {
             server.start();
             client.start();
             server.publisher().rsfService(ThriftDemoService.class, new ThriftDemoServiceImpl()) //
-                    .bindResource(new ThriftServiceResource(ExtendedInteropService.class)).register();
+                    .bindResource("thrift-http", new ThriftServiceResource(ExtendedInteropService.class)).register();
             MetBindInfo<ThriftDemoService> service = client.publisher().rsfService(ThriftDemoService.class) //
-                    .bindResource(new ThriftServiceResource(ExtendedInteropService.class)).register();
+                    .bindResource("thrift-http", new ThriftServiceResource(ExtendedInteropService.class)).register();
 
             // 类型代理从实际监听地址发起调用，结果经过 Thrift HTTP 响应返回。
             ThriftClient caller = new ThriftClient(client.getRsfClient(server.getListenAddress("thrift-http")));

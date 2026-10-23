@@ -7,7 +7,7 @@
  */
 package net.hasor.example.protocol.thrift;
 import net.hasor.example.protocol.thrift.generated.ExtendedInteropService;
-import net.hasor.meteor.MetMessage;
+import net.hasor.meteor.annotation.MetMessage;
 import org.apache.thrift.TException;
 
 /** 普通业务接口继承官方 IDL 契约；消息语义同时向 Meteor 显式声明。 */

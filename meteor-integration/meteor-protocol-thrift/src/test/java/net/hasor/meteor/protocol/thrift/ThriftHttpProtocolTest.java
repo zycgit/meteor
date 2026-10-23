@@ -8,17 +8,19 @@
 package net.hasor.meteor.protocol.thrift;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.function.Consumer;
 import java.util.function.ObjLongConsumer;
 import net.hasor.example.protocol.thrift.ThriftDemoService;
 import net.hasor.example.protocol.thrift.generated.ExtendedInteropService;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
-import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
+import net.hasor.meteor.protocol.thrift.codec.ThriftServiceSchema;
 import net.hasor.meteor.protocol.thrift.session.ThriftHttpSession;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -48,41 +50,33 @@ public class ThriftHttpProtocolTest {
     }
 
     @Test
-    public void mountedHttpRoutesDoNotProbeTheRequestBody() {
-        // 挂载目录负责选择 HTTP 协议，正文标识不能抢占其他路由。
-        HttpRequest request = HttpRequest.newBuffered("POST", "/rpc/demo", Map.of(), //
-                new byte[] { (byte) 0x80, 1, 0, 1 }, 1, Map.of());
-        HttpExchange exchange = new HttpExchange(request);
-
-        // 原生 Thrift 正文也不使 HTTP 提供者参与字节探测。
-        assertSame(RouteProbeResult.REJECT, new ThriftHttpProtocol().probe(this.config(), exchange));
-    }
-
-    @Test
     public void providerValidatesTheExplicitGeneratedResourceForHttp() {
         // 业务接口通过本地资源绑定 IDL，HTTP 提供者复用同一发布约束。
         ServiceDomain<ThriftDemoService> service = new ServiceDomain<>(ThriftDemoService.class);
         service.setBindName("demo");
-        service.setBindResource(new ThriftServiceResource(ExtendedInteropService.class));
+        Object bindResource = new ThriftServiceResource(ExtendedInteropService.class);
 
         // context 只属于 HTTP 挂载，与生成字段元数据相互独立。
         ProtocolConfig config = this.config();
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
-        ProtocolBinding binding = new ThriftHttpProtocol().validate(config, meta, null);
-        assertSame(service.getBindResource(), binding.getDefinition());
+        ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
+        ProtocolBinding binding = new ThriftHttpProtocol().prepareBinding(config, null, meta);
+        assertTrue(binding.getDefinition() instanceof ThriftServiceSchema);
+        assertEquals("ExtendedInteropService", binding.getDescription().path("serviceName").asText());
+        assertFalse(binding.getDescription().path("methods").isEmpty());
+        assertFalse(binding.getDescription().path("types").isEmpty());
     }
 
     @Test
-    public void providerRejectsHttpServiceWithoutAThriftContract() {
+    public void providerRejectsHttpParametersWithoutFieldIds() {
         // HTTP transport 不能为没有 IDL 的普通方法推测字段编号。
-        ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
+        ServiceDomain<Consumer> service = new ServiceDomain<>(Consumer.class);
         service.setBindName("missing-idl");
         ThriftHttpProtocol provider = new ThriftHttpProtocol();
         ProtocolConfig config = this.config();
 
         // 缺少 IDL 仅拒绝 HTTP Thrift，不中断整个服务登记。
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
-        assertNull(provider.validate(config, meta, null));
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        assertNull(provider.prepareBinding(config, null, meta));
     }
 
     @Test

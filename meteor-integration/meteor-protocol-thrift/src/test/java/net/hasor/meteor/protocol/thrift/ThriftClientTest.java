@@ -13,6 +13,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import net.hasor.example.protocol.thrift.ThriftDemoService;
 import net.hasor.example.protocol.thrift.generated.DeclaredFailure;
+import net.hasor.example.protocol.thrift.mapping.NoteFailure;
+import net.hasor.example.protocol.thrift.mapping.NoteService;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.domain.ServiceDomain;
@@ -26,6 +28,20 @@ import static org.mockito.Mockito.*;
 
 /** 客户端只适配代理及异常，RPC 调度仍使用既有 MetClient。 */
 public class ThriftClientTest {
+    @Test
+    public void declaredOrdinaryExceptionRetainsItsIdentity() throws Exception {
+        // 普通异常通过已有同步调用的 ExecutionException 交付。
+        NoteFailure expected = new NoteFailure();
+        expected.setCode(409);
+        MetClient core = this.failingClient(new ExecutionException(expected));
+        ServiceDomain<NoteService> service = new ServiceDomain<>(NoteService.class);
+        NoteService remote = new ThriftClient(core).getRemote(service);
+
+        // 只保留注解中声明的业务异常，不要求它继承官方 TException。
+        NoteFailure failure = assertThrows(NoteFailure.class, () -> remote.fail(409));
+        assertSame(expected, failure);
+    }
+
     @Test
     public void constructorRequiresTheExistingMeteorClient() {
         // 没有可委托的客户端时不能创建看似可用的远程入口。

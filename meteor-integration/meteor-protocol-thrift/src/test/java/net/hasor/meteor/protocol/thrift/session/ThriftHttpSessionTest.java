@@ -27,7 +27,6 @@ import net.hasor.example.protocol.thrift.generated.InteropService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.ProtocolSessionContextTestAccess;
 import net.hasor.meteor.connector.RouteMountIndex;
@@ -35,6 +34,7 @@ import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -767,7 +767,7 @@ public class ThriftHttpSessionTest {
         MetContext context = configuration.buildContext();
         context.publisher().rsfService(ThriftDemoService.class, new ThriftDemoServiceImpl()) //
                 .name("Demo").aliasName("thrift-http", "Demo") //
-                .bindResource(new ThriftServiceResource(ExtendedInteropService.class)).register();
+                .bindResource("thrift-http", new ThriftServiceResource(ExtendedInteropService.class)).register();
         return context;
     }
 

@@ -13,11 +13,15 @@ import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -75,6 +79,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
             exchange.complete(this.closeCause);
             return;
         }
+
         HttpRequest http = exchange.request();
         RouteMount mount = http.route() == null ? this.routes.match(http.uri()) : http.route().mount();
         if (!StringUtils.equalsIgnoreCase(http.method(), "POST")) {
@@ -116,6 +121,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
             request.addOption("Location", http.uri());
             ThriftHttpPendingCall call = new ThriftHttpPendingCall(request, exchange, original);
             this.track(call);
+
             try {
                 this.messages.accept(request, request.getRequestID());
             } catch (Exception failure) {
@@ -169,10 +175,12 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
             if (this.pending.get(request.getRequestID()) != call || request.completion().isDone()) {
                 return;
             }
+
             if (done.getCause() != null) {
                 this.fail(call, done.getCause());
                 return;
             }
+
             try {
                 HttpResponse response = done.getResult();
                 if (response.status() != 200) {
@@ -190,15 +198,17 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
                     if (!this.thriftContentType(response.header("Content-Type"))) {
                         throw new IOException("Unexpected Thrift HTTP response Content-Type");
                     }
+
                     ThriftMessage answer = this.wire.decode(response.body());
                     if (answer.sequenceId() != original.sequenceId()) {
                         throw new IOException("Thrift response sequence ID does not match the request");
                     }
-                    if (!StringUtils.equals(answer.methodName(), request.getTargetMethod())) {
+                    if (!StringUtils.equals(answer.methodName(), this.codec.requestMethod(request))) {
                         throw new IOException("Thrift response method does not match the request");
                     }
                     result = this.codec.decodeResponse(request, answer);
                 }
+
                 this.copyHeaders(response.headers(), result);
                 this.messages.accept(result, request.getRequestID());
                 request.complete(null);
@@ -215,6 +225,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
         if (call == null) {
             return new BasicFuture<>((Void) null);
         }
+
         boolean accepted = response.getStatus() == ProtocolStatus.Accept;
         if (accepted && !call.request().isMessage()) {
             return new BasicFuture<>((Void) null);
@@ -222,6 +233,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
         if (call.exchange().response().isDone()) {
             return call.sent();
         }
+
         try {
             if (call.request().isMessage()) {
                 // THttpClient.flush 只接受 200；接纳 ONEWAY 后不产生 Thrift Reply。
@@ -244,10 +256,12 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
             if (this.pending.get(id) != call) {
                 return;
             }
+
             Throwable failure = done.getCause();
             if (failure == null) {
                 failure = new CancellationException("RPC completed without a response");
             }
+
             if (this.outbound) {
                 boolean answered = done.getCause() == null && call.exchange().response().isDone();
                 if (answered) {
@@ -263,6 +277,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
                 this.fault(call, failure);
             }
         }));
+
         call.exchange().completion().onFinal(done -> this.channel.execute(() -> {
             if (done.getCause() != null) {
                 this.fail(call, done.getCause());
@@ -270,8 +285,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
         }));
     }
 
-    private void writeResponse(ThriftHttpPendingCall call, int status, //
-            Map<String, List<String>> headers, byte[] body) {
+    private void writeResponse(ThriftHttpPendingCall call, int status, Map<String, List<String>> headers, byte[] body) {
         if (call.exchange().respond(HttpResponse.newBuffered(status, headers, body, Map.of()))) {
             this.write(call);
         }
@@ -283,6 +297,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
             this.reply(exchange, 400, this.headers(null), new byte[0]);
             return;
         }
+
         try {
             byte[] body = this.codec.encodeError(original, failure);
             this.reply(exchange, 200, this.headers(null), body);
@@ -311,6 +326,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
                 writing.cancel();
                 this.channel.execute(() -> this.fail(call, new CancellationException("Thrift HTTP write cancelled")));
             });
+
             writing.onFinal(done -> this.channel.execute(() -> {
                 if (done.isCancelled()) {
                     call.sent().cancel();
@@ -338,6 +354,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
         if (!this.pending.remove(id, call)) {
             return;
         }
+
         boolean unfinished = !call.request().completion().isDone();
         call.exchange().complete(failure);
         call.request().complete(failure);
@@ -351,6 +368,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
         if (this.closeCause == null) {
             this.closeCause = cause == null ? new IOException("Thrift HTTP channel closed") : cause;
         }
+
         this.ready.failed(this.closeCause);
         for (ThriftHttpPendingCall call : new ArrayList<>(this.pending.values())) {
             this.fail(call, this.closeCause);
@@ -365,6 +383,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
         if (this.outbound) {
             return;
         }
+
         // 仅补齐本会话拥有的交换，借用的物理通道由传输层排空与关闭。
         for (ThriftHttpPendingCall call : new ArrayList<>(this.pending.values())) {
             if (!call.exchange().response().isDone()) {
@@ -377,6 +396,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
         if (!exchange.respond(HttpResponse.newBuffered(status, headers, body, Map.of()))) {
             return;
         }
+
         try {
             this.channel.write(exchange).onFinal(done -> {
                 if (done.isCancelled()) {
@@ -406,6 +426,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
                 if (key == null || value == null || contentType || faultMessage) {
                     continue;
                 }
+
                 this.validateHeader(key, value);
                 headers.put(key, List.of(value));
             }
@@ -418,6 +439,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
         if (name.isEmpty()) {
             throw new IllegalArgumentException("Empty Thrift HTTP metadata name");
         }
+
         for (int index = 0; index < name.length(); index++) {
             char character = name.charAt(index);
             boolean letter = character >= 'A' && character <= 'Z' || character >= 'a' && character <= 'z';
@@ -427,6 +449,7 @@ public final class ThriftHttpSession implements ProtocolSession<HttpExchange> {
                 throw new IllegalArgumentException("Invalid Thrift HTTP metadata name: " + name);
             }
         }
+
         for (int index = 0; index < value.length(); index++) {
             char character = value.charAt(index);
             boolean text = character >= 32 && character <= 255 && character != 127;

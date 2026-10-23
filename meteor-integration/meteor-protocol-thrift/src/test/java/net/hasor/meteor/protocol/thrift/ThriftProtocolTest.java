@@ -10,15 +10,19 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.function.Consumer;
 import java.util.function.ObjLongConsumer;
 import net.hasor.example.protocol.thrift.ThriftDemoService;
 import net.hasor.example.protocol.thrift.generated.ExtendedInteropService;
+import net.hasor.meteor.annotation.MetParam;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.domain.ProtocolBinding;
-import net.hasor.meteor.domain.ProtocolMeta;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
+import net.hasor.meteor.protocol.thrift.codec.ThriftServiceSchema;
 import net.hasor.meteor.protocol.thrift.session.ThriftSession;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -27,6 +31,38 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 /** TCP 入口的公开 SPI、帧前缀探测与提供者委托。 */
 public class ThriftProtocolTest {
+    @Test
+    public void ordinaryNestedIfaceIsNotMistakenForAGeneratedService() {
+        // 普通嵌套接口也可以叫 Iface，不能只按名字判断是否来自生成器。
+        ServiceDomain<Iface> service = new ServiceDomain<>(Iface.class);
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        // 没有官方 Processor 时，仍按普通注解契约编译。
+        ProtocolBinding binding = new ThriftProtocol().prepareBinding(this.config(Map.of()), null, meta);
+        assertTrue(binding.getDefinition() instanceof ThriftServiceSchema);
+        assertEquals("Iface", binding.getDescription().path("serviceName").asText());
+        assertFalse(binding.getDescription().path("methods").isEmpty());
+        assertFalse(binding.getDescription().path("types").isEmpty());
+    }
+
+    @Test
+    public void annotationMappingDoesNotConsumeAnotherProtocolsBoundResource() {
+        // 普通接口的 Thrift 契约由注解完整声明，绑定资源可以交给其他协议。
+        ServiceDomain<Iface> service = new ServiceDomain<>(Iface.class);
+        Object foreign = new Object();
+        service.setBindResource("soap", foreign);
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        // 当前发布结果持有自己的定义，用户的绑定资源保持原样。
+        ProtocolBinding binding = new ThriftProtocol().prepareBinding(this.config(Map.of()), null, meta);
+        assertTrue(binding.getDefinition() instanceof ThriftServiceSchema);
+        assertSame(foreign, service.getProtocolMeta("soap").getBindResource());
+    }
+
+    public interface Iface {
+        String echo(@MetParam(id = 1) String value);
+    }
+
     @Test
     public void providerDeclaresNativeThriftOverTcp() {
         // 协议身份和消息类型共同决定复用的 TCP 传输。
@@ -53,7 +89,9 @@ public class ThriftProtocolTest {
         byte[] length = ByteBuffer.allocate(Integer.BYTES).putInt(32).array();
         ProtocolConfig config = this.config(Map.of());
         for (int count = 0; count < Integer.BYTES; count++) {
-            assertSame(RouteProbeResult.NEED_MORE, new ThriftProtocol().probe(config, Arrays.copyOf(length, count)));
+            byte[] prefix = Arrays.copyOf(length, count);
+            RouteProbeResult result = new ThriftProtocol().probeProtocol(config, prefix);
+            assertSame(RouteProbeResult.NEED_MORE, result);
         }
     }
 
@@ -61,7 +99,7 @@ public class ThriftProtocolTest {
     public void completeFrameLengthStillWaitsForProtocolMarker() {
         // 长度合法但正文尚未到达，不足以区分同端口的其他协议。
         byte[] prefix = ByteBuffer.allocate(Integer.BYTES).putInt(32).array();
-        RouteProbeResult result = new ThriftProtocol().probe(this.config(Map.of()), prefix);
+        RouteProbeResult result = new ThriftProtocol().probeProtocol(this.config(Map.of()), prefix);
         assertSame(RouteProbeResult.NEED_MORE, result);
     }
 
@@ -69,14 +107,14 @@ public class ThriftProtocolTest {
     public void zeroFrameLengthRejectsTheRoute() {
         // 零长度不能承载任何 Thrift 消息。
         byte[] prefix = this.framePrefix(0, 0x80);
-        assertSame(RouteProbeResult.REJECT, new ThriftProtocol().probe(this.config(Map.of()), prefix));
+        assertSame(RouteProbeResult.REJECT, new ThriftProtocol().probeProtocol(this.config(Map.of()), prefix));
     }
 
     @Test
     public void negativeFrameLengthRejectsTheRoute() {
         // 负长度不能绕过有符号整型的消息大小校验。
         byte[] prefix = this.framePrefix(-1, 0x80);
-        assertSame(RouteProbeResult.REJECT, new ThriftProtocol().probe(this.config(Map.of()), prefix));
+        assertSame(RouteProbeResult.REJECT, new ThriftProtocol().probeProtocol(this.config(Map.of()), prefix));
     }
 
     @Test
@@ -84,7 +122,7 @@ public class ThriftProtocolTest {
         // 在读取完整正文之前拒绝超过挂载上限的长度头。
         ProtocolConfig config = this.config(Map.of("maxMessageSize", "16"));
         byte[] prefix = this.framePrefix(17, 0x80);
-        assertSame(RouteProbeResult.REJECT, new ThriftProtocol().probe(config, prefix));
+        assertSame(RouteProbeResult.REJECT, new ThriftProtocol().probeProtocol(config, prefix));
     }
 
     @Test
@@ -92,49 +130,49 @@ public class ThriftProtocolTest {
         // 上限本身属于允许范围，正文完整性仍交由后续解码处理。
         ProtocolConfig config = this.config(Map.of("maxMessageSize", "16"));
         byte[] prefix = this.framePrefix(16, 0x80);
-        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probe(config, prefix));
+        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probeProtocol(config, prefix));
     }
 
     @Test
     public void strictBinaryMarkerSelectsFramedThrift() {
         // 版本化 Binary 的首字节足以在长度头之后识别协议。
         byte[] prefix = this.framePrefix(32, 0x80);
-        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probe(this.config(Map.of()), prefix));
+        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probeProtocol(this.config(Map.of()), prefix));
     }
 
     @Test
     public void compactMarkerSelectsFramedThrift() {
         // Compact 使用自己的协议标识，不需要先收到完整消息。
         byte[] prefix = this.framePrefix(32, 0x82);
-        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probe(this.config(Map.of()), prefix));
+        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probeProtocol(this.config(Map.of()), prefix));
     }
 
     @Test
     public void jsonMarkerSelectsFramedThrift() {
         // 原生 Thrift JSON 消息以数组开头。
         byte[] prefix = this.framePrefix(32, '[');
-        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probe(this.config(Map.of()), prefix));
+        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probeProtocol(this.config(Map.of()), prefix));
     }
 
     @Test
     public void legacyBinaryNameLengthSelectsFramedThrift() {
         // 非版本化 Binary 先写方法名长度，大小受消息上限约束。
         byte[] prefix = this.framePrefix(32, 0);
-        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probe(this.config(Map.of()), prefix));
+        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probeProtocol(this.config(Map.of()), prefix));
     }
 
     @Test
     public void unrelatedFramedBodyDoesNotSelectThrift() {
         // 合法长度头不能使任意正文抢占 Thrift 路由。
         byte[] prefix = this.framePrefix(32, 'G');
-        assertSame(RouteProbeResult.REJECT, new ThriftProtocol().probe(this.config(Map.of()), prefix));
+        assertSame(RouteProbeResult.REJECT, new ThriftProtocol().probeProtocol(this.config(Map.of()), prefix));
     }
 
     @Test
     public void emptyUnframedInputNeedsMoreBytes() {
         // buffered transport 没有长度头，空输入仍需要等待协议首字节。
         ProtocolConfig config = this.config(Map.of("framed", "false"));
-        assertSame(RouteProbeResult.NEED_MORE, new ThriftProtocol().probe(config, new byte[0]));
+        assertSame(RouteProbeResult.NEED_MORE, new ThriftProtocol().probeProtocol(config, new byte[0]));
     }
 
     @Test
@@ -142,21 +180,21 @@ public class ThriftProtocolTest {
         // 不把原生 Binary 的四字节版本头误读为 transport 帧长度。
         ProtocolConfig config = this.config(Map.of("framed", "false"));
         byte[] prefix = { (byte) 0x80, 1, 0, 1 };
-        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probe(config, prefix));
+        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probeProtocol(config, prefix));
     }
 
     @Test
     public void unframedCompactStartsDirectlyWithProtocolMarker() {
         // Compact buffered transport 同样不携带 framed transport 头。
         ProtocolConfig config = this.config(Map.of("framed", "false"));
-        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probe(config, new byte[] { (byte) 0x82 }));
+        assertSame(RouteProbeResult.MATCH, new ThriftProtocol().probeProtocol(config, new byte[] { (byte) 0x82 }));
     }
 
     @Test
     public void unrelatedUnframedInputDoesNotSelectThrift() {
         // 其他协议的首字节应交还共享监听的路由选择。
         ProtocolConfig config = this.config(Map.of("framed", "false"));
-        assertSame(RouteProbeResult.REJECT, new ThriftProtocol().probe(config, new byte[] { 'G' }));
+        assertSame(RouteProbeResult.REJECT, new ThriftProtocol().probeProtocol(config, new byte[] { 'G' }));
     }
 
     @Test
@@ -164,7 +202,7 @@ public class ThriftProtocolTest {
         // 共享监听会继续把相同字节交给被选中的协议会话。
         byte[] prefix = this.framePrefix(32, 0x80);
         byte[] original = prefix.clone();
-        new ThriftProtocol().probe(this.config(Map.of()), prefix);
+        new ThriftProtocol().probeProtocol(this.config(Map.of()), prefix);
         assertArrayEquals(original, prefix);
     }
 
@@ -173,85 +211,87 @@ public class ThriftProtocolTest {
         // 普通业务接口保留消息注解，字段定义来自官方生成的 IDL 契约。
         ServiceDomain<ThriftDemoService> service = new ServiceDomain<>(ThriftDemoService.class);
         service.setBindName("demo");
-        service.setBindResource(new ThriftServiceResource(ExtendedInteropService.class));
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
+        ThriftServiceResource resource = new ThriftServiceResource(ExtendedInteropService.class);
+        ProtocolMeta meta = new ProtocolMeta(service, null, resource, Map.of());
 
         // 发布经过提供者校验，返回当前接入点独立的绑定结果。
         ProtocolConfig config = this.config(Map.of());
-        ProtocolBinding binding = new ThriftProtocol().validate(config, meta, null);
-        assertSame(service.getBindResource(), binding.getDefinition());
+        ProtocolBinding binding = new ThriftProtocol().prepareBinding(config, null, meta);
+        assertTrue(binding.getDefinition() instanceof ThriftServiceSchema);
     }
 
     @Test
-    public void providerRejectsServiceWithoutAThriftContract() {
-        // 普通 Java 签名自身没有稳定的 Thrift 字段 ID。
-        ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
+    public void providerRejectsParametersWithoutFieldIds() {
+        // 带参数的 Java 签名仍需稳定的字段编号或文件契约。
+        ServiceDomain<Consumer> service = new ServiceDomain<>(Consumer.class);
         service.setBindName("missing-idl");
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
         ThriftProtocol provider = new ThriftProtocol();
         ProtocolConfig config = this.config(Map.of());
 
         // 缺少 IDL 仅拒绝当前协议，不中断整个服务登记。
-        assertNull(provider.validate(config, meta, null));
+        assertNull(provider.prepareBinding(config, null, meta));
     }
 
     @Test
     public void rejectingAnotherEndpointPreservesAlreadyAcceptedBindings() {
         // 分组已包含一个接受结果，另一个端点仅选择其他服务。
         ServiceDomain<ThriftDemoService> service = new ServiceDomain<>(ThriftDemoService.class);
-        service.setBindResource(new ThriftServiceResource(ExtendedInteropService.class));
+        ThriftServiceResource resource = new ThriftServiceResource(ExtendedInteropService.class);
         ThriftProtocol provider = new ThriftProtocol();
-        ProtocolMeta input = new ProtocolMeta(service, null, Map.of());
-        ProtocolBinding accepted = provider.validate(this.config(Map.of()), input, null);
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of("accepted", accepted));
+        ProtocolMeta input = new ProtocolMeta(service, null, resource, Map.of());
+        ProtocolBinding accepted = provider.prepareBinding(this.config(Map.of()), null, input);
+        ProtocolMeta meta = new ProtocolMeta(service, null, resource, Map.of("accepted", accepted));
         ProtocolConfig other = this.config(Map.of("service", "another-service"));
 
         // 本次拒绝不改变传入分组中已接受端点的定义。
-        assertNull(provider.validate(other, meta, null));
+        assertNull(provider.prepareBinding(other, null, meta));
         assertSame(accepted, meta.getEndpoint("accepted"));
-        assertSame(service.getBindResource(), accepted.getDefinition());
+        assertTrue(accepted.getDefinition() instanceof ThriftServiceSchema);
     }
 
     @Test
     public void invalidEndpointEncodingStillFailsPublication() {
         // 不支持的 Java 接口不能掩盖部署配置中填写错误的编码名称。
         ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
         ProtocolConfig config = this.config(Map.of("encoding", "unsupported"));
         ThriftProtocol provider = new ThriftProtocol();
 
         // 配置错误保持异常，区别于接口契约不受支持时的空拒绝结果。
-        assertThrows(IllegalArgumentException.class, () -> provider.validate(config, meta, null));
+        assertThrows(IllegalArgumentException.class, () -> provider.prepareBinding(config, null, meta));
     }
 
     @Test
-    public void foreignBoundResourceOnlyRejectsTheThriftProtocol() {
+    public void anotherProtocolsResourceDoesNotSupplyMissingParameterIds() {
         // 服务携带的绑定资源可以属于另一个协议，Thrift 不负责解释它。
-        ServiceDomain<Runnable> service = new ServiceDomain<>(Runnable.class);
-        service.setBindResource(new Object());
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of());
+        ServiceDomain<Consumer> service = new ServiceDomain<>(Consumer.class);
+        service.setBindResource("soap", new Object());
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
         ThriftProtocol provider = new ThriftProtocol();
         ProtocolConfig config = this.config(Map.of());
 
         // 当前协议返回拒绝结果，交由发布流程继续尝试其他协议。
-        assertNull(provider.validate(config, meta, null));
+        assertNull(provider.prepareBinding(config, null, meta));
     }
 
     @Test
-    public void foreignBoundResourcePreservesAlreadyAcceptedEndpoint() {
+    public void anotherProtocolsResourcePreservesAlreadyAcceptedEndpoint() {
         // 已接受的端点持有自己的定义，不依赖后续传入的服务绑定资源。
         ServiceDomain<ThriftDemoService> service = new ServiceDomain<>(ThriftDemoService.class);
-        service.setBindResource(new ThriftServiceResource(ExtendedInteropService.class));
+        service.setBindResource("thrift", new ThriftServiceResource(ExtendedInteropService.class));
         ThriftProtocol provider = new ThriftProtocol();
         ProtocolConfig config = this.config(Map.of());
-        ProtocolBinding accepted = provider.validate(config, new ProtocolMeta(service, null, Map.of()), null);
-        ProtocolMeta meta = new ProtocolMeta(service, null, Map.of("accepted", accepted));
-        service.setBindResource(new Object());
+        ProtocolMeta declaration = service.getProtocolMeta("thrift");
+        ProtocolBinding accepted = provider.prepareBinding(config, null, declaration);
+        Object resource = declaration.getBindResource();
+        ProtocolMeta meta = new ProtocolMeta(service, null, resource, Map.of("accepted", accepted));
+        service.setBindResource("soap", new Object());
 
-        // 资源不匹配只拒绝新接入点，分组中的已有绑定仍保留原来的定义。
-        assertNull(provider.validate(config, meta, null));
+        // 其他协议的资源声明不会改变当前 Thrift 契约或原接入结果。
+        assertNotNull(provider.prepareBinding(config, null, meta));
         assertSame(accepted, meta.getEndpoint("accepted"));
-        assertTrue(accepted.getDefinition() instanceof ThriftServiceResource);
+        assertTrue(accepted.getDefinition() instanceof ThriftServiceSchema);
     }
 
     @Test

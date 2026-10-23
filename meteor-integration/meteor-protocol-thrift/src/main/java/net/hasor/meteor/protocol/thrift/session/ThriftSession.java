@@ -17,10 +17,10 @@ import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -30,6 +30,7 @@ import net.hasor.meteor.protocol.thrift.codec.ThriftCodec;
 import net.hasor.meteor.protocol.thrift.codec.ThriftFrameDecoder;
 import net.hasor.meteor.protocol.thrift.codec.ThriftMessage;
 import net.hasor.meteor.protocol.thrift.codec.ThriftWireCodec;
+import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TMessageType;
 
 /** 一条有序 TCP 通道上的 Thrift 增量收帧及双向调用关联。 */
@@ -140,11 +141,12 @@ public final class ThriftSession implements ProtocolSession<byte[]> {
         return false;
     }
 
-    private void receiveResponse(ThriftMessage message) {
+    private void receiveResponse(ThriftMessage message) throws TException {
         ThriftPendingCall call = this.outbound.get(message.sequenceId());
-        if (call == null || !StringUtils.equals(call.request.getTargetMethod(), message.methodName())) {
+        if (call == null || !StringUtils.equals(this.codec.requestMethod(call.request), message.methodName())) {
             return;
         }
+
         if (!this.outbound.remove(message.sequenceId(), call) || call.request.completion().isDone()) {
             return;
         }
@@ -194,6 +196,7 @@ public final class ThriftSession implements ProtocolSession<byte[]> {
         while (this.outbound.containsKey(sequenceId)) {
             sequenceId = this.nextSequenceId++;
         }
+
         ThriftPendingCall call = new ThriftPendingCall(sequenceId, request);
         this.outbound.put(sequenceId, call);
         call.sent.onCancel(done -> request.complete(new CancellationException("Thrift send cancelled")));
@@ -228,6 +231,7 @@ public final class ThriftSession implements ProtocolSession<byte[]> {
             call.sent.failed(completionCause(call.request));
             return;
         }
+
         if (failure != null) {
             boolean removed = this.outbound.remove(call.sequenceId, call);
             call.sent.failed(failure);
@@ -255,6 +259,7 @@ public final class ThriftSession implements ProtocolSession<byte[]> {
         if (call == null) {
             return failed(new IllegalStateException("Thrift response has no pending request on this channel"));
         }
+
         if (call.request().isMessage() || response.getStatus() == ProtocolStatus.Accept) {
             if (call.request().isMessage()) {
                 this.inbound.remove(id, call);
@@ -278,6 +283,7 @@ public final class ThriftSession implements ProtocolSession<byte[]> {
         if (message.messageType() == TMessageType.ONEWAY) {
             return;
         }
+
         try {
             Future<Void> writing = this.write(this.codec.encodeError(message, cause));
             writing.onFinal(done -> {
@@ -295,6 +301,7 @@ public final class ThriftSession implements ProtocolSession<byte[]> {
         if (!this.framed) {
             return this.channel.write(bytes);
         }
+
         byte[] framedBytes = ByteBuffer.allocate(4 + bytes.length).putInt(bytes.length).put(bytes).array();
         return this.channel.write(framedBytes);
     }
@@ -323,6 +330,7 @@ public final class ThriftSession implements ProtocolSession<byte[]> {
         if (this.closeCause != null) {
             return;
         }
+
         this.closeCause = cause == null ? new IOException("Thrift connection closed") : cause;
         this.decoder.reset();
         this.ready.failed(this.closeCause);
@@ -338,11 +346,13 @@ public final class ThriftSession implements ProtocolSession<byte[]> {
             if (call.writing != null) {
                 call.writing.cancel();
             }
+
             if (!completed) {
                 call.request.complete(this.closeCause);
                 this.messages.accept(new ThrowPayload(this.closeCause), call.request.getRequestID());
             }
         }
+
         for (ThriftInboundCall call : incoming) {
             call.request().complete(this.closeCause);
         }

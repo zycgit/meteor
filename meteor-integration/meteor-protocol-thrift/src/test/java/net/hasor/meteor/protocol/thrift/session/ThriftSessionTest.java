@@ -19,14 +19,14 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.example.protocol.thrift.generated.DeclaredFailure;
 import net.hasor.example.protocol.thrift.generated.InteropService;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetMessage;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.ProtocolSessionContextTestAccess;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.NetworkChannel;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -722,7 +722,7 @@ public class ThriftSessionTest {
                 @Override
                 public void notify(String value) {
                 }
-            }).bindResource(new ThriftServiceResource(InteropService.class)).register();
+            }).bindResource("thrift", new ThriftServiceResource(InteropService.class)).register();
             ProtocolConfig config = ProtocolConfig.newConfig("thrift", "thrift", options);
             ProtocolSessionContext protocol = ProtocolSessionContextTestAccess.newContext( //
                     this.context, (action, delay) -> {

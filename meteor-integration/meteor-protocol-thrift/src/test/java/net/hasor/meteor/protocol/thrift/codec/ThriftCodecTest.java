@@ -18,16 +18,18 @@ import net.hasor.example.protocol.thrift.generated.ExtendedInteropService;
 import net.hasor.example.protocol.thrift.generated.InteropService;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.MetMessage;
+import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
 import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.ServiceDomain;
+import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
+import net.hasor.meteor.protocol.thrift.ThriftProtocol;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
 import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TBase;
@@ -116,10 +118,10 @@ public class ThriftCodecTest {
     public void identicalInheritedSignaturesRemainOneCallableIdlMethod() throws Exception {
         // 两个普通父接口声明相同签名，通过显式资源绑定同一个 IDL 方法。
         ServiceDomain<SharedSignatureFacade> metadata = this.boundService(SharedSignatureFacade.class);
-        assertNotNull(ThriftCodec.validateService(this.protocol, metadata));
+        assertNotNull(this.prepareBinding(this.protocol, metadata));
         this.context.publisher().rsfService(SharedSignatureFacade.class, value -> value) //
                 .name("Shared").aliasName("thrift", "shared") //
-                .bindResource(new ThriftServiceResource(InteropService.class)).register();
+                .bindResource("thrift", new ThriftServiceResource(InteropService.class)).register();
         ProtocolConfig protocol = ProtocolConfig.newConfig("thrift", "thrift", Map.of("service", "shared"));
         RouteMountIndex routes = new RouteMountIndex("tcp-0", protocol);
         ThriftCodec codec = new ThriftCodec(protocol, routes, this.context);
@@ -139,7 +141,7 @@ public class ThriftCodecTest {
     public void redundantGeneratedParentKeepsTheMostSpecificInheritedService() throws Exception {
         // 同时继承子 IDL 和其父 Iface，不绑定资源，由插件推断最具体的子服务。
         ServiceDomain<RedundantParentFacade> metadata = new ServiceDomain<>(RedundantParentFacade.class);
-        assertNotNull(ThriftCodec.validateService(this.protocol, metadata));
+        assertNotNull(this.prepareBinding(this.protocol, metadata));
         this.context.publisher().rsfService(RedundantParentFacade.class, new RedundantParentFacadeImpl()) //
                 .name("Redundant").aliasName("thrift", "redundant").register();
         ProtocolConfig protocol = ProtocolConfig.newConfig("thrift", "thrift", Map.of("service", "redundant"));
@@ -233,7 +235,7 @@ public class ThriftCodecTest {
     public void byteArrayFacadeIsCompatibleWithGeneratedBinarySignature() {
         // 普通 Facade 可用 byte[] 表达 IDL binary，但必须显式绑定生成资源。
         ServiceDomain<ByteArrayFacade> service = this.boundService(ByteArrayFacade.class);
-        assertNotNull(ThriftCodec.validateService(this.protocol, service));
+        assertNotNull(this.prepareBinding(this.protocol, service));
     }
 
     @Test
@@ -241,7 +243,7 @@ public class ThriftCodecTest {
         // 普通 byte[] 接口通过本地资源关联 IDL，端点选项排除其他已发布服务。
         this.context.publisher().rsfService(ByteArrayFacade.class, value -> value) //
                 .name("Binary").aliasName("thrift", "binary") //
-                .bindResource(new ThriftServiceResource(InteropService.class)).register();
+                .bindResource("thrift", new ThriftServiceResource(InteropService.class)).register();
         ProtocolConfig protocol = ProtocolConfig.newConfig("thrift", "thrift", Map.of("service", "binary"));
         RouteMountIndex routes = new RouteMountIndex("tcp-0", protocol);
         ThriftCodec codec = new ThriftCodec(protocol, routes, this.context);
@@ -579,7 +581,7 @@ public class ThriftCodecTest {
     public void facadeWithoutGeneratedResourceIsRejected() {
         // 普通接口既不继承生成 Iface，也没有绑定本地 IDL 资源。
         ServiceDomain<ByteArrayFacade> service = new ServiceDomain<>(ByteArrayFacade.class);
-        assertNull(ThriftCodec.validateService(this.protocol, service));
+        assertNull(this.prepareBinding(this.protocol, service));
     }
 
     @Test
@@ -599,35 +601,43 @@ public class ThriftCodecTest {
     public void idlOnewayRequiresMeteorMessageDeclaration() {
         // 普通 notify 接口绑定了 IDL，但没有声明 Meteor 消息语义。
         ServiceDomain<UnmarkedOneway> service = this.boundService(UnmarkedOneway.class);
-        assertNull(ThriftCodec.validateService(this.protocol, service));
+        assertThrows(IllegalArgumentException.class, () -> this.prepareBinding(this.protocol, service));
     }
 
     @Test
     public void meteorMessageDeclarationRequiresIdlOneway() {
         // ping 在 IDL 中是普通 void 调用，不能仅添加 @MetMessage 改变语义。
         ServiceDomain<MarkedOrdinaryCall> service = this.boundService(MarkedOrdinaryCall.class);
-        assertNull(ThriftCodec.validateService(this.protocol, service));
+        assertThrows(IllegalArgumentException.class, () -> this.prepareBinding(this.protocol, service));
     }
 
     @Test
     public void javaOverloadsCannotShareOneIdlMethod() {
         // IDL 一个方法名只有一份 args/result，不能承载 Java 重载。
         ServiceDomain<OverloadedFacade> service = this.boundService(OverloadedFacade.class);
-        assertNull(ThriftCodec.validateService(this.protocol, service));
+        assertThrows(IllegalArgumentException.class, () -> this.prepareBinding(this.protocol, service));
     }
 
     @Test
     public void facadeReturnTypeMustMatchGeneratedIdl() {
         // echo 的 IDL 返回 string，普通接口不能改为整数。
         ServiceDomain<WrongReturnFacade> service = this.boundService(WrongReturnFacade.class);
-        assertNull(ThriftCodec.validateService(this.protocol, service));
+        assertThrows(IllegalArgumentException.class, () -> this.prepareBinding(this.protocol, service));
     }
 
     @Test
     public void streamingFacadeCannotBeBoundToThrift() {
         // 原生 Thrift 请求响应模型不能承载持续输出的 Publisher。
         ServiceDomain<StreamingFacade> service = this.boundService(StreamingFacade.class);
-        assertNull(ThriftCodec.validateService(this.protocol, service));
+        assertThrows(IllegalArgumentException.class, () -> this.prepareBinding(this.protocol, service));
+    }
+
+    private Object prepareBinding(ProtocolConfig protocol, ServiceDomain<?> service) {
+        ProtocolMeta meta = service.getProtocolMeta(protocol.name());
+        if (meta == null) {
+            meta = new ProtocolMeta(service, null, null, Map.of());
+        }
+        return new ThriftProtocol().prepareBinding(protocol, null, meta);
     }
 
     private RequestPayload request(String method) {
@@ -653,7 +663,7 @@ public class ThriftCodecTest {
 
     private <T> ServiceDomain<T> boundService(Class<T> type) {
         ServiceDomain<T> service = new ServiceDomain<>(type);
-        service.setBindResource(new ThriftServiceResource(InteropService.class));
+        service.setBindResource("thrift", new ThriftServiceResource(InteropService.class));
         return service;
     }
 

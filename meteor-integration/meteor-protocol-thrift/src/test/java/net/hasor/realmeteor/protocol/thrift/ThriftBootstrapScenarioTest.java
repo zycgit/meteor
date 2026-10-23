@@ -32,9 +32,9 @@ public class ThriftBootstrapScenarioTest {
             server.start();
             client.start();
             server.publisher().rsfService(ThriftDemoService.class, new ThriftDemoServiceImpl()) //
-                    .bindResource(resource).register();
+                    .bindResource("thrift", resource).register();
             MetBindInfo<ThriftDemoService> service = client.publisher().rsfService(ThriftDemoService.class) //
-                    .bindResource(resource).register();
+                    .bindResource("thrift", resource).register();
             MetClient connection = client.getRsfClient(server.getListenAddress("thrift"));
             ThriftDemoService remote = new ThriftClient(connection).getRemote(service);
 

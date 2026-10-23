@@ -53,16 +53,23 @@ public final class ThriftClient {
             return this.client.syncInvoke(service, method.getName(), method.getParameterTypes(), arguments);
         } catch (ExecutionException failure) {
             Throwable cause = failure.getCause();
-            throw this.failure(cause == null ? failure : cause);
+            throw this.failure(cause == null ? failure : cause, method);
         } catch (InterruptedException | TimeoutException | RuntimeException failure) {
-            throw this.failure(failure);
+            throw this.failure(failure, method);
         }
     }
 
-    private Throwable failure(Throwable cause) {
+    private Throwable failure(Throwable cause, Method method) {
         if (cause instanceof TException || cause instanceof Error) {
             return cause;
         }
+
+        for (Class<?> declared : method.getExceptionTypes()) {
+            if (declared.isInstance(cause)) {
+                return cause;
+            }
+        }
+
         if (cause instanceof InterruptedException) {
             Thread.currentThread().interrupt();
             return new TTransportException("Thrift call interrupted", cause);
@@ -73,6 +80,7 @@ public final class ThriftClient {
         if (cause instanceof IOException || cause instanceof CancellationException) {
             return new TTransportException("Thrift transport failed", cause);
         }
+
         String message = cause.getMessage();
         TApplicationException application = new TApplicationException(TApplicationException.INTERNAL_ERROR, message);
         application.initCause(cause);

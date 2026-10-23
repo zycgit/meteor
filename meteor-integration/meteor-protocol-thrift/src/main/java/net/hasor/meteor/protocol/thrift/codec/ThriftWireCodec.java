@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import net.hasor.cobble.StringUtils;
+import net.hasor.cobble.function.EConsumer;
 import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TConfiguration;
@@ -151,6 +152,7 @@ public final class ThriftWireCodec {
         if (consumed != bytes.length) {
             throw new TProtocolException(TProtocolException.INVALID_DATA, "Truncated Thrift message or trailing bytes");
         }
+
         String encoding = this.detectEncoding(bytes[0]);
         ThriftInputTransport input = new ThriftInputTransport(bytes, 0, bytes.length, this.configuration());
         TMessage message = this.createProtocol(encoding, input).readMessageBegin();
@@ -159,7 +161,12 @@ public final class ThriftWireCodec {
 
     public byte[] encode(String encoding, String name, byte type, int sequenceId, TBase<?, ?> body) throws TException {
         Objects.requireNonNull(body, "body");
-        return this.write(encoding, new TMessage(name, type, sequenceId), body::write);
+        return this.encodeBody(encoding, name, type, sequenceId, body::write);
+    }
+
+    byte[] encodeBody(String encoding, String name, byte type, int sequenceId, //
+            EConsumer<TProtocol, TException> body) throws TException {
+        return this.write(encoding, new TMessage(name, type, sequenceId), body);
     }
 
     public byte[] encodeException(String encoding, String name, int sequenceId, //
@@ -172,12 +179,12 @@ public final class ThriftWireCodec {
         return new ThriftMessageScanner(this, this.configuration());
     }
 
-    private byte[] write(String encoding, TMessage message, BodyWriter writer) throws TException {
+    private byte[] write(String encoding, TMessage message, EConsumer<TProtocol, TException> writer) throws TException {
         this.checkMessage(message);
         LimitedOutput output = new LimitedOutput(this.configuration());
         TProtocol protocol = this.createProtocol(encoding, output);
         protocol.writeMessageBegin(message);
-        writer.write(protocol);
+        writer.eAccept(protocol);
         protocol.writeMessageEnd();
         return output.bytes.toByteArray();
     }
@@ -439,10 +446,6 @@ public final class ThriftWireCodec {
             default:
                 throw new TProtocolException("Unknown Thrift JSON type: " + type);
         }
-    }
-
-    private interface BodyWriter {
-        void write(TProtocol protocol) throws TException;
     }
 
     private static final class LimitedOutput extends TEndpointTransport {
