@@ -14,7 +14,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 

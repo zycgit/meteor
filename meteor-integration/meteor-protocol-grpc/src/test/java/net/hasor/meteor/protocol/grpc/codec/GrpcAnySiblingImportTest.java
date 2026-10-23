@@ -14,7 +14,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import org.junit.Test;
@@ -44,10 +45,11 @@ public class GrpcAnySiblingImportTest {
                     .rsfService(EnvelopeService.class) //
                     .aliasName("grpc", "sibling_any.EnvelopeService") //
                     .serialize("Protobuf") //
-                    .bindResource(resource) //
+                    .bindResource("grpc", resource) //
                     .register();
             ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "grpc", Map.of("contextPath", "/"));
-            GrpcHttpCodec codec = new GrpcHttpCodec(protocol, context);
+            String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+            GrpcHttpCodec codec = new GrpcHttpCodec(protocol, new RouteMountIndex(endpointName, protocol), context);
             RequestPayload request = new RequestPayload();
             request.setServiceGroup(service.getBindGroup());
             request.setServiceName(service.getBindName());

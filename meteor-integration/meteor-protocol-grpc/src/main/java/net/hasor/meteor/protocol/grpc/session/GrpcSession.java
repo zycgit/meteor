@@ -28,7 +28,6 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.protocol.grpc.codec.GrpcHttpCodec;
-import net.hasor.meteor.protocol.grpc.codec.GrpcMethodShape;
 
 /**
  * Maps RPC requests to HTTP exchanges; the underlying channel owns HTTP wire ordering.
@@ -117,7 +116,7 @@ public final class GrpcSession implements ProtocolSession<HttpExchange> {
         try {
             RequestPayload request = this.codec.open(exchange.request());
             request.setRequestID(++this.requestId);
-            if (new GrpcMethodShape(this.codec.target(request)).streaming()) {
+            if (this.codec.shape(request).streaming()) {
                 this.receiveStream(exchange, request);
                 return;
             }
@@ -199,7 +198,7 @@ public final class GrpcSession implements ProtocolSession<HttpExchange> {
         }
         try {
             if (payload instanceof RequestPayload request && this.context.isOutbound()) {
-                if (new GrpcMethodShape(this.codec.target(request)).streaming()) {
+                if (this.codec.shape(request).streaming()) {
                     this.requestStream(request, sent);
                 } else {
                     this.request(request, sent);

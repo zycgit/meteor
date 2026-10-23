@@ -18,8 +18,10 @@ import com.google.protobuf.Descriptors.FileDescriptor;
 import com.google.protobuf.Descriptors.ServiceDescriptor;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
-import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import net.hasor.meteor.protocol.grpc.GrpcProtoSchema;
+import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolBinding;
+import net.hasor.meteor.protocol.grpc.binding.GrpcServiceBinding;
+import net.hasor.meteor.rpc.MetRequestLocal;
 
 /** 标准 v1 查询，仅暴露本实例实际发布且绑定 Protobuf 描述的服务。 */
 final class GrpcReflectionEndpoint implements GrpcReflectionService {
@@ -32,6 +34,8 @@ final class GrpcReflectionEndpoint implements GrpcReflectionService {
 
     @Override
     public Flow.Publisher<JsonNode> ServerReflectionInfo(Flow.Publisher<JsonNode> requests) {
+        // 调用线程携带真实本地地址；后续 Flow 回调不再依赖线程绑定的请求。
+        RouteMountIndex routes = this.services.routes(new MetRequestLocal().getTargetAddress());
         return subscriber -> requests.subscribe(new Flow.Subscriber<>() {
             @Override
             public void onSubscribe(Flow.Subscription subscription) {
@@ -40,7 +44,7 @@ final class GrpcReflectionEndpoint implements GrpcReflectionService {
 
             @Override
             public void onNext(JsonNode request) {
-                subscriber.onNext(GrpcReflectionEndpoint.this.respond(request));
+                subscriber.onNext(GrpcReflectionEndpoint.this.respond(request, routes));
             }
 
             @Override
@@ -55,13 +59,13 @@ final class GrpcReflectionEndpoint implements GrpcReflectionService {
         });
     }
 
-    private JsonNode respond(JsonNode request) {
+    private JsonNode respond(JsonNode request, RouteMountIndex routes) {
         ObjectNode response = MAPPER.createObjectNode();
         response.put("validHost", request.path("host").asText(""));
         response.set("originalRequest", request);
         try {
             // 每次查询读取已发布服务，动态发布和撤销不依赖另外一份服务登记表。
-            Map<String, ServiceDescriptor> published = this.descriptors();
+            Map<String, ServiceDescriptor> published = this.descriptors(routes);
             Map<String, FileDescriptor> files = new LinkedHashMap<>();
             for (ServiceDescriptor service : published.values()) {
                 this.collect(service.getFile(), files);
@@ -109,20 +113,16 @@ final class GrpcReflectionEndpoint implements GrpcReflectionService {
         }
     }
 
-    private Map<String, ServiceDescriptor> descriptors() {
+    private Map<String, ServiceDescriptor> descriptors(RouteMountIndex routes) {
         Map<String, ServiceDescriptor> result = new TreeMap<>();
         for (MetBindInfo<?> info : this.services.published()) {
-            if (!(info.getBindResource() instanceof GrpcProtoResource resource)) {
-                continue;
-            }
-            String coding = info.getSerializeType();
-            if (!StringUtils.isBlank(coding) && !StringUtils.equalsIgnoreCase(coding, "Protobuf")) {
+            ProtocolBinding endpoint = routes.binding(info);
+            if (endpoint == null) {
                 continue;
             }
             String name = info.getAliasName("grpc");
-            ServiceDescriptor descriptor = GrpcProtoSchema.fromResource(resource).service(name);
-            if (descriptor != null) {
-                result.put(name, descriptor);
+            if (endpoint.getDefinition() instanceof GrpcServiceBinding binding && binding.schema() != null) {
+                result.put(name, binding.service());
             }
         }
         return result;

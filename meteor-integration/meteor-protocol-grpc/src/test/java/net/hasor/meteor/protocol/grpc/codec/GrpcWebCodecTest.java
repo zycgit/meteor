@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPOutputStream;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import org.junit.Test;
 import static org.junit.Assert.*;

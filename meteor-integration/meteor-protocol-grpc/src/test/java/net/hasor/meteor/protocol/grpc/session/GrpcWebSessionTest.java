@@ -20,13 +20,14 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.GrpcProtocolTestAccess;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -209,15 +210,21 @@ public class GrpcWebSessionTest {
 
     private ProtocolSession<HttpExchange> session(MetContext context, ObservedNetwork network, //
             Received received, boolean outbound) {
+        ProtocolConfig config = this.config(context);
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        RouteMountIndex routes = new RouteMountIndex(endpointName, config);
         ProtocolSessionContext sessionContext = GrpcProtocolTestAccess.context(context, (task, delay) -> {
             throw new AssertionError("Web adapter must use RPC deadlines");
-        }, network.getLocal(), outbound);
-        return new GrpcWebProtocol().createSession(this.config(context), sessionContext, network, received::accept);
+        }, network.getLocal(), outbound, routes);
+        return new GrpcWebProtocol().createSession(config, sessionContext, network, received::accept);
     }
 
     private HttpRequest webRequest(MetContext context, RequestPayload payload) throws Exception {
         ProtocolConfig config = this.config(context);
-        HttpRequest request = new GrpcHttpCodec(config, context).encode(payload);
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        RouteMountIndex routes = new RouteMountIndex(endpointName, config);
+        GrpcHttpCodec codec = new GrpcHttpCodec(config, routes, context);
+        HttpRequest request = codec.encode(payload);
         byte[] body = new GrpcWebCodec(config).encodeRequest(request.body(), false);
         Map<String, List<String>> headers = Map.of("content-type", List.of("application/grpc-web+json"));
         return HttpRequest.newBuffered(request.method(), request.uri(), headers, body, 1, Map.of());
@@ -225,7 +232,9 @@ public class GrpcWebSessionTest {
 
     private HttpResponse webResponse(MetContext context, RequestPayload request) throws Exception {
         ProtocolConfig config = this.config(context);
-        HttpResponse nativeResponse = new GrpcHttpCodec(config, context).encode(request, this.response(101));
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        GrpcHttpCodec codec = new GrpcHttpCodec(config, new RouteMountIndex(endpointName, config), context);
+        HttpResponse nativeResponse = codec.encode(request, this.response(101));
         byte[] body = new GrpcWebCodec(config).encodeResponse( //
                 nativeResponse.body(), nativeResponse.trailers(), false);
         Map<String, List<String>> headers = Map.of("content-type", List.of("application/grpc-web+json"));

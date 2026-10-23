@@ -7,42 +7,50 @@
  */
 package net.hasor.meteor.protocol.grpc.builtin;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetExtension;
 import net.hasor.meteor.MetPublisher.ConfigurationBuilder;
+import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 
 /** 扩展只拥有自己发布的标准服务和事件订阅，不建立第二个 gRPC 服务器。 */
 final class GrpcBuiltinServicesExtension implements MetExtension {
-    private final MetContext           context;
-    private final List<ProtocolConfig> mounts = new ArrayList<>();
-    private final GrpcHealthEndpoint   health;
+    private final MetContext                   context;
+    private final Map<String, RouteMountIndex> mounts = new LinkedHashMap<>();
+    private final GrpcHealthEndpoint           health;
 
     GrpcBuiltinServicesExtension(MetContext context, boolean health, boolean reflection) throws Exception {
         this.context = context;
         for (ConnectorConfig connector : context.getSettings().getConnectorConfigs()) {
             for (ProtocolConfig mount : connector.protocols()) {
-                if (StringUtils.equalsIgnoreCase(mount.factoryName(), "grpc")) {
+                if (StringUtils.equalsIgnoreCase(mount.name(), "grpc")) {
                     if (!Boolean.parseBoolean(mount.option("streamBody", "false"))) {
                         String message = "Configure streamBody=true for gRPC Health Watch and Reflection";
                         throw new IllegalArgumentException(message);
                     }
-                    this.mounts.add(mount);
+                    this.mounts.put(connector.name(), new RouteMountIndex(connector.name(), mount));
                 }
             }
         }
+
         if (this.mounts.isEmpty()) {
             throw new IllegalArgumentException("GrpcBuiltinServicesFactory requires a gRPC protocol mount");
         }
+
         // 聚合入口位于 grpc 子目录，导入仍以资源根目录为基准，保留标准描述文件名。
         String resourceName = "grpc/meteor-grpc-services.proto";
         URL source = GrpcBuiltinServicesFactory.class.getResource("/META-INF/meteor/protocol/" + resourceName);
@@ -53,6 +61,7 @@ final class GrpcBuiltinServicesExtension implements MetExtension {
             if (health) {
                 this.publish(GrpcHealthService.class, this.health, "grpc.health.v1.Health", resource);
             }
+
             if (reflection) {
                 GrpcReflectionService v1 = new GrpcReflectionEndpoint(this);
                 this.publish(GrpcReflectionService.class, v1, "grpc.reflection.v1.ServerReflection", resource);
@@ -68,20 +77,39 @@ final class GrpcBuiltinServicesExtension implements MetExtension {
 
     private <T> void publish(Class<T> type, T implementation, String name, GrpcProtoResource resource) {
         ConfigurationBuilder<T> binding = this.context.publisher().rsfService(type, implementation);
-        binding.name(name).aliasName("grpc", name).serialize("Protobuf").bindResource(resource);
-        String first = this.mounts.get(0).name();
-        String[] additional = this.mounts.stream().skip(1).map(ProtocolConfig::name).toArray(String[]::new);
-        binding.protocol(first, additional).timeout(Integer.MAX_VALUE);
+        binding.name(name).aliasName("grpc", name).serialize("Protobuf");
+        binding.protocol("grpc").timeout(Integer.MAX_VALUE);
+
         List<String> paths = new ArrayList<>();
         for (Method method : MetRuntimeUtils.getServiceMethods(type)) {
             paths.add("/" + name + "/" + method.getName());
         }
+
         String[] additionalPaths = paths.stream().skip(1).toArray(String[]::new);
-        for (ProtocolConfig mount : this.mounts) {
-            // 标准方法使用完整根路径，不继承业务默认 context，也不开放服务目录。
-            binding.contextPathByExact(mount.name(), paths.get(0), additionalPaths);
-        }
+        // 标准方法使用完整根路径，不继承业务默认 context，也不开放服务目录。
+        binding.bindResource("grpc", resource);
+        binding.contextPathByExact("grpc", paths.get(0), additionalPaths);
         binding.register();
+    }
+
+    /** 在进入异步流之前，按本次调用实际到达的监听端点固定查询范围。 */
+    RouteMountIndex routes(InterAddress local) {
+        try {
+            InetAddress target = local.toSocketAddress().getAddress();
+            for (Map.Entry<String, RouteMountIndex> entry : this.mounts.entrySet()) {
+                InterAddress listen = this.context.getListenAddress(entry.getKey(), "grpc", local.getSchema());
+                if (listen == null || listen.getPort() != local.getPort()) {
+                    continue;
+                }
+                InetAddress host = listen.toSocketAddress().getAddress();
+                if (host.isAnyLocalAddress() || host.equals(target)) {
+                    return entry.getValue();
+                }
+            }
+        } catch (UnknownHostException failure) {
+            throw new IllegalStateException("Cannot resolve gRPC listening endpoint", failure);
+        }
+        throw new IllegalStateException("gRPC reflection requires a configured listening endpoint");
     }
 
     List<MetBindInfo<?>> published() {
@@ -94,8 +122,9 @@ final class GrpcBuiltinServicesExtension implements MetExtension {
             if (StringUtils.isBlank(service.getAliasName("grpc"))) {
                 continue;
             }
-            for (ProtocolConfig mount : this.mounts) {
-                if (mount.accepts(service.getBindProtocols())) {
+
+            for (RouteMountIndex routes : this.mounts.values()) {
+                if (routes.accepts(service)) {
                     result.add(service);
                     break;
                 }

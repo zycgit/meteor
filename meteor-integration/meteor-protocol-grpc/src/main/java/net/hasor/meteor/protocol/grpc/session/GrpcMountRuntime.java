@@ -8,27 +8,36 @@
 package net.hasor.meteor.protocol.grpc.session;
 import java.util.concurrent.*;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.protocol.grpc.codec.GrpcHttpCodec;
 
 /** Internal mount lifecycle shared by the root protocol factory and its active sessions. */
 public final class GrpcMountRuntime {
     private final ProtocolConfig        config;
+    private final RouteMountIndex       routes;
     private final GrpcClientRetryPolicy policy;
     private final int                   messageLimit;
     private       GrpcHttpCodec         codec;
     private       ExecutorService       workers;
     private       int                   sessions;
 
-    public GrpcMountRuntime(ProtocolConfig config) {
+    public GrpcMountRuntime(ProtocolConfig config, RouteMountIndex routes) {
         this.config = config;
+        this.routes = routes;
         this.policy = new GrpcClientRetryPolicy(config);
         this.messageLimit = config.integer("maxMessageSize", 4 * 1024 * 1024);
     }
 
+    /** 发布时只检查已声明的选项，不创建或缓存挂载运行状态。 */
+    public static void validateConfiguration(ProtocolConfig config) {
+        new GrpcClientRetryPolicy(config);
+        config.integer("maxMessageSize", 4 * 1024 * 1024);
+    }
+
     public synchronized GrpcMountRuntime retain(MetContext context) {
         if (this.sessions == 0) {
-            this.codec = new GrpcHttpCodec(this.config, context);
+            this.codec = new GrpcHttpCodec(this.config, this.routes, context);
             this.workers = this.createWorkers(context.getClassLoader());
         }
         this.sessions++;
@@ -39,7 +48,7 @@ public final class GrpcMountRuntime {
         int maximum = this.config.integer("streamWorkers", 64);
         SynchronousQueue<Runnable> workQueue = new SynchronousQueue<>();
         return new ThreadPoolExecutor(0, maximum, 30, TimeUnit.SECONDS, workQueue, task -> {
-            Thread thread = new Thread(task, "Meteor-gRPC-Flow-" + this.config.mountId());
+            Thread thread = new Thread(task, "Meteor-gRPC-Flow-" + this.config.name());
             thread.setContextClassLoader(loader);
             thread.setDaemon(true);
             return thread;

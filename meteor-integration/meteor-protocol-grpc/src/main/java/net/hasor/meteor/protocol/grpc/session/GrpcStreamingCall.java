@@ -30,8 +30,8 @@ import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
+import net.hasor.meteor.protocol.grpc.binding.GrpcMethodShape;
 import net.hasor.meteor.protocol.grpc.codec.GrpcHttpCodec;
-import net.hasor.meteor.protocol.grpc.codec.GrpcMethodShape;
 import net.hasor.meteor.rpc.MetCaller;
 
 /** 将一次 RPC 的两条消息序列映射到 HTTP/2 的请求和响应方向。 */
@@ -60,7 +60,7 @@ final class GrpcStreamingCall {
             Consumer<Runnable> serial, ObjLongConsumer<Payload> messages) {
         this.request = request;
         this.codec = codec;
-        this.method = new GrpcMethodShape(codec.target(request));
+        this.method = codec.shape(request);
         this.client = client;
         this.workers = workers;
         this.serial = serial;

@@ -10,7 +10,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -21,7 +22,8 @@ public class GrpcMountRuntimeTest {
         MetConfiguration configuration = new MetConfiguration();
         try (MetContext context = configuration.buildContext()) {
             ProtocolConfig config = ProtocolConfig.newConfig("grpc", "grpc", Map.of("streamWorkers", "2"));
-            GrpcMountRuntime runtime = new GrpcMountRuntime(config);
+            RouteMountIndex routes = new RouteMountIndex("runtime-test", config);
+            GrpcMountRuntime runtime = new GrpcMountRuntime(config, routes);
             ExecutorService first = (ExecutorService) runtime.retain(context).workers();
             ExecutorService second = (ExecutorService) runtime.retain(context).workers();
             assertSame(first, second);

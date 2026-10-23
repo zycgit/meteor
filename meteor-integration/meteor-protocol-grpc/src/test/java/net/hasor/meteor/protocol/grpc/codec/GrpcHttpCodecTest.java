@@ -22,11 +22,12 @@ import net.hasor.example.protocol.grpc.Message;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetTimeoutException;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
@@ -217,8 +218,7 @@ public class GrpcHttpCodecTest {
 
             // 订阅方的运行期编码仍明确拒绝缺失资源，不自动改成另一种编码。
             GrpcHttpCodec codec = this.codec(context, 1024);
-            var failure = assertThrows(IllegalArgumentException.class, () -> codec.encode(request));
-            assertEquals("Protobuf service must bind proto file.", failure.getMessage());
+            assertThrows(UnsupportedOperationException.class, () -> codec.encode(request));
         }
     }
 
@@ -417,7 +417,8 @@ public class GrpcHttpCodecTest {
     private GrpcHttpCodec codec(MetContext context, int limit) {
         Map<String, String> options = Map.of("contextPath", "/", "maxMessageSize", String.valueOf(limit));
         ProtocolConfig protocol = ProtocolConfig.newConfig("grpc", "grpc", options);
-        return new GrpcHttpCodec(protocol, context);
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        return new GrpcHttpCodec(protocol, new RouteMountIndex(endpointName, protocol), context);
     }
 
     private HttpRequest request(byte[] body, String type) {

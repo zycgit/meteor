@@ -18,7 +18,7 @@ public final class GrpcProtocolTestAccess {
 
     public static ProtocolSessionContext context( //
             MetContext context, BiFunction<Runnable, Long, Cancellable> scheduler, //
-            InterAddress bindAddress, boolean outbound) {
-        return new ProtocolSessionContext(context, scheduler, bindAddress, outbound);
+            InterAddress bindAddress, boolean outbound, RouteMountIndex routes) {
+        return new ProtocolSessionContext(context, scheduler, bindAddress, outbound, routes);
     }
 }

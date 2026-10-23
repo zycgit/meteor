@@ -12,7 +12,7 @@ import java.math.RoundingMode;
 import java.util.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** 解析 gRPC Service Config 的重试部分；策略留在插件，每次 RPC 仍占用原 Caller 的一个调用槽。 */
 final class GrpcClientRetryPolicy {

@@ -11,17 +11,17 @@ import java.util.Map;
 import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
+import net.hasor.meteor.protocol.grpc.binding.GrpcMethodShape;
 import net.hasor.meteor.protocol.grpc.codec.GrpcHttpCodec;
-import net.hasor.meteor.protocol.grpc.codec.GrpcMethodShape;
 import net.hasor.meteor.protocol.grpc.codec.GrpcWebCodec;
 import net.hasor.meteor.protocol.grpc.codec.GrpcWebCors;
 
@@ -97,7 +97,7 @@ public final class GrpcWebSession implements ProtocolSession<HttpExchange> {
         if (request.isMessage()) {
             throw new GrpcStatusException(12, "gRPC-Web requires a response", null, null);
         }
-        GrpcMethodShape method = new GrpcMethodShape(this.codec.target(request));
+        GrpcMethodShape method = this.codec.shape(request);
         if (method.streamingRequest()) {
             throw new GrpcStatusException(12, "gRPC-Web does not support client streaming", null, null);
         }

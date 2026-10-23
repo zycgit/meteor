@@ -22,15 +22,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.GrpcProtocolTestAccess;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.MetTimeoutException;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
@@ -57,7 +58,9 @@ public class GrpcSessionTest {
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = this.session(context, network, received, false);
             session.connected();
-            GrpcHttpCodec codec = new GrpcHttpCodec(this.config(context), context);
+            ProtocolConfig config = this.config(context);
+            String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+            GrpcHttpCodec codec = new GrpcHttpCodec(config, new RouteMountIndex(endpointName, config), context);
             RequestPayload wireRequest = this.request(service);
             HttpExchange exchange = new HttpExchange(codec.encode(wireRequest));
             session.receive(exchange);
@@ -94,7 +97,9 @@ public class GrpcSessionTest {
             RequestPayload request = this.request(service);
             session.send(request);
             HttpExchange exchange = network.writes.get(0);
-            GrpcHttpCodec codec = new GrpcHttpCodec(this.config(context), context);
+            ProtocolConfig config = this.config(context);
+            String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+            GrpcHttpCodec codec = new GrpcHttpCodec(config, new RouteMountIndex(endpointName, config), context);
             assertTrue(exchange.respond(codec.encode(request, this.response(request.getRequestID()))));
             assertTrue(received.isEmpty());
 
@@ -169,7 +174,9 @@ public class GrpcSessionTest {
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = this.session(context, network, received, false);
             session.connected();
-            GrpcHttpCodec codec = new GrpcHttpCodec(this.config(context), context);
+            ProtocolConfig config = this.config(context);
+            String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+            GrpcHttpCodec codec = new GrpcHttpCodec(config, new RouteMountIndex(endpointName, config), context);
             HttpExchange exchange = new HttpExchange(codec.encode(this.request(service)));
             session.receive(exchange);
             RequestPayload request = (RequestPayload) received.get(0);
@@ -217,7 +224,10 @@ public class GrpcSessionTest {
             List<Payload> received = new ArrayList<>();
             ProtocolSession<HttpExchange> session = this.session(context, network, received, false);
             session.connected();
-            HttpRequest buffered = new GrpcHttpCodec(this.config(context), context).encode(this.request(service));
+            ProtocolConfig config = this.config(context);
+            String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+            GrpcHttpCodec codec = new GrpcHttpCodec(config, new RouteMountIndex(endpointName, config), context);
+            HttpRequest buffered = codec.encode(this.request(service));
             HttpBodyStream body = new HttpBodyStream(64);
             body.offer(buffered.body(), () -> {
             });
@@ -249,11 +259,14 @@ public class GrpcSessionTest {
 
     private ProtocolSession<HttpExchange> session(MetContext context, ControlledNetwork network, //
             List<Payload> received, boolean outbound) {
+        ProtocolConfig config = this.config(context);
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        RouteMountIndex routes = new RouteMountIndex(endpointName, config);
         ProtocolSessionContext sessionContext = GrpcProtocolTestAccess.context(context, (action, delay) -> {
             throw new AssertionError("Unary lifecycle tests must use RPC deadlines");
-        }, network.getLocal(), outbound);
+        }, network.getLocal(), outbound, routes);
         return new GrpcProtocol().createSession( //
-                this.config(context), sessionContext, network, (payload, id) -> received.add(payload));
+                config, sessionContext, network, (payload, id) -> received.add(payload));
     }
 
     private RequestPayload request(MetBindInfo<?> service) {

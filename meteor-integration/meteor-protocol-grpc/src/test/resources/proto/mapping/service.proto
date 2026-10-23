@@ -1,0 +1,19 @@
+syntax = "proto3";
+package mapping;
+
+enum State {
+  UNSET = 0;
+  READY = 7;
+}
+
+message Note {
+  optional string description = 7;
+  int32 number = 2;
+  repeated Note children = 4;
+  map<string, Note> by_name = 5;
+  optional State status = 9;
+}
+
+service Notes {
+  rpc Echo(Note) returns (Note);
+}

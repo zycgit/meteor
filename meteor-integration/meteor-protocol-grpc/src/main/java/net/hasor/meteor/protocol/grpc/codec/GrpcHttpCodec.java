@@ -14,20 +14,12 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CancellationException;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.google.protobuf.Descriptors.Descriptor;
-import com.google.protobuf.Descriptors.FileDescriptor;
-import com.google.protobuf.Descriptors.MethodDescriptor;
-import com.google.protobuf.DynamicMessage;
-import com.google.protobuf.util.JsonFormat;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetOptionSet;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.RouteMount;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.RouteSelection;
 import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
@@ -36,28 +28,27 @@ import net.hasor.meteor.domain.*;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.protocol.grpc.GrpcMetadata;
-import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import net.hasor.meteor.protocol.grpc.GrpcProtoSchema;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
+import net.hasor.meteor.protocol.grpc.binding.GrpcMethodShape;
+import net.hasor.meteor.protocol.grpc.binding.GrpcServiceBinding;
 import net.hasor.meteor.serialize.SerializeCoder;
 
 /** 负责 Java 消息与标准 gRPC 报文之间的转换，调用仍交给 Caller/Dispatcher。 */
 public final class GrpcHttpCodec {
-    private static final ObjectMapper                                    MAPPER;
-    private static final Set<String>                                     HTTP_HEADERS;
-    private final        ProtocolConfig                                  config;
-    private final        MetContext                                      context;
-    private final        GrpcFrameCodec                                  frames;
-    private final        String                                          compression;
-    private final        Map<GrpcProtoResource, JsonFormat.TypeRegistry> typeRegistries = new WeakHashMap<>();
+    private static final Set<String>     HTTP_HEADERS;
+    private final        ProtocolConfig  config;
+    private final        RouteMountIndex routes;
+    private final        MetContext      context;
+    private final        GrpcFrameCodec  frames;
+    private final        String          compression;
 
     static {
-        MAPPER = JsonMapper.builder().serializationInclusion(JsonInclude.Include.NON_NULL).build();
         HTTP_HEADERS = Set.of("content-type", "content-length", "host", "connection", "transfer-encoding", "te", "user-agent");
     }
 
-    public GrpcHttpCodec(ProtocolConfig config, MetContext context) {
+    public GrpcHttpCodec(ProtocolConfig config, RouteMountIndex routes, MetContext context) {
         this.config = config;
+        this.routes = routes;
         this.context = context;
         this.frames = new GrpcFrameCodec(config.integer("maxMessageSize", 4 * 1024 * 1024));
         this.compression = config.option("compression", "identity").toLowerCase(Locale.ROOT);
@@ -98,10 +89,11 @@ public final class GrpcHttpCodec {
         if (service == null || service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
             throw new UnsupportedOperationException("Unknown gRPC service: " + parts[0]);
         }
-        if (!this.config.accepts(service, mount)) {
+        if (!this.routes.accepts(service, mount)) {
             throw new UnsupportedOperationException("Service is not exposed on this protocol mount");
         }
-        Method method = this.findMethod(service, parts[1]);
+
+        Method method = this.definition(service).remoteMethod(parts[1]);
         String defaultCoding = service.getSerializeType();
         if (StringUtils.isBlank(defaultCoding)) {
             defaultCoding = this.config.option("serializeType", "Protobuf");
@@ -128,7 +120,7 @@ public final class GrpcHttpCodec {
     private RouteMount mount(HttpRequest input) {
         RouteSelection route = input.route();
         if (route != null) {
-            if (!StringUtils.equals(route.mountId(), this.config.mountId())) {
+            if (!StringUtils.equals(route.protocolName(), this.config.name())) {
                 throw new IllegalArgumentException("gRPC request belongs to another protocol mount");
             }
             return route.mount();
@@ -139,11 +131,11 @@ public final class GrpcHttpCodec {
         int separator = path.indexOf('/', 1);
         if (path.startsWith("/") && separator > 1) {
             MetBindInfo<?> service = this.context.getServiceInfo(this.config.name(), path.substring(1, separator));
-            if (service != null && this.config.exactPaths(service).contains(path)) {
+            if (service != null && this.routes.accepts(service) && this.routes.exactPaths(service).contains(path)) {
                 return RouteMount.exact(path);
             }
         }
-        return this.config.matchContext(path);
+        return this.routes.match(path);
     }
 
     public HttpRequest encode(RequestPayload request) throws Exception {
@@ -159,7 +151,8 @@ public final class GrpcHttpCodec {
 
         String coding = request.getSerializeType();
         byte[] body = this.encode(service, method, coding, request.getParameterValues().get(0), true);
-        String path = this.config.requestPath(service, this.alias(service) + "/" + method.getName());
+        String remoteName = this.definition(service).remoteName(method);
+        String path = this.routes.requestPath(service, this.alias(service) + "/" + remoteName);
         Map<String, List<String>> headers = this.metadata(request);
         headers.putAll(GrpcMetadata.from(request).getHeaders());
         headers.put("content-type", List.of(this.contentType(coding)));
@@ -172,7 +165,8 @@ public final class GrpcHttpCodec {
 
     public HttpRequest streamRequest(RequestPayload request, HttpBodyStream body) {
         MetBindInfo<?> service = this.service(request);
-        String path = this.config.requestPath(service, this.alias(service) + "/" + request.getTargetMethod());
+        String remoteName = this.definition(service).remoteName(this.target(request));
+        String path = this.routes.requestPath(service, this.alias(service) + "/" + remoteName);
         Map<String, List<String>> headers = this.metadata(request);
         headers.putAll(GrpcMetadata.from(request).getHeaders());
         headers.put("content-type", List.of(this.contentType(request.getSerializeType())));
@@ -195,11 +189,7 @@ public final class GrpcHttpCodec {
         }
 
         MetBindInfo<?> service = this.service(request);
-        Descriptor descriptor = this.descriptor(service, this.target(request), parameter);
-        DynamicMessage message = DynamicMessage.parseFrom(descriptor, bytes);
-        JsonFormat.TypeRegistry registry = this.typeRegistry(service);
-        String json = JsonFormat.printer().usingTypeRegistry(registry).print(message);
-        return MAPPER.readValue(json, type);
+        return this.definition(service).decode(this.target(request), bytes, parameter);
     }
 
     public HttpResponse encode(RequestPayload request, ResponsePayload response) throws Exception {
@@ -445,70 +435,25 @@ public final class GrpcHttpCodec {
             return this.coder(coding).encode(value);
         }
 
-        Descriptor type = this.descriptor(service, method, request);
-        DynamicMessage.Builder message = DynamicMessage.newBuilder(type);
-        JsonFormat.Parser parser = JsonFormat.parser().usingTypeRegistry(this.typeRegistry(service));
-        parser.merge(MAPPER.writeValueAsString(value), message);
-        return message.build().toByteArray();
+        return this.definition(service).encode(method, value, request).toByteArray();
     }
 
     private Object decode(MetBindInfo<?> service, Method method, String coding, byte[] body, boolean request) throws Exception {
-        GrpcMethodShape signature = new GrpcMethodShape(method);
+        GrpcMethodShape signature = this.definition(service).shape(method);
         Class<?> type = request ? signature.requestType() : signature.responseType();
         if (!StringUtils.equalsIgnoreCase("Protobuf", coding)) {
             return this.coder(coding).decode(body, type);
         }
 
-        Descriptor descriptor = this.descriptor(service, method, request);
-        DynamicMessage message = DynamicMessage.parseFrom(descriptor, body);
-        String json = JsonFormat.printer().usingTypeRegistry(this.typeRegistry(service)).print(message);
-        return MAPPER.readValue(json, type);
+        return this.definition(service).decode(method, body, request);
     }
 
-    private Descriptor descriptor(MetBindInfo<?> service, Method method, boolean request) {
-        GrpcProtoSchema schema = GrpcProtoSchema.fromResource(this.resource(service));
-        MethodDescriptor descriptor = schema.method(this.alias(service), method.getName());
-        GrpcMethodShape signature = new GrpcMethodShape(method);
-        boolean client = descriptor.isClientStreaming() == signature.streamingRequest();
-        boolean server = descriptor.isServerStreaming() == signature.streamingResponse();
-        if (!client || !server) {
-            throw new IllegalArgumentException("Java Flow signature differs from proto RPC: " + method.getName());
+    private GrpcServiceBinding definition(MetBindInfo<?> service) {
+        ProtocolBinding binding = this.routes.binding(service);
+        if (binding == null || !(binding.getDefinition() instanceof GrpcServiceBinding definition)) {
+            throw new UnsupportedOperationException("Service has no prepared gRPC binding: " + service.getBindID());
         }
-        return request ? descriptor.getInputType() : descriptor.getOutputType();
-    }
-
-    private JsonFormat.TypeRegistry typeRegistry(MetBindInfo<?> service) {
-        GrpcProtoResource resource = this.resource(service);
-        synchronized (this.typeRegistries) {
-            return this.typeRegistries.computeIfAbsent(resource, this::createTypeRegistry);
-        }
-    }
-
-    private JsonFormat.TypeRegistry createTypeRegistry(GrpcProtoResource resource) {
-        JsonFormat.TypeRegistry.Builder registry = JsonFormat.TypeRegistry.newBuilder();
-        Set<String> visited = new HashSet<>();
-        for (FileDescriptor descriptor : GrpcProtoSchema.fromResource(resource).fileDescriptors()) {
-            this.addTypes(descriptor, registry, visited);
-        }
-        return registry.build();
-    }
-
-    private GrpcProtoResource resource(MetBindInfo<?> service) {
-        if (service.getBindResource() instanceof GrpcProtoResource resource) {
-            return resource;
-        }
-        throw new IllegalArgumentException("Protobuf service must bind proto file.");
-    }
-
-    private void addTypes(FileDescriptor file, JsonFormat.TypeRegistry.Builder registry, Set<String> visited) {
-        if (!visited.add(file.getFullName())) {
-            return;
-        }
-
-        for (FileDescriptor dependency : file.getDependencies()) {
-            this.addTypes(dependency, registry, visited);
-        }
-        registry.add(file.getMessageTypes());
+        return definition;
     }
 
     private Map<String, List<String>> metadata(MetOptionSet options) {
@@ -610,7 +555,11 @@ public final class GrpcHttpCodec {
         String group = request.getServiceGroup();
         String name = request.getServiceName();
         String version = request.getServiceVersion();
-        return this.context.getServiceInfo(group, name, version);
+        MetBindInfo<?> service = this.context.getServiceInfo(group, name, version);
+        if (service == null || !this.routes.accepts(service)) {
+            throw new UnsupportedOperationException("Service is not exposed on this protocol endpoint");
+        }
+        return service;
     }
 
     private String alias(MetBindInfo<?> service) {
@@ -625,32 +574,22 @@ public final class GrpcHttpCodec {
         MetBindInfo<?> service = this.service(request);
         Method method = this.findMethod(service, request.getTargetMethod());
         if (StringUtils.equalsIgnoreCase(request.getSerializeType(), "Protobuf")) {
-            this.descriptor(service, method, true);
+            this.definition(service).descriptor(method);
         }
         return method;
     }
 
-    private Method findMethod(MetBindInfo<?> service, String name) {
-        Method selected = null;
-        for (Method method : MetRuntimeUtils.getServiceMethods(service.getBindType())) {
-            if (StringUtils.equals(name, method.getName())) {
-                if (selected != null) {
-                    throw new IllegalArgumentException("gRPC method names cannot be overloaded: " + name);
-                }
-                selected = method;
-            }
-        }
+    public GrpcMethodShape shape(RequestPayload request) {
+        return this.definition(this.service(request)).shape(this.target(request));
+    }
 
-        if (selected == null) {
-            throw new UnsupportedOperationException("Unknown gRPC method: " + name);
-        }
-        new GrpcMethodShape(selected);
-        return selected;
+    private Method findMethod(MetBindInfo<?> service, String name) {
+        return this.definition(service).javaMethod(name);
     }
 
     private Method method(MetBindInfo<?> service, String name) {
         Method selected = this.findMethod(service, name);
-        if (new GrpcMethodShape(selected).streaming()) {
+        if (this.definition(service).shape(selected).streaming()) {
             throw new IllegalArgumentException("Streaming methods require incremental HTTP bodies");
         }
         return selected;
@@ -729,5 +668,4 @@ public final class GrpcHttpCodec {
             default -> 13;
         };
     }
-
 }

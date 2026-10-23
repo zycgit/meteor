@@ -8,9 +8,9 @@
 package net.hasor.meteor.protocol.grpc.codec;
 import java.util.*;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.connector.ProtocolConfig;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** gRPC-Web 浏览器预检与响应字段映射，供协议会话内部使用。 */
 public final class GrpcWebCors {

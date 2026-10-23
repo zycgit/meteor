@@ -20,10 +20,11 @@ import net.hasor.example.protocol.grpc.EchoImpl;
 import net.hasor.example.protocol.grpc.Message;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.OptionInfo;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
@@ -49,7 +50,7 @@ public class GrpcCompletenessTest {
         List<String> binaryValues = List.of("AP8=, , YQ", "Yg==");
         Map<String, List<String>> headers = Map.of("x-data-bin", binaryValues, "x-text", List.of("one", "two"));
         ProtocolConfig config = ProtocolConfig.newConfig("grpc", "grpc", Map.of());
-        GrpcHttpCodec codec = new GrpcHttpCodec(config, null);
+        GrpcHttpCodec codec = new GrpcHttpCodec(config, new RouteMountIndex("metadata-test", config), null);
         OptionInfo options = new OptionInfo();
         codec.readHeaders(headers, options);
         GrpcMetadata metadata = GrpcMetadata.from(options);
@@ -107,7 +108,7 @@ public class GrpcCompletenessTest {
     @Test
     public void http400FallbackMapsToGrpc13() throws Exception {
         // 准备 HTTP 400 且未携带 gRPC 状态的响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             HttpResponse response = HttpResponse.newBuffered(400, Map.of(), new byte[0], Map.of());
 
@@ -121,7 +122,7 @@ public class GrpcCompletenessTest {
     @Test
     public void http401FallbackMapsToGrpc16() throws Exception {
         // 准备 HTTP 401 且未携带 gRPC 状态的响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             HttpResponse response = HttpResponse.newBuffered(401, Map.of(), new byte[0], Map.of());
 
@@ -135,7 +136,7 @@ public class GrpcCompletenessTest {
     @Test
     public void http403FallbackMapsToGrpc7() throws Exception {
         // 准备 HTTP 403 且未携带 gRPC 状态的响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             HttpResponse response = HttpResponse.newBuffered(403, Map.of(), new byte[0], Map.of());
 
@@ -149,7 +150,7 @@ public class GrpcCompletenessTest {
     @Test
     public void http404FallbackMapsToGrpc12() throws Exception {
         // 准备 HTTP 404 且未携带 gRPC 状态的响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             HttpResponse response = HttpResponse.newBuffered(404, Map.of(), new byte[0], Map.of());
 
@@ -163,7 +164,7 @@ public class GrpcCompletenessTest {
     @Test
     public void http429FallbackMapsToGrpc14() throws Exception {
         // 准备 HTTP 429 且未携带 gRPC 状态的响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             HttpResponse response = HttpResponse.newBuffered(429, Map.of(), new byte[0], Map.of());
 
@@ -177,7 +178,7 @@ public class GrpcCompletenessTest {
     @Test
     public void http502FallbackMapsToGrpc14() throws Exception {
         // 准备 HTTP 502 且未携带 gRPC 状态的响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             HttpResponse response = HttpResponse.newBuffered(502, Map.of(), new byte[0], Map.of());
 
@@ -191,7 +192,7 @@ public class GrpcCompletenessTest {
     @Test
     public void http503FallbackMapsToGrpc14() throws Exception {
         // 准备 HTTP 503 且未携带 gRPC 状态的响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             HttpResponse response = HttpResponse.newBuffered(503, Map.of(), new byte[0], Map.of());
 
@@ -205,7 +206,7 @@ public class GrpcCompletenessTest {
     @Test
     public void http504FallbackMapsToGrpc14() throws Exception {
         // 准备 HTTP 504 且未携带 gRPC 状态的响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             HttpResponse response = HttpResponse.newBuffered(504, Map.of(), new byte[0], Map.of());
 
@@ -219,7 +220,7 @@ public class GrpcCompletenessTest {
     @Test
     public void http200FallbackMapsToGrpc2() throws Exception {
         // 准备 HTTP 200 且未携带 gRPC 状态的响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             HttpResponse response = HttpResponse.newBuffered(200, Map.of(), new byte[0], Map.of());
 
@@ -233,7 +234,7 @@ public class GrpcCompletenessTest {
     @Test
     public void invalidPercentEncodingRemainsReadable() throws Exception {
         // 构造含非法百分号序列和字面加号的错误描述。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             Map<String, List<String>> trailers = Map.of("grpc-status", List.of("3"), //
                     "grpc-message", List.of("broken%XX+message"));
@@ -258,7 +259,7 @@ public class GrpcCompletenessTest {
     @Test
     public void errorDetailsCannotOverrideOkStatus() throws Exception {
         // 构造外层成功但详情携带错误码的矛盾响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             GrpcHttpCodec codec = codec(context, Map.of());
             Map<String, List<String>> trailers = Map.of("grpc-status", List.of("0"), //
                     "grpc-status-details-bin", List.of("CAM"));
@@ -273,7 +274,7 @@ public class GrpcCompletenessTest {
     @Test
     public void gzipFrameRoundTripsIndependently() throws Exception {
         // 为可压缩正文开启 gzip 和消息大小上限。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             var service = context.publisher().rsfService(Echo.class, new EchoImpl());
             service.aliasName("grpc", "example.Echo").serialize("Json").register();
             Map<String, String> options = Map.of("compression", "gzip", "maxMessageSize", "2048");
@@ -291,7 +292,7 @@ public class GrpcCompletenessTest {
     @Test
     public void responseUsesIdentityWithoutPeerGzipSupport() throws Exception {
         // 服务端支持 gzip，但请求未声明接受压缩。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             var service = context.publisher().rsfService(Echo.class, new EchoImpl());
             service.aliasName("grpc", "example.Echo").serialize("Json").register();
             Map<String, String> options = Map.of("compression", "gzip", "maxMessageSize", "2048");
@@ -316,7 +317,7 @@ public class GrpcCompletenessTest {
     @Test
     public void responseUsesGzipWhenPeerAcceptsIt() throws Exception {
         // 服务端支持 gzip，并准备可压缩响应。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             var service = context.publisher().rsfService(Echo.class, new EchoImpl());
             service.aliasName("grpc", "example.Echo").serialize("Json").register();
             Map<String, String> options = Map.of("compression", "gzip", "maxMessageSize", "2048");
@@ -342,7 +343,7 @@ public class GrpcCompletenessTest {
     @Test
     public void gzipEncodingEnforcesUncompressedLimit() throws Exception {
         // 启用 gzip，并将未压缩消息上限设为 2048 字节。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             var service = context.publisher().rsfService(Echo.class, new EchoImpl());
             service.aliasName("grpc", "example.Echo").serialize("Json").register();
             Map<String, String> options = Map.of("compression", "gzip", "maxMessageSize", "2048");
@@ -357,7 +358,7 @@ public class GrpcCompletenessTest {
     @Test
     public void unknownCompressedEncodingIsRejected() throws Exception {
         // 生成合法 gzip 消息帧。
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             var service = context.publisher().rsfService(Echo.class, new EchoImpl());
             service.aliasName("grpc", "example.Echo").serialize("Json").register();
             Map<String, String> options = Map.of("compression", "gzip", "maxMessageSize", "2048");
@@ -384,12 +385,12 @@ public class GrpcCompletenessTest {
                  "instant":"2026-10-12T00:00:00Z","elapsed":"1.250s","wrapped":0,
                  "extra":{"nullValue":null,"list":[1.0,true,"text"]},"mask":"signedValue,children.name"}
                 """);
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             context.publisher() //
                     .rsfService(Types.class) //
                     .aliasName("grpc", "example.Types") //
                     .serialize("Protobuf") //
-                    .bindResource(resource) //
+                    .bindResource("grpc", resource) //
                     .register();
             GrpcHttpCodec codec = codec(context, Map.of());
             RequestPayload request = new RequestPayload();
@@ -431,12 +432,12 @@ public class GrpcCompletenessTest {
                  "instant":"2026-10-12T00:00:00Z","elapsed":"1.250s","wrapped":0,
                  "extra":{"nullValue":null,"list":[1.0,true,"text"]},"mask":"signedValue,children.name"}
                 """);
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             context.publisher() //
                     .rsfService(Types.class) //
                     .aliasName("grpc", "example.Types") //
                     .serialize("Protobuf") //
-                    .bindResource(resource) //
+                    .bindResource("grpc", resource) //
                     .register();
             GrpcHttpCodec codec = codec(context, Map.of());
             RequestPayload request = new RequestPayload();
@@ -468,12 +469,12 @@ public class GrpcCompletenessTest {
                  "instant":"2026-10-12T00:00:00Z","elapsed":"1.250s","wrapped":0,
                  "extra":{"nullValue":null,"list":[1.0,true,"text"]},"mask":"signedValue,children.name"}
                 """);
-        try (MetContext context = new MetConfiguration().buildContext()) {
+        try (MetContext context = configuration().buildContext()) {
             context.publisher() //
                     .rsfService(Types.class) //
                     .aliasName("grpc", "example.Types") //
                     .serialize("Protobuf") //
-                    .bindResource(resource) //
+                    .bindResource("grpc", resource) //
                     .register();
             GrpcHttpCodec codec = codec(context, Map.of());
             RequestPayload request = new RequestPayload();
@@ -492,10 +493,17 @@ public class GrpcCompletenessTest {
         }
     }
 
+    private static MetConfiguration configuration() {
+        MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc");
+        configuration.connector("http").protocol("grpc");
+        return configuration;
+    }
+
     private static GrpcHttpCodec codec(MetContext context, Map<String, String> options) {
         Map<String, String> mounted = new LinkedHashMap<>(options);
         mounted.putIfAbsent("contextPath", "/");
         ProtocolConfig config = ProtocolConfig.newConfig("grpc", "grpc", mounted);
-        return new GrpcHttpCodec(config, context);
+        String endpointName = context.getSettings().getConnectorConfigs().iterator().next().name();
+        return new GrpcHttpCodec(config, new RouteMountIndex(endpointName, config), context);
     }
 }

@@ -7,8 +7,7 @@
  */
 package net.hasor.meteor.protocol.grpc.session;
 import java.util.Map;
-import io.grpc.Status;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -46,9 +45,9 @@ public class GrpcClientRetryPolicyTest {
                 """;
         GrpcRetryMethodPolicy method = this.policy(config).method("/test.Service/echo");
 
-        // 官方状态值应被识别，未配置的未实现错误不能触发重试。
-        assertTrue(method.retryable(Status.FAILED_PRECONDITION.getCode().value()));
-        assertFalse(method.retryable(Status.UNIMPLEMENTED.getCode().value()));
+        // gRPC 标准状态 9 应被识别，未配置的未实现错误 12 不能触发重试。
+        assertTrue(method.retryable(9));
+        assertFalse(method.retryable(12));
     }
 
     @Test
@@ -62,9 +61,9 @@ public class GrpcClientRetryPolicyTest {
                 """;
         GrpcRetryMethodPolicy method = this.policy(config).method("/test.Service/echo");
 
-        // 官方状态值应被识别，未配置的前置条件失败不能触发重试。
-        assertTrue(method.retryable(Status.ABORTED.getCode().value()));
-        assertFalse(method.retryable(Status.FAILED_PRECONDITION.getCode().value()));
+        // gRPC 标准状态 10 应被识别，未配置的前置条件失败 9 不能触发重试。
+        assertTrue(method.retryable(10));
+        assertFalse(method.retryable(9));
     }
 
     @Test
@@ -78,9 +77,9 @@ public class GrpcClientRetryPolicyTest {
                 """;
         GrpcRetryMethodPolicy method = this.policy(config).method("/test.Service/echo");
 
-        // 官方状态值应被识别，未配置的事务中止不能触发重试。
-        assertTrue(method.retryable(Status.OUT_OF_RANGE.getCode().value()));
-        assertFalse(method.retryable(Status.ABORTED.getCode().value()));
+        // gRPC 标准状态 11 应被识别，未配置的事务中止 10 不能触发重试。
+        assertTrue(method.retryable(11));
+        assertFalse(method.retryable(10));
     }
 
     @Test
@@ -94,9 +93,9 @@ public class GrpcClientRetryPolicyTest {
                 """;
         GrpcRetryMethodPolicy method = this.policy(config).method("/test.Service/echo");
 
-        // 官方状态值应被识别，未配置的范围错误不能触发重试。
-        assertTrue(method.retryable(Status.UNIMPLEMENTED.getCode().value()));
-        assertFalse(method.retryable(Status.OUT_OF_RANGE.getCode().value()));
+        // gRPC 标准状态 12 应被识别，未配置的范围错误 11 不能触发重试。
+        assertTrue(method.retryable(12));
+        assertFalse(method.retryable(11));
     }
 
     @Test

@@ -13,7 +13,7 @@ import java.util.*;
 import java.util.function.Supplier;
 import java.util.zip.GZIPInputStream;
 import net.hasor.cobble.StringUtils;
-import net.hasor.meteor.connector.ProtocolConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 
 /** Converts bounded gRPC-Web envelopes to native gRPC frames; callers own stream lifecycles. */

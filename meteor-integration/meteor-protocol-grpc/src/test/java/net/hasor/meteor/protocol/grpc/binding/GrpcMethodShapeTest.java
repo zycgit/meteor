@@ -5,7 +5,7 @@
  * See the LICENSE.txt file for the full license.
  * https://www.apache.org/licenses/LICENSE-2.0
  */
-package net.hasor.meteor.protocol.grpc.codec;
+package net.hasor.meteor.protocol.grpc.binding;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
@@ -17,7 +17,7 @@ import net.hasor.example.protocol.grpc.Messages;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-public class GrpcMethodTest {
+public class GrpcMethodShapeTest {
     interface Invalid {
         InputStream input(Message request);
 
@@ -42,7 +42,8 @@ public class GrpcMethodTest {
         Method method = Invalid.class.getMethod("input", Message.class);
 
         // 解析时拒绝不受支持的流签名。
-        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method));
+        assertFalse(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method, method.getDeclaringClass()));
     }
 
     @Test
@@ -51,7 +52,8 @@ public class GrpcMethodTest {
         Method method = Invalid.class.getMethod("writer", Message.class);
 
         // 解析时拒绝不受支持的流签名。
-        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method));
+        assertFalse(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method, method.getDeclaringClass()));
     }
 
     @Test
@@ -60,7 +62,8 @@ public class GrpcMethodTest {
         Method method = Invalid.class.getMethod("read", Reader.class);
 
         // 解析时拒绝不受支持的流签名。
-        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method));
+        assertFalse(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method, method.getDeclaringClass()));
     }
 
     @Test
@@ -69,7 +72,8 @@ public class GrpcMethodTest {
         Method method = Invalid.class.getMethod("write", OutputStream.class);
 
         // 解析时拒绝不受支持的流签名。
-        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method));
+        assertFalse(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method, method.getDeclaringClass()));
     }
 
     @Test
@@ -78,7 +82,8 @@ public class GrpcMethodTest {
         Method method = Invalid.class.getMethod("raw", Message.class);
 
         // 解析时拒绝不受支持的流签名。
-        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method));
+        assertFalse(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method, method.getDeclaringClass()));
     }
 
     @Test
@@ -87,7 +92,8 @@ public class GrpcMethodTest {
         Method method = Invalid.class.getMethod("wildcard", Message.class);
 
         // 解析时拒绝不受支持的流签名。
-        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method));
+        assertFalse(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method, method.getDeclaringClass()));
     }
 
     @Test
@@ -96,7 +102,8 @@ public class GrpcMethodTest {
         Method method = Invalid.class.getMethod("nested", Message.class);
 
         // 解析时拒绝不受支持的流签名。
-        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method));
+        assertFalse(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method, method.getDeclaringClass()));
     }
 
     @Test
@@ -105,7 +112,8 @@ public class GrpcMethodTest {
         Method method = Invalid.class.getMethod("multiple", Flow.Publisher.class, Flow.Publisher.class);
 
         // 解析时拒绝不受支持的流签名。
-        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method));
+        assertFalse(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        assertThrows(IllegalArgumentException.class, () -> new GrpcMethodShape(method, method.getDeclaringClass()));
     }
 
     @Test
@@ -114,7 +122,8 @@ public class GrpcMethodTest {
         Method method = Messages.class.getMethod("list", Message.class);
 
         // 解析方向与元素类型，确认只解包 Publisher 的元素。
-        GrpcMethodShape shape = new GrpcMethodShape(method);
+        assertTrue(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        GrpcMethodShape shape = new GrpcMethodShape(method, method.getDeclaringClass());
         assertFalse(shape.streamingRequest());
         assertTrue(shape.streamingResponse());
         assertSame(Message.class, shape.requestType());
@@ -127,7 +136,8 @@ public class GrpcMethodTest {
         Method method = Messages.class.getMethod("collect", Flow.Publisher.class);
 
         // 解析方向与元素类型，确认只解包 Publisher 的元素。
-        GrpcMethodShape shape = new GrpcMethodShape(method);
+        assertTrue(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        GrpcMethodShape shape = new GrpcMethodShape(method, method.getDeclaringClass());
         assertTrue(shape.streamingRequest());
         assertFalse(shape.streamingResponse());
         assertSame(Message.class, shape.requestType());
@@ -140,7 +150,8 @@ public class GrpcMethodTest {
         Method method = Messages.class.getMethod("exchange", Flow.Publisher.class);
 
         // 解析方向与元素类型，确认只解包 Publisher 的元素。
-        GrpcMethodShape shape = new GrpcMethodShape(method);
+        assertTrue(GrpcMethodShape.supports(method, method.getDeclaringClass()));
+        GrpcMethodShape shape = new GrpcMethodShape(method, method.getDeclaringClass());
         assertTrue(shape.streamingRequest());
         assertTrue(shape.streamingResponse());
         assertSame(Message.class, shape.requestType());
