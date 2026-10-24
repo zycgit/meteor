@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.thrift.codec;
+import java.math.BigDecimal;
 import net.hasor.meteor.annotation.MetField;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -57,6 +58,256 @@ public class ThriftValueCodecTest {
 
         // JSON 的 binary 与 map 表达仍回到声明的 Java 类型。
         this.assertValues(source, result);
+    }
+
+    @Test
+    public void negativeFloatZeroKeepsItsSign() throws Exception {
+        // float 提升到 double 再恢复时保留 IEEE 754 的负零。
+        Float result = (Float) this.roundTrip("binary", this.type(float.class), -0.0f);
+
+        assertEquals(Float.floatToRawIntBits(-0.0f), Float.floatToRawIntBits(result));
+    }
+
+    @Test
+    public void floatNaNRetainsItsNonNumericSemantics() throws Exception {
+        // 标准 Thrift double 允许 NaN，Java float 声明也保留该语义。
+        Float result = (Float) this.roundTrip("compact", this.type(Float.class), Float.NaN);
+
+        assertTrue(Float.isNaN(result));
+    }
+
+    @Test
+    public void floatInfinityDoesNotBecomeAFiniteValue() throws Exception {
+        // 无限值在 float 和 double 中都能表示，不作为数值溢出拒绝。
+        Object result = this.roundTrip("binary", this.type(float.class), Float.POSITIVE_INFINITY);
+
+        assertEquals(Float.POSITIVE_INFINITY, result);
+    }
+
+    @Test
+    public void doublePrecisionLossIsRejectedForAFloatDeclaration() {
+        // 对端的 double 有效值不能被静默舍入到本地 float。
+        ThriftType type = this.type(float.class);
+        assertThrows(TProtocolException.class, () -> this.readBody(type, output -> output.writeDouble(1.1d)));
+    }
+
+    @Test
+    public void doubleOverflowIsRejectedForAFloatDeclaration() {
+        // 有限 double 不能被静默改成无限 float。
+        ThriftType type = this.type(Float.class);
+        assertThrows(TProtocolException.class, //
+                () -> this.readBody(type, output -> output.writeDouble(Double.MAX_VALUE)));
+    }
+
+    @Test
+    public void doubleUnderflowIsRejectedForAFloatDeclaration() {
+        // double 的非零最小值不能被静默改成 float 的零。
+        ThriftType type = this.type(float.class);
+        assertThrows(TProtocolException.class, //
+                () -> this.readBody(type, output -> output.writeDouble(Double.MIN_VALUE)));
+    }
+
+    @Test
+    public void optionalFloatAbsentStaysNull() throws Exception {
+        // 包装字段缺失仍按原有 optional 契约处理。
+        Values source = this.values();
+        source.boxedRatio = null;
+        Values result = (Values) this.roundTrip("compact", this.type(Values.class), source);
+
+        assertNull(result.boxedRatio);
+    }
+
+    @Test
+    public void nulCharacterRemainsAOneCharacterString() throws Exception {
+        // NUL 是合法 UTF-8 字符，不应与空串或缺失字段混淆。
+        Object result = this.roundTrip("binary", this.type(char.class), '\0');
+
+        assertEquals(Character.valueOf('\0'), result);
+    }
+
+    @Test
+    public void optionalCharacterAbsentStaysNull() throws Exception {
+        // Character 的 null 由 optional 字段承载，不写成空字符串。
+        Values source = this.values();
+        source.boxedLetter = null;
+        Values result = (Values) this.roundTrip("compact", this.type(Values.class), source);
+
+        assertNull(result.boxedLetter);
+    }
+
+    @Test
+    public void emptyStringIsRejectedForACharacterDeclaration() {
+        // 对端空串没有可恢复的 Java 字符。
+        ThriftType type = this.type(char.class);
+        assertThrows(TProtocolException.class, () -> this.readBody(type, output -> output.writeString("")));
+    }
+
+    @Test
+    public void multipleCharactersAreRejectedForACharacterDeclaration() {
+        // 不通过截断对端文本制造一个字符。
+        ThriftType type = this.type(Character.class);
+        assertThrows(TProtocolException.class, () -> this.readBody(type, output -> output.writeString("ab")));
+    }
+
+    @Test
+    public void supplementaryCodePointIsRejectedForACharacterDeclaration() {
+        // 一个补充平面码点占两个 UTF-16 单元，不能装进单个 Character。
+        ThriftType type = this.type(char.class);
+        assertThrows(TProtocolException.class, () -> this.readBody(type, output -> output.writeString("🙂")));
+    }
+
+    @Test
+    public void unpairedSurrogateIsRejectedBeforeUtf8Replacement() {
+        // 单个代理项不能编码成标准 UTF-8，写出前报错以免被替换为问号。
+        ThriftType type = this.type(Character.class);
+        assertThrows(TProtocolException.class, () -> this.roundTrip("binary", type, '\ud800'));
+    }
+
+    @Test
+    public void ordinaryStringStillAllowsEmptyText() throws Exception {
+        // Character 的长度约束不影响已有 String 字段。
+        Object result = this.roundTrip("binary", this.type(String.class), "");
+
+        assertEquals("", result);
+    }
+
+    @Test
+    public void ordinaryStringStillAllowsSupplementaryCodePoints() throws Exception {
+        // 完整字符串继续保留中文和补充平面字符。
+        Object result = this.roundTrip("compact", this.type(String.class), "中文🙂");
+
+        assertEquals("中文🙂", result);
+    }
+
+    @Test
+    public void doubleObjectCannotBePassedAsADeclaredFloat() {
+        // 保留声明类型检查，不用通用 Number 转换掩盖错误的调用参数。
+        ThriftType type = this.type(Float.class);
+        assertThrows(TException.class, () -> this.roundTrip("binary", type, 1.5d));
+    }
+
+    @Test
+    public void stringObjectCannotBePassedAsADeclaredCharacter() {
+        // 相同线协议类型不能代替真实 Java 字段类型校验。
+        ThriftType type = this.type(Character.class);
+        assertThrows(TException.class, () -> this.roundTrip("binary", type, "中"));
+    }
+
+    @Test
+    public void idlDoubleDefaultRestoresADeclaredFloat() throws Exception {
+        // 绑定已有 IDL 的默认值也遵循同一套 Java 标量映射。
+        Object result = ThriftValueCodec.defaultValue(this.type(Float.class), 1.5d);
+
+        assertEquals(Float.valueOf(1.5f), result);
+    }
+
+    @Test
+    public void idlStringDefaultRestoresADeclaredCharacter() throws Exception {
+        // 默认文本根据真实 Java 声明恢复字符，不写入 String 到 Character 字段。
+        Object result = ThriftValueCodec.defaultValue(this.type(Character.class), "中");
+
+        assertEquals(Character.valueOf('中'), result);
+    }
+
+    @Test
+    public void idlFiniteDefaultCannotOverflowToFloatInfinity() {
+        // IDL 十进制常量本身有限，不能在默认值准备期间变成无限 float。
+        ThriftType type = this.type(Float.class);
+        BigDecimal declared = new BigDecimal("1e1000");
+
+        assertThrows(TProtocolException.class, () -> ThriftValueCodec.defaultValue(type, declared));
+    }
+
+    @Test
+    public void idlPositiveDefaultCannotUnderflowToFloatZero() {
+        // 非零常量先转换为 double 就已下溢，不能再把零当成可精确表示的 float。
+        ThriftType type = this.type(Float.class);
+        BigDecimal declared = new BigDecimal("1e-1000");
+
+        assertThrows(TProtocolException.class, () -> ThriftValueCodec.defaultValue(type, declared));
+    }
+
+    @Test
+    public void idlNegativeDefaultCannotUnderflowToFloatZero() {
+        // 极小负常量也必须明确拒绝，不能静默丢失非零大小。
+        ThriftType type = this.type(float.class);
+        BigDecimal declared = new BigDecimal("-1e-1000");
+
+        assertThrows(TProtocolException.class, () -> ThriftValueCodec.defaultValue(type, declared));
+    }
+
+    @Test
+    public void idlZeroDefaultRemainsAValidFloat() throws Exception {
+        // 真正的十进制零不属于下溢，继续按声明恢复 float 包装值。
+        Object result = ThriftValueCodec.defaultValue(this.type(Float.class), BigDecimal.ZERO);
+
+        assertEquals(Float.valueOf(0), result);
+    }
+
+    @Test
+    public void nestedPrimitiveArraysRetainTheirDeclaredShape() throws Exception {
+        // 嵌套 list 还原为真正的 int[][]，空子数组不与 null 混淆。
+        int[][] source = { { Integer.MIN_VALUE, 0, Integer.MAX_VALUE }, {}, { -7 } };
+        int[][] result = (int[][]) this.roundTrip("compact", this.type(int[][].class), source);
+
+        assertTrue(Arrays.deepEquals(source, result));
+    }
+
+    @Test
+    public void emptyObjectArrayRetainsItsComponentType() throws Exception {
+        // 空数组仍由发布时的 String 声明确定类型，不能退化为 Object[] 或 List。
+        String[] result = (String[]) this.roundTrip("binary", this.type(String[].class), new String[0]);
+
+        assertEquals(String[].class, result.getClass());
+        assertEquals(0, result.length);
+    }
+
+    @Test
+    public void nestedByteArraysPreserveBinaryContents() throws Exception {
+        // 每个 byte[] 走 binary，外层 list 保留顺序和空 binary。
+        byte[][] source = { { Byte.MIN_VALUE, 0, Byte.MAX_VALUE }, {}, { 1, -1 } };
+        byte[][] result = (byte[][]) this.roundTrip("binary", this.type(byte[][].class), source);
+
+        assertTrue(Arrays.deepEquals(source, result));
+    }
+
+    @Test
+    public void floatArrayRetainsSmallAndLargeValues() throws Exception {
+        // 数组元素复用 float 到 double 的无损标量映射。
+        float[] source = { Float.MIN_VALUE, -Float.MAX_VALUE, -0.0f };
+        float[] result = (float[]) this.roundTrip("json", this.type(float[].class), source);
+
+        assertArrayEquals(source, result, 0);
+    }
+
+    @Test
+    public void nullObjectArrayElementIsRejected() {
+        // 标准 Thrift list 不包含单个元素的 null 标记，不能静默删除该位置。
+        String[] source = { "value", null };
+
+        assertThrows(TProtocolException.class, () -> this.roundTrip("binary", this.type(String[].class), source));
+    }
+
+    @Test
+    public void wrongWireElementTypeIsRejectedForAnArray() {
+        // Java int[] 不能接收声明为 string 的线协议 list。
+        ThriftType type = this.type(int[].class);
+        assertThrows(TProtocolException.class, () -> this.readBody(type, output -> {
+            output.writeListBegin(new TList(TType.STRING, 1));
+            output.writeString("7");
+            output.writeListEnd();
+        }));
+    }
+
+    @Test
+    public void idlListDefaultCreatesAnIndependentPrimitiveArray() throws Exception {
+        // 已有 IDL 的 list 常量可绑定到 int[]，每个 DTO 获得自己的数组。
+        ThriftType type = this.type(int[].class);
+        int[] first = (int[]) ThriftValueCodec.defaultValue(type, List.of(1, 2));
+        int[] second = (int[]) ThriftValueCodec.defaultValue(type, List.of(1, 2));
+        first[0] = 9;
+
+        assertArrayEquals(new int[] { 1, 2 }, second);
     }
 
     @Test
@@ -363,6 +614,12 @@ public class ThriftValueCodecTest {
         value.labels = Map.of("nested", List.of(1, -2));
         value.state = MappedState.FIRST;
         value.uuid = UUID.fromString("00112233-4455-6677-8899-aabbccddeeff");
+        value.precision = Float.MIN_VALUE;
+        value.boxedRatio = -Float.MAX_VALUE;
+        value.letter = '中';
+        value.boxedLetter = '文';
+        value.counts = new int[] { Integer.MIN_VALUE, 0, Integer.MAX_VALUE };
+        value.texts = new String[] { "", "中文", "🙂" };
         return value;
     }
 
@@ -380,33 +637,74 @@ public class ThriftValueCodecTest {
         assertEquals(expected.labels, actual.labels);
         assertEquals(expected.state, actual.state);
         assertEquals(expected.uuid, actual.uuid);
+        assertEquals(expected.precision, actual.precision, 0);
+        assertEquals(expected.boxedRatio, actual.boxedRatio);
+        assertEquals(expected.letter, actual.letter);
+        assertEquals(expected.boxedLetter, actual.boxedLetter);
+        assertArrayEquals(expected.counts, actual.counts);
+        assertArrayEquals(expected.texts, actual.texts);
     }
 
     public static class Values {
-        @MetField(id = 1) private boolean enabled;
-        @MetField(id = 2) private byte tiny;
-        @MetField(id = 3) private short small;
-        @MetField(id = 4) private int count;
-        @MetField(id = 5) private long id;
-        @MetField(id = 6) private double ratio;
-        @MetField(id = 7) private String text;
-        @MetField(id = 8) private byte[] binary;
-        @MetField(id = 9) private List<String> names;
-        @MetField(id = 10) private Set<Long> codes;
-        @MetField(id = 11) private Map<String, List<Integer>> labels;
-        @MetField(id = 12) private MappedState state;
-        @MetField(id = 13) private UUID uuid;
+        @MetField(id = 1)
+        private boolean                    enabled;
+        @MetField(id = 2)
+        private byte                       tiny;
+        @MetField(id = 3)
+        private short                      small;
+        @MetField(id = 4)
+        private int                        count;
+        @MetField(id = 5)
+        private long                       id;
+        @MetField(id = 6)
+        private double                     ratio;
+        @MetField(id = 7)
+        private String                     text;
+        @MetField(id = 8)
+        private byte[]                     binary;
+        @MetField(id = 9)
+        private List<String>               names;
+        @MetField(id = 10)
+        private Set<Long>                  codes;
+        @MetField(id = 11)
+        private Map<String, List<Integer>> labels;
+        @MetField(id = 12)
+        private MappedState                state;
+        @MetField(id = 13)
+        private UUID                       uuid;
+        @MetField(id = 14)
+        private float                      precision;
+        @MetField(id = 15)
+        private Float                      boxedRatio;
+        @MetField(id = 16)
+        private char                       letter;
+        @MetField(id = 17)
+        private Character                  boxedLetter;
+        @MetField(id = 18)
+        private int[]                      counts;
+        @MetField(id = 19)
+        private String[]                   texts;
     }
-    public static class Plain { @MetField(id = 1) private String text; }
+
+    public static class Plain {
+        @MetField(id = 1)
+        private String text;
+    }
+
     public static class RequiredText {
-        @MetField(id = 1) private String text;
+        @MetField(id = 1)
+        private String text;
     }
+
     public interface RequiredTextService {
         RequiredText echo(@MetParam(id = 1) RequiredText value);
     }
+
     @ThriftUnion
     public static class Choice {
-        @MetField(id = 1) private String text;
-        @MetField(id = 2) private Long count;
+        @MetField(id = 1)
+        private String text;
+        @MetField(id = 2)
+        private Long   count;
     }
 }

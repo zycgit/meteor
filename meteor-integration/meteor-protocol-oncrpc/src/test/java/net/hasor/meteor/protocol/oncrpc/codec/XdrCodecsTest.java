@@ -15,6 +15,66 @@ import static org.junit.Assert.*;
 
 public class XdrCodecsTest {
     @Test
+    public void integerScalarRejectsNullWithAnExplicitError() {
+        // 非 optional 的标量拒绝 null，不暴露拆箱引发的 NullPointerException。
+        XdrOutput output = this.output();
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+            output.write(XdrCodecs.INT, null);
+        });
+        assertTrue(failure.getMessage().contains("cannot be null"));
+    }
+
+    @Test
+    public void unsignedIntegerScalarRejectsNullWithAnExplicitError() {
+        // unsigned int 同样需要显式可空声明，不能隐式增加存在位。
+        XdrOutput output = this.output();
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+            output.write(XdrCodecs.UNSIGNED_INT, null);
+        });
+        assertTrue(failure.getMessage().contains("cannot be null"));
+    }
+
+    @Test
+    public void hyperScalarRejectsNullWithAnExplicitError() {
+        // Java Long 的空值不是 XDR hyper 的合法线上值。
+        XdrOutput output = this.output();
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+            output.write(XdrCodecs.LONG, null);
+        });
+        assertTrue(failure.getMessage().contains("cannot be null"));
+    }
+
+    @Test
+    public void booleanScalarRejectsNullWithAnExplicitError() {
+        // null 不能被当成 false 写入，否则会无声改变用户数据。
+        XdrOutput output = this.output();
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+            output.write(XdrCodecs.BOOLEAN, null);
+        });
+        assertTrue(failure.getMessage().contains("cannot be null"));
+    }
+
+    @Test
+    public void floatScalarRejectsNullWithAnExplicitError() {
+        // 空包装值必须在浮点拆箱前明确拒绝。
+        XdrOutput output = this.output();
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+            output.write(XdrCodecs.FLOAT, null);
+        });
+        assertTrue(failure.getMessage().contains("cannot be null"));
+    }
+
+    @Test
+    public void doubleScalarRejectsNullWithAnExplicitError() {
+        // 空包装值不能自动替换为零或 NaN。
+        XdrOutput output = this.output();
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+            output.write(XdrCodecs.DOUBLE, null);
+        });
+        assertTrue(failure.getMessage().contains("cannot be null"));
+    }
+
+    @Test
     public void integerCodecWritesStandardWord() {
         // 标量编码器写出 RFC 4506 的整数表示。
         XdrOutput output = this.output();

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "review": {
+    "reviewedBy": "EXAMPLE ONLY: replace with the actual reviewer",
+    "basis": "Schema example only. This file is not a verified support declaration."
+  },
+  "axes": {
+    "languages": ["java", "python", "node", "browser", "go", "c", "rust"],
+    "protocols": ["rsf", "grpc", "grpc-web", "hprose", "soap", "jsonrpc", "xmlrpc", "hessian", "connect", "triple", "dubbo", "thrift", "oncrpc"]
+  },
+  "rules": [
+    {
+      "id": "example-unreviewed",
+      "select": {"language": "*"},
+      "support": "unverified",
+      "reason": "Example only. Review each native type, wire mapping, and exact assertion before declaring support.",
+      "priority": -100
+    }
+  ],
+  "plannedCases": [],
+  "caseMappings": []
+}

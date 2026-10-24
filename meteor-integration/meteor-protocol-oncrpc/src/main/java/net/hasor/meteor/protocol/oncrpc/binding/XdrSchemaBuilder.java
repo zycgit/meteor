@@ -114,7 +114,7 @@ final class XdrSchemaBuilder {
 
         // 文件内的宽度和有符号性决定可接受的 Java 类型。
         XdrCodec<?> scalar = switch (type.kind) {
-            case "int" -> raw == int.class || raw == Integer.class ? XdrCodecs.INT : null;
+            case "int" -> this.integer(raw);
             case "hyper" -> raw == long.class || raw == Long.class ? XdrCodecs.LONG : null;
             case "unsigned_int" -> raw == long.class || raw == Long.class ? XdrCodecs.UNSIGNED_INT : null;
             case "unsigned_hyper" -> raw == BigInteger.class ? XdrCodecs.UNSIGNED_LONG : null;
@@ -260,7 +260,7 @@ final class XdrSchemaBuilder {
             return value != 0;
         }
         if (StringUtils.equals(type.kind, "int")) {
-            return Math.toIntExact(value);
+            return javaInteger(raw, Math.toIntExact(value));
         }
         if (StringUtils.equals(type.kind, "unsigned_int") && value >= 0 && value <= 0xffffffffL) {
             return value;
@@ -300,8 +300,9 @@ final class XdrSchemaBuilder {
     }
 
     private XdrCodec<?> scalar(Class<?> raw) {
-        if (raw == int.class || raw == Integer.class) {
-            return XdrCodecs.INT;
+        XdrCodec<?> integer = this.integer(raw);
+        if (integer != null) {
+            return integer;
         }
         if (raw == long.class || raw == Long.class) {
             return XdrCodecs.LONG;
@@ -325,6 +326,75 @@ final class XdrSchemaBuilder {
             return XdrCodecs.opaque(this.maxBytes);
         }
         return null;
+    }
+
+    private XdrCodec<?> integer(Class<?> raw) {
+        if (raw == int.class || raw == Integer.class) {
+            return XdrCodecs.INT;
+        }
+        if (raw == byte.class || raw == Byte.class) {
+            return boundedInteger(Byte.class);
+        }
+        if (raw == short.class || raw == Short.class) {
+            return boundedInteger(Short.class);
+        }
+        if (raw == char.class || raw == Character.class) {
+            // Java char 是一个 UTF-16 code unit，使用 int 保留完整范围，不按 ASCII string 编码。
+            return boundedInteger(Character.class);
+        }
+        return null;
+    }
+
+    private static XdrCodec<Object> boundedInteger(Class<?> type) {
+        return new XdrCodec<>() {
+            @Override
+            public Object read(XdrInput input) {
+                // XDR int 的范围比 Java 窄整数大，拒绝溢出而不做截断转换。
+                return javaInteger(type, input.readInt());
+            }
+
+            @Override
+            public void write(XdrOutput output, Object value) {
+                // 非 optional 的 XDR 标量没有 null 表示，不在这里隐式增加指针判别值。
+                if (value == null) {
+                    throw new IllegalArgumentException("XDR " + type.getSimpleName() + " cannot be null");
+                }
+                int encoded;
+                if (type == Character.class) {
+                    encoded = (Character) value;
+                } else {
+                    encoded = ((Number) type.cast(value)).intValue();
+                }
+                output.writeInt(encoded);
+            }
+        };
+    }
+
+    private static Object javaInteger(Class<?> type, int value) {
+        int minimum;
+        int maximum;
+        if (type == byte.class || type == Byte.class) {
+            minimum = Byte.MIN_VALUE;
+            maximum = Byte.MAX_VALUE;
+        } else if (type == short.class || type == Short.class) {
+            minimum = Short.MIN_VALUE;
+            maximum = Short.MAX_VALUE;
+        } else if (type == char.class || type == Character.class) {
+            minimum = Character.MIN_VALUE;
+            maximum = Character.MAX_VALUE;
+        } else {
+            return value;
+        }
+        if (value < minimum || value > maximum) {
+            throw new IllegalArgumentException("XDR int is outside Java " + type.getSimpleName() + " range");
+        }
+        if (type == byte.class || type == Byte.class) {
+            return (byte) value;
+        }
+        if (type == short.class || type == Short.class) {
+            return (short) value;
+        }
+        return (char) value;
     }
 
     private XdrCodec<Object> enumeration(Class<?> raw) {

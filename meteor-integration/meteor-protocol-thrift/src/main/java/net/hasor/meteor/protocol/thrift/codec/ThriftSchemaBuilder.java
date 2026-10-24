@@ -51,6 +51,8 @@ final class ThriftSchemaBuilder {
             if (!raw.isAssignableFrom(LinkedHashMap.class)) {
                 throw new IllegalArgumentException("Unsupported Thrift map implementation: " + raw.getName());
             }
+        } else if (wireType == TType.LIST && raw.isArray()) {
+            type.element = this.javaType(source.getComponentType());
         } else if (wireType == TType.LIST || wireType == TType.SET) {
             ResolvableType collection = source.as(Collection.class);
             type.element = this.javaType(collection.getGeneric(0));
@@ -101,16 +103,18 @@ final class ThriftSchemaBuilder {
         if (type == long.class || type == Long.class) {
             return TType.I64;
         }
-        if (type == double.class || type == Double.class) {
+        if (type == float.class || type == Float.class || type == double.class || type == Double.class) {
             return TType.DOUBLE;
         }
-        if (type == String.class || type == byte[].class || type == ByteBuffer.class) {
+        boolean text = type == char.class || type == Character.class || type == String.class;
+        boolean binary = type == byte[].class || type == ByteBuffer.class;
+        if (text || binary) {
             return TType.STRING;
         }
         if (type == UUID.class) {
             return TType.UUID;
         }
-        if (List.class.isAssignableFrom(type)) {
+        if (type.isArray() || List.class.isAssignableFrom(type)) {
             return TType.LIST;
         }
         if (Set.class.isAssignableFrom(type)) {
@@ -119,7 +123,7 @@ final class ThriftSchemaBuilder {
         if (Map.class.isAssignableFrom(type)) {
             return TType.MAP;
         }
-        boolean unsupported = type.isArray() || type.isPrimitive() || type.isInterface();
+        boolean unsupported = type.isPrimitive() || type.isInterface();
         if (unsupported || type.getName().startsWith("java.")) {
             throw new IllegalArgumentException("Unsupported Thrift Java type: " + type.getName());
         }

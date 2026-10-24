@@ -33,6 +33,34 @@ import static org.junit.Assert.*;
 /** 文件声明与 Java 绑定的边界；不启动网络或外部编译器。 */
 public class ThriftIdlBindingTest {
     @Test
+    public void javaArrayContractCanBeExportedAndRebound() throws Exception {
+        // 普通 Java 数组自动导出为标准 list，不使用专有 wire type。
+        ServiceDomain<ArrayRecords> service = new ServiceDomain<>(ArrayRecords.class);
+        ThriftServiceSchema original = ThriftServiceSchema.annotated(service);
+        Path directory = Path.of("build", "contracts", "java-arrays");
+        Files.createDirectories(directory);
+        Path file = directory.resolve("ArrayRecords.thrift");
+        Files.writeString(file, original.getSources().get("ArrayRecords.thrift"));
+
+        // 同一份契约再绑定到 Java 接口，保持两类数组的真实组件类型。
+        ThriftServiceSchema restored = new ThriftIdlResource(file.toUri().toURL()).bind(service);
+        ThriftType counts = restored.javaMethod("counts").args.fields.get(0).type;
+        ThriftType names = restored.javaMethod("names").args.fields.get(0).type;
+        assertEquals(TType.LIST, counts.wireType);
+        assertSame(int[].class, counts.javaType);
+        assertSame(int.class, counts.element.javaType);
+        assertEquals(TType.LIST, names.wireType);
+        assertSame(String[].class, names.javaType);
+        assertSame(String.class, names.element.javaType);
+    }
+
+    public interface ArrayRecords {
+        int[] counts(@MetParam(id = 1) int[] values);
+
+        String[] names(@MetParam(id = 1) String[] values);
+    }
+
+    @Test
     public void annotatedDescriptionSeparatesJavaIndexAndContractFieldId() {
         // 注解编号为 3，Java 参数位于下标 0。
         ThriftServiceSchema schema = ThriftServiceSchema.annotated(new ServiceDomain<>(Records.class));

@@ -33,17 +33,23 @@ def main():
     for package in packages:
         subprocess.run([str(executable), "install", package], env=env, cwd=source, check=True)
 
-    output = source / "gen" / "orderpb"
-    output.mkdir(parents=True, exist_ok=True)
-    command = [str(python), "-m", "grpc_tools.protoc", "-I", str(host.parent / "met-example/src/main/resources/proto")]
-    for name in ("go", "go-grpc", "connect-go"):
-        suffix = ".exe" if os.name == "nt" else ""
-        command.extend(["--plugin=protoc-gen-" + name + "=" + str(generators / ("protoc-gen-" + name + suffix)),
-                        "--" + name + "_out=" + str(output), "--" + name + "_opt=paths=source_relative",
-                        "--" + name + "_opt=Morder.proto=meteor.test/orderpeer/gen/orderpb"])
-    command.append("order.proto")
-    subprocess.run(command, env=env, cwd=source, check=True)
+    # Both SDK contracts use the same pinned generators and committed Go module graph.
+    contracts = [
+        (host.parent / "met-example/src/main/resources/proto", "order.proto", "orderpb"),
+        (host / "src/test/resources/vectors/types", "types.proto", "typepb"),
+    ]
 
+    for directory, filename, package in contracts:
+        output = source / "gen" / package
+        output.mkdir(parents=True, exist_ok=True)
+        command = [str(python), "-m", "grpc_tools.protoc", "-I", str(directory)]
+        for name in ("go", "go-grpc", "connect-go"):
+            suffix = ".exe" if os.name == "nt" else ""
+            command.extend(["--plugin=protoc-gen-" + name + "=" + str(generators / ("protoc-gen-" + name + suffix)),
+                            "--" + name + "_out=" + str(output), "--" + name + "_opt=paths=source_relative",
+                            "--" + name + "_opt=M" + filename + "=meteor.test/orderpeer/gen/" + package])
+        command.append(filename)
+        subprocess.run(command, env=env, cwd=source, check=True)
 
 if __name__ == "__main__":
     main()

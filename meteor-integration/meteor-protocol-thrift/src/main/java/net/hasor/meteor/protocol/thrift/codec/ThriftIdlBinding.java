@@ -235,6 +235,8 @@ final class ThriftIdlBinding {
             ResolvableType map = source.as(Map.class);
             type.key = this.type(map.getGeneric(0), definition.key);
             type.element = this.type(map.getGeneric(1), definition.element);
+        } else if (wireType == TType.LIST && raw.isArray()) {
+            type.element = this.type(source.getComponentType(), definition.element);
         } else if (wireType == TType.LIST || wireType == TType.SET) {
             Class<?> implementation = wireType == TType.LIST ? ArrayList.class : LinkedHashSet.class;
             if (!raw.isAssignableFrom(implementation)) {

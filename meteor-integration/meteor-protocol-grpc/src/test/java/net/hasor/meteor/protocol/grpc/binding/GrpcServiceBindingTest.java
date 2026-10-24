@@ -186,6 +186,249 @@ public class GrpcServiceBindingTest {
     }
 
     @Test
+    public void annotatedCharactersGenerateStringFieldsWithBoxedPresence() {
+        // 直接根据真实 char 和 Character 字段生成契约，不预先绑定 proto。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        assertNotNull(binding);
+        Descriptor message = binding.descriptor(binding.javaMethod("mirror")).getInputType();
+
+        // 两种 Java 字符使用标准 string，只有包装类型具有 optional 存在位。
+        FieldDescriptor primitive = message.findFieldByNumber(1);
+        FieldDescriptor boxed = message.findFieldByNumber(2);
+        assertEquals(FieldDescriptor.Type.STRING, primitive.getType());
+        assertEquals(FieldDescriptor.Type.STRING, boxed.getType());
+        assertFalse(primitive.hasPresence());
+        assertTrue(boxed.hasPresence());
+    }
+
+    @Test
+    public void aPrimitiveNulCharacterRetainsItsWireValue() throws Exception {
+        // NUL 是有效字符，不能被当作空字符串或缺失字段。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        CharacterNote input = new CharacterNote();
+        input.letter = '\u0000';
+        var method = binding.javaMethod("mirror");
+
+        // string 的一个 NUL 字节经过标准 Protobuf 编解码后仍是 Java NUL。
+        DynamicMessage message = binding.encode(method, input, true);
+        assertEquals("\u0000", message.getField(message.getDescriptorForType().findFieldByNumber(1)));
+        CharacterNote result = (CharacterNote) binding.decode(method, message.toByteArray(), true);
+        assertEquals(input.letter, result.letter);
+    }
+
+    @Test
+    public void unicodeCharactersRetainTheirDeclaredJavaTypes() throws Exception {
+        // 普通字符和包装字符同时使用中文，验证自动生成的请求映射。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        CharacterNote input = new CharacterNote();
+        input.letter = '中';
+        input.optional = '文';
+        var method = binding.javaMethod("mirror");
+
+        // 返回真实 DTO，不能把 Character 字段退化成 String。
+        byte[] bytes = binding.encode(method, input, true).toByteArray();
+        CharacterNote result = (CharacterNote) binding.decode(method, bytes, true);
+        assertEquals(input.letter, result.letter);
+        assertEquals(input.optional, result.optional);
+    }
+
+    @Test
+    public void anAbsentBoxedCharacterRetainsNull() throws Exception {
+        // 包装字符未赋值时，不应强制补成 NUL 或空字符串。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        CharacterNote input = new CharacterNote();
+        var method = binding.javaMethod("mirror");
+        DynamicMessage message = binding.encode(method, input, true);
+
+        // optional 存在位和 Java 空值共同验证缺失语义。
+        assertFalse(message.hasField(message.getDescriptorForType().findFieldByNumber(2)));
+        CharacterNote result = (CharacterNote) binding.decode(method, message.toByteArray(), true);
+        assertNull(result.optional);
+    }
+
+    @Test
+    public void aBoxedNulCharacterRemainsPresentInAResponse() throws Exception {
+        // 显式 NUL 与包装类型的 null 不同，响应映射也必须保留存在位。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        CharacterNote input = new CharacterNote();
+        input.optional = '\u0000';
+        var method = binding.javaMethod("mirror");
+        DynamicMessage message = binding.encode(method, input, false);
+
+        // 字段已设置，回读仍是非空 Character。
+        assertTrue(message.hasField(message.getDescriptorForType().findFieldByNumber(2)));
+        CharacterNote result = (CharacterNote) binding.decode(method, message.toByteArray(), false);
+        assertEquals(input.optional, result.optional);
+    }
+
+    @Test
+    public void anOmittedPrimitiveCharacterUsesTheJavaNulDefault() throws Exception {
+        // 外部对端未传普通 string 字段时，Protobuf 默认值为空文本。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+
+        // primitive 使用 Java NUL 默认值，包装类型的缺失状态保持为 null。
+        CharacterNote result = (CharacterNote) binding.decode(binding.javaMethod("mirror"), new byte[0], true);
+        assertEquals('\u0000', result.letter);
+        assertNull(result.optional);
+    }
+
+    @Test
+    public void multipleWireCharactersCannotBindOneJavaCharacter() {
+        // 外部 string 虽然有效，但多字符文本不能压缩为一个 Java char。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        var method = binding.javaMethod("mirror");
+        Descriptor descriptor = binding.descriptor(method).getInputType();
+        DynamicMessage message = DynamicMessage.newBuilder(descriptor) //
+                .setField(descriptor.findFieldByNumber(1), "中文").build();
+
+        // 解码明确拒绝不匹配长度，不截断或接受首字符。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> binding.decode(method, message.toByteArray(), true));
+        assertTrue(failure.getMessage().contains("one non-surrogate character"));
+    }
+
+    @Test
+    public void anEmptyPresentStringCannotBindABoxedCharacter() {
+        // Character 的已设置字段必须包含字符，空文本不能与缺失字段混淆。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        var method = binding.javaMethod("mirror");
+        Descriptor descriptor = binding.descriptor(method).getInputType();
+        DynamicMessage message = DynamicMessage.newBuilder(descriptor) //
+                .setField(descriptor.findFieldByNumber(2), "").build();
+
+        // 保留 null 仅表示 optional 未设置的语义。
+        assertTrue(message.hasField(descriptor.findFieldByNumber(2)));
+        assertThrows(IllegalArgumentException.class, () -> binding.decode(method, message.toByteArray(), true));
+    }
+
+    @Test
+    public void anIsolatedHighSurrogateIsRejectedBeforeProtobufEncoding() {
+        // 单个高 surrogate 没有对应 Unicode 字符，不能写出替换字符。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        CharacterNote input = new CharacterNote();
+        input.letter = '\uD800';
+
+        // 在写入 Protobuf 之前明确报告字符不合法。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> binding.encode(binding.javaMethod("mirror"), input, true));
+        assertTrue(failure.getMessage().contains("one non-surrogate character"));
+    }
+
+    @Test
+    public void anIsolatedLowSurrogateIsRejectedBeforeProtobufEncoding() {
+        // 包装类型同样不能把孤立低 surrogate 写成有损 UTF-8。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        CharacterNote input = new CharacterNote();
+        input.optional = '\uDC00';
+
+        // 沿响应映射检查包装字符，错误在本地编码阶段可见。
+        assertThrows(IllegalArgumentException.class, //
+                () -> binding.encode(binding.javaMethod("mirror"), input, false));
+    }
+
+    @Test
+    public void generatedCharacterMapKeysPreserveAsciiAndChinese() throws Exception {
+        // 自动契约使用 string key，Java 声明仍保持 Character。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        CharacterNote input = new CharacterNote();
+        input.labels = Map.of('A', 1, '中', 2);
+        var method = binding.javaMethod("mirror");
+
+        // 普通字符键和中文键都不能被转换成字符串类型的 Java 键。
+        byte[] bytes = binding.encode(method, input, true).toByteArray();
+        CharacterNote result = (CharacterNote) binding.decode(method, bytes, true);
+        assertEquals(input.labels, result.labels);
+    }
+
+    @Test
+    public void fileCharacterMapKeysPreserveAsciiAndChinese() throws Exception {
+        // 已有 proto 文件同样将 string key 绑定到声明的 Character key。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, this.characterResource("string"));
+        CharacterNote input = new CharacterNote();
+        input.labels = Map.of('A', 1, '中', 2);
+        var method = binding.javaMethod("mirror");
+
+        // 文件入口和自动入口复用同一份 map 键检查及 Java 回读。
+        byte[] bytes = binding.encode(method, input, false).toByteArray();
+        CharacterNote result = (CharacterNote) binding.decode(method, bytes, false);
+        assertEquals(input.labels, result.labels);
+    }
+
+    @Test
+    public void generatedCharacterMapKeysRejectAnIsolatedHighSurrogate() {
+        // map value 为普通 int，没有 value 子映射也必须检查字符键。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        CharacterNote input = new CharacterNote();
+        input.labels = Map.of('\uD800', 1);
+
+        // 不允许 Protobuf UTF-8 写出阶段静默替换非法键。
+        assertThrows(IllegalArgumentException.class, //
+                () -> binding.encode(binding.javaMethod("mirror"), input, true));
+    }
+
+    @Test
+    public void fileCharacterMapKeysRejectAnIsolatedLowSurrogate() throws Exception {
+        // 已有文件没有 Java 专属字符约束，绑定层负责检查真实 Character 键。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, this.characterResource("string"));
+        CharacterNote input = new CharacterNote();
+        input.labels = Map.of('\uDC00', 1);
+
+        // 文件绑定不能绕开与自动契约相同的有损 UTF-8 检查。
+        assertThrows(IllegalArgumentException.class, //
+                () -> binding.encode(binding.javaMethod("mirror"), input, false));
+    }
+
+    @Test
+    public void generatedCharacterMapKeysRejectMultipleWireCharacters() {
+        // 外部 map string key 可以有多个字符，但 Java Character 不能承接。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, null);
+        DynamicMessage message = this.characterMapMessage(binding, "中文");
+
+        // 解码拒绝多字符键，不能只取首字符而覆盖另一条记录。
+        assertThrows(IllegalArgumentException.class, //
+                () -> binding.decode(binding.javaMethod("mirror"), message.toByteArray(), true));
+    }
+
+    @Test
+    public void fileCharacterMapKeysRejectAnEmptyWireKey() throws Exception {
+        // string map 的空 key 合法，但它不能表示一个 Java Character。
+        GrpcServiceBinding binding = this.binding(CharacterNotes.class, this.characterResource("string"));
+        DynamicMessage message = this.characterMapMessage(binding, "");
+
+        // 空键不能被补成 NUL，也不能被当作不存在的键。
+        assertThrows(IllegalArgumentException.class, //
+                () -> binding.decode(binding.javaMethod("mirror"), message.toByteArray(), true));
+    }
+
+    @Test
+    public void aPrimitiveCharacterCannotBindAnInt32FileField() {
+        // Java char 只接受 string，不因为属于 primitive 就获得整数映射。
+        assertThrows(IllegalArgumentException.class, //
+                () -> this.binding(CharacterNotes.class, this.characterResource("int32")));
+    }
+
+    @Test
+    public void aPrimitiveCharacterCannotBindAnInt64FileField() {
+        // int64 文件字段不能隐式承接 Java char 的代码单元数值。
+        assertThrows(IllegalArgumentException.class, //
+                () -> this.binding(CharacterNotes.class, this.characterResource("int64")));
+    }
+
+    @Test
+    public void aPrimitiveCharacterCannotBindAFloatFileField() {
+        // 浮点契约不接受看起来像数字的字符。
+        assertThrows(IllegalArgumentException.class, //
+                () -> this.binding(CharacterNotes.class, this.characterResource("float")));
+    }
+
+    @Test
+    public void aPrimitiveCharacterCannotBindADoubleFileField() {
+        // double 契约同样在准备阶段拒绝字符，而不是推迟到某次调用。
+        assertThrows(IllegalArgumentException.class, //
+                () -> this.binding(CharacterNotes.class, this.characterResource("double")));
+    }
+
+    @Test
     public void explicitFieldNameAndNumberMustSelectTheSameFileMember() throws Exception {
         // 字段号 7 指向 description，但注解显式声明另一个名称。
         GrpcProtoResource resource = this.resource();
@@ -353,6 +596,34 @@ public class GrpcServiceBindingTest {
         return new GrpcProtoResource(this.getClass().getResource("/proto/mapping/service.proto"));
     }
 
+    private GrpcProtoResource characterResource(String primitiveType) throws Exception {
+        // 同一份外部声明用于正常 string 绑定和不兼容数值字段校验。
+        String source = """
+                syntax = "proto3";
+                package mapping;
+                message CharacterNote {
+                  %s letter = 1;
+                  optional string optional = 2;
+                  map<string, int32> labels = 3;
+                }
+                service Notes { rpc mirror (CharacterNote) returns (CharacterNote); }
+                """.formatted(primitiveType);
+        Path file = this.directory.newFolder().toPath().resolve("characters.proto");
+        Files.writeString(file, source);
+        return new GrpcProtoResource(file.toUri().toURL());
+    }
+
+    private DynamicMessage characterMapMessage(GrpcServiceBinding binding, String key) {
+        // 使用官方消息模型模拟外部对端的原始 map key。
+        Descriptor descriptor = binding.descriptor(binding.javaMethod("mirror")).getInputType();
+        FieldDescriptor labels = descriptor.findFieldByNumber(3);
+        Descriptor entry = labels.getMessageType();
+        DynamicMessage item = DynamicMessage.newBuilder(entry) //
+                .setField(entry.findFieldByNumber(1), key) //
+                .setField(entry.findFieldByNumber(2), 1).build();
+        return DynamicMessage.newBuilder(descriptor).addRepeatedField(labels, item).build();
+    }
+
     interface Notes {
         @MetMethod(name = "Echo")
         Note mirror(Note input);
@@ -396,6 +667,19 @@ public class GrpcServiceBindingTest {
     interface CreatorNotes {
         @MetMethod(name = "Echo")
         ImmutableNote mirror(ImmutableNote input);
+    }
+
+    interface CharacterNotes {
+        CharacterNote mirror(CharacterNote input);
+    }
+
+    public static class CharacterNote {
+        @MetField(id = 1)
+        public char                    letter;
+        @MetField(id = 2)
+        public Character               optional;
+        @MetField(id = 3)
+        public Map<Character, Integer> labels;
     }
 
     @MetType(name = "Note")

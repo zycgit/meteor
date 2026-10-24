@@ -11,11 +11,25 @@ import java.io.IOException;
 import java.util.Objects;
 import hprose.io.HproseReader;
 import hprose.io.HproseWriter;
+import hprose.io.convert.java8.ConverterLoader;
+import hprose.io.serialize.java8.SerializerLoader;
+import hprose.io.unserialize.java8.UnserializerLoader;
 import net.hasor.meteor.serialize.SerializeCoder;
 
 /** Hprose object serialization; type resolution follows the requested return type. */
 public final class HproseSerializeCoder implements SerializeCoder {
     static final String SERIALIZE_TYPE = "Hprose";
+
+    static {
+        initializeSdk();
+    }
+
+    static void initializeSdk() {
+        // Hprose 2 的版本探测仅识别 1.x，显式启动 SDK 自带的 Java 8 类型注册器。
+        new SerializerLoader();
+        new UnserializerLoader();
+        new ConverterLoader();
+    }
 
     @Override
     public String name() {

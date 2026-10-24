@@ -7,3 +7,11 @@ esbuild.buildSync({
   platform: 'browser',
   target: 'es2020'
 });
+// Keep the type-matrix client separate from existing lifecycle and CORS browser fixtures.
+esbuild.buildSync({
+  entryPoints: ['types-client.mjs'],
+  outfile: 'types-browser.bundle.js',
+  bundle: true,
+  platform: 'browser',
+  target: 'es2020'
+});

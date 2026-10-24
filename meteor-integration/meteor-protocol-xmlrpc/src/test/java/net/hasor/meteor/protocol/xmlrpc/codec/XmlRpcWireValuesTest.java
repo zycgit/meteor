@@ -7,6 +7,8 @@
  */
 package net.hasor.meteor.protocol.xmlrpc.codec;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
@@ -510,6 +512,99 @@ public class XmlRpcWireValuesTest {
 
         // 不输出非标准 i8 标签。
         assertEquals(7, codec.decodeResponse(response));
+    }
+
+    @Test
+    public void bigIntegerMaximumEncodesStandardInt() throws Exception {
+        // 任意精度整数的值处于标准 int32 上界。
+        XmlRpcWireCodec codec = this.codec(Map.of());
+        BigInteger value = BigInteger.valueOf(Integer.MAX_VALUE);
+        byte[] response = codec.encodeResponse(value);
+
+        // 使用标准 int 标签，并按协议解码为 Java Integer。
+        String xml = new String(response, StandardCharsets.UTF_8);
+        assertTrue(xml.contains("<int>2147483647</int>"));
+        assertEquals(Integer.MAX_VALUE, codec.decodeResponse(response));
+    }
+
+    @Test
+    public void bigIntegerMinimumEncodesStandardInt() throws Exception {
+        // 任意精度整数的值处于标准 int32 下界。
+        XmlRpcWireCodec codec = this.codec(Map.of());
+        BigInteger value = BigInteger.valueOf(Integer.MIN_VALUE);
+        byte[] response = codec.encodeResponse(value);
+
+        // 符号位和最小值保持不变。
+        String xml = new String(response, StandardCharsets.UTF_8);
+        assertTrue(xml.contains("<int>-2147483648</int>"));
+        assertEquals(Integer.MIN_VALUE, codec.decodeResponse(response));
+    }
+
+    @Test
+    public void bigIntegerZeroEncodesStandardInt() throws Exception {
+        // 零值不会因为 Java 容器类型不同而成为扩展线类型。
+        XmlRpcWireCodec codec = this.codec(Map.of());
+        byte[] response = codec.encodeResponse(BigInteger.ZERO);
+
+        // 线格式和值都沿用标准整数。
+        String xml = new String(response, StandardCharsets.UTF_8);
+        assertTrue(xml.contains("<int>0</int>"));
+        assertEquals(0, codec.decodeResponse(response));
+    }
+
+    @Test
+    public void rejectBigIntegerAboveStandardRange() {
+        // 超过 int32 上界一位，不能改用字符串或非标准 i8。
+        XmlRpcWireCodec codec = this.codec(Map.of());
+        BigInteger value = BigInteger.valueOf(Integer.MAX_VALUE).add(BigInteger.ONE);
+
+        // 发送前明确报告协议范围限制。
+        IOException failure = assertThrows(IOException.class, () -> codec.encodeResponse(value));
+        assertEquals("XML-RPC integer exceeds signed 32-bit range", failure.getMessage());
+    }
+
+    @Test
+    public void rejectBigIntegerBelowStandardRange() {
+        // 负数下界之外同样不允许截断。
+        XmlRpcWireCodec codec = this.codec(Map.of());
+        BigInteger value = BigInteger.valueOf(Integer.MIN_VALUE).subtract(BigInteger.ONE);
+
+        // 不将溢出的值转换为其他线类型。
+        IOException failure = assertThrows(IOException.class, () -> codec.encodeResponse(value));
+        assertEquals("XML-RPC integer exceeds signed 32-bit range", failure.getMessage());
+    }
+
+    @Test
+    public void rejectBigIntegerWhoseLongValueWouldWrapIntoRange() {
+        // 2^64 + 1 的 longValue 是 1，必须检查原始完整整数。
+        XmlRpcWireCodec codec = this.codec(Map.of());
+        BigInteger value = BigInteger.ONE.shiftLeft(64).add(BigInteger.ONE);
+
+        // 拒绝高位丢失，不能把它编码为标准整数 1。
+        IOException failure = assertThrows(IOException.class, () -> codec.encodeResponse(value));
+        assertEquals("XML-RPC integer exceeds signed 32-bit range", failure.getMessage());
+    }
+
+    @Test
+    public void rejectBigDecimalEncoding() {
+        // 任意精度整数支持不扩展为任意精度十进制浮点支持。
+        XmlRpcWireCodec codec = this.codec(Map.of());
+
+        // 不通过 doubleValue 隐式降低十进制精度。
+        IOException failure = assertThrows(IOException.class, () -> codec.encodeResponse(BigDecimal.ONE));
+        assertEquals("Unsupported XML-RPC value: java.math.BigDecimal", failure.getMessage());
+    }
+
+    @Test
+    public void floatEncodesStandardDouble() throws Exception {
+        // 普通 Java Float 继续使用标准 double 线类型。
+        XmlRpcWireCodec codec = this.codec(Map.of());
+        byte[] response = codec.encodeResponse(1.25f);
+
+        // 整数分支扩展不会改变浮点值的标签和值。
+        String xml = new String(response, StandardCharsets.UTF_8);
+        assertTrue(xml.contains("<double>1.25</double>"));
+        assertEquals(1.25d, codec.decodeResponse(response));
     }
 
     @Test

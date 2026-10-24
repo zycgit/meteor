@@ -29,6 +29,72 @@ import static org.junit.Assert.*;
 /** 发布阶段的注解契约验证，不构造任何业务 DTO 或调用实现。 */
 public class ThriftSchemaBuilderTest {
     @Test
+    public void primitiveArrayUsesAListOfItsDeclaredComponent() {
+        // 普通 Java 数组不需要额外资源或包装 DTO 才能确定元素类型。
+        ThriftType type = this.type(int[].class);
+
+        assertEquals(TType.LIST, type.wireType);
+        assertSame(int[].class, type.javaType);
+        assertEquals(TType.I32, type.element.wireType);
+        assertSame(int.class, type.element.javaType);
+    }
+
+    @Test
+    public void byteArrayRetainsItsBinaryWireType() {
+        // byte[] 的既有 binary 契约不能因普通数组映射而改成 list<byte>。
+        ThriftType type = this.type(byte[].class);
+
+        assertEquals(TType.STRING, type.wireType);
+        assertTrue(type.binary);
+        assertNull(type.element);
+    }
+
+    @Test
+    public void nestedByteArrayUsesAListOfBinaryValues() {
+        // 外层数组是 list，每个 byte[] 仍是独立 binary。
+        ThriftType type = this.type(byte[][].class);
+
+        assertEquals(TType.LIST, type.wireType);
+        assertSame(byte[][].class, type.javaType);
+        assertEquals(TType.STRING, type.element.wireType);
+        assertTrue(type.element.binary);
+    }
+
+    @Test
+    public void objectArrayWithoutAConcreteComponentIsRejected() {
+        // Object[] 与原始 List 一样缺少可供跨语言绑定的元素契约。
+        assertThrows(IllegalArgumentException.class, () -> this.type(Object[].class));
+    }
+
+    @Test
+    public void javaFloatDeclarationsUseTheStandardDoubleWireType() {
+        // Thrift 无 float 标量，Java 声明类型仍保留给反向转换使用。
+        ThriftType primitive = this.type(float.class);
+        ThriftType boxed = this.type(Float.class);
+
+        // primitive 与包装类型共享 double 线协议，但不能丢失 Java 类型。
+        assertEquals(TType.DOUBLE, primitive.wireType);
+        assertSame(float.class, primitive.javaType);
+        assertEquals(TType.DOUBLE, boxed.wireType);
+        assertSame(Float.class, boxed.javaType);
+    }
+
+    @Test
+    public void javaCharacterDeclarationsUseTheStandardStringWireType() {
+        // 普通注解字段使用标准 string，接收时按真实声明恢复 Character。
+        ThriftType primitive = this.type(char.class);
+        ThriftType boxed = this.type(Character.class);
+
+        // 文本字符不能被当成 binary，也不能丢失 primitive 与包装类型的区别。
+        assertEquals(TType.STRING, primitive.wireType);
+        assertSame(char.class, primitive.javaType);
+        assertFalse(primitive.binary);
+        assertEquals(TType.STRING, boxed.wireType);
+        assertSame(Character.class, boxed.javaType);
+        assertFalse(boxed.binary);
+    }
+
+    @Test
     public void fieldAndGetterMaySupplyDifferentPartsOfOneDeclaration() throws Exception {
         // 名称在字段上、编号在 getter 上，发布前合并成一个属性。
         ThriftType type = this.type(PartialDeclaration.class);
@@ -283,77 +349,193 @@ public class ThriftSchemaBuilderTest {
         return new ThriftIdlResource(this.getClass().getResource("/thrift/mapping.thrift")).selectService(name);
     }
 
-    public static class GenericValue<T> { @MetField(id = 1) private T value; }
-    public static class StringValue extends GenericValue<String> {}
+    public static class GenericValue<T> {
+        @MetField(id = 1)
+        private T value;
+    }
+
+    public static class StringValue extends GenericValue<String> {
+    }
+
     public static class GenericBean<T> {
         private T value;
-        @MetField(id = 1) public T getValue() { return this.value; }
-        public void setValue(T value) { this.value = value; }
+
+        @MetField(id = 1)
+        public T getValue() {
+            return this.value;
+        }
+
+        public void setValue(T value) {
+            this.value = value;
+        }
     }
-    public static class BeanHolder { @MetField(id = 1) private GenericBean<String> bean; }
-    public interface GenericService<T> { T echo(@MetParam(id = 1) T value); }
-    public interface Notes extends GenericService<Note> {}
-    public static class RawList { @MetField(id = 1) private List values; }
-    public static class WildcardList { @MetField(id = 1) private List<? extends Number> values; }
-    public static class SortedValues { @MetField(id = 1) private SortedSet<String> values; }
-    public static class SortedEntries { @MetField(id = 1) private SortedMap<String, String> values; }
-    public static class OpenValue { @MetField(id = 1) private Object value; }
+
+    public static class BeanHolder {
+        @MetField(id = 1)
+        private GenericBean<String> bean;
+    }
+
+    public interface GenericService<T> {
+        T echo(@MetParam(id = 1) T value);
+    }
+
+    public interface Notes extends GenericService<Note> {
+    }
+
+    public static class RawList {
+        @MetField(id = 1)
+        private List values;
+    }
+
+    public static class WildcardList {
+        @MetField(id = 1)
+        private List<? extends Number> values;
+    }
+
+    public static class SortedValues {
+        @MetField(id = 1)
+        private SortedSet<String> values;
+    }
+
+    public static class SortedEntries {
+        @MetField(id = 1)
+        private SortedMap<String, String> values;
+    }
+
+    public static class OpenValue {
+        @MetField(id = 1)
+        private Object value;
+    }
+
     public static class DuplicateId {
-        @MetField(id = 1) private int first;
-        @MetField(id = 1) private int second;
+        @MetField(id = 1)
+        private int first;
+        @MetField(id = 1)
+        private int second;
     }
+
     public static class DuplicateName {
-        @MetField(id = 1, name = "same") private int first;
-        @MetField(id = 2, name = "same") private int second;
+        @MetField(id = 1, name = "same")
+        private int first;
+        @MetField(id = 2, name = "same")
+        private int second;
     }
-    public static class ZeroId { @MetField(id = 0) private int value; }
+
+    public static class ZeroId {
+        @MetField(id = 0)
+        private int value;
+    }
+
     public static class OptionalPrimitive {
-        @MetField(id = 1) private int value;
+        @MetField(id = 1)
+        private int value;
     }
+
     public interface OptionalPrimitiveService {
         void accept(@MetParam(id = 1) OptionalPrimitive value);
     }
+
     @ThriftUnion
-    public static class PrimitiveUnion { @MetField(id = 1) private int value; }
+    public static class PrimitiveUnion {
+        @MetField(id = 1)
+        private int value;
+    }
+
     @ThriftUnion
     public static class RequiredUnion {
-        @MetField(id = 1) private Integer value;
+        @MetField(id = 1)
+        private Integer value;
     }
+
     public interface RequiredUnionService {
         void accept(@MetParam(id = 1) RequiredUnion value);
     }
-    public static class FinalField { @MetField(id = 1) private final int value = 1; }
+
+    public static class FinalField {
+        @MetField(id = 1)
+        private final int value = 1;
+    }
+
     public static class ReadOnlyBean {
-        @MetField(id = 1) public String getValue() { return "read-only"; }
+        @MetField(id = 1)
+        public String getValue() {
+            return "read-only";
+        }
     }
+
     public static class DualMapping {
-        @MetField(id = 1) private String value;
-        @MetField(id = 1) public String getValue() { return this.value; }
-        public void setValue(String value) { this.value = value; }
+        @MetField(id = 1)
+        private String value;
+
+        @MetField(id = 1)
+        public String getValue() {
+            return this.value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
+        }
     }
+
     public static class NoDefaultConstructor {
-        @MetField(id = 1) private String value;
-        public NoDefaultConstructor(String value) { this.value = value; }
+        @MetField(id = 1)
+        private String value;
+
+        public NoDefaultConstructor(String value) {
+            this.value = value;
+        }
     }
-    public abstract static class AbstractValue { @MetField(id = 1) private int value; }
-    public enum UnmappedEnum { FIRST }
-    public enum DuplicateEnum { @MetEnumValue(id = 1) FIRST, @MetEnumValue(id = 1) SECOND }
-    public interface MissingParameter { String echo(String value); }
+
+    public abstract static class AbstractValue {
+        @MetField(id = 1)
+        private int value;
+    }
+
+    public enum UnmappedEnum {
+        FIRST
+    }
+
+    public enum DuplicateEnum {
+        @MetEnumValue(id = 1) FIRST,
+        @MetEnumValue(id = 1) SECOND
+    }
+
+    public interface MissingParameter {
+        String echo(String value);
+    }
+
     public interface DuplicateMethod {
-        @MetMethod(name = "same") String first(@MetParam(id = 1) String value);
-        @MetMethod(name = "same") String second(@MetParam(id = 1) String value);
+        @MetMethod(name = "same")
+        String first(@MetParam(id = 1) String value);
+
+        @MetMethod(name = "same")
+        String second(@MetParam(id = 1) String value);
     }
-    public interface ReturningMessage { @MetMessage  String notifyCaller(); }
+
+    public interface ReturningMessage {
+        @MetMessage
+        String notifyCaller();
+    }
+
     public interface UndeclaredFailure {
-         void fail();
+        void fail();
     }
-    public interface InvalidMethod { @MetMethod(name = "invalid:name") void execute(); }
+
+    public interface InvalidMethod {
+        @MetMethod(name = "invalid:name")
+        void execute();
+    }
+
     public interface FailingMessage {
         @MetMessage
-
         void notifyCaller() throws MappingFailure;
     }
-    public static class MappingFailure extends Exception { @MetField(id = 1) private int code; }
+
+    public static class MappingFailure extends Exception {
+        @MetField(id = 1)
+        private int code;
+    }
+
     public static class PartialDeclaration {
         @MetField(name = "remote_text")
         private String text;

@@ -43,6 +43,11 @@ public final class HproseHttpCodec {
     private final RouteMountIndex      routes;
     private final HproseServiceCatalog services;
 
+    static {
+        // HTTP 协议直接使用 SDK Reader/Writer，与独立序列化器采用相同的类型注册。
+        HproseSerializeCoder.initializeSdk();
+    }
+
     public HproseHttpCodec(ProtocolConfig protocol, RouteMountIndex routes, MetContext context) {
         this.context = context;
         this.protocol = protocol;

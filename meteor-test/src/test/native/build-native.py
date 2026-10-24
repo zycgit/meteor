@@ -81,7 +81,7 @@ def main():
     artifacts = []
     commands = []
     logs = []
-    inputs = set(generated.glob("*.h")) | set(include.rglob("*.h"))
+    inputs = set(generated.glob("*.h")) | set(source.glob("*.h")) | set(include.rglob("*.h"))
     inputs.update({source.parent / "rpc/interop.x", Path(__file__).resolve()})
     peers = ("interop", "rpcbind") if args.peer == "all" else (args.peer,)
     for peer in peers:

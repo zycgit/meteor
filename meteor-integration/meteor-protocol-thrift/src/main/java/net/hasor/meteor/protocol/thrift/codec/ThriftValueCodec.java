@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.thrift.codec;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -29,7 +30,7 @@ final class ThriftValueCodec {
             case TType.I16 -> input.readI16();
             case TType.I32 -> input.readI32();
             case TType.I64 -> input.readI64();
-            case TType.DOUBLE -> input.readDouble();
+            case TType.DOUBLE -> readDouble(input.readDouble(), type);
             case TType.UUID -> input.readUuid();
             case TType.STRING -> readString(input, type);
             case TType.STRUCT -> readStruct(input, type);
@@ -58,11 +59,17 @@ final class ThriftValueCodec {
                 case TType.I16 -> output.writeI16((Short) value);
                 case TType.I32 -> output.writeI32((Integer) value);
                 case TType.I64 -> output.writeI64((Long) value);
-                case TType.DOUBLE -> output.writeDouble((Double) value);
+                case TType.DOUBLE -> {
+                    if (type.javaType == float.class || type.javaType == Float.class) {
+                        output.writeDouble((Float) value);
+                    } else {
+                        output.writeDouble((Double) value);
+                    }
+                }
                 case TType.UUID -> output.writeUuid((UUID) value);
                 case TType.STRING -> writeString(output, type, value);
                 case TType.STRUCT -> writeStruct(output, type, value);
-                case TType.LIST, TType.SET -> writeCollection(output, type, (Collection<?>) value);
+                case TType.LIST, TType.SET -> writeCollection(output, type, value);
                 case TType.MAP -> writeMap(output, type, (Map<?, ?>) value);
                 default -> throw invalid("Unsupported Thrift value type");
             }
@@ -71,9 +78,34 @@ final class ThriftValueCodec {
         }
     }
 
+    private static Object readDouble(double value, ThriftType type) throws TException {
+        if (type.javaType != float.class && type.javaType != Float.class) {
+            return value;
+        }
+
+        // Java float 可精确提升为 double；接收时拒绝会溢出、下溢或舍入的反向转换。
+        float narrowed = (float) value;
+        if (!Double.isNaN(value) && (double) narrowed != value) {
+            throw invalid("Thrift double cannot be represented exactly as Java float");
+        }
+        return narrowed;
+    }
+
+    private static Object readText(String text, ThriftType type) throws TException {
+        if (type.javaType != char.class && type.javaType != Character.class) {
+            return text;
+        }
+
+        // 单个代理项不能独立编码为 UTF-8，不能在传输时被替换成另一个字符。
+        if (text.length() != 1 || Character.isSurrogate(text.charAt(0))) {
+            throw invalid("Thrift string must contain one UTF-8 representable Java character");
+        }
+        return text.charAt(0);
+    }
+
     private static Object readString(TProtocol input, ThriftType type) throws TException {
         if (!type.binary) {
-            return input.readString();
+            return readText(input.readString(), type);
         }
         ByteBuffer buffer = input.readBinary();
         if (type.javaType == ByteBuffer.class) {
@@ -86,7 +118,13 @@ final class ThriftValueCodec {
 
     private static void writeString(TProtocol output, ThriftType type, Object value) throws TException {
         if (!type.binary) {
-            output.writeString((String) value);
+            if (type.javaType == char.class || type.javaType == Character.class) {
+                String text = Character.toString((Character) value);
+                readText(text, type);
+                output.writeString(text);
+            } else {
+                output.writeString((String) value);
+            }
         } else if (value instanceof byte[] bytes) {
             output.writeBinary(ByteBuffer.wrap(bytes));
         } else {
@@ -155,7 +193,18 @@ final class ThriftValueCodec {
                     case TType.I16 -> decimal.shortValueExact();
                     case TType.I32 -> decimal.intValueExact();
                     case TType.I64 -> decimal.longValueExact();
-                    case TType.DOUBLE -> decimal.doubleValue();
+                    case TType.DOUBLE -> {
+                        double declared = decimal.doubleValue();
+                        boolean floatType = type.javaType == float.class || type.javaType == Float.class;
+                        if (floatType && !Double.isFinite(declared)) {
+                            throw invalid("Numeric default exceeds Java float range");
+                        }
+                        boolean underflow = declared == 0 && decimal.signum() != 0;
+                        if (floatType && underflow) {
+                            throw invalid("Numeric default underflows Java float range");
+                        }
+                        yield readDouble(declared, type);
+                    }
                     case TType.BOOL -> decimal.intValueExact() != 0;
                     default -> throw invalid("Numeric default differs from field type");
                 };
@@ -165,7 +214,7 @@ final class ThriftValueCodec {
         }
         if (type.wireType == TType.STRING && value instanceof String text) {
             if (!type.binary) {
-                return text;
+                return readText(text, type);
             }
             byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
             return type.javaType == byte[].class ? bytes : ByteBuffer.wrap(bytes);
@@ -177,6 +226,14 @@ final class ThriftValueCodec {
             return value;
         }
         if ((type.wireType == TType.LIST || type.wireType == TType.SET) && value instanceof Collection<?> values) {
+            if (type.javaType.isArray()) {
+                Object result = Array.newInstance(type.javaType.getComponentType(), values.size());
+                int index = 0;
+                for (Object element : values) {
+                    Array.set(result, index++, defaultValue(type.element, element));
+                }
+                return result;
+            }
             Collection<Object> result = type.wireType == TType.LIST ? new ArrayList<>() : new LinkedHashSet<>();
             for (Object element : values) {
                 result.add(defaultValue(type.element, element));
@@ -231,33 +288,59 @@ final class ThriftValueCodec {
     private static Object readCollection(TProtocol input, ThriftType type) throws TException {
         byte elementType;
         int size;
-        Collection<Object> values;
         if (type.wireType == TType.LIST) {
             TList list = input.readListBegin();
             elementType = list.elemType;
             size = list.size;
-            values = new ArrayList<>();
         } else {
             TSet set = input.readSetBegin();
             elementType = set.elemType;
             size = set.size;
-            values = new LinkedHashSet<>();
         }
         if (size != 0 && elementType != type.element.wireType) {
             throw invalid("Thrift collection element type differs from its declaration");
         }
+
+        // 数组按声明组件类型直接创建，保留 primitive 数组和嵌套数组的真实 Java 类型。
+        Object array = null;
+        Collection<Object> values = null;
+        if (type.javaType.isArray()) {
+            array = Array.newInstance(type.javaType.getComponentType(), size);
+        } else if (type.wireType == TType.LIST) {
+            values = new ArrayList<>();
+        } else {
+            values = new LinkedHashSet<>();
+        }
         for (int index = 0; index < size; index++) {
-            values.add(read(input, type.element));
+            Object element = read(input, type.element);
+            if (array != null) {
+                Array.set(array, index, element);
+            } else {
+                values.add(element);
+            }
         }
         if (type.wireType == TType.LIST) {
             input.readListEnd();
         } else {
             input.readSetEnd();
         }
-        return values;
+        return array == null ? values : array;
     }
 
-    private static void writeCollection(TProtocol output, ThriftType type, Collection<?> values) throws TException {
+    private static void writeCollection(TProtocol output, ThriftType type, Object value) throws TException {
+        // Java 数组与 List 使用相同线协议，byte[] 已在 binary 分支单独处理。
+        if (type.javaType.isArray()) {
+            Object array = type.javaType.cast(value);
+            int length = Array.getLength(array);
+            output.writeListBegin(new TList(type.element.wireType, length));
+            for (int index = 0; index < length; index++) {
+                write(output, type.element, Array.get(array, index));
+            }
+            output.writeListEnd();
+            return;
+        }
+
+        Collection<?> values = (Collection<?>) value;
         if (type.wireType == TType.LIST) {
             output.writeListBegin(new TList(type.element.wireType, values.size()));
         } else {

@@ -1,0 +1,431 @@
+{
+  "schemaVersion": 1,
+  "vectors": [
+    {
+      "vector": "i32-signed-char-min",
+      "type": "signed-char",
+      "nativeType": "signed char",
+      "wireType": "int"
+    },
+    {
+      "vector": "i32-signed-char-max",
+      "type": "signed-char",
+      "nativeType": "signed char",
+      "wireType": "int"
+    },
+    {
+      "vector": "i32-unsigned-char-max",
+      "type": "unsigned-char",
+      "nativeType": "unsigned char",
+      "wireType": "int"
+    },
+    {
+      "vector": "i32-short-min",
+      "type": "short",
+      "nativeType": "short",
+      "wireType": "int"
+    },
+    {
+      "vector": "i32-short-max",
+      "type": "short",
+      "nativeType": "short",
+      "wireType": "int"
+    },
+    {
+      "vector": "i32-unsigned-short-max",
+      "type": "unsigned-short",
+      "nativeType": "unsigned short",
+      "wireType": "int"
+    },
+    {
+      "vector": "i64-long-min",
+      "type": "long",
+      "nativeType": "long (LP64)",
+      "wireType": "hyper"
+    },
+    {
+      "vector": "i64-long-max",
+      "type": "long",
+      "nativeType": "long (LP64)",
+      "wireType": "hyper"
+    },
+    {
+      "vector": "u64-unsigned-long-max",
+      "type": "unsigned-long",
+      "nativeType": "unsigned long (LP64)",
+      "wireType": "unsigned hyper"
+    },
+    {
+      "vector": "i32-min",
+      "type": "int32",
+      "nativeType": "int (32-bit)",
+      "wireType": "int"
+    },
+    {
+      "vector": "i32-max",
+      "type": "int32",
+      "nativeType": "int (32-bit)",
+      "wireType": "int"
+    },
+    {
+      "vector": "i32-zero",
+      "type": "int32",
+      "nativeType": "int (32-bit)",
+      "wireType": "int"
+    },
+    {
+      "vector": "u32-zero",
+      "type": "uint32",
+      "nativeType": "unsigned int (32-bit)",
+      "wireType": "unsigned int"
+    },
+    {
+      "vector": "u32-high-bit",
+      "type": "uint32",
+      "nativeType": "unsigned int (32-bit)",
+      "wireType": "unsigned int"
+    },
+    {
+      "vector": "u32-max",
+      "type": "uint32",
+      "nativeType": "unsigned int (32-bit)",
+      "wireType": "unsigned int"
+    },
+    {
+      "vector": "i64-min",
+      "type": "int64",
+      "nativeType": "quad_t (signed 64-bit)",
+      "wireType": "hyper"
+    },
+    {
+      "vector": "i64-max",
+      "type": "int64",
+      "nativeType": "quad_t (signed 64-bit)",
+      "wireType": "hyper"
+    },
+    {
+      "vector": "i64-zero",
+      "type": "int64",
+      "nativeType": "quad_t (signed 64-bit)",
+      "wireType": "hyper"
+    },
+    {
+      "vector": "u64-zero",
+      "type": "uint64",
+      "nativeType": "u_quad_t (unsigned 64-bit)",
+      "wireType": "unsigned hyper"
+    },
+    {
+      "vector": "u64-high-bit",
+      "type": "uint64",
+      "nativeType": "u_quad_t (unsigned 64-bit)",
+      "wireType": "unsigned hyper"
+    },
+    {
+      "vector": "u64-max",
+      "type": "uint64",
+      "nativeType": "u_quad_t (unsigned 64-bit)",
+      "wireType": "unsigned hyper"
+    },
+    {
+      "vector": "f32-zero",
+      "type": "float32",
+      "nativeType": "float (IEEE 754 binary32)",
+      "wireType": "float"
+    },
+    {
+      "vector": "f32-negative-zero",
+      "type": "float32",
+      "nativeType": "float (IEEE 754 binary32)",
+      "wireType": "float"
+    },
+    {
+      "vector": "f32-precision",
+      "type": "float32",
+      "nativeType": "float (IEEE 754 binary32)",
+      "wireType": "float"
+    },
+    {
+      "vector": "f32-max",
+      "type": "float32",
+      "nativeType": "float (IEEE 754 binary32)",
+      "wireType": "float"
+    },
+    {
+      "vector": "f32-negative-max",
+      "type": "float32",
+      "nativeType": "float (IEEE 754 binary32)",
+      "wireType": "float"
+    },
+    {
+      "vector": "f32-min-normal",
+      "type": "float32",
+      "nativeType": "float (IEEE 754 binary32)",
+      "wireType": "float"
+    },
+    {
+      "vector": "f32-min-subnormal",
+      "type": "float32",
+      "nativeType": "float (IEEE 754 binary32)",
+      "wireType": "float"
+    },
+    {
+      "vector": "f32-infinity",
+      "type": "float32",
+      "nativeType": "float (IEEE 754 binary32)",
+      "wireType": "float"
+    },
+    {
+      "vector": "f32-negative-infinity",
+      "type": "float32",
+      "nativeType": "float (IEEE 754 binary32)",
+      "wireType": "float"
+    },
+    {
+      "vector": "f32-nan",
+      "type": "float32",
+      "nativeType": "float (IEEE 754 binary32)",
+      "wireType": "float"
+    },
+    {
+      "vector": "f64-zero",
+      "type": "float64",
+      "nativeType": "double (IEEE 754 binary64)",
+      "wireType": "double"
+    },
+    {
+      "vector": "f64-negative-zero",
+      "type": "float64",
+      "nativeType": "double (IEEE 754 binary64)",
+      "wireType": "double"
+    },
+    {
+      "vector": "f64-precision",
+      "type": "float64",
+      "nativeType": "double (IEEE 754 binary64)",
+      "wireType": "double"
+    },
+    {
+      "vector": "f64-max",
+      "type": "float64",
+      "nativeType": "double (IEEE 754 binary64)",
+      "wireType": "double"
+    },
+    {
+      "vector": "f64-negative-max",
+      "type": "float64",
+      "nativeType": "double (IEEE 754 binary64)",
+      "wireType": "double"
+    },
+    {
+      "vector": "f64-min-normal",
+      "type": "float64",
+      "nativeType": "double (IEEE 754 binary64)",
+      "wireType": "double"
+    },
+    {
+      "vector": "f64-min-subnormal",
+      "type": "float64",
+      "nativeType": "double (IEEE 754 binary64)",
+      "wireType": "double"
+    },
+    {
+      "vector": "f64-infinity",
+      "type": "float64",
+      "nativeType": "double (IEEE 754 binary64)",
+      "wireType": "double"
+    },
+    {
+      "vector": "f64-negative-infinity",
+      "type": "float64",
+      "nativeType": "double (IEEE 754 binary64)",
+      "wireType": "double"
+    },
+    {
+      "vector": "f64-nan",
+      "type": "float64",
+      "nativeType": "double (IEEE 754 binary64)",
+      "wireType": "double"
+    },
+    {
+      "vector": "bool-true",
+      "type": "boolean",
+      "nativeType": "bool_t",
+      "wireType": "bool"
+    },
+    {
+      "vector": "bool-false",
+      "type": "boolean",
+      "nativeType": "bool_t",
+      "wireType": "bool"
+    },
+    {
+      "vector": "string-empty",
+      "type": "string",
+      "nativeType": "char *",
+      "wireType": "string<4096>"
+    },
+    {
+      "vector": "string-ascii",
+      "type": "string",
+      "nativeType": "char *",
+      "wireType": "string<4096>"
+    },
+    {
+      "vector": "string-max",
+      "type": "string",
+      "nativeType": "char *",
+      "wireType": "string<4096>"
+    },
+    {
+      "vector": "opaque-empty",
+      "type": "binary",
+      "nativeType": "onc_bytes (char * plus length)",
+      "wireType": "opaque<65536>"
+    },
+    {
+      "vector": "opaque-all-bytes",
+      "type": "binary",
+      "nativeType": "onc_bytes (char * plus length)",
+      "wireType": "opaque<65536>"
+    },
+    {
+      "vector": "fixed-opaque-high-bits",
+      "type": "fixed-binary",
+      "nativeType": "char[5]",
+      "wireType": "opaque[5]"
+    },
+    {
+      "vector": "array-empty",
+      "type": "array",
+      "nativeType": "onc_numbers (int * plus length)",
+      "wireType": "int<128>"
+    },
+    {
+      "vector": "array-boundaries",
+      "type": "array",
+      "nativeType": "onc_numbers (int * plus length)",
+      "wireType": "int<128>"
+    },
+    {
+      "vector": "array-max",
+      "type": "array",
+      "nativeType": "onc_numbers (int * plus length)",
+      "wireType": "int<128>"
+    },
+    {
+      "vector": "fixed-array-boundaries",
+      "type": "fixed-array",
+      "nativeType": "int[3]",
+      "wireType": "int[3]"
+    },
+    {
+      "vector": "enum-red",
+      "type": "enum",
+      "nativeType": "enum onc_colour",
+      "wireType": "enum onc_colour"
+    },
+    {
+      "vector": "enum-green",
+      "type": "enum",
+      "nativeType": "enum onc_colour",
+      "wireType": "enum onc_colour"
+    },
+    {
+      "vector": "enum-blue",
+      "type": "enum",
+      "nativeType": "enum onc_colour",
+      "wireType": "enum onc_colour"
+    },
+    {
+      "vector": "union-int",
+      "type": "union",
+      "nativeType": "onc_choice (tagged C union)",
+      "wireType": "union onc_choice switch (int tag)"
+    },
+    {
+      "vector": "union-text",
+      "type": "union",
+      "nativeType": "onc_choice (tagged C union)",
+      "wireType": "union onc_choice switch (int tag)"
+    },
+    {
+      "vector": "union-default",
+      "type": "union",
+      "nativeType": "onc_choice (tagged C union)",
+      "wireType": "union onc_choice switch (int tag)"
+    },
+    {
+      "vector": "pointer-null",
+      "type": "optional-struct",
+      "nativeType": "onc_optional * (recursive value)",
+      "wireType": "onc_optional *"
+    },
+    {
+      "vector": "pointer-single",
+      "type": "optional-struct",
+      "nativeType": "onc_optional * (recursive value)",
+      "wireType": "onc_optional *"
+    },
+    {
+      "vector": "pointer-recursive",
+      "type": "optional-struct",
+      "nativeType": "onc_optional * (recursive value)",
+      "wireType": "onc_optional *"
+    },
+    {
+      "vector": "string-unicode-rejected",
+      "type": "string",
+      "nativeType": "char *",
+      "wireType": "string<4096>"
+    },
+    {
+      "vector": "u32-negative",
+      "type": "uint32",
+      "nativeType": "unsigned int (32-bit)",
+      "wireType": "unsigned int"
+    },
+    {
+      "vector": "u32-overflow",
+      "type": "uint32",
+      "nativeType": "unsigned int (32-bit)",
+      "wireType": "unsigned int"
+    },
+    {
+      "vector": "u64-negative",
+      "type": "uint64",
+      "nativeType": "u_quad_t (unsigned 64-bit)",
+      "wireType": "unsigned hyper"
+    },
+    {
+      "vector": "u64-overflow",
+      "type": "uint64",
+      "nativeType": "u_quad_t (unsigned 64-bit)",
+      "wireType": "unsigned hyper"
+    },
+    {
+      "vector": "string-overflow",
+      "type": "string",
+      "nativeType": "char *",
+      "wireType": "string<4096>"
+    },
+    {
+      "vector": "opaque-overflow",
+      "type": "binary",
+      "nativeType": "onc_bytes (char * plus length)",
+      "wireType": "opaque<65536>"
+    },
+    {
+      "vector": "array-overflow",
+      "type": "array",
+      "nativeType": "onc_numbers (int * plus length)",
+      "wireType": "int<128>"
+    },
+    {
+      "vector": "fixed-array-length",
+      "type": "fixed-array",
+      "nativeType": "int[3]",
+      "wireType": "int[3]"
+    }
+  ]
+}

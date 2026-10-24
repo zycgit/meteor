@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate official Go bindings from the unmodified shared Order Thrift IDL."""
+"""Generate official Go bindings from the shared order and data-type Thrift contracts."""
 
 import argparse
 from pathlib import Path
@@ -17,12 +17,16 @@ def main():
     if version != "Thrift version 0.25.0":
         raise RuntimeError("Expected Apache Thrift Compiler 0.25.0, got " + version)
 
-    # No copied IDL or manual generated-runtime substitute: only the output package is selected.
+    # The order demo and type matrix use the same maintained IDL as their other-language peers.
     output = source / "gen"
     output.mkdir(parents=True, exist_ok=True)
-    contract = repository / "meteor-test/src/test/thrift/order.thrift"
-    subprocess.run([str(compiler), "--gen", "go:package=thriftorder,skip_remote", "-out", str(output), str(contract)],
-                   check=True)
+    contracts = [
+        ("thriftorder", repository / "meteor-test/src/test/thrift/order.thrift"),
+        ("typecontract", repository / "meteor-test/src/test/resources/vectors/types/types.thrift"),
+    ]
+    for package, contract in contracts:
+        generator = "go:package=" + package + ",skip_remote"
+        subprocess.run([str(compiler), "--gen", generator, "-out", str(output), str(contract)], check=True)
 
 
 if __name__ == "__main__":

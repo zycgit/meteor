@@ -22,6 +22,26 @@ import static org.junit.Assert.*;
 /** 位置、编号和类型映射在发布时确定，测试不创建网络通道。 */
 public class XdrSchemaBuilderTest {
     @Test
+    public void characterWritesChineseCodeUnitAsStandardInt() {
+        // Java char 与 ASCII string 的契约不同，中文 code unit 不能被替换成问号。
+        XdrCodec<Object> codec = this.builder().codec(ResolvableType.forClass(char.class));
+        XdrOutput output = new XdrOutput(1024, 100, 16);
+
+        codec.write(output, '中');
+        assertArrayEquals(new byte[] { 0, 0, 0x4e, 0x2d }, output.toByteArray());
+    }
+
+    @Test
+    public void characterReadsAnUnpairedSurrogateAsOneCodeUnit() {
+        // char 表示一个 UTF-16 code unit，不要求其独自构成完整 Unicode code point。
+        XdrCodec<Object> codec = this.builder().codec(ResolvableType.forClass(Character.class));
+        byte[] body = { 0, 0, (byte) 0xd8, 0 };
+
+        Object value = codec.read(new XdrInput(body, 1024, 100, 16));
+        assertEquals(Character.valueOf((char) 0xd800), value);
+    }
+
+    @Test
     public void structWriteSortsNoncontiguousFieldIdsInsteadOfJavaDeclarationOrder() {
         // Java 先声明 y，编号 9 的 x 先于编号 30 的 y；编号间隙不进入正文。
         XdrCodec<Object> codec = this.builder().codec(ResolvableType.forClass(Point.class));

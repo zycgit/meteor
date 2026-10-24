@@ -172,7 +172,7 @@ final class GrpcProtoCompiler {
             scalar = FieldDescriptorProto.Type.TYPE_FLOAT;
         } else if (raw == double.class || raw == Double.class) {
             scalar = FieldDescriptorProto.Type.TYPE_DOUBLE;
-        } else if (raw == String.class) {
+        } else if (raw == String.class || raw == char.class || raw == Character.class) {
             scalar = FieldDescriptorProto.Type.TYPE_STRING;
         } else if (raw == byte[].class) {
             scalar = FieldDescriptorProto.Type.TYPE_BYTES;

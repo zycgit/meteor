@@ -1,0 +1,326 @@
+{
+  "purpose": "Shared business type vectors. Decimal texts are restored to native integer or floating types before RPC; Base64 is restored to bytes. Each vector replaces one field in defaults.",
+  "defaults": {
+    "caseId": "default",
+    "booleanValue": true,
+    "int8Value": 7,
+    "int16Value": 127,
+    "int32Value": 42,
+    "int64Value": "42",
+    "float32Value": "1.5",
+    "float64Value": "2.25",
+    "textValue": "plain text",
+    "binaryValue": "AAF/gP8=",
+    "enumValue": "FIRST",
+    "listValue": [
+      "alpha",
+      "beta"
+    ],
+    "mapValue": {
+      "alpha": "7",
+      "beta": "12"
+    },
+    "recordValue": {
+      "index": 7,
+      "name": "record"
+    },
+    "optionalValue": "present",
+    "receipt": "client:default",
+    "unsigned64Value": "1"
+  },
+  "vectors": {
+    "boolean-true": {
+      "type": "boolean",
+      "field": "booleanValue",
+      "value": true
+    },
+    "boolean-false": {
+      "type": "boolean",
+      "field": "booleanValue",
+      "value": false
+    },
+    "int8-minimum": {
+      "type": "int8",
+      "field": "int8Value",
+      "value": -128
+    },
+    "int8-maximum": {
+      "type": "int8",
+      "field": "int8Value",
+      "value": 127
+    },
+    "int8-zero": {
+      "type": "int8",
+      "field": "int8Value",
+      "value": 0
+    },
+    "int8-negative": {
+      "type": "int8",
+      "field": "int8Value",
+      "value": -42
+    },
+    "int16-minimum": {
+      "type": "int16",
+      "field": "int16Value",
+      "value": -32768
+    },
+    "int16-maximum": {
+      "type": "int16",
+      "field": "int16Value",
+      "value": 32767
+    },
+    "int16-zero": {
+      "type": "int16",
+      "field": "int16Value",
+      "value": 0
+    },
+    "int16-negative": {
+      "type": "int16",
+      "field": "int16Value",
+      "value": -42
+    },
+    "int32-minimum": {
+      "type": "int32",
+      "field": "int32Value",
+      "value": -2147483648
+    },
+    "int32-maximum": {
+      "type": "int32",
+      "field": "int32Value",
+      "value": 2147483647
+    },
+    "int32-zero": {
+      "type": "int32",
+      "field": "int32Value",
+      "value": 0
+    },
+    "int32-negative": {
+      "type": "int32",
+      "field": "int32Value",
+      "value": -42
+    },
+    "int64-minimum": {
+      "type": "int64",
+      "field": "int64Value",
+      "value": "-9223372036854775808"
+    },
+    "int64-maximum": {
+      "type": "int64",
+      "field": "int64Value",
+      "value": "9223372036854775807"
+    },
+    "int64-zero": {
+      "type": "int64",
+      "field": "int64Value",
+      "value": "0"
+    },
+    "int64-negative": {
+      "type": "int64",
+      "field": "int64Value",
+      "value": "-42"
+    },
+    "int64-above-double-precision": {
+      "type": "int64",
+      "field": "int64Value",
+      "value": "9007199254740993"
+    },
+    "int64-below-negative-double-precision": {
+      "type": "int64",
+      "field": "int64Value",
+      "value": "-9007199254740993"
+    },
+    "uint64-zero": {
+      "type": "uint64",
+      "field": "unsigned64Value",
+      "value": "0"
+    },
+    "uint64-maximum": {
+      "type": "uint64",
+      "field": "unsigned64Value",
+      "value": "18446744073709551615"
+    },
+    "uint64-above-signed-maximum": {
+      "type": "uint64",
+      "field": "unsigned64Value",
+      "value": "9223372036854775808"
+    },
+    "uint64-above-double-precision": {
+      "type": "uint64",
+      "field": "unsigned64Value",
+      "value": "9007199254740993"
+    },
+    "uint8-zero": {
+      "type": "uint8",
+      "field": "unsigned64Value",
+      "value": "0"
+    },
+    "uint8-maximum": {
+      "type": "uint8",
+      "field": "unsigned64Value",
+      "value": "255"
+    },
+    "uint16-zero": {
+      "type": "uint16",
+      "field": "unsigned64Value",
+      "value": "0"
+    },
+    "uint16-maximum": {
+      "type": "uint16",
+      "field": "unsigned64Value",
+      "value": "65535"
+    },
+    "uint32-zero": {
+      "type": "uint32",
+      "field": "unsigned64Value",
+      "value": "0"
+    },
+    "uint32-maximum": {
+      "type": "uint32",
+      "field": "unsigned64Value",
+      "value": "4294967295"
+    },
+    "float32-minimum-positive": {
+      "type": "float32",
+      "field": "float32Value",
+      "value": "1.4E-45"
+    },
+    "float32-maximum": {
+      "type": "float32",
+      "field": "float32Value",
+      "value": "3.4028235E38"
+    },
+    "float32-lowest": {
+      "type": "float32",
+      "field": "float32Value",
+      "value": "-3.4028235E38"
+    },
+    "float32-zero": {
+      "type": "float32",
+      "field": "float32Value",
+      "value": "0.0"
+    },
+    "float32-negative-zero": {
+      "type": "float32",
+      "field": "float32Value",
+      "value": "-0.0"
+    },
+    "float64-minimum-positive": {
+      "type": "float64",
+      "field": "float64Value",
+      "value": "4.9E-324"
+    },
+    "float64-maximum": {
+      "type": "float64",
+      "field": "float64Value",
+      "value": "1.7976931348623157E308"
+    },
+    "float64-lowest": {
+      "type": "float64",
+      "field": "float64Value",
+      "value": "-1.7976931348623157E308"
+    },
+    "float64-zero": {
+      "type": "float64",
+      "field": "float64Value",
+      "value": "0.0"
+    },
+    "float64-negative-zero": {
+      "type": "float64",
+      "field": "float64Value",
+      "value": "-0.0"
+    },
+    "text-ascii-escaping": {
+      "type": "text",
+      "field": "textValue",
+      "value": "ASCII <tag> & \"quotes\" \\ slash\nline"
+    },
+    "text-unicode": {
+      "type": "text",
+      "field": "textValue",
+      "value": "订单🙂 Καλημέρα مرحبا"
+    },
+    "text-empty": {
+      "type": "text",
+      "field": "textValue",
+      "value": ""
+    },
+    "binary-all-octets": {
+      "type": "binary",
+      "field": "binaryValue",
+      "value": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w=="
+    },
+    "binary-empty": {
+      "type": "binary",
+      "field": "binaryValue",
+      "value": ""
+    },
+    "enum-first": {
+      "type": "enum",
+      "field": "enumValue",
+      "value": "FIRST"
+    },
+    "enum-second": {
+      "type": "enum",
+      "field": "enumValue",
+      "value": "SECOND"
+    },
+    "list-ordered": {
+      "type": "list",
+      "field": "listValue",
+      "value": [
+        "first",
+        "second",
+        "third"
+      ]
+    },
+    "list-empty": {
+      "type": "list",
+      "field": "listValue",
+      "value": []
+    },
+    "map-typed-values": {
+      "type": "map",
+      "field": "mapValue",
+      "value": {
+        "minimum": "-9223372036854775808",
+        "maximum": "9223372036854775807"
+      }
+    },
+    "map-empty": {
+      "type": "map",
+      "field": "mapValue",
+      "value": {}
+    },
+    "record-nested": {
+      "type": "record",
+      "field": "recordValue",
+      "value": {
+        "index": -42,
+        "name": "nested-record"
+      }
+    },
+    "record-zero-empty": {
+      "type": "record",
+      "field": "recordValue",
+      "value": {
+        "index": 0,
+        "name": ""
+      }
+    },
+    "optional-null": {
+      "type": "optional",
+      "field": "optionalValue",
+      "value": null
+    },
+    "optional-empty": {
+      "type": "optional",
+      "field": "optionalValue",
+      "value": ""
+    },
+    "optional-present": {
+      "type": "optional",
+      "field": "optionalValue",
+      "value": "present optional"
+    }
+  }
+}

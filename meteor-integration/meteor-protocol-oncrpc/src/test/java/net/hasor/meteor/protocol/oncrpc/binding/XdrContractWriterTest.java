@@ -21,6 +21,33 @@ import static org.junit.Assert.*;
 
 public class XdrContractWriterTest {
     @Test
+    public void generatedIntFieldsRebindToTheirNarrowJavaTypes() throws Exception {
+        // 导出契约统一使用标准 int，Java 字段仍保留 Byte、Short 和 Character。
+        ServiceDomain<NarrowNumbers> service = new ServiceDomain<>(NarrowNumbers.class);
+        ProtocolConfig config = ProtocolConfig.newConfig("oncrpc", "oncrpc", Map.of());
+        OncRpcServiceResource declaration = new OncRpcServiceResource(NarrowNumbers.class);
+        OncRpcServiceBinding original = new OncRpcServiceBinding(declaration, service, config);
+        Path directory = Path.of("build", "contracts", "narrow-numbers");
+        Files.createDirectories(directory);
+        Path file = directory.resolve("NarrowNumbers.x");
+        Files.writeString(file, original.getSources().get("NarrowNumbers.x"));
+
+        // 用原 Java DTO 重绑导出的文件，读取独立黄金报文，不能仅检查导出文本。
+        OncRpcIdlResource resource = new OncRpcIdlResource(file.toUri().toURL());
+        OncRpcServiceBinding restored = new OncRpcServiceBinding(resource, service, config);
+        byte[] body = { -1, -1, -1, (byte) 0x80, 0, 0, 0x7f, -1, 0, 0, 0x4e, 0x2d };
+        NarrowValues values = (NarrowValues) restored.result("mirror").read(new XdrInput(body, 1024, 100, 16));
+        assertEquals(Byte.valueOf(Byte.MIN_VALUE), values.small);
+        assertEquals(Short.valueOf(Short.MAX_VALUE), values.medium);
+        assertEquals(Character.valueOf('中'), values.character);
+
+        // 重新写入仍是相同的三个 int32，没有隐式 optional 判别值。
+        XdrOutput output = new XdrOutput(1024, 100, 16);
+        restored.parameter("mirror", 0).write(output, values);
+        assertArrayEquals(body, output.toByteArray());
+    }
+
+    @Test
     public void genericDtoInstancesKeepDistinctNamesWhenRebindingTheExportedFile() throws Exception {
         // 两个泛型实参进入独立的 XDR 类型，成员顺序由公共字段编号排序确定。
         ServiceDomain<GenericNotes> service = new ServiceDomain<>(GenericNotes.class);
@@ -125,6 +152,21 @@ public class XdrContractWriterTest {
 
         @MetMethod(id = 7)
         long add(@MetParam(name = "left") int first, @MetParam(name = "right") long second);
+    }
+
+    @MetService(id = 0x20002224)
+    public interface NarrowNumbers {
+        @MetMethod(id = 1)
+        NarrowValues mirror(NarrowValues value);
+    }
+
+    public static class NarrowValues {
+        @MetField(id = 1)
+        public Byte      small;
+        @MetField(id = 2)
+        public Short     medium;
+        @MetField(id = 3)
+        public Character character;
     }
 
     public static class Note {

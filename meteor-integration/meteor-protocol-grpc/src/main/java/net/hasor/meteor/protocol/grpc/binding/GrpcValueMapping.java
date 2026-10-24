@@ -194,8 +194,9 @@ final class GrpcValueMapping {
         boolean epochMillis = !mapKey && //
                 Date.class.isAssignableFrom(raw) &&//
                 field.getJavaType() == FieldDescriptor.JavaType.LONG;
+        boolean character = raw == char.class || raw == Character.class;
         boolean numeric = Number.class.isAssignableFrom(raw) || raw.isPrimitive() &&//
-                raw != boolean.class;
+                raw != boolean.class && raw != char.class;
         boolean accepted = switch (field.getJavaType()) {
             case INT, FLOAT, DOUBLE -> numeric;
             case LONG -> numeric || epochMillis;
@@ -210,7 +211,7 @@ final class GrpcValueMapping {
             throw mismatch(type, field.getName(), "Java value cannot represent this proto field");
         }
 
-        return decimalText || epochMillis ? new GrpcValueMapping(type, null) : null;
+        return decimalText || epochMillis || character ? new GrpcValueMapping(type, null) : null;
     }
 
     JsonNode toProto(JsonNode value) {
@@ -230,8 +231,18 @@ final class GrpcValueMapping {
             return value;
         }
 
-        // 显式 string 小数保留全部位数和 scale，int64 日期始终按毫秒读取。
+        // Java char 使用 string 传输，拒绝多字符文本和无法独立编码的 surrogate。
         if (this.descriptor == null && this.enumDescriptor == null) {
+            Class<?> raw = this.type.getRawClass();
+            if (raw == char.class || raw == Character.class) {
+                String text = value.textValue();
+                if (!writing && raw == char.class && text != null && text.isEmpty()) {
+                    return MAPPER.getNodeFactory().textNode("\u0000");
+                }
+                validateCharacter(this.type, text);
+            }
+
+            // 显式 string 小数保留全部位数和 scale，int64 日期始终按毫秒读取。
             if (this.type.hasRawClass(BigDecimal.class) && writing) {
                 return MAPPER.getNodeFactory().textNode(value.asText());
             }
@@ -294,16 +305,24 @@ final class GrpcValueMapping {
 
             GrpcValueMapping child = this.children.get(field);
             JsonNode mapped = entry.getValue();
-            if (child != null && !mapped.isNull()) {
-                if (field.isMapField()) {
+            if (field != null && field.isMapField() && !mapped.isNull()) {
+                JavaType keyType = this.javaTypes.get(field).getKeyType();
+                boolean characterKeys = keyType.hasRawClass(Character.class);
+                if (child != null || characterKeys) {
                     ObjectNode map = MAPPER.createObjectNode();
                     Iterator<Map.Entry<String, JsonNode>> items = mapped.fields();
                     while (items.hasNext()) {
                         Map.Entry<String, JsonNode> item = items.next();
-                        map.set(item.getKey(), child.convert(item.getValue(), writing));
+                        if (characterKeys) {
+                            validateCharacter(keyType, item.getKey());
+                        }
+                        JsonNode itemValue = child == null ? item.getValue() : child.convert(item.getValue(), writing);
+                        map.set(item.getKey(), itemValue);
                     }
                     mapped = map;
-                } else if (field.isRepeated()) {
+                }
+            } else if (child != null && !mapped.isNull()) {
+                if (field.isRepeated()) {
                     ArrayNode array = MAPPER.createArrayNode();
                     for (JsonNode item : mapped) {
                         array.add(child.convert(item, writing));
@@ -320,6 +339,14 @@ final class GrpcValueMapping {
             this.defaults(output);
         }
         return output;
+    }
+
+    private static void validateCharacter(JavaType type, String text) {
+        boolean singleCharacter = text != null && text.length() == 1;
+        if (!singleCharacter || Character.isSurrogate(text.charAt(0))) {
+            String reason = "Protobuf character requires one non-surrogate character";
+            throw mismatch(type, text, reason);
+        }
     }
 
     private void defaults(ObjectNode output) {

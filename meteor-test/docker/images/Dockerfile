@@ -20,6 +20,7 @@ COPY meteor-test/src/test/node/hprose/ /opt/meteor-peer/node/hprose/
 COPY meteor-test/src/test/node/connect/ /opt/meteor-peer/node/connect/
 COPY meteor-test/src/test/node/jsonrpc/ /opt/meteor-peer/node/jsonrpc/
 COPY meteor-test/src/test/node/grpcweb/ /opt/meteor-peer/node/grpcweb/
+COPY meteor-test/src/test/node/types/ /opt/meteor-peer/node/types/
 RUN set -eu; \
     for peer in hprose connect jsonrpc grpcweb; do \
         cd "/opt/meteor-peer/node/${peer}"; \
@@ -28,7 +29,8 @@ RUN set -eu; \
     cd /opt/meteor-peer/node/grpcweb; \
     node build.js; \
     mkdir -p /opt/meteor-peer/assets/grpcweb; \
-    cp browser.bundle.js /opt/meteor-peer/assets/grpcweb/browser.bundle.js
+    cp browser.bundle.js /opt/meteor-peer/assets/grpcweb/browser.bundle.js; \
+    cp types-browser.bundle.js /opt/meteor-peer/assets/grpcweb/types-browser.bundle.js
 
 # Foreign Node processes execute here, outside the Java test runner container.
 FROM node-build AS node
@@ -67,15 +69,25 @@ RUN set -eu; \
             "/opt/meteor-peer/python-${peer}/requirements-installed.txt"; \
     done
 COPY met-example/src/main/resources/proto/order.proto /sources/proto/order.proto
+COPY meteor-test/src/test/resources/vectors/types/types.proto /sources/proto/types.proto
 COPY meteor-test/src/test/python/soap/peer.py /sources/python/soap/peer.py
-RUN mkdir -p /opt/meteor-peer/python-grpc-generated /opt/meteor-peer/python-soap-generated && \
+COPY meteor-test/src/test/python/soap/type_peer.py /sources/python/soap/type_peer.py
+RUN mkdir -p /opt/meteor-peer/python-grpc-generated /opt/meteor-peer/python-types-grpc-generated \
+       /opt/meteor-peer/python-soap-generated && \
     /opt/meteor-peer/python-grpc/bin/python -m grpc_tools.protoc \
        -I /sources/proto \
        --python_out=/opt/meteor-peer/python-grpc-generated \
        --grpc_python_out=/opt/meteor-peer/python-grpc-generated \
        /sources/proto/order.proto && \
+    /opt/meteor-peer/python-grpc/bin/python -m grpc_tools.protoc \
+       -I /sources/proto \
+       --python_out=/opt/meteor-peer/python-types-grpc-generated \
+       --grpc_python_out=/opt/meteor-peer/python-types-grpc-generated \
+       /sources/proto/types.proto && \
     /opt/meteor-peer/python-soap/bin/python /sources/python/soap/peer.py \
        contract --output /opt/meteor-peer/python-soap-generated/orders.wsdl && \
+    /opt/meteor-peer/python-soap/bin/python /sources/python/soap/type_peer.py \
+       contract --output /opt/meteor-peer/python-soap-generated/types.wsdl && \
     cp /sources/python/grpc/requirements.txt \
        /opt/meteor-peer/python-grpc-generated/requirements-installed.txt && \
     cp /sources/python/soap/requirements.txt \
@@ -125,9 +137,12 @@ COPY meteor-test/src/test/go/ ./
 RUN mkdir -p /opt/meteor-peer/go \
     && go build -mod=readonly -trimpath -buildvcs=false \
         -o /opt/meteor-peer/go/order-peer . \
+    && go build -mod=readonly -trimpath -buildvcs=false \
+        -o /opt/meteor-peer/go/types-peer ./types \
     && go version > /opt/meteor-peer/go/go-version.txt \
     && cd /opt/meteor-peer/go \
-    && sha256sum order-peer > order-peer.sha256
+    && sha256sum order-peer > order-peer.sha256 \
+    && sha256sum types-peer > types-peer.sha256
 
 FROM ${DEBIAN_IMAGE} AS go
 RUN apt-get update \
@@ -174,6 +189,7 @@ RUN apt-get update \
 COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=node-build /opt/meteor-peer/assets/ /opt/meteor-peer/assets/
 COPY --from=python-build /opt/meteor-peer/python-grpc-generated/ /opt/meteor-peer/python-grpc-generated/
+COPY --from=python-build /opt/meteor-peer/python-types-grpc-generated/ /opt/meteor-peer/python-types-grpc-generated/
 COPY --from=python-build /opt/meteor-peer/python-soap-generated/ /opt/meteor-peer/python-soap-generated/
 COPY . /workspace/meteor/
 ENV JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 \

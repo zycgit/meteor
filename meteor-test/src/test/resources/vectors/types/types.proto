@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package meteor.types;
+
+option go_package = "meteor.test/orderpeer/gen/typepb";
+
+enum TypeKind {
+  FIRST = 0;
+  SECOND = 1;
+}
+
+message TypeRecord {
+  int32 index = 1;
+  string name = 2;
+}
+
+message TypeValue {
+  string caseId = 1;
+  bool booleanValue = 2;
+  int32 int8Value = 3;
+  int32 int16Value = 4;
+  int32 int32Value = 5;
+  int64 int64Value = 6;
+  float float32Value = 7;
+  double float64Value = 8;
+  string textValue = 9;
+  bytes binaryValue = 10;
+  TypeKind enumValue = 11;
+  repeated string listValue = 12;
+  map<string, int64> mapValue = 13;
+  TypeRecord recordValue = 14;
+  optional string optionalValue = 15;
+  string receipt = 16;
+  uint64 unsigned64Value = 17;
+}
+
+service TypeEchoService {
+  rpc echo(TypeValue) returns (TypeValue);
+}

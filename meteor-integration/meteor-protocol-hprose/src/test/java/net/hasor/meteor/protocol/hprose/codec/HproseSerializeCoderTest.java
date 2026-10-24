@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.*;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -278,6 +279,120 @@ public class HproseSerializeCoderTest {
         // 字符串写出格式与历史 Hprose 报文保持兼容。
         byte[] fixture = "s5\"hello\"".getBytes(StandardCharsets.UTF_8);
         assertArrayEquals(fixture, this.coder.encode("hello"));
+    }
+
+    @Test
+    public void localDateRoundTrips() throws Exception {
+        // SDK 自带 Java 8 注册器保留闰年日期。
+        LocalDate value = LocalDate.of(2024, 2, 29);
+        assertEquals(value, this.roundTrip(value, LocalDate.class));
+    }
+
+    @Test
+    public void localTimeRoundTripsWithNanoseconds() throws Exception {
+        // 本地时间保留纳秒精度，不退化为毫秒时间戳。
+        LocalTime value = LocalTime.parse("12:34:56.123456789");
+        assertEquals(value, this.roundTrip(value, LocalTime.class));
+    }
+
+    @Test
+    public void localDateTimeRoundTripsWithNanoseconds() throws Exception {
+        // 本地日期时间不附加系统时区。
+        LocalDateTime value = LocalDateTime.parse("2024-02-29T12:34:56.123456789");
+        assertEquals(value, this.roundTrip(value, LocalDateTime.class));
+    }
+
+    @Test
+    public void offsetTimeRoundTrips() throws Exception {
+        // 带偏移时间保留显式偏移与纳秒。
+        OffsetTime value = OffsetTime.parse("12:34:56.123456789+08:00");
+        assertEquals(value, this.roundTrip(value, OffsetTime.class));
+    }
+
+    @Test
+    public void offsetDateTimeRoundTrips() throws Exception {
+        // 带偏移日期时间按 SDK 原生字符串映射恢复。
+        OffsetDateTime value = OffsetDateTime.parse("2024-02-29T12:34:56.123456789+08:00");
+        assertEquals(value, this.roundTrip(value, OffsetDateTime.class));
+    }
+
+    @Test
+    public void nonUtcZonedDateTimePreservesRegion() throws Exception {
+        // 非 UTC 区域时区使用 SDK 字符串格式，保留区域 ID。
+        ZonedDateTime value = ZonedDateTime.parse("2024-02-29T12:34:56.123456789+08:00[Asia/Shanghai]");
+        assertEquals(value, this.roundTrip(value, ZonedDateTime.class));
+    }
+
+    @Test
+    public void utcZonedDateTimeNormalizesRegionToOffset() throws Exception {
+        // SDK 的 UTC 日期标签保留时间与纳秒，但不携带区域时区 ID。
+        ZonedDateTime value = ZonedDateTime.parse("2024-02-29T12:34:56.123456789Z[UTC]");
+        ZonedDateTime decoded = (ZonedDateTime) this.roundTrip(value, ZonedDateTime.class);
+
+        // 明确记录原生映射限制，不将区域丢失当作严格往返。
+        assertEquals(value.toInstant(), decoded.toInstant());
+        assertEquals(ZoneOffset.UTC, decoded.getZone());
+        assertNotEquals(value.getZone(), decoded.getZone());
+    }
+
+    @Test
+    public void durationRoundTrips() throws Exception {
+        // 时长保留秒数与纳秒余数。
+        Duration value = Duration.parse("PT123.123456789S");
+        assertEquals(value, this.roundTrip(value, Duration.class));
+    }
+
+    @Test
+    public void instantRoundTrips() throws Exception {
+        // 时间点使用 SDK 的 ISO 文本映射并保留纳秒。
+        Instant value = Instant.parse("2024-02-29T12:34:56.123456789Z");
+        assertEquals(value, this.roundTrip(value, Instant.class));
+    }
+
+    @Test
+    public void monthDayRoundTrips() throws Exception {
+        // 月日不补入隐含年份。
+        MonthDay value = MonthDay.of(2, 29);
+        assertEquals(value, this.roundTrip(value, MonthDay.class));
+    }
+
+    @Test
+    public void periodRoundTrips() throws Exception {
+        // 周期保留年、月、日三个分量。
+        Period value = Period.of(1, 2, 3);
+        assertEquals(value, this.roundTrip(value, Period.class));
+    }
+
+    @Test
+    public void yearRoundTrips() throws Exception {
+        // 年份按声明类型恢复。
+        Year value = Year.of(2024);
+        assertEquals(value, this.roundTrip(value, Year.class));
+    }
+
+    @Test
+    public void yearMonthRoundTrips() throws Exception {
+        // 年月不补入隐含日期。
+        YearMonth value = YearMonth.of(2024, 2);
+        assertEquals(value, this.roundTrip(value, YearMonth.class));
+    }
+
+    @Test
+    public void regionZoneIdRemainsUnsupportedBySdk() throws Exception {
+        // SDK 只注册抽象 ZoneId，不能恢复实际 ZoneRegion 对象。
+        ZoneId value = ZoneId.of("Asia/Shanghai");
+        IOException failure = assertThrows(IOException.class, () -> this.roundTrip(value, ZoneId.class));
+
+        // 保留具体失败边界，不能把任意编码异常记为已支持。
+        assertTrue(failure.getCause() instanceof ClassCastException);
+        assertEquals("Object can't change to class java.time.ZoneId", failure.getCause().getMessage());
+    }
+
+    @Test
+    public void zoneOffsetRoundTrips() throws Exception {
+        // 固定偏移时区使用 SDK 已注册的具体类型。
+        ZoneOffset value = ZoneOffset.ofHoursMinutes(5, 30);
+        assertEquals(value, this.roundTrip(value, ZoneOffset.class));
     }
 
     public static class Payload implements Serializable {

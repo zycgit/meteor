@@ -9,6 +9,7 @@ package net.hasor.meteor.protocol.xmlrpc.codec;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -385,7 +386,8 @@ final class XmlRpcWireCodec {
         this.depth(depth);
         this.append(xml, "<value>");
         boolean smallInteger = value instanceof Byte || value instanceof Short;
-        boolean integer = smallInteger || value instanceof Integer || value instanceof Long;
+        boolean wideInteger = value instanceof Long || value instanceof BigInteger;
+        boolean integer = smallInteger || value instanceof Integer || wideInteger;
         if (value == null) {
             if (!this.allowNil) {
                 throw new IOException("XML-RPC null requires allowNil");
@@ -398,6 +400,10 @@ final class XmlRpcWireCodec {
         } else if (value instanceof Boolean) {
             this.append(xml, (Boolean) value ? "<boolean>1</boolean>" : "<boolean>0</boolean>");
         } else if (integer) {
+            // 先检查任意精度整数的完整范围，避免 longValue 截断高位后错误放行。
+            if (value instanceof BigInteger bigInteger && bigInteger.bitLength() > 31) {
+                throw new IOException("XML-RPC integer exceeds signed 32-bit range");
+            }
             long number = ((Number) value).longValue();
             if (number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
                 throw new IOException("XML-RPC integer exceeds signed 32-bit range");

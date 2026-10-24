@@ -16,13 +16,13 @@ import java.util.function.ToIntFunction;
 
 /** RFC 4506 scalar and composition codecs; application structs and discriminated unions implement XdrCodec directly. */
 public final class XdrCodecs {
-    public static final XdrCodec<Integer>    INT           = codec(XdrInput::readInt, XdrOutput::writeInt);
-    public static final XdrCodec<Long>       UNSIGNED_INT  = codec(XdrInput::readUnsignedInt, XdrOutput::writeUnsignedInt);
-    public static final XdrCodec<Long>       LONG          = codec(XdrInput::readLong, XdrOutput::writeLong);
+    public static final XdrCodec<Integer>    INT           = scalar(XdrInput::readInt, XdrOutput::writeInt);
+    public static final XdrCodec<Long>       UNSIGNED_INT  = scalar(XdrInput::readUnsignedInt, XdrOutput::writeUnsignedInt);
+    public static final XdrCodec<Long>       LONG          = scalar(XdrInput::readLong, XdrOutput::writeLong);
     public static final XdrCodec<BigInteger> UNSIGNED_LONG = codec(XdrInput::readUnsignedLong, XdrOutput::writeUnsignedLong);
-    public static final XdrCodec<Boolean>    BOOLEAN       = codec(XdrInput::readBoolean, XdrOutput::writeBoolean);
-    public static final XdrCodec<Float>      FLOAT         = codec(XdrInput::readFloat, XdrOutput::writeFloat);
-    public static final XdrCodec<Double>     DOUBLE        = codec(XdrInput::readDouble, XdrOutput::writeDouble);
+    public static final XdrCodec<Boolean>    BOOLEAN       = scalar(XdrInput::readBoolean, XdrOutput::writeBoolean);
+    public static final XdrCodec<Float>      FLOAT         = scalar(XdrInput::readFloat, XdrOutput::writeFloat);
+    public static final XdrCodec<Double>     DOUBLE        = scalar(XdrInput::readDouble, XdrOutput::writeDouble);
     /** IEEE 754 binary128 is carried as its exact 16 bytes, without narrowing to Java double. */
     public static final XdrCodec<byte[]>     QUADRUPLE     = fixedOpaque(16);
     public static final XdrCodec<Void>       VOID          = codec(input -> null, (output, value) -> {
@@ -128,6 +128,15 @@ public final class XdrCodecs {
                 throw new IllegalArgumentException("XDR enum cannot be null");
             }
             output.writeInt(writer.applyAsInt(value));
+        });
+    }
+
+    private static <T> XdrCodec<T> scalar(Function<XdrInput, T> reader, BiConsumer<XdrOutput, T> writer) {
+        return codec(reader, (output, value) -> {
+            if (value == null) {
+                throw new IllegalArgumentException("XDR scalar cannot be null; use an explicit optional declaration");
+            }
+            writer.accept(output, value);
         });
     }
 

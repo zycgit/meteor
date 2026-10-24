@@ -473,9 +473,14 @@ static int sample_equal(const onc_sample *left, const onc_sample *right) {
             && right->optional->next->value == -9 && right->optional->next->next == NULL;
 }
 
+#include "oncrpc_types.h"
+
 static int run_scenario(CLIENT *client, const struct peer_options *options) {
     const char *scenario = options->scenario;
     int result = 0;
+    if (strcmp(scenario, "types") == 0) {
+        return run_type_scenario(client, options);
+    }
 
     // Error cases use the official client status mapping, without decoding custom wire replies.
     enum clnt_stat expected = RPC_SUCCESS;
