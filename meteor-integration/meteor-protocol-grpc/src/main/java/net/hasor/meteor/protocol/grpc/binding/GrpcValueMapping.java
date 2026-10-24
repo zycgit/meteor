@@ -7,13 +7,12 @@
  */
 package net.hasor.meteor.protocol.grpc.binding;
 import java.lang.reflect.Method;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.math.BigDecimal;
+import java.util.*;
 import java.util.concurrent.Flow;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
 import com.fasterxml.jackson.databind.introspect.Annotated;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
@@ -139,7 +138,10 @@ final class GrpcValueMapping {
                 }
                 result.children.put(field, enumeration(value, target.getEnumType()));
             } else {
-                scalar(value, target);
+                GrpcValueMapping scalar = scalar(value, target);
+                if (scalar != null) {
+                    result.children.put(field, scalar);
+                }
             }
         }
         return result;
@@ -179,23 +181,36 @@ final class GrpcValueMapping {
         return result;
     }
 
-    private static void scalar(JavaType type, FieldDescriptor field) {
+    private static GrpcValueMapping scalar(JavaType type, FieldDescriptor field) {
         Class<?> raw = type.getRawClass();
         if (raw == Object.class || JsonNode.class.isAssignableFrom(raw)) {
-            return;
+            return null;
         }
-        boolean numeric = Number.class.isAssignableFrom(raw) || raw.isPrimitive() && raw != boolean.class;
+
+        boolean decimalText = raw == BigDecimal.class &&//
+                field.getJavaType() == FieldDescriptor.JavaType.STRING;
+        boolean mapKey = field.getContainingType().getOptions().getMapEntry() &&//
+                field.getNumber() == 1;
+        boolean epochMillis = !mapKey && //
+                Date.class.isAssignableFrom(raw) &&//
+                field.getJavaType() == FieldDescriptor.JavaType.LONG;
+        boolean numeric = Number.class.isAssignableFrom(raw) || raw.isPrimitive() &&//
+                raw != boolean.class;
         boolean accepted = switch (field.getJavaType()) {
-            case INT, LONG, FLOAT, DOUBLE -> numeric;
+            case INT, FLOAT, DOUBLE -> numeric;
+            case LONG -> numeric || epochMillis;
             case BOOLEAN -> raw == boolean.class || raw == Boolean.class;
-            case STRING -> raw == String.class || raw == char.class || raw == Character.class;
+            case STRING -> raw == String.class || raw == char.class || raw == Character.class || decimalText;
             case BYTE_STRING -> raw == byte[].class;
             case ENUM -> numeric || raw == String.class;
             case MESSAGE -> false;
         };
+
         if (!accepted) {
             throw mismatch(type, field.getName(), "Java value cannot represent this proto field");
         }
+
+        return decimalText || epochMillis ? new GrpcValueMapping(type, null) : null;
     }
 
     JsonNode toProto(JsonNode value) {
@@ -214,6 +229,18 @@ final class GrpcValueMapping {
         if (value == null || value.isNull()) {
             return value;
         }
+
+        // 显式 string 小数保留全部位数和 scale，int64 日期始终按毫秒读取。
+        if (this.descriptor == null && this.enumDescriptor == null) {
+            if (this.type.hasRawClass(BigDecimal.class) && writing) {
+                return MAPPER.getNodeFactory().textNode(value.asText());
+            }
+            if (Date.class.isAssignableFrom(this.type.getRawClass()) && !writing && value.isTextual()) {
+                return MAPPER.getNodeFactory().numberNode(Long.parseLong(value.textValue()));
+            }
+            return value;
+        }
+
         if (this.enumDescriptor != null && !this.type.isEnumType()) {
             if (!writing && !this.type.hasRawClass(String.class) && value.isTextual()) {
                 EnumValueDescriptor item = this.enumDescriptor.findValueByName(value.asText());
@@ -224,6 +251,7 @@ final class GrpcValueMapping {
             }
             return value;
         }
+
         if (!this.enumWrite.isEmpty()) {
             Map<String, String> names = writing ? this.enumWrite : this.enumRead;
             String name = names.get(value.asText());
@@ -232,6 +260,7 @@ final class GrpcValueMapping {
             }
             return MAPPER.getNodeFactory().textNode(name);
         }
+
         if (this.properties.isEmpty() || !value.isObject()) {
             return value;
         }
@@ -250,6 +279,7 @@ final class GrpcValueMapping {
                     }
                 }
             }
+
             String name;
             if (field == null) {
                 name = entry.getKey();
@@ -261,6 +291,7 @@ final class GrpcValueMapping {
             if (name == null) {
                 continue;
             }
+
             GrpcValueMapping child = this.children.get(field);
             JsonNode mapped = entry.getValue();
             if (child != null && !mapped.isNull()) {
@@ -284,6 +315,7 @@ final class GrpcValueMapping {
             }
             output.set(name, mapped);
         }
+
         if (!writing) {
             this.defaults(output);
         }
@@ -297,6 +329,7 @@ final class GrpcValueMapping {
             if (output.has(name)) {
                 continue;
             }
+
             if (field.isMapField()) {
                 output.putObject(name);
             } else if (field.isRepeated()) {
@@ -325,8 +358,7 @@ final class GrpcValueMapping {
 
     static JavaType messageType(Class<?> service, Method method, boolean request) {
         MethodMeta description = ServiceMetaParser.method(service, method);
-        ResolvableType type = request ? description.getParameters().get(0).getMessageType() //
-                : description.getResponseType();
+        ResolvableType type = request ? description.getParameters().get(0).getMessageType() : description.getResponseType();
         return javaType(type);
     }
 
@@ -335,13 +367,16 @@ final class GrpcValueMapping {
         if (raw == null || raw == Object.class) {
             throw new IllegalArgumentException("Protobuf requires a resolved Java type: " + type);
         }
+
         if (raw.isArray()) {
             return MAPPER.getTypeFactory().constructArrayType(javaType(type.getComponentType()));
         }
+
         ResolvableType[] arguments = type.getGenerics();
         if (arguments.length == 0) {
             return MAPPER.constructType(raw);
         }
+
         JavaType[] resolved = new JavaType[arguments.length];
         for (int index = 0; index < arguments.length; index++) {
             resolved[index] = javaType(arguments[index]);
@@ -355,7 +390,9 @@ final class GrpcValueMapping {
     }
 
     private static ObjectMapper newMapper() {
-        ObjectMapper mapper = JsonMapper.builder().serializationInclusion(JsonInclude.Include.NON_NULL).build();
+        ObjectMapper mapper = JsonMapper.builder()//
+                .serializationInclusion(JsonInclude.Include.NON_NULL)//
+                .disable(JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES).build();
         AnnotationIntrospector common = new NopAnnotationIntrospector() {
             @Override
             public PropertyName findNameForSerialization(Annotated value) {
@@ -367,6 +404,7 @@ final class GrpcValueMapping {
                 return this.findNameForSerialization(value);
             }
         };
+
         AnnotationIntrospector nativeAnnotations = mapper.getSerializationConfig().getAnnotationIntrospector();
         mapper.setAnnotationIntrospector(AnnotationIntrospector.pair(common, nativeAnnotations));
         return mapper;
