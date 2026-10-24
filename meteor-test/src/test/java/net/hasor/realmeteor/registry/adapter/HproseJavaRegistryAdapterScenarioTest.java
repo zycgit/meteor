@@ -27,6 +27,7 @@ import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -43,9 +44,9 @@ public class HproseJavaRegistryAdapterScenarioTest {
     @Parameterized.Parameters(name = "Hprose-java/storage-adapter/{0}")
     public static Collection<Object[]> backends() {
         List<Object[]> result = new ArrayList<>();
-        result.add(new Object[]{"jdbc"});
-        result.add(new Object[]{"zookeeper"});
-        result.add(new Object[]{"nacos"});
+        result.add(new Object[] { "jdbc" });
+        result.add(new Object[] { "zookeeper" });
+        result.add(new Object[] { "nacos" });
         return result;
     }
 
@@ -64,11 +65,12 @@ public class HproseJavaRegistryAdapterScenarioTest {
         Path directory = this.data.newFolder("hprose-registry").toPath();
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
+            registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("hprose");
             configuration.addExtension(registry).setApplicationName("hprose-java-adapter-provider");
             configuration.setDataHome(this.data.newFolder("hprose-provider-data").toPath());
             configuration.connector("tcp").protocol("rsf"); // 注册扩展的内部管理出口，不开放监听。
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("hprose").addressScheme("http").contextPath("/orders");
             try (MetContext provider = configuration.buildContext()) {
                 provider.start();
@@ -104,6 +106,7 @@ public class HproseJavaRegistryAdapterScenarioTest {
         Path directory = this.data.newFolder("hprose-registry").toPath();
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
+            registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("hprose");
             configuration.addExtension(registry).setApplicationName("hprose-java-adapter-consumer");
             configuration.setDataHome(this.data.newFolder("hprose-consumer-data").toPath());

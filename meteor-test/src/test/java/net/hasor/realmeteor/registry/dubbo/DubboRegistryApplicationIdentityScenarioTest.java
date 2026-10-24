@@ -12,7 +12,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.dubbo.DubboRegistryClient;
 import net.hasor.realmeteor.protocol.dubbo.DubboProcess;
-import org.apache.curator.test.TestingServer;
+import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.junit.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
@@ -25,7 +25,7 @@ public class DubboRegistryApplicationIdentityScenarioTest {
     @Test(timeout = 90000)
     public void referenceByClassDiscoversApplicationOnlyProviderWithoutGroupOrVersion() throws Exception {
         // 原生 3.3 仅发布应用实例，分组和版本均未设置。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-application-native-default");
             consumer.connector("tcp").protocol("dubbo");

@@ -97,6 +97,7 @@ final class DubboRegistryServerCertificate implements AutoCloseable {
     private static Set<String> subjectAlternatives() throws IOException {
         Set<String> alternatives = new LinkedHashSet<>();
         alternatives.add("dns:localhost");
+        alternatives.add("dns:*.meteor.test");
         alternatives.add("ip:127.0.0.1");
         alternatives.add("ip:::1");
         Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();

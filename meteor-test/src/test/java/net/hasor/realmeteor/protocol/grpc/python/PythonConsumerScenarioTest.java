@@ -15,6 +15,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import org.junit.Test;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import static org.junit.Assert.*;
 
 /** Python 官方消费者通过生成的 SDK 调用 Meteor 订单服务。 */
@@ -32,7 +33,8 @@ public class PythonConsumerScenarioTest {
 
             // 真实 Python SDK 在独立进程中完成当前场景，不共享 Java 编解码器。
             int port = server.getListenAddress("grpc").getPort();
-            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer(port, "clear", "ascii")) {
+            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer( //
+                    ContainerProcess.runnerHost(), port, "clear", "ascii")) {
                 JsonNode result = peer.awaitResult();
 
                 // 核对对端观察到的订单字段，Python 同时校验 save/find 的完整生成消息。
@@ -56,7 +58,8 @@ public class PythonConsumerScenarioTest {
 
             // 真实 Python SDK 在独立进程中完成当前场景，不共享 Java 编解码器。
             int port = server.getListenAddress("grpc").getPort();
-            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer(port, "clear", "unicode")) {
+            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer( //
+                    ContainerProcess.runnerHost(), port, "clear", "unicode")) {
                 JsonNode result = peer.awaitResult();
 
                 // 核对对端观察到的订单字段，Python 同时校验 save/find 的完整生成消息。
@@ -80,7 +83,8 @@ public class PythonConsumerScenarioTest {
 
             // 真实 Python SDK 在独立进程中完成当前场景，不共享 Java 编解码器。
             int port = server.getListenAddress("grpc").getPort();
-            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer(port, "clear", "bytes")) {
+            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer( //
+                    ContainerProcess.runnerHost(), port, "clear", "bytes")) {
                 JsonNode result = peer.awaitResult();
 
                 // 核对对端观察到的订单字段，Python 同时校验 save/find 的完整生成消息。
@@ -104,7 +108,8 @@ public class PythonConsumerScenarioTest {
 
             // 真实 Python SDK 在独立进程中完成当前场景，不共享 Java 编解码器。
             int port = server.getListenAddress("grpc").getPort();
-            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer(port, "clear", "int32-min")) {
+            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer( //
+                    ContainerProcess.runnerHost(), port, "clear", "int32-min")) {
                 JsonNode result = peer.awaitResult();
 
                 // 核对对端观察到的订单字段，Python 同时校验 save/find 的完整生成消息。
@@ -128,7 +133,8 @@ public class PythonConsumerScenarioTest {
 
             // 真实 Python SDK 在独立进程中完成当前场景，不共享 Java 编解码器。
             int port = server.getListenAddress("grpc").getPort();
-            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer(port, "clear", "int32-max")) {
+            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer( //
+                    ContainerProcess.runnerHost(), port, "clear", "int32-max")) {
                 JsonNode result = peer.awaitResult();
 
                 // 核对对端观察到的订单字段，Python 同时校验 save/find 的完整生成消息。
@@ -152,7 +158,8 @@ public class PythonConsumerScenarioTest {
 
             // 真实 Python SDK 在独立进程中完成当前场景，不共享 Java 编解码器。
             int port = server.getListenAddress("grpc").getPort();
-            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer(port, "clear", "failure")) {
+            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer( //
+                    ContainerProcess.runnerHost(), port, "clear", "failure")) {
                 JsonNode result = peer.awaitResult();
 
                 // 核对对端观察到的业务错误及其说明。
@@ -175,7 +182,8 @@ public class PythonConsumerScenarioTest {
 
             // 真实 Python SDK 在独立进程中完成当前场景，不共享 Java 编解码器。
             int port = server.getListenAddress("grpc").getPort();
-            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer(port, "tls", "ascii")) {
+            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer( //
+                    ContainerProcess.runnerHost(), port, "tls", "ascii")) {
                 JsonNode result = peer.awaitResult();
 
                 // 核对对端观察到的订单字段，Python 同时校验 save/find 的完整生成消息。
@@ -199,7 +207,8 @@ public class PythonConsumerScenarioTest {
 
             // 真实 Python SDK 在独立进程中完成当前场景，不共享 Java 编解码器。
             int port = server.getListenAddress("grpc").getPort();
-            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer(port, "mtls", "ascii")) {
+            try (PythonGrpcPeer peer = PythonGrpcPeer.consumer( //
+                    ContainerProcess.runnerHost(), port, "mtls", "ascii")) {
                 JsonNode result = peer.awaitResult();
 
                 // 核对对端观察到的订单字段，Python 同时校验 save/find 的完整生成消息。
@@ -212,7 +221,7 @@ public class PythonConsumerScenarioTest {
 
     private MetConfiguration configuration(String security) {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc");
-        var connector = configuration.connector("http").bind("127.0.0.1", 0);
+        var connector = configuration.connector("http").bind(ContainerProcess.runnerHost(), 0);
         var protocol = connector.protocol("grpc").contextPath("/");
         if (!StringUtils.equals("clear", security)) {
             connector.option("tlsEnabled", true) //

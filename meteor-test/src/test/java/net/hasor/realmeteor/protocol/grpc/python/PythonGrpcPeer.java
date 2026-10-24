@@ -21,14 +21,15 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 独占 Python 官方 SDK 进程及其输出读取线程，生命周期不依赖 Meteor。 */
 final class PythonGrpcPeer implements AutoCloseable {
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-    private final Process process;
-    private final Path log;
-    private final Thread reader;
-    private final BlockingQueue<String> lines = new LinkedBlockingQueue<>();
+    private static final ObjectMapper          MAPPER = new ObjectMapper();
+    private final        Process               process;
+    private final        Path                  log;
+    private final        Thread                reader;
+    private final        BlockingQueue<String> lines  = new LinkedBlockingQueue<>();
 
     private PythonGrpcPeer(Process process, Path log) {
         this.process = process;
@@ -42,8 +43,8 @@ final class PythonGrpcPeer implements AutoCloseable {
         return start("provider", security, null, null);
     }
 
-    static PythonGrpcPeer consumer(int port, String security, String scenario) throws Exception {
-        return start("consumer", security, "127.0.0.1:" + port, scenario);
+    static PythonGrpcPeer consumer(String host, int port, String security, String scenario) throws Exception {
+        return start("consumer", security, host + ":" + port, scenario);
     }
 
     int awaitPort() throws Exception {
@@ -54,6 +55,10 @@ final class PythonGrpcPeer implements AutoCloseable {
         return MAPPER.readTree(this.awaitLine("RESULT ", 20));
     }
 
+    String host() {
+        return ContainerProcess.host(this.process);
+    }
+
     long processId() {
         return this.process.pid();
     }
@@ -61,11 +66,11 @@ final class PythonGrpcPeer implements AutoCloseable {
     private static PythonGrpcPeer start(String role, String security, String target, String scenario) throws Exception {
         // SDK 和生成契约仅通过独立 Python 解释器加载，不进入 Java classpath。
         List<String> command = new ArrayList<>();
-        command.add(System.getProperty("python.grpc.executable"));
+        command.add("/opt/meteor-peer/python-grpc/bin/python");
         command.add(System.getProperty("python.grpc.script"));
         command.add(role);
         command.add("--generated");
-        command.add(System.getProperty("python.grpc.generated"));
+        command.add("/opt/meteor-peer/python-grpc-generated");
         command.add("--security");
         command.add(security);
         command.add("--certificates");
@@ -82,7 +87,8 @@ final class PythonGrpcPeer implements AutoCloseable {
         Path directory = Path.of(System.getProperty("python.grpc.logs"));
         Files.createDirectories(directory);
         Path log = directory.resolve(role + "-" + UUID.randomUUID() + ".log");
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+        Process process = ContainerProcess.start("python", builder);
         return new PythonGrpcPeer(process, log);
     }
 

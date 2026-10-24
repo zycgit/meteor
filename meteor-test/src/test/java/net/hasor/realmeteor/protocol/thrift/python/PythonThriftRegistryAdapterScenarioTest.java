@@ -43,7 +43,7 @@ public class PythonThriftRegistryAdapterScenarioTest {
 
     @Parameterized.Parameters(name = "thrift/python/adapter/{0}")
     public static Collection<Object[]> backends() {
-        return List.of(new Object[]{"jdbc"}, new Object[]{"zookeeper"}, new Object[]{"nacos"});
+        return List.of(new Object[] { "jdbc" }, new Object[] { "zookeeper" }, new Object[] { "nacos" });
     }
 
     @Rule
@@ -75,7 +75,7 @@ public class PythonThriftRegistryAdapterScenarioTest {
                      RegistryAddressResolver resolver = new RegistryAddressResolver(storage, serviceId, "thrift")) {
                     URI address = resolver.awaitCount(1).get(0);
                     try (PythonThriftPeer consumer = PythonThriftPeer.consumer( //
-                            "binary", true, "plain", address.getPort(), "unicode")) {
+                            "binary", true, "plain", address.getHost(), address.getPort(), "unicode")) {
                         consumer.requireSuccess();
                     }
                 }
@@ -102,7 +102,7 @@ public class PythonThriftRegistryAdapterScenarioTest {
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     int port = provider.awaitPort();
                     String unit = consumer.getSettings().getUnitName();
-                    InterAddress address = new InterAddress("thrift", "127.0.0.1", port, unit);
+                    InterAddress address = new InterAddress("thrift", provider.host(), port, unit);
                     registrar.register(service, provider.processId(), "python", "thrift", "tcp", address, "/");
                     AddressSelectionAwaiter.await(consumer, service, "save");
 

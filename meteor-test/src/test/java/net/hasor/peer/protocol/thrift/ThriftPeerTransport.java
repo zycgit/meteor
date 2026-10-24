@@ -220,7 +220,7 @@ final class ThriftPeerTransport {
     }
 
     private static TServerSocket serverSocket(Map<String, String> arguments) throws Exception {
-        String host = arguments.getOrDefault("host", "127.0.0.1");
+        String host = arguments.getOrDefault("host", "0.0.0.0");
         int port = Integer.parseInt(arguments.getOrDefault("port", "0"));
         InetSocketAddress address = new InetSocketAddress(host, port);
         switch (arguments.getOrDefault("transport", "tcp")) {
@@ -262,7 +262,7 @@ final class ThriftPeerTransport {
     }
 
     private static void httpServer(Map<String, String> arguments, TProcessor processor) throws Exception {
-        String host = arguments.getOrDefault("host", "127.0.0.1");
+        String host = arguments.getOrDefault("host", "0.0.0.0");
         int port = Integer.parseInt(arguments.getOrDefault("port", "0"));
         InetSocketAddress address = new InetSocketAddress(host, port);
         boolean secure = switch (arguments.getOrDefault("transport", "http")) {

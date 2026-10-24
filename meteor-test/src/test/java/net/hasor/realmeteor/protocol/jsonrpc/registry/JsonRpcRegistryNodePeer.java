@@ -22,15 +22,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.example.order.Order;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 显式发现适配后的原生 Node SDK；stdio 只交付地址和场景数据，不代发业务 RPC。 */
 final class JsonRpcRegistryNodePeer implements AutoCloseable {
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private final Process process;
-    private final Path log;
-    private final Thread reader;
-    private final BufferedWriter commands;
-    private final BlockingQueue<String> lines = new LinkedBlockingQueue<>();
+    private static final ObjectMapper          JSON  = new ObjectMapper();
+    private final        Process               process;
+    private final        Path                  log;
+    private final        Thread                reader;
+    private final        BufferedWriter        commands;
+    private final        BlockingQueue<String> lines = new LinkedBlockingQueue<>();
 
     private JsonRpcRegistryNodePeer(Process process, Path log) {
         this.process = process;
@@ -58,13 +59,14 @@ final class JsonRpcRegistryNodePeer implements AutoCloseable {
 
     private static JsonRpcRegistryNodePeer start(String role) throws Exception {
         // 对端依赖沿用已有精确锁定的 Jayson，新增脚本不改变既有直连对端。
-        Path directory = Path.of(System.getProperty("jsonrpc.peer.dir"));
-        Path logs = directory.getParent().resolve("reports/node-jsonrpc-registry");
+        Path directory = Path.of(System.getProperty("jsonrpc.peer.dir", "/opt/meteor-peer/node/jsonrpc"));
+        Path logs = Path.of("build/peer-logs/node-jsonrpc-registry");
         Files.createDirectories(logs);
         Path log = Files.createTempFile(logs, role + "-", ".log");
         Path script = directory.resolve("order-registry-peer.js");
-        Process process = new ProcessBuilder("node", script.toString(), role) //
-                .directory(directory.toFile()).redirectErrorStream(true).start();
+        ProcessBuilder builder = new ProcessBuilder("node", script.toString(), role) //
+                .directory(directory.toFile()).redirectErrorStream(true);
+        Process process = ContainerProcess.start("node", builder);
         return new JsonRpcRegistryNodePeer(process, log);
     }
 
@@ -74,7 +76,7 @@ final class JsonRpcRegistryNodePeer implements AutoCloseable {
 
     InterAddress awaitAddress(String unit) throws Exception {
         int port = Integer.parseInt(this.awaitLine("READY:", 10));
-        return new InterAddress("http", "127.0.0.1", port, unit);
+        return new InterAddress("http", ContainerProcess.host(this.process), port, unit);
     }
 
     Order roundTrip(URI resolvedAddress, Order expected) throws Exception {

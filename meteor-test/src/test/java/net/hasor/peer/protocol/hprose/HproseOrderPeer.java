@@ -58,7 +58,7 @@ public final class HproseOrderPeer extends HproseService {
 
     private void serve() throws Exception {
         // HTTP 监听随机端口；业务方法及 DTO 始终由官方 HproseService 处理。
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", 0), 0);
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
             server.setExecutor(executor);
@@ -123,7 +123,7 @@ public final class HproseOrderPeer extends HproseService {
                 Order found = orders.find(query);
                 ByteArrayOutputStream output = new ByteArrayOutputStream();
                 try (ObjectOutputStream stream = new ObjectOutputStream(output)) {
-                    stream.writeObject(new Order[]{saved, found});
+                    stream.writeObject(new Order[] { saved, found });
                 }
                 String result = Base64.getEncoder().encodeToString(output.toByteArray());
                 System.out.println("RESULT " + result);

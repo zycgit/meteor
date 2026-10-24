@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** Python 标准库对端；创建者负责有界启动、场景等待和进程回收。 */
 final class XmlRpcPeerProcess implements AutoCloseable {
@@ -37,8 +38,13 @@ final class XmlRpcPeerProcess implements AutoCloseable {
         String python = System.getProperty("xmlrpc.python", "python3");
         List<String> command = new ArrayList<>(List.of(python, "-u", script.toString()));
         command.addAll(List.of(arguments));
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+        Process process = ContainerProcess.start("python", builder);
         return new XmlRpcPeerProcess(process);
+    }
+
+    String host() {
+        return ContainerProcess.host(this.process);
     }
 
     int awaitPort() throws InterruptedException {

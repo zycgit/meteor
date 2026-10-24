@@ -85,7 +85,7 @@ async function serve() {
     },
   });
   const server = options["--http-version"] === "1.1" ? createHttp1Server(handler) : createHttp2Server(handler);
-  server.listen(0, "127.0.0.1", () => console.log(`READY ${server.address().port}`));
+  server.listen(0, "0.0.0.0", () => console.log(`READY ${server.address().port}`));
 
   // 进程所有者关闭 stdin 时停止接入并销毁现存的独占测试连接。
   const sockets = new Set();

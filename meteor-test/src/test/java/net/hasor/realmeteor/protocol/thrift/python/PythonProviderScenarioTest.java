@@ -26,9 +26,9 @@ import static org.junit.Assert.*;
 /** Meteor 公开客户端调用官方 Python Processor，不共享编码或业务状态。 */
 @RunWith(Parameterized.class)
 public class PythonProviderScenarioTest {
-    private final String encoding;
+    private final String  encoding;
     private final boolean framed;
-    private final String security;
+    private final String  security;
 
     public PythonProviderScenarioTest(String encoding, boolean framed, String security) {
         this.encoding = encoding;
@@ -56,7 +56,7 @@ public class PythonProviderScenarioTest {
                     .rsfService(OrderDemoService.class) //
                     .protocol("thrift").aliasName("thrift", "OrderThriftService").register();
             String scheme = PythonThriftSettings.scheme(this.security);
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
             OrderDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 保存后再查询同一个订单，验证对端存储的实际值及返回 DTO。
@@ -89,7 +89,7 @@ public class PythonProviderScenarioTest {
                     .rsfService(OrderDemoService.class) //
                     .protocol("thrift").aliasName("thrift", "OrderThriftService").register();
             String scheme = PythonThriftSettings.scheme(this.security);
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
             OrderDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 保存后再查询同一个订单，验证对端存储的实际值及返回 DTO。
@@ -122,7 +122,7 @@ public class PythonProviderScenarioTest {
                     .rsfService(OrderDemoService.class) //
                     .protocol("thrift").aliasName("thrift", "OrderThriftService").register();
             String scheme = PythonThriftSettings.scheme(this.security);
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
             OrderDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 保存后再查询同一个订单，验证对端存储的实际值及返回 DTO。
@@ -155,7 +155,7 @@ public class PythonProviderScenarioTest {
                     .rsfService(OrderDemoService.class) //
                     .protocol("thrift").aliasName("thrift", "OrderThriftService").register();
             String scheme = PythonThriftSettings.scheme(this.security);
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
             var remote = client.getRsfClient(address);
 
             // 缺失订单由官方 Processor 返回 INTERNAL_ERROR，不接受连接中断或调用超时代替。

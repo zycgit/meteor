@@ -22,6 +22,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -32,7 +33,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -45,7 +46,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证中文和补充字符的往返，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "unicode");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -66,7 +67,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -79,7 +80,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证整型参数与结果，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "integer");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -100,7 +101,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -113,7 +114,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证 null 的往返，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "null");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -134,7 +135,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -147,7 +148,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证二进制字节的往返，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "bytes");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -168,7 +169,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -181,7 +182,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证日期精度，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "date");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -202,7 +203,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -215,7 +216,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证 Map 内容，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "map");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -236,7 +237,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -249,7 +250,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证 JavaBean 的字段转换，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "bean");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -270,7 +271,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -283,7 +284,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证无返回值方法，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "void");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -304,7 +305,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -317,7 +318,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证引用参数回写，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "byref");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -338,7 +339,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -351,7 +352,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证批次顺序和错误隔离，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "batch");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -372,7 +373,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -385,7 +386,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证函数发现响应，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "discovery");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -406,7 +407,7 @@ public class HproseInteropTest {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose") //
                 .contextPath("/rpc");
         try (MetContext context = configuration.buildContext()) {
@@ -419,7 +420,7 @@ public class HproseInteropTest {
 
             // 由官方客户端验证跨域预检响应，断言位于 peer.js。
             int port = context.getListenAddress("hprose").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("client", target, "cors");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
@@ -453,7 +454,7 @@ public class HproseInteropTest {
                 client.start();
                 var publication = client.publisher().rsfService(Sample.class);
                 MetBindInfo<Sample> info = publication.aliasName("Hprose", "sample").register();
-                InterAddress address = new InterAddress("hprose", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("hprose", ContainerProcess.host(peer), port, "default");
                 Sample remote = client.getRsfClient(address).getRemote(info);
 
                 // 中文与补充字符经过双端编解码后保持原样。
@@ -486,7 +487,7 @@ public class HproseInteropTest {
                 client.start();
                 var publication = client.publisher().rsfService(Sample.class);
                 MetBindInfo<Sample> info = publication.aliasName("Hprose", "sample").register();
-                InterAddress address = new InterAddress("hprose", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("hprose", ContainerProcess.host(peer), port, "default");
                 Sample remote = client.getRsfClient(address).getRemote(info);
 
                 // 两个整数参数由 Node.js 相加，再转换回 Java 整型。
@@ -519,7 +520,7 @@ public class HproseInteropTest {
                 client.start();
                 var publication = client.publisher().rsfService(Sample.class);
                 MetBindInfo<Sample> info = publication.aliasName("Hprose", "sample").register();
-                InterAddress address = new InterAddress("hprose", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("hprose", ContainerProcess.host(peer), port, "default");
                 Sample remote = client.getRsfClient(address).getRemote(info);
 
                 // 验证 Java 有符号 byte 与 Node.js 字节缓冲区的往返。
@@ -554,7 +555,7 @@ public class HproseInteropTest {
                 client.start();
                 var publication = client.publisher().rsfService(Sample.class);
                 MetBindInfo<Sample> info = publication.aliasName("Hprose", "sample").register();
-                InterAddress address = new InterAddress("hprose", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("hprose", ContainerProcess.host(peer), port, "default");
                 Sample remote = client.getRsfClient(address).getRemote(info);
 
                 // 固定毫秒时间戳，验证日期转换没有损失时间值。
@@ -588,7 +589,7 @@ public class HproseInteropTest {
                 client.start();
                 var publication = client.publisher().rsfService(Sample.class);
                 MetBindInfo<Sample> info = publication.aliasName("Hprose", "sample").register();
-                InterAddress address = new InterAddress("hprose", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("hprose", ContainerProcess.host(peer), port, "default");
                 Sample remote = client.getRsfClient(address).getRemote(info);
 
                 // Map 键值经过异构客户端后保持一致。
@@ -623,7 +624,7 @@ public class HproseInteropTest {
                 client.start();
                 var publication = client.publisher().rsfService(Sample.class);
                 MetBindInfo<Sample> info = publication.aliasName("Hprose", "sample").register();
-                InterAddress address = new InterAddress("hprose", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("hprose", ContainerProcess.host(peer), port, "default");
                 Sample remote = client.getRsfClient(address).getRemote(info);
 
                 // 构造带中文字段的业务对象，远端只将年龄增加一岁。
@@ -661,7 +662,7 @@ public class HproseInteropTest {
                 client.start();
                 var publication = client.publisher().rsfService(Sample.class);
                 MetBindInfo<Sample> info = publication.aliasName("Hprose", "sample").register();
-                InterAddress address = new InterAddress("hprose", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("hprose", ContainerProcess.host(peer), port, "default");
                 Sample remote = client.getRsfClient(address).getRemote(info);
 
                 // 构造带中文字段的业务对象，远端只将年龄增加一岁。
@@ -700,7 +701,7 @@ public class HproseInteropTest {
                 client.start();
                 var publication = client.publisher().rsfService(Sample.class);
                 MetBindInfo<Sample> info = publication.aliasName("Hprose", "sample").register();
-                InterAddress address = new InterAddress("hprose", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("hprose", ContainerProcess.host(peer), port, "default");
                 Sample remote = client.getRsfClient(address).getRemote(info);
 
                 // 无返回值调用正常完成即表示 Node.js 的 null 响应被正确接收。
@@ -733,7 +734,7 @@ public class HproseInteropTest {
                 client.start();
                 var publication = client.publisher().rsfService(Sample.class);
                 MetBindInfo<Sample> info = publication.aliasName("Hprose", "sample").register();
-                InterAddress address = new InterAddress("hprose", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("hprose", ContainerProcess.host(peer), port, "default");
                 Sample remote = client.getRsfClient(address).getRemote(info);
 
                 // 业务失败只终止本次调用，同一代理后续调用仍然成功。
@@ -750,15 +751,15 @@ public class HproseInteropTest {
     }
 
     private Process peer(String... arguments) throws Exception {
-        // 使用 Gradle 准备好的官方客户端目录组装子进程参数。
-        Path directory = Path.of(System.getProperty("hprose.peer.dir"));
+        // 镜像持有锁定版本的官方依赖，当前测试只传入场景参数。
+        Path directory = Path.of(System.getProperty("hprose.peer.dir", "/opt/meteor-peer/node/hprose"));
         ArrayList<String> command = new ArrayList<>(List.of("node", "peer.js"));
         command.addAll(List.of(arguments));
 
         // 合并错误输出，让测试失败报告保留 Node.js 的完整异常。
-        return new ProcessBuilder(command) //
+        ProcessBuilder builder = new ProcessBuilder(command) //
                 .directory(directory.toFile()) //
-                .redirectErrorStream(true) //
-                .start();
+                .redirectErrorStream(true);
+        return ContainerProcess.start("node", builder);
     }
 }

@@ -11,40 +11,38 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
-/** 从固定镜像提取真实 Envoy，在独占进程中将 gRPC-Web 转发到本次测试的 gRPC 服务。 */
+/** 独立 Envoy 容器将 gRPC-Web 转发到测试容器中的标准 gRPC 服务。 */
 final class EnvoyPeerProcess implements AutoCloseable {
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final String       IMAGE  = "envoyproxy/envoy@sha256:" //
-            + "08acc53db6f4ac46e77e36b203c5254b4a2549869314bb54cf97aab81baa4566";
     private final        Path         directory;
     private final        int          port;
     private              Process      process;
 
     EnvoyPeerProcess(int upstreamPort) throws Exception {
-        this.directory = Files.createTempDirectory("meteor-grpc-web-envoy-");
+        Path runtime = Path.of("build/peer-runtime/envoy").toAbsolutePath();
+        Files.createDirectories(runtime);
+        this.directory = Files.createTempDirectory(runtime, "grpc-web-");
         try {
-            // 镜像只提供固定版本的二进制；本地进程避免 Docker Desktop 回环网络差异。
-            Path executable = this.extractExecutable();
+            // 配置与动态管理地址位于共享工作卷；Envoy 本体始终在独立网络容器中执行。
             Path configuration = this.directory.resolve("envoy.yaml");
             Path adminAddress = this.directory.resolve("admin.address");
             Files.writeString(configuration, this.configuration(upstreamPort));
-            List<String> arguments = List.of(executable.toString(), //
+            List<String> arguments = List.of("/usr/local/bin/envoy", //
                     "--config-path", configuration.toString(), "--admin-address-path", adminAddress.toString(), //
                     "--disable-hot-restart", "--concurrency", "1", "--log-level", "warning");
             ProcessBuilder builder = new ProcessBuilder(arguments).redirectErrorStream(true);
             builder.redirectOutput(this.directory.resolve("envoy.log").toFile());
-            this.process = builder.start();
+            this.process = ContainerProcess.start("envoy", builder);
             this.port = this.awaitListener();
         } catch (Exception failure) {
             // 初始化失败也清理本次创建的进程，不操作其他 Envoy。
@@ -61,28 +59,12 @@ final class EnvoyPeerProcess implements AutoCloseable {
         return this.port;
     }
 
-    long processId() {
-        return this.process.pid();
+    String getHost() {
+        return ContainerProcess.host(this.process);
     }
 
-    private Path extractExecutable() throws Exception {
-        // 容器从不启动，仅复制固定 digest 的可执行文件，随后立即删除本次容器。
-        String name = "meteor-grpc-web-" + UUID.randomUUID();
-        Path executable = this.directory.resolve("envoy");
-        try (AutoCloseable cleanup = () -> {
-            boolean interrupted = Thread.interrupted();
-            try {
-                this.command(List.of("docker", "rm", "--force", name), true);
-            } finally {
-                if (interrupted) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }) {
-            this.command(List.of("docker", "create", "--pull", "never", "--name", name, IMAGE), true);
-            this.command(List.of("docker", "cp", name + ":/usr/local/bin/envoy", executable.toString()), true);
-            return executable;
-        }
+    long processId() {
+        return this.process.pid();
     }
 
     private int awaitListener() throws Exception {
@@ -102,7 +84,8 @@ final class EnvoyPeerProcess implements AutoCloseable {
                         TimeUnit.MILLISECONDS.sleep(50);
                         continue;
                     }
-                    URI listeners = URI.create("http://" + address + "/listeners?format=json");
+                    int adminPort = URI.create("http://" + address).getPort();
+                    URI listeners = new URI("http", null, this.getHost(), adminPort, "/listeners", "format=json", null);
                     HttpRequest request = HttpRequest.newBuilder(listeners).timeout(Duration.ofSeconds(1)).build();
                     var response = admin.send(request, HttpResponse.BodyHandlers.ofString());
                     JsonNode statuses = MAPPER.readTree(response.body()).path("listener_statuses");
@@ -129,12 +112,12 @@ final class EnvoyPeerProcess implements AutoCloseable {
         return """
                 admin:
                   address:
-                    socket_address: { address: 127.0.0.1, port_value: 0 }
+                    socket_address: { address: 0.0.0.0, port_value: 0 }
                 static_resources:
                   listeners:
                     - name: grpc_web
                       address:
-                        socket_address: { address: 127.0.0.1, port_value: 0 }
+                        socket_address: { address: 0.0.0.0, port_value: 0 }
                       filter_chains:
                         - filters:
                             - name: envoy.filters.network.http_connection_manager
@@ -158,7 +141,8 @@ final class EnvoyPeerProcess implements AutoCloseable {
                                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
                   clusters:
                     - name: grpc_backend
-                      type: STATIC
+                      type: STRICT_DNS
+                      dns_lookup_family: V4_ONLY
                       connect_timeout: 2s
                       typed_extension_protocol_options:
                         envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
@@ -171,28 +155,8 @@ final class EnvoyPeerProcess implements AutoCloseable {
                           - lb_endpoints:
                               - endpoint:
                                   address:
-                                    socket_address: { address: 127.0.0.1, port_value: %d }
-                """.formatted(connectionManagerType, upstreamPort);
-    }
-
-    private String command(List<String> arguments, boolean requireSuccess) throws Exception {
-        // 命令输出直接落盘，等待有明确上限，避免管道缓冲区阻塞或 Docker 进程残留。
-        Path output = Files.createTempFile(this.directory, "command-", ".log");
-        ProcessBuilder builder = new ProcessBuilder(arguments).redirectErrorStream(true);
-        Process process = builder.redirectOutput(output.toFile()).start();
-        try (AutoCloseable cleanup = () -> this.terminate(process)) {
-            if (!process.waitFor(10, TimeUnit.SECONDS)) {
-                throw new IOException("Docker command timed out: " + arguments);
-            }
-            String result = Files.readString(output, StandardCharsets.UTF_8);
-            if (requireSuccess && process.exitValue() != 0) {
-                throw new IOException("Docker command failed: " + result);
-            }
-            return result;
-        } catch (InterruptedException failure) {
-            Thread.currentThread().interrupt();
-            throw failure;
-        }
+                                    socket_address: { address: %s, port_value: %d }
+                """.formatted(connectionManagerType, ContainerProcess.runnerHost(), upstreamPort);
     }
 
     private void terminate(Process process) throws IOException {

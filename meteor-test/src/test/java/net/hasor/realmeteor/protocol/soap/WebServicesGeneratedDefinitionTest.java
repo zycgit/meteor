@@ -33,6 +33,7 @@ import net.hasor.example.protocol.soap.*;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -337,7 +338,7 @@ public class WebServicesGeneratedDefinitionTest {
     private MetConfiguration configuration() {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap") //
                 .contextPath("/services");
         return configuration;
@@ -345,7 +346,7 @@ public class WebServicesGeneratedDefinitionTest {
 
     private URI endpoint(MetContext context, String path) {
         int port = context.getListenAddress("soap").getPort();
-        return URI.create("http://127.0.0.1:" + port + path);
+        return URI.create("http://" + ContainerProcess.runnerHost() + ":" + port + path);
     }
 
     private HttpClient http() {

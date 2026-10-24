@@ -19,6 +19,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 独立官方 Thrift JVM；有界等待并持久保留每个原生对端的完整输出。 */
 final class ThriftPeerProcess implements AutoCloseable {
@@ -50,8 +51,24 @@ final class ThriftPeerProcess implements AutoCloseable {
         List<String> command = new ArrayList<>(List.of(executable.toString(), "-cp", classpath));
         command.add("net.hasor.peer.protocol.thrift.ThriftPeer");
         command.addAll(List.of(arguments));
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        // 对端使用独立网络命名空间；客户端访问 Runner，服务端开放自己的容器网卡。
+        boolean client = false;
+        boolean specifiedHost = false;
+        for (String argument : arguments) {
+            client |= StringUtils.equals(argument, "--command=client");
+            specifiedHost |= argument.startsWith("--host=");
+        }
+        if (!specifiedHost) {
+            String host = client ? ContainerProcess.runnerHost() : "0.0.0.0";
+            command.add("--host=" + host);
+        }
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+        Process process = ContainerProcess.start("java", builder);
         return new ThriftPeerProcess(process, log);
+    }
+
+    String host() {
+        return ContainerProcess.host(this.process);
     }
 
     int awaitPort() throws InterruptedException {

@@ -20,6 +20,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import org.junit.Rule;
@@ -36,7 +37,7 @@ import static org.junit.Assert.assertTrue;
 public class GrpcWebRegistryAdapterScenarioTest {
     @Parameterized.Parameters(name = "grpc-web/javascript-browser/adapter/{0}")
     public static Collection<Object[]> backends() {
-        return List.of(new Object[]{"jdbc"}, new Object[]{"zookeeper"}, new Object[]{"nacos"});
+        return List.of(new Object[] { "jdbc" }, new Object[] { "zookeeper" }, new Object[] { "nacos" });
     }
 
     @Rule
@@ -124,7 +125,7 @@ public class GrpcWebRegistryAdapterScenarioTest {
         configuration.setDataHome(this.data.newFolder("provider").toPath());
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 注册扩展的内部管理出口，不监听。
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("grpc-web").addressScheme("http").contextPath("/web") //
                 .option("streamBody", true).option("corsOrigins", origin) //
                 .option("corsHeaders", "content-type,x-grpc-web,x-user-agent,custom-header,grpc-timeout");

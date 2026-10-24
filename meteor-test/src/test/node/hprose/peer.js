@@ -120,7 +120,7 @@ function serve(tlsDirectory) {
         options = tlsOptions(tlsDirectory, 'server');
         options.requestCert = true;
     }
-    const server = new hprose.HttpServer(0, '127.0.0.1', options);
+    const server = new hprose.HttpServer(0, '0.0.0.0', options);
     server.errorDelay = 0;
 
     // 基础类型直接回传，业务对象模拟由服务端修改字段。

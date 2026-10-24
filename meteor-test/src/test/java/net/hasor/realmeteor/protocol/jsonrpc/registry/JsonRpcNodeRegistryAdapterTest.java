@@ -28,6 +28,7 @@ import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -39,8 +40,8 @@ import static org.junit.Assert.*;
 @RunWith(Parameterized.class)
 public class JsonRpcNodeRegistryAdapterTest {
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
-    private final String backend;
+    public final  TemporaryFolder data = new TemporaryFolder();
+    private final String          backend;
 
     public JsonRpcNodeRegistryAdapterTest(String backend) {
         this.backend = backend;
@@ -282,8 +283,7 @@ public class JsonRpcNodeRegistryAdapterTest {
         }
     }
 
-    private MetConfiguration configuration(RegistryConfiguration registry, String application, boolean listener)
-            throws Exception {
+    private MetConfiguration configuration(RegistryConfiguration registry, String application, boolean listener) throws Exception {
         // 注册扩展管理 RPC 使用独立 RSF 出口，业务只挂载 JSON-RPC。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("jsonrpc");
         configuration.setApplicationName(application).setDataHome(this.data.newFolder(application).toPath());
@@ -291,7 +291,7 @@ public class JsonRpcNodeRegistryAdapterTest {
         configuration.connector("tcp").protocol("rsf");
         var http = configuration.connector("http");
         if (listener) {
-            http.bind("127.0.0.1", 0);
+            http.bind(ContainerProcess.runnerHost(), 0);
         }
         http.protocol("jsonrpc").addressScheme("http").contextPath("/orders");
         return configuration;

@@ -31,6 +31,7 @@ import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.PythonOrderPeer;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -50,9 +51,9 @@ public class RegistryForeignAdapterScenarioTest {
     @Parameterized.Parameters(name = "{0}")
     public static Collection<Object[]> backends() {
         List<Object[]> result = new ArrayList<>();
-        result.add(new Object[]{"jdbc"});
-        result.add(new Object[]{"zookeeper"});
-        result.add(new Object[]{"nacos"});
+        result.add(new Object[] { "jdbc" });
+        result.add(new Object[] { "zookeeper" });
+        result.add(new Object[] { "nacos" });
         return result;
     }
 
@@ -72,7 +73,7 @@ public class RegistryForeignAdapterScenarioTest {
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "java-provider");
-            incoming.connector("http").bind("127.0.0.1", 0).protocol("xmlrpc").contextPath("/xmlrpc");
+            incoming.connector("http").bind(ContainerProcess.runnerHost(), 0).protocol("xmlrpc").contextPath("/xmlrpc");
             try (MetContext provider = incoming.buildContext()) {
                 provider.start();
                 MetBindInfo<OrderDemoService> service = provider.publisher() //

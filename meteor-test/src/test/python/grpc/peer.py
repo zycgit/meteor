@@ -47,7 +47,7 @@ def provider(options, messages, services):
         server = grpc.server(executor)
         services.add_OrderDemoServiceServicer_to_server(OrderService(), server)
         if options.security == "clear":
-            port = server.add_insecure_port("127.0.0.1:0")
+            port = server.add_insecure_port("0.0.0.0:0")
         else:
             certificates = options.certificates
             identity = ((certificates.joinpath("server-key.pem").read_bytes(),
@@ -56,7 +56,7 @@ def provider(options, messages, services):
                 identity, root_certificates=certificates.joinpath("ca.pem").read_bytes(),
                 require_client_auth=options.security == "mtls",
             )
-            port = server.add_secure_port("127.0.0.1:0", credentials)
+            port = server.add_secure_port("0.0.0.0:0", credentials)
         if port == 0:
             raise RuntimeError("Official Python provider did not bind a listener")
         server.start()

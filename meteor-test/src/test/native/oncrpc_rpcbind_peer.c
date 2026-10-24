@@ -6,12 +6,13 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 
-/* Independent loopback-only rpcbind fixture. libtirpc owns all RPC/XDR encoding. */
+/* Independent rpcbind fixture on the private test network. libtirpc owns all RPC/XDR encoding. */
 #include <rpc/rpc.h>
 #include <rpc/pmap_prot.h>
 #include <rpc/rpcb_prot.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <netdb.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -139,13 +140,39 @@ static bool_t unset_mapping(rpcprog_t program, rpcvers_t version, const char *ne
     return TRUE;
 }
 
-static int local_caller(SVCXPRT *transport) {
+static int trusted_caller(SVCXPRT *transport) {
     const struct netbuf *caller = svc_getrpccaller(transport);
     if (caller == NULL || caller->buf == NULL || caller->len < sizeof(struct sockaddr_in)) {
         return 0;
     }
     const struct sockaddr_in *address = caller->buf;
-    return address->sin_family == AF_INET && ntohl(address->sin_addr.s_addr) == INADDR_LOOPBACK;
+    if (address->sin_family != AF_INET) {
+        return 0;
+    }
+    if (ntohl(address->sin_addr.s_addr) == INADDR_LOOPBACK) {
+        return 1;
+    }
+
+    // Only the owning JUnit runner may mutate this isolated fixture over the bridge network.
+    const char *runner = getenv("METEOR_TEST_RUNNER_HOST");
+    if (runner == NULL) {
+        return 0;
+    }
+    struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
+    struct addrinfo *resolved = NULL;
+    if (getaddrinfo(runner, NULL, &hints, &resolved) != 0) {
+        return 0;
+    }
+    int accepted = 0;
+    for (struct addrinfo *entry = resolved; entry != NULL; entry = entry->ai_next) {
+        const struct sockaddr_in *trusted = (const struct sockaddr_in *) entry->ai_addr;
+        if (trusted->sin_addr.s_addr == address->sin_addr.s_addr) {
+            accepted = 1;
+            break;
+        }
+    }
+    freeaddrinfo(resolved);
+    return accepted;
 }
 
 static void send_result(SVCXPRT *transport, xdrproc_t encoder, void *result) {
@@ -225,7 +252,7 @@ static void dispatch_pmap(struct svc_req *request, SVCXPRT *transport) {
         send_result(transport, (xdrproc_t) xdr_u_long, &port);
     } else {
         bool_t result = FALSE;
-        if (local_caller(transport)) {
+        if (trusted_caller(transport)) {
             if (request->rq_proc == PMAPPROC_UNSET) {
                 result = unset_mapping(argument.pm_prog, argument.pm_vers, NULL);
             } else if (argument.pm_port > 0 && argument.pm_port <= 65535
@@ -276,7 +303,7 @@ static void dispatch_rpcb(struct svc_req *request, SVCXPRT *transport) {
         send_result(transport, (xdrproc_t) xdr_wrapstring, &address);
     } else {
         bool_t result = FALSE;
-        if (local_caller(transport)) {
+        if (trusted_caller(transport)) {
             if (request->rq_proc == RPCBPROC_SET) {
                 result = set_mapping(&argument);
             } else {
@@ -309,7 +336,7 @@ static void run_server(const char *transport_name, unsigned int port) {
     struct sockaddr_in address;
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    address.sin_addr.s_addr = htonl(INADDR_ANY);
     address.sin_port = htons((uint16_t) port);
     if (bind(socket_fd, (struct sockaddr *) &address, sizeof(address)) != 0) {
         fail("bind");
@@ -469,7 +496,20 @@ static void run_client(const char *transport_name, unsigned int port, unsigned i
     struct sockaddr_in address;
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    const char *runner = getenv("METEOR_TEST_RUNNER_HOST");
+    if (runner == NULL) {
+        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    } else {
+        struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
+        struct addrinfo *resolved = NULL;
+        int status = getaddrinfo(runner, NULL, &hints, &resolved);
+        if (status != 0) {
+            fprintf(stderr, "Cannot resolve rpcbind server %s: %s\n", runner, gai_strerror(status));
+            exit(2);
+        }
+        address.sin_addr = ((struct sockaddr_in *) resolved->ai_addr)->sin_addr;
+        freeaddrinfo(resolved);
+    }
     address.sin_port = htons((uint16_t) port);
     int socket_fd = RPC_ANYSOCK;
     CLIENT *client;

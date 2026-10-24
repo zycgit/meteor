@@ -14,6 +14,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.peer.protocol.xmlrpc.ApacheXmlRpcPeer;
 import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -31,7 +32,7 @@ public class ApacheXmlRpcProviderTest {
 
             // Apache 3.1.3 将补充平面字符拆成非法引用，本成功场景使用 BMP 中文和 XML 转义。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             String expected = "Java SDK 中文 <&>";
             Map<String, Object> request = this.request(target, "demo.echo", new Object[] { expected });
             Map<String, Object> response = JavaSdkPeerUtils.exchange("xmlrpc", ApacheXmlRpcPeer.class, request);
@@ -54,7 +55,7 @@ public class ApacheXmlRpcProviderTest {
 
             // SDK 对此字符产生 &#55357;&#56898;，不能由服务端放宽 XML 规则来容忍。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Map<String, Object> request = this.request(target, "demo.echo", new Object[] { "🙂" });
             Map<String, Object> response = JavaSdkPeerUtils.exchange("xmlrpc", ApacheXmlRpcPeer.class, request);
 
@@ -77,7 +78,7 @@ public class ApacheXmlRpcProviderTest {
 
             // execute 接收标准 Object[]，在独立 SDK JVM 内产生 XML-RPC 报文。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Map<String, Object> request = this.request(target, "demo.subtract", new Object[] { 9, 4 });
             Map<String, Object> response = JavaSdkPeerUtils.exchange("xmlrpc", ApacheXmlRpcPeer.class, request);
 
@@ -100,7 +101,7 @@ public class ApacheXmlRpcProviderTest {
             // 官方 SDK 负责 byte[] 与 base64 的双向映射。
             byte[] expected = new byte[] { 0, 1, 127, (byte) 128, (byte) 255 };
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Map<String, Object> request = this.request(target, "demo.binary", new Object[] { expected });
             Map<String, Object> response = JavaSdkPeerUtils.exchange("xmlrpc", ApacheXmlRpcPeer.class, request);
 
@@ -127,7 +128,7 @@ public class ApacheXmlRpcProviderTest {
             expected.put("buyer", Map.of("active", true, "count", 3));
             expected.put("values", new Object[] { "first", "second" });
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Map<String, Object> request = this.request(target, "demo.struct", new Object[] { expected });
             Map<String, Object> response = JavaSdkPeerUtils.exchange("xmlrpc", ApacheXmlRpcPeer.class, request);
 
@@ -153,7 +154,7 @@ public class ApacheXmlRpcProviderTest {
 
             // 对端使用 execute 接收 XmlRpcException，不读取或拼接原始 XML。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             String expected = "业务拒绝 <&>";
             Map<String, Object> request = this.request(target, "demo.fail", new Object[] { expected });
             Map<String, Object> response = JavaSdkPeerUtils.exchange("xmlrpc", ApacheXmlRpcPeer.class, request);
@@ -167,7 +168,7 @@ public class ApacheXmlRpcProviderTest {
 
     private MetConfiguration configuration() {
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc").contextPath("/rpc");
         return configuration;
     }

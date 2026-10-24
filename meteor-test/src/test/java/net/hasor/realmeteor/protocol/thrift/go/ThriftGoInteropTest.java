@@ -23,6 +23,7 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
 import org.apache.thrift.TApplicationException;
 import org.junit.Test;
@@ -36,9 +37,9 @@ import static org.junit.Assert.assertTrue;
 /** Apache Thrift Go 与 Meteor 双向直连，逐项验证编码、分帧和传输安全组合。 */
 @RunWith(Parameterized.class)
 public class ThriftGoInteropTest {
-    private final String encoding;
+    private final String  encoding;
     private final boolean framed;
-    private final String tlsMode;
+    private final String  tlsMode;
 
     public ThriftGoInteropTest(String encoding, boolean framed, String tlsMode) {
         this.encoding = encoding;
@@ -296,6 +297,9 @@ public class ThriftGoInteropTest {
         // 复用订单示例的单端点配置，只修改当前挂载的线格式与安全选项。
         MetConfiguration configuration = provider ? OrderProtocol.THRIFT.providerConfiguration() //
                 : OrderProtocol.THRIFT.consumerConfiguration();
+        if (provider) {
+            configuration.getConnectors().get(0).bind(ContainerProcess.runnerHost(), 0);
+        }
         configuration.setDefaultProtocol("thrift");
         configuration.setDefaultTimeout(10000);
         var tcp = configuration.getConnectors().get(0);

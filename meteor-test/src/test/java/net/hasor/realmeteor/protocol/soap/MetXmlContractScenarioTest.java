@@ -42,6 +42,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import org.w3c.dom.*;
 import org.w3c.dom.bootstrap.DOMImplementationRegistry;
@@ -79,7 +80,8 @@ public class MetXmlContractScenarioTest {
                     .protocol("soap") //
                     .register();
             int port = context.getListenAddress("soap").getPort();
-            URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/MetXmlMapService");
+            String authority = "http://" + ContainerProcess.runnerHost() + ":" + port;
+            URI endpoint = URI.create(authority + "/services/MetXmlMapService");
             HttpRequest wsdlRequest = HttpRequest.newBuilder(URI.create(endpoint + "?wsdl")).GET().build();
             HttpResponse<byte[]> wsdlResponse = this.send(wsdlRequest);
             assertEquals(200, wsdlResponse.statusCode());
@@ -173,7 +175,8 @@ public class MetXmlContractScenarioTest {
                     .protocol("soap") //
                     .register();
             int port = context.getListenAddress("soap").getPort();
-            URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/MetXmlWrappedUserService");
+            String authority = "http://" + ContainerProcess.runnerHost() + ":" + port;
+            URI endpoint = URI.create(authority + "/services/MetXmlWrappedUserService");
             HttpRequest wsdlRequest = HttpRequest.newBuilder(URI.create(endpoint + "?wsdl")).GET().build();
             HttpResponse<byte[]> wsdlResponse = this.send(wsdlRequest);
             assertEquals(200, wsdlResponse.statusCode());
@@ -471,7 +474,7 @@ public class MetXmlContractScenarioTest {
     private MetConfiguration configuration(String version) {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap") //
                 .contextPath("/services") //
                 .option("soapVersion", version);
@@ -480,7 +483,8 @@ public class MetXmlContractScenarioTest {
 
     private URI endpoint(MetContext context, String suffix) {
         int port = context.getListenAddress("soap").getPort();
-        return URI.create("http://127.0.0.1:" + port + "/services/MetXmlOrderService" + suffix);
+        String authority = "http://" + ContainerProcess.runnerHost() + ":" + port;
+        return URI.create(authority + "/services/MetXmlOrderService" + suffix);
     }
 
     private HttpRequest invocation(MetContext context, byte[] envelope) {

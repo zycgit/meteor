@@ -22,6 +22,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -45,7 +46,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsUnicodeString() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -53,7 +54,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 验证Unicode 字符与补充平面字符。
             String expected = "Hessian 中文 🙂 <&>";
@@ -66,7 +68,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsZeroArgumentOverload() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -74,7 +76,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 零参数重载的官方名称就是原方法名，不能误选其他有参重载。
             String result = remote.overloaded();
@@ -86,7 +89,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsStringOverload() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -94,7 +97,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 验证同名字符串重载。
             String result = remote.overloaded("overload");
@@ -106,7 +110,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsIntegerOverload() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -114,7 +118,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 验证同名整数重载。
             String result = remote.overloaded(37);
@@ -126,7 +131,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsPojo() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -134,7 +139,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 验证Serializable Java Bean 的类型与字段。
             HessianInteropPerson expected = this.person("李四", 27);
@@ -149,7 +155,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsNull() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -157,7 +163,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 验证null 参数和返回值。
             assertNull(remote.nullable(null));
@@ -168,7 +175,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsBinary() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -176,7 +183,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 验证包含零字节和无符号高位值的二进制数据。
             byte[] expected = new byte[] { 0, 1, 127, (byte) 128, (byte) 255 };
@@ -189,7 +197,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsCollection() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -197,7 +205,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 验证集合中各个有类型的业务对象。
             List<HessianInteropPerson> expected = new ArrayList<>();
@@ -216,7 +225,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsStructure() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -224,7 +233,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 验证动态 Map 中的对象、二进制和 null。
             Map<String, Object> expected = new LinkedHashMap<>();
@@ -246,7 +256,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsDeclaredException() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -254,7 +264,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 验证声明异常的具体类型和消息。
             HessianInteropException failure = assertThrows(HessianInteropException.class, () -> remote.fail("拒绝访问"));
@@ -274,7 +285,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             HessianInteropDemo remote = client.getRsfClient(address).getRemote(service);
 
             // 验证Unicode 字符与补充平面字符。
@@ -296,7 +307,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             HessianInteropDemo remote = client.getRsfClient(address).getRemote(service);
 
             // 零参数重载的官方名称就是原方法名，不能误选其他有参重载。
@@ -317,7 +328,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             HessianInteropDemo remote = client.getRsfClient(address).getRemote(service);
 
             // 验证同名字符串重载。
@@ -338,7 +349,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             HessianInteropDemo remote = client.getRsfClient(address).getRemote(service);
 
             // 验证同名整数重载。
@@ -359,7 +370,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             HessianInteropDemo remote = client.getRsfClient(address).getRemote(service);
 
             // 验证Serializable Java Bean 的类型与字段。
@@ -383,7 +394,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             HessianInteropDemo remote = client.getRsfClient(address).getRemote(service);
 
             // 验证null 参数和返回值。
@@ -403,7 +414,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             HessianInteropDemo remote = client.getRsfClient(address).getRemote(service);
 
             // 验证包含零字节和无符号高位值的二进制数据。
@@ -425,7 +436,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             HessianInteropDemo remote = client.getRsfClient(address).getRemote(service);
 
             // 验证集合中各个有类型的业务对象。
@@ -453,7 +464,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             HessianInteropDemo remote = client.getRsfClient(address).getRemote(service);
 
             // 验证动态 Map 中的对象、二进制和 null。
@@ -484,7 +495,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             MetFuture result = client.getRsfClient(address).asyncInvoke(service, "fail", //
                     new Class<?>[] { String.class }, new Object[] { "拒绝访问" });
 
@@ -500,7 +511,7 @@ public class CauchoHessianInteropTest {
     public void officialHessian1InputReadsStrictHessian1Reply() throws Throwable {
         // 官方代理的 H1 reader 选择有兼容问题；本例直接使用官方 H1 Input/Output。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务发布仍走公开入口，正文来自 Caucho 的完整 Hessian 1 调用信封。
@@ -508,7 +519,7 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            String address = "http://127.0.0.1:" + port + "/hessian/demo";
+            String address = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
             HessianInteropPerson person = this.person("Hessian 1", 18);
 
             // 官方 H1 writer、HTTP 客户端和 reader 在仅有 Caucho 的独立 JVM 中执行。
@@ -527,7 +538,7 @@ public class CauchoHessianInteropTest {
     public void cauchoClientCallsDeclaredIOException() throws Exception {
         // 配置 Meteor 的 HTTP 监听和 Hessian 挂载，不直接创建协议会话。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hessian").contextPath("/hessian").option("version", this.version);
         try (MetContext server = configuration.buildContext()) {
             // 服务容器启动后发布普通 Java 接口，官方代理直接连接公开服务地址。
@@ -535,7 +546,8 @@ public class CauchoHessianInteropTest {
             server.publisher().rsfService(HessianInteropDemo.class, new HessianInteropDemoImpl()) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
             int port = server.getListenAddress("hessian").getPort();
-            HessianInteropDemo remote = this.officialProxy("http://127.0.0.1:" + port + "/hessian/demo");
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/hessian/demo";
+            HessianInteropDemo remote = this.officialProxy(endpoint);
 
             // 声明的 IOException 通过 fault 还原，不能被当成 HTTP 传输失败。
             IOException failure = assertThrows(IOException.class, () -> remote.failIo("读取失败"));
@@ -556,7 +568,7 @@ public class CauchoHessianInteropTest {
             client.start();
             MetBindInfo<HessianInteropDemo> service = client.publisher().rsfService(HessianInteropDemo.class) //
                     .aliasName("hessian", "demo").protocol("hessian").serialize("Hessian").register();
-            InterAddress address = new InterAddress("hessian", "127.0.0.1", server.getPort(), "default");
+            InterAddress address = new InterAddress("hessian", server.host(), server.getPort(), "default");
             MetFuture result = client.getRsfClient(address).asyncInvoke(service, "failIo", //
                     new Class<?>[] { String.class }, new Object[] { "读取失败" });
 

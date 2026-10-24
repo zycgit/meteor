@@ -25,6 +25,7 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.registry.RegistryConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
@@ -42,7 +43,7 @@ import static org.junit.Assert.assertTrue;
 public class GrpcWebEnvoyRegistryAdapterScenarioTest {
     @Parameterized.Parameters(name = "grpc-web/java-envoy/adapter/{0}")
     public static Collection<Object[]> backends() {
-        return List.of(new Object[]{"jdbc"}, new Object[]{"zookeeper"}, new Object[]{"nacos"});
+        return List.of(new Object[] { "jdbc" }, new Object[] { "zookeeper" }, new Object[] { "nacos" });
     }
 
     @Rule
@@ -65,7 +66,7 @@ public class GrpcWebEnvoyRegistryAdapterScenarioTest {
                 response.onCompleted();
             });
             var definition = ServerServiceDefinition.builder("web.Echo").addMethod(echo, handler).build();
-            Server server = NettyServerBuilder.forAddress(new InetSocketAddress("127.0.0.1", 0)) //
+            Server server = NettyServerBuilder.forAddress(new InetSocketAddress(ContainerProcess.runnerHost(), 0)) //
                     .addService(definition).build().start();
 
             // 创建者先持有官方服务关闭动作，再启动真实 Envoy 及仅出站的 Meteor 应用。
@@ -90,7 +91,7 @@ public class GrpcWebEnvoyRegistryAdapterScenarioTest {
                     // 登记已就绪 Envoy 的实际进程和 HTTP 端点，发现适配不执行任何业务请求。
                     try (ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                         String unit = consumer.getSettings().getUnitName();
-                        InterAddress address = new InterAddress("http", "127.0.0.1", envoy.getPort(), unit);
+                        InterAddress address = new InterAddress("http", envoy.getHost(), envoy.getPort(), unit);
                         registrar.register(service, envoy.processId(), "cpp", "grpc-web", "http", address, "/web");
                         AddressSelectionAwaiter.await(consumer, service, "echo");
 

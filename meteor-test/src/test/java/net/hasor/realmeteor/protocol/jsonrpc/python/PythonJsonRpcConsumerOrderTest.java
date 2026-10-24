@@ -31,12 +31,12 @@ import static org.junit.Assert.assertTrue;
 /** Meteor 消费者直接调用独立 Python 标准库服务端，业务存储和 HTTP 均由 Python 持有。 */
 public class PythonJsonRpcConsumerOrderTest {
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
-    private PythonJsonRpcOrderPeer provider;
-    private MetContext consumer;
-    private MetClient client;
-    private MetBindInfo<OrderDemoService> subscription;
-    private OrderDemoService remote;
+    public final TemporaryFolder               data = new TemporaryFolder();
+    private      PythonJsonRpcOrderPeer        provider;
+    private      MetContext                    consumer;
+    private      MetClient                     client;
+    private      MetBindInfo<OrderDemoService> subscription;
+    private      OrderDemoService              remote;
 
     @Before
     public void subscribeToPythonOrderService() throws Exception {
@@ -54,7 +54,7 @@ public class PythonJsonRpcConsumerOrderTest {
                 .aliasName("jsonrpc", "orders") //
                 .protocol("jsonrpc") //
                 .register();
-        InterAddress address = new InterAddress("jsonrpc", "127.0.0.1", port, "default");
+        InterAddress address = new InterAddress("jsonrpc", this.provider.host(), port, "default");
         this.client = this.consumer.getRsfClient(address);
         this.remote = this.client.getRemote(this.subscription);
     }

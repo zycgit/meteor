@@ -23,12 +23,12 @@ public final class RemoteTeaClientPeer {
     public static void main(String[] arguments) throws Exception {
         // RemoteTea 是独立 Java 实现，不将它误称为 ONC RPC 标准的官方 SDK。
         requireIsolatedClasspath();
-        InetAddress host = InetAddress.getByName("127.0.0.1");
-        int port = Integer.parseInt(arguments[1]);
-        boolean expectRejection = switch (arguments[3]) {
+        InetAddress host = InetAddress.getByName(arguments[1]);
+        int port = Integer.parseInt(arguments[2]);
+        boolean expectRejection = switch (arguments[4]) {
             case "echo" -> false;
             case "reject-non-ascii" -> true;
-            default -> throw new IllegalArgumentException("Unknown scenario: " + arguments[3]);
+            default -> throw new IllegalArgumentException("Unknown scenario: " + arguments[4]);
         };
         OncRpcClient client = switch (arguments[0]) {
             case "tcp" -> new OncRpcTcpClient(host, 0x31234567, 1, port);
@@ -39,7 +39,7 @@ public final class RemoteTeaClientPeer {
             // 程序号、版本号和过程号对应 interop.x；显式端口不依赖本机 rpcbind。
             client.setTimeout(5000);
             client.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            XdrString input = new XdrString(arguments[2]);
+            XdrString input = new XdrString(arguments[3]);
             XdrString output = new XdrString();
             try {
                 client.call(1, input, output);

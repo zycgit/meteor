@@ -18,13 +18,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 拥有 Python 标准库 JSON-RPC 对端进程，不是官方 SDK，也不代理业务通信。 */
 final class PythonJsonRpcOrderPeer implements AutoCloseable {
-    private final Process process;
-    private final BufferedReader output;
+    private final Process         process;
+    private final BufferedReader  output;
     private final ExecutorService reader;
-    private final Path log;
+    private final Path            log;
 
     private PythonJsonRpcOrderPeer(List<String> arguments) throws IOException {
         // 错误日志与控制通知分离，业务网络请求全部在独立 Python 进程中执行。
@@ -33,7 +34,8 @@ final class PythonJsonRpcOrderPeer implements AutoCloseable {
         command.addAll(arguments);
         Path logs = Files.createDirectories(Path.of("build/peer-logs/python-jsonrpc-orders"));
         this.log = Files.createTempFile(logs, "peer-", ".log");
-        this.process = new ProcessBuilder(command).redirectError(this.log.toFile()).start();
+        ProcessBuilder builder = new ProcessBuilder(command).redirectError(this.log.toFile());
+        this.process = ContainerProcess.start("python", builder);
         this.output = new BufferedReader(new InputStreamReader(this.process.getInputStream(), StandardCharsets.UTF_8));
         this.reader = Executors.newSingleThreadExecutor();
     }
@@ -56,6 +58,10 @@ final class PythonJsonRpcOrderPeer implements AutoCloseable {
             throw new IOException("Python JSON-RPC listener failed: " + line + "\n" + Files.readString(this.log));
         }
         return Integer.parseInt(line.substring(6));
+    }
+
+    String host() {
+        return ContainerProcess.host(this.process);
     }
 
     long processId() {

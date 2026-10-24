@@ -19,6 +19,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
 import net.hasor.meteor.registry.RegistryConfiguration;
@@ -63,8 +64,9 @@ public class ThriftJavaRegistryAdapterScenarioTest {
         Path directory = this.data.newFolder("registry").toPath();
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
+            registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration configuration = this.configuration(registry, "thrift-java-adapter-provider");
-            configuration.connector("tcp").bind("127.0.0.1", 0).protocol("thrift") //
+            configuration.connector("tcp").bind(ContainerProcess.runnerHost(), 0).protocol("thrift") //
                     .option("encoding", "binary").option("framed", true).option("multiplexed", false);
             try (MetContext provider = configuration.buildContext()) {
                 provider.start();
@@ -98,6 +100,7 @@ public class ThriftJavaRegistryAdapterScenarioTest {
         Path directory = this.data.newFolder("registry").toPath();
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
+            registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration configuration = this.configuration(registry, "thrift-java-adapter-consumer");
             configuration.connector("tcp").protocol("thrift") //
                     .option("encoding", "binary").option("framed", true).option("multiplexed", false);
@@ -116,7 +119,7 @@ public class ThriftJavaRegistryAdapterScenarioTest {
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     int port = peer.awaitPort();
                     String unit = consumer.getSettings().getUnitName();
-                    InterAddress address = new InterAddress("thrift", "127.0.0.1", port, unit);
+                    InterAddress address = new InterAddress("thrift", peer.host(), port, unit);
                     registrar.register(service, peer.processId(), "java", "thrift", "tcp", address, "/");
                     RegistryDiscoveryExample.awaitDiscovery(consumer, service);
                     AddressSelectionAwaiter.await(consumer, service, "echo");

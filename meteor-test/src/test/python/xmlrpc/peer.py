@@ -29,7 +29,7 @@ def fail(message):
 def start_server(tls_files):
     # Register the same public method names without implementing a second codec.
     with xmlrpc.server.SimpleXMLRPCServer(
-        ("127.0.0.1", 0),
+        ("0.0.0.0", 0),
         requestHandler=RequestHandler,
         allow_none=True,
         use_builtin_types=True,

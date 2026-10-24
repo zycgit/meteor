@@ -30,13 +30,14 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** Metro 与 Axis 独立进程的生命周期及本地控制；场景仍使用真实 SOAP 网络。 */
 final class SoapPeerProcess implements AutoCloseable {
     private final Process               process;
     private final Path                  log;
     private final Thread                reader;
-    private final BlockingQueue<String> lines = new LinkedBlockingQueue<>();
+    private final BlockingQueue<String> lines  = new LinkedBlockingQueue<>();
     private final StringBuffer          output = new StringBuffer();
     private       int                   port;
 
@@ -109,8 +110,7 @@ final class SoapPeerProcess implements AutoCloseable {
         return System.getProperty("soap.peer.tls.directory");
     }
 
-    private static Map<String, Object> messageRequest(Map<String, Object> options, SOAPMessage message)
-            throws Exception {
+    private static Map<String, Object> messageRequest(Map<String, Object> options, SOAPMessage message) throws Exception {
         Map<String, Object> request = new LinkedHashMap<>(options);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         message.writeTo(bytes);
@@ -141,6 +141,10 @@ final class SoapPeerProcess implements AutoCloseable {
         }
     }
 
+    String host() {
+        return ContainerProcess.host(this.process);
+    }
+
     int getPort() {
         return this.port;
     }
@@ -166,7 +170,8 @@ final class SoapPeerProcess implements AutoCloseable {
             default -> throw new IllegalArgumentException("Unknown SOAP peer SDK: " + sdk);
         });
         command.addAll(arguments);
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+        Process process = ContainerProcess.start("java", builder);
         return new SoapPeerProcess(process, log);
     }
 

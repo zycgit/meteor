@@ -22,6 +22,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
@@ -71,7 +72,7 @@ public class OncRpcRegistryAdapterScenarioTest {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "native-consumer-target");
             int port = this.listenPort();
-            configuration.connector(this.transport).bind("127.0.0.1", port).protocol(this.protocol);
+            configuration.connector(this.transport).bind(ContainerProcess.runnerHost(), port).protocol(this.protocol);
             try (MetContext provider = configuration.buildContext()) {
                 provider.start();
                 MetBindInfo<OncRpcDemoService> service = provider.publisher() //
@@ -87,7 +88,8 @@ public class OncRpcRegistryAdapterScenarioTest {
                     String value = "discovered-native-to-Meteor";
                     try (OncRpcNativeProcess peer = OncRpcNativeProcess.start( //
                             "--command=client", "--transport=" + this.transport, //
-                            "--port=" + target.getPort(), "--scenario=echo", "--value=" + value)) {
+                            "--host=" + target.getHost(), "--port=" + target.getPort(), //
+                            "--scenario=echo", "--value=" + value)) {
                         peer.requireResult("echo=" + value);
                     }
                 }
@@ -116,7 +118,7 @@ public class OncRpcRegistryAdapterScenarioTest {
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     int port = peer.awaitPort();
                     String unitName = consumer.getSettings().getUnitName();
-                    InterAddress address = new InterAddress(this.protocol, "127.0.0.1", port, unitName);
+                    InterAddress address = new InterAddress(this.protocol, peer.host(), port, unitName);
                     registrar.register(service, peer.processId(), "c", this.protocol, this.transport, address, "/");
                     AddressSelectionAwaiter.await(consumer, service, "echo");
 
@@ -143,7 +145,7 @@ public class OncRpcRegistryAdapterScenarioTest {
             return 0;
         }
         // UDP 的公开监听入口要求具体端口，沿用原生互通场景的系统临时端口分配方式。
-        try (DatagramSocket reservation = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"))) {
+        try (DatagramSocket reservation = new DatagramSocket(0, InetAddress.getByName(ContainerProcess.runnerHost()))) {
             return reservation.getLocalPort();
         }
     }

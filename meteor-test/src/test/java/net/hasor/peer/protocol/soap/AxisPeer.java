@@ -20,7 +20,7 @@ public final class AxisPeer {
         switch (arguments[0]) {
             case "server": {
                 try (AxisRpcEncodedPeer engine = new AxisRpcEncodedPeer()) {
-                    HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+                    HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", 0), 0);
                     try {
                         server.createContext("/services/RpcEchoService", engine);
                         server.start();

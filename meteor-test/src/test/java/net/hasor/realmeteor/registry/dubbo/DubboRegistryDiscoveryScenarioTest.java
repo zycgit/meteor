@@ -13,7 +13,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.dubbo.DubboRegistryClient;
 import net.hasor.realmeteor.protocol.dubbo.DubboProcess;
-import org.apache.curator.test.TestingServer;
+import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.junit.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
@@ -26,7 +26,7 @@ public class DubboRegistryDiscoveryScenarioTest {
     @Test(timeout = 60000)
     public void closingConsumerDoesNotRemoveAnotherApplicationsProvider() throws Exception {
         // 同一注册中心服务多个上下文，每个扩展只拥有本应用的注册会话。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-independent-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -66,7 +66,7 @@ public class DubboRegistryDiscoveryScenarioTest {
     @Test(timeout = 90000)
     public void existingSubscriptionDiscoversNewDubbo27Provider() throws Exception {
         // 先建立没有提供者的订阅，不能通过主动 refresh 代替后续注册通知。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-late-legacy-consumer");
             consumer.connector("tcp").protocol("dubbo");
@@ -94,7 +94,7 @@ public class DubboRegistryDiscoveryScenarioTest {
     @Test(timeout = 90000)
     public void existingSubscriptionDiscoversNewDubbo33Provider() throws Exception {
         // 引用入口允许先于提供者启动，初始无地址不改变其服务身份。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-late-current-consumer");
             consumer.connector("tcp").protocol("dubbo");
@@ -122,7 +122,7 @@ public class DubboRegistryDiscoveryScenarioTest {
     @Test(timeout = 90000)
     public void dubbo27ProviderShutdownWithdrawsDiscoveredAddress() throws Exception {
         // 先完成原生服务发现与真实调用，排除测试初始本就没有地址的假阳性。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-legacy-withdrawal");
             consumer.connector("tcp").protocol("dubbo");
@@ -151,7 +151,7 @@ public class DubboRegistryDiscoveryScenarioTest {
     @Test(timeout = 90000)
     public void dubbo33ProviderShutdownWithdrawsDiscoveredAddress() throws Exception {
         // 原生 3.3 提供者先被正常引用，其退出才是本场景唯一的状态变化。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-current-withdrawal");
             consumer.connector("tcp").protocol("dubbo");
@@ -180,7 +180,7 @@ public class DubboRegistryDiscoveryScenarioTest {
     @Test(timeout = 60000)
     public void meteorProviderShutdownWithdrawsDiscoveredAddress() throws Exception {
         // 两个独立应用共享注册中心，消费方不持有提供者实现。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-closing-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");

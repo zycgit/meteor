@@ -19,6 +19,7 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.meteor.protocol.oncrpc.codec.OncRpcException;
 import net.hasor.meteor.protocol.oncrpc.codec.OncRpcMessage;
 import org.junit.Test;
@@ -292,7 +293,7 @@ public class OncRpcOfficialInteropScenarioTest {
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc", OncRpcDemoCodecs.resource()).register();
             String unitName = client.getSettings().getUnitName();
-            InterAddress address = new InterAddress("oncrpc", "127.0.0.1", port, unitName);
+            InterAddress address = new InterAddress("oncrpc", peer.host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 业务结果来自独立 C 服务端，当前客户端不存在可供本地调用的实现。
@@ -313,7 +314,7 @@ public class OncRpcOfficialInteropScenarioTest {
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc", OncRpcDemoCodecs.resource()).register();
             String unitName = client.getSettings().getUnitName();
-            InterAddress address = new InterAddress("oncrpc", "127.0.0.1", port, unitName);
+            InterAddress address = new InterAddress("oncrpc", peer.host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 业务结果来自独立 C 服务端，当前客户端不存在可供本地调用的实现。
@@ -333,7 +334,7 @@ public class OncRpcOfficialInteropScenarioTest {
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc", OncRpcDemoCodecs.resource()).register();
             String unitName = client.getSettings().getUnitName();
-            InterAddress address = new InterAddress("oncrpc", "127.0.0.1", port, unitName);
+            InterAddress address = new InterAddress("oncrpc", peer.host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 业务结果来自独立 C 服务端，当前客户端不存在可供本地调用的实现。
@@ -353,7 +354,7 @@ public class OncRpcOfficialInteropScenarioTest {
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc", OncRpcDemoCodecs.resource()).register();
             String unitName = client.getSettings().getUnitName();
-            InterAddress address = new InterAddress("oncrpc", "127.0.0.1", port, unitName);
+            InterAddress address = new InterAddress("oncrpc", peer.host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 业务结果来自独立 C 服务端，当前客户端不存在可供本地调用的实现。
@@ -374,7 +375,7 @@ public class OncRpcOfficialInteropScenarioTest {
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc", OncRpcDemoCodecs.resource()).register();
             String unitName = client.getSettings().getUnitName();
-            InterAddress address = new InterAddress("oncrpc", "127.0.0.1", port, unitName);
+            InterAddress address = new InterAddress("oncrpc", peer.host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 业务结果来自独立 C 服务端，当前客户端不存在可供本地调用的实现。
@@ -412,7 +413,7 @@ public class OncRpcOfficialInteropScenarioTest {
             client.start();
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc", OncRpcDemoCodecs.resource()).register();
-            InterAddress address = new InterAddress("oncrpc", "127.0.0.1", port, //
+            InterAddress address = new InterAddress("oncrpc", peer.host(), port, //
                     client.getSettings().getUnitName());
             MetClient caller = client.getRsfClient(address);
 
@@ -440,7 +441,7 @@ public class OncRpcOfficialInteropScenarioTest {
             client.start();
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc", OncRpcDemoCodecs.resource()).register();
-            InterAddress address = new InterAddress("oncrpc", "127.0.0.1", port, //
+            InterAddress address = new InterAddress("oncrpc", peer.host(), port, //
                     client.getSettings().getUnitName());
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
@@ -715,7 +716,7 @@ public class OncRpcOfficialInteropScenarioTest {
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc-udp", OncRpcDemoCodecs.resource()).register();
             String unitName = client.getSettings().getUnitName();
-            InterAddress address = new InterAddress("oncrpc-udp", "127.0.0.1", port, unitName);
+            InterAddress address = new InterAddress("oncrpc-udp", peer.host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 业务结果来自独立 C 服务端，当前客户端不存在可供本地调用的实现。
@@ -736,7 +737,7 @@ public class OncRpcOfficialInteropScenarioTest {
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc-udp", OncRpcDemoCodecs.resource()).register();
             String unitName = client.getSettings().getUnitName();
-            InterAddress address = new InterAddress("oncrpc-udp", "127.0.0.1", port, unitName);
+            InterAddress address = new InterAddress("oncrpc-udp", peer.host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 业务结果来自独立 C 服务端，当前客户端不存在可供本地调用的实现。
@@ -756,7 +757,7 @@ public class OncRpcOfficialInteropScenarioTest {
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc-udp", OncRpcDemoCodecs.resource()).register();
             String unitName = client.getSettings().getUnitName();
-            InterAddress address = new InterAddress("oncrpc-udp", "127.0.0.1", port, unitName);
+            InterAddress address = new InterAddress("oncrpc-udp", peer.host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 业务结果来自独立 C 服务端，当前客户端不存在可供本地调用的实现。
@@ -776,7 +777,7 @@ public class OncRpcOfficialInteropScenarioTest {
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc-udp", OncRpcDemoCodecs.resource()).register();
             String unitName = client.getSettings().getUnitName();
-            InterAddress address = new InterAddress("oncrpc-udp", "127.0.0.1", port, unitName);
+            InterAddress address = new InterAddress("oncrpc-udp", peer.host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 业务结果来自独立 C 服务端，当前客户端不存在可供本地调用的实现。
@@ -797,7 +798,7 @@ public class OncRpcOfficialInteropScenarioTest {
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc-udp", OncRpcDemoCodecs.resource()).register();
             String unitName = client.getSettings().getUnitName();
-            InterAddress address = new InterAddress("oncrpc-udp", "127.0.0.1", port, unitName);
+            InterAddress address = new InterAddress("oncrpc-udp", peer.host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 业务结果来自独立 C 服务端，当前客户端不存在可供本地调用的实现。
@@ -835,7 +836,7 @@ public class OncRpcOfficialInteropScenarioTest {
             client.start();
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc-udp", OncRpcDemoCodecs.resource()).register();
-            InterAddress address = new InterAddress("oncrpc-udp", "127.0.0.1", port, //
+            InterAddress address = new InterAddress("oncrpc-udp", peer.host(), port, //
                     client.getSettings().getUnitName());
             MetClient caller = client.getRsfClient(address);
 
@@ -863,7 +864,7 @@ public class OncRpcOfficialInteropScenarioTest {
             client.start();
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc-udp", OncRpcDemoCodecs.resource()).register();
-            InterAddress address = new InterAddress("oncrpc-udp", "127.0.0.1", port, //
+            InterAddress address = new InterAddress("oncrpc-udp", peer.host(), port, //
                     client.getSettings().getUnitName());
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
@@ -874,14 +875,16 @@ public class OncRpcOfficialInteropScenarioTest {
 
     @Test(timeout = 30000)
     public void nativeUdpLargeOpaqueCallsMeteorOverIpv6() throws Exception {
-        // 使用 IPv6 回环承载单个 50,000 字节数据报，避免本机 IPv4 大包被环境丢弃。
+        // Docker 双栈网桥传输单个 50,000 字节 IPv6 数据报，两端处于独立容器。
         int port;
-        try (DatagramSocket reservation = new DatagramSocket(0, InetAddress.getByName("::1"))) {
+        String runnerAddress = OncRpcNativeProcess.runnerIpv6();
+        InetAddress runner = InetAddress.getByName(runnerAddress);
+        try (DatagramSocket reservation = new DatagramSocket(0, runner)) {
             port = reservation.getLocalPort();
         }
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc-udp");
         configuration.setQueueMinPoolSize(2).setDefaultTimeout(5000);
-        configuration.connector("udp").bind("::1", port).protocol("oncrpc-udp");
+        configuration.connector("udp").bind(runnerAddress, port).protocol("oncrpc-udp");
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OncRpcDemoService.class, new OncRpcDemoServiceImpl()) //
@@ -889,7 +892,7 @@ public class OncRpcOfficialInteropScenarioTest {
 
             // libtirpc 生成、发送并逐字节核对完整 opaque 正文，没有分拆为多条 RPC。
             try (OncRpcNativeProcess peer = OncRpcNativeProcess.start("--command=client", //
-                    "--transport=udp", "--host=::1", "--port=" + port, //
+                    "--transport=udp", "--host=" + runnerAddress, "--port=" + port, //
                     "--scenario=bytes", "--value=50000")) {
                 peer.requireResult("bytes=50000");
             }
@@ -901,13 +904,14 @@ public class OncRpcOfficialInteropScenarioTest {
         // 原生 UDP 监听器绑定 IPv6，Meteor 通过正式出站协议配置调用。
         MetConfiguration configuration = this.outgoing("udp", "oncrpc-udp");
         try (OncRpcNativeProcess peer = OncRpcNativeProcess.start("--command=server", //
-                "--transport=udp", "--host=::1", "--port=0"); //
+                "--transport=udp", "--host=::", "--port=0"); //
              MetContext client = configuration.buildContext()) {
             int port = peer.awaitPort();
             client.start();
             MetBindInfo<OncRpcDemoService> service = client.publisher().rsfService(OncRpcDemoService.class) //
                     .bindResource("oncrpc-udp", OncRpcDemoCodecs.resource()).register();
-            InterAddress address = new InterAddress("oncrpc-udp", "::1", port, client.getSettings().getUnitName());
+            String unitName = client.getSettings().getUnitName();
+            InterAddress address = new InterAddress("oncrpc-udp", peer.ipv6Host(), port, unitName);
             OncRpcDemoService remote = client.getRsfClient(address).getRemote(service);
 
             // 一个调用传递一个完整大数据报，所有字节必须按原值返回。
@@ -923,7 +927,7 @@ public class OncRpcOfficialInteropScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol(protocol);
         configuration.setQueueMinPoolSize(2).setDefaultTimeout(5000);
         int port = this.listenPort(transport);
-        configuration.connector(transport).bind("127.0.0.1", port).protocol(protocol);
+        configuration.connector(transport).bind(ContainerProcess.runnerHost(), port).protocol(protocol);
         return configuration;
     }
 
@@ -938,7 +942,8 @@ public class OncRpcOfficialInteropScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol(protocol);
         configuration.setQueueMinPoolSize(2).setDefaultTimeout(5000);
         int port = this.listenPort(transport);
-        configuration.connector(transport).bind("127.0.0.1", port).protocol(protocol).option("auth", "require-sys");
+        configuration.connector(transport).bind(ContainerProcess.runnerHost(), port).protocol(protocol) //
+                .option("auth", "require-sys");
         return configuration;
     }
 
@@ -947,7 +952,7 @@ public class OncRpcOfficialInteropScenarioTest {
             return 0;
         }
         // UDP 公开监听入口要求具体端口，临时端口由操作系统分配。
-        try (DatagramSocket reservation = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"))) {
+        try (DatagramSocket reservation = new DatagramSocket(0, InetAddress.getByName(ContainerProcess.runnerHost()))) {
             return reservation.getLocalPort();
         }
     }

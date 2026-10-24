@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -44,8 +45,8 @@ public class PythonJsonRpcRegistryAdapterScenarioTest {
     }
 
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
-    private final String backend;
+    public final  TemporaryFolder data = new TemporaryFolder();
+    private final String          backend;
 
     public PythonJsonRpcRegistryAdapterScenarioTest(String backend) {
         this.backend = backend;
@@ -58,7 +59,7 @@ public class PythonJsonRpcRegistryAdapterScenarioTest {
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "meteor-jsonrpc-provider");
-            incoming.connector("http").bind("127.0.0.1", 0) //
+            incoming.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("jsonrpc").addressScheme("http").contextPath("/jsonrpc");
             try (MetContext provider = incoming.buildContext()) {
                 provider.start();
@@ -104,7 +105,7 @@ public class PythonJsonRpcRegistryAdapterScenarioTest {
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     int port = provider.awaitPort();
                     String unit = consumer.getSettings().getUnitName();
-                    InterAddress address = new InterAddress("http", "127.0.0.1", port, unit);
+                    InterAddress address = new InterAddress("http", provider.host(), port, unit);
                     registrar.register(service, provider.processId(), "python", "jsonrpc", "http", address, "/jsonrpc");
                     AddressSelectionAwaiter.await(consumer, service, "save");
 

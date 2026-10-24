@@ -54,7 +54,7 @@ public final class ConnectJavaServerPeer {
         // SDK 构建器负责真实 HTTP 监听；本进程只拥有自己的工作线程及服务端。
         ExecutorService workers = Executors.newCachedThreadPool();
         try (NettyServer server = ConnectNettyServerBuilder.forServices(service) //
-                .host("127.0.0.1").port(0).executor(workers).terminationTimeout(Duration.ofSeconds(3)).build()) {
+                .host("0.0.0.0").port(0).executor(workers).terminationTimeout(Duration.ofSeconds(3)).build()) {
             System.out.println("READY " + server.getPort());
             System.out.flush();
             while (System.in.read() != -1) {

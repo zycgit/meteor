@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 拥有独立 Python 进程与控制管道；业务调用完全由 Python XML-RPC SDK 收发。 */
 public final class PythonOrderPeer implements AutoCloseable {
@@ -43,7 +44,7 @@ public final class PythonOrderPeer implements AutoCloseable {
         ProcessBuilder command = new ProcessBuilder("python3", "-u", script.toString(), role, //
                 "--exclude-port", Integer.toString(excludedPort));
         command.redirectError(this.log.toFile());
-        this.process = command.start();
+        this.process = ContainerProcess.start("python", command);
         this.input = new BufferedWriter(new OutputStreamWriter(this.process.getOutputStream(), StandardCharsets.UTF_8));
         this.output = new BufferedReader(new InputStreamReader(this.process.getInputStream(), StandardCharsets.UTF_8));
         this.reader = Executors.newSingleThreadExecutor();
@@ -73,7 +74,11 @@ public final class PythonOrderPeer implements AutoCloseable {
     }
 
     public InterAddress address(String unit) {
-        return new InterAddress("xmlrpc", "127.0.0.1", this.port, unit);
+        return new InterAddress("xmlrpc", this.host(), this.port, unit);
+    }
+
+    public String host() {
+        return ContainerProcess.host(this.process);
     }
 
     public long processId() {

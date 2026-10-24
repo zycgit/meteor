@@ -21,6 +21,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import org.w3c.dom.NodeList;
 import static org.junit.Assert.assertEquals;
@@ -32,7 +33,7 @@ public class WebServicesSoap12InteropTest {
     public void metroClientUsesTheGeneratedSoap12Binding() throws Exception {
         // 用户选择 SOAP 1.2，服务仍按普通 Java 接口发布。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap").contextPath("/services").option("soapVersion", "1.2");
         try (MetContext context = configuration.buildContext()) {
             context.start();
@@ -41,7 +42,8 @@ public class WebServicesSoap12InteropTest {
 
             // Metro 从线上 WSDL 选择 SOAP 1.2 port，并按契约发送标准消息。
             int port = context.getListenAddress("soap").getPort();
-            URL wsdl = URI.create("http://127.0.0.1:" + port + "/services/EchoService?wsdl").toURL();
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/services/EchoService?wsdl";
+            URL wsdl = URI.create(endpoint).toURL();
             QName serviceName = new QName(NAMESPACE, "EchoService");
             QName portName = new QName(NAMESPACE, "EchoServicePort");
             Map<String, Object> dispatch = SoapPeerProcess.dispatch(wsdl, serviceName, portName, NAMESPACE + "/echo");
@@ -75,7 +77,7 @@ public class WebServicesSoap12InteropTest {
                 MetBindInfo<EchoService> subscription = context.publisher().rsfService(EchoService.class) //
                         .aliasName("soap", "EchoService").protocol("soap").register();
                 int port = server.getPort();
-                InterAddress address = new InterAddress("soap", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("soap", server.host(), port, "default");
                 EchoService remote = context.getRsfClient(address).getRemote(subscription);
                 assertEquals("hello Metro 1.2", remote.echo("hello Metro 1.2"));
             }

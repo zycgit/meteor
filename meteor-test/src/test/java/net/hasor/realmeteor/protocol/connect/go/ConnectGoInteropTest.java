@@ -22,6 +22,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.connect.ConnectStatusException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -77,7 +78,8 @@ public class ConnectGoInteropTest {
             MetBindInfo<OrderDemoService> subscription = client.publisher().rsfService(OrderDemoService.class) //
                     .aliasName("connect", SERVICE).protocol("connect").serialize("Protobuf") //
                     .bindResource("connect", resource).register();
-            InterAddress target = new InterAddress(endpoint.getScheme(), endpoint.getHost(), endpoint.getPort(), "default");
+            String host = endpoint.getHost();
+            InterAddress target = new InterAddress(endpoint.getScheme(), host, endpoint.getPort(), "default");
             OrderDemoService remote = client.getRsfClient(target).getRemote(subscription);
 
             // 保存和查询同一笔订单，分别验证两次真实 RPC 的返回值。
@@ -129,7 +131,8 @@ public class ConnectGoInteropTest {
             MetBindInfo<OrderDemoService> subscription = client.publisher().rsfService(OrderDemoService.class) //
                     .aliasName("connect", SERVICE).protocol("connect").serialize("Protobuf") //
                     .bindResource("connect", resource).register();
-            InterAddress target = new InterAddress(endpoint.getScheme(), endpoint.getHost(), endpoint.getPort(), "default");
+            String host = endpoint.getHost();
+            InterAddress target = new InterAddress(endpoint.getScheme(), host, endpoint.getPort(), "default");
             OrderDemoService remote = client.getRsfClient(target).getRemote(subscription);
 
             // 保存和查询同一笔订单，分别验证两次真实 RPC 的返回值。
@@ -182,7 +185,8 @@ public class ConnectGoInteropTest {
             MetBindInfo<OrderDemoService> subscription = client.publisher().rsfService(OrderDemoService.class) //
                     .aliasName("connect", SERVICE).protocol("connect").serialize("Protobuf") //
                     .bindResource("connect", resource).register();
-            InterAddress target = new InterAddress(endpoint.getScheme(), endpoint.getHost(), endpoint.getPort(), "default");
+            String host = endpoint.getHost();
+            InterAddress target = new InterAddress(endpoint.getScheme(), host, endpoint.getPort(), "default");
             OrderDemoService remote = client.getRsfClient(target).getRemote(subscription);
 
             // 保存和查询同一笔订单，分别验证两次真实 RPC 的返回值。
@@ -235,7 +239,8 @@ public class ConnectGoInteropTest {
             MetBindInfo<OrderDemoService> subscription = client.publisher().rsfService(OrderDemoService.class) //
                     .aliasName("connect", SERVICE).protocol("connect").serialize("Protobuf") //
                     .bindResource("connect", resource).register();
-            InterAddress target = new InterAddress(endpoint.getScheme(), endpoint.getHost(), endpoint.getPort(), "default");
+            String host = endpoint.getHost();
+            InterAddress target = new InterAddress(endpoint.getScheme(), host, endpoint.getPort(), "default");
             OrderDemoService remote = client.getRsfClient(target).getRemote(subscription);
 
             // 保存和查询同一笔订单，分别验证两次真实 RPC 的返回值。
@@ -291,13 +296,15 @@ public class ConnectGoInteropTest {
             MetBindInfo<OrderDemoService> subscription = client.publisher().rsfService(OrderDemoService.class) //
                     .aliasName("connect", SERVICE).protocol("connect").serialize("Protobuf") //
                     .bindResource("connect", resource).register();
-            InterAddress target = new InterAddress(endpoint.getScheme(), endpoint.getHost(), endpoint.getPort(), "default");
+            String host = endpoint.getHost();
+            InterAddress target = new InterAddress(endpoint.getScheme(), host, endpoint.getPort(), "default");
             OrderDemoService remote = client.getRsfClient(target).getRemote(subscription);
             OrderQuery query = new OrderQuery();
             query.setId(404);
 
             // 同步接口未声明受检异常，JDK 代理包装的异常链仍须保留精确协议错误。
-            UndeclaredThrowableException failure = assertThrows(UndeclaredThrowableException.class, () -> remote.find(query));
+            Class<UndeclaredThrowableException> errorType = UndeclaredThrowableException.class;
+            UndeclaredThrowableException failure = assertThrows(errorType, () -> remote.find(query));
             ConnectStatusException status = ConnectStatusException.find(failure);
             assertNotNull(failure.toString(), status);
             assertEquals("not_found", status.getCode());
@@ -309,7 +316,7 @@ public class ConnectGoInteropTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("connect").setDefaultTimeout(10000);
         ConnectorSettings connector = configuration.connector("http").option("httpVersion", 1);
         if (listening) {
-            connector.bind("127.0.0.1", 0);
+            connector.bind(ContainerProcess.runnerHost(), 0);
         }
         if (!StringUtils.equals("plain", this.tlsMode)) {
             connector.option("tlsEnabled", true).option("httpScheme", "https") //

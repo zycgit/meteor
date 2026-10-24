@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 拥有独立 RemoteTea JVM 和日志；调用、关闭都保持有界等待。 */
 final class RemoteTeaPeerProcess implements AutoCloseable {
@@ -36,8 +37,9 @@ final class RemoteTeaPeerProcess implements AutoCloseable {
         Path java = Path.of(System.getProperty("java.home"), "bin", "java");
         String main = "net.hasor.peer.protocol.oncrpc.RemoteTeaClientPeer";
         ProcessBuilder command = new ProcessBuilder(java.toString(), "-cp", classpath, main, //
-                transport, Integer.toString(port), value, scenario);
-        Process process = command.redirectErrorStream(true).redirectOutput(log.toFile()).start();
+                transport, ContainerProcess.runnerHost(), Integer.toString(port), value, scenario);
+        ProcessBuilder builder = command.redirectErrorStream(true).redirectOutput(log.toFile());
+        Process process = ContainerProcess.start("java", builder);
         return new RemoteTeaPeerProcess(process, log);
     }
 

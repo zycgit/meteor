@@ -19,7 +19,7 @@ import net.hasor.realmeteor.protocol.dubbo.DubboProcess;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
+import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.apache.dubbo.common.URL;
 import org.junit.Test;
 
@@ -34,7 +34,7 @@ public class DubboRegistryPublicationScenarioTest {
     @Test(timeout = 90000)
     public void publicationIdentityChangedAfterStartBecomesNativeDefaultReferenceable() throws Exception {
         // 应用先启动并按默认身份发布，不把元信息提前设置来避开运行期变更。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-runtime-identity-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");

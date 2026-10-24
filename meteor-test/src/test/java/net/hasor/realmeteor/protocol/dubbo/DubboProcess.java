@@ -19,6 +19,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 独立官方 JVM 的所有者，供协议与注册中心场景使用相同的真实对端。 */
 public final class DubboProcess implements AutoCloseable {
@@ -61,10 +62,18 @@ public final class DubboProcess implements AutoCloseable {
         command.add(classpath);
         command.add("net.hasor.peer.protocol.dubbo.DubboPeer");
         command.addAll(arguments);
-        Process process = new ProcessBuilder(command) //
-                .redirectErrorStream(true) //
-                .start();
+        boolean hasHost = arguments.stream().anyMatch(value -> value.startsWith("--host="));
+        if (!hasHost) {
+            // 官方消费者通过桥接网络访问 Meteor，不使用自身容器的 loopback。
+            command.add("--host=" + ContainerProcess.runnerHost());
+        }
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+        Process process = ContainerProcess.start("java", builder);
         return new DubboProcess(process);
+    }
+
+    public String host() {
+        return ContainerProcess.host(this.process);
     }
 
     public int awaitPort() throws Exception {

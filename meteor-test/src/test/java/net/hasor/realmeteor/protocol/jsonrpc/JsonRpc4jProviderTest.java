@@ -16,6 +16,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.peer.protocol.jsonrpc.JsonRpc4jPeer;
 import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -36,7 +37,7 @@ public class JsonRpc4jProviderTest {
 
             // 原生 Java SDK 在独立 JVM 中生成请求并执行真实 HTTP 调用。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             String expected = "Java SDK 中文 🙂 <&>";
             Map<String, Object> request = this.request(target, "peer.echo", new Object[] { expected }, String.class);
             Map<String, Object> response = JavaSdkPeerUtils.exchange("jsonrpc", JsonRpc4jPeer.class, request);
@@ -65,7 +66,7 @@ public class JsonRpc4jProviderTest {
             parameters.put("right", 4);
             parameters.put("left", 9);
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Map<String, Object> request = this.request(target, "peer.subtract", parameters, Integer.class);
             Map<String, Object> response = JavaSdkPeerUtils.exchange("jsonrpc", JsonRpc4jPeer.class, request);
 
@@ -90,7 +91,7 @@ public class JsonRpc4jProviderTest {
 
             // jsonrpc4j 将线上 error 对象解析为自身的 JsonRpcClientException。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Map<String, Object> request = this.request(target, "peer.missing", new Object[0], String.class);
             Map<String, Object> response = JavaSdkPeerUtils.exchange("jsonrpc", JsonRpc4jPeer.class, request);
 
@@ -103,7 +104,7 @@ public class JsonRpc4jProviderTest {
 
     private MetConfiguration configuration() {
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc").contextPath("/rpc");
         return configuration;
     }

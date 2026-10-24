@@ -30,6 +30,7 @@ import hprose.server.HproseService;
 import net.hasor.example.order.Order;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.peer.protocol.hprose.HproseOrderPeer;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 拥有独立官方 Hprose JVM；控制管道只交付发现结果和业务数据，不代理网络 RPC。 */
 final class HproseJavaOrderPeerProcess implements AutoCloseable {
@@ -52,7 +53,7 @@ final class HproseJavaOrderPeerProcess implements AutoCloseable {
         this.log = Files.createTempFile(directory, "hprose-java-" + role + "-", ".log");
         String main = HproseOrderPeer.class.getName();
         ProcessBuilder command = new ProcessBuilder(java.toString(), "-cp", classpath, main, role);
-        this.process = command.redirectError(this.log.toFile()).start();
+        this.process = ContainerProcess.start("java", command.redirectError(this.log.toFile()));
         this.output = new BufferedReader(new InputStreamReader(this.process.getInputStream(), StandardCharsets.UTF_8));
         this.input = new BufferedWriter(new OutputStreamWriter(this.process.getOutputStream(), StandardCharsets.UTF_8));
         this.reader = Executors.newSingleThreadExecutor();
@@ -81,7 +82,7 @@ final class HproseJavaOrderPeerProcess implements AutoCloseable {
     }
 
     InterAddress address(String unit) {
-        return new InterAddress("http", "127.0.0.1", this.port, unit);
+        return new InterAddress("http", ContainerProcess.host(this.process), this.port, unit);
     }
 
     long processId() {
@@ -92,7 +93,7 @@ final class HproseJavaOrderPeerProcess implements AutoCloseable {
         // URL 在独立客户端完成启动后才由存储订阅结果提供，包括真实 scheme、端口和挂载路径。
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ObjectOutputStream stream = new ObjectOutputStream(bytes)) {
-            stream.writeObject(new Object[]{discovered.toString(), order});
+            stream.writeObject(new Object[] { discovered.toString(), order });
         }
         this.input.write(Base64.getEncoder().encodeToString(bytes.toByteArray()));
         this.input.newLine();

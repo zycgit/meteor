@@ -46,6 +46,11 @@ public final class DubboTriplePeer {
         String command = arguments.getOrDefault("command", "server");
         int port = Integer.parseInt(arguments.getOrDefault("port", "0"));
         boolean gzip = Boolean.parseBoolean(arguments.getOrDefault("gzip", "false"));
+        // 对外登记使用容器 DNS，绑定地址仍由 ProtocolConfig 单独控制。
+        String publishedHost = System.getenv("METEOR_TEST_PEER_HOST");
+        if (publishedHost != null && !publishedHost.isBlank()) {
+            System.setProperty("DUBBO_IP_TO_REGISTRY", publishedHost);
+        }
         System.setProperty("dubbo.application.logger", "jdk");
         System.setProperty("dubbo.rpc.tri.compressor", gzip ? "gzip" : "identity");
         System.setProperty("dubbo.metadata-service.export-port", "-1");
@@ -96,7 +101,8 @@ public final class DubboTriplePeer {
             }
         }
         ProtocolConfig protocol = new ProtocolConfig("tri", requestedPort);
-        protocol.setHost("127.0.0.1");
+        // 官方服务向同一 Docker 网络内的独立消费者开放监听。
+        protocol.setHost("0.0.0.0");
         protocol.setRegister(false);
         ServiceConfig<DubboWrappedService> wrapped = new ServiceConfig<>();
         wrapped.setInterface(DubboWrappedService.class);
@@ -135,12 +141,13 @@ public final class DubboTriplePeer {
         try {
             // 通过官方 ReferenceConfig 建立真实网络代理，不依赖 Meteor 的调用实现。
             Object value;
+            String host = arguments.get("host");
             if (proto) {
-                ReferenceConfig<DubboProtoService> reference = reference(DubboProtoService.class, port, operation);
+                var reference = reference(DubboProtoService.class, host, port, operation);
                 bootstrap.reference(reference).start();
                 value = invokeProto(reference.get(), operation);
             } else {
-                ReferenceConfig<DubboWrappedService> reference = reference(DubboWrappedService.class, port, operation);
+                var reference = reference(DubboWrappedService.class, host, port, operation);
                 bootstrap.reference(reference).start();
                 value = invokeWrapped(reference.get(), operation);
             }
@@ -170,10 +177,10 @@ public final class DubboTriplePeer {
         System.out.flush();
     }
 
-    private static <T> ReferenceConfig<T> reference(Class<T> type, int port, String scenario) {
+    private static <T> ReferenceConfig<T> reference(Class<T> type, String host, int port, String scenario) {
         ReferenceConfig<T> reference = new ReferenceConfig<>();
         reference.setInterface(type);
-        reference.setUrl("tri://127.0.0.1:" + port + "/" + type.getName() + "?serialization=hessian2");
+        reference.setUrl("tri://" + host + ":" + port + "/" + type.getName() + "?serialization=hessian2");
         reference.setCheck(false);
         reference.setRetries(0);
         reference.setTimeout(switch (scenario) {

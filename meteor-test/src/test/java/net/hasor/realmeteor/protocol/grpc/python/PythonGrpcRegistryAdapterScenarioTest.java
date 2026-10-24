@@ -33,6 +33,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -45,7 +46,7 @@ public class PythonGrpcRegistryAdapterScenarioTest {
 
     @Parameterized.Parameters(name = "grpc/python/adapter/{0}")
     public static Collection<Object[]> backends() {
-        return List.of(new Object[]{"jdbc"}, new Object[]{"zookeeper"}, new Object[]{"nacos"});
+        return List.of(new Object[] { "jdbc" }, new Object[] { "zookeeper" }, new Object[] { "nacos" });
     }
 
     @Rule
@@ -64,7 +65,7 @@ public class PythonGrpcRegistryAdapterScenarioTest {
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "meteor-grpc-provider");
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc").contextPath("/");
             try (MetContext provider = configuration.buildContext()) {
                 provider.start();
@@ -79,7 +80,8 @@ public class PythonGrpcRegistryAdapterScenarioTest {
                 try (StorageAccess storage = registry.openStorage(); //
                      RegistryAddressResolver resolver = new RegistryAddressResolver(storage, serviceId, "grpc")) {
                     URI address = resolver.awaitCount(1).get(0);
-                    try (PythonGrpcPeer consumer = PythonGrpcPeer.consumer(address.getPort(), "clear", "unicode")) {
+                    try (PythonGrpcPeer consumer = PythonGrpcPeer.consumer( //
+                            address.getHost(), address.getPort(), "clear", "unicode")) {
                         JsonNode actual = consumer.awaitResult();
 
                         // Python 同时核对生成消息的 save/find 结果，Java 再核对独立进程报告的业务数据。
@@ -113,7 +115,7 @@ public class PythonGrpcRegistryAdapterScenarioTest {
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     int port = provider.awaitPort();
                     String unit = consumer.getSettings().getUnitName();
-                    InterAddress address = new InterAddress("grpc", "127.0.0.1", port, unit);
+                    InterAddress address = new InterAddress("grpc", provider.host(), port, unit);
                     registrar.register(service, provider.processId(), "python", "grpc", "http", address, "/");
                     AddressSelectionAwaiter.await(consumer, service, "save");
 

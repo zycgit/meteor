@@ -23,6 +23,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.xmlrpc.XmlRpcException;
 import org.junit.Test;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import static org.junit.Assert.*;
 
 /** Python 标准库与 Meteor 的独立双向互通；每种线协议类型独立验证。 */
@@ -32,7 +33,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorUnicodeString() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -45,7 +46,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证Unicode 字符和 XML 转义，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "string")) {
                 peer.requireSuccess();
             }
@@ -56,7 +57,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorInteger() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -69,7 +70,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证有序整数参数与整数结果，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "integer")) {
                 peer.requireSuccess();
             }
@@ -80,7 +81,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorBoolean() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -93,7 +94,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证布尔值，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "boolean")) {
                 peer.requireSuccess();
             }
@@ -104,7 +105,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorDouble() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -117,7 +118,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证浮点数，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "double")) {
                 peer.requireSuccess();
             }
@@ -128,7 +129,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorBinary() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -141,7 +142,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证base64 二进制，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "base64")) {
                 peer.requireSuccess();
             }
@@ -152,7 +153,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorDateTime() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -165,7 +166,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证无时区日期按 UTC 解释，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "datetime")) {
                 peer.requireSuccess();
             }
@@ -176,7 +177,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorTypedArray() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -189,7 +190,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证结构体数组，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "array")) {
                 peer.requireSuccess();
             }
@@ -200,7 +201,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorNestedStruct() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -213,7 +214,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证嵌套结构体，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "struct")) {
                 peer.requireSuccess();
             }
@@ -224,7 +225,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorApplicationFault() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -237,7 +238,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证应用故障码与消息，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "fault")) {
                 peer.requireSuccess();
             }
@@ -248,7 +249,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorNoArguments() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -261,7 +262,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证无参调用，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "noargs")) {
                 peer.requireSuccess();
             }
@@ -272,7 +273,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorOptionalNil() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("xmlrpc") //
                 .option("allowNil", true) //
                 .contextPath("/rpc");
@@ -286,7 +287,7 @@ public class XmlRpcInteropTest {
 
             // 独立实现验证显式开启的 nil 扩展，Python 内断言线协议解析结果。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "nil")) {
                 peer.requireSuccess();
             }
@@ -311,7 +312,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证Unicode 字符和 XML 转义，对端完成真正的 XML 编解码。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);
@@ -338,7 +339,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证有序整数参数与整数结果，对端完成真正的 XML 编解码。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);
@@ -364,7 +365,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证布尔值，对端完成真正的 XML 编解码。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);
@@ -390,7 +391,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证浮点数，对端完成真正的 XML 编解码。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);
@@ -416,7 +417,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证base64 二进制，对端完成真正的 XML 编解码。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);
@@ -443,7 +444,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证无时区日期按 UTC 解释，对端完成真正的 XML 编解码。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);
@@ -470,7 +471,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证结构体数组，对端完成真正的 XML 编解码。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);
@@ -507,7 +508,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证嵌套结构体，对端完成真正的 XML 编解码。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);
@@ -535,7 +536,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证应用故障码与消息，对端完成真正的 XML 编解码。
             MetClient remote = client.getRsfClient(address);
@@ -568,7 +569,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证无参调用，对端完成真正的 XML 编解码。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);
@@ -595,7 +596,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("xmlrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("xmlrpc", peer.host(), port, "default");
 
             // 通过公开客户端验证显式开启的 nil 扩展，对端完成真正的 XML 编解码。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);
@@ -607,7 +608,7 @@ public class XmlRpcInteropTest {
     public void pythonClientCallsMeteorOverHttps() throws Exception {
         // 用实际测试 CA 开启 HTTPS，独立 Python 客户端校验服务端证书和主机名。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        ConnectorSettings listener = configuration.connector("http").bind("127.0.0.1", 0);
+        ConnectorSettings listener = configuration.connector("http").bind(ContainerProcess.runnerHost(), 0);
         XmlRpcTlsUtils.serverTls(listener, 1, "NONE");
         listener.protocol("xmlrpc").addressScheme("https").contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -620,7 +621,7 @@ public class XmlRpcInteropTest {
 
             // Python 不跳过证书校验，使用插件测试资源中的公开测试 CA。
             int port = server.getListenAddress("xmlrpc").getPort();
-            String target = "https://localhost:" + port + "/rpc";
+            String target = "https://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             String trustFile = this.pemFile("trust.pem");
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "string", trustFile)) {
                 peer.requireSuccess();
@@ -648,7 +649,7 @@ public class XmlRpcInteropTest {
                     .aliasName("xmlrpc", "demo") //
                     .protocol("xmlrpc") //
                     .register();
-            InterAddress address = new InterAddress("https", "localhost", port, "default");
+            InterAddress address = new InterAddress("https", peer.host(), port, "default");
 
             // 动态代理通过加密连接调用独立 Python 服务端。
             XmlRpcDemoService remote = client.getRsfClient(address).getRemote(service);

@@ -37,7 +37,7 @@ public class PythonProviderScenarioTest {
                     .aliasName("grpc", "meteor.example.OrderDemoService") //
                     .bindResource("grpc", resource).register();
             String scheme = "grpc";
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
 
             // 保存并读取同一订单，核对直接参数和返回值的 Protobuf 映射。
             Order expected = new Order();
@@ -71,7 +71,7 @@ public class PythonProviderScenarioTest {
                     .aliasName("grpc", "meteor.example.OrderDemoService") //
                     .bindResource("grpc", resource).register();
             String scheme = "grpc";
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
 
             // 保存并读取同一订单，核对直接参数和返回值的 Protobuf 映射。
             Order expected = new Order();
@@ -105,7 +105,7 @@ public class PythonProviderScenarioTest {
                     .aliasName("grpc", "meteor.example.OrderDemoService") //
                     .bindResource("grpc", resource).register();
             String scheme = "grpc";
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
 
             // 保存并读取同一订单，核对直接参数和返回值的 Protobuf 映射。
             Order expected = new Order();
@@ -139,7 +139,7 @@ public class PythonProviderScenarioTest {
                     .aliasName("grpc", "meteor.example.OrderDemoService") //
                     .bindResource("grpc", resource).register();
             String scheme = "grpc";
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
 
             // 保存并读取同一订单，核对直接参数和返回值的 Protobuf 映射。
             Order expected = new Order();
@@ -173,7 +173,7 @@ public class PythonProviderScenarioTest {
                     .aliasName("grpc", "meteor.example.OrderDemoService") //
                     .bindResource("grpc", resource).register();
             String scheme = "grpc";
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
 
             // 保存并读取同一订单，核对直接参数和返回值的 Protobuf 映射。
             Order expected = new Order();
@@ -207,7 +207,7 @@ public class PythonProviderScenarioTest {
                     .aliasName("grpc", "meteor.example.OrderDemoService") //
                     .bindResource("grpc", resource).register();
             String scheme = "grpc";
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
 
             // 查询未保存的订单，错误必须来自远端业务而不是连接或等待失败。
             OrderQuery query = new OrderQuery();
@@ -239,7 +239,7 @@ public class PythonProviderScenarioTest {
                     .aliasName("grpc", "meteor.example.OrderDemoService") //
                     .bindResource("grpc", resource).register();
             String scheme = "https";
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
 
             // 保存并读取同一订单，核对直接参数和返回值的 Protobuf 映射。
             Order expected = new Order();
@@ -273,7 +273,7 @@ public class PythonProviderScenarioTest {
                     .aliasName("grpc", "meteor.example.OrderDemoService") //
                     .bindResource("grpc", resource).register();
             String scheme = "https";
-            InterAddress address = new InterAddress(scheme, "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(scheme, peer.host(), port, "default");
 
             // 保存并读取同一订单，核对直接参数和返回值的 Protobuf 映射。
             Order expected = new Order();

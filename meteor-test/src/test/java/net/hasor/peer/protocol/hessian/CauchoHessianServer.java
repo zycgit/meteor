@@ -29,7 +29,7 @@ final class CauchoHessianServer implements AutoCloseable {
         // Skeleton 自行识别 Hessian 1、1 请求/2 响应和 Hessian 2 调用信封。
         this.skeleton = new HessianSkeleton(implementation, HessianInteropDemo.class);
         this.serializers = new SerializerFactory(HessianInteropDemo.class.getClassLoader());
-        this.server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        this.server = HttpServer.create(new InetSocketAddress("0.0.0.0", 0), 0);
         this.executor = Executors.newFixedThreadPool(2);
         this.server.setExecutor(this.executor);
         this.server.createContext("/hessian/demo", this::invoke);

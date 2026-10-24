@@ -77,7 +77,7 @@ public class DubboOfficialMessageTest {
                         .rsfService(DubboInteropService.class).name("observer") //
                         .protocol("dubbo").aliasName("dubbo", SERVICE).group("interop").version("1.0.0") //
                         .serialize("Hessian2").register();
-                InterAddress address = new InterAddress("dubbo", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("dubbo", peer.host(), port, "default");
                 MetClient caller = client.getRsfClient(address);
 
                 // 消息 Future 仅在完整写出后完成，不等待远端返回 Dubbo 响应帧。
@@ -154,7 +154,7 @@ public class DubboOfficialMessageTest {
                         .rsfService(DubboInteropService.class).name("observer") //
                         .protocol("dubbo").aliasName("dubbo", SERVICE).group("interop").version("1.0.0") //
                         .serialize("Hessian2").register();
-                InterAddress address = new InterAddress("dubbo", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("dubbo", peer.host(), port, "default");
                 MetClient caller = client.getRsfClient(address);
 
                 // 消息 Future 仅在完整写出后完成，不等待远端返回 Dubbo 响应帧。

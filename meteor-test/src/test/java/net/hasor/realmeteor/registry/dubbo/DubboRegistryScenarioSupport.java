@@ -18,6 +18,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.registry.dubbo.DubboRegistryConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -31,8 +32,8 @@ final class DubboRegistryScenarioSupport {
 
     static MetConfiguration application(String registryUrl, String applicationName) {
         DubboRegistryConfiguration registry = new DubboRegistryConfiguration().setAddress(registryUrl);
-        // 本机场景使用通配监听接入原生 SDK，注册地址保持明确的回环地址。
-        registry.setPublishHost("127.0.0.1");
+        // 原生 SDK 位于另一个容器，注册主机必须是应用在测试网络中的可达地址。
+        registry.setPublishHost(ContainerProcess.runnerHost());
         MetConfiguration configuration = new MetConfiguration().addExtension(registry);
         configuration.setApplicationName(applicationName);
         return configuration;

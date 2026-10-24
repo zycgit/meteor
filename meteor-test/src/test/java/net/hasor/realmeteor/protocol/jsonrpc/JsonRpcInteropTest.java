@@ -8,7 +8,6 @@
 package net.hasor.realmeteor.protocol.jsonrpc;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import net.hasor.cobble.StringUtils;
 import net.hasor.example.protocol.jsonrpc.JsonRpcInteropService;
 import net.hasor.example.protocol.jsonrpc.JsonRpcInteropServiceImpl;
 import net.hasor.meteor.MetBindInfo;
@@ -17,6 +16,8 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.jsonrpc.JsonRpcException;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.cobble.StringUtils;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -26,7 +27,7 @@ public class JsonRpcInteropTest {
     public void jaysonHttpClientPositionalArguments() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -40,7 +41,7 @@ public class JsonRpcInteropTest {
 
             // 独立 Jayson 客户端验证位置参数、Unicode 正文与字符串请求 ID。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (JsonRpcPeerProcess peer = JsonRpcPeerProcess.start("client", target, "positional")) {
                 peer.requireSuccess();
             }
@@ -51,7 +52,7 @@ public class JsonRpcInteropTest {
     public void jaysonHttpClientNamedArguments() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -65,7 +66,7 @@ public class JsonRpcInteropTest {
 
             // 独立 Jayson 客户端验证命名参数与数字请求 ID。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (JsonRpcPeerProcess peer = JsonRpcPeerProcess.start("client", target, "named")) {
                 peer.requireSuccess();
             }
@@ -76,7 +77,7 @@ public class JsonRpcInteropTest {
     public void jaysonHttpClientNotification() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -90,7 +91,7 @@ public class JsonRpcInteropTest {
 
             // 独立 Jayson 客户端验证无 ID 通知执行且不产生 RPC 响应。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (JsonRpcPeerProcess peer = JsonRpcPeerProcess.start("client", target, "notification")) {
                 peer.requireSuccess();
             }
@@ -101,7 +102,7 @@ public class JsonRpcInteropTest {
     public void jaysonHttpClientMixedBatch() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -115,7 +116,7 @@ public class JsonRpcInteropTest {
 
             // 独立 Jayson 客户端验证成功、失败与通知混合批次的隔离。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (JsonRpcPeerProcess peer = JsonRpcPeerProcess.start("client", target, "batch")) {
                 peer.requireSuccess();
             }
@@ -126,7 +127,7 @@ public class JsonRpcInteropTest {
     public void jaysonHttpClientUnknownMethod() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc") //
                 .contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
@@ -140,7 +141,7 @@ public class JsonRpcInteropTest {
 
             // 独立 Jayson 客户端验证不存在方法的标准错误码。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (JsonRpcPeerProcess peer = JsonRpcPeerProcess.start("client", target, "missing")) {
                 peer.requireSuccess();
             }
@@ -151,7 +152,7 @@ public class JsonRpcInteropTest {
     public void jaysonWebSocketClientPositionalArguments() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc") //
                 .option("upgrade", "websocket") //
                 .contextPath("/rpc");
@@ -166,7 +167,7 @@ public class JsonRpcInteropTest {
 
             // 独立 Jayson 客户端验证位置参数、Unicode 正文与字符串请求 ID。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "ws://127.0.0.1:" + port + "/rpc";
+            String target = "ws://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (JsonRpcPeerProcess peer = JsonRpcPeerProcess.start("client", target, "positional")) {
                 peer.requireSuccess();
             }
@@ -177,7 +178,7 @@ public class JsonRpcInteropTest {
     public void jaysonWebSocketClientNamedArguments() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc") //
                 .option("upgrade", "websocket") //
                 .contextPath("/rpc");
@@ -192,7 +193,7 @@ public class JsonRpcInteropTest {
 
             // 独立 Jayson 客户端验证命名参数与数字请求 ID。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "ws://127.0.0.1:" + port + "/rpc";
+            String target = "ws://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (JsonRpcPeerProcess peer = JsonRpcPeerProcess.start("client", target, "named")) {
                 peer.requireSuccess();
             }
@@ -203,7 +204,7 @@ public class JsonRpcInteropTest {
     public void jaysonWebSocketClientNotification() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc") //
                 .option("upgrade", "websocket") //
                 .contextPath("/rpc");
@@ -218,7 +219,7 @@ public class JsonRpcInteropTest {
 
             // 独立 Jayson 客户端验证无 ID 通知执行且不产生 RPC 响应。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "ws://127.0.0.1:" + port + "/rpc";
+            String target = "ws://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (JsonRpcPeerProcess peer = JsonRpcPeerProcess.start("client", target, "notification")) {
                 peer.requireSuccess();
             }
@@ -229,7 +230,7 @@ public class JsonRpcInteropTest {
     public void jaysonWebSocketClientMixedBatch() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc") //
                 .option("upgrade", "websocket") //
                 .contextPath("/rpc");
@@ -244,7 +245,7 @@ public class JsonRpcInteropTest {
 
             // 独立 Jayson 客户端验证成功、失败与通知混合批次的隔离。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "ws://127.0.0.1:" + port + "/rpc";
+            String target = "ws://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (JsonRpcPeerProcess peer = JsonRpcPeerProcess.start("client", target, "batch")) {
                 peer.requireSuccess();
             }
@@ -255,7 +256,7 @@ public class JsonRpcInteropTest {
     public void jaysonWebSocketClientUnknownMethod() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc") //
                 .option("upgrade", "websocket") //
                 .contextPath("/rpc");
@@ -270,7 +271,7 @@ public class JsonRpcInteropTest {
 
             // 独立 Jayson 客户端验证不存在方法的标准错误码。
             int port = server.getListenAddress("jsonrpc").getPort();
-            String target = "ws://127.0.0.1:" + port + "/rpc";
+            String target = "ws://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (JsonRpcPeerProcess peer = JsonRpcPeerProcess.start("client", target, "missing")) {
                 peer.requireSuccess();
             }
@@ -296,7 +297,7 @@ public class JsonRpcInteropTest {
                     .protocol("jsonrpc") //
                     .serialize("Json") //
                     .register();
-            InterAddress address = new InterAddress("jsonrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("jsonrpc", peer.host(), port, "default");
 
             // Meteor 代理发起 RPC，独立 Jayson 服务端负责解析和响应。
             JsonRpcInteropService remote = client.getRsfClient(address).getRemote(service);
@@ -323,7 +324,7 @@ public class JsonRpcInteropTest {
                     .protocol("jsonrpc") //
                     .serialize("Json") //
                     .register();
-            InterAddress address = new InterAddress("jsonrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("jsonrpc", peer.host(), port, "default");
 
             // 消息方法完整写出后返回，通过远端查询确认通知最终执行。
             JsonRpcInteropService remote = client.getRsfClient(address).getRemote(service);
@@ -357,7 +358,7 @@ public class JsonRpcInteropTest {
                     .protocol("jsonrpc") //
                     .serialize("Json") //
                     .register();
-            InterAddress address = new InterAddress("jsonrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("jsonrpc", peer.host(), port, "default");
 
             // 对端返回应用错误，调用方保留 JSON-RPC 错误码与消息。
             MetClient remote = client.getRsfClient(address);
@@ -392,7 +393,7 @@ public class JsonRpcInteropTest {
                     .protocol("jsonrpc") //
                     .serialize("Json") //
                     .register();
-            InterAddress address = new InterAddress("jsonrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("jsonrpc", peer.host(), port, "default");
 
             // Meteor 代理发起 RPC，独立 Jayson 服务端负责解析和响应。
             JsonRpcInteropService remote = client.getRsfClient(address).getRemote(service);
@@ -420,7 +421,7 @@ public class JsonRpcInteropTest {
                     .protocol("jsonrpc") //
                     .serialize("Json") //
                     .register();
-            InterAddress address = new InterAddress("jsonrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("jsonrpc", peer.host(), port, "default");
 
             // 消息方法完整写出后返回，通过远端查询确认通知最终执行。
             JsonRpcInteropService remote = client.getRsfClient(address).getRemote(service);
@@ -455,7 +456,7 @@ public class JsonRpcInteropTest {
                     .protocol("jsonrpc") //
                     .serialize("Json") //
                     .register();
-            InterAddress address = new InterAddress("jsonrpc", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("jsonrpc", peer.host(), port, "default");
 
             // 对端返回应用错误，调用方保留 JSON-RPC 错误码与消息。
             MetClient remote = client.getRsfClient(address);

@@ -16,7 +16,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.dubbo.DubboRegistryClient;
 import net.hasor.meteor.registry.dubbo.DubboRegistryConfiguration;
 import net.hasor.realmeteor.protocol.dubbo.DubboProcess;
-import org.apache.curator.test.TestingServer;
+import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.junit.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
@@ -33,7 +33,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void referenceByClassUsesNativeEmptyGroupAndVersion() throws Exception {
         // 原生 Dubbo 不设置分组与版本；便利引用不能误用 Meteor 的默认服务身份。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-native-default-consumer");
             consumer.connector("tcp").protocol("dubbo");
@@ -57,7 +57,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void referenceByClassUsesDubbo27NativeEmptyIdentity() throws Exception {
         // 2.7 服务未设置分组和版本，便利引用使用原生空身份。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-legacy-default-consumer");
             consumer.connector("tcp").protocol("dubbo");
@@ -81,7 +81,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void dubbo27NativeDefaultConsumerReferencesMeteor() throws Exception {
         // 原生默认引用没有分组和版本，Meteor 的本地身份与对外协议身份分别明确配置。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-native-default-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -107,7 +107,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void dubbo33NativeDefaultConsumerReferencesMeteor() throws Exception {
         // 原生默认引用没有分组和版本，Meteor 的本地身份与对外协议身份分别明确配置。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-native-default-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -133,7 +133,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void meteorReferencesDubbo27Provider() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-registry-consumer");
             consumer.connector("tcp").protocol("dubbo");
@@ -159,7 +159,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void dubbo27ReferencesMeteorProvider() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-registry-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -184,7 +184,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void meteorReferencesDubbo27ProviderTls() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
-        try (TestingServer zookeeper = new TestingServer(); //
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer(); //
              DubboRegistryServerCertificate certificate = DubboRegistryServerCertificate.create()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-registry-consumer");
@@ -216,7 +216,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void dubbo27ReferencesMeteorProviderTls() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-registry-provider");
             ConnectorSettings endpoint = provider.connector("tcp").bind("0.0.0.0", 0);
@@ -246,7 +246,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void meteorReferencesDubbo27ProviderMutualTls() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
-        try (TestingServer zookeeper = new TestingServer(); //
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer(); //
              DubboRegistryServerCertificate certificate = DubboRegistryServerCertificate.create()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-registry-consumer");
@@ -279,7 +279,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void dubbo27ReferencesMeteorProviderMutualTls() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-registry-provider");
             ConnectorSettings endpoint = provider.connector("tcp").bind("0.0.0.0", 0);
@@ -309,7 +309,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void meteorReferencesDubbo33Provider() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-registry-consumer");
             consumer.connector("tcp").protocol("dubbo");
@@ -335,7 +335,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void dubbo33ReferencesMeteorProvider() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-registry-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -360,7 +360,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void meteorReferencesDubbo33ProviderTls() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
-        try (TestingServer zookeeper = new TestingServer(); //
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer(); //
              DubboRegistryServerCertificate certificate = DubboRegistryServerCertificate.create()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-registry-consumer");
@@ -392,7 +392,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void dubbo33ReferencesMeteorProviderTls() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-registry-provider");
             ConnectorSettings endpoint = provider.connector("tcp").bind("0.0.0.0", 0);
@@ -422,7 +422,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void meteorReferencesDubbo33ProviderMutualTls() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
-        try (TestingServer zookeeper = new TestingServer(); //
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer(); //
              DubboRegistryServerCertificate certificate = DubboRegistryServerCertificate.create()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-registry-consumer");
@@ -455,7 +455,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void dubbo33ReferencesMeteorProviderMutualTls() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-registry-provider");
             ConnectorSettings endpoint = provider.connector("tcp").bind("0.0.0.0", 0);
@@ -485,7 +485,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void meteorReferencesDubbo33ApplicationOnlyProvider() throws Exception {
         // 官方 3.3 服务仅注册应用实例，不能依赖旧版接口级 providers 节点完成发现。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-application-consumer");
             consumer.connector("tcp").protocol("dubbo");
@@ -513,7 +513,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void dubbo33ApplicationOnlyConsumerReferencesMeteor() throws Exception {
         // Meteor 正式发布服务，扩展同时提供原生应用级服务发现所需的服务元信息。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-application-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -538,7 +538,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void meteorReferencesApplicationOnlyProviderTls() throws Exception {
         // 应用实例元信息必须保留安全端点，发现过程不能改用接口级目录。
-        try (TestingServer zookeeper = new TestingServer(); //
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer(); //
              DubboRegistryServerCertificate certificate = DubboRegistryServerCertificate.create()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             DubboRegistryConfiguration registryConfiguration = new DubboRegistryConfiguration() //
@@ -576,7 +576,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void applicationOnlyConsumerReferencesMeteorTls() throws Exception {
         // Meteor 只发布安全业务监听，应用级服务元信息也必须报告这个端点。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-application-secure-provider");
             ConnectorSettings endpoint = provider.connector("tcp").bind("0.0.0.0", 0);
@@ -606,7 +606,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void meteorReferencesApplicationOnlyProviderMutualTls() throws Exception {
         // 应用实例元信息必须保留安全端点，发现过程不能改用接口级目录。
-        try (TestingServer zookeeper = new TestingServer(); //
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer(); //
              DubboRegistryServerCertificate certificate = DubboRegistryServerCertificate.create()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             DubboRegistryConfiguration registryConfiguration = new DubboRegistryConfiguration() //
@@ -647,7 +647,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void applicationOnlyConsumerReferencesMeteorMutualTls() throws Exception {
         // Meteor 只发布安全业务监听，应用级服务元信息也必须报告这个端点。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-application-secure-provider");
             ConnectorSettings endpoint = provider.connector("tcp").bind("0.0.0.0", 0);
@@ -677,7 +677,7 @@ public class DubboRegistryOfficialInteropTest {
     @Test(timeout = 90000)
     public void referenceUsesExplicitGroupAndVersion() throws Exception {
         // 官方服务使用非默认身份，消费者通过公开发布器声明相同分组和版本。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-identity-consumer");
             consumer.connector("tcp").protocol("dubbo");

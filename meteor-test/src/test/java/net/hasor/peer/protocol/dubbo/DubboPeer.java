@@ -52,6 +52,11 @@ public final class DubboPeer {
         // 日志空行属于正常输出，控制端不能把空日志当作进程结束。
         System.out.println();
         Map<String, String> arguments = arguments(args);
+        // 对外登记使用容器 DNS，绑定地址仍由 ProtocolConfig 单独控制。
+        String publishedHost = System.getenv("METEOR_TEST_PEER_HOST");
+        if (publishedHost != null && !publishedHost.isBlank()) {
+            System.setProperty("DUBBO_IP_TO_REGISTRY", publishedHost);
+        }
         System.setProperty("dubbo.application.logger", "jdk");
         System.setProperty("dubbo.metadata-service.export-port", "-1");
         System.setProperty("dubbo.application.enable-file-cache", "false");
@@ -149,7 +154,8 @@ public final class DubboPeer {
         }
         boolean registered = arguments.containsKey("registry");
         ProtocolConfig protocol = new ProtocolConfig("dubbo", port);
-        protocol.setHost("127.0.0.1");
+        // 官方服务绑定全部容器接口；直连目标由进程所有者提供独立 DNS。
+        protocol.setHost("0.0.0.0");
         protocol.setSerialization("hessian2");
         protocol.setRegister(registered);
         protocol.setSslEnabled(Boolean.parseBoolean(arguments.getOrDefault("tls", "false")));
@@ -284,7 +290,8 @@ public final class DubboPeer {
             reference.setUrl(arguments.get("url"));
         } else if (!arguments.containsKey("registry")) {
             String port = arguments.get("port");
-            String address = "dubbo://127.0.0.1:" + port + "/" + DubboInteropService.class.getName();
+            String host = arguments.get("host");
+            String address = "dubbo://" + host + ":" + port + "/" + DubboInteropService.class.getName();
             reference.setUrl(address);
         }
         Map<String, String> parameters = new LinkedHashMap<>();

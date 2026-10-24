@@ -31,6 +31,7 @@ import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -44,8 +45,8 @@ import static org.junit.Assert.assertTrue;
 /** Connect 官方 Node SDK 的显式注册适配，不宣称对端原生理解 Meteor 注册数据。 */
 @RunWith(Parameterized.class)
 public class ConnectNodeRegistryInteropTest {
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final String SERVICE_NAME = "meteor.example.OrderDemoService";
+    private static final ObjectMapper JSON         = new ObjectMapper();
+    private static final String       SERVICE_NAME = "meteor.example.OrderDemoService";
 
     @Rule
     public final TemporaryFolder data = new TemporaryFolder();
@@ -59,9 +60,9 @@ public class ConnectNodeRegistryInteropTest {
     @Parameterized.Parameters(name = "adapter-discovery={0}")
     public static Collection<Object[]> backends() {
         List<Object[]> result = new ArrayList<>();
-        result.add(new Object[]{"jdbc"});
-        result.add(new Object[]{"nacos"});
-        result.add(new Object[]{"zookeeper"});
+        result.add(new Object[] { "jdbc" });
+        result.add(new Object[] { "nacos" });
+        result.add(new Object[] { "zookeeper" });
         return result;
     }
 
@@ -72,7 +73,7 @@ public class ConnectNodeRegistryInteropTest {
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "connect-node-provider");
-            incoming.connector("http").bind("127.0.0.1", 0).protocol("connect") //
+            incoming.connector("http").bind(ContainerProcess.runnerHost(), 0).protocol("connect") //
                     .addressScheme("http").contextPath("/connect");
             try (MetContext provider = incoming.buildContext()) {
                 provider.start();
@@ -105,7 +106,7 @@ public class ConnectNodeRegistryInteropTest {
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "connect-node-provider");
-            incoming.connector("http").bind("127.0.0.1", 0).protocol("connect") //
+            incoming.connector("http").bind(ContainerProcess.runnerHost(), 0).protocol("connect") //
                     .addressScheme("http").contextPath("/connect");
             try (MetContext provider = incoming.buildContext()) {
                 provider.start();
@@ -137,7 +138,7 @@ public class ConnectNodeRegistryInteropTest {
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "connect-node-provider");
-            incoming.connector("http").bind("127.0.0.1", 0).protocol("connect") //
+            incoming.connector("http").bind(ContainerProcess.runnerHost(), 0).protocol("connect") //
                     .addressScheme("http").contextPath("/connect");
             try (MetContext provider = incoming.buildContext()) {
                 provider.start();

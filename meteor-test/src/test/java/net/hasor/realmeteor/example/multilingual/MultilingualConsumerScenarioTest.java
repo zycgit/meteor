@@ -23,6 +23,8 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.example.order.Order;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.cobble.StringUtils;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -33,7 +35,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void pythonJsonRpcWritesTheOrderReadByJava() throws Exception {
         // 提供者挂载全部协议，Java 消费者只需要 RSF 出口且不监听端口。
-        MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration incoming = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
@@ -63,7 +65,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void pythonXmlRpcWritesTheOrderReadByJava() throws Exception {
         // 两端先启动，再一次发布提供者和注册 Java 消费者。
-        MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration incoming = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
@@ -93,7 +95,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void pythonSoapWritesTheOrderReadByJava() throws Exception {
         // SOAP 的契约由插件从同一个 Java 业务接口生成，例子没有绑定手写 WSDL。
-        MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration incoming = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
@@ -123,7 +125,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void nodeJsonRpcWritesTheOrderReadByJava() throws Exception {
         // Node 消费者无需 Meteor SDK，提供者与 Java 消费者仍从 bootstrap 启动。
-        MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration incoming = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
@@ -153,7 +155,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void nodeConnectJsonWritesTheOrderReadByJava() throws Exception {
         // Connect 与其他 HTTP 协议共享端口，服务只在提供者容器内注册一次。
-        MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration incoming = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
@@ -183,7 +185,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void curlSavesAndQueriesTheSharedOrder() throws Exception {
         // curl 示例面向可直接复制的 HTTP 调用，提供者通过正式入口启动并发布服务。
-        MetConfiguration configuration = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration configuration = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             DirectRpcExample.publish(provider, new OrderDemoServiceImpl());
@@ -203,7 +205,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void nodeConnectReadsTheOrderSavedByPythonJsonRpc() throws Exception {
         // 两种语言面对同一次发布，服务端不为任何消费者创建专用业务对象。
-        MetConfiguration configuration = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration configuration = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             DirectRpcExample.publish(provider, new OrderDemoServiceImpl());
@@ -227,7 +229,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void pythonJsonRpcReadsTheOrderSavedByJava() throws Exception {
         // 所有容器先启动，再发布同一个订单实现和注册仅支持出站的 Java 消费者。
-        MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration incoming = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
@@ -260,7 +262,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void pythonXmlRpcReadsTheOrderSavedByJava() throws Exception {
         // 发布及订阅复用实际用户示例，Python 查询不绕过插件的 XML-RPC 解析。
-        MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration incoming = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
@@ -293,7 +295,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void pythonSoapReadsTheOrderSavedByJava() throws Exception {
         // SOAP 挂载共享同一次业务发布，不为查询消费者注册额外的服务实例。
-        MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration incoming = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
@@ -326,7 +328,7 @@ public class MultilingualConsumerScenarioTest {
     @Test(timeout = 30000)
     public void nodeJsonRpcReadsTheOrderSavedByJava() throws Exception {
         // Node 使用用户脚本的 find 分支，提供者和 Java 消费者仍从 bootstrap 构建。
-        MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
+        MetConfiguration incoming = DirectRpcExample.server(ContainerProcess.runnerHost(), 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
@@ -365,7 +367,10 @@ public class MultilingualConsumerScenarioTest {
         Path log = Files.createTempFile("meteor-example-consumer-", ".log");
         Process process = null;
         try {
-            process = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log.toFile()).start();
+            ProcessBuilder builder = new ProcessBuilder(command) //
+                    .redirectErrorStream(true).redirectOutput(log.toFile());
+            String runtime = StringUtils.equals(executable, "python3") ? "python" : "node";
+            process = ContainerProcess.start(runtime, builder);
             boolean finished = process.waitFor(15, TimeUnit.SECONDS);
             String output = Files.readString(log, StandardCharsets.UTF_8);
             assertTrue("Consumer timed out: " + command + "\n" + output, finished);

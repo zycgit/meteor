@@ -17,13 +17,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.address.InterAddress;
-import org.apache.curator.test.TestingServer;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.*;
 
-/** 直接启动用户的 Main，提供者和消费者只使用生产依赖，在独立 JVM 中通信。 */
+/** 直接启动用户的 Main，提供者和消费者只使用生产依赖，在独立容器中通信。 */
 public class LauncherScenarioTest {
     private static final String DIRECT    = "net.hasor.example.direct.";
     private static final String DISCOVERY = "net.hasor.example.discovery.";
@@ -36,16 +37,17 @@ public class LauncherScenarioTest {
         // 端口由提供者分配，外部消费者使用启动日志公布的真实地址。
         Path providerLog = this.files.newFile("provider.log").toPath();
         Process provider = this.launch(DIRECT + "ProviderMain", providerLog, "plain", "server", //
-                "127.0.0.1", "0", "0", "plain");
+                "0.0.0.0", "0", "0", "plain");
         try {
             String ready = this.awaitReady(provider, providerLog);
             int tcpPort = this.address(ready, "rsf").getPort();
             int httpPort = this.address(ready, "soap").getPort();
 
-            // 新 JVM 执行全部协议读写，验证用户运行入口而非测试里的替代实现。
+            // 独立消费者容器执行全部协议读写，验证用户运行入口而非测试里的替代实现。
+            String providerHost = ContainerProcess.host(provider);
             Path consumerLog = this.files.newFile("consumer.log").toPath();
             Process consumer = this.launch(DIRECT + "ConsumerMain", consumerLog, "plain", "client", //
-                    "all", "127.0.0.1", Integer.toString(tcpPort), Integer.toString(httpPort), "plain");
+                    "all", providerHost, Integer.toString(tcpPort), Integer.toString(httpPort), "plain");
             String result = this.completed(consumer, consumerLog);
             assertTrue(result, result.contains("rsf final: id=1001, updated by triple"));
         } finally {
@@ -58,16 +60,17 @@ public class LauncherScenarioTest {
         // 只有提供者配置身份，消费者仅信任测试 CA；两端仍使用原有协议挂载。
         Path providerLog = this.files.newFile("tls-provider.log").toPath();
         Process provider = this.launch(DIRECT + "ProviderMain", providerLog, "tls", "server", //
-                "127.0.0.1", "0", "0", "tls");
+                "0.0.0.0", "0", "0", "tls");
         try {
             String ready = this.awaitReady(provider, providerLog);
             String tcpPort = Integer.toString(this.address(ready, "rsf").getPort());
             String httpPort = Integer.toString(this.address(ready, "soap").getPort());
 
             // 独立消费者同时经过 TLS/TCP、HTTPS/1.1 与 HTTPS/2 访问共享订单。
+            String providerHost = ContainerProcess.host(provider);
             Path consumerLog = this.files.newFile("tls-consumer.log").toPath();
             Process consumer = this.launch(DIRECT + "ConsumerMain", consumerLog, "tls", "client", //
-                    "all", "127.0.0.1", tcpPort, httpPort, "tls");
+                    "all", providerHost, tcpPort, httpPort, "tls");
             String result = this.completed(consumer, consumerLog);
             assertTrue(result, result.contains("rsf final: id=1001, updated by triple"));
         } finally {
@@ -80,16 +83,17 @@ public class LauncherScenarioTest {
         // 两端都提供身份和信任库，验证完整 Main 对双向认证配置的转交。
         Path providerLog = this.files.newFile("mtls-provider.log").toPath();
         Process provider = this.launch(DIRECT + "ProviderMain", providerLog, "mtls", "server", //
-                "127.0.0.1", "0", "0", "mtls");
+                "0.0.0.0", "0", "0", "mtls");
         try {
             String ready = this.awaitReady(provider, providerLog);
             String tcpPort = Integer.toString(this.address(ready, "rsf").getPort());
             String httpPort = Integer.toString(this.address(ready, "soap").getPort());
 
             // 同一个服务绑定覆盖全部协议，不为安全模式重复发布业务对象。
+            String providerHost = ContainerProcess.host(provider);
             Path consumerLog = this.files.newFile("mtls-consumer.log").toPath();
             Process consumer = this.launch(DIRECT + "ConsumerMain", consumerLog, "mtls", "client", //
-                    "all", "127.0.0.1", tcpPort, httpPort, "mtls");
+                    "all", providerHost, tcpPort, httpPort, "mtls");
             String result = this.completed(consumer, consumerLog);
             assertTrue(result, result.contains("rsf final: id=1001, updated by triple"));
         } finally {
@@ -99,12 +103,12 @@ public class LauncherScenarioTest {
 
     @Test(timeout = 60000)
     public void independentDiscoveryProcessesFindGrpcThroughZookeeper() throws Exception {
-        // 测试启动真实 ZooKeeper，两个业务 JVM 仅通过它交换登记信息。
-        try (TestingServer registry = new TestingServer()) {
+        // 测试启动真实 ZooKeeper，两个业务容器仅通过它交换登记信息。
+        try (ZookeeperTestServer registry = new ZookeeperTestServer()) {
             String registryAddress = "zk://" + registry.getConnectString();
             Path providerLog = this.files.newFile("discovery-provider.log").toPath();
             Process provider = this.launch(DISCOVERY + "ProviderMain", providerLog, "plain", "server", //
-                    registryAddress);
+                    registryAddress, "0.0.0.0", "0", "0");
             try {
                 this.awaitReady(provider, providerLog);
 
@@ -130,19 +134,32 @@ public class LauncherScenarioTest {
         command.add(System.getProperty("meteor.example.mainClasspath"));
         command.add(main);
         command.addAll(List.of(arguments));
+        if (StringUtils.equals(main, DISCOVERY + "ProviderMain")) {
+            // 容器创建后才确定自身 DNS；仅在入口处补充已有的发布地址环境配置。
+            List<String> entrypoint = new ArrayList<>();
+            entrypoint.add("/bin/sh");
+            entrypoint.add("-c");
+            entrypoint.add("export METEOR_PUBLISH_HOST=\"$METEOR_TEST_PEER_HOST\"; exec \"$@\"");
+            entrypoint.add("meteor-discovery-provider");
+            entrypoint.addAll(command);
+            command = entrypoint;
+        }
         ProcessBuilder launcher = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log.toFile());
         Map<String, String> environment = launcher.environment();
         environment.keySet().removeIf(name -> name.startsWith("METEOR_TLS_") || name.startsWith("METEOR_REGISTRY_"));
         environment.remove("METEOR_PUBLISH_HOST");
         if (!StringUtils.equals(security, "plain")) {
-            environment.put("METEOR_TLS_TRUST_STORE", "classpath:/tls/multiprotocol/trust.p12");
+            // 测试证书经共享文件路径传给正式入口，业务 JVM 无需借用测试类路径。
+            Path certificates = Path.of("src/test/resources/tls/acceptance").toAbsolutePath();
+            environment.put("METEOR_TLS_TRUST_STORE", certificates.resolve("trust.p12").toString());
             environment.put("METEOR_TLS_TRUST_PASSWORD", "meteor-test");
             if (StringUtils.equals(identity, "server") || StringUtils.equals(security, "mtls")) {
-                environment.put("METEOR_TLS_KEY_STORE", "classpath:/tls/multiprotocol/" + identity + ".p12");
+                Path keyStore = certificates.resolve(identity + ".p12");
+                environment.put("METEOR_TLS_KEY_STORE", keyStore.toString());
                 environment.put("METEOR_TLS_KEY_PASSWORD", "meteor-test");
             }
         }
-        return launcher.start();
+        return ContainerProcess.start("java", launcher);
     }
 
     private String awaitReady(Process process, Path log) throws Exception {

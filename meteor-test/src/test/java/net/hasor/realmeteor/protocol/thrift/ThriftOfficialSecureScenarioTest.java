@@ -16,6 +16,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
@@ -63,7 +64,7 @@ public class ThriftOfficialSecureScenarioTest {
             MetBindInfo<ThriftDemoService> service = client.publisher().rsfService(ThriftDemoService.class) //
                     .bindResource("thrift", new ThriftServiceResource(ExtendedInteropService.class)) //
                     .aliasName("thrift", "ExtendedInteropService").register();
-            InterAddress address = new InterAddress("thrifts", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("thrifts", peer.host(), port, "default");
 
             // 公开 Thrift 客户端通过真实 TLS 连接调用官方 Processor。
             ThriftDemoService remote = new ThriftClient(client.getRsfClient(address)).getRemote(service);
@@ -112,7 +113,7 @@ public class ThriftOfficialSecureScenarioTest {
             MetBindInfo<ThriftDemoService> service = client.publisher().rsfService(ThriftDemoService.class) //
                     .bindResource("thrift", new ThriftServiceResource(ExtendedInteropService.class)) //
                     .aliasName("thrift", "ExtendedInteropService").register();
-            InterAddress address = new InterAddress("thrifts", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("thrifts", peer.host(), port, "default");
 
             // IDL 代理经双向 TLS 到达官方服务实现，返回原始字符串。
             ThriftDemoService remote = new ThriftClient(client.getRsfClient(address)).getRemote(service);
@@ -158,7 +159,7 @@ public class ThriftOfficialSecureScenarioTest {
             MetBindInfo<ThriftDemoService> service = client.publisher().rsfService(ThriftDemoService.class) //
                     .bindResource("thrift-http", new ThriftServiceResource(ExtendedInteropService.class)) //
                     .aliasName("thrift-http", "ExtendedInteropService").register();
-            InterAddress address = new InterAddress("https", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("https", peer.host(), port, "default");
 
             // 正式 Thrift 客户端完成证书校验，并由官方服务端返回 JSON 结果。
             ThriftDemoService remote = new ThriftClient(client.getRsfClient(address)).getRemote(service);
@@ -207,7 +208,7 @@ public class ThriftOfficialSecureScenarioTest {
             MetBindInfo<ThriftDemoService> service = client.publisher().rsfService(ThriftDemoService.class) //
                     .bindResource("thrift-http", new ThriftServiceResource(ExtendedInteropService.class)) //
                     .aliasName("thrift-http", "ExtendedInteropService").register();
-            InterAddress address = new InterAddress("https", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("https", peer.host(), port, "default");
 
             // 真实 HTTPS 请求经过官方 Processor，双向认证后返回业务结果。
             ThriftDemoService remote = new ThriftClient(client.getRsfClient(address)).getRemote(service);
@@ -296,7 +297,7 @@ public class ThriftOfficialSecureScenarioTest {
 
     @Test(timeout = 30000)
     public void officialHttpsClientRejectsMeteorServerWithWrongHostname() throws Exception {
-        // 证书的 CA 受信，但证书名称不匹配实际连接的 127.0.0.1。
+        // 证书的 CA 受信，但证书名称不匹配实际连接的 Runner 容器域名。
         MetConfiguration configuration = this.httpsServer("binary", "NONE", "wrong-host-server");
         String trust = this.storeFile("trust");
         try (MetContext server = configuration.buildContext()) {
@@ -336,7 +337,7 @@ public class ThriftOfficialSecureScenarioTest {
             MetBindInfo<ThriftDemoService> service = client.publisher().rsfService(ThriftDemoService.class) //
                     .bindResource("thrift", new ThriftServiceResource(ExtendedInteropService.class)) //
                     .aliasName("thrift", "ExtendedInteropService").register();
-            InterAddress address = new InterAddress("thrifts", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("thrifts", peer.host(), port, "default");
             ThriftDemoService remote = new ThriftClient(client.getRsfClient(address)).getRemote(service);
 
             // 调用方保留原始证书异常，不接受 RPC 超时作为身份拒绝的证据。
@@ -365,7 +366,7 @@ public class ThriftOfficialSecureScenarioTest {
             MetBindInfo<ThriftDemoService> service = client.publisher().rsfService(ThriftDemoService.class) //
                     .bindResource("thrift-http", new ThriftServiceResource(ExtendedInteropService.class)) //
                     .aliasName("thrift-http", "ExtendedInteropService").register();
-            InterAddress address = new InterAddress("https", "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress("https", peer.host(), port, "default");
             ThriftDemoService remote = new ThriftClient(client.getRsfClient(address)).getRemote(service);
 
             // 原始握手异常到达调用方，验证失败发生在证书身份检查而非业务期限。
@@ -381,7 +382,7 @@ public class ThriftOfficialSecureScenarioTest {
     private MetConfiguration tlsServer(String encoding, String clientAuth, String protocols) {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("thrift");
         configuration.setDefaultTimeout(10000);
-        ConnectorSettings listener = configuration.connector("tcp").bind("127.0.0.1", 0);
+        ConnectorSettings listener = configuration.connector("tcp").bind(ContainerProcess.runnerHost(), 0);
         ThriftTlsUtils.serverTls(listener, "server", clientAuth, protocols);
         listener.protocol("thrift").addressScheme("thrifts") //
                 .option("encoding", encoding).option("framed", true);
@@ -401,7 +402,7 @@ public class ThriftOfficialSecureScenarioTest {
     private MetConfiguration httpsServer(String encoding, String clientAuth, String identity) {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("thrift-http");
         configuration.setDefaultTimeout(10000);
-        ConnectorSettings listener = configuration.connector("http").bind("127.0.0.1", 0);
+        ConnectorSettings listener = configuration.connector("http").bind(ContainerProcess.runnerHost(), 0);
         ThriftTlsUtils.serverTls(listener, identity, clientAuth, "TLSv1.3,TLSv1.2");
         ThriftTlsUtils.https(listener, 1);
         listener.protocol("thrift-http").addressScheme("https").contextPath("/thrift") //

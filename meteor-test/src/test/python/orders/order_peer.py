@@ -62,7 +62,7 @@ def provide(excluded_port):
     SimpleXMLRPCRequestHandler.rpc_paths = ("/xmlrpc",)
     while True:
         server = SimpleXMLRPCServer(
-            ("127.0.0.1", 0), requestHandler=SimpleXMLRPCRequestHandler,
+            ("0.0.0.0", 0), requestHandler=SimpleXMLRPCRequestHandler,
             logRequests=False, allow_none=True, use_builtin_types=True,
         )
         if server.server_address[1] != excluded_port:

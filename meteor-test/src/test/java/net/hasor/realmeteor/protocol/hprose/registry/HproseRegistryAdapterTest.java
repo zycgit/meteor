@@ -27,6 +27,7 @@ import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -45,9 +46,9 @@ public class HproseRegistryAdapterTest {
     public static Collection<Object[]> backends() {
         // 每个注册库独立形成 JUnit 实例，不在一个测试方法内循环不同连接方式。
         List<Object[]> result = new ArrayList<>();
-        result.add(new Object[]{"jdbc"});
-        result.add(new Object[]{"zookeeper"});
-        result.add(new Object[]{"nacos"});
+        result.add(new Object[] { "jdbc" });
+        result.add(new Object[] { "zookeeper" });
+        result.add(new Object[] { "nacos" });
         return result;
     }
 
@@ -67,7 +68,7 @@ public class HproseRegistryAdapterTest {
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, registryHome)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "hprose-provider");
-            incoming.connector("http").bind("127.0.0.1", 0) //
+            incoming.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("hprose").addressScheme("http").contextPath("/orders");
             try (MetContext provider = incoming.buildContext()) {
                 provider.start();
@@ -78,8 +79,7 @@ public class HproseRegistryAdapterTest {
                 // Node 启动没有 URL；resolver 订阅服务后提供完整端点，Java 不代发业务请求。
                 Path logs = this.data.newFolder("node-consumer").toPath();
                 try (StorageAccess storage = registry.openStorage(); //
-                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(),
-                             "hprose"); //
+                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(), "hprose"); //
                      NodeHproseOrderPeer consumer = NodeHproseOrderPeer.consumer(logs)) {
                     var discovered = resolver.awaitCount(1);
                     assertEquals("/orders", discovered.get(0).getPath());
@@ -142,7 +142,7 @@ public class HproseRegistryAdapterTest {
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, registryHome)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "hprose-provider");
-            incoming.connector("http").bind("127.0.0.1", 0) //
+            incoming.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("hprose").addressScheme("http").contextPath("/orders");
             try (MetContext provider = incoming.buildContext()) {
                 provider.start();
@@ -153,8 +153,7 @@ public class HproseRegistryAdapterTest {
                 // Node 启动没有 URL；resolver 订阅服务后提供完整端点，Java 不代发业务请求。
                 Path logs = this.data.newFolder("node-consumer").toPath();
                 try (StorageAccess storage = registry.openStorage(); //
-                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(),
-                             "hprose"); //
+                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(), "hprose"); //
                      NodeHproseOrderPeer consumer = NodeHproseOrderPeer.consumer(logs)) {
                     var discovered = resolver.awaitCount(1);
                     assertEquals("/orders", discovered.get(0).getPath());
@@ -217,7 +216,7 @@ public class HproseRegistryAdapterTest {
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, registryHome)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "hprose-provider");
-            incoming.connector("http").bind("127.0.0.1", 0) //
+            incoming.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("hprose").addressScheme("http").contextPath("/orders");
             try (MetContext provider = incoming.buildContext()) {
                 provider.start();
@@ -228,8 +227,7 @@ public class HproseRegistryAdapterTest {
                 // Node 启动没有 URL；resolver 订阅服务后提供完整端点，Java 不代发业务请求。
                 Path logs = this.data.newFolder("node-consumer").toPath();
                 try (StorageAccess storage = registry.openStorage(); //
-                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(),
-                             "hprose"); //
+                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(), "hprose"); //
                      NodeHproseOrderPeer consumer = NodeHproseOrderPeer.consumer(logs)) {
                     var discovered = resolver.awaitCount(1);
                     assertEquals("/orders", discovered.get(0).getPath());

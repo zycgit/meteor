@@ -12,6 +12,7 @@ import java.util.List;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 官方 Python 对端的编码、TCP 分帧和认证参数，仅组装公开配置。 */
 final class PythonThriftSettings {
@@ -37,7 +38,7 @@ final class PythonThriftSettings {
         configuration.setQueueMinPoolSize(2).setQueueMaxPoolSize(4).setDefaultTimeout(5000);
         ConnectorSettings tcp = configuration.connector("tcp");
         if (listener) {
-            tcp.bind("127.0.0.1", 0);
+            tcp.bind(ContainerProcess.runnerHost(), 0);
         }
         tcp.protocol("thrift").addressScheme(scheme(security)) //
                 .option("encoding", encoding).option("framed", framed);

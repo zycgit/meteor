@@ -48,7 +48,7 @@
     "description": "matrix-order",
     "attachment": [],
     "wireDefaults": {
-      "Protobuf": null,
+      "Protobuf": [],
       "other": []
     }
   },

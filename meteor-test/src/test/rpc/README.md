@@ -2,7 +2,19 @@
 
 `interop.x` 是互通测试的 XDR/RPC 契约。`../native/generated` 中的头文件、编解码、客户端和分派器由系统 `rpcgen` 生成，保留工具原始输出。手写 C 程序只提供业务实现、进程控制及 libtirpc 调用，不依赖 Meteor、JVM 或测试类路径。
 
-## 准备与编译
+## 正式测试
+
+在仓库根目录通过 Docker 启动器执行 ONC RPC 场景：
+
+```bash
+./meteor-test/docker/run.sh -- :meteor-test:test \
+  --tests 'net.hasor.realmeteor.protocol.oncrpc.*' \
+  --no-daemon --console=plain --rerun-tasks
+```
+
+Windows 使用 `meteor-test/docker/run.ps1` 并传入相同参数。C 编译器、rpcgen 和 libtirpc 由 native 镜像提供，JUnit 通过独立容器调用对端。完整宿主测试直接运行 `meteor-test/docker/run.sh`；运行配置与结果目录见 [Docker 用法](../../../docker/README.md)。
+
+## 契约维护与本地诊断
 
 需要 Python 3、GCC、`rpcgen`、libtirpc 运行库和开发头文件。Ubuntu 的对应包为 `gcc`、`rpcsvc-proto`、`libtirpc-dev`。头文件默认读取 `/usr/include/tirpc`，可通过 `TIRPC_INCLUDE` 指定独立解包目录，直接执行脚本时也可使用优先级更高的 `--include`。
 
@@ -13,14 +25,14 @@ python3 meteor-test/src/test/native/build-native.py \
   --output build/oncrpc-native
 ```
 
-使用独立头文件目录运行完整测试：
+诊断构建可以显式指定头文件目录：
 
 ```bash
-TIRPC_INCLUDE="$PWD/meteor-test/build/tools/native/sysroot/usr/include/tirpc" \
-  ./gradlew :meteor-test:test --console=plain
+python3 meteor-test/src/test/native/build-native.py \
+  --output build/oncrpc-native --include /absolute/path/to/tirpc
 ```
 
-输出 `oncrpc_peer`、`oncrpc_rpcbind_peer` 和 `native-peer-runtime.json`。清单记录实际编译命令、日志、源码、ELF 文件、加载的 libtirpc 及工具版本。完整协议测试会自动构建这些测试对端。
+输出 `oncrpc_peer`、`oncrpc_rpcbind_peer` 和 `native-peer-runtime.json`。清单记录实际编译命令、日志、源码、ELF 文件、加载的 libtirpc 及工具版本。这些手动命令用于维护契约和诊断本地程序，正式测试使用镜像内的编译产物。
 
 重新生成或检查官方生成文件：
 
@@ -29,7 +41,7 @@ python3 meteor-test/src/test/rpc/regenerate.py
 python3 meteor-test/src/test/rpc/regenerate.py --check
 ```
 
-## 业务对端
+## 业务对端的手动诊断
 
 启动 TCP 服务：
 
@@ -37,7 +49,7 @@ python3 meteor-test/src/test/rpc/regenerate.py --check
 build/oncrpc-native/oncrpc_peer --command=server --transport=tcp --port=0
 ```
 
-服务输出 `READY <port>`，标准输入关闭后正常退出。服务显式绑定回环地址，注册分派器时传入 `protocol=0`，不访问系统的 111 端口。UDP 使用 `--transport=udp`；`--host=::1` 选择 IPv6 回环地址，两端使用相同地址。
+服务输出 `READY <port>`，标准输入关闭后正常退出。上述诊断命令默认绑定回环地址；容器场景使用 `0.0.0.0` 并通过 Docker DNS 访问。注册分派器时传入 `protocol=0`，不访问系统的 111 端口。UDP 使用 `--transport=udp`；`--host=::1` 选择 IPv6 回环地址，两端使用相同地址。
 
 另一个终端调用输出的端口：
 
@@ -79,4 +91,4 @@ build/oncrpc-native/oncrpc_rpcbind_peer --command=client --transport=tcp \
 
 ## 安全传输边界
 
-libtirpc 1.3.4 对端本身不提供 TLS。TLS 场景将标准 libtirpc 报文交给独立 TLS 桥接，验证预配置安全传输及证书行为；该结果不代表 RFC 9289 的 AUTH_TLS/STARTTLS 自动升级已经实现。
+libtirpc 对端互通使用明文 TCP/UDP。`OncRpcSecureScenarioTest` 通过 Meteor 提供者与 Meteor 消费者验证 TCP TLS 1.2/1.3、UDP DTLS 1.2、证书及双向认证；这些是 Meteor 自体安全传输场景。RFC 9289 的 AUTH_TLS/STARTTLS 自动升级未纳入当前实现。

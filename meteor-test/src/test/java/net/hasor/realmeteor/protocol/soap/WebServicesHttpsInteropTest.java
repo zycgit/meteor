@@ -21,6 +21,7 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.protocol.soap.support.SoapTlsSupport;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import org.w3c.dom.NodeList;
 import static org.junit.Assert.assertEquals;
@@ -35,6 +36,7 @@ public class WebServicesHttpsInteropTest {
         // Meteor 通过公开 Bootstrap 在双向 TLS HTTP/1.1 上发布外部 WSDL。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
         SoapTlsSupport.server(configuration, "http/1.1", true) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap").addressScheme("https") //
                 .contextPath("/services") //
                 .option("soapVersion", "1.1");
@@ -53,7 +55,7 @@ public class WebServicesHttpsInteropTest {
             QName portName = new QName(ECHO_NAMESPACE, "EchoPort");
             Map<String, Object> dispatch = SoapPeerProcess.dispatch(wsdl, serviceName, portName, null);
             int port = context.getListenAddress("soap").getPort();
-            String endpoint = "https://localhost:" + port + "/services/EchoService";
+            String endpoint = "https://" + ContainerProcess.runnerHost() + ":" + port + "/services/EchoService";
             this.secure(dispatch, endpoint, "urn:meteor:test:echo");
             SOAPMessage request = this.message(SOAPConstants.SOAP_1_1_PROTOCOL, ECHO_TYPE_NAMESPACE, //
                     "echo", "message", "hello Metro TLS");
@@ -87,7 +89,7 @@ public class WebServicesHttpsInteropTest {
 
                 // Meteor 代理向独立 Metro HTTPS 端点发起 SOAP 1.2 调用。
                 int port = server.getPort();
-                InterAddress address = new InterAddress("https", "localhost", port, "default");
+                InterAddress address = new InterAddress("https", server.host(), port, "default");
                 EchoService remote = context.getRsfClient(address).getRemote(subscription);
                 assertEquals("hello Meteor TLS", remote.echo("hello Meteor TLS"));
             }
@@ -100,8 +102,6 @@ public class WebServicesHttpsInteropTest {
         options.put("soapAction", soapAction);
         options.put("tlsDirectory", SoapPeerProcess.tlsDirectory());
     }
-
-
 
     private SOAPMessage message(String protocol, String namespace, String operation, //
             String parameter, String value) throws Exception {

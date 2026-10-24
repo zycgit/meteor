@@ -355,7 +355,7 @@
       "execution": "independent-native-process",
       "versionManifest": "meteor-test/src/test/go/go.mod",
       "versionLock": "meteor-test/src/test/go/go.sum",
-      "toolchainManifest": "meteor-test/src/test/go/prepare.py",
+      "toolchainManifest": "meteor-test/docker/images/Dockerfile",
       "entrypoints": [
         "main.go"
       ],
@@ -467,7 +467,7 @@
       "execution": "independent-native-process",
       "versionManifest": "meteor-test/src/test/go/go.mod",
       "versionLock": "meteor-test/src/test/go/go.sum",
-      "toolchainManifest": "meteor-test/src/test/go/prepare.py",
+      "toolchainManifest": "meteor-test/docker/images/Dockerfile",
       "entrypoints": [
         "main.go"
       ],
@@ -516,7 +516,7 @@
       "execution": "independent-native-process",
       "versionManifest": "meteor-test/src/test/go/go.mod",
       "versionLock": "meteor-test/src/test/go/go.sum",
-      "toolchainManifest": "meteor-test/src/test/go/prepare.py",
+      "toolchainManifest": "meteor-test/docker/images/Dockerfile",
       "entrypoints": [
         "main.go",
         "thrift_peer.go"
@@ -613,7 +613,7 @@
       "versionProperties": [
         "lib.grpc"
       ],
-      "imageVersionSource": "meteor-test/src/test/java/net/hasor/realmeteor/protocol/grpc/web/EnvoyPeerProcess.java#IMAGE",
+      "imageVersionSource": "meteor-test/docker/images/Dockerfile#ENVOY_IMAGE",
       "acceptanceRunId": "20261019-164339-488",
       "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
     }

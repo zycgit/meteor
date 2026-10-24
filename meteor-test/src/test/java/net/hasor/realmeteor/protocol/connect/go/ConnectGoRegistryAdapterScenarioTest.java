@@ -32,6 +32,7 @@ import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
 import org.junit.Rule;
 import org.junit.Test;
@@ -84,13 +85,13 @@ public class ConnectGoRegistryAdapterScenarioTest {
                         .serialize("Protobuf").bindResource("connect", this.resource()).register();
 
                 // 显式适配器从真实存储查询和订阅端点，Go 的目标仅来自解析结果。
+                String serviceId = service.getBindID();
                 try (StorageAccess storage = registry.openStorage(); //
-                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(),
-                             "connect")) {
+                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, serviceId, "connect")) {
                     URI endpoint = resolver.awaitCount(1).get(0);
                     assertEquals(this.scheme(), endpoint.getScheme());
-                    try (GoPeerProcess peer = GoPeerProcess.start("connect", "client", this.tlsMode, "unicode",
-                            endpoint.toString())) {
+                    String url = endpoint.toString();
+                    try (GoPeerProcess peer = GoPeerProcess.start("connect", "client", this.tlsMode, "unicode", url)) {
                         JsonNode result = peer.awaitResult();
 
                         // 官方 Go 客户端自己完成 save 和 find，并逐字段核对 Unicode 和二进制内容。
@@ -120,8 +121,9 @@ public class ConnectGoRegistryAdapterScenarioTest {
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     URI endpoint = URI.create(peer.awaitReady());
                     assertEquals(this.scheme(), endpoint.getScheme());
-                    InterAddress address = new InterAddress(endpoint.getScheme(), endpoint.getHost(),
-                            endpoint.getPort(), consumer.getSettings().getUnitName());
+                    String host = endpoint.getHost();
+                    String unit = consumer.getSettings().getUnitName();
+                    InterAddress address = new InterAddress(endpoint.getScheme(), host, endpoint.getPort(), unit);
                     registrar.register(service, peer.processId(), "go", "connect", "http", address, "/");
                     awaitAddress(consumer, service, address);
                     AddressSelectionAwaiter.await(consumer, service, "save");
@@ -147,8 +149,7 @@ public class ConnectGoRegistryAdapterScenarioTest {
         }
     }
 
-    private MetConfiguration configuration(RegistryConfiguration registry, String application, boolean listening)
-            throws Exception {
+    private MetConfiguration configuration(RegistryConfiguration registry, String application, boolean listening) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("connect").setDefaultTimeout(10000);
         configuration.setApplicationName(application);
         configuration.setDataHome(this.data.newFolder(application).toPath());
@@ -156,7 +157,7 @@ public class ConnectGoRegistryAdapterScenarioTest {
         configuration.connector("tcp").protocol("rsf"); // 注册扩展内部管理出口，不绑定监听端口。
         ConnectorSettings connector = configuration.connector("http").option("httpVersion", 1);
         if (listening) {
-            connector.bind("127.0.0.1", 0);
+            connector.bind(ContainerProcess.runnerHost(), 0);
         }
         if (StringUtils.equals("mtls", this.tlsMode)) {
             String identity = listening ? "server" : "client";
@@ -181,8 +182,7 @@ public class ConnectGoRegistryAdapterScenarioTest {
         return new GrpcProtoResource(this.getClass().getResource("/proto/order.proto"));
     }
 
-    private static void awaitAddress(MetContext consumer, MetBindInfo<?> service, InterAddress expected)
-            throws Exception {
+    private static void awaitAddress(MetContext consumer, MetBindInfo<?> service, InterAddress expected) throws Exception {
         // 只观察注册通知维护的公开地址本，不主动同步、写入或直接指定调用目标。
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
         while (true) {

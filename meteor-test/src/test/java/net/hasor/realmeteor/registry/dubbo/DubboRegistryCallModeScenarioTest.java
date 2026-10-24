@@ -19,7 +19,7 @@ import net.hasor.meteor.MetResponse;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.dubbo.DubboRegistryClient;
 import net.hasor.realmeteor.protocol.dubbo.DubboProcess;
-import org.apache.curator.test.TestingServer;
+import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.junit.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
@@ -34,7 +34,7 @@ public class DubboRegistryCallModeScenarioTest {
     @Test(timeout = 90000)
     public void dubbo27GenericConsumerInvokesMeteorThroughRegistry() throws Exception {
         // Meteor 从公开入口发布普通 Java 接口，无需为官方泛化调用另注册服务。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-generic-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -67,7 +67,7 @@ public class DubboRegistryCallModeScenarioTest {
                 delivered.countDown();
             }
         };
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-oneway-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -92,7 +92,7 @@ public class DubboRegistryCallModeScenarioTest {
     @Test(timeout = 90000)
     public void meteorSendsOnewayToDubbo27ProviderThroughRegistry() throws Exception {
         // 两份本地声明具有同一原生身份，通知声明与普通观察声明分开。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-oneway-consumer");
             consumer.connector("tcp").protocol("dubbo");
@@ -142,7 +142,7 @@ public class DubboRegistryCallModeScenarioTest {
     @Test(timeout = 90000)
     public void dubbo33GenericConsumerInvokesMeteorThroughRegistry() throws Exception {
         // Meteor 从公开入口发布普通 Java 接口，无需为官方泛化调用另注册服务。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-generic-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -175,7 +175,7 @@ public class DubboRegistryCallModeScenarioTest {
                 delivered.countDown();
             }
         };
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-oneway-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -200,7 +200,7 @@ public class DubboRegistryCallModeScenarioTest {
     @Test(timeout = 90000)
     public void meteorSendsOnewayToDubbo33ProviderThroughRegistry() throws Exception {
         // 两份本地声明具有同一原生身份，通知声明与普通观察声明分开。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-oneway-consumer");
             consumer.connector("tcp").protocol("dubbo");

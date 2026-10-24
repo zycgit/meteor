@@ -77,7 +77,7 @@ async function provider() {
 
     // The official SDK owns its own HTTP server; registration happens only after READY.
     const server = rpc.http();
-    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    await new Promise(resolve => server.listen(0, '0.0.0.0', resolve));
     console.log('READY:' + server.address().port);
     process.stdin.resume();
     await new Promise(resolve => process.stdin.once('end', resolve));

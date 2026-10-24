@@ -15,20 +15,21 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** Meteor 提供者与独立 Python 标准库消费者使用同一份订单向量；直连不经过注册中心。 */
 public class PythonJsonRpcProviderOrderTest {
     @Rule
     public final TemporaryFolder data = new TemporaryFolder();
-    private MetContext provider;
-    private String endpoint;
+    private      MetContext      provider;
+    private      String          endpoint;
 
     @Before
     public void publishOrderService() throws Exception {
         // 每例从 bootstrap 建立独立容器，只有 HTTP JSON-RPC 业务挂载。
         MetConfiguration incoming = new MetConfiguration().setDefaultTimeout(5000);
         incoming.setDataHome(this.data.newFolder("provider").toPath());
-        incoming.connector("http").bind("127.0.0.1", 0) //
+        incoming.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc").contextPath("/jsonrpc");
         this.provider = incoming.buildContext();
         this.provider.start();
@@ -39,7 +40,7 @@ public class PythonJsonRpcProviderOrderTest {
                 .protocol("jsonrpc") //
                 .register();
         int port = this.provider.getListenAddress("jsonrpc").getPort();
-        this.endpoint = "http://127.0.0.1:" + port + "/jsonrpc";
+        this.endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/jsonrpc";
     }
 
     @After

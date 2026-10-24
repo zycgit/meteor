@@ -19,6 +19,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 独立浏览器进程的所有者，启动、调用和关闭都有等待上限。 */
 final class GrpcWebBrowserProcess implements AutoCloseable {
@@ -36,14 +37,14 @@ final class GrpcWebBrowserProcess implements AutoCloseable {
     }
 
     static GrpcWebBrowserProcess start(String... arguments) throws IOException {
-        // 依赖和官方客户端仅从meteor-test 对端工作目录加载。
-        Path directory = Path.of(System.getProperty("grpcweb.peer.dir"));
+        // 官方客户端和 Chromium 由浏览器镜像持有，不依赖宿主 Node 或浏览器安装。
+        Path directory = Path.of("/opt/meteor-peer/node/grpcweb");
         List<String> command = new ArrayList<>(List.of("node", "browser.js"));
         command.addAll(List.of(arguments));
-        Process process = new ProcessBuilder(command) //
+        ProcessBuilder builder = new ProcessBuilder(command) //
                 .directory(directory.toFile()) //
-                .redirectErrorStream(true) //
-                .start();
+                .redirectErrorStream(true);
+        Process process = ContainerProcess.start("browser", builder);
         return new GrpcWebBrowserProcess(process);
     }
 

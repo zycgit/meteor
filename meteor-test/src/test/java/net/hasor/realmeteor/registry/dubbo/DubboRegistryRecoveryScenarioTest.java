@@ -20,7 +20,7 @@ import net.hasor.realmeteor.protocol.dubbo.DubboProcess;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
+import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.apache.zookeeper.KeeperException.NoNodeException;
 import org.junit.Test;
 
@@ -38,7 +38,7 @@ public class DubboRegistryRecoveryScenarioTest {
     @Test(timeout = 90000)
     public void applicationOnlyProxyRecoversAfterProviderOfflineAndOnline() throws Exception {
         // 冻结内核的 offline 暂停现有监听，online 在同一端口恢复。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-online-recovery-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");
@@ -85,7 +85,7 @@ public class DubboRegistryRecoveryScenarioTest {
     @Test(timeout = 90000)
     public void applicationOnlyProxyFollowsProviderRecreatedOnNewPort() throws Exception {
         // 相同应用名重建上下文，业务引用继续使用原来的原生代理。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration provider = application(registryUrl, "meteor-port-recovery-provider");
             provider.connector("tcp").bind("0.0.0.0", 0).protocol("dubbo");

@@ -30,6 +30,7 @@ import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
 import org.junit.Rule;
 import org.junit.Test;
@@ -81,9 +82,9 @@ public class GrpcGoRegistryAdapterScenarioTest {
                         .serialize("Protobuf").bindResource("grpc", this.resource()).register();
 
                 // 地址只能由 StorageAccess 的订阅与目录查询产生，不能直接传递监听地址。
+                String serviceId = service.getBindID();
                 try (StorageAccess storage = registry.openStorage(); //
-                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(),
-                             "grpc")) {
+                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, serviceId, "grpc")) {
                     List<URI> endpoints = resolver.awaitCount(1);
                     URI discovered = endpoints.get(0);
                     assertEquals(this.scheme(), discovered.getScheme());
@@ -148,7 +149,7 @@ public class GrpcGoRegistryAdapterScenarioTest {
         configuration.connector("tcp").protocol("rsf"); // 注册扩展的内部管理出口。
         ConnectorSettings http = configuration.connector("http").option("httpVersion", 2);
         if (provider) {
-            http.bind("127.0.0.1", 0);
+            http.bind(ContainerProcess.runnerHost(), 0);
         }
         if (StringUtils.equals("mtls", this.tlsMode)) {
             http.option("tlsEnabled", true).option("httpScheme", "https").option("tlsAlpn", "h2") //

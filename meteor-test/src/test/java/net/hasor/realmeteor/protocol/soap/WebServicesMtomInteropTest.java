@@ -31,7 +31,7 @@ public class WebServicesMtomInteropTest {
         try (SoapPeerProcess server = SoapPeerProcess.metroServer("mtom", "1.1", false)) {
             // 独立 HTTP 代理记录两端真实报文，不参与 SOAP 或 MIME 编解码。
             int metroPort = server.getPort();
-            URI target = URI.create("http://127.0.0.1:" + metroPort + "/services/BinaryService");
+            URI target = URI.create("http://" + server.host() + ":" + metroPort + "/services/BinaryService");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(target);
             HttpServer proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             try {
@@ -86,7 +86,7 @@ public class WebServicesMtomInteropTest {
         try (SoapPeerProcess server = SoapPeerProcess.metroServer("mtom", "1.2", false)) {
             // 独立 HTTP 代理记录两端真实报文，不参与 SOAP 或 MIME 编解码。
             int metroPort = server.getPort();
-            URI target = URI.create("http://127.0.0.1:" + metroPort + "/services/BinaryService");
+            URI target = URI.create("http://" + server.host() + ":" + metroPort + "/services/BinaryService");
             AttachmentHttpProxy observed = new AttachmentHttpProxy(target);
             HttpServer proxyServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             try {

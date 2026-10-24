@@ -11,6 +11,7 @@ import net.hasor.example.echo.TextEchoService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.protocol.connect.ConnectJavaProcess;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
@@ -21,7 +22,7 @@ public class GrpcWebJavaInteropTest {
     public void officialJavaClientCallsMeteorGrpcWebService() throws Exception {
         // 只挂载 grpc-web，不开放普通 grpc 端点，避免误测另一种线上协议。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc-web");
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("grpc-web").contextPath("/web").option("streamBody", true);
         var resource = new GrpcProtoResource(getClass().getResource("/contracts/java-sdk-echo.proto"));
         AtomicInteger calls = new AtomicInteger();
@@ -37,7 +38,7 @@ public class GrpcWebJavaInteropTest {
 
             // 显式选择 SDK 的 GRPC_WEB，不借用普通 gRPC-Java 调用冒充覆盖。
             int port = server.getListenAddress("grpc-web").getPort();
-            String target = "http://127.0.0.1:" + port + "/web";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
             try (ConnectJavaProcess peer = ConnectJavaProcess.start("GRPC_WEB", target, //
                     "meteor.java.sdk.TextEchoService/echo", "Java gRPC-Web 中文 🙂")) {
                 assertEquals("Java gRPC-Web 中文 🙂", peer.awaitResult());

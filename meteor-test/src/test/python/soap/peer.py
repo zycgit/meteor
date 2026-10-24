@@ -100,7 +100,7 @@ def response(value):
 
 def provide():
     dispatcher = application()
-    server = make_server("127.0.0.1", 0, soap_dispatch.WsgiSoapApplication(dispatcher))
+    server = make_server("0.0.0.0", 0, soap_dispatch.WsgiSoapApplication(dispatcher))
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     emit({"ready": True, "role": "provider", "port": server.server_port})

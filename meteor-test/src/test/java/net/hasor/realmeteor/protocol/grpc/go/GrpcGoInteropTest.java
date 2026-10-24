@@ -19,6 +19,7 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -271,7 +272,8 @@ public class GrpcGoInteropTest {
 
             // 同步代理保留 Go 返回的 NOT_FOUND 状态和业务消息。
             OrderQuery query = this.query(404);
-            UndeclaredThrowableException failure = assertThrows(UndeclaredThrowableException.class, () -> remote.find(query));
+            Class<UndeclaredThrowableException> errorType = UndeclaredThrowableException.class;
+            UndeclaredThrowableException failure = assertThrows(errorType, () -> remote.find(query));
             GrpcStatusException grpc = GrpcStatusException.find(failure);
             assertNotNull(grpc);
             assertEquals(5, grpc.getCode());
@@ -284,7 +286,7 @@ public class GrpcGoInteropTest {
         configuration.setDefaultTimeout(10000);
         var http = configuration.connector("http").option("httpVersion", 2);
         if (provider) {
-            http.bind("127.0.0.1", 0);
+            http.bind(ContainerProcess.runnerHost(), 0);
         }
 
         // 两种 TLS 模式使用与独立 Go 进程相同的 CA 和各自身份。

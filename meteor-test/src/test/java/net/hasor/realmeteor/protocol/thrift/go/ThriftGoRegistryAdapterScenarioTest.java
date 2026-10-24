@@ -24,6 +24,7 @@ import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
 import net.hasor.realmeteor.matrix.OrderDiscovery;
 import net.hasor.realmeteor.matrix.OrderRegistryEnvironment;
@@ -44,12 +45,12 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parameterized.class)
 public class ThriftGoRegistryAdapterScenarioTest {
     @ClassRule
-    public static final TemporaryFolder environmentData = new TemporaryFolder();
-    private static OrderRegistryEnvironment environment;
+    public static final TemporaryFolder          environmentData = new TemporaryFolder();
+    private static      OrderRegistryEnvironment environment;
 
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
-    private final OrderDiscovery discovery;
+    public final  TemporaryFolder data = new TemporaryFolder();
+    private final OrderDiscovery  discovery;
 
     public ThriftGoRegistryAdapterScenarioTest(OrderDiscovery discovery) {
         this.discovery = discovery;
@@ -88,9 +89,9 @@ public class ThriftGoRegistryAdapterScenarioTest {
                 MetBindInfo<?> service = OrderProtocol.THRIFT.publish(provider, new OrderDemoServiceImpl());
 
                 // Go 的目标只能来自存储查询与订阅，不读取或传递 Meteor 的监听地址。
+                String serviceId = service.getBindID();
                 try (StorageAccess storage = registry.openStorage(); //
-                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(),
-                             "thrift")) {
+                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, serviceId, "thrift")) {
                     URI discovered = resolver.awaitCount(1).get(0);
                     assertEquals("thrift", discovered.getScheme());
                     String target = discovered.getAuthority();
@@ -155,11 +156,13 @@ public class ThriftGoRegistryAdapterScenarioTest {
         }
     }
 
-    private MetConfiguration configuration(RegistryConfiguration registry, String scope, boolean provider)
-            throws Exception {
+    private MetConfiguration configuration(RegistryConfiguration registry, String scope, boolean provider) throws Exception {
         // 订单绑定继续复用示例；只选择 Binary/Framed 明文配置，不扩展本例的矩阵范围。
         MetConfiguration configuration = provider ? OrderProtocol.THRIFT.providerConfiguration() //
                 : OrderProtocol.THRIFT.consumerConfiguration();
+        if (provider) {
+            configuration.getConnectors().get(0).bind(ContainerProcess.runnerHost(), 0);
+        }
         configuration.setDefaultGroup(scope);
         String application = provider ? "thrift-go-provider-adapter" : "thrift-go-consumer-adapter";
         configuration.setApplicationName(application);
@@ -171,7 +174,7 @@ public class ThriftGoRegistryAdapterScenarioTest {
         // 注册扩展管理服务只使用 RSF；提供端开启管理监听，消费端只声明出口。
         var management = configuration.connector("tcp");
         if (provider) {
-            management.bind("127.0.0.1", 0);
+            management.bind(ContainerProcess.runnerHost(), 0);
         }
         management.protocol("rsf");
         return configuration;

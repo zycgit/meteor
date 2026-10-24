@@ -22,26 +22,28 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 独占真实 Zeep 或 soapfish2 进程；标准输入仅传控制数据，不代发 SOAP 业务调用。 */
 final class PythonSoapPeer implements AutoCloseable {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private final Process process;
-    private final Path log;
-    private final BufferedReader output;
-    private final BufferedWriter input;
+    private final Process         process;
+    private final Path            log;
+    private final BufferedReader  output;
+    private final BufferedWriter  input;
     private final ExecutorService reader;
-    private final int port;
+    private final int             port;
 
     private PythonSoapPeer(String role) throws Exception {
         // 对端只加载锁定的 Python SDK；日志与 JSON 控制响应使用不同管道。
         Path directory = Files.createDirectories(Path.of(System.getProperty("python.soap.logs")));
         this.log = Files.createTempFile(directory, role + "-", ".log");
-        String executable = System.getProperty("python.soap.executable");
+        String executable = "/opt/meteor-peer/python-soap/bin/python";
         String script = System.getProperty("python.soap.script");
-        this.process = new ProcessBuilder(executable, "-u", script, role) //
-                .redirectError(this.log.toFile()).start();
+        ProcessBuilder command = new ProcessBuilder(executable, "-u", script, role);
+        command.redirectError(this.log.toFile());
+        this.process = ContainerProcess.start("python", command);
         this.output = new BufferedReader(new InputStreamReader(this.process.getInputStream(), StandardCharsets.UTF_8));
         this.input = new BufferedWriter(new OutputStreamWriter(this.process.getOutputStream(), StandardCharsets.UTF_8));
         this.reader = Executors.newSingleThreadExecutor();
@@ -71,7 +73,11 @@ final class PythonSoapPeer implements AutoCloseable {
     }
 
     InterAddress address(String unit) {
-        return new InterAddress("http", "127.0.0.1", this.port, unit);
+        return new InterAddress("http", this.host(), this.port, unit);
+    }
+
+    String host() {
+        return ContainerProcess.host(this.process);
     }
 
     long processId() {

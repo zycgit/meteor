@@ -87,14 +87,14 @@ func serveThrift(opts options) error {
 	var listener thrift.TServerTransport
 	var address func() string
 	if config == nil {
-		socket, err := thrift.NewTServerSocketTimeout("127.0.0.1:0", 10*time.Second)
+		socket, err := thrift.NewTServerSocketTimeout("0.0.0.0:0", 10*time.Second)
 		if err != nil {
 			return err
 		}
 		listener = socket
 		address = func() string { return socket.Addr().String() }
 	} else {
-		socket, err := thrift.NewTSSLServerSocketTimeout("127.0.0.1:0", config, 10*time.Second)
+		socket, err := thrift.NewTSSLServerSocketTimeout("0.0.0.0:0", config, 10*time.Second)
 		if err != nil {
 			return err
 		}

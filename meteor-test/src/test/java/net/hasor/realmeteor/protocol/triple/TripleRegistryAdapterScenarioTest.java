@@ -24,6 +24,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
@@ -67,7 +68,8 @@ public class TripleRegistryAdapterScenarioTest {
         // 注册存储独占；保留官方对端既有固定 wrapped 合同与输入语义。
         Path home = this.data.newFolder("registry").toPath();
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
-            RegistryConfiguration registry = environment.configuration().setPublishHost("127.0.0.1");
+            RegistryConfiguration registry = environment.configuration();
+            registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration incoming = this.configuration(registry, true);
             try (MetContext provider = incoming.buildContext()) {
                 provider.start();
@@ -77,17 +79,18 @@ public class TripleRegistryAdapterScenarioTest {
                         .register();
 
                 // 地址只能来自真实 StorageAccess 查询与订阅，不从提供者监听器读取端口。
+                String serviceId = service.getBindID();
                 try (StorageAccess storage = registry.openStorage(); //
-                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(),
-                             "triple")) {
+                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, serviceId, "triple")) {
                     URI discovered = resolver.awaitCount(1).get(0);
                     assertEquals("http", discovered.getScheme());
-                    assertEquals("127.0.0.1", discovered.getHost());
+                    assertEquals(ContainerProcess.runnerHost(), discovered.getHost());
                     String port = "--port=" + discovered.getPort();
 
-                    // 固定官方 peer 以 loopback 和解析出的端口建立真实 Triple ReferenceConfig。
-                    try (DubboTripleProcess peer = DubboTripleProcess.start("client", port, "--mode=wrapped",
-                            "--scenario=echo")) {
+                    // 官方 peer 使用注册存储公布的主机与端口建立跨容器 Triple 连接。
+                    String host = "--host=" + discovered.getHost();
+                    try (DubboTripleProcess peer = DubboTripleProcess.start("client", port, host, //
+                            "--mode=wrapped", "--scenario=echo")) {
                         JsonNode outcome = peer.awaitResult();
                         assertFalse(outcome.toString(), outcome.has("error"));
                         assertEquals(TEXT, outcome.path("value").asText());
@@ -117,7 +120,7 @@ public class TripleRegistryAdapterScenarioTest {
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     int port = peer.awaitPort();
                     String unit = consumer.getSettings().getUnitName();
-                    InterAddress address = new InterAddress("http", "127.0.0.1", port, unit);
+                    InterAddress address = new InterAddress("http", peer.host(), port, unit);
                     registrar.register(service, peer.processId(), "java", "triple", "http", address, "/");
                     awaitAddress(consumer, service, address);
                     AddressSelectionAwaiter.await(consumer, service, "echo");
@@ -145,8 +148,7 @@ public class TripleRegistryAdapterScenarioTest {
         return configuration;
     }
 
-    private static void awaitAddress(MetContext consumer, MetBindInfo<?> service, InterAddress expected)
-            throws Exception {
+    private static void awaitAddress(MetContext consumer, MetBindInfo<?> service, InterAddress expected) throws Exception {
         // 仅观察注册通知维护的公开地址本，不主动拉取、更改地址或发送探测 RPC。
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
         while (true) {

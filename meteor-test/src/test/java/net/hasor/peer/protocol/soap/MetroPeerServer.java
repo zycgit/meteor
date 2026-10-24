@@ -75,7 +75,7 @@ final class MetroPeerServer implements AutoCloseable {
     }
 
     private static HttpServer createServer(String tlsDirectory) throws Exception {
-        InetSocketAddress address = new InetSocketAddress("127.0.0.1", 0);
+        InetSocketAddress address = new InetSocketAddress("0.0.0.0", 0);
         if (tlsDirectory.isEmpty()) {
             return HttpServer.create(address, 0);
         }

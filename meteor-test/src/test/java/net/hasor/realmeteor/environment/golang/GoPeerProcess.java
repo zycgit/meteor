@@ -7,6 +7,7 @@
  */
 package net.hasor.realmeteor.environment.golang;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 拥有独立 Go 对端进程和控制文件；业务 RPC 完全由 Go 官方客户端、服务端完成。 */
 public final class GoPeerProcess implements AutoCloseable {
@@ -35,16 +37,9 @@ public final class GoPeerProcess implements AutoCloseable {
         this.log = log;
     }
 
-    public static GoPeerProcess start(String protocol, String role, String tlsMode, String scenario, String target)
-            throws Exception {
-        String executable = System.getProperty("go.order.peer.binary");
-        if (executable == null || executable.isBlank()) {
-            throw new IOException("Missing system property: go.order.peer.binary");
-        }
-        Path binary = Path.of(executable).toAbsolutePath();
-        if (!Files.isExecutable(binary)) {
-            throw new IOException("Go order peer is not executable: " + binary);
-        }
+    public static GoPeerProcess start(String protocol, String role, String tlsMode, String scenario, String target) throws Exception {
+        // 镜像持有对应 CPU 架构的 Go 可执行文件，宿主与 JUnit 容器不安装 Go 工具链。
+        String executable = System.getProperty("go.order.peer.binary", "/opt/meteor-peer/go/order-peer");
         String workDirectory = System.getProperty("go.order.peer.work-dir", "build/peer-logs/go-order");
         Path logs = Files.createDirectories(Path.of(workDirectory).toAbsolutePath());
         Path directory = Files.createTempDirectory(logs, protocol + "-" + role + "-" + tlsMode + "-" + scenario + "-");
@@ -54,7 +49,7 @@ public final class GoPeerProcess implements AutoCloseable {
 
         // 顺序固定为程序、协议、角色、安全模式、场景、端点和控制文件，日志保留完整启动参数。
         List<String> command = new ArrayList<>();
-        command.add(binary.toString());
+        command.add(executable);
         command.add("--protocol");
         command.add(protocol);
         command.add("--role");
@@ -71,10 +66,13 @@ public final class GoPeerProcess implements AutoCloseable {
         command.add(ready.toString());
         command.add("--result-file");
         command.add(result.toString());
+        command.add("--server-name");
+        command.add(ContainerProcess.runnerHost());
         command.add("--cert-dir");
         command.add(certificateDirectory().toString());
         Files.writeString(directory.resolve("command.txt"), String.join("\n", command));
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log.toFile()).start();
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log.toFile());
+        Process process = ContainerProcess.start("go", builder);
         return new GoPeerProcess(process, ready, result, log);
     }
 
@@ -98,13 +96,18 @@ public final class GoPeerProcess implements AutoCloseable {
         // 观察 Go 写出的真实监听地址，避免预先分配端口或用固定休眠猜测服务就绪。
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
         try (WatchService changes = this.ready.getFileSystem().newWatchService()) {
-            this.ready.getParent().register(changes, StandardWatchEventKinds.ENTRY_CREATE,
-                    StandardWatchEventKinds.ENTRY_MODIFY);
+            Path parent = this.ready.getParent();
+            parent.register(changes, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_MODIFY);
             while (true) {
                 if (Files.exists(this.ready)) {
                     String target = Files.readString(this.ready).trim();
                     if (!target.isEmpty()) {
-                        return target;
+                        URI announced = URI.create(target.contains("://") ? target : "tcp://" + target);
+                        String authority = ContainerProcess.host(this.process) + ":" + announced.getPort();
+                        if (target.contains("://")) {
+                            return announced.getScheme() + "://" + authority;
+                        }
+                        return authority;
                     }
                 }
                 if (!this.process.isAlive()) {
@@ -114,8 +117,8 @@ public final class GoPeerProcess implements AutoCloseable {
                 if (remaining <= 0) {
                     throw this.failure("Go order server readiness timed out");
                 }
-                WatchKey change = changes.poll(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(100)),
-                        TimeUnit.NANOSECONDS);
+                long pause = Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(100));
+                WatchKey change = changes.poll(pause, TimeUnit.NANOSECONDS);
                 if (change != null) {
                     change.pollEvents();
                     change.reset();

@@ -19,6 +19,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import org.w3c.dom.NodeList;
 import static org.junit.Assert.*;
@@ -108,7 +109,7 @@ public class WebServicesInteropTest {
 
                 // 公开 MetClient 代理向标准 SOAP Provider 发起真实 HTTP 调用。
                 int port = server.getPort();
-                InterAddress address = new InterAddress("soap", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("soap", server.host(), port, "default");
                 MetClient caller = context.getRsfClient(address);
                 EchoService remote = caller.getRemote(subscribed);
                 assertEquals("hello Meteor", remote.echo("hello Meteor"));
@@ -119,7 +120,7 @@ public class WebServicesInteropTest {
     private MetConfiguration configuration() {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap") //
                 .contextPath("/services");
         return configuration;
@@ -142,7 +143,7 @@ public class WebServicesInteropTest {
     private URL wsdl(MetContext context, String serviceName) throws Exception {
         int port = context.getListenAddress("soap").getPort();
         String path = "/services/" + serviceName + "?wsdl";
-        return URI.create("http://127.0.0.1:" + port + path).toURL();
+        return URI.create("http://" + ContainerProcess.runnerHost() + ":" + port + path).toURL();
     }
 
     private Map<String, Object> dispatch(URL wsdl, QName serviceName, QName portName, String soapAction) {

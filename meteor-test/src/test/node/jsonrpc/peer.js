@@ -137,10 +137,10 @@ function serve(transport) {
     // 只监听随机本地端口，启动消息与异常均交由父进程有界等待。
     let listener;
     if (transport === 'websocket') {
-        listener = service.websocket({host: '127.0.0.1', port: 0, path: '/rpc'});
+        listener = service.websocket({host: '0.0.0.0', port: 0, path: '/rpc'});
     } else {
         listener = service.http();
-        listener.listen(0, '127.0.0.1');
+        listener.listen(0, '0.0.0.0');
     }
     listener.on('error', failure => {
         console.error(failure.stack || failure);

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 独立 Node.js 对端的启动、输出和关闭均有明确等待上限。 */
 final class JsonRpcPeerProcess implements AutoCloseable {
@@ -32,15 +33,19 @@ final class JsonRpcPeerProcess implements AutoCloseable {
     }
 
     static JsonRpcPeerProcess start(String... arguments) throws IOException {
-        // 仅从 Gradle 已安装的独立对端目录加载依赖，错误输出一并保留。
-        Path directory = Path.of(System.getProperty("jsonrpc.peer.dir"));
+        // 官方 SDK 在独立容器中加载，合并错误日志供失败诊断。
+        Path directory = Path.of(System.getProperty("jsonrpc.peer.dir", "/opt/meteor-peer/node/jsonrpc"));
         List<String> command = new ArrayList<>(List.of("node", "peer.js"));
         command.addAll(List.of(arguments));
-        Process process = new ProcessBuilder(command) //
+        ProcessBuilder builder = new ProcessBuilder(command) //
                 .directory(directory.toFile()) //
-                .redirectErrorStream(true) //
-                .start();
+                .redirectErrorStream(true);
+        Process process = ContainerProcess.start("node", builder);
         return new JsonRpcPeerProcess(process);
+    }
+
+    String host() {
+        return ContainerProcess.host(this.process);
     }
 
     int awaitPort() throws InterruptedException {

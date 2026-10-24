@@ -6,11 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.discovery.jdbc;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.util.UUID;
-import net.hasor.dbvisitor.jdbc.core.JdbcTemplate;
 import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.example.order.Order;
@@ -23,9 +18,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.admin.MetDirectoryQuery;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
-import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.h2.jdbcx.JdbcDataSource;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -74,18 +67,10 @@ public class JdbcRegistryScenarioTest {
 
     @Test
     public void keepsGovernanceAfterRegisteredApplicationsExit() throws Exception {
-        // 数据库由应用准备；保持此连接存活，让 H2 跨越应用关闭和重新接入阶段。
-        JdbcDataSource source = new JdbcDataSource();
-        source.setURL("jdbc:h2:mem:order-discovery-" + UUID.randomUUID());
-        source.setUser("sa");
-        source.setPassword("");
-        try (Connection database = source.getConnection()) {
-            var schema = this.getClass().getResourceAsStream("/META-INF/meteor/schema/h2.sql");
-            try (InputStreamReader reader = new InputStreamReader(schema, StandardCharsets.UTF_8)) {
-                new JdbcTemplate(database).loadSplitSQL(";", reader);
-            }
-
-            JdbcRegistryConfiguration registry = new JdbcRegistryConfiguration().setDataSource(source);
+        // 独立数据库容器跨越应用关闭和重新接入阶段，所有会话都通过 TCP 访问。
+        var home = this.data.newFolder("persistent-registry").toPath();
+        try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open("jdbc", home)) {
+            var registry = environment.configuration();
             registry.setManagementToken("order-admin");
             registry.setRefreshMillis(60000);
             MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);

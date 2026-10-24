@@ -61,7 +61,7 @@ async function start() {
     if (role === 'provider') {
         // 与 Java OrderDemoServiceImpl 一致，每个进程拥有自己的订单存储和拷贝语义。
         const orders = new Map();
-        server = new hprose.HttpServer(0, '127.0.0.1');
+        server = new hprose.HttpServer(0, '0.0.0.0');
         server.errorDelay = 0;
         server.addFunction(order => {
             const stored = copyOrder(order);

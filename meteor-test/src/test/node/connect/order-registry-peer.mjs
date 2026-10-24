@@ -105,7 +105,7 @@ async function provide() {
     sockets.add(socket);
     socket.on("close", () => sockets.delete(socket));
   });
-  server.listen(0, "127.0.0.1", () => {
+  server.listen(0, "0.0.0.0", () => {
     report({ ready: true, role: "provider", port: server.address().port, discovery: "adapter" });
   });
 

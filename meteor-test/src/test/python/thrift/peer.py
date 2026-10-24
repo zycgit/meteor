@@ -30,7 +30,7 @@ def arguments():
     parser.add_argument("--protocol", choices=("binary", "compact", "json"), default="binary")
     parser.add_argument("--framed", choices=("true", "false"), default="true")
     parser.add_argument("--scenario", choices=("basic", "unicode", "bytes", "failure"), default="basic")
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host", required=True)
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--security", choices=("plain", "tls", "mutual"), default="plain")
     parser.add_argument("--trust", type=Path)

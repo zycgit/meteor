@@ -112,7 +112,7 @@ def consume(endpoint, scenario, vectors):
 
 def provide():
     # Port zero is resolved by the foreign HTTP listener; stdin EOF ends ownership.
-    server = ThreadingHTTPServer(("127.0.0.1", 0), OrderHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", 0), OrderHandler)
     server.daemon_threads = True
     server.orders = OrderStore()
     worker = threading.Thread(target=server.serve_forever, daemon=True)

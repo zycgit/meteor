@@ -1,95 +1,100 @@
 # Official Go Order peers
 
-`main.go` provides standalone official grpc-go, Connect Go and Apache Thrift Go
-providers/consumers. Thrift adapters live in `thrift_peer.go`.
-Its Go module has no Meteor dependency. Java starts a separate OS process for every
-scenario and owns its shutdown. Providers bind `127.0.0.1:0` and atomically write
-their actual bound address to `--ready-file`; consumers verify a single scenario,
-write JSON to `--result-file`, and exit nonzero on any mismatch.
+`main.go` and `thrift_peer.go` implement independent providers and consumers with
+grpc-go, Connect Go and Apache Thrift Go. Their Go module has no Meteor dependency.
+The Java scenarios reuse `met-example`'s ordinary order interface, implementation
+and DTOs.
 
-The contracts come directly from `met-example/src/main/resources/proto/order.proto`
-and `meteor-test/src/test/thrift/order.thrift`. Generated Go files are committed
-under `gen/orderpb` and `gen/thriftorder`. The Thrift test contract matches the annotated
-`save(Order)` and `find(OrderQuery)` signatures. The Java side directly reuses
-`met-example`'s `OrderDemoService`, `OrderDemoServiceImpl`, `Order` and `OrderQuery`.
+## Docker execution
 
-## Locked tools and SDKs
-
-* Go `1.27.2`; `prepare.py` downloads only into `meteor-test/build/tools` and verifies
-  the archive against the SHA256 in [official Go release metadata](https://go.dev/dl/?mode=json&include=all).
-* [grpc-go `v1.84.0`](https://github.com/grpc/grpc-go/releases/tag/v1.84.0).
-* [Connect Go `v1.19.1`](https://github.com/connectrpc/connect-go/releases/tag/v1.19.1).
-* [protobuf-go `v1.36.12`](https://github.com/protocolbuffers/protobuf-go/releases/tag/v1.36.12).
-* [Apache Thrift Go `v0.25.0`](https://github.com/apache/thrift/tree/v0.25.0/lib/go/thrift),
-  with bindings produced by Apache Thrift Compiler `0.25.0`.
-* [`protoc-gen-go-grpc v1.6.2`](https://github.com/grpc/grpc-go/tree/cmd/protoc-gen-go-grpc/v1.6.2/cmd/protoc-gen-go-grpc).
-
-`go.mod` and `go.sum` lock SDK dependencies. `GOTOOLCHAIN=local` disables implicit
-toolchain downloads; module and compiler caches also stay in `meteor-test/build`.
-The generated contract has no separate SourceSet or copied Java classes.
-
-From the repository root, build the local binary with:
+Run from the repository root:
 
 ```sh
-python3 meteor-test/src/test/go/prepare.py --build-dir meteor-test/build
+./meteor-test/docker/run.sh -- :meteor-test:test \
+  --tests 'net.hasor.realmeteor.protocol.grpc.go.*' \
+  --tests 'net.hasor.realmeteor.protocol.connect.go.*' \
+  --tests 'net.hasor.realmeteor.protocol.thrift.go.*' \
+  --no-daemon --console=plain --rerun-tasks
 ```
 
-`gradle/native-peers.gradle` exposes `buildGoOrderPeer` and supplies the Java tests with
-`go.order.peer.binary`, `go.order.peer.cert-dir` and `go.order.peer.work-dir`.
-It is applied by the test host's build script. Normal test execution uses the host's
-standard `test` output and the built binary.
+Windows uses `meteor-test/docker/run.ps1`. The launcher builds an
+architecture-specific Go image; the host needs Docker with Compose. The compiler
+and module cache stay in the image build. Runtime peers use
+`/opt/meteor-peer/go/order-peer`, and Java owns each peer container's shutdown.
+See the [Docker test plan](../../../../document/testing/METEOR_TEST_DOCKER_PLAN.md)
+for the shared launcher and acceptance scope.
 
-To regenerate bindings, prepare the host's Python gRPC venv, then run:
+Providers listen on `0.0.0.0` with an allocated port and write their address to
+`--ready-file`. Java replaces the listen host with that container's Docker DNS
+name. Consumers receive the target container's address, write JSON to
+`--result-file`, and exit nonzero on a mismatch. Ready files, results and logs use
+the shared workspace; business traffic crosses the container network.
+
+## Tools, SDKs and contracts
+
+The Dockerfile selects Go `1.27.2`; `go.mod` and `go.sum` lock:
+
+- grpc-go `v1.84.0`.
+- Connect Go `v1.19.1`.
+- protobuf-go `v1.36.12`.
+- Apache Thrift Go `v0.25.0`.
+
+`GOTOOLCHAIN=local` disables implicit toolchain selection. Protobuf contracts come
+from `met-example/src/main/resources/proto/order.proto`; the Thrift contract is
+`meteor-test/src/test/thrift/order.thrift`. Committed bindings are under
+`gen/orderpb` and `gen/thriftorder`, with the same `save(Order)` and
+`find(OrderQuery)` business semantics as Java.
+
+### Developer-only regeneration
+
+Normal test execution uses the committed bindings. To change a Protobuf contract,
+developers provide Go `1.27.2` and a Python interpreter with `grpc_tools.protoc`:
 
 ```sh
-python3 meteor-test/src/test/go/regenerate.py
+python3 meteor-test/src/test/go/regenerate.py \
+  --go /absolute/path/to/go --protoc-python /absolute/path/to/python
 ```
 
-Pass `--protoc-python /absolute/path/to/python` to use another Python executable
-with `grpc_tools.protoc`. Regeneration installs only the three pinned official Go
-generators into `meteor-test/build/go-generators`.
+The script installs the pinned official generators into
+`meteor-test/build/go-generators`: `protoc-gen-go v1.36.12`,
+`protoc-gen-go-grpc v1.6.2` and `protoc-gen-connect-go v1.19.1`. This manual command
+is separate from the Docker test launcher.
 
-Regenerate Thrift bindings with the official compiler of the same version. It must
-include the Go generator; this command does not build another compiler or run during normal tests:
+Regenerate Thrift bindings with Apache Thrift Compiler `0.25.0`, including its Go
+generator:
 
 ```sh
 python3 meteor-test/src/test/go/regenerate-thrift.py --compiler /absolute/path/to/thrift
 ```
 
-Only the Go package name and `skip_remote` generator option are selected. The generated
+Only the generated package name and `skip_remote` option are selected; the
 Processor, Client and data types retain their official implementation.
 
 ## Scenarios
 
-Each protocol has separate provider and consumer cases under plain TCP/HTTP, TLS
-and mutual TLS. Transport certificates come from the existing test resources
-`grpc/tls/acceptance`; TLS verifies the CA and IP subject alternative name, and
-mutual TLS requires the acceptance client certificate.
+Each protocol has provider and consumer cases under plain TCP/HTTP, TLS and mutual
+TLS. Certificates come from `grpc/tls/acceptance`; TLS checks the CA and Docker DNS
+subject alternative name, and mutual TLS requires the acceptance client certificate.
 
-Thrift selects six wire profiles named
-`thrift-<binary|compact|json>-<framed|unframed>`. Each profile uses the same five
-order scenarios, provider/consumer directions and plain/TLS/mTLS modes. Providers
-report `host:port`, and consumers accept the same target form.
+Thrift selects six profiles named
+`thrift-<binary|compact|json>-<framed|unframed>`, with the same five order scenarios,
+two directions and three security modes.
 
 | Scenario | id | description | attachment |
 | --- | --- | --- | --- |
 | `unicode` | 101 | `订单-你好-🌍-café` | `00 01 7f 80 ff` |
 | `boundary` | 2147483647 | `boundary` | `00 01 7f 80 ff` |
 | `negative-boundary` | -2147483648 | `negative-boundary` | `00 01 7f 80 ff` |
-| `empty` | 0 | empty | empty |
+| `empty` | 0 | empty string | empty byte array |
 | `missing` | 404 | lookup only | no saved order |
 
-The provider scenario calls `save`, checks its reply, then calls `find` and checks
-the same order. The consumer does the same through Meteor's public subscription
-API. On proto3 default replies, Meteor's existing JSON conversion omits default
-string/bytes members, so the plain Java DTO receives null for these two fields;
-the tests document that behavior.
+The save scenario checks the `save` reply and the subsequent `find` result. For
+non-optional proto3 string and bytes fields, absent wire values decode to an empty
+string and an empty byte array. Optional presence remains a separate contract.
 
 A missing Go order returns gRPC `NotFound` or Connect `not_found`. A missing Meteor
-order throws the existing `IllegalArgumentException`: current gRPC maps the
-invocation status to `Internal`; Connect preserves it as `invalid_argument`.
-The official Go consumer checks those exact codes and the missing id in the error.
-Thrift maps an undeclared order failure to `TApplicationException.INTERNAL_ERROR`.
-The official Go Processor prefixes the message with `Internal error processing find: `;
-the Meteor endpoint preserves the original order-not-found message. Thrift's optional
-description and attachment fields retain the demo's explicitly supplied empty values.
+order throws `IllegalArgumentException`; gRPC maps it to `Internal`, while Connect
+uses `invalid_argument`. Thrift maps an undeclared failure to
+`TApplicationException.INTERNAL_ERROR`. Its official Go Processor prefixes the
+message with `Internal error processing find: `; Meteor preserves the original
+order-not-found message.

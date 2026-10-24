@@ -31,8 +31,8 @@ tasks.named('compileTestJava') {
     options.compilerArgs += '-parameters'
 }
 
-// 官方 SDK 与外语对端的构建只归属交叉测试工程。
-['java-peers', 'node-peers', 'python-peers', 'native-peers', 'registry-environments', 'reporting'].each { name ->
+// Java 对端复用测试编译结果，其他语言的工具链和 SDK 由 Docker 镜像提供。
+['java-peers', 'runtime-peers', 'registry-environments', 'reporting'].each { name ->
     apply from: "gradle/${name}.gradle"
 }
 

@@ -20,6 +20,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -32,7 +33,7 @@ public class GrpcWebBrowserInteropTest {
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setRequestTimeout(5000);
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc-web").contextPath("/web") //
                     .option("streamBody", true) //
                     .option("corsOrigins", origin) //
@@ -47,7 +48,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 浏览器使用二进制 Protobuf 普通调用。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("http://127.0.0.1:" + port + "/web", "binary");
+                String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "binary");
                 assertEquals("中文🙂 <&>", result.path("value").asText());
                 assertEquals(7, result.path("count").asInt());
                 assertTrue(this.hasPreflight(result));
@@ -61,7 +63,7 @@ public class GrpcWebBrowserInteropTest {
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setRequestTimeout(5000);
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc-web").contextPath("/web") //
                     .option("streamBody", true) //
                     .option("corsOrigins", origin) //
@@ -76,7 +78,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 浏览器使用 base64 文本 Protobuf 普通调用。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("http://127.0.0.1:" + port + "/web", "text");
+                String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "text");
                 assertEquals("中文🙂 <&>", result.path("value").asText());
                 assertEquals(7, result.path("count").asInt());
             }
@@ -89,7 +92,7 @@ public class GrpcWebBrowserInteropTest {
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setRequestTimeout(5000);
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc-web").contextPath("/web") //
                     .option("streamBody", true) //
                     .option("corsOrigins", origin) //
@@ -104,7 +107,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 官方客户端按消息接收文本响应流及结束状态。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("http://127.0.0.1:" + port + "/web", "stream");
+                String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "stream");
                 JsonNode values = result.path("values");
                 assertEquals(3, values.size());
                 for (int index = 0; index < values.size(); index++) {
@@ -123,7 +127,7 @@ public class GrpcWebBrowserInteropTest {
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setRequestTimeout(5000);
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc-web").contextPath("/web") //
                     .option("streamBody", true) //
                     .option("corsOrigins", origin) //
@@ -138,7 +142,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 协议错误以标准状态码和 Unicode 描述交付浏览器。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("http://127.0.0.1:" + port + "/web", "fault");
+                String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "fault");
                 assertEquals(7, result.path("error").path("code").asInt());
                 assertEquals("拒绝访问", result.path("error").path("message").asText());
             }
@@ -151,7 +156,7 @@ public class GrpcWebBrowserInteropTest {
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setRequestTimeout(5000);
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc-web").contextPath("/web") //
                     .option("streamBody", true) //
                     .option("corsOrigins", origin) //
@@ -166,7 +171,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 流中已收到的消息与结束时的错误均保留。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("http://127.0.0.1:" + port + "/web", "broken");
+                String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "broken");
                 assertEquals(1, result.path("values").size());
                 assertEquals("中文🙂", result.path("values").get(0).path("value").asText());
                 assertEquals(9, result.path("error").path("code").asInt());
@@ -181,7 +187,7 @@ public class GrpcWebBrowserInteropTest {
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setRequestTimeout(5000);
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc-web").contextPath("/web") //
                     .option("streamBody", true) //
                     .option("corsOrigins", origin) //
@@ -197,7 +203,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 真实跨域凭证模式按精确 origin 通过预检并成功调用。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("http://127.0.0.1:" + port + "/web", "credentials");
+                String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "credentials");
                 assertEquals("中文🙂 <&>", result.path("value").asText());
                 assertEquals(7, result.path("count").asInt());
                 assertEquals(origin, result.path("origin").asText());
@@ -211,7 +218,7 @@ public class GrpcWebBrowserInteropTest {
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setRequestTimeout(5000);
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc-web").contextPath("/web") //
                     .option("streamBody", true) //
                     .option("corsOrigins", "http://127.0.0.1:1");
@@ -233,7 +240,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 未配置的来源被浏览器拒绝，业务不能被执行。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("http://127.0.0.1:" + port + "/web", "denied");
+                String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "denied");
                 assertTrue(result.has("error"));
                 assertNotEquals(0, result.path("error").path("code").asInt());
                 assertEquals(0, calls.get());
@@ -248,7 +256,7 @@ public class GrpcWebBrowserInteropTest {
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setRequestTimeout(5000);
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc-web").contextPath("/web") //
                     .option("streamBody", true) //
                     .option("corsOrigins", origin) //
@@ -271,7 +279,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 预检拒绝未允许的 custom-header，业务不能被执行。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("http://127.0.0.1:" + port + "/web", "denied");
+                String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "denied");
                 assertTrue(result.has("error"));
                 assertNotEquals(0, result.path("error").path("code").asInt());
                 assertEquals(0, calls.get());
@@ -307,7 +316,7 @@ public class GrpcWebBrowserInteropTest {
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(10000);
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc-web").contextPath("/web") //
                     .option("streamBody", true).option("corsOrigins", origin);
             try (MetContext server = configuration.buildContext()) {
@@ -320,7 +329,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 验证本地取消与最终期限回收；HTTP/1 半关闭不等同于立即取消远端订阅。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("http://127.0.0.1:" + port + "/web", "cancel");
+                String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "cancel");
                 assertTrue(result.path("cancelled").asBoolean());
                 assertEquals(1, result.path("values").size());
                 assertTrue(cancelled.await(5, TimeUnit.SECONDS));
@@ -356,7 +366,7 @@ public class GrpcWebBrowserInteropTest {
             // 浏览器仅跳过私有测试 CA 的信任检查；TLS 与 ALPN 均走实际传输。
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(10000);
-            ConnectorSettings listener = configuration.connector("http").bind("127.0.0.1", 0);
+            ConnectorSettings listener = configuration.connector("http").bind(ContainerProcess.runnerHost(), 0);
             GrpcWebTlsUtils.serverTls(listener, 2, "NONE");
             listener.protocol("grpc-web").addressScheme("https").contextPath("/web") //
                     .option("streamBody", true).option("corsOrigins", origin);
@@ -370,7 +380,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 浏览器记录必须确认实际 HTTP/2，取消回收发生在 10s 默认期限之前。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("https://localhost:" + port + "/web", "h2cancel");
+                String target = "https://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "h2cancel");
                 assertTrue(result.path("cancelled").asBoolean());
                 assertEquals(1, result.path("values").size());
                 boolean http2 = false;
@@ -408,7 +419,7 @@ public class GrpcWebBrowserInteropTest {
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
             String origin = peer.awaitOrigin();
             MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(10000);
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("grpc-web").contextPath("/web") //
                     .option("streamBody", true).option("corsOrigins", origin);
             try (MetContext server = configuration.buildContext()) {
@@ -421,7 +432,8 @@ public class GrpcWebBrowserInteropTest {
 
                 // 标准 DeadlineExceeded 状态和服务订阅释放共同证明期限生效。
                 int port = server.getListenAddress("grpc-web").getPort();
-                JsonNode result = peer.invoke("http://127.0.0.1:" + port + "/web", "deadline");
+                String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
+                JsonNode result = peer.invoke(target, "deadline");
                 assertEquals(4, result.path("error").path("code").asInt());
                 assertTrue(cancelled.await(5, TimeUnit.SECONDS));
             }

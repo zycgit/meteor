@@ -33,6 +33,7 @@ import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -75,8 +76,9 @@ public class MetroRegistryAdapterTest {
         Path directory = this.data.newFolder("registry").toPath();
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
+            registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration configuration = this.configuration(registry, "meteor-soap-adapter-provider");
-            configuration.connector("http").bind("127.0.0.1", 0).protocol("soap") //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0).protocol("soap") //
                     .addressScheme("http").contextPath("/services").option("soapVersion", this.version);
             try (MetContext provider = configuration.buildContext()) {
                 provider.start();
@@ -122,6 +124,7 @@ public class MetroRegistryAdapterTest {
         Path directory = this.data.newFolder("registry").toPath();
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
+            registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration configuration = this.configuration(registry, "meteor-soap-adapter-consumer");
             configuration.connector("http").protocol("soap") //
                     .addressScheme("http").contextPath("/services").option("soapVersion", this.version);
@@ -139,7 +142,7 @@ public class MetroRegistryAdapterTest {
                 try (SoapPeerProcess provider = SoapPeerProcess.metroServer("echo", this.version, false); //
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     String unit = consumer.getSettings().getUnitName();
-                    InterAddress address = new InterAddress("http", "127.0.0.1", provider.getPort(), unit);
+                    InterAddress address = new InterAddress("http", provider.host(), provider.getPort(), unit);
                     registrar.register(service, provider.processId(), "java", "soap", "http", address, //
                             "/services/EchoService");
                     RegistryDiscoveryExample.awaitDiscovery(consumer, service);

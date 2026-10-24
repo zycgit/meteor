@@ -15,6 +15,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
@@ -36,7 +37,7 @@ public class ConnectJavaInteropTest {
                     .serialize("Json").register();
 
             // 消费者不发布本地实现；SDK 前缀与数值递增均必须来自真实 HTTP 服务。
-            InterAddress target = new InterAddress("connect", "127.0.0.1", port, "default");
+            InterAddress target = new InterAddress("connect", peer.host(), port, "default");
             ConnectDemoService remote = client.getRsfClient(target).getRemote(service);
             ConnectMessage result = remote.echo(ConnectMessage.of("Meteor 中文 🙂", 6));
             assertEquals("connect-sdk:Meteor 中文 🙂", result.getText());
@@ -48,7 +49,7 @@ public class ConnectJavaInteropTest {
     public void officialJavaClientCallsMeteorProtobufService() throws Exception {
         // Meteor 仍发布普通 Java 接口，SDK 与服务端只共享标准 proto 契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("connect");
-        configuration.connector("http").bind("127.0.0.1", 0) //
+        configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("connect").contextPath("/rpc").option("streamBody", true);
         var resource = new GrpcProtoResource(getClass().getResource("/contracts/java-sdk-echo.proto"));
         AtomicInteger calls = new AtomicInteger();
@@ -64,7 +65,7 @@ public class ConnectJavaInteropTest {
 
             // 官方 JVM 对端由 Java main 直接使用 SDK，未经过 Node 或 Meteor 客户端。
             int port = server.getListenAddress("connect").getPort();
-            String target = "http://127.0.0.1:" + port + "/rpc";
+            String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             try (ConnectJavaProcess peer = ConnectJavaProcess.start("CONNECT", target, //
                     "meteor.java.sdk.TextEchoService/echo", "Java Connect 中文 🙂")) {
                 assertEquals("Java Connect 中文 🙂", peer.awaitResult());

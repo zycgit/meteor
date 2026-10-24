@@ -18,6 +18,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 独立官方 Connect Node 进程的所有者，协议行为由官方依赖实现。 */
 final class ConnectNodeProcess implements AutoCloseable {
@@ -35,15 +36,19 @@ final class ConnectNodeProcess implements AutoCloseable {
     }
 
     static ConnectNodeProcess start(String... arguments) throws IOException {
-        // 只运行本插件持有的对端脚本及锁定的官方 npm 依赖。
-        Path directory = Path.of(System.getProperty("connect.peer.dir"));
+        // 独立容器加载镜像中锁定的官方 npm 依赖，业务流量经桥接网络发送。
+        Path directory = Path.of(System.getProperty("connect.peer.dir", "/opt/meteor-peer/node/connect"));
         List<String> command = new ArrayList<>(List.of("node", "peer.mjs"));
         command.addAll(List.of(arguments));
-        Process process = new ProcessBuilder(command) //
+        ProcessBuilder builder = new ProcessBuilder(command) //
                 .directory(directory.toFile()) //
-                .redirectErrorStream(true) //
-                .start();
+                .redirectErrorStream(true);
+        Process process = ContainerProcess.start("node", builder);
         return new ConnectNodeProcess(process);
+    }
+
+    String host() {
+        return ContainerProcess.host(this.process);
     }
 
     int awaitPort() throws Exception {

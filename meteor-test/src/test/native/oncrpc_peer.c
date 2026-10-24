@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <netinet/in.h>
+#include <netdb.h>
 #include <poll.h>
 #include <rpc/auth_unix.h>
 #include <signal.h>
@@ -208,23 +209,23 @@ static int parse_options(int argc, char **argv, struct peer_options *options) {
 
 static int socket_address(const struct peer_options *options, struct sockaddr_storage *address,
         socklen_t *address_size) {
+    // Resolve container DNS names as well as explicit IPv4/IPv6 addresses.
+    struct addrinfo hints = {0};
+    hints.ai_family = strchr(options->host, ':') == NULL ? AF_INET : AF_INET6;
+    hints.ai_socktype = strcmp(options->transport, "udp") == 0 ? SOCK_DGRAM : SOCK_STREAM;
+    char port[6];
+    snprintf(port, sizeof(port), "%u", (unsigned int) options->port);
+    struct addrinfo *resolved = NULL;
+    int status = getaddrinfo(options->host, port, &hints, &resolved);
+    if (status != 0) {
+        fprintf(stderr, "Cannot resolve --host %s: %s\n", options->host, gai_strerror(status));
+        return -1;
+    }
     memset(address, 0, sizeof(*address));
-    struct sockaddr_in *ipv4 = (struct sockaddr_in *) address;
-    if (inet_pton(AF_INET, options->host, &ipv4->sin_addr) == 1) {
-        ipv4->sin_family = AF_INET;
-        ipv4->sin_port = htons(options->port);
-        *address_size = sizeof(*ipv4);
-        return 0;
-    }
-    struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *) address;
-    if (inet_pton(AF_INET6, options->host, &ipv6->sin6_addr) == 1) {
-        ipv6->sin6_family = AF_INET6;
-        ipv6->sin6_port = htons(options->port);
-        *address_size = sizeof(*ipv6);
-        return 0;
-    }
-    fprintf(stderr, "--host must be an IPv4 or IPv6 address\n");
-    return -1;
+    memcpy(address, resolved->ai_addr, resolved->ai_addrlen);
+    *address_size = (socklen_t) resolved->ai_addrlen;
+    freeaddrinfo(resolved);
+    return 0;
 }
 
 static int run_server(const struct peer_options *options) {

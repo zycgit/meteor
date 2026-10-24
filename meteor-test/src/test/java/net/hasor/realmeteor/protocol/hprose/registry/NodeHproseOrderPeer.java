@@ -22,28 +22,29 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 拥有官方 Node Hprose 对端进程；控制管道不承载任何 Java 代发的业务 RPC。 */
 final class NodeHproseOrderPeer implements AutoCloseable {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private final Process process;
-    private final BufferedReader output;
-    private final BufferedWriter input;
+    private final Process         process;
+    private final BufferedReader  output;
+    private final BufferedWriter  input;
     private final ExecutorService reader;
-    private final Path log;
-    private final int port;
+    private final Path            log;
+    private final int             port;
 
     private NodeHproseOrderPeer(String role, Path workDirectory) throws Exception {
         // 消费者仅收到角色和共享向量路径，业务端点之后由存储订阅结果提供。
-        Path directory = Path.of(System.getProperty("hprose.peer.dir", "build/hprose-peer"));
+        Path directory = Path.of(System.getProperty("hprose.peer.dir", "/opt/meteor-peer/node/hprose"));
         Path script = directory.resolve("order-registry-peer.js").toAbsolutePath();
         URI vectors = NodeHproseOrderPeer.class.getResource("/vectors/basic/orders.json").toURI();
         Files.createDirectories(workDirectory);
         this.log = Files.createTempFile(workDirectory, "node-hprose-" + role + "-", ".log");
         ProcessBuilder command = new ProcessBuilder("node", script.toString(), role, Path.of(vectors).toString());
         command.redirectError(this.log.toFile());
-        this.process = command.start();
+        this.process = ContainerProcess.start("node", command);
         this.output = new BufferedReader(new InputStreamReader(this.process.getInputStream(), StandardCharsets.UTF_8));
         this.input = new BufferedWriter(new OutputStreamWriter(this.process.getOutputStream(), StandardCharsets.UTF_8));
         this.reader = Executors.newSingleThreadExecutor();
@@ -72,7 +73,7 @@ final class NodeHproseOrderPeer implements AutoCloseable {
     }
 
     InterAddress address(String unit) {
-        return new InterAddress("http", "127.0.0.1", this.port, unit);
+        return new InterAddress("http", ContainerProcess.host(this.process), this.port, unit);
     }
 
     long processId() {

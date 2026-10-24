@@ -17,6 +17,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
@@ -28,7 +29,7 @@ public class WebServicesRpcLiteralInteropTest {
         // Meteor 以 RPC/literal SOAP 1.1 发布普通 Java 接口，并自动生成契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap") //
                 .contextPath("/services") //
                 .option("soapVersion", "1.1") //
@@ -45,7 +46,8 @@ public class WebServicesRpcLiteralInteropTest {
 
             // Metro 从线上 WSDL 创建有 RPC 注解的强类型代理。
             int port = context.getListenAddress("soap").getPort();
-            URL wsdl = URI.create("http://127.0.0.1:" + port + "/services/RpcEchoService?wsdl").toURL();
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/services/RpcEchoService?wsdl";
+            URL wsdl = URI.create(endpoint).toURL();
             QName serviceName = new QName(NAMESPACE, "RpcEchoService");
             QName portName = new QName(NAMESPACE, "RpcEchoServicePort");
             Map<String, Object> invocation = SoapPeerProcess.dispatch(wsdl, serviceName, portName, null);
@@ -64,7 +66,7 @@ public class WebServicesRpcLiteralInteropTest {
         // Meteor 以 RPC/literal SOAP 1.2 发布普通 Java 接口，并自动生成契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap") //
                 .contextPath("/services") //
                 .option("soapVersion", "1.2") //
@@ -81,7 +83,8 @@ public class WebServicesRpcLiteralInteropTest {
 
             // Metro 从线上 SOAP 1.2 WSDL 创建同一个 RPC 注解接口的强类型代理。
             int port = context.getListenAddress("soap").getPort();
-            URL wsdl = URI.create("http://127.0.0.1:" + port + "/services/RpcEchoService?wsdl").toURL();
+            String endpoint = "http://" + ContainerProcess.runnerHost() + ":" + port + "/services/RpcEchoService?wsdl";
+            URL wsdl = URI.create(endpoint).toURL();
             QName serviceName = new QName(NAMESPACE, "RpcEchoService");
             QName portName = new QName(NAMESPACE, "RpcEchoServicePort");
             Map<String, Object> invocation = SoapPeerProcess.dispatch(wsdl, serviceName, portName, null);
@@ -118,7 +121,7 @@ public class WebServicesRpcLiteralInteropTest {
 
                 // 公开 Meteor 代理向 Metro 监听地址发起真实 SOAP 1.1 RPC 调用。
                 int port = server.getPort();
-                InterAddress address = new InterAddress("soap", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("soap", server.host(), port, "default");
                 EchoService remote = context.getRsfClient(address).getRemote(subscribed);
                 assertEquals("hello Meteor RPC 1.1", remote.echo("hello Meteor RPC 1.1"));
             }
@@ -148,7 +151,7 @@ public class WebServicesRpcLiteralInteropTest {
 
                 // 公开 Meteor 代理向 Metro 监听地址发起真实 SOAP 1.2 RPC 调用。
                 int port = server.getPort();
-                InterAddress address = new InterAddress("soap", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("soap", server.host(), port, "default");
                 EchoService remote = context.getRsfClient(address).getRemote(subscribed);
                 assertEquals("hello Meteor RPC 1.2", remote.echo("hello Meteor RPC 1.2"));
             }

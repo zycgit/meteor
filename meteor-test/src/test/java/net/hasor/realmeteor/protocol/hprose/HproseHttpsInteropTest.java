@@ -19,6 +19,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -29,7 +30,7 @@ public class HproseHttpsInteropTest {
         // HTTPS 监听要求客户端身份，官方 Node.js 客户端加载受信任的客户端证书。
         MetConfiguration incoming = new MetConfiguration().setQueueMinPoolSize(4);
         incoming.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
                 .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
@@ -49,7 +50,7 @@ public class HproseHttpsInteropTest {
 
             // 官方客户端在双向 TLS 上发现服务并验证中文及补充字符往返。
             int port = server.getListenAddress("hprose").getPort();
-            String target = "https://127.0.0.1:" + port + "/rpc";
+            String target = "https://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("https-client", target, "unicode", this.tlsDirectory());
             try {
                 assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
@@ -69,7 +70,7 @@ public class HproseHttpsInteropTest {
         // HTTPS 监听要求客户端身份，官方 Node.js 客户端加载受信任的客户端证书。
         MetConfiguration incoming = new MetConfiguration().setQueueMinPoolSize(4);
         incoming.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
                 .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
@@ -89,7 +90,7 @@ public class HproseHttpsInteropTest {
 
             // 官方客户端在一个 HTTPS 批次中验证顺序及错误隔离，随后再次调用确认恢复。
             int port = server.getListenAddress("hprose").getPort();
-            String target = "https://127.0.0.1:" + port + "/rpc";
+            String target = "https://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("https-client", target, "batch", this.tlsDirectory());
             try {
                 assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
@@ -109,7 +110,7 @@ public class HproseHttpsInteropTest {
         // HTTPS 监听要求客户端身份，官方 Node.js 客户端加载受信任的客户端证书。
         MetConfiguration incoming = new MetConfiguration().setQueueMinPoolSize(4);
         incoming.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
                 .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
@@ -129,7 +130,7 @@ public class HproseHttpsInteropTest {
 
             // 官方客户端在 HTTPS 上读取 byref 参数，验证服务端修改后的参数回传。
             int port = server.getListenAddress("hprose").getPort();
-            String target = "https://127.0.0.1:" + port + "/rpc";
+            String target = "https://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("https-client", target, "byref", this.tlsDirectory());
             try {
                 assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
@@ -169,7 +170,7 @@ public class HproseHttpsInteropTest {
                         .rsfService(Sample.class) //
                         .aliasName("Hprose", "sample") //
                         .register();
-                InterAddress address = new InterAddress("https", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("https", ContainerProcess.host(peer), port, "default");
                 Sample remote = client.getRsfClient(address).getRemote(service);
 
                 // 由公开代理调用独立的官方实现，验证 HTTPS 下双向协议互通。
@@ -190,13 +191,13 @@ public class HproseHttpsInteropTest {
     }
 
     private Process peer(String... arguments) throws Exception {
-        // 复用 Gradle 已安装的官方 Node.js 依赖，子进程只负责独立对端行为。
-        Path directory = Path.of(System.getProperty("hprose.peer.dir"));
+        // 官方 Node.js SDK 在独立容器中运行，TLS 业务调用经桥接网络发送。
+        Path directory = Path.of(System.getProperty("hprose.peer.dir", "/opt/meteor-peer/node/hprose"));
         ArrayList<String> command = new ArrayList<>(List.of("node", "peer.js"));
         command.addAll(List.of(arguments));
-        return new ProcessBuilder(command) //
+        ProcessBuilder builder = new ProcessBuilder(command) //
                 .directory(directory.toFile()) //
-                .redirectErrorStream(true) //
-                .start();
+                .redirectErrorStream(true);
+        return ContainerProcess.start("node", builder);
     }
 }

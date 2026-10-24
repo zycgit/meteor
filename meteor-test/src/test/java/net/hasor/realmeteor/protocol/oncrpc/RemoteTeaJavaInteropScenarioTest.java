@@ -13,6 +13,7 @@ import net.hasor.example.protocol.oncrpc.OncRpcDemoService;
 import net.hasor.example.protocol.oncrpc.OncRpcDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 
 /** RemoteTea Java SDK 经真实 TCP、UDP 调用 Meteor 提供者，不依赖跨语言对端。 */
@@ -21,7 +22,7 @@ public class RemoteTeaJavaInteropScenarioTest {
     public void remoteTeaJavaTcpClientCallsMeteor() throws Exception {
         // Meteor 通过公开入口监听 TCP；普通业务接口绑定既有 ONC RPC 契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
-        configuration.connector("tcp").bind("127.0.0.1", 0).protocol("oncrpc");
+        configuration.connector("tcp").bind(ContainerProcess.runnerHost(), 0).protocol("oncrpc");
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OncRpcDemoService.class, new OncRpcDemoServiceImpl()) //
@@ -44,7 +45,7 @@ public class RemoteTeaJavaInteropScenarioTest {
             port = socket.getLocalPort();
         }
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc-udp");
-        configuration.connector("udp").bind("127.0.0.1", port).protocol("oncrpc-udp");
+        configuration.connector("udp").bind(ContainerProcess.runnerHost(), port).protocol("oncrpc-udp");
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OncRpcDemoService.class, new OncRpcDemoServiceImpl()) //
@@ -63,7 +64,7 @@ public class RemoteTeaJavaInteropScenarioTest {
     public void remoteTeaJavaTcpClientReceivesGarbageArgumentsForNonAsciiString() throws Exception {
         // 同一标准 IDL 没有约定 UTF-8 扩展，Meteor 应拒绝非 ASCII 参数而不是静默替换。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
-        configuration.connector("tcp").bind("127.0.0.1", 0).protocol("oncrpc");
+        configuration.connector("tcp").bind(ContainerProcess.runnerHost(), 0).protocol("oncrpc");
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OncRpcDemoService.class, new OncRpcDemoServiceImpl()) //
@@ -85,7 +86,7 @@ public class RemoteTeaJavaInteropScenarioTest {
             port = socket.getLocalPort();
         }
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc-udp");
-        configuration.connector("udp").bind("127.0.0.1", port).protocol("oncrpc-udp");
+        configuration.connector("udp").bind(ContainerProcess.runnerHost(), port).protocol("oncrpc-udp");
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OncRpcDemoService.class, new OncRpcDemoServiceImpl()) //

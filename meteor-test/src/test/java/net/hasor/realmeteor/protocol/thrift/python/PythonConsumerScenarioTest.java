@@ -14,13 +14,14 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 官方 Python Client 调用 Meteor，通过共享订单业务验证每个 TCP 配置。 */
 @RunWith(Parameterized.class)
 public class PythonConsumerScenarioTest {
-    private final String encoding;
+    private final String  encoding;
     private final boolean framed;
-    private final String security;
+    private final String  security;
 
     public PythonConsumerScenarioTest(String encoding, boolean framed, String security) {
         this.encoding = encoding;
@@ -48,7 +49,7 @@ public class PythonConsumerScenarioTest {
             // 保存后的订单可以再次按 ID 查询，由独立 Python SDK 执行当前场景的断言。
             int port = server.getListenAddress("thrift").getPort();
             try (PythonThriftPeer peer = PythonThriftPeer.consumer( //
-                    this.encoding, this.framed, this.security, port, "basic")) {
+                    this.encoding, this.framed, this.security, ContainerProcess.runnerHost(), port, "basic")) {
                 peer.requireSuccess();
             }
         }
@@ -69,7 +70,7 @@ public class PythonConsumerScenarioTest {
             // Unicode 描述往返不丢失字符，由独立 Python SDK 执行当前场景的断言。
             int port = server.getListenAddress("thrift").getPort();
             try (PythonThriftPeer peer = PythonThriftPeer.consumer( //
-                    this.encoding, this.framed, this.security, port, "unicode")) {
+                    this.encoding, this.framed, this.security, ContainerProcess.runnerHost(), port, "unicode")) {
                 peer.requireSuccess();
             }
         }
@@ -90,7 +91,7 @@ public class PythonConsumerScenarioTest {
             // 二进制附件不发生字符串转换，由独立 Python SDK 执行当前场景的断言。
             int port = server.getListenAddress("thrift").getPort();
             try (PythonThriftPeer peer = PythonThriftPeer.consumer( //
-                    this.encoding, this.framed, this.security, port, "bytes")) {
+                    this.encoding, this.framed, this.security, ContainerProcess.runnerHost(), port, "bytes")) {
                 peer.requireSuccess();
             }
         }
@@ -111,7 +112,7 @@ public class PythonConsumerScenarioTest {
             // 不存在的订单返回业务异常而非传输失败，由独立 Python SDK 执行当前场景的断言。
             int port = server.getListenAddress("thrift").getPort();
             try (PythonThriftPeer peer = PythonThriftPeer.consumer( //
-                    this.encoding, this.framed, this.security, port, "failure")) {
+                    this.encoding, this.framed, this.security, ContainerProcess.runnerHost(), port, "failure")) {
                 peer.requireSuccess();
             }
         }

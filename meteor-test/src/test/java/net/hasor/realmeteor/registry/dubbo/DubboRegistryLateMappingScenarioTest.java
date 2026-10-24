@@ -16,7 +16,7 @@ import net.hasor.realmeteor.protocol.dubbo.DubboProcess;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
-import org.apache.curator.test.TestingServer;
+import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.junit.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
@@ -31,7 +31,7 @@ public class DubboRegistryLateMappingScenarioTest {
     @Test(timeout = 90000)
     public void existingReferenceDiscoversApplicationPublishedAfterMappingSubscription() throws Exception {
         // 全新的注册中心还没有目标服务的应用映射，先启动消费上下文和引用。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration consumer = application(registryUrl, "meteor-late-mapping-consumer");
             consumer.connector("tcp").protocol("dubbo");
@@ -66,7 +66,7 @@ public class DubboRegistryLateMappingScenarioTest {
     @Test(timeout = 90000)
     public void closingLateMappingConsumerLeavesProviderAvailableToAnotherApplication() throws Exception {
         // 首个消费者先完成空映射订阅，随后到达的映射必须经过 ZooKeeper 事件线程。
-        try (TestingServer zookeeper = new TestingServer()) {
+        try (ZookeeperTestServer zookeeper = new ZookeeperTestServer()) {
             String registryUrl = "zookeeper://" + zookeeper.getConnectString();
             MetConfiguration first = application(registryUrl, "meteor-late-mapping-first");
             first.connector("tcp").protocol("dubbo");

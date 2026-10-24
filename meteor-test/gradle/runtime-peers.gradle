@@ -1,0 +1,40 @@
+// 对端使用各自的容器运行环境，Gradle 不在宿主安装语言工具链或 SDK。
+tasks.named('test') {
+    systemProperty 'hprose.peer.dir', '/opt/meteor-peer/node/hprose'
+    systemProperty 'grpcweb.peer.dir', '/opt/meteor-peer/node/grpcweb'
+    systemProperty 'connect.peer.dir', '/opt/meteor-peer/node/connect'
+    systemProperty 'jsonrpc.peer.dir', '/opt/meteor-peer/node/jsonrpc'
+
+    systemProperty 'python.grpc.executable', '/opt/meteor-peer/python-grpc/bin/python'
+    systemProperty 'python.grpc.script', file('src/test/python/grpc/peer.py').absolutePath
+    systemProperty 'python.grpc.generated', '/opt/meteor-peer/python-grpc-generated'
+    systemProperty 'python.grpc.logs', layout.buildDirectory.dir('python-grpc-peer-logs').get().asFile.absolutePath
+
+    systemProperty 'python.thrift.executable', '/opt/meteor-peer/python-thrift/bin/python'
+    systemProperty 'python.thrift.script', file('src/test/python/thrift/peer.py').absolutePath
+    systemProperty 'python.thrift.logs', layout.buildDirectory.dir('python-thrift-peer-logs').get().asFile.absolutePath
+
+    systemProperty 'python.soap.executable', '/opt/meteor-peer/python-soap/bin/python'
+    systemProperty 'python.soap.script', file('src/test/python/soap/peer.py').absolutePath
+    systemProperty 'python.soap.contract', '/opt/meteor-peer/python-soap-generated/orders.wsdl'
+    systemProperty 'python.soap.logs', layout.buildDirectory.dir('python-soap-peer-logs').get().asFile.absolutePath
+    systemProperty 'xmlrpc.peer.script', file('src/test/python/xmlrpc/peer.py').absolutePath
+
+    systemProperty 'oncrpc.peer.executable', '/opt/meteor-peer/native/oncrpc_peer'
+    systemProperty 'oncrpc.rpcbind.peer.executable', '/opt/meteor-peer/native/oncrpc_rpcbind_peer'
+    def nativeUsage = layout.buildDirectory.file('oncrpc-native-process-usage.jsonl')
+    systemProperty 'oncrpc.peer.usage.file', nativeUsage.get().asFile.absolutePath
+    def nativeLogs = layout.buildDirectory.dir('oncrpc-peer-logs')
+    systemProperty 'oncrpc.peer.output.directory', nativeLogs.get().asFile.absolutePath
+
+    systemProperty 'go.order.peer.binary', '/opt/meteor-peer/go/order-peer'
+    systemProperty 'go.order.peer.cert-dir', file('src/test/resources/grpc/tls/acceptance').absolutePath
+    systemProperty 'go.order.peer.work-dir', layout.buildDirectory.dir('go-peer/runs').get().asFile.absolutePath
+    def containerWorkDirectory = layout.buildDirectory.dir('container-scenarios')
+    systemProperty 'meteor.test.container.workDirectory', containerWorkDirectory.get().asFile.absolutePath
+
+    doFirst {
+        // Meteor 对端使用完整测试运行依赖；官方 SDK 继续使用各自隔离的依赖图。
+        systemProperty 'meteor.test.container.javaClasspath', sourceSets.test.runtimeClasspath.asPath
+    }
+}

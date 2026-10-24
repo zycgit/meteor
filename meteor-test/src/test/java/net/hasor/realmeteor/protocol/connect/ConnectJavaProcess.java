@@ -19,14 +19,15 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** Connect 与 gRPC-Web 的 Java SDK 进程所有者，分别接入客户端结果与服务端就绪信号。 */
 public final class ConnectJavaProcess implements AutoCloseable {
-    private final Process process;
-    private final Thread reader;
-    private final BlockingQueue<String> lines = new LinkedBlockingQueue<>();
+    private final Process                 process;
+    private final Thread                  reader;
+    private final BlockingQueue<String>   lines           = new LinkedBlockingQueue<>();
     private final CompletableFuture<Void> outputCompleted = new CompletableFuture<>();
-    private final StringBuffer output = new StringBuffer();
+    private final StringBuffer            output          = new StringBuffer();
 
     private ConnectJavaProcess(Process process) {
         this.process = process;
@@ -67,7 +68,8 @@ public final class ConnectJavaProcess implements AutoCloseable {
         command.add(classpath);
         command.add(mainClass);
         command.addAll(arguments);
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+        Process process = ContainerProcess.start("java", builder);
         return new ConnectJavaProcess(process);
     }
 
@@ -75,6 +77,10 @@ public final class ConnectJavaProcess implements AutoCloseable {
         String result = awaitLine("RESULT ", 15);
         byte[] bytes = Base64.getDecoder().decode(result);
         return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    public String host() {
+        return ContainerProcess.host(this.process);
     }
 
     public int awaitPort() throws Exception {

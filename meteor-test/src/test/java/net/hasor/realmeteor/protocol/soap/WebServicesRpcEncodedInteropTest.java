@@ -15,6 +15,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
@@ -26,7 +27,7 @@ public class WebServicesRpcEncodedInteropTest {
         // Meteor 发布普通 Java 接口，并自动生成 RPC/encoded SOAP 1.1 契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap") //
                 .contextPath("/services") //
                 .option("soapVersion", "1.1") //
@@ -43,7 +44,8 @@ public class WebServicesRpcEncodedInteropTest {
 
             // Axis Call 根据真实 RPC/encoded 参数描述生成 SOAP 1.1 请求。
             int port = context.getListenAddress("soap").getPort();
-            URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/RpcEchoService");
+            String authority = "http://" + ContainerProcess.runnerHost() + ":" + port;
+            URI endpoint = URI.create(authority + "/services/RpcEchoService");
             Map<String, Object> invocation = new LinkedHashMap<>();
             invocation.put("namespace", NAMESPACE);
             invocation.put("version", "1.1");
@@ -62,7 +64,7 @@ public class WebServicesRpcEncodedInteropTest {
         // Meteor 发布普通 Java 接口，并自动生成 RPC/encoded SOAP 1.2 契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
         configuration.connector("http") //
-                .bind("127.0.0.1", 0) //
+                .bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap") //
                 .contextPath("/services") //
                 .option("soapVersion", "1.2") //
@@ -79,7 +81,8 @@ public class WebServicesRpcEncodedInteropTest {
 
             // Axis Call 根据真实 RPC/encoded 参数描述生成 SOAP 1.2 请求。
             int port = context.getListenAddress("soap").getPort();
-            URI endpoint = URI.create("http://127.0.0.1:" + port + "/services/RpcEchoService");
+            String authority = "http://" + ContainerProcess.runnerHost() + ":" + port;
+            URI endpoint = URI.create(authority + "/services/RpcEchoService");
             Map<String, Object> invocation = new LinkedHashMap<>();
             invocation.put("namespace", NAMESPACE);
             invocation.put("version", "1.2");
@@ -116,7 +119,7 @@ public class WebServicesRpcEncodedInteropTest {
 
                 // 公开代理经过真实网络，由 Axis 的 Java RPC provider 调用业务实现。
                 int port = server.getPort();
-                InterAddress address = new InterAddress("soap", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("soap", server.host(), port, "default");
                 EchoService remote = context.getRsfClient(address).getRemote(subscribed);
                 assertEquals("Axis: hello Meteor RPC 1.1", remote.echo("hello Meteor RPC 1.1"));
             }
@@ -146,7 +149,7 @@ public class WebServicesRpcEncodedInteropTest {
 
                 // Axis 生成 SOAP 1.2 encoded 响应和 rpc:result，Meteor 必须正确解码。
                 int port = server.getPort();
-                InterAddress address = new InterAddress("soap", "127.0.0.1", port, "default");
+                InterAddress address = new InterAddress("soap", server.host(), port, "default");
                 EchoService remote = context.getRsfClient(address).getRemote(subscribed);
                 assertEquals("Axis: hello Meteor RPC 1.2", remote.echo("hello Meteor RPC 1.2"));
             }

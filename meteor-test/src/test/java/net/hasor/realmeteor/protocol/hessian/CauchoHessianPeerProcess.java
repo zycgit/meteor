@@ -23,13 +23,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
 import net.hasor.example.protocol.hessian.HessianInteropDemo;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 独立 Caucho JVM 的进程所有者；场景断言仍保留在 JUnit 方法中。 */
 final class CauchoHessianPeerProcess implements AutoCloseable {
     private final Process               process;
     private final Path                  log;
     private final Thread                reader;
-    private final BlockingQueue<String> lines = new LinkedBlockingQueue<>();
+    private final BlockingQueue<String> lines  = new LinkedBlockingQueue<>();
     private final StringBuffer          output = new StringBuffer();
     private       int                   port;
 
@@ -91,6 +92,10 @@ final class CauchoHessianPeerProcess implements AutoCloseable {
         }
     }
 
+    String host() {
+        return ContainerProcess.host(this.process);
+    }
+
     int getPort() {
         return this.port;
     }
@@ -112,7 +117,8 @@ final class CauchoHessianPeerProcess implements AutoCloseable {
         command.add(classpath);
         command.add("net.hasor.peer.protocol.hessian.CauchoHessianPeer");
         command.addAll(arguments);
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+        Process process = ContainerProcess.start("java", builder);
         return new CauchoHessianPeerProcess(process, log);
     }
 

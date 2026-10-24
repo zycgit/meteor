@@ -25,12 +25,13 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 独占官方 Python SDK 子进程；不共享 Java 连接、编码器或调度线程。 */
 final class PythonThriftPeer implements AutoCloseable {
-    private final Process process;
-    private final Path log;
-    private final Thread reader;
+    private final Process               process;
+    private final Path                  log;
+    private final Thread                reader;
     private final BlockingQueue<String> lines = new LinkedBlockingQueue<>();
 
     private PythonThriftPeer(Process process, Path log) {
@@ -42,16 +43,19 @@ final class PythonThriftPeer implements AutoCloseable {
     }
 
     static PythonThriftPeer provider(String encoding, boolean framed, String security) throws Exception {
-        return start("provider", encoding, framed, security, 0, null);
+        return start("provider", encoding, framed, security, "0.0.0.0", 0, null);
     }
 
-    static PythonThriftPeer consumer(String encoding, boolean framed, String security, int port,
-            String scenario) throws Exception {
-        return start("consumer", encoding, framed, security, port, scenario);
+    static PythonThriftPeer consumer(String encoding, boolean framed, String security, String host, int port, String scenario) throws Exception {
+        return start("consumer", encoding, framed, security, host, port, scenario);
     }
 
     int awaitPort() throws InterruptedException {
         return Integer.parseInt(this.awaitLine("READY:", 10));
+    }
+
+    String host() {
+        return ContainerProcess.host(this.process);
     }
 
     long processId() {
@@ -69,20 +73,19 @@ final class PythonThriftPeer implements AutoCloseable {
         }
     }
 
-    private static PythonThriftPeer start(String mode, String encoding, boolean framed, String security,
-            int port, String scenario) throws Exception {
+    private static PythonThriftPeer start(String mode, String encoding, boolean framed, String security, String host, int port, String scenario) throws Exception {
         // 日志及 SDK 运行目录均属于测试 build，不安装全局 Python 依赖。
         Path directory = Path.of(System.getProperty("python.thrift.logs"));
         Files.createDirectories(directory);
         Path log = Files.createTempFile(directory, mode + "-" + encoding + "-", ".log");
         List<String> command = new ArrayList<>();
-        command.add(System.getProperty("python.thrift.executable"));
+        command.add("/opt/meteor-peer/python-thrift/bin/python");
         command.add(System.getProperty("python.thrift.script"));
         command.add("--mode=" + mode);
         command.add("--protocol=" + encoding);
         command.add("--framed=" + framed);
         command.add("--security=" + security);
-        command.add("--host=127.0.0.1");
+        command.add("--host=" + host);
         command.add("--port=" + port);
         if (scenario != null) {
             command.add("--scenario=" + scenario);
@@ -100,7 +103,8 @@ final class PythonThriftPeer implements AutoCloseable {
                 command.add("--key=" + certificates.resolve("key.pem"));
             }
         }
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+        Process process = ContainerProcess.start("python", builder);
         return new PythonThriftPeer(process, log);
     }
 

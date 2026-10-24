@@ -33,6 +33,7 @@ import (
 
 type options struct {
 	protocol, role, target, scenario, readyFile, resultFile, tlsMode, certDir string
+	serverName string
 }
 
 type result struct {
@@ -111,6 +112,10 @@ func tlsConfiguration(opts options, server bool) (*tls.Config, error) {
 		return nil, errors.New("acceptance CA contains no certificate")
 	}
 	config := &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}
+	if !server {
+		// The discovered dial address can be an IP; the certificate identifies the runner DNS name.
+		config.ServerName = opts.serverName
+	}
 	if server {
 		pair, err := tls.LoadX509KeyPair(filepath.Join(opts.certDir, "server.pem"), filepath.Join(opts.certDir, "server-key.pem"))
 		if err != nil {
@@ -146,7 +151,7 @@ func serve(opts options) error {
 	if err != nil {
 		return err
 	}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := net.Listen("tcp", "0.0.0.0:0")
 	if err != nil {
 		return err
 	}
@@ -339,6 +344,7 @@ func main() {
 	flag.StringVar(&opts.resultFile, "result-file", "", "write successful client JSON result atomically")
 	flag.StringVar(&opts.tlsMode, "tls-mode", "plain", "plain, tls or mtls")
 	flag.StringVar(&opts.certDir, "cert-dir", "", "directory containing acceptance PEM files")
+	flag.StringVar(&opts.serverName, "server-name", "", "verified TLS server identity for a discovered dial address")
 	flag.Parse()
 	// Thrift has its own SDK Processor and application errors; existing HTTP peers keep their execution path.
 	if strings.HasPrefix(opts.protocol, "thrift-") {

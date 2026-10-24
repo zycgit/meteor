@@ -19,7 +19,7 @@ async function run() {
   });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
+    server.listen(0, '0.0.0.0', resolve);
   });
   const input = readline.createInterface({ input: process.stdin, terminal: false });
   const inputClosed = new Promise(resolve => { input.once('close', resolve); });
@@ -32,7 +32,11 @@ async function run() {
     browser = await chromium.launch({ headless: true });
     // Only the explicit TLS fixture bypasses its private test CA; CORS remains enabled.
     const page = await browser.newPage({ ignoreHTTPSErrors: process.argv.includes('--test-tls') });
-    const origin = `http://127.0.0.1:${server.address().port}`;
+    const peerHost = process.env.METEOR_TEST_PEER_HOST;
+    if (!peerHost) {
+      throw new Error('METEOR_TEST_PEER_HOST is required for the browser container');
+    }
+    const origin = `http://${peerHost}:${server.address().port}`;
     await page.goto(origin);
 
     // Observe Chromium's actual network requests, including automatic OPTIONS preflight.

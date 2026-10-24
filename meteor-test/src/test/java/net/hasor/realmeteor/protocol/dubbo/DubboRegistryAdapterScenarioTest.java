@@ -24,6 +24,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
@@ -67,7 +68,8 @@ public class DubboRegistryAdapterScenarioTest {
         // Meteor 通过 bootstrap 接入独占存储；只启用标准 TCP/Hessian2 业务 profile。
         Path home = this.data.newFolder("registry").toPath();
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
-            RegistryConfiguration registry = environment.configuration().setPublishHost("127.0.0.1");
+            RegistryConfiguration registry = environment.configuration();
+            registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration incoming = this.configuration(registry, true);
             try (MetContext provider = incoming.buildContext()) {
                 provider.start();
@@ -77,13 +79,16 @@ public class DubboRegistryAdapterScenarioTest {
                         .group("interop").version("1.0.0").serialize("Hessian2").register();
 
                 // 显式适配器读取真实存储端点，官方 SDK 本身没有配置原生注册中心。
+                String serviceId = service.getBindID();
                 try (StorageAccess storage = registry.openStorage(); //
-                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(),
-                             "dubbo")) {
+                     RegistryAddressResolver resolver = new RegistryAddressResolver(storage, serviceId, "dubbo")) {
                     URI discovered = resolver.awaitCount(1).get(0);
-                    assertEquals("dubbo", discovered.getScheme());
-                    URI target = new URI(discovered.getScheme(), null, discovered.getHost(), discovered.getPort(),
-                            "/" + SERVICE, null, null);
+                    String scheme = discovered.getScheme();
+                    assertEquals("dubbo", scheme);
+                    String servicePath = "/" + SERVICE;
+                    String providerHost = discovered.getHost();
+                    int providerPort = discovered.getPort();
+                    URI target = new URI(scheme, null, providerHost, providerPort, servicePath, null, null);
 
                     // 既有 --url 参数接收解析结果，真实业务调用由隔离 JVM 的 ReferenceConfig 完成。
                     try (DubboProcess peer = DubboProcess.start("--command=client", "--url=" + target, //
@@ -117,7 +122,7 @@ public class DubboRegistryAdapterScenarioTest {
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     int port = peer.awaitPort();
                     String unit = consumer.getSettings().getUnitName();
-                    InterAddress address = new InterAddress("dubbo", "127.0.0.1", port, unit);
+                    InterAddress address = new InterAddress("dubbo", peer.host(), port, unit);
                     registrar.register(service, peer.processId(), "java", "dubbo", "tcp", address, "/");
                     awaitAddress(consumer, service, address);
                     AddressSelectionAwaiter.await(consumer, service, "echo");
@@ -145,8 +150,7 @@ public class DubboRegistryAdapterScenarioTest {
         return configuration;
     }
 
-    private static void awaitAddress(MetContext consumer, MetBindInfo<?> service, InterAddress expected)
-            throws Exception {
+    private static void awaitAddress(MetContext consumer, MetBindInfo<?> service, InterAddress expected) throws Exception {
         // 只观察已有订阅的公开地址本，不写入目标地址，也不通过业务调用轮询就绪。
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
         while (true) {

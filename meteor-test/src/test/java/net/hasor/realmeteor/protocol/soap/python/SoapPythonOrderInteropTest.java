@@ -34,6 +34,7 @@ import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import static org.junit.Assert.*;
 
 /** 独立 Python SOAP SDK 的双向订单矩阵，注册模式明确使用存储发现和登记适配。 */
@@ -176,7 +177,7 @@ public class SoapPythonOrderInteropTest {
         configuration.setDataHome(this.data.newFolder("application").toPath());
         var http = configuration.connector("http");
         if (listen) {
-            http.bind("127.0.0.1", 0);
+            http.bind(ContainerProcess.runnerHost(), 0);
         }
         http.protocol("soap").contextPath("/soap").addressScheme("http");
 
@@ -184,7 +185,7 @@ public class SoapPythonOrderInteropTest {
         if (this.discovery != OrderDiscovery.DIRECT) {
             var management = configuration.connector("tcp");
             if (listen) {
-                management.bind("127.0.0.1", 0);
+                management.bind(ContainerProcess.runnerHost(), 0);
             }
             management.protocol("rsf");
         }

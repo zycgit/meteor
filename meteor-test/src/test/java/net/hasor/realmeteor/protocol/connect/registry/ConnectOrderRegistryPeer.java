@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 独占官方 Node Connect 对端及控制管道；地址发现适配与业务网络调用分别执行。 */
 final class ConnectOrderRegistryPeer implements AutoCloseable {
@@ -37,13 +38,13 @@ final class ConnectOrderRegistryPeer implements AutoCloseable {
 
     private ConnectOrderRegistryPeer(String role) throws Exception {
         // consumer 只接收角色参数，业务端点必须来自启动后的真实存储订阅。
-        Path directory = Path.of(System.getProperty("connect.peer.dir"));
+        Path directory = Path.of(System.getProperty("connect.peer.dir", "/opt/meteor-peer/node/connect"));
         Path logs = Files.createDirectories(Path.of("build/peer-logs/connect-registry-adapter"));
         this.log = Files.createTempFile(logs, role + "-", ".log");
         ProcessBuilder command = new ProcessBuilder("node", "order-registry-peer.mjs", role);
         command.directory(directory.toFile());
         command.redirectError(this.log.toFile());
-        this.process = command.start();
+        this.process = ContainerProcess.start("node", command);
 
         // 标准输出只承载 JSON 控制消息，错误日志由进程所有者保留用于失败诊断。
         InputStreamReader output = new InputStreamReader(this.process.getInputStream(), StandardCharsets.UTF_8);
@@ -77,7 +78,7 @@ final class ConnectOrderRegistryPeer implements AutoCloseable {
     }
 
     InterAddress address(String unit) {
-        return new InterAddress("http", "127.0.0.1", this.port, unit);
+        return new InterAddress("http", ContainerProcess.host(this.process), this.port, unit);
     }
 
     long processId() {

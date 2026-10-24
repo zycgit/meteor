@@ -14,6 +14,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftIdlResource;
@@ -25,8 +26,8 @@ import static org.junit.Assert.*;
 /** 普通 Java DTO 与官方生成契约双向互通，每个参数组合都是独立场景。 */
 @RunWith(Parameterized.class)
 public class ThriftAnnotatedDtoScenarioTest {
-    private final String encoding;
-    private final String transport;
+    private final String  encoding;
+    private final String  transport;
     private final boolean multiplexed;
 
     public ThriftAnnotatedDtoScenarioTest(String encoding, String transport, boolean multiplexed) {
@@ -92,7 +93,7 @@ public class ThriftAnnotatedDtoScenarioTest {
                     .rsfService(AnnotatedInteropService.class) //
                     .aliasName(this.protocol(), "ExtendedInteropService") //
                     .bindResource(this.protocol(), this.contract()).register();
-            InterAddress address = new InterAddress(this.scheme(), "127.0.0.1", port, "default");
+            InterAddress address = new InterAddress(this.scheme(), peer.host(), port, "default");
             AnnotatedInteropService remote = new ThriftClient(client.getRsfClient(address)).getRemote(service);
 
             // 返回值为普通 DTO，包含非 ordinal 枚举和非生成 union。
@@ -113,7 +114,7 @@ public class ThriftAnnotatedDtoScenarioTest {
         String type = this.http() ? "http" : "tcp";
         ConnectorSettings connector = configuration.connector(type);
         if (listen) {
-            connector.bind("127.0.0.1", 0);
+            connector.bind(ContainerProcess.runnerHost(), 0);
         }
         if (this.secure()) {
             if (listen) {

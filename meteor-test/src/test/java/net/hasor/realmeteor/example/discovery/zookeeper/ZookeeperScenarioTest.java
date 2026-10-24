@@ -17,7 +17,7 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.zookeeper.ZookeeperRegistryConfiguration;
-import org.apache.curator.test.TestingServer;
+import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -32,7 +32,7 @@ public class ZookeeperScenarioTest {
     @Test
     public void restoresDiscoveredProviderAfterOfflineAndOnline() throws Exception {
         // 外部 ZooKeeper 在测试中独占；应用只接收明确的注册地址和独立缓存目录。
-        try (TestingServer storage = new TestingServer()) {
+        try (ZookeeperTestServer storage = new ZookeeperTestServer()) {
             ZookeeperRegistryConfiguration registry = new ZookeeperRegistryConfiguration();
             registry.setAddress(storage.getConnectString());
             registry.setRefreshMillis(60000);

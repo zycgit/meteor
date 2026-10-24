@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 
 /** 仅管理独立 Java SDK 进程和本地控制文件；实际 RPC 由对端 SDK 发出。 */
 public final class JavaSdkPeerUtils {
@@ -23,8 +24,7 @@ public final class JavaSdkPeerUtils {
     }
 
     @SuppressWarnings("unchecked")
-    public static Map<String, Object> exchange(String protocol, Class<?> peerType, Map<String, Object> request)
-            throws Exception {
+    public static Map<String, Object> exchange(String protocol, Class<?> peerType, Map<String, Object> request) throws Exception {
         // Gradle 只传入当前 SDK 及其运行依赖，不借用 Meteor 的运行类路径。
         String classpath = System.getProperty(protocol + ".java.peer.classpath");
         if (StringUtils.isBlank(classpath)) {
@@ -49,10 +49,10 @@ public final class JavaSdkPeerUtils {
         command.add(peerType.getName());
         command.add(input.toString());
         command.add(output.toString());
-        Process process = new ProcessBuilder(command) //
+        ProcessBuilder builder = new ProcessBuilder(command) //
                 .redirectErrorStream(true) //
-                .redirectOutput(log.toFile()) //
-                .start();
+                .redirectOutput(log.toFile());
+        Process process = ContainerProcess.start("java", builder);
         try {
             process.getOutputStream().close();
             if (!process.waitFor(15, TimeUnit.SECONDS)) {

@@ -24,6 +24,7 @@ import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
+import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -65,10 +66,11 @@ public class CauchoHessianRegistryAdapterTest {
         Path directory = this.data.newFolder("registry").toPath();
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
+            registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("hessian");
             configuration.addExtension(registry).setApplicationName("meteor-hessian-adapter-provider");
             configuration.connector("tcp").protocol("rsf");
-            configuration.connector("http").bind("127.0.0.1", 0) //
+            configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("hessian").addressScheme("http").contextPath("/hessian").option("version", this.version);
             try (MetContext provider = configuration.buildContext()) {
                 provider.start();
@@ -100,6 +102,7 @@ public class CauchoHessianRegistryAdapterTest {
         Path directory = this.data.newFolder("registry").toPath();
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
+            registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("hessian");
             configuration.addExtension(registry).setApplicationName("meteor-hessian-adapter-consumer");
             configuration.connector("tcp").protocol("rsf");
@@ -115,7 +118,7 @@ public class CauchoHessianRegistryAdapterTest {
                 try (CauchoHessianPeerProcess provider = CauchoHessianPeerProcess.startServer(); //
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     String unit = consumer.getSettings().getUnitName();
-                    InterAddress address = new InterAddress("http", "127.0.0.1", provider.getPort(), unit);
+                    InterAddress address = new InterAddress("http", provider.host(), provider.getPort(), unit);
                     registrar.register(service, provider.processId(), "java", "hessian", "http", address, //
                             "/hessian/demo");
                     RegistryDiscoveryExample.awaitDiscovery(consumer, service);

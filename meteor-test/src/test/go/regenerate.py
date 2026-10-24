@@ -4,11 +4,8 @@
 import argparse
 import os
 from pathlib import Path
+import shutil
 import subprocess
-import sys
-
-sys.dont_write_bytecode = True
-from prepare import prepare_toolchain
 
 
 def main():
@@ -16,13 +13,16 @@ def main():
     host = source.parents[2]
     parser = argparse.ArgumentParser()
     parser.add_argument("--build-dir", type=Path, default=host / "build")
-    parser.add_argument("--protoc-python", type=Path)
+    parser.add_argument("--go", default="go")
+    parser.add_argument("--protoc-python", type=Path, required=True)
     args = parser.parse_args()
     build = args.build_dir.resolve()
-    python = args.protoc_python or build / "python-grpc-venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    python = args.protoc_python.resolve()
     if not python.is_file():
-        raise RuntimeError("Prepare the host Python gRPC environment first or pass --protoc-python")
-    executable = prepare_toolchain(build)
+        raise RuntimeError("--protoc-python must name a Python executable with grpc_tools.protoc")
+    executable = shutil.which(args.go)
+    if executable is None:
+        raise RuntimeError("Install the development Go toolchain or pass --go /path/to/go")
     generators = build / "go-generators"
     env = dict(os.environ, GOTOOLCHAIN="local", GOWORK="off", CGO_ENABLED="0", GOBIN=str(generators),
                GOPATH=str(build / "go-path"), GOMODCACHE=str(build / "go-mod-cache"),
