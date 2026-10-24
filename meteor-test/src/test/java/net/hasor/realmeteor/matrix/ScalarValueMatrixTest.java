@@ -7,17 +7,9 @@
  */
 package net.hasor.realmeteor.matrix;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
-import net.hasor.example.contract.scalar.ScalarValue;
-import net.hasor.example.contract.scalar.ScalarValueProfile;
-import net.hasor.example.contract.scalar.ScalarValueService;
-import net.hasor.example.contract.scalar.ScalarValueServiceImpl;
-import net.hasor.example.contract.scalar.ScalarValueVectors;
+import java.util.*;
+import net.hasor.cobble.StringUtils;
+import net.hasor.example.contract.scalar.*;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import org.junit.Rule;
@@ -25,7 +17,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -33,9 +24,9 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parameterized.class)
 public class ScalarValueMatrixTest {
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    public final  TemporaryFolder    data = new TemporaryFolder();
     private final ScalarValueProfile profile;
-    private final String vector;
+    private final String             vector;
 
     public ScalarValueMatrixTest(ScalarValueProfile profile, String vector) {
         this.profile = profile;
@@ -63,6 +54,9 @@ public class ScalarValueMatrixTest {
                 }
                 result.add(new Object[] { profile, name });
             }
+        }
+        if (result.isEmpty()) {
+            throw new IllegalArgumentException("The requested scalar protocol/profile matrix has no matching cases");
         }
         return result;
     }
@@ -105,8 +99,15 @@ public class ScalarValueMatrixTest {
     }
 
     static boolean selected(ScalarValueProfile profile) {
-        List<String> protocols = selection("meteor.matrix.protocols");
-        List<String> profiles = selection("meteor.matrix.scalarProfiles");
+        List<String> availableProtocols = new ArrayList<>();
+        List<String> availableProfiles = new ArrayList<>();
+        for (ScalarValueProfile available : ScalarValueProfile.values()) {
+            availableProtocols.add(available.protocolName());
+            availableProtocols.add(available.toString());
+            availableProfiles.add(available.toString());
+        }
+        List<String> protocols = selection("meteor.matrix.protocols", availableProtocols);
+        List<String> profiles = selection("meteor.matrix.scalarProfiles", availableProfiles);
         boolean protocol = selected(profile.protocolName(), protocols) || selected(profile.toString(), protocols);
         return protocol && selected(profile.toString(), profiles);
     }
@@ -117,9 +118,18 @@ public class ScalarValueMatrixTest {
                 || profile == ScalarValueProfile.TRIPLE_HESSIAN2 || profile == ScalarValueProfile.JSONRPC;
     }
 
-    private static List<String> selection(String property) {
+    private static List<String> selection(String property, List<String> available) {
         String value = System.getProperty(property, "*").toLowerCase(Locale.ROOT);
-        return Arrays.stream(value.split(",")).map(String::trim).toList();
+        List<String> selected = new ArrayList<>();
+        for (String token : value.split(",", -1)) {
+            String name = token.trim();
+            boolean wildcard = StringUtils.equals(name, "*") || StringUtils.equals(name, "all");
+            if (!wildcard && !available.contains(name)) {
+                throw new IllegalArgumentException("Unknown selection in " + property + ": " + token);
+            }
+            selected.add(wildcard ? "*" : name);
+        }
+        return selected;
     }
 
     private static boolean selected(String value, List<String> selection) {

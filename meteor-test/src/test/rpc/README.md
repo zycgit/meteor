@@ -4,13 +4,20 @@
 
 ## 准备与编译
 
-需要 Python 3、GCC、`rpcgen` 和 libtirpc 开发头文件。Ubuntu 的对应包为 `gcc`、`rpcsvc-proto`、`libtirpc-dev`。头文件也可通过 `--include` 指定独立解包目录。
+需要 Python 3、GCC、`rpcgen`、libtirpc 运行库和开发头文件。Ubuntu 的对应包为 `gcc`、`rpcsvc-proto`、`libtirpc-dev`。头文件默认读取 `/usr/include/tirpc`，可通过 `TIRPC_INCLUDE` 指定独立解包目录，直接执行脚本时也可使用优先级更高的 `--include`。
 
 在仓库根目录执行：
 
 ```bash
 python3 meteor-test/src/test/native/build-native.py \
   --output build/oncrpc-native
+```
+
+使用独立头文件目录运行完整测试：
+
+```bash
+TIRPC_INCLUDE="$PWD/meteor-test/build/tools/native/sysroot/usr/include/tirpc" \
+  ./gradlew :meteor-test:test --console=plain
 ```
 
 输出 `oncrpc_peer`、`oncrpc_rpcbind_peer` 和 `native-peer-runtime.json`。清单记录实际编译命令、日志、源码、ELF 文件、加载的 libtirpc 及工具版本。完整协议测试会自动构建这些测试对端。

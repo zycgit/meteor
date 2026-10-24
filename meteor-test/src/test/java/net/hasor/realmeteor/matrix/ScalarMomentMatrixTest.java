@@ -11,27 +11,22 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
-import net.hasor.example.contract.scalar.ScalarMoment;
-import net.hasor.example.contract.scalar.ScalarValueProfile;
-import net.hasor.example.contract.scalar.ScalarValueService;
-import net.hasor.example.contract.scalar.ScalarValueServiceImpl;
-import net.hasor.example.contract.scalar.ScalarValueVectors;
+import net.hasor.example.contract.scalar.*;
 import net.hasor.meteor.MetContext;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
 import static org.junit.Assert.assertEquals;
 
 /** Date 始终按 UTC 绝对时刻断言，秒级 XML-RPC 只承担整秒向量。 */
 @RunWith(Parameterized.class)
 public class ScalarMomentMatrixTest {
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    public final  TemporaryFolder    data = new TemporaryFolder();
     private final ScalarValueProfile profile;
-    private final String vector;
+    private final String             vector;
 
     public ScalarMomentMatrixTest(ScalarValueProfile profile, String vector) {
         this.profile = profile;
@@ -47,6 +42,7 @@ public class ScalarMomentMatrixTest {
             if (!ScalarValueMatrixTest.selected(profile)) {
                 continue;
             }
+
             for (String name : names) {
                 long millis = ScalarValueVectors.moment(name).getInstant().getTime();
                 if (profile.isXmlRpc() && millis % 1000 != 0) {
@@ -54,6 +50,9 @@ public class ScalarMomentMatrixTest {
                 }
                 result.add(new Object[] { profile, name });
             }
+        }
+        if (result.isEmpty()) {
+            throw new IllegalArgumentException("The requested moment protocol/profile matrix has no matching cases");
         }
         return result;
     }

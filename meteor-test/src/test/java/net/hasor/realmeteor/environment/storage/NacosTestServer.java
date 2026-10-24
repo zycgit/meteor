@@ -32,8 +32,11 @@ public final class NacosTestServer implements AutoCloseable {
         ProcessBuilder command = new ProcessBuilder(java, "-Xms128m", "-Xmx512m", "-XX:ActiveProcessorCount=2", //
                 "-Dfile.encoding=UTF-8", "-Dnacos.standalone=true", "-Dnacos.deployment.type=server", //
                 "-Dnacos.naming.service.metadata.length=65536", //
+                "-Dnacos.logs.path=" + this.home.resolve("logs"), //
                 "-Dnacos.home=" + this.home, "-jar", serverJar, //
                 "--nacos.server.main.port=" + this.port, "--nacos.server.ip=127.0.0.1", //
+                // 独立 Derby 首次初始化保留 30 秒连接预算，总启动上限仍为 90 秒。
+                "--db.pool.config.connection-timeout=30000", //
                 "--server.address=127.0.0.1", "--nacos.core.auth.enabled=false", //
                 "--nacos.core.auth.admin.enabled=false", "--nacos.core.auth.console.enabled=false");
         command.directory(this.home.toFile());

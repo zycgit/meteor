@@ -21,30 +21,23 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /** 第一层 Unicode 订单矩阵；ONC RPC 标准 XDR string 的 ASCII 范围由独立拒绝场景验证。 */
 @RunWith(Parameterized.class)
 public class OrderUnicodeMatrixTest {
     @ClassRule
-    public static final TemporaryFolder environmentData = new TemporaryFolder();
-    private static OrderRegistryEnvironment environment;
+    public static final TemporaryFolder          environmentData = new TemporaryFolder();
+    private static      OrderRegistryEnvironment environment;
 
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
-    private final OrderProtocol protocol;
-    private final OrderDiscovery discovery;
+    public final  TemporaryFolder data = new TemporaryFolder();
+    private final OrderProtocol   protocol;
+    private final OrderDiscovery  discovery;
 
     public OrderUnicodeMatrixTest(OrderProtocol protocol, OrderDiscovery discovery) {
         this.protocol = protocol;
@@ -59,6 +52,11 @@ public class OrderUnicodeMatrixTest {
             if (configuration[0] != OrderProtocol.ONCRPC) {
                 configurations.add(configuration);
             }
+        }
+        if (configurations.isEmpty()) {
+            String scope = "The requested unicode protocol/discovery matrix has no matching cases";
+            String reason = "standard ONC RPC XDR strings only support ASCII";
+            throw new IllegalArgumentException(scope + "; " + reason);
         }
         return configurations;
     }

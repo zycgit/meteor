@@ -29,7 +29,7 @@ import static org.junit.Assert.*;
 @RunWith(Parameterized.class)
 public class GrpcGoInteropTest {
     private static final String SERVICE = "meteor.example.OrderDemoService";
-    private final String tlsMode;
+    private final        String tlsMode;
 
     public GrpcGoInteropTest(String tlsMode) {
         this.tlsMode = tlsMode;
@@ -245,13 +245,13 @@ public class GrpcGoInteropTest {
             Order saved = remote.save(request);
             Order found = remote.find(this.query(request.getId()));
 
-            // proto3 省略默认字段，普通 Java DTO 保留未赋值的 null，线上字段仍为空值。
+            // 契约未声明 optional；线上省略字段回读为 proto3 默认的空字符串和空字节序列。
             assertEquals(0, saved.getId());
-            assertNull(saved.getDescription());
-            assertNull(saved.getAttachment());
+            assertEquals(request.getDescription(), saved.getDescription());
+            assertArrayEquals(request.getAttachment(), saved.getAttachment());
             assertEquals(0, found.getId());
-            assertNull(found.getDescription());
-            assertNull(found.getAttachment());
+            assertEquals(request.getDescription(), found.getDescription());
+            assertArrayEquals(request.getAttachment(), found.getAttachment());
         }
     }
 
@@ -271,8 +271,7 @@ public class GrpcGoInteropTest {
 
             // 同步代理保留 Go 返回的 NOT_FOUND 状态和业务消息。
             OrderQuery query = this.query(404);
-            UndeclaredThrowableException failure = assertThrows(UndeclaredThrowableException.class,
-                    () -> remote.find(query));
+            UndeclaredThrowableException failure = assertThrows(UndeclaredThrowableException.class, () -> remote.find(query));
             GrpcStatusException grpc = GrpcStatusException.find(failure);
             assertNotNull(grpc);
             assertEquals(5, grpc.getCode());

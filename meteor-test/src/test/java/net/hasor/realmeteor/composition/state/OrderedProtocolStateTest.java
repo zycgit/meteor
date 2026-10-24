@@ -24,11 +24,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.matrix.OrderDiscovery;
 import net.hasor.realmeteor.matrix.OrderRegistryEnvironment;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -39,15 +35,13 @@ import static org.junit.Assert.assertEquals;
 @RunWith(Parameterized.class)
 public class OrderedProtocolStateTest {
     @ClassRule
-    public static final TemporaryFolder serverData = new TemporaryFolder();
-    private static OrderRegistryEnvironment registries;
-
+    public static final TemporaryFolder          serverData = new TemporaryFolder();
+    private static      OrderRegistryEnvironment registries;
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
-
-    private final OrderProtocol write;
-    private final OrderProtocol read;
-    private final OrderDiscovery discovery;
+    public final        TemporaryFolder          data       = new TemporaryFolder();
+    private final       OrderProtocol            write;
+    private final       OrderProtocol            read;
+    private final       OrderDiscovery           discovery;
 
     public OrderedProtocolStateTest(OrderProtocol write, OrderProtocol read, OrderDiscovery discovery) {
         this.write = write;
@@ -59,7 +53,7 @@ public class OrderedProtocolStateTest {
     public static Collection<Object[]> cases() {
         List<OrderProtocol> writes = selectedProtocols("meteor.matrix.writeProtocols");
         List<OrderProtocol> reads = selectedProtocols("meteor.matrix.readProtocols");
-        List<OrderDiscovery> discoveries = selectedDiscoveries();
+        List<OrderDiscovery> discoveries = OrderDiscovery.selected();
         List<Object[]> cases = new ArrayList<>();
 
         // 循环只枚举 JUnit 实例；每个实例恰好执行一个写入和跨协议回读场景。
@@ -72,6 +66,10 @@ public class OrderedProtocolStateTest {
                     cases.add(new Object[] { write, read, discovery });
                 }
             }
+        }
+        if (cases.isEmpty()) {
+            String scope = "The requested ordered protocol matrix has no matching cases";
+            throw new IllegalArgumentException(scope + "; write and read protocols must differ");
         }
         return cases;
     }
@@ -155,17 +153,20 @@ public class OrderedProtocolStateTest {
     }
 
     private static List<OrderProtocol> selectedProtocols(String property) {
-        String filter = System.getProperty(property, "all");
-        if (StringUtils.equalsIgnoreCase(filter, "all")) {
-            return List.of(OrderProtocol.values());
-        }
+        String filter = System.getProperty(property, "*");
 
         // 参数拼写错误直接失败，避免空矩阵被误认为已经完成验收。
         List<OrderProtocol> selected = new ArrayList<>();
+        boolean all = false;
         for (String token : filter.split(",", -1)) {
+            String name = token.trim();
+            if (StringUtils.equals(name, "*") || StringUtils.equalsIgnoreCase(name, "all")) {
+                all = true;
+                continue;
+            }
             OrderProtocol match = null;
             for (OrderProtocol protocol : OrderProtocol.values()) {
-                if (StringUtils.equalsIgnoreCase(token.trim(), protocol.protocolName())) {
+                if (StringUtils.equalsIgnoreCase(name, protocol.protocolName())) {
                     match = protocol;
                     break;
                 }
@@ -177,31 +178,8 @@ public class OrderedProtocolStateTest {
                 selected.add(match);
             }
         }
-        return selected;
-    }
-
-    private static List<OrderDiscovery> selectedDiscoveries() {
-        String property = "meteor.matrix.discoveries";
-        String filter = System.getProperty(property, "all");
-        if (StringUtils.equalsIgnoreCase(filter, "all")) {
-            return List.of(OrderDiscovery.values());
-        }
-
-        List<OrderDiscovery> selected = new ArrayList<>();
-        for (String token : filter.split(",", -1)) {
-            OrderDiscovery match = null;
-            for (OrderDiscovery discovery : OrderDiscovery.values()) {
-                if (StringUtils.equalsIgnoreCase(token.trim(), discovery.toString())) {
-                    match = discovery;
-                    break;
-                }
-            }
-            if (match == null) {
-                throw new IllegalArgumentException("Unknown discovery mode: " + token);
-            }
-            if (!selected.contains(match)) {
-                selected.add(match);
-            }
+        if (all) {
+            return List.of(OrderProtocol.values());
         }
         return selected;
     }

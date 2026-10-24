@@ -1,11 +1,16 @@
 // C 对端独立编译并链接 libtirpc，不使用 Meteor 的 Java 实现。
 def nativeOutput = layout.buildDirectory.dir('native/oncrpc')
+def tirpcInclude = providers.environmentVariable('TIRPC_INCLUDE').getOrElse('/usr/include/tirpc')
+def tirpcDirectory = file(tirpcInclude ?: '/usr/include/tirpc')
 tasks.register('buildOncRpcNativePeers', Exec) {
     group = 'build'
     description = 'Compile independent rpcgen/libtirpc interoperability test peers.'
     inputs.files(fileTree('src/test/native'), fileTree('src/test/rpc'))
+    inputs.property('tirpcInclude', tirpcDirectory.absolutePath)
+    inputs.files(fileTree(tirpcDirectory).matching { include '**/*.h' })
     outputs.dir nativeOutput
-    commandLine 'python3', file('src/test/native/build-native.py'), '--output', nativeOutput.get().asFile
+    commandLine 'python3', file('src/test/native/build-native.py'), '--output', nativeOutput.get().asFile,
+            '--include', tirpcDirectory
 }
 
 tasks.named('test') {

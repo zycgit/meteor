@@ -6,13 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeoutException;
+import net.hasor.cobble.StringUtils;
 import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.example.matrix.OrderMatrixVectors;
 import net.hasor.example.matrix.OrderProtocol;
@@ -25,38 +21,26 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /** 每个协议、连接方式和业务场景单独报告；所有 Meteor 端从 bootstrap 创建并启动。 */
 @RunWith(Parameterized.class)
 public class OrderSelfMatrixTest {
     @ClassRule
-    public static final TemporaryFolder environmentData = new TemporaryFolder();
-    private static OrderRegistryEnvironment environment;
+    public static final TemporaryFolder          environmentData = new TemporaryFolder();
+    private static      OrderRegistryEnvironment environment;
 
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
-    private final OrderProtocol protocol;
-    private final OrderDiscovery discovery;
-    private String scope;
-    private MetConfiguration incoming;
-    private MetConfiguration outgoing;
+    public final  TemporaryFolder  data = new TemporaryFolder();
+    private final OrderProtocol    protocol;
+    private final OrderDiscovery   discovery;
+    private       String           scope;
+    private       MetConfiguration incoming;
+    private       MetConfiguration outgoing;
 
     public OrderSelfMatrixTest(OrderProtocol protocol, OrderDiscovery discovery) {
         this.protocol = protocol;
@@ -66,17 +50,19 @@ public class OrderSelfMatrixTest {
     @Parameterized.Parameters(name = "self/{0}/{1}")
     public static Collection<Object[]> configurations() {
         // 参数枚举只生成独立用例，不在一个测试方法内循环多个业务场景。
-        List<String> protocols = selection("meteor.matrix.protocols");
-        List<String> discoveries = selection("meteor.matrix.discoveries");
+        List<String> availableProtocols = new ArrayList<>();
+        for (OrderProtocol protocol : OrderProtocol.values()) {
+            availableProtocols.add(protocol.protocolName());
+        }
+        List<String> protocols = selection("meteor.matrix.protocols", availableProtocols);
+        List<OrderDiscovery> discoveries = OrderDiscovery.selected();
         List<Object[]> configurations = new ArrayList<>();
         for (OrderProtocol protocol : OrderProtocol.values()) {
             if (!selected(protocol.protocolName(), protocols)) {
                 continue;
             }
-            for (OrderDiscovery discovery : OrderDiscovery.values()) {
-                if (selected(discovery.toString(), discoveries)) {
-                    configurations.add(new Object[] { protocol, discovery });
-                }
+            for (OrderDiscovery discovery : discoveries) {
+                configurations.add(new Object[] { protocol, discovery });
             }
         }
         if (configurations.isEmpty()) {
@@ -287,9 +273,18 @@ public class OrderSelfMatrixTest {
         return consumer.getRsfClient();
     }
 
-    private static List<String> selection(String property) {
+    private static List<String> selection(String property, List<String> available) {
         String value = System.getProperty(property, "*").toLowerCase(Locale.ROOT);
-        return Arrays.stream(value.split(",")).map(String::trim).toList();
+        List<String> selected = new ArrayList<>();
+        for (String token : value.split(",", -1)) {
+            String name = token.trim();
+            boolean wildcard = StringUtils.equals(name, "*") || StringUtils.equals(name, "all");
+            if (!wildcard && !available.contains(name)) {
+                throw new IllegalArgumentException("Unknown selection in " + property + ": " + token);
+            }
+            selected.add(wildcard ? "*" : name);
+        }
+        return selected;
     }
 
     private static boolean selected(String value, List<String> selection) {

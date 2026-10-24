@@ -11,27 +11,22 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
-import net.hasor.example.contract.scalar.ScalarDecimal;
-import net.hasor.example.contract.scalar.ScalarValueProfile;
-import net.hasor.example.contract.scalar.ScalarValueService;
-import net.hasor.example.contract.scalar.ScalarValueServiceImpl;
-import net.hasor.example.contract.scalar.ScalarValueVectors;
+import net.hasor.example.contract.scalar.*;
 import net.hasor.meteor.MetContext;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
 import static org.junit.Assert.assertEquals;
 
 /** BigDecimal 使用精确声明类型；XML-RPC 没有对应任意精度线类型。 */
 @RunWith(Parameterized.class)
 public class ScalarDecimalMatrixTest {
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    public final  TemporaryFolder    data = new TemporaryFolder();
     private final ScalarValueProfile profile;
-    private final String vector;
+    private final String             vector;
 
     public ScalarDecimalMatrixTest(ScalarValueProfile profile, String vector) {
         this.profile = profile;
@@ -44,12 +39,17 @@ public class ScalarDecimalMatrixTest {
         List<Object[]> result = new ArrayList<>();
         List<String> names = ScalarValueVectors.names("decimals");
         for (ScalarValueProfile profile : ScalarValueProfile.values()) {
-            if (profile.isXmlRpc() || !ScalarValueMatrixTest.selected(profile)) {
+            if (!ScalarValueMatrixTest.selected(profile) || profile.isXmlRpc()) {
                 continue;
             }
             for (String name : names) {
                 result.add(new Object[] { profile, name });
             }
+        }
+        if (result.isEmpty()) {
+            String scope = "The requested decimal protocol/profile matrix has no matching cases";
+            String reason = "XML-RPC does not define an arbitrary-precision decimal type";
+            throw new IllegalArgumentException(scope + "; " + reason);
         }
         return result;
     }

@@ -6,21 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
-import net.hasor.example.contract.complex.ComplexCustomer;
-import net.hasor.example.contract.complex.ComplexDocument;
-import net.hasor.example.contract.complex.ComplexIndex;
-import net.hasor.example.contract.complex.ComplexLine;
-import net.hasor.example.contract.complex.ComplexValueProfile;
-import net.hasor.example.contract.complex.ComplexValueService;
-import net.hasor.example.contract.complex.ComplexValueServiceImpl;
-import net.hasor.example.contract.complex.ComplexValueVectors;
+import java.util.*;
+import net.hasor.cobble.StringUtils;
+import net.hasor.example.contract.complex.*;
 import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
@@ -28,35 +16,26 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.realmeteor.environment.discovery.AddressSelectionAwaiter;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /** 第二层公共向量：嵌套对象与集合、声明泛型的 Map 各自独立报告。 */
 @RunWith(Parameterized.class)
 public class ComplexValueMatrixTest {
     @ClassRule
-    public static final TemporaryFolder environmentData = new TemporaryFolder();
-    private static OrderRegistryEnvironment environment;
+    public static final TemporaryFolder          environmentData = new TemporaryFolder();
+    private static      OrderRegistryEnvironment environment;
 
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    public final  TemporaryFolder     data = new TemporaryFolder();
     private final ComplexValueProfile profile;
-    private final OrderDiscovery discovery;
-    private String scope;
-    private MetConfiguration incoming;
-    private MetConfiguration outgoing;
+    private final OrderDiscovery      discovery;
+    private       String              scope;
+    private       MetConfiguration    incoming;
+    private       MetConfiguration    outgoing;
 
     public ComplexValueMatrixTest(ComplexValueProfile profile, OrderDiscovery discovery) {
         this.profile = profile;
@@ -66,9 +45,16 @@ public class ComplexValueMatrixTest {
     @Parameterized.Parameters(name = "complex/self/{0}/{1}")
     public static Collection<Object[]> configurations() {
         // 这里只枚举 profile 和发现方式；两个业务目标仍然是独立的测试方法。
-        List<String> protocols = selection("meteor.matrix.protocols");
-        List<String> profiles = selection("meteor.matrix.complexProfiles");
-        List<String> discoveries = selection("meteor.matrix.discoveries");
+        List<String> availableProtocols = new ArrayList<>();
+        List<String> availableProfiles = new ArrayList<>();
+        for (ComplexValueProfile profile : ComplexValueProfile.values()) {
+            availableProtocols.add(profile.protocolName());
+            availableProtocols.add(profile.toString());
+            availableProfiles.add(profile.toString());
+        }
+        List<String> protocols = selection("meteor.matrix.protocols", availableProtocols);
+        List<String> profiles = selection("meteor.matrix.complexProfiles", availableProfiles);
+        List<OrderDiscovery> discoveries = OrderDiscovery.selected();
         List<Object[]> result = new ArrayList<>();
         for (ComplexValueProfile profile : ComplexValueProfile.values()) {
             if (!selected(profile.protocolName(), protocols) && !selected(profile.toString(), protocols)) {
@@ -77,10 +63,8 @@ public class ComplexValueMatrixTest {
             if (!selected(profile.toString(), profiles)) {
                 continue;
             }
-            for (OrderDiscovery discovery : OrderDiscovery.values()) {
-                if (selected(discovery.toString(), discoveries)) {
-                    result.add(new Object[] { profile, discovery });
-                }
+            for (OrderDiscovery discovery : discoveries) {
+                result.add(new Object[] { profile, discovery });
             }
         }
         if (result.isEmpty()) {
@@ -217,9 +201,18 @@ public class ComplexValueMatrixTest {
         return consumer.getRsfClient();
     }
 
-    private static List<String> selection(String property) {
+    private static List<String> selection(String property, List<String> available) {
         String value = System.getProperty(property, "*").toLowerCase(Locale.ROOT);
-        return Arrays.stream(value.split(",")).map(String::trim).toList();
+        List<String> selected = new ArrayList<>();
+        for (String token : value.split(",", -1)) {
+            String name = token.trim();
+            boolean wildcard = StringUtils.equals(name, "*") || StringUtils.equals(name, "all");
+            if (!wildcard && !available.contains(name)) {
+                throw new IllegalArgumentException("Unknown selection in " + property + ": " + token);
+            }
+            selected.add(wildcard ? "*" : name);
+        }
+        return selected;
     }
 
     private static boolean selected(String value, List<String> selection) {

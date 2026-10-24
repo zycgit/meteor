@@ -24,6 +24,16 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+def resolve_include(configured):
+    # Explicit paths must be valid rather than silently falling back to another installation.
+    selected = configured if configured is not None else os.environ.get("TIRPC_INCLUDE") or "/usr/include/tirpc"
+    include = Path(selected).resolve()
+    require((include / "rpc/rpc.h").is_file(),
+            f"libtirpc headers are missing from {include}; install libtirpc-dev "
+            "or specify the header directory with --include or TIRPC_INCLUDE")
+    return include
+
+
 def invoke(command, log):
     result = subprocess.run(command, text=True, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, timeout=120)
@@ -50,25 +60,21 @@ def libraries(binary):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--include", type=Path)
+    parser.add_argument("--include", type=Path,
+                        help="libtirpc header directory; overrides TIRPC_INCLUDE and /usr/include/tirpc")
     parser.add_argument("--cc", default=os.environ.get("CC", "gcc"))
     parser.add_argument("--peer", choices=("all", "interop", "rpcbind"), default="all")
     args = parser.parse_args()
 
     # Sources and native dependencies are independent of all Java test outputs.
     source = Path(__file__).resolve().parent
-    repository = source.parents[3]
     generated = source / "generated"
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     compiler = shutil.which(args.cc)
     require(compiler is not None, "A C compiler is required for the independent libtirpc test peer")
     compiler = str(Path(compiler).resolve(strict=True))
-    candidates = [Path("/usr/include/tirpc"), repository / "build/oncrpc-stage2-20261017/tools/sysroot/usr/include/tirpc"]
-    if args.include:
-        candidates.insert(0, args.include)
-    include = next((path.resolve() for path in candidates if (path / "rpc/rpc.h").is_file()), None)
-    require(include is not None, "libtirpc headers are required; install libtirpc-dev or supply --include")
+    include = resolve_include(args.include)
     library = ctypes.util.find_library("tirpc")
     require(library is not None and "/" not in library, "The libtirpc shared library is required")
 

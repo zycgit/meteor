@@ -9,14 +9,9 @@ package net.hasor.realmeteor.protocol.soap.python;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.hasor.cobble.StringUtils;
 import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.example.order.Order;
 import net.hasor.example.order.OrderDemoService;
@@ -35,17 +30,11 @@ import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.matrix.OrderDiscovery;
 import net.hasor.realmeteor.matrix.OrderRegistryEnvironment;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /** 独立 Python SOAP SDK 的双向订单矩阵，注册模式明确使用存储发现和登记适配。 */
 @RunWith(Parameterized.class)
@@ -53,12 +42,12 @@ public class SoapPythonOrderInteropTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     @ClassRule
-    public static final TemporaryFolder serverData = new TemporaryFolder();
-    private static OrderRegistryEnvironment environment;
+    public static final TemporaryFolder          serverData = new TemporaryFolder();
+    private static      OrderRegistryEnvironment environment;
 
     @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
-    private final OrderDiscovery discovery;
+    public final  TemporaryFolder data = new TemporaryFolder();
+    private final OrderDiscovery  discovery;
 
     public SoapPythonOrderInteropTest(OrderDiscovery discovery) {
         this.discovery = discovery;
@@ -66,20 +55,9 @@ public class SoapPythonOrderInteropTest {
 
     @Parameterized.Parameters(name = "soap/python/{0}")
     public static Collection<Object[]> configurations() {
-        String filter = System.getProperty("meteor.matrix.discoveries", "*");
         List<Object[]> configurations = new ArrayList<>();
-        for (OrderDiscovery discovery : OrderDiscovery.values()) {
-            for (String selected : filter.split(",")) {
-                boolean all = StringUtils.equals(selected.trim(), "*");
-                boolean match = StringUtils.equalsIgnoreCase(selected.trim(), discovery.toString());
-                if (all || match) {
-                    configurations.add(new Object[] { discovery });
-                    break;
-                }
-            }
-        }
-        if (configurations.isEmpty()) {
-            throw new IllegalArgumentException("No matching Python SOAP discovery configuration");
+        for (OrderDiscovery discovery : OrderDiscovery.selected()) {
+            configurations.add(new Object[] { discovery });
         }
         return configurations;
     }
