@@ -1,0 +1,8 @@
+{
+  "name": "meteor-test-dubbo-2.3.9",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "dubbo2.js": "2.3.9"
+  }
+}

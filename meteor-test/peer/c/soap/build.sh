@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Generate an independent C SOAP binding from the test-owned Echo contract.
+set -euo pipefail
+
+source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+[[ $# == 2 && $1 == --output ]] || { printf 'Usage: %s --output DIRECTORY\n' "$0" >&2; exit 2; }
+mkdir -p -- "$2"
+output_dir=$(cd -- "$2" && pwd)
+contract="$source_dir/../../../src/test/resources/soap/wsdl/echo.wsdl"
+
+# A private SDK prefix selects both generators and runtime, leaving system tools intact.
+sdk_prefix=${SOAP_SDK_PREFIX:-}
+wsdl2h=wsdl2h
+soapcpp2=soapcpp2
+imports=/usr/share/gsoap/import
+generator_options=()
+compiler_options=(-lgsoap)
+if [[ -n $sdk_prefix ]]; then
+    wsdl2h="$sdk_prefix/bin/wsdl2h"
+    soapcpp2="$sdk_prefix/bin/soapcpp2"
+    imports="$sdk_prefix/share/gsoap/import"
+    generator_options=(-t "$sdk_prefix/share/gsoap/typemap.dat")
+    compiler_options=(-I "$sdk_prefix/include" "$sdk_prefix/lib/libgsoap.a")
+fi
+
+# Generated source belongs to the disposable runtime volume, never the checkout.
+"$wsdl2h" "${generator_options[@]}" -c -o "$output_dir/echo.h" "$contract"
+"$soapcpp2" -c -L -x -I"$imports" -d "$output_dir" "$output_dir/echo.h"
+gcc -std=c11 -D_DEFAULT_SOURCE -O2 -Wall -Wextra -I "$output_dir" "$source_dir/peer.c" \
+    "$output_dir/soapC.c" "$output_dir/soapClient.c" "$output_dir/soapServer.c" \
+    "${compiler_options[@]}" -o "$output_dir/peer"
+if [[ -n $sdk_prefix ]]; then
+    cp -- "$sdk_prefix/sdk-version.txt" "$output_dir/sdk-version.txt"
+else
+    dpkg-query -W -f='${Package} ${Version}\n' gsoap libgsoap-dev > "$output_dir/sdk-version.txt"
+fi

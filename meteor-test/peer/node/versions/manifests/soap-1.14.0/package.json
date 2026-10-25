@@ -1,0 +1,8 @@
+{
+  "name": "meteor-test-soap-1.14.0",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "soap": "1.14.0"
+  }
+}

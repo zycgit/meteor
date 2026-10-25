@@ -1,0 +1,8 @@
+# Official Apache Dubbo Python beta and its pinned runtime dependencies.
+apache-dubbo==3.0.0b1
+h2==4.4.1
+hpack==4.2.0
+hyperframe==6.1.0
+protobuf==7.36.2
+psutil==7.2.2
+uvloop==0.23.0

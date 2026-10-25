@@ -1,0 +1,10 @@
+{
+  "name": "meteor-test-grpcweb-2.1.1",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "grpc-web": "2.1.1",
+    "google-protobuf": "4.0.3",
+    "playwright": "1.64.0"
+  }
+}

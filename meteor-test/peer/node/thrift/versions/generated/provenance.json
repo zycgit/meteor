@@ -1,0 +1,8 @@
+{
+  "source": "meteor-test/peer/node/thrift/versions/version-echo.thrift",
+  "sourceSha256": "54bc1ad69b448666eb6720ff21130b45ffc2157fcb38a95f8d9dfdf73bb8a5a6",
+  "generator": "Apache Thrift Compiler 0.17.0",
+  "runtimeVersions": ["0.12.0", "0.14.2", "0.23.0", "0.25.0"],
+  "command": "thrift --gen js:node -out meteor-test/peer/node/thrift/versions/generated meteor-test/peer/node/thrift/versions/version-echo.thrift",
+  "compatibility": "Official generated callback client and processor pass actual SDK loopback for String and full signed i64 using Binary, Compact and JSON."
+}

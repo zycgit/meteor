@@ -1,0 +1,10 @@
+{
+  "name": "meteor-test-oncrpc-node",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Unmodified Triton ONC RPC SDK source pinned to its upstream commit",
+  "dependencies": {
+    "bunyan": "1.8.15",
+    "oncrpc": "https://codeload.github.com/TritonDataCenter/node-oncrpc/tar.gz/aff0a96d39a8d56aad993e39c7c1156539a8472f"
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "profiles": [
+    {
+      "profile": "connect-1.7.0",
+      "protocol": "connect",
+      "sdk": "Connect-ES",
+      "package": "@connectrpc/connect",
+      "version": "1.7.0",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "connect-2.3.0",
+      "protocol": "connect",
+      "sdk": "Connect-ES",
+      "package": "@connectrpc/connect",
+      "version": "2.3.0",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "jsonrpc-2.1.2",
+      "protocol": "jsonrpc",
+      "sdk": "Jayson",
+      "package": "jayson",
+      "version": "2.1.2",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "jsonrpc-3.7.0",
+      "protocol": "jsonrpc",
+      "sdk": "Jayson",
+      "package": "jayson",
+      "version": "3.7.0",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "jsonrpc-4.3.0",
+      "protocol": "jsonrpc",
+      "sdk": "Jayson",
+      "package": "jayson",
+      "version": "4.3.0",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "jsonrpc-5.0.0",
+      "protocol": "jsonrpc",
+      "sdk": "Jayson",
+      "package": "jayson",
+      "version": "5.0.0",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "soap-0.45.0",
+      "protocol": "soap",
+      "sdk": "node-soap",
+      "package": "soap",
+      "version": "0.45.0",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "soap-1.14.0",
+      "protocol": "soap",
+      "sdk": "node-soap",
+      "package": "soap",
+      "version": "1.14.0",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "grpcweb-1.5.0",
+      "protocol": "grpc-web",
+      "sdk": "grpc-web",
+      "package": "grpc-web",
+      "version": "1.5.0",
+      "roles": [
+        "consumer"
+      ]
+    },
+    {
+      "profile": "grpcweb-2.1.1",
+      "protocol": "grpc-web",
+      "sdk": "grpc-web",
+      "package": "grpc-web",
+      "version": "2.1.1",
+      "roles": [
+        "consumer"
+      ]
+    },
+    {
+      "profile": "thrift-0.12.0",
+      "protocol": "thrift",
+      "sdk": "Apache Thrift",
+      "package": "thrift",
+      "version": "0.12.0",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "thrift-0.14.2",
+      "protocol": "thrift",
+      "sdk": "Apache Thrift",
+      "package": "thrift",
+      "version": "0.14.2",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "thrift-0.23.0",
+      "protocol": "thrift",
+      "sdk": "Apache Thrift",
+      "package": "thrift",
+      "version": "0.23.0",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "thrift-0.25.0",
+      "protocol": "thrift",
+      "sdk": "Apache Thrift",
+      "package": "thrift",
+      "version": "0.25.0",
+      "roles": [
+        "consumer",
+        "provider"
+      ]
+    },
+    {
+      "profile": "dubbo-1.0.4",
+      "protocol": "dubbo",
+      "sdk": "dubbo2.js",
+      "package": "dubbo2.js",
+      "version": "1.0.4",
+      "roles": [
+        "consumer"
+      ]
+    },
+    {
+      "profile": "dubbo-2.3.9",
+      "protocol": "dubbo",
+      "sdk": "dubbo2.js",
+      "package": "dubbo2.js",
+      "version": "2.3.9",
+      "roles": [
+        "consumer"
+      ]
+    }
+  ]
+}

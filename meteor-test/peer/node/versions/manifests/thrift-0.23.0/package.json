@@ -1,0 +1,9 @@
+{
+  "name": "meteor-test-thrift-0.23.0",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "thrift": "0.23.0",
+    "node-int64": "0.4.0"
+  }
+}

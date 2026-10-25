@@ -1,0 +1,12 @@
+{
+  "name": "meteor-triple-alpha-sdk-interop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Independent Apache Dubbo Triple alpha Node and browser SDK peers",
+  "dependencies": {
+    "@apachedubbo/dubbo": "3.0.0-alpha",
+    "@apachedubbo/dubbo-node": "3.0.0-alpha",
+    "@apachedubbo/dubbo-web": "3.0.0-alpha",
+    "@bufbuild/protobuf": "1.10.1"
+  }
+}

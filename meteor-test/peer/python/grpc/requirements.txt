@@ -1,0 +1,6 @@
+# Official gRPC Python packages and their complete pinned runtime/tool dependencies.
+grpcio==1.85.0
+grpcio-tools==1.85.0
+protobuf==7.36.2
+setuptools==84.0.0
+typing_extensions==4.16.0

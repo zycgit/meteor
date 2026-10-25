@@ -1,0 +1,21 @@
+syntax = "proto3";
+package meteor.example;
+
+option java_package = "net.hasor.example";
+option java_outer_classname = "OrderContract";
+option go_package = "meteor.example/orders;orders";
+
+message Order {
+  int32 id = 1;
+  string description = 2;
+  bytes attachment = 3;
+}
+
+message OrderQuery {
+  int32 id = 1;
+}
+
+service OrderDemoService {
+  rpc save (Order) returns (Order);
+  rpc find (OrderQuery) returns (Order);
+}

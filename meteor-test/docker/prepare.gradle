@@ -1,0 +1,70 @@
+import groovy.json.JsonOutput
+import java.security.MessageDigest
+
+// 独立准备构建只配置此脚本，读取的源码工程始终保持只读。
+def source = providers.gradleProperty('nxn.source').map { file(it) }.getOrElse(file('/source'))
+ext.nxnWorkspace = providers.gradleProperty('nxn.workspace').map { file(it) }
+    .getOrElse(file('/workspace/meteor'))
+ext.nxnPeerDirectory = providers.gradleProperty('nxn.peers').map { file(it) }
+    .getOrElse(file('/opt/meteor-peer'))
+ext.nxnPreparationDirectory = new File(nxnWorkspace, 'meteor-test/build/preparation')
+ext.nxnWriteJson = { File destination, Object value ->
+    destination.parentFile.mkdirs()
+    destination.setText(JsonOutput.prettyPrint(JsonOutput.toJson(value)) + '\n', 'UTF-8')
+}
+ext.nxnSha256 = { File input ->
+    def digest = MessageDigest.getInstance('SHA-256')
+    input.withInputStream { stream ->
+        byte[] buffer = new byte[65536]
+        int count
+        while ((count = stream.read(buffer)) != -1) {
+            digest.update(buffer, 0, count)
+        }
+    }
+    HexFormat.of().formatHex(digest.digest())
+}
+
+tasks.register('prepareWorkspace') {
+    description = 'Copy the read-only checkout and Maven seed into fresh container-owned volumes.'
+    doLast {
+        def workspace = nxnWorkspace
+        if (workspace.exists() && !fileTree(workspace).isEmpty()) {
+            throw new GradleException("A test workspace must be fresh: ${workspace}")
+        }
+        def excludedDirectories = ['.git', '.gradle', 'build', 'target', 'node_modules',
+            '.venv', '__pycache__', '.idea', 'met-example'] as Set
+        copy {
+            from source
+            into workspace
+            exclude { details ->
+                def segments = details.relativePath.segments
+                def name = details.name
+                segments.any { excludedDirectories.contains(it) } ||
+                    name == '.env' || name.startsWith('.env.') || name.endsWith('.log')
+            }
+        }
+
+        // 先记录源快照，再创建本轮产物，避免将证据自身计入源文件清单。
+        def sourceHashes = new TreeMap<String, String>()
+        fileTree(workspace).files.sort().each { input ->
+            def relative = workspace.toPath().relativize(input.toPath()).toString().replace('\\', '/')
+            sourceHashes[relative] = nxnSha256(input)
+        }
+        nxnWriteJson(new File(nxnPreparationDirectory, 'source-sha256.json'), sourceHashes)
+        def mavenSeed = providers.gradleProperty('nxn.mavenSeed').map { file(it) }
+            .getOrElse(file('/source-maven'))
+        def mavenDirectory = providers.gradleProperty('nxn.maven').map { file(it) }
+            .getOrElse(file('/root/.m2'))
+        if (mavenSeed.isDirectory()) {
+            copy {
+                from mavenSeed
+                into new File(mavenDirectory, 'repository/net/hasor')
+            }
+        }
+        nxnPeerDirectory.mkdirs()
+        delete fileTree(nxnPeerDirectory) { include 'runtime-*.ready.json' }
+        def result = [sourceFiles: sourceHashes.size(), metExampleIncluded: false, prepared: true]
+        nxnWriteJson(new File(nxnPreparationDirectory, 'preparation.json'), result)
+        logger.lifecycle(JsonOutput.toJson(result))
+    }
+}

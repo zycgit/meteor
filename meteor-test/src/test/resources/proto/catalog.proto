@@ -1,0 +1,14 @@
+syntax = "proto3";
+package meteor.example.stream;
+
+message Item {
+  string name = 1;
+  int32 count = 2;
+}
+
+service CatalogStreamService {
+  rpc echo (Item) returns (Item);
+  rpc list (Item) returns (stream Item);
+  rpc sum (stream Item) returns (Item);
+  rpc exchange (stream Item) returns (stream Item);
+}

@@ -1,0 +1,4 @@
+connectrpc==0.10.1
+protoc-gen-connectrpc==0.10.1
+protobuf==7.36.2
+waitress==3.0.2

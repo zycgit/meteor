@@ -1,0 +1,9 @@
+{
+  "source": "meteor-test/peer/node/thrift/versions/version-echo.thrift",
+  "sourceSha256": "54bc1ad69b448666eb6720ff21130b45ffc2157fcb38a95f8d9dfdf73bb8a5a6",
+  "generator": "Apache Thrift Compiler 0.25.0",
+  "runtimeVersions": ["0.25.0"],
+  "sourceArchive": "https://archive.apache.org/dist/thrift/0.25.0/thrift-0.25.0.tar.gz",
+  "sourceArchiveSha256": "66da4707214c54c94bac082103dc67adaf9e08925662700f269170a7b534b214",
+  "command": "thrift --gen js:node,bigint -out meteor-test/peer/node/thrift/versions/generated-bigint meteor-test/peer/node/thrift/versions/version-echo.thrift"
+}

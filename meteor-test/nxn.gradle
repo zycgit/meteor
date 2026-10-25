@@ -1,0 +1,1357 @@
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import org.gradle.api.tasks.options.Option
+import org.gradle.work.DisableCachingByDefault
+
+import javax.xml.stream.XMLInputFactory
+import javax.xml.stream.XMLStreamConstants
+import java.nio.channels.OverlappingFileLockException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.nio.file.AtomicMoveNotSupportedException
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import java.util.regex.Pattern
+
+@DisableCachingByDefault(because = 'Runs independent Docker processes and always archives their results.')
+abstract class MeteorDockerTask extends DefaultTask {
+    @Internal boolean cleanupOnly = false
+    @Internal String groups = System.getenv('METEOR_TEST_GROUPS') ?: '16'
+    @Internal String platform = System.getenv('METEOR_TEST_PLATFORM')
+    @Internal String mavenSeed
+    @Internal String runId
+    @Internal boolean buildImages = false
+    @Internal boolean noBuild = false
+    @Internal boolean keepWorkspace = false
+    @Internal boolean prepareOnly = false
+    @Internal boolean skipError = true
+    @Internal List<String> selectors = []
+
+    private File repository
+    private File artifacts
+    private File diagnostics
+    private File scriptStateDirectory
+    private File controlDirectory
+    private File ownerDirectory
+    private Map ownerRecord
+    private boolean ownsControlDirectory
+    private int cancellationCode
+    private String dockerExecutable
+    private Map<String, String> environment = [:]
+    private List<String> compose
+    private final AtomicBoolean servicesReady = new AtomicBoolean()
+    private volatile boolean executionStarted = false
+    private Process serviceLogs
+    private volatile Process activeCommand
+    private Thread serviceLogPump
+    private final AtomicReference<Throwable> serviceLogFailure = new AtomicReference<>()
+    private final AtomicBoolean stoppingServiceLogs = new AtomicBoolean()
+    private int exitCode = 1
+    private final AtomicBoolean finishing = new AtomicBoolean()
+    private CountDownLatch finished = new CountDownLatch(1)
+
+    @Option(option = 'groups', description = 'Concurrent scenarios, from 1 to 16; defaults to 16.')
+    void chooseGroups(String value) { groups = value }
+
+    @Option(option = 'skipError', description = 'Continue remaining testcases after errors: true (default) or false.')
+    void chooseSkipError(String value) {
+        if (!(value in ['true', 'false'])) {
+            throw new GradleException('skipError must be true or false.')
+        }
+        skipError = value == 'true'
+    }
+
+    @Option(option = 'platform', description = 'Docker platform: linux/amd64 or linux/arm64.')
+    void choosePlatform(String value) { platform = value }
+
+    @Option(option = 'maven-seed', description = 'Optional local net/hasor Maven directory to seed container builds.')
+    void chooseMavenSeed(String value) { mavenSeed = value }
+
+    @Option(option = 'tests', description = 'JUnit class or method filter; may be repeated.')
+    void chooseTests(List<String> values) { selectors.addAll(values) }
+
+    @Option(option = 'no-build', description = 'Use existing images without building or pulling them.')
+    void skipImageBuild(boolean value) { noBuild = value }
+
+    @Option(option = 'rebuild', description = 'Rebuild toolchain images before starting the test environment.')
+    void rebuildImages(boolean value) { buildImages = value }
+
+    @Option(option = 'keep-workspace', description = 'Retain this run workspace volume after cleanup.')
+    void retainWorkspace(boolean value) { keepWorkspace = value }
+
+    @Option(option = 'prepare-only', description = 'Prepare all services, retain the workspace, and run no testcases.')
+    void prepareServicesOnly(boolean value) { prepareOnly = value }
+
+    @TaskAction
+    void runDocker() {
+        // 取消请求独立于 Gradle 客户端连接；入口和重启都请求同一轮任务收尾。
+        ownerDirectory = project.rootProject.file('meteor-test/build/meteor-test-control').canonicalFile
+        ownerDirectory.mkdirs()
+        def provided = project.providers.environmentVariable('METEOR_TEST_CONTROL_DIRECTORY').orNull
+        ownsControlDirectory = !provided
+        controlDirectory = provided ? new File(provided) :
+            Files.createTempDirectory(ownerDirectory.toPath(), 'control.').toFile()
+        controlDirectory.mkdirs()
+        def owner = new RandomAccessFile(new File(ownerDirectory, 'docker.lock'), 'rw')
+        try {
+            def lock = acquireEnvironment(owner)
+            try {
+                def current = ProcessHandle.current()
+                ownerRecord = [schemaVersion: 1, ownerId: UUID.randomUUID().toString(),
+                    repository: project.rootProject.projectDir.canonicalPath,
+                    pid: current.pid(), startedAt: current.info().startInstant().orElseThrow().toString(),
+                    processIdentity: processIdentity(current),
+                    controlDirectory: controlDirectory.canonicalPath,
+                    entryPid: project.providers.environmentVariable('METEOR_TEST_ENTRY_PID').orNull ?: '']
+                publishOwner()
+                try {
+                    executeDocker()
+                } catch (Throwable problem) {
+                    if (!cleanupOnly && ownerRecord.runId == null) {
+                        reportStartupFailure(problem)
+                    }
+                    throw problem
+                }
+            } finally {
+                clearOwner()
+                lock.release()
+            }
+        } finally {
+            owner.close()
+            if (ownsControlDirectory) {
+                new File(controlDirectory, 'cancel.request').delete()
+                controlDirectory.delete()
+            }
+        }
+    }
+
+    private void reportStartupFailure(Throwable problem) {
+        // 前置检查失败也替换旧结果；旧环境配置仅用于下次核验和清理残留资源。
+        repository = project.rootProject.projectDir.canonicalFile
+        artifacts = new File(repository, 'meteor-test/build/docker-runs')
+        def recorded = new File(artifacts, 'compose.env')
+        byte[] previousEnvironment = recorded.isFile() ? recorded.bytes : null
+        project.delete(artifacts, new File(repository, 'meteor-test/report.md'))
+        artifacts.mkdirs()
+        diagnostics = artifacts
+        if (previousEnvironment != null) {
+            new File(artifacts, 'compose.env').bytes = previousEnvironment
+        }
+
+        // 本轮启动异常直接落盘，报告不读取上一轮用例结果。
+        def stack = new StringWriter()
+        problem.printStackTrace(new PrintWriter(stack))
+        write('launcher-error.txt', stack.toString())
+        write('exit-code.txt', exitCode.toString() + '\n')
+
+        // 外层校时恢复和脚本汇总继续使用同一个固定目录。
+        def scriptState = project.providers.environmentVariable('METEOR_TEST_SCRIPT_STATE_DIR').orNull
+        if (scriptState) {
+            scriptStateDirectory = new File(scriptState)
+            new File(scriptStateDirectory, 'artifacts').setText(artifacts.absolutePath + '\n', 'UTF-8')
+            captureScriptErrors()
+        }
+        writeTestReport([tests: 0, failed: 0, skipped: 0], [], false)
+        logger.lifecycle("Docker test artifacts: ${artifacts}")
+    }
+
+    private def acquireEnvironment(RandomAccessFile owner) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(300)
+        long nextMessage = 0
+        boolean requested = false
+        while (true) {
+            def lock = null
+            try {
+                lock = owner.channel.tryLock()
+            } catch (OverlappingFileLockException ignored) {
+                // 同一个 Gradle JVM 内的另一个构建也必须先完成自身清理。
+            }
+            if (lock != null) {
+                return lock
+            }
+            if (cleanupOnly) {
+                throw new GradleException('The fixed meteor-test environment is already in use.')
+            }
+            if (!requested) {
+                requestPreviousStop()
+                requested = true
+            }
+            if (observeCancellation()) {
+                throw new GradleException('Test startup was cancelled while waiting for the previous run.')
+            }
+            long now = System.nanoTime()
+            if (now >= deadline) {
+                throw new GradleException('Previous test did not finish cleanup; a new run was not started.')
+            }
+            if (now >= nextMessage) {
+                logger.lifecycle('[restart] Waiting for the previous test to stop, archive logs and release the environment.')
+                nextMessage = now + TimeUnit.SECONDS.toNanos(15)
+            }
+            Thread.sleep(100)
+        }
+    }
+
+    private void requestPreviousStop() {
+        def recordFile = new File(ownerDirectory, 'docker.owner.json')
+        if (!recordFile.isFile()) {
+            throw new GradleException('The fixed meteor-test environment is already in use; its owner is unknown.')
+        }
+        def previous = new JsonSlurper().parse(recordFile) as Map
+        def previousControl = previous.controlDirectory ? new File(previous.controlDirectory.toString()) : null
+        def process = previous.pid instanceof Number ? ProcessHandle.of(previous.pid.longValue()).orElse(null) : null
+        def repositoryPath = project.rootProject.projectDir.canonicalPath
+        boolean valid = previous.schemaVersion == 1 && previous.ownerId && previous.repository == repositoryPath
+        valid &= previousControl != null && process?.isAlive()
+        valid &= process != null && previous.processIdentity && processIdentity(process) == previous.processIdentity
+        if (valid && !previousControl.isDirectory()) {
+            // 入口异常退出可能已删除控制目录；仅恢复仓库控制目录内已验证任务的请求位置。
+            valid &= previousControl.canonicalFile.parentFile == ownerDirectory.canonicalFile
+            valid &= previousControl.name.startsWith('control.')
+            if (valid) {
+                previousControl.mkdirs()
+            }
+        }
+        valid &= previousControl?.isDirectory()
+        if (!valid) {
+            throw new GradleException('Existing test owner could not be verified; no process was stopped.')
+        }
+        writeAtomic(new File(previousControl, 'cancel.request'), 'RESTART\n')
+        logger.lifecycle("[restart] Requested the previous test to stop: ${previous.runId ?: previous.ownerId}")
+    }
+
+    private static String processIdentity(ProcessHandle process) {
+        // Linux 的启动 tick 和 boot ID 不受 WSL 墙钟回拨影响，也能识别 PID 复用。
+        def status = new File("/proc/${process.pid()}/stat")
+        def boot = new File('/proc/sys/kernel/random/boot_id')
+        if (status.isFile() && boot.isFile()) {
+            def record = status.getText('UTF-8')
+            def fields = record.substring(record.lastIndexOf(')') + 2).split('\\s+')
+            return boot.getText('UTF-8').trim() + ':' + fields[19]
+        }
+        process.info().startInstant().orElseThrow().toString()
+    }
+
+    private void publishOwner() {
+        writeAtomic(new File(ownerDirectory, 'docker.owner.json'),
+            JsonOutput.prettyPrint(JsonOutput.toJson(ownerRecord)) + '\n')
+        writeAtomic(new File(ownerDirectory, 'docker.control'),
+            new File(controlDirectory, 'cancel.request').absolutePath + '\n' + ownerRecord.entryPid + '\n')
+    }
+
+    private void clearOwner() {
+        def recordFile = new File(ownerDirectory, 'docker.owner.json')
+        if (ownerRecord != null && recordFile.isFile()) {
+            def recorded = new JsonSlurper().parse(recordFile) as Map
+            if (recorded.ownerId == ownerRecord.ownerId) {
+                recordFile.delete()
+                // Shell 入口还要等待 sudo 校时恢复，控制指针由入口在最后退出时移除。
+                if (!ownerRecord.entryPid) {
+                    new File(ownerDirectory, 'docker.control').delete()
+                }
+            }
+        }
+    }
+
+    private boolean observeCancellation() {
+        if (cancellationCode != 0) {
+            return true
+        }
+        def request = controlDirectory == null ? null : new File(controlDirectory, 'cancel.request')
+        if (!request?.isFile()) {
+            return false
+        }
+        def signal = request.getText('UTF-8').trim()
+        if (!signal) {
+            return false
+        }
+        if (!(signal in ['INT', 'TERM', 'RESTART'])) {
+            throw new GradleException('Invalid test cancellation request: ' + signal)
+        }
+        cancellationCode = signal == 'TERM' ? 143 : 130
+        exitCode = cancellationCode
+        logger.lifecycle("[cancel] ${signal}: stopping test commands; logs, archival and cleanup remain active.")
+        def report = artifacts == null ? null : new File(artifacts, 'report.md')
+        if (!cleanupOnly && report?.isFile()) {
+            def text = report.getText('UTF-8').replaceFirst('(?m)^结果：通过', '结果：失败（用户取消）')
+            report.setText(text, 'UTF-8')
+            new File(repository, 'meteor-test/report.md').setText(text, 'UTF-8')
+        }
+        true
+    }
+
+    private static void writeAtomic(File target, String text) {
+        def temporary = Files.createTempFile(target.parentFile.toPath(), '.meteor-control-', '.tmp')
+        try {
+            Files.writeString(temporary, text)
+            try {
+                Files.move(temporary, target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(temporary, target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        } finally {
+            Files.deleteIfExists(temporary)
+        }
+    }
+
+    private void executeDocker() {
+        repository = project.rootProject.projectDir.canonicalFile
+        dockerExecutable = findDocker()
+        if (observeCancellation()) {
+            throw new GradleException('Test startup was cancelled before Docker initialization.')
+        }
+        if (cleanupOnly) {
+            recoverRun()
+            return
+        }
+        if (buildImages && noBuild) {
+            throw new GradleException('--rebuild and --no-build cannot be used together.')
+        }
+        if (!(groups ==~ /([1-9]|1[0-6])/)) {
+            throw new GradleException('Groups must be an integer from 1 to 16.')
+        }
+        if (selectors.any { !it?.trim() }) {
+            throw new GradleException('Test selectors must not be empty.')
+        }
+        def seed = mavenSeed == null ? new File(System.getProperty('user.home'), '.m2/repository/net/hasor') :
+            project.rootProject.file(mavenSeed)
+        if (mavenSeed != null && !seed.isDirectory()) {
+            throw new GradleException("Maven seed directory does not exist: ${seed}")
+        }
+
+        // 宿主只验证 Docker；Java、SDK 和其它语言均在常驻容器中编译。
+        requireDocker(['compose', 'version'])
+        if (requireDocker(['info', '--format', '{{.OSType}}']).trim() != 'linux') {
+            throw new GradleException('Switch Docker to Linux containers.')
+        }
+        if (!platform) {
+            def architecture = requireDocker(['info', '--format', '{{.Architecture}}']).trim()
+            switch (architecture) {
+                case ['amd64', 'x86_64']: platform = 'linux/amd64'; break
+                case ['arm64', 'aarch64']: platform = 'linux/arm64'; break
+                default: throw new GradleException("Unsupported Docker architecture: ${architecture}")
+            }
+        }
+        if (!(platform in ['linux/amd64', 'linux/arm64'])) {
+            throw new GradleException("Unsupported platform: ${platform}")
+        }
+        def architecture = platform.substring(6)
+        def cacheKey = System.getenv('METEOR_TEST_CACHE_KEY') ?: architecture
+        if (!(cacheKey ==~ /[a-zA-Z0-9][a-zA-Z0-9_.-]*/)) {
+            throw new GradleException('Invalid METEOR_TEST_CACHE_KEY.')
+        }
+        // 新一轮先归档并终止能确认归属的旧环境，再使用相同名称启动。
+        def existing = environmentResources('meteor-test')
+        if (!existing.isEmpty()) {
+            recoverPreviousEnvironment(existing)
+        }
+        if (observeCancellation()) {
+            throw new GradleException('Test startup was cancelled after the previous run finished cleanup.')
+        }
+        // 先完成旧环境回收，再清空固定输出；新一轮不能沿用旧 XML 或旧成功报告。
+        artifacts = new File(repository, 'meteor-test/build/docker-runs')
+        project.delete(artifacts, new File(repository, 'meteor-test/report.md'))
+        runId = newRunId()
+        diagnostics = artifacts
+        new File(artifacts, 'meteor-test/build').mkdirs()
+        ownerRecord.runId = runId
+        publishOwner()
+        // 外层校时管理在测试清理后恢复状态，再将脚本结果追加到同一轮报告。
+        def scriptState = project.providers.environmentVariable('METEOR_TEST_SCRIPT_STATE_DIR').orNull
+        if (scriptState) {
+            scriptStateDirectory = new File(scriptState)
+            new File(scriptStateDirectory, 'artifacts').setText(artifacts.absolutePath + '\n', 'UTF-8')
+        }
+        if (!seed.isDirectory()) {
+            seed = new File(artifacts, 'empty-seed')
+            seed.mkdirs()
+        }
+        environment = [
+            METEOR_TEST_ROOT: portable(repository),
+            METEOR_TEST_PROJECT: 'meteor-test',
+            METEOR_TEST_RUN_ID: runId,
+            METEOR_TEST_PLATFORM: platform,
+            METEOR_TEST_ARCH: architecture,
+            METEOR_TEST_GROUPS: groups,
+            METEOR_TEST_CACHE_KEY: cacheKey,
+            METEOR_TEST_MAVEN_SEED: portable(seed.canonicalFile)
+        ]
+        compose = ['compose', '--project-directory', repository.absolutePath,
+            '-f', new File(repository, 'meteor-test/docker/compose.yml').absolutePath]
+        keepWorkspace |= prepareOnly
+        write('compose.env', environment.collect { key, value -> "${key}=${value}" }.join('\n') + '\n')
+        write('test-selectors.txt', selectors.collectMany { ['--tests', it] }.join('\n') + '\n')
+        logger.lifecycle("Docker test reports: ${artifacts}")
+
+        // 正常命令由 Gradle 管理取消；退出后的归档和清理使用独立、有界进程。
+        def hook = new Thread({ finishRun(true) }, "meteor-test-cleanup-${runId}")
+        Runtime.runtime.addShutdownHook(hook)
+        long started = System.nanoTime()
+        Throwable failure = null
+        try {
+            requireDocker(['version'], 'docker-version.txt')
+            requireDocker(['compose', 'version'], 'compose-version.txt')
+            requireDocker(['volume', 'create', 'meteor-test-gradle-' + cacheKey], 'cache-volume.log', true)
+            // 默认复用工具链镜像；Compose 只构建缺失镜像，显式要求时才重建。
+            if (buildImages) {
+                requireDocker(compose + ['build'], 'build.log', true)
+            }
+            // 先创建容器再订阅日志，随后启动并等待健康检查；准备任务的输出也直接进入控制台。
+            def startup = ['create']
+            if (noBuild) {
+                startup.addAll(['--no-build', '--pull', 'never'])
+            }
+            requireDocker(compose + startup, 'create.log', true)
+            startServiceLogs()
+            requireDocker(compose + ['start', '--wait'], 'startup.log', true)
+            servicesReady.set(true)
+            recordImages()
+            if (prepareOnly) {
+                logger.lifecycle('Runtime services are ready; no testcase was executed.')
+                exitCode = 0
+            } else {
+                def execution = ['exec', '-T', 'runner',
+                    '/workspace/meteor/meteor-test/build/install/meteor-test/bin/meteor-test', 'run',
+                    '--runtime', '/workspace/meteor/meteor-test/peer/java/meteor/build/execution/runtime.json',
+                    '--output', '/workspace/meteor/meteor-test/build/groups', '--groups', groups,
+                    '--container', environment.METEOR_TEST_PROJECT + '-java-meteor', '--run-id', runId,
+                    '--skipError', skipError.toString()]
+                execution.addAll(selectors.collectMany { ['--tests', it] })
+                exitCode = docker(compose + execution, 'execution.log', true).exitCode
+            }
+        } catch (Throwable problem) {
+            failure = problem
+            logger.error('Docker test launcher failed.', problem)
+            new File(diagnostics, 'launcher-error.txt').withPrintWriter('UTF-8') { writer ->
+                problem.printStackTrace(writer)
+            }
+        } finally {
+            try {
+                finishRun()
+            } finally {
+                try {
+                    Runtime.runtime.removeShutdownHook(hook)
+                } catch (IllegalStateException ignored) {
+                    // JVM 已开始退出时，已注册的钩子仍通过同一个所有权标记收尾。
+                }
+                observeCancellation()
+                write('exit-code.txt', exitCode.toString() + '\n')
+                def result = [runId: runId, groups: groups.toInteger(), exitCode: exitCode,
+                    seconds: (System.nanoTime() - started) / 1_000_000_000d,
+                    prepareOnly: prepareOnly, keepWorkspace: keepWorkspace, skipError: skipError]
+                write('launcher.json', JsonOutput.prettyPrint(JsonOutput.toJson(result)) + '\n')
+            }
+        }
+        if (failure != null) {
+            throw new GradleException("Docker test launch failed; see ${artifacts}", failure)
+        }
+        if (exitCode != 0) {
+            throw new GradleException("Docker test failed with exit code ${exitCode}; see ${artifacts}")
+        }
+    }
+
+    private void recoverPreviousEnvironment(List<Map> existing) {
+        def previous = existing.collect { it.runId }.unique()
+        boolean known = previous.size() == 1 && previous[0] instanceof String
+        known &= previous[0] ==~ /[0-9]{8}t[0-9]{6}z-[a-f0-9]{8}/
+        known &= existing.every { it.project == 'meteor-test' }
+        def archived = known ? new File(repository, 'meteor-test/build/docker-runs/compose.env') : null
+        if (!archived?.isFile()) {
+            throw new GradleException('The fixed meteor-test environment still exists, but its archived owner ' +
+                'could not be verified; no resources were removed.')
+        }
+        logger.lifecycle('[restart] Archiving and cleaning the previous environment.')
+        boolean retainNewWorkspace = keepWorkspace
+        try {
+            runId = previous[0]
+            cleanupOnly = true
+            keepWorkspace = false
+            recoverRun()
+        } finally {
+            // 一轮收尾结束后才重新初始化调度状态，随后覆盖固定报告目录。
+            runId = null
+            cleanupOnly = false
+            keepWorkspace = retainNewWorkspace
+            artifacts = null
+            diagnostics = null
+            environment = [:]
+            compose = null
+            finishing.set(false)
+            finished = new CountDownLatch(1)
+            exitCode = cancellationCode ?: 1
+        }
+    }
+
+    private void recordImages() {
+        def images = requireDocker(compose + ['config', '--images']).readLines().findAll { it }.toSorted().unique()
+        def records = []
+        for (String image : images) {
+            def format = '{{.Os}}/{{.Architecture}}{{"\\t"}}{{json .}}'
+            def record = requireDocker(['image', 'inspect', '--format', format, image]).trim().split('\t', 2)
+            if (record.length != 2 || record[0] != platform) {
+                exitCode = 2
+                throw new GradleException("Image ${image} does not match platform ${platform}.")
+            }
+            records.add(record[1])
+        }
+        write('images.jsonl', records.join('\n') + '\n')
+    }
+
+    private void recoverRun() {
+        artifacts = new File(repository, 'meteor-test/build/docker-runs')
+        def recorded = new File(artifacts, 'compose.env')
+        if (!recorded.isFile()) {
+            throw new GradleException("Run configuration does not exist: ${recorded}")
+        }
+        environment = recorded.readLines('UTF-8').collectEntries { line ->
+            def entry = line.split('=', 2)
+            if (entry.length != 2) {
+                throw new GradleException("Invalid recorded run configuration: ${recorded}")
+            }
+            [(entry[0]): entry[1]]
+        }
+        def recordedRun = environment.METEOR_TEST_RUN_ID
+        if (!(recordedRun ==~ /[0-9]{8}t[0-9]{6}z-[a-f0-9]{8}/)) {
+            throw new GradleException('Recorded configuration has an invalid run identity.')
+        }
+        if (runId != null && runId != recordedRun) {
+            throw new GradleException('Recorded configuration does not identify the previous environment.')
+        }
+        runId = recordedRun
+        def keys = ['ROOT', 'PROJECT', 'RUN_ID', 'PLATFORM', 'ARCH', 'GROUPS', 'CACHE_KEY', 'MAVEN_SEED']
+            .collect { 'METEOR_TEST_' + it }.toSet()
+        if (environment.keySet() != keys ||
+            environment.METEOR_TEST_PROJECT != 'meteor-test' ||
+            new File(environment.METEOR_TEST_ROOT).canonicalFile != repository) {
+            throw new GradleException('Recorded configuration does not belong to this repository and run.')
+        }
+        // 固定名称可属于更新的一轮，旧归档只能清理带有自身运行标记的资源。
+        def existing = environmentResources(environment.METEOR_TEST_PROJECT)
+        def expectedProject = environment.METEOR_TEST_PROJECT
+        if (existing.any { it.project != expectedProject || it.runId != runId }) {
+            throw new GradleException('The Docker environment belongs to another run; cleanup was not started.')
+        }
+        compose = ['compose', '--project-directory', repository.absolutePath,
+            '-f', new File(repository, 'meteor-test/docker/compose.yml').absolutePath]
+        diagnostics = new File(artifacts, 'recovery')
+        project.delete(diagnostics)
+        diagnostics.mkdirs()
+        // 恢复仅记录本次清理结果，保留原测试退出码与原始诊断。
+        exitCode = 0
+        finishRun()
+        if (exitCode != 0) {
+            throw new GradleException("Run recovery failed; see ${diagnostics}")
+        }
+    }
+
+    private List<Map> environmentResources(String projectName, long deadline = 0) {
+        def label = "label=com.docker.compose.project=${projectName}".toString()
+        def queries = [container: ['ps', '-aq', '--filter', label],
+            network: ['network', 'ls', '-q', '--filter', label],
+            volume: ['volume', 'ls', '-q', '--filter', label]]
+        def names = [container: "name=^/?${projectName}-[a-z]".toString(),
+            network: "name=^${projectName}[-_](network|default)\$".toString(),
+            volume: "name=^${projectName}-(peer|maven|workspace)\$".toString()]
+        int sequence = 0
+        def resources = []
+        for (def entry : queries.entrySet()) {
+            def kind = entry.key
+            def query = entry.value
+            // 名称检查同时识别没有 Compose 标签的同名资源，避免借用并删除外部数据。
+            def named = new ArrayList(query)
+            named[-1] = names[kind]
+            def identities = []
+            for (def selection : [query, named]) {
+                def logName = "ownership-${sequence++}.log".toString()
+                identities.addAll(resourceOutput(selection, deadline, logName).readLines())
+            }
+            identities = identities.findAll { it }.unique()
+            if (!identities.isEmpty()) {
+                def logName = "ownership-${sequence++}.log".toString()
+                def json = resourceOutput([kind, 'inspect'] + identities, deadline, logName)
+                def inspected = new JsonSlurper().parseText(json)
+                for (def resource : inspected) {
+                    def labels = resource.Config?.Labels ?: resource.Labels ?: [:]
+                    resources.add([kind: kind, name: resource.Name,
+                        project: labels['com.docker.compose.project'], runId: labels['net.hasor.meteor.test.run']])
+                }
+            }
+        }
+        resources
+    }
+
+    private String resourceOutput(List<String> arguments, long deadline, String logName) {
+        if (deadline == 0) {
+            return requireDocker(arguments)
+        }
+        def result = cleanupDocker(arguments, logName, deadline)
+        if (result.exitCode != 0) {
+            throw new GradleException('Could not verify Docker environment ownership before cleanup.')
+        }
+        result.output
+    }
+
+    protected void finishRun(boolean shutdown = false) {
+        if (!finishing.compareAndSet(false, true)) {
+            finished.await(185, TimeUnit.SECONDS)
+            return
+        }
+        boolean interrupted = Thread.interrupted()
+        if (shutdown) {
+            cancellationCode = 143
+            exitCode = 143
+            def command = activeCommand
+            if (command?.isAlive()) {
+                stopCommand(command)
+                command.waitFor(5, TimeUnit.SECONDS)
+            }
+        }
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(180)
+        try {
+            def projectName = environment.METEOR_TEST_PROJECT
+            def existing = environmentResources(projectName, deadline)
+            boolean legacy = projectName != 'meteor-test'
+            if (existing.any { it.project != projectName ||
+                (it.runId != runId && !(legacy && !it.runId)) }) {
+                keepWorkspace = true
+                markFailure('Docker environment ownership changed; resources were not removed.')
+                return
+            }
+            def runner = projectName + '-runner'
+            def label = "label=com.docker.compose.project=${projectName}".toString()
+            if ((executionStarted || cleanupOnly) && !finishRunner(runner, deadline)) {
+                keepWorkspace = true
+                markFailure('Runner cancellation or final cleanup was not confirmed; workspace retained.')
+            }
+            cleanupDocker(compose + ['config'], 'compose.yaml', deadline)
+            cleanupDocker(compose + ['logs', '--no-color'], 'services.log', deadline)
+            cleanupDocker(['ps', '-a', '--filter', label, '--format', '{{json .}}'], 'containers.jsonl', deadline)
+            def inspection = cleanupDocker(['container', 'inspect', runner], 'runner.json', deadline)
+            if (inspection.exitCode == 0) {
+                def source = runner + ':/workspace/meteor/meteor-test/build/.'
+                def target = new File(artifacts, 'meteor-test/build')
+                target.mkdirs()
+                def archive = cleanupDocker(['cp', source, target.absolutePath], 'archive-copy.log', deadline, 90)
+                if (archive.exitCode != 0) {
+                    keepWorkspace = true
+                    markFailure('Report archival failed; workspace retained.')
+                }
+            } else if (servicesReady.get()) {
+                keepWorkspace = true
+                markFailure('Runner disappeared before archival; workspace retained.')
+            }
+
+            // Nacos 的缓存和通知诊断保存在容器文件中，关闭容器前另行归档。
+            long diagnosticDeadline = deadline - TimeUnit.SECONDS.toNanos(60)
+            if (System.nanoTime() < diagnosticDeadline) {
+                def nacos = projectName + '-nacos'
+                def nacosState = cleanupDocker(['container', 'inspect', nacos], 'nacos.json', diagnosticDeadline)
+                if (nacosState.exitCode == 0) {
+                    def nacosLogs = new File(artifacts, 'nacos-logs')
+                    nacosLogs.mkdirs()
+                    cleanupDocker(['cp', nacos + ':/home/nacos/logs/.', nacosLogs.absolutePath],
+                        'nacos-log-copy.log', diagnosticDeadline, 20)
+                }
+            } else {
+                logger.warn('Nacos server log archival skipped to reserve 60 seconds for resource cleanup.')
+            }
+
+            // Compose 只关闭本轮服务；三个私有卷显式删除，共享 Gradle 缓存保留。
+            if (serviceLogs != null && !serviceLogs.isAlive()) {
+                serviceLogFailure.compareAndSet(null,
+                    new IOException('Container log forwarding ended before cleanup.'))
+            }
+            stoppingServiceLogs.set(true)
+            boolean cleanupFailed = cleanupDocker(compose + ['down', '--remove-orphans'],
+                'cleanup.log', deadline, 60).exitCode != 0
+            for (String suffix : ['peer', 'maven', 'workspace']) {
+                if (suffix == 'workspace' && keepWorkspace) {
+                    continue
+                }
+                def volume = projectName + '-' + suffix
+                if (cleanupDocker(['volume', 'inspect', volume], "inspect-${suffix}.log", deadline).exitCode == 0) {
+                    if (cleanupDocker(['volume', 'rm', volume], "cleanup-${suffix}.log", deadline).exitCode != 0) {
+                        cleanupFailed = true
+                    }
+                }
+            }
+            def containers = cleanupDocker(['ps', '-aq', '--filter', label], 'remaining-containers.txt', deadline)
+            def networks = cleanupDocker(['network', 'ls', '-q', '--filter', label], 'remaining-networks.txt', deadline)
+            boolean containersRemain = containers.exitCode != 0 || containers.output.trim()
+            boolean networksRemain = networks.exitCode != 0 || networks.output.trim()
+            if (containersRemain || networksRemain) {
+                cleanupFailed = true
+            }
+            if (cleanupFailed) {
+                markFailure("Resource cleanup failed; see ${diagnostics}")
+            }
+        } catch (Throwable problem) {
+            logger.error('Archive or cleanup failed.', problem)
+            markFailure('Archive or cleanup failed: ' + problem)
+        } finally {
+            try {
+                stopServiceLogs()
+                observeCancellation()
+                if (!cleanupOnly && !prepareOnly) {
+                    captureScriptErrors()
+                    printTestSummary()
+                }
+                observeCancellation()
+                write(cleanupOnly ? 'recovery-exit-code.txt' : 'exit-code.txt', exitCode.toString() + '\n')
+                logger.lifecycle("Docker test artifacts: ${artifacts}")
+                if (keepWorkspace) {
+                    logger.lifecycle("Workspace retained: ${environment.METEOR_TEST_PROJECT}-workspace")
+                }
+            } finally {
+                finished.countDown()
+                if (interrupted) {
+                    Thread.currentThread().interrupt()
+                }
+            }
+        }
+    }
+
+    private void printTestSummary() {
+        def results = new File(artifacts, 'meteor-test/build/test-results/test')
+        def reports = results.listFiles()?.findAll { it.name.startsWith('TEST-') && it.name.endsWith('.xml') }
+        if (!reports) {
+            markFailure('JUnit results unavailable; the run cannot be verified.')
+            logger.lifecycle("[result] JUnit results unavailable; exit code ${exitCode}.")
+            writeTestReport([tests: 0, failed: 0, skipped: 0], [], false)
+            return
+        }
+
+        // 只扫描本轮合并后的 XML，不加载包含全部进程证据的大型 JSON，也不重复统计分组报告。
+        def totals = [tests: 0, failed: 0, skipped: 0]
+        def failures = []
+        boolean complete = true
+        def factory = XMLInputFactory.newFactory()
+        factory.setProperty(XMLInputFactory.SUPPORT_DTD, false)
+        factory.setProperty('javax.xml.stream.isSupportingExternalEntities', false)
+        for (File report : reports.sort { it.name }) {
+            try {
+                report.withInputStream { input ->
+                    def reader = factory.createXMLStreamReader(input)
+                    String identity = null
+                    boolean failed = false
+                    boolean skipped = false
+                    try {
+                        while (reader.hasNext()) {
+                            int event = reader.next()
+                            if (event == XMLStreamConstants.END_ELEMENT && reader.localName == 'testcase') {
+                                totals.tests++
+                                // 同一用例可能先因 assumption 跳过，再在 @After 中失败；失败优先。
+                                if (failed) {
+                                    totals.failed++
+                                } else if (skipped) {
+                                    totals.skipped++
+                                }
+                                identity = null
+                            }
+                            if (event != XMLStreamConstants.START_ELEMENT) {
+                                continue
+                            }
+                            String element = reader.localName
+                            if (element == 'testcase') {
+                                identity = reader.getAttributeValue(null, 'classname') + '#' +
+                                    reader.getAttributeValue(null, 'name')
+                                failed = false
+                                skipped = false
+                            } else if (identity != null && element in ['failure', 'error'] && !failed) {
+                                failed = true
+                                def reason = reader.getAttributeValue(null, 'message') ?:
+                                    reader.getAttributeValue(null, 'type') ?: 'Test failed.'
+                                failures.add("[FAIL] ${identity}: ${reason}".toString())
+                            } else if (identity != null && element == 'skipped' && !skipped) {
+                                skipped = true
+                            }
+                        }
+                    } finally {
+                        reader.close()
+                    }
+                }
+            } catch (Exception problem) {
+                // 摘要失败照常暴露异常；已有测试和清理失败码保持不变。
+                complete = false
+                logger.error("Cannot read archived JUnit result: ${report}", problem)
+            }
+        }
+        if (!complete) {
+            markFailure('Archived JUnit results could not be read completely.')
+        }
+        if (totals.tests == 0) {
+            markFailure('Archived JUnit results contain no executed testcase.')
+        }
+        if (totals.failed != 0 || totals.skipped != 0) {
+            markFailure('Archived JUnit results contain failed or skipped testcases.')
+        }
+        int passed = totals.tests - totals.failed - totals.skipped
+        def label = complete ? '[result] Tests' : '[result] Partial JUnit results: tests'
+        logger.lifecycle("${label} ${totals.tests}, passed ${passed}, failed ${totals.failed}, " +
+            "skipped ${totals.skipped}; exit code ${exitCode}.")
+        for (String failure : failures) {
+            logger.error(failure)
+        }
+        writeTestReport(totals, failures, complete)
+    }
+
+    private void writeTestReport(Map totals, List<String> failures, boolean complete) {
+        observeCancellation()
+        // 优先复用 Java 已验收的报告，不加载包含全部进程证据的大型 JSON。
+        def reportDirectory = new File(artifacts, 'meteor-test/build/interoperability')
+        def verified = new File(reportDirectory, 'report.md')
+        def reportRoot = new File(repository, 'meteor-test').toPath()
+        String text
+        if (verified.isFile()) {
+            def summaryFile = new File(reportDirectory, 'summary.json')
+            def summaryPath = reportRoot.relativize(summaryFile.toPath()).toString().replace('\\', '/')
+            text = verified.getText('UTF-8').replace('[summary.json](summary.json)',
+                "[summary.json](${summaryPath})")
+            if (exitCode != 0) {
+                text = text.replaceFirst('(?m)^结果：通过', '结果：失败（含运行阶段异常）')
+            }
+        } else {
+            // 启动或聚合失败时仍保留本轮可见 XML，不能借用旧报告。
+            def passed = totals.tests - totals.failed - totals.skipped
+            def status = exitCode == 0 && complete ? '通过' : '失败'
+            def selection = selectors ? selectors.collect { "`${it}`" }.join('、') : '全部'
+            def lines = ['# Meteor RPC 测试报告', '',
+                "结果：${status}。skipError=${skipError}。", '',
+                "筛选：${selection}。", '',
+                "通过 ${passed} 项，失败 ${totals.failed} 项，跳过 ${totals.skipped} 项。", '']
+            if (!complete) {
+                lines += ['JUnit 结果不可用或不完整，未执行的用例不计为通过或跳过。', '']
+            }
+            if (failures) {
+                lines += ['## 失败用例', '']
+                lines += failures.collect { '- ' + it.substring('[FAIL] '.length()) }
+                lines += ['']
+            }
+            text = lines.join('\n')
+        }
+        def scriptErrors = new File(artifacts, 'script-errors.tsv')
+        if (scriptErrors.isFile() && scriptErrors.length() != 0) {
+            text += '\n## 运行脚本异常\n\n'
+            text += scriptErrors.readLines('UTF-8').findAll { it }
+                .collect { '- ' + it.replace('\t', ': ') }.join('\n') + '\n'
+        }
+        def archivePath = reportRoot.relativize(artifacts.toPath()).toString().replace('\\', '/')
+        text += "\n完整日志与 XML：[本轮归档](${archivePath})\n"
+        write('report.md', text)
+        new File(repository, 'meteor-test/report.md').setText(text, 'UTF-8')
+        logger.lifecycle("Markdown test report: ${new File(artifacts, 'report.md')}")
+    }
+
+    private void captureScriptErrors() {
+        if (scriptStateDirectory == null) {
+            return
+        }
+        def errors = new File(scriptStateDirectory, 'errors.tsv')
+        if (errors.isFile()) {
+            // 只影响最终结果，准备阶段的脚本错误不阻止本轮用例执行。
+            write('script-errors.tsv', errors.getText('UTF-8'))
+            for (String error : errors.readLines('UTF-8').findAll { it }) {
+                markFailure('[script] ' + error.replace('\t', ': '))
+            }
+        }
+    }
+
+    private boolean finishRunner(String runner, long deadline) {
+        def statePath = '/workspace/meteor/meteor-test/build/groups.runner-state.json'
+        long waitUntil = Math.min(deadline, System.nanoTime() + TimeUnit.SECONDS.toNanos(60))
+        boolean requested = false
+        while (System.nanoTime() < waitUntil) {
+            def response = cleanupDocker(['exec', runner, 'cat', statePath], 'runner-state.json', waitUntil)
+            if (response.exitCode != 0) {
+                if (cleanupOnly) {
+                    // Earlier runs and prepare-only workspaces have no active Java run state.
+                    return true
+                }
+                // Cancellation can arrive before the Java entrypoint has published its initial state.
+                Thread.sleep(250)
+                continue
+            }
+            Map state
+            try {
+                state = new JsonSlurper().parseText(response.output) as Map
+            } catch (Exception problem) {
+                write('runner-handshake-error.txt', 'Invalid runner state: ' + problem + '\n')
+                return false
+            }
+            if (state.runId != runId) {
+                write('runner-handshake-error.txt', 'Runner state belongs to another run.\n')
+                return false
+            }
+            if (state.state == 'finished') {
+                if (!(state.exitCode instanceof Number)) {
+                    write('runner-handshake-error.txt', 'Finished runner has no exit code.\n')
+                    return false
+                }
+                if (!cleanupOnly && state.exitCode != 0 && exitCode == 0) {
+                    markFailure('Runner reported a failed execution: ' + state.error)
+                }
+                boolean clean = state.cleanupComplete == true
+                boolean cancellationRequested = requested || new File(diagnostics, 'runner-cancel.json').isFile()
+                write('runner-handshake.json', JsonOutput.prettyPrint(JsonOutput.toJson([
+                    runId: runId, requestedCancellation: cancellationRequested,
+                    cleanupComplete: clean, state: state])) + '\n')
+                return clean
+            }
+            if (state.state != 'running') {
+                write('runner-handshake-error.txt', 'Unknown runner state: ' + state.state + '\n')
+                return false
+            }
+            if (!requested) {
+                if (!publishRunnerCancellation(runner, waitUntil)) {
+                    return false
+                }
+                requested = true
+                if (exitCode == 0) {
+                    markFailure('Docker exec returned while its JUnit runner was still active.')
+                }
+            }
+            Thread.sleep(250)
+        }
+        write('runner-handshake-error.txt', 'Runner did not confirm final cleanup before the deadline.\n')
+        return false
+    }
+
+    private boolean publishRunnerCancellation(String runner, long deadline) {
+        // 先上传再原子发布；保留原 exec 连接，让容器内测试输出停止和清理日志。
+        def request = new File(diagnostics, 'runner-cancel.json')
+        def payload = [schemaVersion: 1, runId: runId, requestedAt: Instant.now().toString()]
+        request.setText(JsonOutput.prettyPrint(JsonOutput.toJson(payload)) + '\n', 'UTF-8')
+        def uploaded = '/workspace/meteor/meteor-test/build/groups.cancel.upload'
+        def copy = cleanupDocker(['cp', request.absolutePath, runner + ':' + uploaded],
+            'runner-cancel-copy.log', deadline)
+        if (copy.exitCode != 0) {
+            return false
+        }
+        def published = '/workspace/meteor/meteor-test/build/groups.cancel.json'
+        cleanupDocker(['exec', runner, 'mv', uploaded, published],
+            'runner-cancel-publish.log', deadline).exitCode == 0
+    }
+
+    private void markFailure(String message) {
+        logger.error(message)
+        if (exitCode == 0) {
+            exitCode = 1
+        }
+    }
+
+    private void startServiceLogs() {
+        def output = new File(diagnostics, 'startup-services.log')
+        def errors = new File(diagnostics, 'startup-services.stderr.log')
+        def builder = new ProcessBuilder([dockerExecutable] + compose +
+            ['logs', '--follow', '--no-color', '--timestamps'])
+        builder.directory(repository)
+        builder.environment().putAll(environment)
+        builder.redirectOutput(output)
+        builder.redirectError(errors)
+        serviceLogs = builder.start()
+        serviceLogs.outputStream.close()
+        def process = serviceLogs
+        def failures = serviceLogFailure
+        def stopping = stoppingServiceLogs
+        def taskLogger = logger
+        def groupCount = groups
+        def isReady = servicesReady
+
+        // 任务持有日志进程和转发线程；直接转发字节，不按日志内容过滤或截断。
+        serviceLogPump = new Thread({
+            long offset = 0
+            long errorOffset = 0
+            long nextProgress = System.nanoTime() + TimeUnit.SECONDS.toNanos(15)
+            try {
+                while (true) {
+                    boolean stopped = process.waitFor(100, TimeUnit.MILLISECONDS)
+                    offset = MeteorDockerTask.echoLog(output, offset, false)
+                    errorOffset = MeteorDockerTask.echoLog(errors, errorOffset, true)
+                    if (stopped) {
+                        if (!stopping.get()) {
+                            def problem = new IOException('Container log forwarding ended before cleanup.')
+                            failures.compareAndSet(null, problem)
+                            taskLogger.error(problem.message, problem)
+                        }
+                        break
+                    }
+                    long now = System.nanoTime()
+                    if (!isReady.get() && now >= nextProgress) {
+                        taskLogger.lifecycle('[startup] Waiting for container preparation and health checks; ' +
+                            'groups 0/' + groupCount + ', cases 0, failed 0, skipped 0.')
+                        nextProgress = now + TimeUnit.SECONDS.toNanos(15)
+                    }
+                }
+            } catch (Throwable problem) {
+                failures.compareAndSet(null, problem)
+                taskLogger.error('Container log forwarding failed.', problem)
+                MeteorDockerTask.stopCommand(process)
+            }
+        }, "meteor-test-service-logs-${runId}")
+        serviceLogPump.start()
+    }
+
+    private void stopServiceLogs() {
+        if (serviceLogs == null) {
+            return
+        }
+        // 先停止自己创建的 Compose 进程树，再等转发线程读完日志尾部。
+        stoppingServiceLogs.set(true)
+        stopCommand(serviceLogs)
+        serviceLogs.waitFor(5, TimeUnit.SECONDS)
+        serviceLogPump.join(5000)
+        if (serviceLogPump.isAlive()) {
+            serviceLogPump.interrupt()
+            markFailure('Container log forwarding did not stop.')
+        }
+        if (serviceLogFailure.get() != null) {
+            markFailure('Container log forwarding ended before cleanup; see startup-services logs.')
+        }
+    }
+
+    private static long echoLog(File source, long offset, boolean stderr) {
+        forwardLog(source, offset, null, true, stderr)
+    }
+
+    private static long forwardLog(File source, long offset, OutputStream archive, boolean echo, boolean stderr) {
+        if (!source.isFile()) {
+            return offset
+        }
+        new RandomAccessFile(source, 'r').withCloseable { input ->
+            input.seek(offset)
+            byte[] buffer = new byte[8192]
+            int count
+            def console = stderr ? System.err : System.out
+            while ((count = input.read(buffer)) != -1) {
+                archive?.write(buffer, 0, count)
+                if (echo) {
+                    console.write(buffer, 0, count)
+                    console.flush()
+                }
+            }
+            archive?.flush()
+            input.filePointer
+        }
+    }
+
+    private String requireDocker(List<String> arguments, String logName = null, boolean echo = false) {
+        def result = docker(arguments, logName, echo)
+        if (result.exitCode != 0) {
+            if (!echo) {
+                if (logName == null) {
+                    logger.error(result.output)
+                } else {
+                    echoLog(new File(diagnostics, logName), 0, true)
+                }
+            }
+            exitCode = result.exitCode
+            throw new GradleException("Docker failed with exit code ${result.exitCode}: ${arguments[0]}")
+        }
+        result.output
+    }
+
+    private Map docker(List<String> arguments, String logName = null, boolean echo = false) {
+        if (observeCancellation()) {
+            return [exitCode: cancellationCode, output: 'Test cancellation requested.']
+        }
+        // 文件先接收完整输出，控制台独立追读；测试执行期间保留原 exec 直到 runner 收尾。
+        boolean temporary = logName == null
+        boolean runnerExecution = logName == 'execution.log'
+        def output = temporary ? File.createTempFile('docker-', '.stdout', controlDirectory) :
+            new File(diagnostics, logName + '.stdout.log')
+        def errors = temporary ? File.createTempFile('docker-', '.stderr', controlDirectory) :
+            new File(diagnostics, logName + '.stderr.log')
+        def archive = temporary ? null : new File(diagnostics, logName).newOutputStream()
+        Process process = null
+        try {
+            def builder = new ProcessBuilder([dockerExecutable] + arguments)
+            builder.directory(repository)
+            builder.environment().putAll(environment)
+            builder.redirectOutput(output)
+            builder.redirectError(errors)
+            process = builder.start()
+            activeCommand = process
+            process.outputStream.close()
+            if (runnerExecution) {
+                executionStarted = true
+            }
+            long offset = 0
+            long errorOffset = 0
+            boolean cancelled = false
+            long cancelDeadline = 0
+            while (true) {
+                boolean stopped = process.waitFor(100, TimeUnit.MILLISECONDS)
+                offset = forwardLog(output, offset, archive, echo, false)
+                errorOffset = forwardLog(errors, errorOffset, archive, true, true)
+                if (observeCancellation()) {
+                    if (!cancelled) {
+                        cancelled = true
+                        if (runnerExecution && !stopped) {
+                            cancelDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60)
+                            def runner = environment.METEOR_TEST_PROJECT + '-runner'
+                            if (!publishRunnerCancellation(runner, cancelDeadline)) {
+                                cancelDeadline = 0
+                            }
+                        }
+                    }
+                    if (!runnerExecution || (!stopped && System.nanoTime() >= cancelDeadline)) {
+                        if (runnerExecution) {
+                            logger.error('Runner did not stop through its cancellation control; stopping its exec CLI.')
+                        }
+                        stopCommand(process)
+                        process.waitFor(5, TimeUnit.SECONDS)
+                        forwardLog(output, offset, archive, echo, false)
+                        forwardLog(errors, errorOffset, archive, true, true)
+                        break
+                    }
+                }
+                if (stopped) {
+                    break
+                }
+            }
+            [exitCode: cancelled ? cancellationCode : process.exitValue(),
+                output: temporary ? output.getText('UTF-8') : '']
+        } finally {
+            try {
+                if (process?.isAlive()) {
+                    stopCommand(process)
+                    process.waitFor(5, TimeUnit.SECONDS)
+                }
+            } finally {
+                archive?.close()
+                if (activeCommand == process) {
+                    activeCommand = null
+                }
+                if (temporary) {
+                    output.delete()
+                    errors.delete()
+                }
+            }
+        }
+    }
+
+    private Map cleanupDocker(List<String> arguments, String logName, long deadline, int timeoutSeconds = 20) {
+        def log = new File(diagnostics, logName)
+        def errors = new File(diagnostics, logName + '.stderr.log')
+        boolean capture = logName in ['remaining-containers.txt', 'remaining-networks.txt', 'runner-state.json'] ||
+            logName.startsWith('ownership-')
+        // 查询结果和完整快照只供归档，命令诊断始终显示；操作命令的 stdout 同步转发。
+        boolean echo = logName.startsWith('cleanup') || logName == 'archive-copy.log'
+        long remaining = deadline - System.nanoTime()
+        if (remaining <= 0) {
+            logger.error("Docker cleanup deadline exceeded: ${arguments}")
+            log.setText('Cleanup deadline exceeded.\n', 'UTF-8')
+            return [exitCode: 124, output: 'Cleanup deadline exceeded.']
+        }
+        Process process = null
+        try {
+            def builder = new ProcessBuilder([dockerExecutable] + arguments)
+            builder.directory(repository)
+            builder.environment().putAll(environment)
+            builder.redirectOutput(log)
+            builder.redirectError(errors)
+            process = builder.start()
+            long timeout = Math.min(remaining, TimeUnit.SECONDS.toNanos(timeoutSeconds))
+            long commandDeadline = System.nanoTime() + timeout
+            long offset = 0
+            long errorOffset = 0
+            while (true) {
+                boolean stopped = process.waitFor(100, TimeUnit.MILLISECONDS)
+                if (echo) { offset = echoLog(log, offset, false) }
+                errorOffset = echoLog(errors, errorOffset, true)
+                if (stopped) {
+                    break
+                }
+                if (System.nanoTime() >= commandDeadline) {
+                    stopCommand(process)
+                    process.waitFor(5, TimeUnit.SECONDS)
+                    echoLog(log, echo ? offset : 0, true)
+                    echoLog(errors, errorOffset, true)
+                    logger.error("Docker cleanup command timed out: ${arguments}")
+                    log.append('\nDocker cleanup command timed out.\n', 'UTF-8')
+                    return [exitCode: 124, output: capture ? log.getText('UTF-8') : '']
+                }
+            }
+            if (process.exitValue() != 0 && !echo) {
+                echoLog(log, 0, true)
+            }
+            [exitCode: process.exitValue(), output: capture ? log.getText('UTF-8') : '']
+        } catch (Exception problem) {
+            if (process != null) {
+                stopCommand(process)
+            }
+            Thread.interrupted()
+            logger.error("Docker cleanup command failed: ${arguments}", problem)
+            log.append('\nDocker cleanup command failed: ' + problem + '\n', 'UTF-8')
+            [exitCode: 1, output: capture ? log.getText('UTF-8') : '']
+        }
+    }
+
+    private void write(String name, String contents) {
+        new File(diagnostics, name).setText(contents, 'UTF-8')
+    }
+
+    private static void stopCommand(Process process) {
+        // Docker CLI 可能带有 Compose 插件子进程，超时只清理自己创建的命令树。
+        process.toHandle().descendants().forEach { child -> child.destroyForcibly() }
+        process.destroyForcibly()
+    }
+
+    private String findDocker() {
+        // 显式固定本轮 Docker 路径，避免常驻 Gradle JVM 使用首次启动时的 PATH。
+        boolean windows = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+        def names = windows ? ['docker.exe', 'docker.cmd', 'docker.bat', 'docker'] : ['docker']
+        def path = project.providers.environmentVariable('PATH').getOrElse('')
+        for (String directory : path.split(Pattern.quote(File.pathSeparator))) {
+            for (String name : names) {
+                def candidate = new File(directory, name)
+                if (candidate.isFile() && (windows || candidate.canExecute())) {
+                    return candidate.absolutePath
+                }
+            }
+        }
+        throw new GradleException('Docker is required and must be available on PATH.')
+    }
+
+    private static String portable(File file) { file.absolutePath.replace('\\', '/') }
+
+    private static String newRunId() {
+        def formatter = DateTimeFormatter.ofPattern("yyyyMMdd't'HHmmss'z'").withZone(ZoneOffset.UTC)
+        def timestamp = formatter.format(Instant.now())
+        timestamp + '-' + UUID.randomUUID().toString().replace('-', '').substring(0, 8)
+    }
+}
+
+tasks.register('dockerTest', MeteorDockerTask) {
+    group = 'verification'
+    description = 'Run the complete Docker matrix with 16 concurrent scenarios; host compilation is not required.'
+}
+
+tasks.register('dockerCleanup', MeteorDockerTask) {
+    group = 'verification'
+    description = 'Archive and clean a recorded Docker run without changing its original test result.'
+    cleanupOnly = true
+}
+
+abstract class NxnReportTask extends JavaExec {
+    @Internal String baseline
+    @Internal File reportDirectory
+    @Internal File archiveDirectory
+
+    @Option(option = 'baseline', description = 'Previous selected-cases.json for exact case identity comparison.')
+    void chooseBaseline(String value) { baseline = value }
+}
+
+abstract class NxnTypeReportTask extends JavaExec {
+    @Internal String runDirectory
+    @Internal String output
+    @Internal String expectations
+    @Internal String detailsPrefix
+    @Internal String cCatalog
+
+    @Option(option = 'run-directory', description = 'Interoperability report directory to read.')
+    void chooseRunDirectory(String value) { runDirectory = value }
+
+    @Option(option = 'output', description = 'Markdown support matrix destination.')
+    void chooseOutput(String value) { output = value }
+
+    @Option(option = 'expectations', description = 'Support expectations JSON; defaults to the test matrix resource.')
+    void chooseExpectations(String value) { expectations = value }
+
+    @Option(option = 'details-prefix', description = 'Optional prefix for machine-readable report details.')
+    void chooseDetailsPrefix(String value) { detailsPrefix = value }
+
+    @Option(option = 'c-catalog', description = 'Optional native C datatype catalog JSON.')
+    void chooseCCatalog(String value) { cCatalog = value }
+}
+
+plugins.withId('application') {
+    // 报告维护只编译纯框架，不依赖 Meteor 应用或 SDK 的构建与运行图。
+    tasks.register('nxnReport', NxnReportTask) {
+        group = 'verification'
+        description = 'Rebuild the current report in its fixed directory without rerunning testcases.'
+        dependsOn tasks.named('classes')
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = application.mainClass
+        ignoreExitValue = true
+        doFirst {
+            def archive = rootProject.file('meteor-test/build/docker-runs')
+            archiveDirectory = archive
+            def manifest = new File(archive, 'meteor-test/build/groups/manifest.json')
+            if (!manifest.isFile()) {
+                throw new GradleException("Run manifest does not exist: ${manifest}")
+            }
+            def destination = new File(archive, 'meteor-test/build')
+            reportDirectory = new File(destination, 'interoperability')
+            project.delete(reportDirectory)
+            args = ['report', '--manifest', manifest.absolutePath, '--build-directory', destination.absolutePath]
+            if (baseline != null) {
+                args += ['--baseline', rootProject.file(baseline).absolutePath]
+            }
+        }
+        doLast {
+            // 复用 Java 写出的失败清单和未执行范围，脚本只补充外层阶段结果。
+            def summaryFile = new File(reportDirectory, 'summary.json')
+            def target = rootProject.file('meteor-test/report.md')
+            def reportRoot = target.parentFile.toPath()
+            def summaryPath = reportRoot.relativize(summaryFile.toPath()).toString().replace('\\', '/')
+            def scriptErrors = new File(archiveDirectory, 'script-errors.tsv')
+            def stageErrors = scriptErrors.isFile() ? scriptErrors.readLines('UTF-8').findAll { it } : []
+            def scriptExit = new File(archiveDirectory, 'script-exit-code.txt')
+            boolean scriptFailed = scriptExit.isFile() && scriptExit.getText('UTF-8').trim() != '0'
+            boolean failed = executionResult.get().exitValue != 0 || stageErrors || scriptFailed
+            def markdown = new File(reportDirectory, 'report.md')
+            failed |= !markdown.isFile()
+            String text = markdown.isFile() ? markdown.getText('UTF-8') :
+                '# Meteor RPC 测试报告\n\n结果：失败。未能生成完整结果，详见报告命令日志。\n'
+            text = text.replace('[summary.json](summary.json)', "[summary.json](${summaryPath})")
+            if (failed) {
+                text = text.replaceFirst('(?m)^结果：通过', '结果：失败（含脚本异常）')
+            }
+            if (stageErrors) {
+                text += '\n## 运行脚本异常\n\n'
+                text += stageErrors.collect { '- ' + it.replace('\t', ': ') }.join('\n') + '\n'
+            }
+            def archivePath = reportRoot.relativize(archiveDirectory.toPath()).toString().replace('\\', '/')
+            text += "\n完整日志与 XML：[本轮归档](${archivePath})\n"
+            target.setText(text, 'UTF-8')
+            new File(archiveDirectory, 'report.md').setText(text, 'UTF-8')
+            logger.lifecycle("Markdown test report: ${target}")
+            if (failed) {
+                throw new GradleException("Test run failed; see ${target}")
+            }
+        }
+    }
+
+    tasks.register('nxnTypeReport', NxnTypeReportTask) {
+        group = 'verification'
+        description = 'Generate the Markdown language, RPC and datatype support matrix from a selected report.'
+        dependsOn tasks.named('classes')
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = application.mainClass
+        systemProperty 'meteor.test.root', project.projectDir.absolutePath
+        doFirst {
+            if (!runDirectory?.trim() || !output?.trim()) {
+                throw new GradleException('nxnTypeReport requires --run-directory PATH and --output PATH.')
+            }
+            def reportDirectory = rootProject.file(runDirectory)
+            if (!reportDirectory.isDirectory()) {
+                throw new GradleException("Report directory does not exist: ${reportDirectory}")
+            }
+            args = ['types', '--run-directory', reportDirectory.absolutePath,
+                '--expectations', rootProject.file(expectations ?:
+                    'meteor-test/src/test/resources/matrix/type-support-expectations.json').absolutePath,
+                '--output', rootProject.file(output).absolutePath]
+            if (detailsPrefix != null) {
+                args += ['--details-prefix', rootProject.file(detailsPrefix).absolutePath]
+            }
+            if (cCatalog != null) {
+                args += ['--c-catalog', rootProject.file(cCatalog).absolutePath]
+            }
+        }
+    }
+}

@@ -1,0 +1,372 @@
+name: ${METEOR_TEST_PROJECT:-meteor-test}
+
+x-environment: &environment
+  METEOR_TEST_RUN_ID: ${METEOR_TEST_RUN_ID:?}
+  METEOR_TEST_RUNNER_HOST: java-meteor.meteor.test
+  METEOR_TEST_NETWORK: ${METEOR_TEST_PROJECT:?}-network
+  METEOR_TEST_SERVICE_JAVA: ${METEOR_TEST_PROJECT:?}-java-sdk
+  METEOR_TEST_HOST_JAVA: java-sdk.meteor.test
+  METEOR_TEST_SERVICE_JAVA_LOCAL: ${METEOR_TEST_PROJECT:?}-java-meteor
+  METEOR_TEST_HOST_JAVA_LOCAL: java-meteor.meteor.test
+  METEOR_TEST_SERVICE_JAVA_METEOR: ${METEOR_TEST_PROJECT:?}-java-meteor
+  METEOR_TEST_HOST_JAVA_METEOR: java-meteor.meteor.test
+  METEOR_TEST_SERVICE_JAVA_METEOR_PEER: ${METEOR_TEST_PROJECT:?}-java-meteor-peer
+  METEOR_TEST_HOST_JAVA_METEOR_PEER: java-meteor-peer.meteor.test
+  METEOR_TEST_SERVICE_PYTHON: ${METEOR_TEST_PROJECT:?}-python
+  METEOR_TEST_HOST_PYTHON: python.meteor.test
+  METEOR_TEST_SERVICE_NODE: ${METEOR_TEST_PROJECT:?}-node
+  METEOR_TEST_HOST_NODE: node.meteor.test
+  METEOR_TEST_SERVICE_GO: ${METEOR_TEST_PROJECT:?}-go
+  METEOR_TEST_HOST_GO: go.meteor.test
+  METEOR_TEST_SERVICE_NATIVE: ${METEOR_TEST_PROJECT:?}-native
+  METEOR_TEST_HOST_NATIVE: native.meteor.test
+  METEOR_TEST_SERVICE_NATIVE_LOCAL: ${METEOR_TEST_PROJECT:?}-native-local
+  METEOR_TEST_HOST_NATIVE_LOCAL: java-meteor.meteor.test
+  METEOR_TEST_SERVICE_BROWSER: ${METEOR_TEST_PROJECT:?}-browser
+  METEOR_TEST_HOST_BROWSER: browser.meteor.test
+  METEOR_TEST_SERVICE_ENVOY: ${METEOR_TEST_PROJECT:?}-envoy
+  METEOR_TEST_HOST_ENVOY: envoy.meteor.test
+  METEOR_TEST_NACOS_ADDRESS: nacos.meteor.test:8848
+  METEOR_TEST_ZOOKEEPER_ADDRESS: zookeeper.meteor.test:2181
+  METEOR_TEST_ZOOKEEPER_NATIVE_ADDRESS: zookeeper-native.meteor.test:2181
+  METEOR_TEST_JDBC_ADDRESS: "jdbc:h2:tcp://jdbc.meteor.test:9092/mem:"
+  JAVA_TOOL_OPTIONS: -XX:ActiveProcessorCount=2 -Dfile.encoding=UTF-8
+  GRADLE_USER_HOME: /root/.gradle
+
+x-runtime: &runtime
+  init: true
+  pull_policy: never
+  platform: ${METEOR_TEST_PLATFORM:?}
+  working_dir: /workspace/meteor/meteor-test
+  environment: *environment
+  volumes:
+    - workspace:/workspace
+    - peers:/opt/meteor-peer
+  depends_on:
+    prepare:
+      condition: service_completed_successfully
+  labels:
+    net.hasor.meteor.test.run: ${METEOR_TEST_RUN_ID:?}
+    net.hasor.meteor.test.role: runtime
+
+x-health: &health
+  interval: 2s
+  timeout: 5s
+  start_period: 5s
+  retries: 180
+
+services:
+  prepare:
+    image: ${METEOR_TEST_IMAGE_RUNNER:-meteor-test/runner:persistent-${METEOR_TEST_ARCH:?}}
+    pull_policy: never
+    build:
+      context: ${METEOR_TEST_ROOT:?}
+      dockerfile: meteor-test/docker/runner.Dockerfile
+    container_name: ${METEOR_TEST_PROJECT:?}-prepare
+    platform: ${METEOR_TEST_PLATFORM:?}
+    working_dir: /workspace
+    environment:
+      GRADLE_USER_HOME: /root/.gradle
+    command:
+      - bash
+      - -c
+      - |
+        set -euo pipefail
+        mkdir -p /workspace/preparation
+        cp /source/meteor-test/docker/prepare.gradle /workspace/preparation/build.gradle
+        exec bash /source/gradlew -p /workspace/preparation \
+          --project-cache-dir /root/.gradle/source-project \
+          prepareWorkspace --no-daemon --console=plain
+    volumes:
+      - type: bind
+        source: ${METEOR_TEST_ROOT:?}
+        target: /source
+        read_only: true
+      - type: bind
+        source: ${METEOR_TEST_MAVEN_SEED:?}
+        target: /source-maven
+        read_only: true
+      - workspace:/workspace
+      - peers:/opt/meteor-peer
+      - gradle:/root/.gradle
+      - maven:/root/.m2
+    labels:
+      net.hasor.meteor.test.run: ${METEOR_TEST_RUN_ID:?}
+    networks: [test]
+
+  java-meteor:
+    <<: *runtime
+    image: ${METEOR_TEST_IMAGE_JAVA:-meteor-test/java:persistent-${METEOR_TEST_ARCH:?}}
+    build:
+      context: ${METEOR_TEST_ROOT:?}
+      dockerfile: meteor-test/peer/java/Dockerfile
+      target: java
+    container_name: ${METEOR_TEST_PROJECT:?}-java-meteor
+    hostname: java-meteor.meteor.test
+    command:
+      - bash
+      - -c
+      - |
+        set -euo pipefail
+        mkdir -p /workspace/meteor/meteor-test/build/preparation
+        bash ./gradlew :meteor-test:prepareJava --build-cache --no-daemon --console=plain 2>&1 | tee meteor-test/build/preparation/java-build.log
+        exec sleep infinity
+    working_dir: /workspace/meteor
+    volumes:
+      - workspace:/workspace
+      - peers:/opt/meteor-peer
+      - gradle:/root/.gradle
+      - maven:/root/.m2
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      <<: *health
+      start_period: 30m
+      test: [CMD, test, -f, /opt/meteor-peer/runtime-java.ready.json]
+    networks:
+      test:
+        aliases: [java-meteor.meteor.test]
+
+  java-meteor-peer: &java-peer
+    <<: *runtime
+    image: ${METEOR_TEST_IMAGE_JAVA:-meteor-test/java:persistent-${METEOR_TEST_ARCH:?}}
+    container_name: ${METEOR_TEST_PROJECT:?}-java-meteor-peer
+    hostname: java-meteor-peer.meteor.test
+    depends_on:
+      java-meteor:
+        condition: service_healthy
+    command: [sleep, infinity]
+    volumes:
+      - workspace:/workspace
+      - peers:/opt/meteor-peer
+      - gradle:/root/.gradle:ro
+      - maven:/root/.m2:ro
+    networks:
+      test:
+        aliases: [java-meteor-peer.meteor.test]
+
+  java-sdk:
+    <<: *java-peer
+    container_name: ${METEOR_TEST_PROJECT:?}-java-sdk
+    hostname: java-sdk.meteor.test
+    networks:
+      test:
+        aliases: [java-sdk.meteor.test]
+
+  python:
+    <<: *runtime
+    image: ${METEOR_TEST_IMAGE_PYTHON:-meteor-test/python:persistent-${METEOR_TEST_ARCH:?}}
+    build:
+      context: ${METEOR_TEST_ROOT:?}
+      dockerfile: meteor-test/peer/python/Dockerfile
+      target: python
+    container_name: ${METEOR_TEST_PROJECT:?}-python
+    healthcheck:
+      <<: *health
+      test: [CMD, test, -f, /opt/meteor-peer/runtime-python.ready.json]
+    networks:
+      test:
+        aliases: [python.meteor.test]
+
+  node:
+    <<: *runtime
+    image: ${METEOR_TEST_IMAGE_NODE:-meteor-test/node:persistent-${METEOR_TEST_ARCH:?}}
+    build:
+      context: ${METEOR_TEST_ROOT:?}
+      dockerfile: meteor-test/peer/node/Dockerfile
+      target: node
+    container_name: ${METEOR_TEST_PROJECT:?}-node
+    healthcheck:
+      <<: *health
+      test: [CMD, test, -f, /opt/meteor-peer/runtime-node.ready.json]
+    networks:
+      test:
+        aliases: [node.meteor.test]
+
+  browser:
+    <<: *runtime
+    image: ${METEOR_TEST_IMAGE_BROWSER:-meteor-test/browser:persistent-${METEOR_TEST_ARCH:?}}
+    build:
+      context: ${METEOR_TEST_ROOT:?}
+      dockerfile: meteor-test/peer/node/Dockerfile
+      target: browser
+    container_name: ${METEOR_TEST_PROJECT:?}-browser
+    shm_size: 1gb
+    environment:
+      <<: *environment
+      METEOR_PEER_RUNTIME: browser
+    healthcheck:
+      <<: *health
+      test: [CMD, test, -f, /opt/meteor-peer/runtime-browser.ready.json]
+    networks:
+      test:
+        aliases: [browser.meteor.test]
+
+  go:
+    <<: *runtime
+    image: ${METEOR_TEST_IMAGE_GO:-meteor-test/go:persistent-${METEOR_TEST_ARCH:?}}
+    build:
+      context: ${METEOR_TEST_ROOT:?}
+      dockerfile: meteor-test/peer/go/Dockerfile
+      target: go
+    container_name: ${METEOR_TEST_PROJECT:?}-go
+    healthcheck:
+      <<: *health
+      test: [CMD, test, -f, /opt/meteor-peer/runtime-go.ready.json]
+    networks:
+      test:
+        aliases: [go.meteor.test]
+
+  native:
+    <<: *runtime
+    image: ${METEOR_TEST_IMAGE_NATIVE:-meteor-test/native:persistent-${METEOR_TEST_ARCH:?}}
+    build:
+      context: ${METEOR_TEST_ROOT:?}
+      dockerfile: meteor-test/peer/c/Dockerfile
+      target: native
+    container_name: ${METEOR_TEST_PROJECT:?}-native
+    healthcheck:
+      <<: *health
+      test: [CMD, test, -f, /opt/meteor-peer/runtime-native.ready.json]
+    networks:
+      test:
+        aliases: [native.meteor.test]
+
+  native-local:
+    <<: *runtime
+    image: ${METEOR_TEST_IMAGE_NATIVE:-meteor-test/native:persistent-${METEOR_TEST_ARCH:?}}
+    container_name: ${METEOR_TEST_PROJECT:?}-native-local
+    depends_on:
+      native:
+        condition: service_healthy
+      java-meteor:
+        condition: service_healthy
+    network_mode: service:java-meteor
+    command: [sleep, infinity]
+
+  envoy:
+    <<: *runtime
+    image: ${METEOR_TEST_IMAGE_ENVOY:-meteor-test/envoy:persistent-${METEOR_TEST_ARCH:?}}
+    build:
+      context: ${METEOR_TEST_ROOT:?}
+      dockerfile: meteor-test/docker/services.Dockerfile
+      target: envoy
+    container_name: ${METEOR_TEST_PROJECT:?}-envoy
+    networks:
+      test:
+        aliases: [envoy.meteor.test]
+
+  nacos:
+    image: ${METEOR_TEST_IMAGE_NACOS:-nacos/nacos-server:v3.1.2}
+    container_name: ${METEOR_TEST_PROJECT:?}-nacos
+    platform: ${METEOR_TEST_PLATFORM:?}
+    environment:
+      MODE: standalone
+      JVM_XMS: 128m
+      JVM_XMX: 512m
+      JVM_XMN: 64m
+      JAVA_TOOL_OPTIONS: -XX:ActiveProcessorCount=2 -Dnacos.naming.service.metadata.length=65536
+      NACOS_AUTH_ENABLE: "false"
+      NACOS_AUTH_ADMIN_ENABLE: "false"
+      NACOS_AUTH_CONSOLE_ENABLE: "false"
+      NACOS_AUTH_TOKEN: bWV0ZW9yLWRvY2tlci1vbmx5LWF1dGgtc2lnbmluZy1rZXktMjAyNg==
+      NACOS_AUTH_IDENTITY_KEY: meteor-docker-test
+      NACOS_AUTH_IDENTITY_VALUE: meteor-docker-test
+    healthcheck:
+      <<: *health
+      test: [CMD-SHELL, "curl --fail --silent http://127.0.0.1:8848/nacos/v3/admin/core/state/readiness"]
+    networks:
+      test:
+        aliases: [nacos.meteor.test]
+    labels:
+      net.hasor.meteor.test.run: ${METEOR_TEST_RUN_ID:?}
+
+  zookeeper: &zookeeper
+    image: ${METEOR_TEST_IMAGE_ZOOKEEPER:-zookeeper:3.9.6}
+    container_name: ${METEOR_TEST_PROJECT:?}-zookeeper
+    platform: ${METEOR_TEST_PLATFORM:?}
+    environment:
+      JVMFLAGS: -XX:ActiveProcessorCount=2 -Xms64m -Xmx256m
+      ZOO_4LW_COMMANDS_WHITELIST: ruok,srvr
+    healthcheck:
+      <<: *health
+      test: [CMD-SHELL, "zkServer.sh status"]
+    networks:
+      test:
+        aliases: [zookeeper.meteor.test]
+    labels:
+      net.hasor.meteor.test.run: ${METEOR_TEST_RUN_ID:?}
+
+  zookeeper-native:
+    <<: *zookeeper
+    container_name: ${METEOR_TEST_PROJECT:?}-zookeeper-native
+    networks:
+      test:
+        aliases: [zookeeper-native.meteor.test]
+
+  jdbc:
+    image: ${METEOR_TEST_IMAGE_H2:-meteor-test/h2:persistent-${METEOR_TEST_ARCH:?}}
+    pull_policy: never
+    build:
+      context: ${METEOR_TEST_ROOT:?}
+      dockerfile: meteor-test/docker/services.Dockerfile
+      target: h2
+    container_name: ${METEOR_TEST_PROJECT:?}-jdbc
+    platform: ${METEOR_TEST_PLATFORM:?}
+    healthcheck:
+      <<: *health
+      test: [CMD, java, -cp, /opt/h2/h2.jar, org.h2.tools.Shell, -url, "jdbc:h2:tcp://localhost:9092/mem:health", -user, sa, -sql, "SELECT 1"]
+    networks:
+      test:
+        aliases: [jdbc.meteor.test]
+    labels:
+      net.hasor.meteor.test.run: ${METEOR_TEST_RUN_ID:?}
+
+  runner:
+    <<: *runtime
+    image: ${METEOR_TEST_IMAGE_RUNNER:-meteor-test/runner:persistent-${METEOR_TEST_ARCH:?}}
+    container_name: ${METEOR_TEST_PROJECT:?}-runner
+    command: [sleep, infinity]
+    volumes:
+      - workspace:/workspace
+      - peers:/opt/meteor-peer
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      java-meteor: {condition: service_healthy}
+      python: {condition: service_healthy}
+      node: {condition: service_healthy}
+      browser: {condition: service_healthy}
+      go: {condition: service_healthy}
+      native: {condition: service_healthy}
+      nacos: {condition: service_healthy}
+      zookeeper: {condition: service_healthy}
+      zookeeper-native: {condition: service_healthy}
+      jdbc: {condition: service_healthy}
+      java-sdk: {condition: service_started}
+      java-meteor-peer: {condition: service_started}
+      native-local: {condition: service_started}
+      envoy: {condition: service_started}
+    networks: [test]
+
+volumes:
+  workspace:
+    name: ${METEOR_TEST_PROJECT:?}-workspace
+    labels:
+      net.hasor.meteor.test.run: ${METEOR_TEST_RUN_ID:?}
+  peers:
+    name: ${METEOR_TEST_PROJECT:?}-peer
+    labels:
+      net.hasor.meteor.test.run: ${METEOR_TEST_RUN_ID:?}
+  gradle:
+    name: meteor-test-gradle-${METEOR_TEST_CACHE_KEY:?}
+    external: true
+  maven:
+    name: ${METEOR_TEST_PROJECT:?}-maven
+    labels:
+      net.hasor.meteor.test.run: ${METEOR_TEST_RUN_ID:?}
+
+networks:
+  test:
+    name: ${METEOR_TEST_PROJECT:?}-network
+    enable_ipv6: true
+    labels:
+      net.hasor.meteor.test.run: ${METEOR_TEST_RUN_ID:?}

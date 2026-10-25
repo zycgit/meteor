@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Meteor gRPC-Web 订单消费者</title>
+    <style>
+        body { max-width: 720px; margin: 40px auto; padding: 0 20px; font: 16px system-ui, sans-serif; }
+        label { display: block; margin: 16px 0; }
+        input { display: block; box-sizing: border-box; width: 100%; padding: 10px; margin-top: 6px; }
+        button { padding: 10px 20px; cursor: pointer; }
+        pre { padding: 16px; background: #f4f6f8; overflow: auto; }
+    </style>
+</head>
+<body>
+    <h1>gRPC-Web 订单消费者</h1>
+    <p>调用本机 Meteor 服务，保存并查询订单 1001。附件以 UTF-8 发送，以 Base64 显示。</p>
+    <form>
+        <label>描述<input name="description" value="Order from browser" required></label>
+        <label>附件文本<input name="attachment" value="Meteor"></label>
+        <button type="submit">保存并查询</button>
+    </form>
+    <pre aria-live="polite">等待调用</pre>
+    <script src="/consumer.js" defer></script>
+</body>
+</html>

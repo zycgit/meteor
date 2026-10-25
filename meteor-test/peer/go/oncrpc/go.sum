@@ -1,0 +1,4 @@
+github.com/prashanthpai/sunrpc v0.0.0-20210303180433-689a3880d90a h1:51tKeE/lx4mfb2/PdL2fxnOWGqZhLnS3YKXk1uK2cLg=
+github.com/prashanthpai/sunrpc v0.0.0-20210303180433-689a3880d90a/go.mod h1:TtPVShxqbKcMifkC0Y+aSFKfbVBMz0/ZK9nQxMyJJVo=
+github.com/rasky/go-xdr v0.0.0-20170124162913-1a41d1a06c93 h1:UVArwN/wkKjMVhh2EQGC0tEc1+FqiLlvYXY5mQ2f8Wg=
+github.com/rasky/go-xdr v0.0.0-20170124162913-1a41d1a06c93/go.mod h1:Nfe4efndBz4TibWycNE+lqyJZiMX4ycx+QKV8Ta0f/o=

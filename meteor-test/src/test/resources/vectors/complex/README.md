@@ -5,13 +5,13 @@
 收据始终由 `ComplexValueServiceImpl` 生成。
 
 Thrift 使用与 SDK 一致的 Apache Thrift Compiler 0.25.0 生成标准 Java 合约，输出仅位于
-`meteor-test/src/test/java/net/hasor/example/contract/complex/thrift/generated`，不进入生产 JAR。
+`meteor-test/peer/java/meteor/src/main/java/net/hasor/example/contract/complex/thrift/generated`，不进入生产 JAR。
 生成文件只增加项目版权头并规范化行尾空白，不手工简化 Client、Processor、TBase 或元数据，
 也不在日常构建中调用编译器。在仓库根目录使用现成官方编译器重新生成：
 
 ```bash
-meteor-test/src/test/thrift/prepare-compiler.sh
-THRIFT_COMPILER="$PWD/build/thrift-compiler-0.25.0/bin/thrift" \
+meteor-test/scripts/thrift/prepare-compiler.sh
+THRIFT_COMPILER="$PWD/meteor-test/build/thrift-compiler-0.25.0/bin/thrift" \
   bash meteor-test/src/test/resources/vectors/complex/regenerate-thrift.sh
 ```
 

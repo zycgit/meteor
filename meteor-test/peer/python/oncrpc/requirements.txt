@@ -1,0 +1,3 @@
+sunrpc==1.1.0
+standard-xdrlib==3.13.0
+termcolor==3.3.0

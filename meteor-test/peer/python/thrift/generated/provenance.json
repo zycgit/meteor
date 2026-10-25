@@ -1,0 +1,7 @@
+{
+  "source": "meteor-test/src/test/resources/order/order.thrift",
+  "sourceSha256": "c1740b55582efa9c559afb1bbcd88ea4e428a6e022cdea326158e7bf7391c0ba",
+  "generator": "Apache Thrift Compiler 0.19.0",
+  "runtime": "Apache Thrift Python 0.22.0",
+  "command": "thrift --gen py -out meteor-test/peer/python/thrift/generated meteor-test/src/test/resources/order/order.thrift"
+}

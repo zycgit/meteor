@@ -1,49 +1,88 @@
+import groovy.json.JsonSlurper
+
 plugins {
-    id 'java'
+    id 'application'
 }
 
-description = 'Meteor protocol, language and registry interoperability tests'
+description = 'Docker RPC test orchestration, process control and Markdown reports'
+
+application {
+    mainClass = 'net.hasor.meteor.test.nxn.NxnMain'
+    applicationName = 'meteor-test'
+}
 
 dependencies {
-    testImplementation project(':meteor')
-    testImplementation project(':met-example')
-    testImplementation project(':meteor-registry')
-    testImplementation project(':meteor-registry-jdbc')
-    testImplementation project(':meteor-registry-nacos')
-    testImplementation project(':meteor-registry-zookeeper')
-    testImplementation project(':meteor-registry-dubbo')
-    testImplementation project(':meteor-protocol-grpc')
-    testImplementation project(':meteor-protocol-hprose')
-    testImplementation project(':meteor-protocol-soap')
-    testImplementation project(':meteor-protocol-jsonrpc')
-    testImplementation project(':meteor-protocol-xmlrpc')
-    testImplementation project(':meteor-protocol-hessian')
-    testImplementation project(':meteor-protocol-connect')
-    testImplementation project(':meteor-protocol-triple')
-    testImplementation project(':meteor-protocol-dubbo')
-    testImplementation project(':meteor-protocol-thrift')
-    testImplementation project(':meteor-protocol-oncrpc')
-    testImplementation "org.mockito:mockito-core:${property('lib.mockito')}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+    implementation "net.hasor:cobble-all:${property('lib.cobble')}"
 }
 
-// 命名参数和接口元信息使用真实参数名，不另建测试源集。
-tasks.named('compileTestJava') {
-    options.compilerArgs += '-parameters'
-}
+apply from: 'nxn.gradle'
+apply from: 'docker/prepare.gradle'
 
-// Java 对端复用测试编译结果，其他语言的工具链和 SDK 由 Docker 镜像提供。
-['java-peers', 'runtime-peers', 'registry-environments', 'reporting'].each { name ->
-    apply from: "gradle/${name}.gradle"
-}
-
+// 容器默认使用镜像内执行器，维护时可验证独立构建的同一原生程序。
 tasks.named('test') {
-    maxHeapSize = '1536m'
-    // Gradle 的筛选参数显式转交测试 JVM，结果保留实际执行范围。
-    System.properties.findAll { key, value -> key.toString().startsWith('meteor.matrix.') }.each { key, value ->
-        systemProperty key.toString(), value
+    def nativeExecutable = providers.gradleProperty('nxn.nativeExecutable')
+    if (nativeExecutable.isPresent()) {
+        systemProperty 'meteor.test.native.executable', rootProject.file(nativeExecutable.get()).absolutePath
     }
-    testLogging {
-        events 'failed', 'skipped'
-        exceptionFormat = 'full'
+}
+
+def peerDirectory = nxnPeerDirectory
+def preparationDirectory = nxnPreparationDirectory
+def writeJson = nxnWriteJson
+def sha256 = nxnSha256
+
+tasks.register('prepareJava') {
+    description = 'Compile the Java framework, applications and isolated SDK profiles once in the container.'
+    dependsOn tasks.named('installDist'), ':meteor-test-app:exportExecution'
+    doLast {
+        def runtime = project(':meteor-test-app').layout.buildDirectory.file('execution/runtime.json').get().asFile
+        def sdkRuntime = project(':meteor-test-sdk').layout.buildDirectory.file('execution/runtimes.json').get().asFile
+        def execution = new JsonSlurper().parse(runtime)
+        def sdk = new JsonSlurper().parse(sdkRuntime)
+        copy {
+            from(runtime) { rename { 'java-runtime.json' } }
+            from(sdkRuntime) { rename { 'java-sdk-runtimes.json' } }
+            into preparationDirectory
+        }
+
+        // 各 SDK 仅导出自己的运行图；此处只审计字节，不组合它们的类路径。
+        def classpathEntries = new TreeSet<String>(execution.classpath)
+        sdk.profiles.values().each { profile -> classpathEntries.addAll(profile.classpath) }
+        sourceSets.main.runtimeClasspath.files.each { entry -> classpathEntries.add(entry.absolutePath) }
+        def artifacts = new TreeMap<String, String>()
+        classpathEntries.each { path ->
+            def entry = file(path)
+            if (entry.name.endsWith('.jar') && !entry.isFile()) {
+                throw new GradleException("Resolved runtime artifact is missing: ${entry}")
+            }
+            def files = []
+            if (entry.isFile()) {
+                files = [entry]
+            } else if (entry.isDirectory()) {
+                files = fileTree(entry).files
+            }
+            files.sort().each { artifact -> artifacts[artifact.absolutePath] = sha256(artifact) }
+        }
+        writeJson(new File(preparationDirectory, 'java-artifacts-sha256.json'), artifacts)
+        writeJson(new File(peerDirectory, 'runtime-java.ready.json'), [runtime: runtime.absolutePath, prepared: true])
+    }
+}
+
+// 无论编译是否成功都留下同一份构建证据；失败不会生成 ready 标记。
+Long javaBuildStarted = null
+gradle.taskGraph.whenReady { graph ->
+    if (graph.hasTask(tasks.named('prepareJava').get())) {
+        javaBuildStarted = System.nanoTime()
+        delete new File(peerDirectory, 'runtime-java.ready.json')
+    }
+}
+gradle.buildFinished { result ->
+    if (javaBuildStarted != null) {
+        def command = ['bash', './gradlew', ':meteor-test:prepareJava',
+            '--build-cache', '--no-daemon', '--console=plain']
+        def evidence = [command: command, exitCode: result.failure == null ? 0 : 1,
+            seconds: (System.nanoTime() - javaBuildStarted) / 1_000_000_000d]
+        writeJson(new File(preparationDirectory, 'java-build.json'), evidence)
     }
 }

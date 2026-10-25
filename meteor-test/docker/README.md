@@ -1,115 +1,92 @@
-# Docker 交叉测试
+# Docker 测试环境
 
-## 运行环境
+## 介绍
 
-宿主只需要 Docker 和 Docker Compose，并使用 Linux 容器。Windows 使用 PowerShell，macOS 和 Linux 使用 Bash；Java、Node、Python、Go、C、Chromium、Envoy 和注册中心服务分别在容器中运行。宿主不安装这些 SDK 或编译器。
+[compose.yml](compose.yml) 统一管理一套名为 `meteor-test` 的测试环境，包含语言运行容器、注册中心与专用节点。宿主只需 JDK 17、Docker 与 Compose；Java 框架、应用、SDK 和其他语言程序在容器内构建。默认 16 表示并发场景数，容器数量不随 testcase 或分组数量增长。
 
-镜像按 `linux/amd64`、`linux/arm64` 构建，默认选择 Docker 服务端的架构。`--platform` 可以选择另一架构，此时需要 Docker 提供相应的模拟运行能力。平台支持和实际验收结果分别记录在[迁移计划](../../document/testing/METEOR_TEST_DOCKER_PLAN.md)中。
+正式入口、参数、报告与清理见 [README.md](../README.md)，最近一次验收见 [report.md](../report.md)。
 
-每轮创建独立的工作目录卷和双栈网络。Java 测试容器的地址为 `runner.meteor.test`，其他对端使用各自的容器地址；应用之间通过容器网络通信。原有独立 Java 对端保留独立 JVM 和依赖类路径，原先在 JUnit 中创建的 SDK 仍在 runner 执行；其他语言使用各自的 SDK 容器。
+## 维护命令
 
-rpcbind 的四个 SET/UNSET 场景要求本机控制目标，独立 C 容器与 runner 共享网络命名空间；其余 18 项 rpcbind 查询场景使用独立桥接网络。报告会记录实际网络模式，四项本机控制不计为独立网络互通。
-
-| 资源 | 用途 | 保留时间 |
-| --- | --- | --- |
-| `meteor-test-<runId>-workspace` | 本轮源码、编译结果、控制文件和报告 | 归档后删除 |
-| `meteor-test-<runId>-network` | 本轮应用、对端和注册中心通信 | 结束后删除 |
-| `meteor-test-gradle-<cacheKey>` | Gradle 发行包和依赖缓存 | 跨轮次保留 |
-| `meteor-test-maven-<cacheKey>` | Maven 本地仓库中的开发依赖 | 跨轮次保留 |
-
-工作目录由构建完成的 runner 镜像初始化，不使用宿主源码目录绑定，因此容器中的源码路径始终为 `/workspace/meteor`。Docker 镜像和缓存卷可以复用；容器共享所属 Docker 虚拟机的时钟。
-
-## 用法
-
-在 Meteor 仓库根目录运行完整交叉测试：
+常用启动方式见 [运行说明](../README.md#运行)。需要排查环境时，可在仓库根目录使用：
 
 ```bash
-./meteor-test/docker/run.sh
+# 只准备环境和容器内构建，保留工作卷
+./meteor-test/runnxn.sh --prepare-only
+
+# 测试结束后保留工作卷
+./meteor-test/runnxn.sh --keep-workspace
+
+# 清理保留的测试环境
+./gradlew :meteor-test:dockerCleanup
 ```
 
-```powershell
-.\meteor-test\docker\run.ps1
-```
+其他配置：`--platform linux/amd64` 或 `linux/arm64` 指定容器架构；`--maven-seed PATH` 指定本地 `net/hasor` Maven 产物目录，默认读取 `~/.m2/repository/net/hasor`。Windows 使用 `gradlew.bat` 调用相同 Gradle 任务和参数。
 
-默认执行 `:meteor-test:test --no-daemon --console=plain --rerun-tasks`。首次运行构建各语言镜像并下载依赖；后续构建复用 Docker 缓存。已经构建当前源码对应的镜像时，可以加 `--no-build`。
+环境名称固定：
 
-`METEOR_TEST_CACHE_KEY` 选择 Gradle、Maven 缓存卷，默认值为当前架构 `amd64` 或 `arm64`。同一个缓存键同时只运行一个 Gradle runner；并行 CI 任务使用不同的键，并将架构写入键名。键名以字母或数字开头，其余字符可使用字母、数字、点、下划线和连字符。缓存键及实际卷名会记录到该轮的 `compose.env`。
+- 容器：`meteor-test-runner`、`meteor-test-java-meteor`、`meteor-test-nacos` 等。
+- 网络：`meteor-test-network`，所有服务共用。
+- 临时卷：`meteor-test-peer`、`meteor-test-maven`、`meteor-test-workspace`。
+- 依赖缓存：`meteor-test-gradle-<架构>`，默认架构为 `amd64` 或 `arm64`。
 
-```bash
-METEOR_TEST_CACHE_KEY=amd64-job-a ./meteor-test/docker/run.sh --no-build
-```
+一次只运行一轮测试。容器、网络和临时卷默认在结束后自动清理，下次同名建立。清理命令核对资源归属，保留共享 Gradle 缓存。
 
-```powershell
-$env:METEOR_TEST_CACHE_KEY = 'amd64-job-a'
-.\meteor-test\docker\run.ps1 --no-build
-```
+重新启动时先请求旧测试停止，等待其清理完成，清除旧结果，再启动新轮。残留工作卷具有本仓库归档记录和唯一运行标签时，自动归档并清理；归属不明确则保留并报错。旧测试停止超时会直接失败。日志和报告统一写入仓库 `meteor-test/build/docker-runs/`，需要保留时在下次运行前自行复制。
 
-单个 runner 内的对端容器及并发场景仍按测试本身运行。
+默认 16 组并行，`--skipError true` 在用例或工作组异常后继续其余可执行测试，最终仍返回失败；`--skipError false` 停止后续测试。INT、TERM 始终停止并等待清理。已执行结果保留，未执行项单独列出，不计作通过或跳过。
 
-筛选具体场景时，`--` 后的参数逐项交给 Gradle：
+## 容器与构建
 
-```bash
-./meteor-test/docker/run.sh --no-build -- \
-  :meteor-test:test --no-daemon --console=plain --rerun-tasks \
-  --tests 'net.hasor.realmeteor.protocol.grpc.*'
-```
-
-```powershell
-.\meteor-test\docker\run.ps1 --no-build -- `
-  :meteor-test:test --no-daemon --console=plain --rerun-tasks `
-  --tests 'net.hasor.realmeteor.protocol.grpc.*'
-```
-
-矩阵筛选继续使用现有的 `-Dmeteor.matrix.protocols`、`discoveries`、`scalarProfiles`、`complexProfiles`、`writeProtocols` 和 `readProtocols` 参数。运行其他 Gradle 任务时，也直接在 `--` 后指定任务及参数。
-
-仓库使用本地 Hasor SNAPSHOT 依赖时，启动脚本默认复制宿主 `~/.m2/repository/net/hasor` 中的仓库数据，也可以显式指定：
-
-```bash
-./meteor-test/docker/run.sh --maven-seed /path/to/repository/net/hasor
-```
-
-```powershell
-.\meteor-test\docker\run.ps1 --maven-seed 'C:\path\to\repository\net\hasor'
-```
-
-此目录包含 Maven 坐标对应的 POM、JAR 和仓库元数据。启动脚本不复制 `settings.xml`、用户凭证或其他 Maven 配置。未提供本地开发依赖时，runner 会给出对应坐标提示；Gradle 仍可复用已有缓存，并按仓库配置解析依赖。
-
-| 参数 | 含义 |
+| 服务 | 用途 |
 | --- | --- |
-| `--no-build` | 使用已有镜像；测试源码取自该 runner 镜像 |
-| `--keep-workspace` | 归档后保留本轮工作目录卷 |
-| `--prepare-only` | 只准备镜像、卷、网络和停止状态的 runner，不执行测试 |
-| `--platform linux/amd64` | 指定目标平台，也可选择 `linux/arm64` |
-| `--maven-seed PATH` | 指定 `net/hasor` 仓库数据目录 |
-| `--` | 后续参数全部作为 Gradle 参数传递 |
+| `runner` | Java 编排、调度与报告汇总 |
+| `java-meteor` | Java 构建、JUnit 场景及 Meteor 调用 |
+| `java-meteor-peer` | 需要独立 hostname 和网络节点的 Meteor 对端 |
+| `java-sdk` | 独立 JVM 和 classpath 的 Java SDK 对端 |
+| `python`、`node`、`go`、`native` | 各语言构建与执行；native 包含 C/C++ |
+| `browser` | Chromium 与浏览器测试 |
+| `nacos`、`zookeeper`、`jdbc` | Meteor 注册存储服务 |
+| `zookeeper-native` | SDK 注册模型专用 ZooKeeper |
+| `envoy` | gRPC-Web 代理场景 |
+| `native-local` | rpcbind 本机控制场景的专用节点 |
 
-镜像可通过 `METEOR_TEST_IMAGE_<RUNTIME>` 环境变量指定。`RUNTIME` 可取 `RUNNER`、`JAVA`、`PYTHON`、`NODE`、`NATIVE`、`GO`、`BROWSER`、`ENVOY`、`NACOS`、`ZOOKEEPER` 和 `H2`；例如 Java 对端使用 `METEOR_TEST_IMAGE_JAVA`。指定镜像的操作系统和架构必须与本轮平台一致。
+语言镜像位于各 `peer/<语言>/Dockerfile`；C/C++ 共用 native 工具链，Node 与浏览器使用不同构建目标。编排、存储及代理镜像位于本目录。
 
-注册中心环境通过 Nacos readiness API、ZooKeeper 会话握手及 H2 JDBC 连接确认就绪；启动失败保留日志并释放所属容器。
+镜像默认值、网络和卷名由 Compose 定义。`METEOR_TEST_IMAGE_*` 可覆盖对应镜像，归档记录实际使用的镜像身份。`METEOR_TEST_CACHE_KEY` 选择依赖缓存，默认按架构命名。
 
-## 结果和资源
+默认复用已有工具链镜像，缺失时由 Compose 构建；外部注册中心镜像仅在缺失时拉取。修改 Dockerfile 或镜像内工具链依赖后，使用 `--rebuild` 重建。`--no-build` 禁止构建和拉取镜像，缺失时直接报错。Dockerfile 使用 Docker 内置构建前端。
 
-每轮结果写入仓库的 `build/docker-runs/<runId>`，`runId` 由 UTC 时间和随机后缀组成。目录包含：
+源码作为只读输入导入空白工作卷，编译输出不写回宿主源码。Gradle 依赖缓存跨轮保留，Maven、peer 和 workspace 使用上述固定临时卷名。所有模式均在容器内构建当前源码，不读取旧测试结果。
 
-1. 启动参数、Compose 配置、Docker 版本、镜像 ID、摘要和架构。
-2. 镜像构建日志、runner 日志、容器清单及退出码。
-3. 各项目的 JUnit XML、HTML 报告和逐案例互通报告。
-4. 对端日志、容器身份与网络记录，以及独立应用和 Go 对端的控制文件。
+宿主 Wrapper 默认将 Gradle 缓存及 daemon 日志放入仓库共享的 `.gradle/user-home/`，可显式设置 `GRADLE_USER_HOME`。容器通过同名环境变量使用受管理的 Gradle 缓存卷；运行日志和结果归档到宿主 `meteor-test/build/docker-runs/`。用户 Maven 目录仅作为只读依赖种子。
 
-成功和失败都会先导出报告，再清理本轮容器、网络和工作目录卷。Gradle、Maven 缓存及构建镜像继续保留。归档失败时返回非零退出码并保留工作目录；`--keep-workspace` 同样保留工作目录供排查。
+## 网络与进程
 
-`--prepare-only` 创建停止状态的默认 runner。需要继续执行时，使用该轮保存的环境配置，并在 `compose run` 中显式传入 Gradle 参数：
+业务调用通过 Compose DNS 和真实监听端口通信。支持动态端口的提供者绑定端口 `0`，就绪后报告实际端口。TLS 按对应 DNS 校验证书。
+
+场景共用语言容器，分别持有自己的进程、端口、临时目录、HOME、XDG 缓存和注册数据。Java SDK 使用独立 JVM 与运行图，不加载 Meteor 场景输出。Linux 原生执行器负责进程监督、取消及后代回收；JUnit 不能删除共享容器。
+
+固定端口、节点故障或本机控制场景使用专用节点及必要的排他调度。程序退出、exec 中断和容器退出分别记录，清理失败使整轮失败。
+
+`runnxn.sh` 收到第一次 Ctrl+C 或 TERM 后写入取消请求，保持 Gradle 客户端和控制台日志，等待本轮程序停止、归档和环境清理，最后返回 `130` 或 `143`。使用 sudo 时，退出前还会恢复校时原状态。未确认退出时保留工作卷与诊断。
+
+直接调用 Gradle 或 `gradlew.bat` 同样支持运行归属、取消和残留恢复；保持中断后终端日志的行为由 `runnxn.sh` 提供。
+
+## WSL 时钟
+
+容器共享宿主墙钟。Nacos 遇到回拨时，固定增加等待不能恢复已忽略的时间戳更新；时间环境和业务失败分别记录。
+
+需要暂停 Linux / WSL 校时时，在仓库根目录执行：
 
 ```bash
-docker compose --env-file build/docker-runs/<runId>/compose.env \
-  -f meteor-test/docker/compose.yaml run --no-deps --use-aliases runner \
-  :meteor-test:compileTestJava --no-daemon --console=plain
+sudo ./meteor-test/runnxn.sh
 ```
 
-准备操作本身没有测试结果。手动执行产生的报告保留在工作目录卷中；结束后先导出所需报告，再清理本轮资源。运行中的对端通过 `net.hasor.meteor.test.run=<runId>` 标签归属当前轮次，停止这些对端后，可用保存的 Compose 配置执行 `down --remove-orphans --volumes`，删除本轮 runner、网络和工作目录卷。外部声明的 Gradle、Maven 缓存卷继续保留。
+入口暂停 Linux 的 `systemd-timesyncd` 和 WSL 虚拟机的 `chronyd`。结束或收到 INT、TERM 后，先等待测试清理，再恢复原状态，原先未运行的保持不变。暂停和恢复结果直接打印。
 
-## 实际验收
+Linux sudo 不提供 Windows 管理员权限；需要时会请求 UAC。权限或校时准备异常按 `--skipError` 处理：默认继续可执行测试，设为 `false` 则停止，异常均计入最终失败。Gradle 以原 sudo 调用者运行，沿用其 HOME 和缓存。普通入口不修改校时服务。此控制不关闭系统时钟，不修改系统时间、tick 或 freq；其他校时来源需独立确认。
 
-2026-10-24，Bash 入口在 WSL2/Linux amd64 完整执行 **4,063 项、238 个测试类，全部通过，0 跳过**，原有 4,059 项全部保留。Windows PowerShell 5.1 同轮完成 26 项，包含直连及三种注册后端的独立应用容器通信。运行结束后，本轮容器、网络和工作卷均已回收，Meteor 内核保持不变。
+Gradle 自动写入 `meteor-test/build/docker-runs/report.md` 和 `meteor-test/report.md`，下次运行时清除旧结果。`meteor-test/report.md` 中的产物路径相对于 `meteor-test/`，使用 `build/docker-runs/`。校时恢复后追加脚本阶段异常，与 RPC 失败用例分列；报告任务即使失败，也先写出汇总、失败用例及原因。
 
-macOS 尚无实机验证；arm64 仅完成 Java 镜像构建，完整镜像及测试尚未验证。具体范围、历史失败和证据见[迁移计划](../../document/testing/METEOR_TEST_DOCKER_PLAN.md)及[测试审计](../../document/testing/METEOR_TEST_AUDIT.md)。
+校时诊断保存在 `meteor-test/build/meteor-test-clock/`，并复制到本轮归档的 `clock-state/`；恢复错误会列出缺失确认或具体退出原因。

@@ -1,0 +1,9 @@
+{
+  "name": "meteor-node-xmlrpc-interop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Independent node-xmlrpc client and server for Meteor interoperability",
+  "dependencies": {
+    "xmlrpc": "1.3.2"
+  }
+}

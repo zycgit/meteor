@@ -36,8 +36,8 @@ Apache Thrift Compiler 0.25.0；已签入的五份 Java 文件只添加项目版
 不改写官方 Client、Processor、TBase 或元数据。重新生成：
 
 ```bash
-meteor-test/src/test/thrift/prepare-compiler.sh
-THRIFT_COMPILER="$PWD/build/thrift-compiler-0.25.0/bin/thrift" \
+meteor-test/scripts/thrift/prepare-compiler.sh
+THRIFT_COMPILER="$PWD/meteor-test/build/thrift-compiler-0.25.0/bin/thrift" \
   bash meteor-test/src/test/resources/vectors/scalar/regenerate-thrift.sh
 ```
 

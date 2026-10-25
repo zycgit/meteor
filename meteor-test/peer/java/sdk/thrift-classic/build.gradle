@@ -1,0 +1,17 @@
+plugins {
+    id 'java'
+}
+
+description = 'Classic Apache Thrift peers with their own generated contract and transport API'
+
+dependencies {
+    // 经典 transport 与生成代码独立编译，不将旧版 Thrift 加入其他 SDK 的编译图。
+    compileOnly project(':meteor-test-contracts')
+    compileOnly "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+    compileOnly "org.apache.thrift:libthrift:${property('test.sdk.thrift.classic')}"
+    compileOnly "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs += '-parameters'
+}

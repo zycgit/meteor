@@ -1,0 +1,133 @@
+import groovy.json.JsonOutput
+import java.net.URLClassLoader
+
+plugins {
+    id 'java'
+}
+
+description = 'Meteor applications and JUnit interoperability scenarios'
+
+def meteorTestDirectory = rootProject.file('meteor-test')
+def fixtureDirectory = new File(meteorTestDirectory, 'src/test/resources')
+
+// 业务应用和断言驱动使用标准 main/test；公共输入仍由测试根目录统一持有。
+sourceSets.main.resources.srcDir(fixtureDirectory)
+sourceSets.test.resources.srcDir(fixtureDirectory)
+tasks.named('processResources') {
+    exclude 'META-INF/services/**', 'META-INF/dubbo/**'
+}
+tasks.named('processTestResources') {
+    include 'META-INF/services/**'
+}
+
+dependencies {
+    implementation project(':meteor-test-contracts')
+    def applicationModules = [
+        'meteor', 'meteor-registry', 'meteor-registry-jdbc', 'meteor-registry-nacos',
+        'meteor-registry-zookeeper', 'meteor-registry-dubbo', 'meteor-protocol-grpc',
+        'meteor-protocol-hprose', 'meteor-protocol-soap', 'meteor-protocol-jsonrpc',
+        'meteor-protocol-xmlrpc', 'meteor-protocol-hessian', 'meteor-protocol-connect',
+        'meteor-protocol-triple', 'meteor-protocol-dubbo', 'meteor-protocol-thrift', 'meteor-protocol-oncrpc'
+    ]
+    applicationModules.each { module -> implementation project(":${module}") }
+    implementation "com.h2database:h2:${property('lib.h2')}"
+    // 标准 main 中的已签入 Thrift 绑定直接引用日志 API。
+    implementation "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+
+    // 这些 SDK API 由仍在 JUnit 内执行的原有断言使用；进程对端另有独立运行图。
+    testImplementation "io.grpc:grpc-netty-shaded:${property('lib.grpc')}"
+    testImplementation "io.grpc:grpc-stub:${property('lib.grpc')}"
+    testImplementation "io.grpc:grpc-protobuf:${property('lib.grpc')}"
+    testImplementation "io.grpc:grpc-services:${property('lib.grpc')}"
+    testImplementation("io.grpc:grpc-interop-testing:${property('lib.grpc')}") {
+        exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-prometheus'
+        exclude group: 'dev.cel'
+    }
+    testImplementation "com.sun.xml.ws:jaxws-rt:${property('lib.jaxws')}"
+    testImplementation "org.eclipse.angus:angus-mail:${property('lib.angus.mail')}"
+    testImplementation "org.apache.dubbo:dubbo:${property('lib.dubbo')}"
+    testImplementation "net.hasor:dbvisitor:${property('lib.dbvisitor')}"
+    testImplementation "org.apache.curator:curator-test:${property('lib.curator')}"
+    testImplementation project(':meteor-test')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += '-parameters'
+}
+
+apply from: 'gradle/execution.gradle'
+
+tasks.named('test') {
+    workingDir meteorTestDirectory
+    maxHeapSize = '1536m'
+    dependsOn ':meteor-test-sdk:exportRuntimes'
+    doFirst {
+        systemProperties executionProperties()
+
+        // SDK 运行图通过 JDK 参数文件传递，避免长类路径触发 Gradle 二次缩短。
+        def classpaths = systemProperties.findAll { name, value ->
+            name.toString().toLowerCase(Locale.ROOT).endsWith('classpath')
+        }
+        def argumentFile = layout.buildDirectory.file('java-peer-classpaths.args').get().asFile
+        argumentFile.parentFile.mkdirs()
+        def arguments = new TreeMap(classpaths).collect { name, value ->
+            def argument = "-D${name}=${value}".replace('\\', '\\\\').replace('"', '\\"')
+            '"' + argument + '"'
+        }
+        argumentFile.setText(arguments.join(System.lineSeparator()) + System.lineSeparator(), 'UTF-8')
+        setSystemProperties(systemProperties.findAll { name, value -> !classpaths.containsKey(name) })
+        def argumentOption = '@' + argumentFile.absolutePath
+        setJvmArgs(jvmArgs.findAll { it != argumentOption } + argumentOption)
+    }
+    testLogging {
+        events 'failed', 'skipped'
+        exceptionFormat = 'full'
+    }
+}
+
+tasks.register('exportExecution') {
+    description = 'Compile once and export the JUnit execution inputs for independent jobs.'
+    dependsOn tasks.named('testClasses'), ':meteor-test-sdk:exportRuntimes'
+    inputs.files(sourceSets.test.runtimeClasspath)
+    inputs.files(sourceSets.test.allJava)
+    def destination = layout.buildDirectory.file('execution/runtime.json')
+    outputs.file(destination)
+    outputs.upToDateWhen { false }
+    doLast {
+        // 源码只确定外层测试入口，方法清单随后从编译结果读取，避免混入嵌套 fixture。
+        def classNames = new TreeSet<String>()
+        sourceSets.test.allJava.files.sort().each { source ->
+            def text = source.getText('UTF-8')
+            def packageMatch = text =~ /(?m)^package\s+([\w.]+)\s*;/
+            def methodMatches = text =~ /@(?:org\.junit\.)?Test\b(?:\s*\([^)]*\))?\s+[^{};]*?\bvoid\s+(\w+)\s*\(/
+            if (methodMatches.find() && packageMatch.find()) {
+                def className = packageMatch.group(1) + '.' + source.name.replaceFirst(/\.java$/, '')
+                classNames.add(className)
+            }
+        }
+        def classpath = sourceSets.test.runtimeClasspath.files.findAll { it.exists() }
+        def urls = classpath.collect { it.toURI().toURL() } as URL[]
+        def classMethods = new TreeMap<String, List<String>>()
+        new URLClassLoader(urls, ClassLoader.getPlatformClassLoader()).withCloseable { loader ->
+            classNames.each { className ->
+                // false 禁止类初始化；不创建 JUnit Runner，也不执行参数工厂或任何测试方法。
+                def type = Class.forName(className, false, loader)
+                classMethods[className] = type.declaredMethods.findAll { method ->
+                    method.declaredAnnotations.any { annotation -> annotation.annotationType().name == 'org.junit.Test' }
+                }.collect { it.name }.unique().sort()
+            }
+        }
+        def runtime = [
+            classpath: classpath.collect { it.absolutePath },
+            jvmArguments: tasks.named('test').get().jvmArgs,
+            systemProperties: executionProperties(),
+            classNames: classNames.toList(),
+            classMethods: classMethods,
+            sourceRoots: sourceSets.test.java.srcDirs.collect { it.absolutePath },
+            workingDirectory: meteorTestDirectory.absolutePath
+        ]
+        def file = destination.get().asFile
+        file.parentFile.mkdirs()
+        file.setText(JsonOutput.prettyPrint(JsonOutput.toJson(runtime)) + '\n', 'UTF-8')
+    }
+}

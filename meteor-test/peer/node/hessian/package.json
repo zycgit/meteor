@@ -1,0 +1,9 @@
+{
+  "name": "meteor-hessian-node-interop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Independent Hessian HTTP RPC SDK consumer used only by tests",
+  "dependencies": {
+    "hessian-proxy": "0.0.5"
+  }
+}

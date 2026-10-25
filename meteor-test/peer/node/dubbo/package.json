@@ -1,0 +1,9 @@
+{
+  "name": "meteor-dubbo-node-interop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Classic Dubbo Node SDK consumer used only by tests",
+  "dependencies": {
+    "dubbo2.js": "2.3.9"
+  }
+}

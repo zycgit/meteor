@@ -1,0 +1,9 @@
+{
+  "name": "meteor-test-jsonrpc-4.3.0",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "jayson": "4.3.0",
+    "ws": "8.22.0"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "meteor-node-soap-interop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Independent node-soap client and server for Meteor interoperability",
+  "dependencies": {
+    "soap": "1.14.0"
+  }
+}
