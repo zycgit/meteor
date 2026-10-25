@@ -1,0 +1,10 @@
+plugins {
+    id 'java'
+}
+
+description = 'Caucho Hessian SDK examples'
+
+dependencies {
+    implementation project(':java:common')
+    implementation "com.caucho:hessian:${property('lib.hessian')}"
+}

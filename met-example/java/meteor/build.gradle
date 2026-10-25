@@ -1,0 +1,28 @@
+plugins {
+    id 'java'
+}
+
+description = 'Meteor providers, consumers and registry examples'
+
+dependencies {
+    implementation project(':java:common')
+    implementation "net.hasor:meteor:${version}"
+    implementation "net.hasor:meteor-protocol-grpc:${version}"
+    implementation "net.hasor:meteor-protocol-oncrpc:${version}"
+    implementation "net.hasor:meteor-registry:${version}"
+    implementation "net.hasor:meteor-registry-nacos:${version}"
+    implementation "net.hasor:meteor-registry-zookeeper:${version}"
+    implementation "net.hasor:meteor-registry-dubbo:${version}"
+
+    runtimeOnly "net.hasor:meteor-protocol-thrift:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-hprose:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-dubbo:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-soap:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-jsonrpc:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-xmlrpc:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-hessian:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-connect:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-triple:${version}"
+}
+
+sourceSets.main.resources.srcDirs = ['../../resource']

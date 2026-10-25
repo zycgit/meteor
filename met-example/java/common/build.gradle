@@ -1,0 +1,13 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Shared order contract and business code'
+
+dependencies {
+    api "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+
+    // 注解及生成消息只参与共享代码编译，各 SDK 自行选择运行依赖。
+    compileOnly "net.hasor:meteor:${version}"
+    compileOnly "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
+}

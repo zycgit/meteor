@@ -1,0 +1,11 @@
+plugins {
+    id 'java'
+}
+
+description = 'Apache XML-RPC SDK examples'
+
+dependencies {
+    implementation project(':java:common')
+    implementation "org.apache.xmlrpc:xmlrpc-client:${property('lib.xmlrpc')}"
+    implementation "org.apache.xmlrpc:xmlrpc-server:${property('lib.xmlrpc')}"
+}

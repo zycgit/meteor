@@ -1,0 +1,27 @@
+plugins {
+    id 'base'
+}
+
+description = 'Meteor getting-started examples by language and role'
+
+// 示例构建独立维护工程结构，依赖版本沿用仓库配置。
+def libraryVersions = new Properties()
+file('../gradle.properties').withInputStream { libraryVersions.load(it) }
+
+allprojects {
+    group = 'net.hasor.example'
+    version = libraryVersions.getProperty('version')
+    libraryVersions.each { key, value -> extensions.extraProperties.set(key.toString(), value) }
+}
+
+subprojects {
+    plugins.withId('java') {
+        java {
+            toolchain.languageVersion = JavaLanguageVersion.of(17)
+        }
+        tasks.withType(JavaCompile).configureEach {
+            options.encoding = 'UTF-8'
+            options.release = 17
+        }
+    }
+}

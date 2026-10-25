@@ -1,0 +1,2 @@
+# Official Apache Thrift runtime; it has no additional runtime dependencies.
+thrift==0.22.0

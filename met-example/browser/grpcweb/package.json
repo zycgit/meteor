@@ -1,0 +1,17 @@
+{
+  "name": "meteor-browser-grpcweb-example",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node serve.mjs"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.16.0",
+    "grpc-web": "2.1.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

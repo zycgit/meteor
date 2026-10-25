@@ -1,0 +1,34 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'met-example'
+
+// 独立导入示例工程时，直接使用当前仓库中的 Meteor 实现。
+includeBuild('..')
+
+include 'java:common'
+include 'java:meteor'
+include 'java:sdk:apache-dubbo-3.3'
+include 'java:sdk:apache-thrift'
+include 'java:sdk:hprose-java'
+include 'java:sdk:metro-jaxws'
+include 'java:sdk:jsonrpc4j'
+include 'java:sdk:apache-xmlrpc'
+include 'java:sdk:caucho-hessian'
+include 'java:sdk:grpc-java'
+include 'java:sdk:connect-kotlin-jvm'
+include 'java:sdk:connect-rpc-java'
+include 'java:sdk:apache-dubbo-3.2'
+include 'java:sdk:remotetea'

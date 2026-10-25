@@ -1,0 +1,10 @@
+plugins {
+    id 'java'
+}
+
+description = 'jsonrpc Java SDK examples'
+
+dependencies {
+    implementation project(':java:common')
+    implementation "com.github.briandilley.jsonrpc4j:jsonrpc4j:${property('lib.jsonrpc4j')}"
+}
