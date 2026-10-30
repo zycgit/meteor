@@ -34,6 +34,6 @@ public final class ChannelInputCloseHandler implements ProtoHandler<Object, Obje
         }
 
         target.offerMessage(this.inputClose);
-        return ProtoStatus.End;
+        return ProtoStatus.Abort;
     }
 }

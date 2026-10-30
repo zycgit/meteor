@@ -363,7 +363,11 @@ final class Http1ClientChannel extends HttpChannel {
         if (event.getData() instanceof SoInputCloseEvent) {
             this.execute(() -> {
                 this.failed(socket, new IOException("HTTP peer closed before response"));
-                socket.closeNow();
+                if (socket == this.channel) {
+                    socket.close(); // 完整响应保留原连接归属，排空已接受的写入；取消仍能立即中止它。
+                } else {
+                    socket.closeNow();
+                }
             });
             return;
         }
@@ -452,20 +456,21 @@ final class Http1ClientChannel extends HttpChannel {
             return;
         }
 
-        this.channel = null;
         Http1ClientExchangeState exchangeState = this.activeExchange;
         if (exchangeState != null) {
             HttpResponse response = exchangeState.response();
             HttpBodyStream bodyStream = response == null ? null : response.stream();
             boolean received = response != null && (bodyStream == null || bodyStream.inputEnded());
-            Future<Void> sent = exchangeState.sent();
-            boolean written = sent.isDone() && !sent.isCancelled() && sent.getCause() == null;
-            if (received && written) {
-                // EOF 之后，已经完整接收的正文仍可由应用读完。
+            if (received) {
+                // 完整响应不因 EOF 失败；原写入结束前保留连接，且结束后不能再次复用。
+                exchangeState.response(response, false);
                 this.finishResponse(exchangeState);
                 return;
             }
+        }
 
+        this.channel = null;
+        if (exchangeState != null) {
             this.activeExchange = null;
             this.failExchange(exchangeState, failure);
         }

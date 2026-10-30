@@ -575,6 +575,13 @@ final class Http2Channel extends HttpChannel implements ProtoHandler<HttpObject,
 
         this.remoteSettings.failed(settingsFailure);
         for (HttpExchange exchange : new ArrayList<>(this.pending.values())) {
+            HttpResponse response = exchange.response().getResult();
+            HttpBodyStream body = response == null ? null : response.stream();
+            boolean completeInput = !this.server && body != null && body.inputEnded();
+            if (this.closeCause == null && completeInput && body.completion().getCause() == null) {
+                continue; // 网络正文和尾部已完整到达；应用仍可消费，原写失败及取消链路继续有效。
+            }
+
             Throwable failure = this.closeCause;
             if (failure == null) {
                 failure = new IOException("HTTP/2 connection closed");
