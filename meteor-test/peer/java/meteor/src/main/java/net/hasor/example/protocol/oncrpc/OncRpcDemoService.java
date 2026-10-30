@@ -9,7 +9,7 @@ package net.hasor.example.protocol.oncrpc;
 import net.hasor.meteor.annotation.MetMethod;
 import net.hasor.meteor.annotation.MetService;
 
-/** 对应 src/test/resources/oncrpc/interop.x，过程编号由业务 IDL 固定。 */
+/** 对应 resource/protocol/x/interop.x，过程编号由业务 IDL 固定。 */
 @MetService(id = 0x31234567L)
 public interface OncRpcDemoService {
     @MetMethod(id = 1)

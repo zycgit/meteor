@@ -101,9 +101,9 @@ public class HessianRsfsScenarioTest {
         configuration.setDefaultTimeout(10000);
         ConnectorSettings connector = configuration.connector("tcp").bind("127.0.0.1", 0);
         connector.option("tlsEnabled", true);
-        connector.option("tlsKeyStore", "classpath:/hessian/tls/acceptance/server.p12");
+        connector.option("tlsKeyStore", "classpath:/certs/acceptance/server.p12");
         connector.option("tlsKeyStorePassword", "meteor-test");
-        connector.option("tlsTrustStore", "classpath:/hessian/tls/acceptance/trust.p12");
+        connector.option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12");
         connector.option("tlsTrustStorePassword", "meteor-test");
         connector.option("tlsClientAuth", clientAuth);
         connector.protocol("rsf").addressScheme("rsfs");
@@ -115,10 +115,10 @@ public class HessianRsfsScenarioTest {
         configuration.setDefaultTimeout(10000);
         ConnectorSettings connector = configuration.connector("tcp");
         connector.option("tlsEnabled", true);
-        connector.option("tlsTrustStore", "classpath:/hessian/tls/acceptance/trust.p12");
+        connector.option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12");
         connector.option("tlsTrustStorePassword", "meteor-test");
         if (provideCertificate) {
-            connector.option("tlsKeyStore", "classpath:/hessian/tls/acceptance/client.p12");
+            connector.option("tlsKeyStore", "classpath:/certs/acceptance/client.p12");
             connector.option("tlsKeyStorePassword", "meteor-test");
         }
         connector.protocol("rsf").addressScheme("rsfs");

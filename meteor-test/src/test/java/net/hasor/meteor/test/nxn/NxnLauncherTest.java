@@ -689,7 +689,8 @@ public class NxnLauncherTest {
     @Test
     public void relativeMavenSeedIsResolvedFromRepositoryRoot() throws Exception {
         // 子工程映射到深层目录时，相对种子仍属于仓库根目录。
-        Path seed = Files.createDirectory(this.repository.resolve("local-maven-seed"));
+        Path seed = Files.createDirectories(this.repository.resolve("local-maven-seed/net/hasor"));
+        Files.createDirectories(seed.resolve("cobble-all/4.0.0"));
         String settings = "rootProject.name = 'launcher-fixture'\ninclude 'meteor-test'\n";
         settings += "project(':meteor-test').projectDir = file('meteor-test/peer/java/meteor')\n";
         Files.writeString(this.repository.resolve("settings.gradle"), settings);
@@ -701,6 +702,119 @@ public class NxnLauncherTest {
         int status = runTask(":meteor-test:dockerTest", Map.of(), "--no-build", "--maven-seed", "local-maven-seed");
         assertSuccess(status);
         assertEquals(seed.toString(), lastEnvironment().path("METEOR_TEST_MAVEN_SEED").asText());
+    }
+
+    @Test
+    public void populatedDefaultMavenRepositorySeedsHasorArtifacts() throws Exception {
+        // 宿主 install 或 publishToMavenLocal 后的 Cobble、Neta 位于默认 Maven 仓库。
+        Path localRepository = this.temporary.resolve("home/.m2/repository");
+        Path seed = Files.createDirectories(localRepository.resolve("net/hasor"));
+        Path cobble = Files.createDirectories(seed.resolve("cobble-all/4.0.0"));
+        Files.writeString(cobble.resolve("cobble-all-4.0.0.pom"), "<project/>\n");
+        Path neta = Files.createDirectories(seed.resolve("neta-core/4.0.0"));
+        Files.writeString(neta.resolve("neta-core-4.0.0.pom"), "<project/>\n");
+        Files.createDirectories(localRepository.resolve("org/example/unrelated/1.0"));
+
+        // 默认入口只把 Hasor 命名空间传给 Compose，不挂载整个宿主缓存。
+        assertSuccess(runLauncher("--no-build"));
+        assertEquals(seed.toString(), lastEnvironment().path("METEOR_TEST_MAVEN_SEED").asText());
+    }
+
+    @Test
+    public void configuredMavenRepositorySeedsHasorArtifacts() throws Exception {
+        // maven.repo.local 指向 Maven 仓库根，空格路径也不经过 shell 拆分。
+        Path localRepository = this.temporary.resolve("custom maven repository");
+        Path seed = Files.createDirectories(localRepository.resolve("net/hasor"));
+        Files.createDirectories(seed.resolve("neta-core/4.0.0"));
+
+        // 标准 Maven 系统属性覆盖默认 user.home 仓库。
+        assertSuccess(runLauncher("--no-build", "-Dmaven.repo.local=" + localRepository));
+        assertEquals(seed.toString(), lastEnvironment().path("METEOR_TEST_MAVEN_SEED").asText());
+    }
+
+    @Test
+    public void explicitMavenRepositoryRootSeedsHasorArtifacts() throws Exception {
+        // 显式种子允许直接使用 mvn install 的仓库根目录。
+        Path localRepository = this.temporary.resolve("installed artifacts");
+        Path seed = Files.createDirectories(localRepository.resolve("net/hasor"));
+        Files.createDirectories(seed.resolve("cobble-all/4.0.0"));
+        Files.createDirectories(localRepository.resolve("org/example/unrelated/1.0"));
+
+        // 选择仓库根后仍只导入 net/hasor。
+        assertSuccess(runLauncher("--no-build", "--maven-seed", localRepository.toString()));
+        assertEquals(seed.toString(), lastEnvironment().path("METEOR_TEST_MAVEN_SEED").asText());
+    }
+
+    @Test
+    public void explicitLegacyHasorMavenDirectoryIsPreserved() throws Exception {
+        // 已有命令可以继续直接指定 Maven 仓库中的 net/hasor 子目录。
+        Path seed = Files.createDirectories(this.temporary.resolve("local-maven/net/hasor"));
+        Files.createDirectories(seed.resolve("cobble-all/4.0.0"));
+
+        assertSuccess(runLauncher("--no-build", "--maven-seed", seed.toString()));
+        assertEquals(seed.toString(), lastEnvironment().path("METEOR_TEST_MAVEN_SEED").asText());
+    }
+
+    @Test
+    public void explicitFlatHasorArtifactDirectoryIsPreserved() throws Exception {
+        // 手工导出的 Hasor 制品目录也可以没有 net/hasor 外层目录。
+        Path seed = Files.createDirectories(this.temporary.resolve("exported-artifacts"));
+        Files.createDirectories(seed.resolve("neta-codec-http/4.0.0"));
+
+        assertSuccess(runLauncher("--no-build", "--maven-seed", seed.toString()));
+        assertEquals(seed.toString(), lastEnvironment().path("METEOR_TEST_MAVEN_SEED").asText());
+    }
+
+    @Test
+    public void explicitMavenSeedOverridesConfiguredMavenRepository() throws Exception {
+        // 显式种子优先于系统属性，即使属性仍指向已不存在的旧仓库。
+        Path seed = Files.createDirectories(this.temporary.resolve("installed/net/hasor"));
+        Files.createDirectories(seed.resolve("neta-core/4.0.0"));
+        String configured = "-Dmaven.repo.local=" + this.temporary.resolve("missing-old-repository");
+
+        assertSuccess(runLauncher("--no-build", configured, "--maven-seed", seed.toString()));
+        assertEquals(seed.toString(), lastEnvironment().path("METEOR_TEST_MAVEN_SEED").asText());
+    }
+
+    @Test
+    public void explicitEmptyMavenSeedIsRejectedBeforeDocker() throws Exception {
+        // 任意空目录无法确定 Hasor 仓库布局，显式设置时必须报告配置错误。
+        Path empty = Files.createDirectory(this.temporary.resolve("empty-seed"));
+
+        assertFailure(runLauncher("--maven-seed", empty.toString()));
+        assertTrue(this.commands.isEmpty());
+        assertTrue(diagnostics().contains("Maven seed must contain net/hasor"));
+    }
+
+    @Test
+    public void explicitUnrelatedMavenRepositoryIsRejectedBeforeDocker() throws Exception {
+        // 只有其它 group 的仓库不能误当成平铺的 Hasor 制品目录。
+        Path localRepository = Files.createDirectory(this.temporary.resolve("unrelated-repository"));
+        Files.createDirectories(localRepository.resolve("org/example/library/1.0"));
+
+        assertFailure(runLauncher("--maven-seed", localRepository.toString()));
+        assertTrue(this.commands.isEmpty());
+        assertTrue(diagnostics().contains("Maven seed must contain net/hasor"));
+    }
+
+    @Test
+    public void explicitMavenSeedFileIsRejectedBeforeDocker() throws Exception {
+        // 存在的普通文件同样不能作为 Docker 目录挂载源。
+        Path seed = Files.writeString(this.temporary.resolve("seed.pom"), "<project/>\n");
+
+        assertFailure(runLauncher("--maven-seed", seed.toString()));
+        assertTrue(this.commands.isEmpty());
+        assertTrue(diagnostics().contains("Maven seed directory does not exist"));
+    }
+
+    @Test
+    public void configuredMissingMavenRepositoryIsRejectedBeforeDocker() throws Exception {
+        // 标准系统属性显式指定的缓存缺失时，不静默回退到默认仓库。
+        String configured = "-Dmaven.repo.local=" + this.temporary.resolve("missing-repository");
+
+        assertFailure(runLauncher(configured));
+        assertTrue(this.commands.isEmpty());
+        assertTrue(diagnostics().contains("Maven repository directory does not exist"));
     }
 
     @Test

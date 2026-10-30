@@ -133,7 +133,7 @@ public enum OrderProtocol {
                     .codec(Order.class, new OrderXdrCodec());
             builder.bindResource(this.name, resource);
         } else if (this.usesProtobuf()) {
-            var proto = DirectRpcExample.class.getResource("/order/order.proto");
+            var proto = DirectRpcExample.class.getResource("/protocol/proto/order.proto");
             builder.bindResource(this.name, new GrpcProtoResource(proto));
         }
         return builder;

@@ -116,6 +116,6 @@ public class GoProtoTypeMatrixTest {
     }
 
     private GrpcProtoResource resource() throws IOException {
-        return new GrpcProtoResource(this.getClass().getResource("/vectors/types/types.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/types/types.proto"));
     }
 }

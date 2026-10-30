@@ -30,8 +30,8 @@ public class NxnEntryTest {
     public void prepareEntry() throws Exception {
         // 所有缓存、控制请求、日志和假命令都属于当前 testcase。
         this.repository = this.temporary.getRoot().toPath();
-        Path scripts = Files.createDirectories(this.repository.resolve("meteor-test/scripts"));
-        this.entry = scripts.getParent().resolve("runnxn.sh");
+        Path clockTools = Files.createDirectories(this.repository.resolve("meteor-test/tools/clock"));
+        this.entry = this.repository.resolve("meteor-test/runnxn.sh");
         Files.copy(sourceEntry(), this.entry);
         this.home = Files.createDirectory(this.repository.resolve("home"));
         this.environment = new LinkedHashMap<>(System.getenv());
@@ -80,7 +80,7 @@ public class NxnEntryTest {
                 fi
                 exit "${ENTRY_TEST_EXIT:-0}"
                 """, StandardCharsets.UTF_8);
-        Files.writeString(scripts.resolve("with-clock-paused.sh"), """
+        Files.writeString(clockTools.resolve("with-clock-paused.sh"), """
                 #!/usr/bin/env bash
                 printf '[fake-clock] paused\\n'
                 "$@"

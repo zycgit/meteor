@@ -1,0 +1,2068 @@
+{
+  "purpose": "Protocol and peer metadata only; Java tests own setup, calls and assertions. Profiles describe candidate combinations, not successful test results.",
+  "roles": [
+    "self",
+    "provider",
+    "consumer"
+  ],
+  "discoveryModes": {
+    "direct": "Caller receives an explicit address.",
+    "meteor-auto": "Meteor registry client publishes and subscribes through its public integration.",
+    "adapter": "An explicit adapter discovers and maintains addresses for an external peer.",
+    "native": "The external SDK registers or discovers through its own native registry integration."
+  },
+  "dataTiers": [
+    "basic-common",
+    "complex"
+  ],
+  "protocols": [
+    {
+      "id": "rsf",
+      "module": ":meteor",
+      "factorySource": "meteor/src/main/java/net/hasor/meteor/connector/protocol/rsf/RsfProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.matrix",
+      "profiles": [
+        {
+          "id": "tcp",
+          "protocolName": "rsf",
+          "transport": "tcp",
+          "wireEncodings": [
+            "Json",
+            "Java"
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "compositionPackages": [
+        "net.hasor.realmeteor.composition.state"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc",
+      "module": ":meteor-protocol-grpc",
+      "factorySource": "meteor-integration/meteor-protocol-grpc/src/main/java/net/hasor/meteor/protocol/grpc/GrpcProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.grpc",
+      "profiles": [
+        {
+          "id": "protobuf-http2",
+          "protocolName": "grpc",
+          "transport": "http",
+          "wireEncodings": [
+            "Protobuf"
+          ],
+          "httpVersions": [
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "custom-marshaller-http2",
+          "protocolName": "grpc",
+          "transport": "http",
+          "wireEncodings": [
+            "Json",
+            "Java",
+            "Hessian",
+            "Hprose"
+          ],
+          "httpVersions": [
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-web",
+      "module": ":meteor-protocol-grpc",
+      "factorySource": "meteor-integration/meteor-protocol-grpc/src/main/java/net/hasor/meteor/protocol/grpc/GrpcWebProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.grpc.web",
+      "profiles": [
+        {
+          "id": "binary",
+          "protocolName": "grpc-web",
+          "transport": "http",
+          "wireEncodings": [
+            "Protobuf"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "text",
+          "protocolName": "grpc-web",
+          "transport": "http",
+          "wireEncodings": [
+            "Protobuf"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "hprose",
+      "module": ":meteor-protocol-hprose",
+      "factorySource": "meteor-integration/meteor-protocol-hprose/src/main/java/net/hasor/meteor/protocol/hprose/HproseProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.hprose",
+      "profiles": [
+        {
+          "id": "http",
+          "protocolName": "hprose",
+          "transport": "http",
+          "wireEncodings": [
+            "Hprose"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "soap",
+      "module": ":meteor-protocol-soap",
+      "factorySource": "meteor-integration/meteor-protocol-soap/src/main/java/net/hasor/meteor/protocol/soap/SoapProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.soap",
+      "profiles": [
+        {
+          "id": "soap11",
+          "protocolName": "soap",
+          "transport": "http",
+          "wireEncodings": [
+            "Xml"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "soap12",
+          "protocolName": "soap",
+          "transport": "http",
+          "wireEncodings": [
+            "Xml"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "jsonrpc",
+      "module": ":meteor-protocol-jsonrpc",
+      "factorySource": "meteor-integration/meteor-protocol-jsonrpc/src/main/java/net/hasor/meteor/protocol/jsonrpc/JsonRpcProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.jsonrpc",
+      "profiles": [
+        {
+          "id": "http",
+          "protocolName": "jsonrpc",
+          "transport": "http",
+          "wireEncodings": [
+            "Json"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "websocket",
+          "protocolName": "jsonrpc",
+          "transport": "http",
+          "wireEncodings": [
+            "Json"
+          ],
+          "httpVersions": [
+            1
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "xmlrpc",
+      "module": ":meteor-protocol-xmlrpc",
+      "factorySource": "meteor-integration/meteor-protocol-xmlrpc/src/main/java/net/hasor/meteor/protocol/xmlrpc/XmlRpcProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.xmlrpc",
+      "profiles": [
+        {
+          "id": "standard",
+          "protocolName": "xmlrpc",
+          "transport": "http",
+          "wireEncodings": [
+            "Xml"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "nil-extension",
+          "protocolName": "xmlrpc",
+          "transport": "http",
+          "wireEncodings": [
+            "Xml"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "hessian",
+      "module": ":meteor-protocol-hessian",
+      "factorySource": "meteor-integration/meteor-protocol-hessian/src/main/java/net/hasor/meteor/protocol/hessian/HessianProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.hessian",
+      "profiles": [
+        {
+          "id": "hessian1",
+          "protocolName": "hessian",
+          "transport": "http",
+          "wireEncodings": [
+            "Hessian"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "hessian2",
+          "protocolName": "hessian",
+          "transport": "http",
+          "wireEncodings": [
+            "Hessian"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "connect",
+      "module": ":meteor-protocol-connect",
+      "factorySource": "meteor-integration/meteor-protocol-connect/src/main/java/net/hasor/meteor/protocol/connect/ConnectProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.connect",
+      "profiles": [
+        {
+          "id": "protobuf",
+          "protocolName": "connect",
+          "transport": "http",
+          "wireEncodings": [
+            "Protobuf"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "json",
+          "protocolName": "connect",
+          "transport": "http",
+          "wireEncodings": [
+            "Json"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "triple",
+      "module": ":meteor-protocol-triple",
+      "factorySource": "meteor-integration/meteor-protocol-triple/src/main/java/net/hasor/meteor/protocol/triple/TripleProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.triple",
+      "profiles": [
+        {
+          "id": "grpc-wrapper",
+          "protocolName": "triple",
+          "transport": "http",
+          "wireEncodings": [
+            "Hessian2"
+          ],
+          "httpVersions": [
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "grpc-native",
+          "protocolName": "triple",
+          "transport": "http",
+          "wireEncodings": [
+            "Protobuf",
+            "Json"
+          ],
+          "httpVersions": [
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "http-json",
+          "protocolName": "triple",
+          "transport": "http",
+          "wireEncodings": [
+            "Json"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "http-protobuf",
+          "protocolName": "triple",
+          "transport": "http",
+          "wireEncodings": [
+            "Protobuf"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "dubbo",
+      "module": ":meteor-protocol-dubbo",
+      "factorySource": "meteor-integration/meteor-protocol-dubbo/src/main/java/net/hasor/meteor/protocol/dubbo/DubboProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.dubbo",
+      "profiles": [
+        {
+          "id": "binary",
+          "protocolName": "dubbo",
+          "transport": "tcp",
+          "wireEncodings": [
+            "Hessian2",
+            "Json"
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "thrift",
+      "module": ":meteor-protocol-thrift",
+      "factorySource": "meteor-integration/meteor-protocol-thrift/src/main/java/net/hasor/meteor/protocol/thrift/ThriftProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.thrift",
+      "profiles": [
+        {
+          "id": "tcp",
+          "protocolName": "thrift",
+          "transport": "tcp",
+          "wireEncodings": [
+            "binary",
+            "compact",
+            "json"
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "http",
+          "protocolName": "thrift-http",
+          "transport": "http",
+          "wireEncodings": [
+            "binary",
+            "compact",
+            "json"
+          ],
+          "httpVersions": [
+            1,
+            2
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "oncrpc",
+      "module": ":meteor-protocol-oncrpc",
+      "factorySource": "meteor-integration/meteor-protocol-oncrpc/src/main/java/net/hasor/meteor/protocol/oncrpc/OncRpcProtocol.java",
+      "scenarioPackage": "net.hasor.realmeteor.protocol.oncrpc",
+      "profiles": [
+        {
+          "id": "tcp",
+          "protocolName": "oncrpc",
+          "transport": "tcp",
+          "wireEncodings": [
+            "XDR"
+          ],
+          "securityModes": [
+            "cleartext",
+            "tls-server-auth",
+            "tls-mutual-auth"
+          ]
+        },
+        {
+          "id": "udp",
+          "protocolName": "oncrpc-udp",
+          "transport": "udp",
+          "wireEncodings": [
+            "XDR"
+          ],
+          "securityModes": [
+            "cleartext",
+            "dtls-server-auth",
+            "dtls-mutual-auth"
+          ]
+        }
+      ],
+      "verification": "passed-declared-host-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    }
+  ],
+  "scenarioInventory": [
+    {
+      "id": "order-self-matrix",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/matrix/OrderSelfMatrixTest.java",
+      "role": "self",
+      "declaredCaseCount": 364,
+      "dimensions": "13 protocol families x (direct / JDBC auto / Nacos auto / ZooKeeper auto) x 7 scenarios",
+      "verification": "passed-declared-class-scope",
+      "discoveryModes": [
+        "direct",
+        "meteor-auto"
+      ],
+      "runId": "20261019-164339-488",
+      "passed": 364,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "ordered-protocol-state",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/composition/state/OrderedProtocolStateTest.java",
+      "role": "self",
+      "declaredCaseCount": 624,
+      "dimensions": "13 writers x 12 different readers x (direct / JDBC auto / Nacos auto / ZooKeeper auto)",
+      "verification": "passed-declared-class-scope",
+      "discoveryModes": [
+        "direct",
+        "meteor-auto"
+      ],
+      "runId": "20261019-164339-488",
+      "passed": 624,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "foreign-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/registry/adapter/RegistryForeignAdapterScenarioTest.java",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "declaredCaseCount": 12,
+      "dimensions": "3 registries x 4 adapter discovery scenarios",
+      "verification": "passed-declared-class-scope",
+      "discoveryModes": [
+        "adapter"
+      ],
+      "protocols": [
+        "xmlrpc"
+      ],
+      "peerLanguages": [
+        "python"
+      ],
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "coverageScope": "Representative XML-RPC adapter matrix; does not cover every external SDK and registry combination.",
+      "runId": "20261019-164339-488",
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "order-unicode-matrix",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/matrix/OrderUnicodeMatrixTest.java",
+      "role": "self",
+      "declaredCaseCount": 48,
+      "dimensions": "12 protocol families x (direct / JDBC auto / Nacos auto / ZooKeeper auto)",
+      "discoveryModes": [
+        "direct",
+        "meteor-auto"
+      ],
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 48,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "oncrpc-ascii-string-rejection",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/oncrpc/OncRpcOrderStringTest.java",
+      "role": "self",
+      "declaredCaseCount": 1,
+      "dimensions": "Standard XDR string rejects a Unicode order description; not a skipped positive case.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "complex-value-matrix",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/matrix/ComplexValueMatrixTest.java",
+      "role": "self",
+      "declaredCaseCount": 136,
+      "dimensions": "17 explicit serialization/IDL profiles x 4 connection/discovery configurations x 2 independent complex-value scenarios",
+      "discoveryModes": [
+        "direct",
+        "meteor-auto"
+      ],
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 136,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "scalar-value",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/matrix/ScalarValueMatrixTest.java",
+      "declaredCaseCount": 294,
+      "dimensions": "17 serialization/IDL profiles and profile-specific finite primitive/enum/null/empty vectors; XML-RPC native int32 boundary retained.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 294,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "scalar-zero-normalization",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/matrix/ScalarZeroNormalizationTest.java",
+      "declaredCaseCount": 8,
+      "dimensions": "Separate signed-zero normalization observations for four explicit serialization profiles.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "scalar-moment",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/matrix/ScalarMomentMatrixTest.java",
+      "declaredCaseCount": 49,
+      "dimensions": "Explicit Date mappings and supported UTC whole-second/millisecond/before-epoch vectors.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 49,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "scalar-decimal",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/matrix/ScalarDecimalMatrixTest.java",
+      "declaredCaseCount": 48,
+      "dimensions": "Exact value and scale; explicit native or IDL decimal mapping, excluding undefined native XML-RPC decimal.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 48,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "scalar-missing-member",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/matrix/ScalarMissingMemberTest.java",
+      "declaredCaseCount": 2,
+      "dimensions": "JSON-RPC wire omission probes for reference and primitive members.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "go-grpc-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/go/GrpcGoRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 8,
+      "dimensions": "3 cleartext backends plus Nacos mTLS, provider and consumer.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "go-connect-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/connect/go/ConnectGoRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 8,
+      "dimensions": "3 cleartext backends plus Nacos mTLS, provider and consumer.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "python-grpc-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/python/PythonGrpcRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "dimensions": "3 storage backends x provider and consumer.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "python-thrift-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/thrift/python/PythonThriftRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "dimensions": "Binary/framed cleartext representative x 3 storage backends x 2 directions.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "python-jsonrpc-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/jsonrpc/python/PythonJsonRpcRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "dimensions": "3 storage backends x provider and consumer.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "node-jsonrpc-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/jsonrpc/registry/JsonRpcNodeRegistryAdapterTest.java",
+      "declaredCaseCount": 21,
+      "dimensions": "3 storage backends x 6 order-vector/direction cases plus withdrawal.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "node-hprose-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/hprose/registry/HproseRegistryAdapterTest.java",
+      "declaredCaseCount": 18,
+      "dimensions": "3 storage backends x 3 common order vectors x 2 directions.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "node-connect-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/connect/registry/ConnectNodeRegistryInteropTest.java",
+      "declaredCaseCount": 21,
+      "dimensions": "3 storage backends x 6 order-vector/direction cases plus withdrawal.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "java-soap-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/soap/MetroRegistryAdapterTest.java",
+      "declaredCaseCount": 12,
+      "dimensions": "SOAP 1.1/1.2 x 3 storage backends x 2 directions; established SDK contract.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "java-hessian-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/hessian/CauchoHessianRegistryAdapterTest.java",
+      "declaredCaseCount": 12,
+      "dimensions": "Hessian 1/2 x 3 storage backends x 2 directions; established SDK contract.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "java-grpc-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/registry/adapter/GrpcJavaRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "dimensions": "3 storage backends x 2 directions.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "java-triple-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/triple/TripleRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "dimensions": "Wrapped Hessian2 representative x 3 storage backends x 2 directions.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "java-dubbo-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/dubbo/DubboRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "dimensions": "Dubbo 3 TCP/Hessian2 representative x 3 storage backends x 2 directions.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "java-hprose-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/registry/adapter/HproseJavaRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "dimensions": "3 storage backends x 2 directions.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-web-browser-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/web/GrpcWebRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "dimensions": "Meteor provider / official browser consumer only; binary/text x 3 backends.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "oncrpc-native-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/oncrpc/OncRpcRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 12,
+      "dimensions": "TCP/UDP x 3 storage backends x 2 directions.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "thrift-go-direct",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/thrift/go/ThriftGoInteropTest.java",
+      "declaredCaseCount": 180,
+      "dimensions": "3 encodings x 2 framing modes x 3 security modes x 2 directions x 5 scenarios.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 180,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "thrift-go-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/thrift/go/ThriftGoRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "dimensions": "Binary/framed cleartext x 3 storage backends x 2 directions.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "soap-python-order",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/soap/python/SoapPythonOrderInteropTest.java",
+      "declaredCaseCount": 8,
+      "dimensions": "Two directions x direct/JDBC/ZooKeeper/Nacos; declared order contract subset.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "java-thrift-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/thrift/ThriftJavaRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "dimensions": "3 storage backends x 2 directions; official Java SDK representative.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-web-envoy-registry-adapter",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/web/GrpcWebEnvoyRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 3,
+      "roles": [
+        "consumer"
+      ],
+      "dimensions": "3 storage backends; Meteor -> Envoy -> official gRPC Java provider.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "scalar-triple-raw-json",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/matrix/ScalarTripleRawJsonTest.java",
+      "declaredCaseCount": 1,
+      "dimensions": "Independent Triple HTTP JSON raw integer -0 wire probe; separate from the 401 common scalar cases.",
+      "verification": "passed-declared-class-scope",
+      "runId": "20261019-164339-488",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    }
+  ],
+  "wireDefaultVectors": "meteor-test/resource/data/basic/orders.json#empty-attachment.wireDefaults",
+  "complexProfiles": [
+    {
+      "id": "rsf-json",
+      "protocolName": "rsf",
+      "transport": "tcp",
+      "encoding": "Json",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "dubbo-hessian2",
+      "protocolName": "dubbo",
+      "transport": "tcp",
+      "encoding": "Hessian2",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "hprose",
+      "protocolName": "hprose",
+      "transport": "http",
+      "encoding": "Hprose",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "hessian-2",
+      "protocolName": "hessian",
+      "transport": "http",
+      "encoding": "Hessian",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "jsonrpc-json",
+      "protocolName": "jsonrpc",
+      "transport": "http",
+      "encoding": "Json",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "xmlrpc-struct",
+      "protocolName": "xmlrpc",
+      "transport": "http",
+      "encoding": "Json",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "soap-literal",
+      "protocolName": "soap",
+      "transport": "http",
+      "encoding": "Xml",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-custom-json",
+      "protocolName": "grpc",
+      "transport": "http",
+      "encoding": "Json",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-protobuf",
+      "protocolName": "grpc",
+      "transport": "http",
+      "encoding": "Protobuf",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-web-custom-json",
+      "protocolName": "grpc-web",
+      "transport": "http",
+      "encoding": "Json",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-web-protobuf",
+      "protocolName": "grpc-web",
+      "transport": "http",
+      "encoding": "Protobuf",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "connect-json",
+      "protocolName": "connect",
+      "transport": "http",
+      "encoding": "Json",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "connect-protobuf",
+      "protocolName": "connect",
+      "transport": "http",
+      "encoding": "Protobuf",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "triple-java-hessian2",
+      "protocolName": "triple",
+      "transport": "http",
+      "encoding": "Hessian2",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "triple-protobuf",
+      "protocolName": "triple",
+      "transport": "http",
+      "encoding": "Protobuf",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "thrift-binary-framed",
+      "protocolName": "thrift",
+      "transport": "tcp",
+      "encoding": "thrift",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "oncrpc-xdr",
+      "protocolName": "oncrpc",
+      "transport": "tcp",
+      "encoding": "oncrpc",
+      "verification": "passed-declared-complex-subset",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    }
+  ],
+  "testEnvironment": {
+    "nacosFunctionalMatrix": {
+      "jvmProperty": "limitTime",
+      "value": "1000",
+      "overrideProperty": "meteor.test.nacos.limitTime",
+      "scope": "test-jvm-only",
+      "verification": "passed-declared-functional-matrix-scope",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json",
+      "configuration": "meteor-test/build/interoperability/20261019-164339-488/configuration.json"
+    },
+    "nacosDefaultLimitSmoke": {
+      "overrideProperty": "meteor.test.nacos.limitTime",
+      "value": "5",
+      "scope": "separate-representative-case",
+      "verification": "passed-declared-smoke-scope",
+      "runId": "20261019-140734-160",
+      "tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "writeProtocol": "jsonrpc",
+      "readProtocol": "xmlrpc",
+      "discovery": "nacos",
+      "evidence": "meteor-test/build/interoperability/20261019-140734-160"
+    }
+  },
+  "commonContractCoverage": {
+    "scope": "Unified demo contract implementation progress only. The 3142-case migration baseline is not the final acceptance of the whole interoperability goal.",
+    "implementedBaseSubset": [
+      "int32-boundaries",
+      "string-and-ascii-escaping",
+      "bytes-0-to-255",
+      "wire-specific-empty-bytes-defaults",
+      "missing-order-error"
+    ],
+    "implementedComplexSubset": [
+      "representative-boolean-true",
+      "representative-finite-double",
+      "nested-dto",
+      "ordered-list-of-dto",
+      "ordered-list-of-string",
+      "map-string-to-dto",
+      "map-string-to-int32"
+    ],
+    "progressiveBacklog": [
+      {
+        "tier": "basic-common",
+        "items": [
+          "extend-scalar-contract-to-external-language-and-registry-combinations",
+          "profile-wide-wire-missing-versus-explicit-null-semantics"
+        ],
+        "status": "planned-progressive-contract"
+      },
+      {
+        "tier": "complex",
+        "items": [
+          "nested-containers",
+          "union-and-oneof",
+          "complex-exceptions",
+          "schema-evolution"
+        ],
+        "status": "planned-progressive-contract"
+      }
+    ],
+    "newScalarSource": {
+      "status": "source-present",
+      "verification": "passed-declared-direct-scope",
+      "declaredCaseCount": 401,
+      "discoveryMode": "direct",
+      "language": "java",
+      "profiles": 17,
+      "vectors": "meteor-test/resource/data/scalar/values.json",
+      "values": [
+        "boolean-true-and-false",
+        "exact-int64-boundaries-and-above-double-precision",
+        "finite-float-and-double-extremes",
+        "signed-zero-profile-semantics",
+        "enum",
+        "nullable-and-empty-string",
+        "date",
+        "exact-decimal"
+      ],
+      "nativeXmlRpcLimits": [
+        "no-native-int64",
+        "whole-second-time-only",
+        "no-native-arbitrary-precision-decimal"
+      ],
+      "hproseDateScope": "Self endpoints share JVM timezone; external cross-timezone behavior is not claimed.",
+      "runId": "20261019-164339-488",
+      "passed": 401,
+      "failed": 0
+    }
+  },
+  "requiredRegistryAdapterScopes": [
+    {
+      "peerId": "grpc-go",
+      "protocol": "grpc",
+      "language": "go",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-adapter-profile",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/go/GrpcGoRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 8,
+      "runId": "20261019-143606-563",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "connect-go",
+      "protocol": "connect",
+      "language": "go",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-adapter-profile",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/connect/go/ConnectGoRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 8,
+      "runId": "20261019-143606-563",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "grpc-python",
+      "protocol": "grpc",
+      "language": "python",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-adapter-profile",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/python/PythonGrpcRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "thrift-python",
+      "protocol": "thrift",
+      "language": "python",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-adapter-profile",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/thrift/python/PythonThriftRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "jsonrpc-python",
+      "protocol": "jsonrpc",
+      "language": "python",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-adapter-profile",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/jsonrpc/python/PythonJsonRpcRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "jsonrpc-jayson-node",
+      "protocol": "jsonrpc",
+      "language": "javascript",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-adapter-profile",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/jsonrpc/registry/JsonRpcNodeRegistryAdapterTest.java",
+      "declaredCaseCount": 21,
+      "runId": "20261019-143606-563",
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "hprose-node",
+      "protocol": "hprose",
+      "language": "javascript",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-adapter-profile",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/hprose/registry/HproseRegistryAdapterTest.java",
+      "declaredCaseCount": 18,
+      "runId": "20261019-143606-563",
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "connect-node",
+      "protocol": "connect",
+      "language": "javascript",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-adapter-profile",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/connect/registry/ConnectNodeRegistryInteropTest.java",
+      "declaredCaseCount": 21,
+      "runId": "20261019-143606-563",
+      "passed": 21,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "thrift-go",
+      "protocol": "thrift",
+      "language": "go",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "declaredCaseCount": 6,
+      "profile": "binary / framed / cleartext representative discovery profile",
+      "verification": "passed-declared-adapter-profile",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/thrift/go/ThriftGoRegistryAdapterScenarioTest.java",
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "grpc-java",
+      "protocol": "grpc",
+      "language": "java",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/registry/adapter/GrpcJavaRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "hprose-java",
+      "protocol": "hprose",
+      "language": "java",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/registry/adapter/HproseJavaRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "soap-metro-java",
+      "protocol": "soap",
+      "language": "java",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/soap/MetroRegistryAdapterTest.java",
+      "declaredCaseCount": 12,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-143606-563",
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "hessian-caucho-java",
+      "protocol": "hessian",
+      "language": "java",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/hessian/CauchoHessianRegistryAdapterTest.java",
+      "declaredCaseCount": 12,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-143606-563",
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "triple-dubbo-java",
+      "protocol": "triple",
+      "language": "java",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/triple/TripleRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "dubbo3-java",
+      "protocol": "dubbo",
+      "language": "java",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/dubbo/DubboRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "thrift-java",
+      "protocol": "thrift",
+      "language": "java",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/thrift/ThriftJavaRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "grpc-web-javascript",
+      "protocol": "grpc-web",
+      "language": "javascript-browser",
+      "roles": [
+        "provider"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/web/GrpcWebRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 6,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "oncrpc-libtirpc-c",
+      "protocol": "oncrpc",
+      "language": "c",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/oncrpc/OncRpcRegistryAdapterScenarioTest.java",
+      "declaredCaseCount": 12,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-144923-968",
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "soap-python",
+      "protocol": "soap",
+      "language": "python",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/soap/python/SoapPythonOrderInteropTest.java",
+      "declaredCaseCount": 6,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-143606-563",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "scopeNote": "Only the 6 non-direct adapter cases are counted here; source class also has 2 independently reported direct cases.",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "xmlrpc-python",
+      "protocol": "xmlrpc",
+      "language": "python",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/registry/adapter/RegistryForeignAdapterScenarioTest.java",
+      "declaredCaseCount": 12,
+      "verification": "passed-declared-adapter-profile",
+      "runId": "20261019-143606-563",
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "peerId": "grpc-web-envoy-java",
+      "protocol": "grpc-web",
+      "language": "java-with-native-proxy",
+      "roles": [
+        "consumer"
+      ],
+      "discoveryMode": "adapter",
+      "registryBackends": [
+        "jdbc",
+        "nacos",
+        "zookeeper"
+      ],
+      "requiredForGoalAcceptance": true,
+      "implementationStatus": "source-present",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/web/GrpcWebEnvoyRegistryAdapterScenarioTest.java",
+      "verification": "passed-declared-adapter-profile",
+      "scope": "Meteor consumer -> Envoy -> official gRPC Java server. Browser server capability is not used as a substitute.",
+      "declaredCaseCount": 3,
+      "runId": "20261019-143606-563",
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    }
+  ],
+  "migrationBaselineScope": {
+    "expectedCaseCount": 3142,
+    "verification": "interrupted-without-summary",
+    "completesOverallGoal": false,
+    "excludes": "Subsequent required foreign registry adapter and common-type contract additions.",
+    "runId": "20261019-140830-307",
+    "exitCode": 143,
+    "summaryGenerated": false
+  },
+  "pluginUnitEvidence": {
+    "modules": 13,
+    "tests": 3537,
+    "failed": 0,
+    "skipped": 0,
+    "execution": "fresh-completed-module-tests",
+    "scope": "11 protocol plugins plus registry-dubbo and registry-nacos; host run later interrupted.",
+    "doesNotCompleteHostAcceptance": true
+  },
+  "completedPluginUnitEvidence": "build/meteor-test-migration/plugin-fresh-20261019/summary.json",
+  "directExpansionEvidence": {
+    "runId": "20261019-142950-740",
+    "summary": "meteor-test/build/interoperability/20261019-142950-740/summary.json",
+    "tests": 659,
+    "passed": 655,
+    "failed": 4,
+    "skipped": 0,
+    "completesGoal": false
+  },
+  "invalidatedEvidence": [
+    {
+      "runId": "20261019-143058-897",
+      "accepted": false,
+      "reason": "Cancelled adapter finalizer copied previous direct XML; case results do not belong to this run.",
+      "evidence": "meteor-test/build/interoperability/20261019-143058-897/invalidation.json",
+      "doesNotInvalidate": "20261019-142950-740 original direct report"
+    }
+  ],
+  "adapterExpansionEvidence": {
+    "runId": "20261019-143606-563",
+    "summary": "meteor-test/build/interoperability/20261019-143606-563/summary.json",
+    "tests": 200,
+    "passed": 197,
+    "failed": 3,
+    "skipped": 0,
+    "completesGoal": false,
+    "remainingFailureScope": "C/ONC RPC UDP native-consumer to Meteor-provider fixtures in JDBC/ZooKeeper/Nacos used invalid bind port 0; fixture fix awaits rerun."
+  },
+  "focusedRemediationEvidence": {
+    "runId": "20261019-144923-968",
+    "tests": 413,
+    "passed": 413,
+    "failed": 0,
+    "skipped": 0,
+    "testTaskStarted": true,
+    "excludedPreviousResultFiles": 0,
+    "resultsAvailable": true,
+    "reusedResults": false,
+    "taskFailure": null,
+    "includes": [
+      "*OncRpcRegistryAdapterScenarioTest",
+      "net.hasor.realmeteor.matrix.Scalar*"
+    ],
+    "summary": "meteor-test/build/interoperability/20261019-144923-968/summary.json",
+    "scope": "401 direct Java scalar contract cases and 12 native C/ONC RPC registry-adapter cases only. Prior failed runs remain in their own evidence entries.",
+    "completesGoal": false
+  },
+  "reportFailureProbeEvidence": [
+    {
+      "runId": "20261019-144843-401",
+      "expectedFailure": true,
+      "testTaskStarted": false,
+      "acceptedCases": 0,
+      "excludedPreviousXmlFiles": 22,
+      "resultsAvailable": false,
+      "evidence": "build/meteor-test-migration/report-failure-probe-result.json"
+    },
+    {
+      "runId": "20261019-145246-670",
+      "expectedFailure": true,
+      "testTaskStarted": true,
+      "acceptedCases": 0,
+      "excludedPreviousXmlFiles": 6,
+      "resultsAvailable": false,
+      "evidence": "build/meteor-test-migration/report-started-failure-probe-result.json"
+    }
+  ],
+  "rawWireRemediationEvidence": {
+    "runId": "20261019-145632-283",
+    "summary": "meteor-test/build/interoperability/20261019-145632-283/summary.json",
+    "tests": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "completesGoal": false
+  },
+  "pluginProtobufFixEvidence": {
+    "modules": 3,
+    "tests": 881,
+    "failed": 0,
+    "skipped": 0,
+    "evidence": "build/meteor-test-migration/plugin-protobuf-fix-20261019/summary.json",
+    "scope": "Fresh gRPC 264, Connect 312 and Triple 305 replace prior evidence for those three modules; this is not one 13-module execution."
+  },
+  "latestIndependentPluginEvidence": {
+    "modules": 13,
+    "tests": 3563,
+    "failed": 0,
+    "skipped": 0,
+    "scope": "Latest result for each module across plugin-fresh-20261019 and plugin-protobuf-fix-20261019; not a single execution and not complete-host acceptance."
+  },
+  "completeHostAttemptEvidence": {
+    "runId": "20261019-145701-890",
+    "tests": 3923,
+    "passed": 3922,
+    "failed": 1,
+    "skipped": 0,
+    "testTaskStarted": true,
+    "excludedPreviousResultFiles": 0,
+    "resultsAvailable": true,
+    "reusedResults": false,
+    "taskFailure": "Execution failed for task ':meteor-test:test'.",
+    "includes": [],
+    "summary": "meteor-test/build/interoperability/20261019-145701-890/summary.json",
+    "uniqueCaseIds": 3923,
+    "acceptedAsGreen": false,
+    "environmentFailure": "meteor-test/build/interoperability/20261019-145701-890/environment-failure.json",
+    "scope": "Complete declared host run; rerun pending with identical assertions."
+  },
+  "currentReportIsolation": {
+    "policy": "Clear previous standard TEST-*.xml before setting the run-start marker; retain historical per-run archives and explicitly report cached reuse. No wall-clock or file-mtime comparison decides ownership.",
+    "probes": [
+      {
+        "runId": "20261019-152630-120",
+        "tests": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "testTaskStarted": true,
+        "excludedPreviousResultFiles": 223,
+        "resultsAvailable": false,
+        "reusedResults": false,
+        "taskFailure": "Execution failed for task ':meteor-test:test' (registered by plugin 'org.gradle.jvm-test-suite').",
+        "includes": [],
+        "phase": "after-setup",
+        "guard": "clear-previous-standard-xml-before-start-marker",
+        "expectedFailure": true,
+        "wallClockIndependent": true,
+        "summary": "meteor-test/build/interoperability/20261019-152630-120/summary.json",
+        "countsAsProtocolCase": false
+      },
+      {
+        "runId": "20261019-152919-438",
+        "tests": 0,
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "testTaskStarted": false,
+        "excludedPreviousResultFiles": 2,
+        "resultsAvailable": false,
+        "reusedResults": false,
+        "taskFailure": "Execution failed for task ':meteor-test:test' (registered by plugin 'org.gradle.jvm-test-suite').",
+        "includes": [],
+        "phase": "before-setup",
+        "guard": "clear-previous-standard-xml-before-start-marker",
+        "expectedFailure": true,
+        "wallClockIndependent": true,
+        "summary": "meteor-test/build/interoperability/20261019-152919-438/summary.json",
+        "countsAsProtocolCase": false
+      }
+    ]
+  },
+  "currentGuardRuntimeEvidence": {
+    "runId": "20261019-152700-676",
+    "tests": 4,
+    "passed": 3,
+    "failed": 1,
+    "skipped": 0,
+    "testTaskStarted": true,
+    "excludedPreviousResultFiles": 0,
+    "resultsAvailable": true,
+    "reusedResults": false,
+    "taskFailure": "Execution failed for task ':meteor-test:test'.",
+    "includes": [
+      "net.hasor.realmeteor.example.discovery.nacos.NacosScenarioTest",
+      "net.hasor.realmeteor.matrix.ScalarTripleRawJsonTest"
+    ],
+    "summary": "meteor-test/build/interoperability/20261019-152700-676/summary.json",
+    "acceptedAsGreen": false,
+    "diagnosticEvidence": "build/meteor-test-migration/nacos-discovery-152700-analysis/analysis.json",
+    "failureScope": "Nacos index update timestamp regressed by 28 ms and was rejected by config dump; provider publication did not finish. Existing stale-rule regression passed."
+  },
+  "implementationCompletion": {
+    "status": "accepted-declared-scope",
+    "scope": "Declared 13-family host matrix, migrated interoperability, representative registry adapters and documented common/complex contract subsets. Progressive type candidates and optional .NET are not claimed complete.",
+    "finalGreenAcceptance": "passed-declared-host-scope",
+    "latestCompleteHostRunId": "20261019-164339-488",
+    "systemClockOrTimeServiceChanged": true,
+    "systemClockManuallyChanged": false,
+    "timeServiceRestored": true
+  },
+  "connectGenerationEvidence": {
+    "evidence": "build/meteor-test-migration/connect-regeneration/actual-entrypoint-verification.json",
+    "executedEntrypoint": "meteor-test/peer/node/connect/generate.sh",
+    "exitCode": 0,
+    "contracts": 2,
+    "byteIdentical": true,
+    "countsAsProtocolCase": false
+  },
+  "finalHostAcceptanceEvidence": {
+    "runId": "20261019-164339-488",
+    "tests": 3923,
+    "passed": 3923,
+    "failed": 0,
+    "skipped": 0,
+    "testTaskStarted": true,
+    "excludedPreviousResultFiles": 2,
+    "resultsAvailable": true,
+    "reusedResults": false,
+    "taskFailure": null,
+    "includes": [],
+    "summary": "meteor-test/build/interoperability/20261019-164339-488/summary.json",
+    "cases": "meteor-test/build/interoperability/20261019-164339-488/selected-cases.json",
+    "xmlFiles": 223,
+    "uniqueCaseIds": 3923,
+    "caseSetMatchesPreviousCompleteRun": true,
+    "previousCompleteRunId": "20261019-145701-890",
+    "sourceMatches": true,
+    "kernelMatches": true,
+    "acceptedAsGreen": true,
+    "scope": "Declared current host matrix only; progressive type candidates and optional .NET are not claimed complete.",
+    "elapsedMonotonicSeconds": 1748.840568319
+  },
+  "finalClockObservationEvidence": {
+    "negativeObservations": 58,
+    "maximumNegativeOffsetMillis": 267.625948,
+    "policy": "Read-only observation; no test abort on clock shifts.",
+    "clockIssueFixed": false,
+    "evidence": "meteor-test/build/interoperability/20261019-164339-488/final-host-status.json"
+  },
+  "timeServiceRecoveryEvidence": {
+    "previousAttempt": "1000-455175-1792399136688961126",
+    "preflightStoppedBeforeTests": true,
+    "previousNegativeOffsetMillis": 60.858883,
+    "timeServiceRestored": true,
+    "state": "active/running",
+    "enabled": true,
+    "ntp": true,
+    "ntpSynchronized": true,
+    "finalRunManagedTimeService": false,
+    "evidence": "meteor-test/build/interoperability/20261019-164339-488/time-service-restoration.json",
+    "scope": "Temporary authorized service pause was restored before the final run; final green does not establish clock stability."
+  }
+}

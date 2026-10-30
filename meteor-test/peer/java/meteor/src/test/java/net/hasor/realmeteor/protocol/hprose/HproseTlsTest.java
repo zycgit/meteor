@@ -63,9 +63,9 @@ public class HproseTlsTest {
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "http/1.1") //
                 .protocol("hprose").addressScheme("https").contextPath("/rpc");
@@ -74,7 +74,7 @@ public class HproseTlsTest {
                 .option("httpVersion", 1) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsAlpn", "http/1.1") //
                 .protocol("hprose").addressScheme("https").contextPath("/rpc");
@@ -107,9 +107,9 @@ public class HproseTlsTest {
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "h2") //
                 .protocol("hprose").addressScheme("https").contextPath("/rpc");
@@ -118,7 +118,7 @@ public class HproseTlsTest {
                 .option("httpVersion", 2) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsAlpn", "h2") //
                 .protocol("hprose").addressScheme("https").contextPath("/rpc");
@@ -151,9 +151,9 @@ public class HproseTlsTest {
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "http/1.1") //
                 .option("tlsClientAuth", "REQUIRE") //
@@ -163,9 +163,9 @@ public class HproseTlsTest {
                 .option("httpVersion", 1) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/client.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "http/1.1") //
                 .protocol("hprose").addressScheme("https").contextPath("/rpc");
@@ -198,9 +198,9 @@ public class HproseTlsTest {
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "h2") //
                 .option("tlsClientAuth", "REQUIRE") //
@@ -210,9 +210,9 @@ public class HproseTlsTest {
                 .option("httpVersion", 2) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/client.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "h2") //
                 .protocol("hprose").addressScheme("https").contextPath("/rpc");
@@ -245,9 +245,9 @@ public class HproseTlsTest {
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "http/1.1") //
                 .option("tlsClientAuth", "REQUIRE") //
@@ -295,9 +295,9 @@ public class HproseTlsTest {
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "h2") //
                 .option("tlsClientAuth", "REQUIRE") //

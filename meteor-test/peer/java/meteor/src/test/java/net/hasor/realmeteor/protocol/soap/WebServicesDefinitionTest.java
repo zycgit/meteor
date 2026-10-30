@@ -152,7 +152,7 @@ public class WebServicesDefinitionTest {
     }
 
     private SoapWsdlResource echoResource() throws Exception {
-        URL wsdl = this.getClass().getResource("/soap/wsdl/echo.wsdl");
+        URL wsdl = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
         assertNotNull("Missing echo WSDL", wsdl);
         return new SoapWsdlResource(wsdl);
     }

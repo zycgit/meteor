@@ -75,7 +75,7 @@ public final class PythonTypePeerProcess implements AutoCloseable {
         String runtime = grpc ? "grpc" : "thrift";
         Path existingScript = Path.of(System.getProperty("python." + runtime + ".script"));
         Path scripts = existingScript.getParent().getParent().resolve("types");
-        Path vectors = Path.of(PythonTypePeerProcess.class.getResource("/vectors/types/values.json").toURI());
+        Path vectors = Path.of(PythonTypePeerProcess.class.getResource("/data/types/values.json").toURI());
         List<String> command = new ArrayList<>();
         command.add(System.getProperty("python." + runtime + ".executable"));
         command.add(scripts.resolve(runtime + "_peer.py").toString());

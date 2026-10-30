@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate test-only clients from src/test/resources/grpc/proto/web.proto.
+# Regenerate test-only clients from resource/protocol/proto/grpc/web.proto.
 # Official tools: protoc 36.2, protoc-gen-js 4.0.3, protoc-gen-grpc-web 2.1.1.
 # https://github.com/protocolbuffers/protobuf/releases/tag/v36.2
 # https://github.com/protocolbuffers/protobuf-javascript/releases/tag/v4.0.3
@@ -8,7 +8,7 @@
 # Tools must be on PATH; test execution uses checked-in generated files.
 set -euo pipefail
 cd "$(dirname "$0")"
-protoc -I ../../../src/test/resources/grpc/proto --js_out=import_style=commonjs,binary:generated/binary \
+protoc -I ../../../resource/protocol/proto/grpc --js_out=import_style=commonjs,binary:generated/binary \
   --grpc-web_out=import_style=commonjs,mode=grpcweb:generated/binary web.proto
-protoc -I ../../../src/test/resources/grpc/proto --js_out=import_style=commonjs,binary:generated/text \
+protoc -I ../../../resource/protocol/proto/grpc --js_out=import_style=commonjs,binary:generated/text \
   --grpc-web_out=import_style=commonjs,mode=grpcwebtext:generated/text web.proto

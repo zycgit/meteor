@@ -309,15 +309,15 @@ public class ThriftGoInteropTest {
         // Go 与 Java 使用同一 CA；服务端认证提供服务身份，双向认证再提供客户端身份。
         if (!StringUtils.equals("plain", this.tlsMode)) {
             tcp.option("tlsEnabled", true) //
-                    .option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12") //
+                    .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                     .option("tlsTrustStorePassword", "meteor-test");
             if (provider) {
                 String clientAuth = StringUtils.equals("mtls", this.tlsMode) ? "REQUIRE" : "NONE";
-                tcp.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/server.p12") //
+                tcp.option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                         .option("tlsKeyStorePassword", "meteor-test") //
                         .option("tlsClientAuth", clientAuth);
             } else if (StringUtils.equals("mtls", this.tlsMode)) {
-                tcp.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/client.p12") //
+                tcp.option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                         .option("tlsKeyStorePassword", "meteor-test");
             }
         }

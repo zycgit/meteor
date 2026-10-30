@@ -69,7 +69,7 @@ public class PythonGrpcRegistryAdapterScenarioTest {
                     .protocol("grpc").contextPath("/");
             try (MetContext provider = configuration.buildContext()) {
                 provider.start();
-                GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+                GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
                 MetBindInfo<OrderDemoService> service = provider.publisher() //
                         .rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
                         .name("orders").protocol("grpc") //
@@ -104,7 +104,7 @@ public class PythonGrpcRegistryAdapterScenarioTest {
             configuration.connector("http").option("httpVersion", 2).protocol("grpc").contextPath("/");
             try (MetContext consumer = configuration.buildContext()) {
                 consumer.start();
-                GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+                GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
                 MetBindInfo<OrderDemoService> service = consumer.publisher() //
                         .rsfService(OrderDemoService.class).name("orders").protocol("grpc") //
                         .aliasName("grpc", "meteor.example.OrderDemoService").bindResource("grpc", resource).register();
@@ -121,7 +121,7 @@ public class PythonGrpcRegistryAdapterScenarioTest {
 
                     // 统一业务向量经过自动地址本调用真实 Python 存储，保留 Unicode 与二进制附件。
                     Order expected;
-                    try (InputStream input = this.getClass().getResourceAsStream("/vectors/registry/order.json")) {
+                    try (InputStream input = this.getClass().getResourceAsStream("/data/registry/order.json")) {
                         expected = JSON.readValue(input, Order.class);
                     }
                     OrderDemoService orders = consumer.getRsfClient().getRemote(service);

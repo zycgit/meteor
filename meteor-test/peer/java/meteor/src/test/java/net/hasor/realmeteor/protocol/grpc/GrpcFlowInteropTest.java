@@ -332,7 +332,7 @@ public class GrpcFlowInteropTest {
     }
 
     private GrpcProtoResource resource() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
     }
 
     private MetConfiguration configuration(boolean server) {

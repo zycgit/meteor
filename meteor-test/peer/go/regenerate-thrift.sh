@@ -17,7 +17,7 @@ version=$("$compiler" --version)
 [[ $version == 'Thrift version 0.25.0' ]] || { printf 'Expected Thrift 0.25.0, got %s\n' "$version" >&2; exit 1; }
 mkdir -p "$source_dir/gen"
 packages=(thriftorder typecontract)
-contracts=("$test_dir/src/test/resources/order/order.thrift" "$test_dir/src/test/resources/vectors/types/types.thrift")
+contracts=("$test_dir/resource/protocol/thrift/order.thrift" "$test_dir/resource/protocol/thrift/types/types.thrift")
 for index in "${!packages[@]}"; do
     "$compiler" --gen "go:package=${packages[index]},skip_remote" \
         -out "$source_dir/gen" "${contracts[index]}"

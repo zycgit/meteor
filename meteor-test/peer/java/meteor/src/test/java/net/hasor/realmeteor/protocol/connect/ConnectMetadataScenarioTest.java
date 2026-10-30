@@ -86,7 +86,7 @@ public class ConnectMetadataScenarioTest {
         // 双方启用 gzip，应用元数据与协议保留字段分别处理。
         MetConfiguration incoming = this.configuration(true, true);
         MetConfiguration outgoing = this.configuration(false, true);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -157,11 +157,11 @@ public class ConnectMetadataScenarioTest {
         if (tls) {
             // 使用真实 TLS 及 h2 ALPN，证书归属本插件测试资源。
             http.option("tlsEnabled", true).option("httpScheme", "https").option("tlsAlpn", "h2");
-            http.option("tlsTrustStore", "classpath:/connect/tls/acceptance/trust.p12");
+            http.option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12");
             http.option("tlsTrustStorePassword", "meteor-test");
             protocol.addressScheme("https");
             if (listener) {
-                http.option("tlsKeyStore", "classpath:/connect/tls/acceptance/server.p12");
+                http.option("tlsKeyStore", "classpath:/certs/acceptance/server.p12");
                 http.option("tlsKeyStorePassword", "meteor-test");
             }
         }

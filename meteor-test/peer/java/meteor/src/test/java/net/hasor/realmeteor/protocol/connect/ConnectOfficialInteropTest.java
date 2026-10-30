@@ -58,7 +58,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientCallsMeteorUnaryHttp1() throws Exception {
         // 配置 HTTP/1 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 1);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             // 容器启动后发布普通 Java 接口，不直接创建协议会话或调度器。
@@ -88,7 +88,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientCallsMeteorUnaryHttp2() throws Exception {
         // 配置 HTTP/2 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             // 容器启动后发布普通 Java 接口，不直接创建协议会话或调度器。
@@ -118,7 +118,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientCallsMeteorServerStreamHttp1() throws Exception {
         // 配置 HTTP/1 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 1);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             // 容器启动后发布普通 Java 接口，不直接创建协议会话或调度器。
@@ -150,7 +150,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientCallsMeteorServerStreamHttp2() throws Exception {
         // 配置 HTTP/2 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             // 容器启动后发布普通 Java 接口，不直接创建协议会话或调度器。
@@ -182,7 +182,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientCallsMeteorClientStream() throws Exception {
         // 配置 HTTP/2 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             // 容器启动后发布普通 Java 接口，不直接创建协议会话或调度器。
@@ -212,7 +212,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientCallsMeteorBidiStream() throws Exception {
         // 配置 HTTP/2 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             // 容器启动后发布普通 Java 接口，不直接创建协议会话或调度器。
@@ -243,7 +243,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientCallsMeteorSafeGet() throws Exception {
         // 配置 HTTP/1 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 1);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             // 容器启动后发布普通 Java 接口，不直接创建协议会话或调度器。
@@ -273,7 +273,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientCallsMeteorCompressedUnary() throws Exception {
         // 配置 HTTP/1 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 1, true, false);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             // 容器启动后发布普通 Java 接口，不直接创建协议会话或调度器。
@@ -304,7 +304,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientCallsMeteorCompressedServerStream() throws Exception {
         // 配置 HTTP/2 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 2, true, false);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             // 容器启动后发布普通 Java 接口，不直接创建协议会话或调度器。
@@ -337,7 +337,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientCallsOfficialUnaryHttp1() throws Exception {
         // 独立官方服务监听 HTTP/1，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 1);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=1.1"); //
              MetContext client = configuration.buildContext()) {
@@ -362,7 +362,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientCallsOfficialUnaryHttp2() throws Exception {
         // 独立官方服务监听 HTTP/2，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=2"); //
              MetContext client = configuration.buildContext()) {
@@ -387,7 +387,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientCallsOfficialServerStreamHttp1() throws Exception {
         // 独立官方服务监听 HTTP/1，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 1);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=1.1"); //
              MetContext client = configuration.buildContext()) {
@@ -416,7 +416,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientCallsOfficialServerStreamHttp2() throws Exception {
         // 独立官方服务监听 HTTP/2，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=2"); //
              MetContext client = configuration.buildContext()) {
@@ -445,7 +445,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientCallsOfficialClientStream() throws Exception {
         // 独立官方服务监听 HTTP/2，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=2"); //
              MetContext client = configuration.buildContext()) {
@@ -472,7 +472,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientCallsOfficialBidiStream() throws Exception {
         // 独立官方服务监听 HTTP/2，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=2"); //
              MetContext client = configuration.buildContext()) {
@@ -502,7 +502,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientCallsOfficialSafeGet() throws Exception {
         // 独立官方服务监听 HTTP/1，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 1, false, true);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=1.1"); //
              MetContext client = configuration.buildContext()) {
@@ -532,7 +532,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientCallsOfficialCompressedUnary() throws Exception {
         // 独立官方服务监听 HTTP/1，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 1, true, false);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=1.1"); //
              MetContext client = configuration.buildContext()) {
@@ -557,7 +557,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientCallsOfficialCompressedServerStream() throws Exception {
         // 独立官方服务监听 HTTP/2，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 2, true, false);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=2"); //
              MetContext client = configuration.buildContext()) {
@@ -586,7 +586,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientReceivesMeteorMetadata() throws Exception {
         // 启动 HTTP/1 服务，在公开过滤器中回送单次调用的文本与二进制元数据。
         MetConfiguration configuration = this.configuration(true, 1);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             server.start();
@@ -625,7 +625,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientReceivesOfficialMetadata() throws Exception {
         // 官方 Node 服务维护自己的元数据，Meteor 只通过业务接口和异步调用入口访问。
         MetConfiguration configuration = this.configuration(false, 1);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=1.1"); //
              MetContext client = configuration.buildContext()) {
@@ -658,7 +658,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientReceivesMeteorStreamTrailers() throws Exception {
         // 流式结束字段通过 Connect 结束帧传递，与 HTTP/2 原生 trailer 分开验证。
         MetConfiguration configuration = this.configuration(true, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             server.start();
@@ -694,7 +694,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientReceivesOfficialStreamTrailers() throws Exception {
         // 从正式异步入口取得流和响应元数据视图，保持用户可见的真实生命周期。
         MetConfiguration configuration = this.configuration(false, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=2"); //
              MetContext client = configuration.buildContext()) {
@@ -724,7 +724,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientReceivesMeteorErrorDetails() throws Exception {
         // 服务可显式抛出 Connect 错误，详情依照 proto 编为 Any 值。
         MetConfiguration configuration = this.configuration(true, 1);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         Descriptor reply = GrpcProtoSchema.fromResource(resource).method(SERVICE, "fail").getOutputType();
         DynamicMessage detail = DynamicMessage.newBuilder(reply) //
@@ -760,7 +760,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientReceivesOfficialErrorDetails() throws Exception {
         // 官方服务独立生成 InvalidArgument 与 Any 详情，Meteor 使用正式订阅入口。
         MetConfiguration configuration = this.configuration(false, 1);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=1.1"); //
              MetContext client = configuration.buildContext()) {
@@ -795,7 +795,7 @@ public class ConnectOfficialInteropTest {
     public void officialClientReceivesMeteorStreamFailure() throws Exception {
         // 消息源在流中失败，协议需以结束帧传回错误而非正常 EOF。
         MetConfiguration configuration = this.configuration(true, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             server.start();
@@ -824,7 +824,7 @@ public class ConnectOfficialInteropTest {
     public void meteorClientReceivesOfficialStreamFailureAfterData() throws Exception {
         // 官方服务先独立发送一条数据，再发送 ResourceExhausted 错误结束帧。
         MetConfiguration configuration = this.configuration(false, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (ConnectNodeProcess peer = ConnectNodeProcess.start("server", "--http-version=2"); //
              MetContext client = configuration.buildContext()) {

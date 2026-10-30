@@ -23,9 +23,9 @@ final class HttpCompositionTlsUtils {
     static void server(MetConfiguration configuration, String alpn, String clientAuth) {
         ConnectorSettings connector = configuration.getConnectors().get(0);
         connector.option("tlsEnabled", true).option("httpScheme", "https") //
-                .option("tlsKeyStore", "classpath:/example/composition/socket/tls/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/example/composition/socket/tls/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsClientAuth", clientAuth).option("tlsAlpn", alpn);
     }
@@ -33,10 +33,10 @@ final class HttpCompositionTlsUtils {
     static void client(MetConfiguration configuration, String alpn, String identity) {
         ConnectorSettings connector = configuration.getConnectors().get(0);
         connector.option("tlsEnabled", true).option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/example/composition/socket/tls/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test").option("tlsAlpn", alpn);
         if (identity != null) {
-            connector.option("tlsKeyStore", "classpath:/example/composition/socket/tls/" + identity + ".p12") //
+            connector.option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
         }
     }
@@ -57,7 +57,7 @@ final class HttpCompositionTlsUtils {
 
     private static KeyStore load(String name) throws Exception {
         KeyStore store = KeyStore.getInstance("PKCS12");
-        String resource = "/example/composition/socket/tls/" + name + ".p12";
+        String resource = "/certs/acceptance/" + name + ".p12";
         try (InputStream input = HttpCompositionTlsUtils.class.getResourceAsStream(resource)) {
             if (input == null) {
                 throw new IOException("Missing composition certificate: " + resource);

@@ -48,15 +48,15 @@ final class PythonThriftSettings {
 
         // 每个安全方向均校验 CA，双向认证另外配置客户端身份。
         tcp.option("tlsEnabled", true) //
-                .option("tlsTrustStore", "classpath:/thrift/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test");
         if (listener) {
-            tcp.option("tlsKeyStore", "classpath:/thrift/tls/acceptance/server.p12") //
+            tcp.option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
             String clientAuth = StringUtils.equals(security, "mutual") ? "REQUIRE" : "NONE";
             tcp.option("tlsClientAuth", clientAuth);
         } else if (StringUtils.equals(security, "mutual")) {
-            tcp.option("tlsKeyStore", "classpath:/thrift/tls/acceptance/client.p12") //
+            tcp.option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
         }
         return configuration;

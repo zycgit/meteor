@@ -206,7 +206,7 @@ public class SoapPythonOrderInteropTest {
     }
 
     private JsonNode vector() throws Exception {
-        try (InputStream input = this.getClass().getResourceAsStream("/vectors/registry/order.json")) {
+        try (InputStream input = this.getClass().getResourceAsStream("/data/registry/order.json")) {
             return JSON.readTree(input);
         }
     }

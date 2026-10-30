@@ -45,7 +45,7 @@ public final class TypePeerProcess implements AutoCloseable {
         Path ready = directory.resolve("ready.txt");
         Path result = directory.resolve("result.json");
         Path log = directory.resolve("peer.log");
-        URL fixture = TypePeerProcess.class.getResource("/vectors/types/values.json");
+        URL fixture = TypePeerProcess.class.getResource("/data/types/values.json");
         if (fixture == null) {
             throw new IOException("Missing shared type vectors");
         }

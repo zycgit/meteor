@@ -24,7 +24,7 @@ public final class HproseTlsSupport {
     }
 
     private static KeyStore loadStore(String name) throws Exception {
-        String resource = "/hprose/tls/acceptance/" + name + ".p12";
+        String resource = "/certs/acceptance/" + name + ".p12";
         KeyStore store = KeyStore.getInstance("PKCS12");
         try (InputStream input = HproseTlsSupport.class.getResourceAsStream(resource)) {
             if (input == null) {

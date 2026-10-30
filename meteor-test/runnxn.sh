@@ -139,7 +139,7 @@ run_as_entry_caller bash -c '
 # 独立进程组隔离终端广播信号，所有中断统一经控制文件交给测试任务。
 set -m
 if [[ "$EUID" == 0 && -n ${SUDO_USER:-} ]]; then
-    bash ./meteor-test/scripts/with-clock-paused.sh bash ./gradlew :meteor-test:dockerTest "$@" < /dev/null &
+    bash ./meteor-test/tools/clock/with-clock-paused.sh bash ./gradlew :meteor-test:dockerTest "$@" < /dev/null &
 else
     bash ./gradlew :meteor-test:dockerTest "$@" < /dev/null &
 fi

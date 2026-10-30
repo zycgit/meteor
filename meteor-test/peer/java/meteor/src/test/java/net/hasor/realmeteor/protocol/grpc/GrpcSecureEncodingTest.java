@@ -114,7 +114,7 @@ public class GrpcSecureEncodingTest {
         // 为 Protobuf 编码准备明文 HTTP/2 prior knowledge。
         MetConfiguration incoming = this.configuration(true, Security.H2C);
         MetConfiguration outgoing = this.configuration(false, Security.H2C);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/echo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/echo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅同一个业务接口，保留编码声明和绑定资源。
@@ -147,7 +147,7 @@ public class GrpcSecureEncodingTest {
         // 为 Protobuf 编码准备仅验证服务端证书的 TLS 与 h2 ALPN。
         MetConfiguration incoming = this.configuration(true, Security.TLS);
         MetConfiguration outgoing = this.configuration(false, Security.TLS);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/echo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/echo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅同一个业务接口，保留编码声明和绑定资源。
@@ -180,7 +180,7 @@ public class GrpcSecureEncodingTest {
         // 为 Protobuf 编码准备分别持有服务端和客户端身份的双向 TLS。
         MetConfiguration incoming = this.configuration(true, Security.MUTUAL_TLS);
         MetConfiguration outgoing = this.configuration(false, Security.MUTUAL_TLS);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/echo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/echo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅同一个业务接口，保留编码声明和绑定资源。
@@ -489,7 +489,7 @@ public class GrpcSecureEncodingTest {
         if (security != Security.H2C) {
             http.option("tlsEnabled", true);
             http.option("httpScheme", "https");
-            http.option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12");
+            http.option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12");
             http.option("tlsTrustStorePassword", "meteor-test");
             http.option("tlsAlpn", "h2");
             if (security == Security.MUTUAL_TLS) {
@@ -497,7 +497,7 @@ public class GrpcSecureEncodingTest {
             }
             if (server || security == Security.MUTUAL_TLS) {
                 String identity = server ? "server" : "client";
-                http.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/" + identity + ".p12");
+                http.option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12");
                 http.option("tlsKeyStorePassword", "meteor-test");
             }
         }

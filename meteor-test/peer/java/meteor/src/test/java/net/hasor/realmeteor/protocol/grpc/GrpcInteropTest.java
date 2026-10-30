@@ -621,7 +621,7 @@ public class GrpcInteropTest {
     }
 
     private GrpcProtoResource resource() throws IOException {
-        return new GrpcProtoResource(this.getClass().getResource("/grpc/proto/echo.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/echo.proto"));
     }
 
     private Message call(ManagedChannel channel, MethodDescriptor<Message, Message> method, Message request) {

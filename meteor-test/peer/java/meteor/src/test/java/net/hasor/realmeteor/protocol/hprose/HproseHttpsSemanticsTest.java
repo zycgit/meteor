@@ -33,9 +33,9 @@ public class HproseHttpsSemanticsTest {
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "h2") //
                 .protocol("hprose").addressScheme("https").contextPath("/rpc");
@@ -74,9 +74,9 @@ public class HproseHttpsSemanticsTest {
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "h2") //
                 .protocol("hprose").addressScheme("https").contextPath("/rpc");
@@ -115,9 +115,9 @@ public class HproseHttpsSemanticsTest {
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "h2") //
                 .protocol("hprose").addressScheme("https").contextPath("/rpc");

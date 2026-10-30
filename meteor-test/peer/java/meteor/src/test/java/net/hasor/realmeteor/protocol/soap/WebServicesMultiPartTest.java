@@ -20,7 +20,7 @@ public class WebServicesMultiPartTest {
     @Test(timeout = 20000)
     public void multipleBodyOutputPartsBecomeOneJavaMap() throws Exception {
         // 导入两个独立输出元素的外部 WSDL，Java 使用一个 Map 结果承接各 part。
-        URL wsdl = this.getClass().getResource("/soap/wsdl/multipart-output.wsdl");
+        URL wsdl = this.getClass().getResource("/protocol/wsdl/multipart-output.wsdl");
         MetConfiguration serverConfig = new MetConfiguration();
         serverConfig.connector("http").bind("127.0.0.1", 0).protocol("soap").contextPath("/services");
         MetConfiguration clientConfig = new MetConfiguration();

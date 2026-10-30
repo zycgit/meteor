@@ -1,7 +1,7 @@
 {
-  "source": "meteor-test/src/test/resources/order/order.thrift",
+  "source": "meteor-test/resource/protocol/thrift/order.thrift",
   "sourceSha256": "c1740b55582efa9c559afb1bbcd88ea4e428a6e022cdea326158e7bf7391c0ba",
   "generator": "Apache Thrift Compiler 0.19.0",
   "runtime": "Apache Thrift Node.js 0.25.0",
-  "command": "thrift --gen js:node -out meteor-test/peer/node/thrift/generated meteor-test/src/test/resources/order/order.thrift"
+  "command": "thrift --gen js:node -out meteor-test/peer/node/thrift/generated meteor-test/resource/protocol/thrift/order.thrift"
 }

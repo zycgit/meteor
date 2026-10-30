@@ -108,7 +108,7 @@ public class PythonThriftRegistryAdapterScenarioTest {
 
                     // 普通订单 DTO 直接送入 Python，不创建生成 DTO 或经过 Java 中继。
                     Order expected;
-                    try (InputStream input = this.getClass().getResourceAsStream("/vectors/registry/order.json")) {
+                    try (InputStream input = this.getClass().getResourceAsStream("/data/registry/order.json")) {
                         expected = JSON.readValue(input, Order.class);
                     }
                     OrderDemoService orders = consumer.getRsfClient().getRemote(service);

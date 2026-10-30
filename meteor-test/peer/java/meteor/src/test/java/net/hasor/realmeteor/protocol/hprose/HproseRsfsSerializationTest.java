@@ -22,13 +22,13 @@ public class HproseRsfsSerializationTest {
         incoming.connector("tcp") //
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .protocol("rsf").addressScheme("rsfs");
         MetConfiguration outgoing = new MetConfiguration().setRequestTimeout(5000);
         outgoing.connector("tcp") //
                 .option("tlsEnabled", true) //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .protocol("rsf").addressScheme("rsfs");
 
@@ -58,18 +58,18 @@ public class HproseRsfsSerializationTest {
         incoming.connector("tcp") //
                 .bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsClientAuth", "REQUIRE") //
                 .protocol("rsf").addressScheme("rsfs");
         MetConfiguration outgoing = new MetConfiguration().setRequestTimeout(5000);
         outgoing.connector("tcp") //
                 .option("tlsEnabled", true) //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/client.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .protocol("rsf").addressScheme("rsfs");
 

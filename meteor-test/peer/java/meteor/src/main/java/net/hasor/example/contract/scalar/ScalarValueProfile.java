@@ -150,7 +150,7 @@ public enum ScalarValueProfile {
 
         // Protobuf、Thrift 与 ONC 均使用独立的显式契约资源。
         if (this.usesProtobuf()) {
-            var schema = ScalarValueProfile.class.getResource("/vectors/scalar/values.proto");
+            var schema = ScalarValueProfile.class.getResource("/protocol/proto/scalar/values.proto");
             builder.bindResource(this.protocol, new GrpcProtoResource(schema));
         } else if (this == THRIFT_BINARY) {
             builder.bindResource(this.protocol, new ThriftServiceResource(ThriftScalarValueService.class));

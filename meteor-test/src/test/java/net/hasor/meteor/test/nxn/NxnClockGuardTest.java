@@ -44,10 +44,10 @@ public class NxnClockGuardTest {
         // 采用封闭 PATH，任何漏建的 fake 命令都会失败，不能访问宿主 systemctl 或 sudo。
         this.directory = this.temporary.getRoot().toPath();
         Path bin = Files.createDirectory(this.directory.resolve("bin"));
-        Path scripts = Files.createDirectories(this.directory.resolve("private/repo/meteor-test/scripts"));
+        Path clockTools = Files.createDirectories(this.directory.resolve("private/repo/meteor-test/tools/clock"));
         this.privateBuild = Files.createDirectories(this.directory.resolve("private/repo/meteor-test/build"));
-        this.privateGuard = Files.copy(guard(), scripts.resolve("with-clock-paused.sh"));
-        Files.copy(guard().getParent().resolve("wsl-clock-owner.ps1"), scripts.resolve("wsl-clock-owner.ps1"));
+        this.privateGuard = Files.copy(guard(), clockTools.resolve("with-clock-paused.sh"));
+        Files.copy(guard().getParent().resolve("wsl-clock-owner.ps1"), clockTools.resolve("wsl-clock-owner.ps1"));
         this.state = this.directory.resolve("state.json");
         this.events = this.directory.resolve("events.jsonl");
         this.environment = new LinkedHashMap<>(System.getenv());
@@ -598,7 +598,7 @@ public class NxnClockGuardTest {
         assertTrue(report.contains("整轮结果：失败"));
         assertTrue(Files.readString(artifacts.resolve("script-errors.tsv")).contains("timesyncd.restore\t"));
         assertEquals("1\n", Files.readString(artifacts.resolve("script-exit-code.txt")));
-        Path latest = this.privateGuard.getParent().getParent().resolve("report.md");
+        Path latest = this.privateBuild.getParent().resolve("report.md");
         assertEquals(report, Files.readString(latest));
     }
 
@@ -629,7 +629,7 @@ public class NxnClockGuardTest {
         assertTrue(report.contains("整轮结果：通过"));
         assertEquals("", Files.readString(artifacts.resolve("script-errors.tsv")));
         assertEquals("0\n", Files.readString(artifacts.resolve("script-exit-code.txt")));
-        Path latest = this.privateGuard.getParent().getParent().resolve("report.md");
+        Path latest = this.privateBuild.getParent().resolve("report.md");
         assertEquals(report, Files.readString(latest));
     }
 
@@ -652,7 +652,7 @@ public class NxnClockGuardTest {
     public void failedCommandWithoutArchiveReplacesOldPassingReportAndKeepsDiagnostics() throws Exception {
         // 模拟 Gradle 在产生归档之前失败，目录入口还保留上一轮通过报告。
         enableWsl(Map.of());
-        Path latest = this.privateGuard.getParent().getParent().resolve("report.md");
+        Path latest = this.privateBuild.getParent().resolve("report.md");
         Files.writeString(latest, "结果：通过\n\nPrevious RPC results.\n", StandardCharsets.UTF_8);
         Map<String, Object> result = runGuard(this.child.toString(), "42");
 
@@ -917,7 +917,7 @@ public class NxnClockGuardTest {
     private static Path guard() throws Exception {
         Path repository = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (repository != null) {
-            Path candidate = repository.resolve("meteor-test/scripts/with-clock-paused.sh");
+            Path candidate = repository.resolve("meteor-test/tools/clock/with-clock-paused.sh");
             if (Files.isRegularFile(candidate)) {
                 return candidate;
             }
@@ -928,7 +928,7 @@ public class NxnClockGuardTest {
 
     private static File fixtureRoot() {
         try {
-            Path module = guard().getParent().getParent();
+            Path module = guard().getParent().getParent().getParent();
             return Files.createDirectories(module.resolve("build/meteor-test-clock-guard-fixtures")).toFile();
         } catch (Exception failure) {
             throw new IllegalStateException("Cannot prepare repository-local clock guard fixtures.", failure);

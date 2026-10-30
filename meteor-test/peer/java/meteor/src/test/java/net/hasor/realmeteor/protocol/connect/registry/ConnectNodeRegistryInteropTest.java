@@ -317,7 +317,7 @@ public class ConnectNodeRegistryInteropTest {
     }
 
     private GrpcProtoResource proto() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
     }
 
     private void awaitPort(MetContext context, MetBindInfo<?> service, int expectedPort) throws Exception {

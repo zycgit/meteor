@@ -31,9 +31,9 @@ import static org.junit.Assert.*;
 
 /** 安全配置复用普通多协议例子，真实调用验证 TLS 身份认证与 HTTP 版本协商。 */
 public class SecurityScenarioTest {
-    private static final String SERVER_STORE = "classpath:/tls/multiprotocol/server.p12";
-    private static final String CLIENT_STORE = "classpath:/tls/multiprotocol/client.p12";
-    private static final String TRUST_STORE  = "classpath:/tls/multiprotocol/trust.p12";
+    private static final String SERVER_STORE = "classpath:/certs/multiprotocol/server.p12";
+    private static final String CLIENT_STORE = "classpath:/certs/multiprotocol/client.p12";
+    private static final String TRUST_STORE  = "classpath:/certs/multiprotocol/trust.p12";
     private static final String PASSWORD     = "meteor-test";
 
     @Test(timeout = 30000)
@@ -168,7 +168,7 @@ public class SecurityScenarioTest {
         // 直接使用 JDK TLS 客户端观察端点实际协商结果，证书校验保持启用。
         TrustManagerFactory trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         KeyStore trustStore = KeyStore.getInstance("PKCS12");
-        try (InputStream input = this.getClass().getResourceAsStream("/tls/multiprotocol/trust.p12")) {
+        try (InputStream input = this.getClass().getResourceAsStream("/certs/multiprotocol/trust.p12")) {
             trustStore.load(input, PASSWORD.toCharArray());
         }
         trust.init(trustStore);

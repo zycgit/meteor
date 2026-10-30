@@ -30,7 +30,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -84,7 +84,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -138,7 +138,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -192,7 +192,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -246,7 +246,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -300,7 +300,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -354,7 +354,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -408,7 +408,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -462,7 +462,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -516,7 +516,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -570,7 +570,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -624,7 +624,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -678,7 +678,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -732,7 +732,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -786,7 +786,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -840,7 +840,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -894,7 +894,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {
@@ -948,7 +948,7 @@ public class GrpcOfficialInteropTest {
                 .bind("127.0.0.1", 0) //
                 .protocol("grpc") //
                 .option("streamBody", true);
-        URL protoFile = this.getClass().getResource("/grpc/interop/interop-test.proto");
+        URL protoFile = this.getClass().getResource("/protocol/proto/grpc/interop/interop-test.proto");
         GrpcProtoResource proto = new GrpcProtoResource(protoFile);
         ExecutorService delivery = Executors.newCachedThreadPool();
         try (MetContext context = configuration.buildContext()) {

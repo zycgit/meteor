@@ -85,7 +85,7 @@ public class TripleMetadataScenarioTest {
         // 双方启用 gzip，应用元数据与协议保留字段分别处理。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             server.start();

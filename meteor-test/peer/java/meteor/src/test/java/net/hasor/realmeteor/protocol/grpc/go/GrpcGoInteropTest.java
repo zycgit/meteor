@@ -292,16 +292,16 @@ public class GrpcGoInteropTest {
         // 两种 TLS 模式使用与独立 Go 进程相同的 CA 和各自身份。
         if (!StringUtils.equals("plain", this.tlsMode)) {
             http.option("tlsEnabled", true) //
-                    .option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12") //
+                    .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                     .option("tlsTrustStorePassword", "meteor-test") //
                     .option("tlsAlpn", "h2") //
                     .option("httpScheme", "https");
             if (provider) {
-                http.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/server.p12") //
+                http.option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                         .option("tlsKeyStorePassword", "meteor-test") //
                         .option("tlsClientAuth", StringUtils.equals("mtls", this.tlsMode) ? "REQUIRE" : "NONE");
             } else if (StringUtils.equals("mtls", this.tlsMode)) {
-                http.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/client.p12") //
+                http.option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                         .option("tlsKeyStorePassword", "meteor-test");
             }
         }
@@ -314,7 +314,7 @@ public class GrpcGoInteropTest {
     }
 
     private GrpcProtoResource resource() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
     }
 
     private Order order(int id, String description, byte[] attachment) {

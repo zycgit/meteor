@@ -28,7 +28,7 @@ class RequestHandler(xmlrpc.server.SimpleXMLRPCRequestHandler):
 
 def load_value(vector):
     # Restore every business field before RPC; XML-RPC owns all wire encoding.
-    resource = Path(__file__).resolve().parents[3] / "src/test/resources/vectors/types/values.json"
+    resource = Path(__file__).resolve().parents[3] / "resource/data/types/values.json"
     table = json.loads(resource.read_text(encoding="utf-8"))
     entry = table["vectors"][vector]
     value = copy.deepcopy(table["defaults"])

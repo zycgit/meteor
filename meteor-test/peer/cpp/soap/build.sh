@@ -6,7 +6,7 @@ source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 [[ $# == 2 && $1 == --output ]] || { printf 'Usage: %s --output DIRECTORY\n' "$0" >&2; exit 2; }
 mkdir -p -- "$2"
 output_dir=$(cd -- "$2" && pwd)
-contract="$source_dir/../../../src/test/resources/soap/wsdl/echo.wsdl"
+contract="$source_dir/../../../resource/protocol/wsdl/echo.wsdl"
 
 # A private SDK prefix selects both generators and runtime, leaving system tools intact.
 sdk_prefix=${SOAP_SDK_PREFIX:-}
@@ -24,7 +24,8 @@ if [[ -n $sdk_prefix ]]; then
 fi
 
 # C++ generates its own proxy, service and serializers instead of borrowing C ABI.
-"$wsdl2h" "${generator_options[@]}" -o "$output_dir/echo.h" "$contract"
+"$wsdl2h" "${generator_options[@]}" -I "$source_dir/../../../resource/protocol/xsd" \
+    -o "$output_dir/echo.h" "$contract"
 "$soapcpp2" -j -L -x -I"$imports" -d "$output_dir" "$output_dir/echo.h"
 g++ -std=c++17 -O2 -Wall -Wextra -I "$output_dir" "$source_dir/peer.cpp" \
     "$output_dir/soapC.cpp" "$output_dir/soapEchoBindingProxy.cpp" \

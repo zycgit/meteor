@@ -39,7 +39,7 @@ final class NodeHproseOrderPeer implements AutoCloseable {
         // 消费者仅收到角色和共享向量路径，业务端点之后由存储订阅结果提供。
         Path directory = Path.of(System.getProperty("hprose.peer.dir", "/opt/meteor-peer/node/hprose"));
         Path script = directory.resolve("order-registry-peer.js").toAbsolutePath();
-        URI vectors = NodeHproseOrderPeer.class.getResource("/vectors/basic/orders.json").toURI();
+        URI vectors = NodeHproseOrderPeer.class.getResource("/data/basic/orders.json").toURI();
         Files.createDirectories(workDirectory);
         this.log = Files.createTempFile(workDirectory, "node-hprose-" + role + "-", ".log");
         ProcessBuilder command = new ProcessBuilder("node", script.toString(), role, Path.of(vectors).toString());

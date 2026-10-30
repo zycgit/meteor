@@ -56,7 +56,7 @@ public class NodeConnectSdkVersionScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0).option("httpVersion", 1) //
                 .protocol("connect").contextPath("/versions/connect");
-        var resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        var resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             provider.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -80,7 +80,7 @@ public class NodeConnectSdkVersionScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
         configuration.connector("http").option("httpVersion", 1) //
                 .protocol("connect").contextPath("/versions/connect");
-        var resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        var resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (NodeRpcPeer peer = NodeRpcPeer.startVersion(this.profile, "provider"); //
              MetContext consumer = configuration.buildContext()) {
             int port = peer.awaitPort();

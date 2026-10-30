@@ -1,0 +1,15 @@
+plugins {
+    id 'java'
+}
+
+description = 'Alibaba Dubbo 2.6.12 SDK peers with their original namespace'
+
+dependencies {
+    compileOnly project(':meteor-test-contracts')
+    compileOnly "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+    compileOnly "com.alibaba:dubbo:${property('test.sdk.dubbo.classic')}"
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs += '-parameters'
+}

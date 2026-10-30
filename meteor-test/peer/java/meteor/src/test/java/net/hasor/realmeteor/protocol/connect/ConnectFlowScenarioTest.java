@@ -117,7 +117,7 @@ public class ConnectFlowScenarioTest {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
         MetConfiguration outgoing = this.configuration(false, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -149,7 +149,7 @@ public class ConnectFlowScenarioTest {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
         MetConfiguration outgoing = this.configuration(false, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -179,7 +179,7 @@ public class ConnectFlowScenarioTest {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
         MetConfiguration outgoing = this.configuration(false, 2);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {

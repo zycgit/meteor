@@ -96,9 +96,9 @@ public final class GoPeerProcess implements AutoCloseable {
             }
             return directory;
         }
-        URL certificate = GoPeerProcess.class.getResource("/grpc/tls/acceptance/ca.pem");
+        URL certificate = GoPeerProcess.class.getResource("/certs/acceptance/ca.pem");
         if (certificate == null) {
-            throw new IOException("Missing public Go peer certificates: /grpc/tls/acceptance/ca.pem");
+            throw new IOException("Missing public Go peer certificates: /certs/acceptance/ca.pem");
         }
         return Path.of(certificate.toURI()).getParent().toAbsolutePath();
     }

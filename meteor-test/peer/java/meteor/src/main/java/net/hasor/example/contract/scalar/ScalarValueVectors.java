@@ -50,7 +50,7 @@ public final class ScalarValueVectors {
     }
 
     private static JsonNode table(String family) throws IOException {
-        try (InputStream input = ScalarValueVectors.class.getResourceAsStream("/vectors/scalar/values.json")) {
+        try (InputStream input = ScalarValueVectors.class.getResourceAsStream("/data/scalar/values.json")) {
             if (input == null) {
                 throw new IOException("Missing shared scalar vectors");
             }

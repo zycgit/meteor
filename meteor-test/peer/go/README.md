@@ -68,8 +68,8 @@ The 1.5.9 Dubbo-Go package retains an older 1.5.8 banner string; its verified
 module identity is `github.com/apache/dubbo-go@v1.5.9`.
 
 `GOTOOLCHAIN=local` disables implicit toolchain selection. Protobuf contracts come
-from `meteor-test/src/test/resources/order/order.proto`; the Thrift contract is
-`meteor-test/src/test/resources/order/order.thrift`. Committed bindings are under
+from `meteor-test/resource/protocol/proto/order.proto`; the Thrift contract is
+`meteor-test/resource/protocol/thrift/order.thrift`. Committed bindings are under
 `gen/orderpb` and `gen/thriftorder`, with the same `save(Order)` and
 `find(ThriftOrderQuery)` business semantics as Java.
 
@@ -101,7 +101,7 @@ Processor, Client and data types retain their official implementation.
 ## Scenarios
 
 Each protocol has provider and consumer cases under plain TCP/HTTP, TLS and mutual
-TLS. Certificates come from `grpc/tls/acceptance`; TLS checks the CA and Docker DNS
+TLS. Certificates come from `meteor-test/resource/certs/acceptance`; TLS checks the CA and Docker DNS
 subject alternative name, and mutual TLS requires the acceptance client certificate.
 
 Thrift selects six profiles named

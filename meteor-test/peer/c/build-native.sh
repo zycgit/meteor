@@ -81,7 +81,7 @@ done
 # Record source, header and toolchain provenance once, after all peers compile.
 find "$source_dir/generated" "$include_dir" -type f -name '*.h' >> "$manifest_dir/source-paths.txt"
 find "$source_dir" -maxdepth 1 -type f -name '*.h' >> "$manifest_dir/source-paths.txt"
-printf '%s\n' "$source_dir/../../src/test/resources/oncrpc/interop.x" "${BASH_SOURCE[0]}" \
+printf '%s\n' "$source_dir/../../resource/protocol/x/interop.x" "${BASH_SOURCE[0]}" \
     >> "$manifest_dir/source-paths.txt"
 while IFS= read -r path; do fingerprint "$path"; done \
     < <(sort -u "$manifest_dir/source-paths.txt") > "$manifest_dir/inputs.jsonl"

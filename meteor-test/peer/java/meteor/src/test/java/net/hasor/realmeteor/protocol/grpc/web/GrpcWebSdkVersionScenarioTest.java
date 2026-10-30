@@ -55,7 +55,7 @@ public class GrpcWebSdkVersionScenarioTest {
             try (MetContext provider = configuration.buildContext()) {
                 // Meteor 公开发布同一契约，SDK 的默认媒体类型和帧处理保持原样。
                 provider.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 provider.publisher().rsfService(GrpcWebService.class, new GrpcWebServiceImpl()) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();

@@ -51,7 +51,7 @@ public final class TypeNodePeerProcess implements AutoCloseable {
         Path workDirectory = Path.of("/opt/meteor-peer/node", directory);
         ProcessBuilder builder = new ProcessBuilder(command) //
                 .directory(workDirectory.toFile()).redirectErrorStream(true);
-        Path vectors = Path.of("src/test/resources/vectors/types/values.json").toAbsolutePath();
+        Path vectors = Path.of("resource/data/types/values.json").toAbsolutePath();
         builder.environment().put("METEOR_TYPE_VECTORS", vectors.toString());
         return new TypeNodePeerProcess(ContainerProcess.start(runtime, builder));
     }

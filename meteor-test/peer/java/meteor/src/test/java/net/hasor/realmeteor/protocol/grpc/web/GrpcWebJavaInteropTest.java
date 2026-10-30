@@ -24,7 +24,7 @@ public class GrpcWebJavaInteropTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc-web");
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("grpc-web").contextPath("/web").option("streamBody", true);
-        var resource = new GrpcProtoResource(getClass().getResource("/contracts/java-sdk-echo.proto"));
+        var resource = new GrpcProtoResource(getClass().getResource("/protocol/proto/java-sdk-echo.proto"));
         AtomicInteger calls = new AtomicInteger();
         try (MetContext server = configuration.buildContext()) {
             server.start();

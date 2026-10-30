@@ -248,7 +248,7 @@ public class WebServicesTlsTest {
         AtomicInteger calls = new AtomicInteger();
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
         MetConfiguration.ConnectorSettings connector = SoapTlsSupport.server(configuration, "http/1.1", false);
-        connector.option("tlsKeyStore", "classpath:/soap/tls/acceptance/wrong-host-server.p12") //
+        connector.option("tlsKeyStore", "classpath:/certs/acceptance/wrong-host-server.p12") //
                 .protocol("soap").addressScheme("https") //
                 .contextPath("/services") //
                 .option("soapVersion", "1.1");

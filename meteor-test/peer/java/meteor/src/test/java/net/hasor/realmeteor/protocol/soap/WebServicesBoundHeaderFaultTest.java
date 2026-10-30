@@ -355,7 +355,7 @@ public class WebServicesBoundHeaderFaultTest {
     }
 
     private SoapWsdlResource resource() throws Exception {
-        URL wsdl = this.getClass().getResource("/soap/wsdl/bound-header-fault.wsdl");
+        URL wsdl = this.getClass().getResource("/protocol/wsdl/bound-header-fault.wsdl");
         assertNotNull("Missing bound Header/Fault WSDL", wsdl);
         return new SoapWsdlResource(wsdl);
     }

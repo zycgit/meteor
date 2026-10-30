@@ -32,7 +32,7 @@ public class ConnectContextScenarioTest {
         MetConfiguration configuration = this.configuration("/rpc", "/private");
         try (MetContext server = configuration.buildContext()) {
             server.start();
-            URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+            URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(descriptor);
             server.publisher().rsfService(ConnectDemoService.class, new ConnectDemoServiceImpl()) //
                     .aliasName("connect", "meteor.connect.demo.ConnectDemoService") //
@@ -55,7 +55,7 @@ public class ConnectContextScenarioTest {
         ConnectDemoServiceImpl implementation = new ConnectDemoServiceImpl();
         try (MetContext server = configuration.buildContext()) {
             server.start();
-            URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+            URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(descriptor);
             server.publisher().rsfService(ConnectDemoService.class, implementation) //
                     .aliasName("connect", "meteor.connect.demo.ConnectDemoService") //
@@ -76,7 +76,7 @@ public class ConnectContextScenarioTest {
         MetConfiguration configuration = this.configuration("/rpc", "/private");
         try (MetContext server = configuration.buildContext()) {
             server.start();
-            URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+            URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(descriptor);
             server.publisher().rsfService(ConnectDemoService.class, new ConnectDemoServiceImpl()) //
                     .aliasName("connect", "meteor.connect.demo.ConnectDemoService").bindResource("connect", resource) //
@@ -97,7 +97,7 @@ public class ConnectContextScenarioTest {
         ConnectDemoServiceImpl implementation = new ConnectDemoServiceImpl();
         try (MetContext server = configuration.buildContext()) {
             server.start();
-            URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+            URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(descriptor);
             server.publisher().rsfService(ConnectDemoService.class, implementation) //
                     .aliasName("connect", "meteor.connect.demo.ConnectDemoService").bindResource("connect", resource) //
@@ -119,7 +119,7 @@ public class ConnectContextScenarioTest {
         ConnectDemoServiceImpl implementation = new ConnectDemoServiceImpl();
         try (MetContext server = configuration.buildContext()) {
             server.start();
-            URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+            URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(descriptor);
             server.publisher().rsfService(ConnectDemoService.class, implementation) //
                     .aliasName("connect", "meteor.connect.demo.ConnectDemoService").bindResource("connect", resource) //
@@ -142,7 +142,7 @@ public class ConnectContextScenarioTest {
         MetConfiguration configuration = this.configuration("/rpc", "/rpc/private");
         try (MetContext server = configuration.buildContext()) {
             server.start();
-            URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+            URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(descriptor);
             server.publisher().rsfService(ConnectDemoService.class, new ConnectDemoServiceImpl()) //
                     .aliasName("connect", "meteor.connect.demo.ConnectDemoService").bindResource("connect", resource) //

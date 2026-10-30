@@ -112,7 +112,7 @@ public final class GrpcTlsPeer {
 
     private static KeyStore store(String name) throws Exception {
         KeyStore store = KeyStore.getInstance("PKCS12");
-        String resource = "/grpc/tls/acceptance/" + name + ".p12";
+        String resource = "/certs/acceptance/" + name + ".p12";
         try (InputStream input = GrpcTlsPeer.class.getResourceAsStream(resource)) {
             if (input == null) {
                 throw new IOException("Missing TLS acceptance resource: " + resource);

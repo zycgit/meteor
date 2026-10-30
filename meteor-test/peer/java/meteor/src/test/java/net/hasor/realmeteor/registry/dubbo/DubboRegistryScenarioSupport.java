@@ -41,10 +41,10 @@ final class DubboRegistryScenarioSupport {
 
     static void tlsServer(ConnectorSettings connector, boolean clientAuthentication) {
         connector.option("tlsEnabled", true) //
-                .option("tlsKeyStore", "classpath:/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test");
         if (clientAuthentication) {
-            connector.option("tlsTrustStore", "classpath:/tls/acceptance/trust.p12") //
+            connector.option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                     .option("tlsTrustStorePassword", "meteor-test") //
                     .option("tlsClientAuth", "REQUIRE");
         }
@@ -52,16 +52,16 @@ final class DubboRegistryScenarioSupport {
 
     static void tlsClient(ConnectorSettings connector, boolean clientIdentity) {
         connector.option("tlsEnabled", true) //
-                .option("tlsTrustStore", "classpath:/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test");
         if (clientIdentity) {
-            connector.option("tlsKeyStore", "classpath:/tls/acceptance/client.p12") //
+            connector.option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
         }
     }
 
     static String pem(String name) throws Exception {
-        String resource = "/tls/acceptance/" + name + ".pem";
+        String resource = "/certs/acceptance/" + name + ".pem";
         return Path.of(DubboRegistryScenarioSupport.class.getResource(resource).toURI()).toString();
     }
 

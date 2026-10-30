@@ -60,7 +60,7 @@ public class GrpcWebRegistryAdapterScenarioTest {
             MetConfiguration configuration = this.configuration(registry, origin);
             try (MetContext provider = configuration.buildContext()) {
                 provider.start();
-                GrpcProtoResource proto = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
                 MetBindInfo<GrpcWebService> service = provider.publisher() //
                         .rsfService(GrpcWebService.class, new GrpcWebServiceImpl()) //
                         .name("browser-echo").aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
@@ -95,7 +95,7 @@ public class GrpcWebRegistryAdapterScenarioTest {
             MetConfiguration configuration = this.configuration(registry, origin);
             try (MetContext provider = configuration.buildContext()) {
                 provider.start();
-                GrpcProtoResource proto = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
                 MetBindInfo<GrpcWebService> service = provider.publisher() //
                         .rsfService(GrpcWebService.class, new GrpcWebServiceImpl()) //
                         .name("browser-echo").aliasName("grpc-web", "web.Echo").protocol("grpc-web") //

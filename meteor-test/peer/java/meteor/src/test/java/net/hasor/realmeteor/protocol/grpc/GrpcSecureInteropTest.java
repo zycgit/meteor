@@ -364,9 +364,9 @@ public class GrpcSecureInteropTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc");
         configuration.connector("http").bind("127.0.0.1", 0) //
                 .option("tlsEnabled", true) //
-                .option("tlsKeyStore", "classpath:/grpc/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsClientAuth", clientAuth ? "REQUIRE" : "NONE") //
                 .option("tlsAlpn", alpn) //
@@ -380,13 +380,13 @@ public class GrpcSecureInteropTest {
         configuration.setDefaultTimeout(5000);
         var connector = configuration.connector("http") //
                 .option("tlsEnabled", true) //
-                .option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsAlpn", "h2") //
                 .option("httpScheme", "https") //
                 .option("httpVersion", 2);
         if (identity != null) {
-            connector.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/" + identity + ".p12");
+            connector.option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12");
             connector.option("tlsKeyStorePassword", "meteor-test");
         }
         connector.protocol("grpc").addressScheme("https").option("compression", "gzip");
@@ -394,6 +394,6 @@ public class GrpcSecureInteropTest {
     }
 
     private GrpcProtoResource resource() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/grpc/proto/echo.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/echo.proto"));
     }
 }

@@ -175,7 +175,7 @@ public class GrpcFamilyCompositionTest {
     }
 
     private GrpcProtoResource resource() throws Exception {
-        URL descriptor = this.getClass().getResource("/example/composition/grpc/family.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/composition/family.proto");
         return new GrpcProtoResource(descriptor);
     }
 }

@@ -1,7 +1,7 @@
 # gRPC-Web 1.5 生成契约
 
 `generated/binary` 和 `generated/text` 来自测试契约
-`meteor-test/src/test/resources/grpc/proto/web.proto`，分别使用 `grpcweb`、`grpcwebtext` 模式。
+`meteor-test/resource/protocol/proto/grpc/web.proto`，分别使用 `grpcweb`、`grpcwebtext` 模式。
 生成代码保持原样，配套运行依赖为 `grpc-web@1.5.0`、`google-protobuf@3.21.4`。
 
 ## 工具来源

@@ -69,7 +69,7 @@ abstract class MeteorDockerTask extends DefaultTask {
     @Option(option = 'platform', description = 'Docker platform: linux/amd64 or linux/arm64.')
     void choosePlatform(String value) { platform = value }
 
-    @Option(option = 'maven-seed', description = 'Optional local net/hasor Maven directory to seed container builds.')
+    @Option(option = 'maven-seed', description = 'Local Maven repository or net/hasor directory to seed container builds.')
     void chooseMavenSeed(String value) { mavenSeed = value }
 
     @Option(option = 'tests', description = 'JUnit class or method filter; may be repeated.')
@@ -298,6 +298,37 @@ abstract class MeteorDockerTask extends DefaultTask {
         }
     }
 
+    private File resolveMavenSeed() {
+        // 显式种子兼容仓库根和旧的 Hasor 子目录，只导入本项目使用的命名空间。
+        if (mavenSeed != null) {
+            def source = project.rootProject.file(mavenSeed)
+            if (!source.isDirectory()) {
+                throw new GradleException("Maven seed directory does not exist: ${source}")
+            }
+            def group = new File(source, 'net/hasor')
+            if (group.isDirectory()) {
+                return group
+            }
+            boolean groupDirectory = source.name == 'hasor' && source.parentFile?.name == 'net'
+            boolean flatDirectory = ['cobble-all', 'neta-core', 'neta-codec-http'].any { module ->
+                new File(source, module).isDirectory()
+            }
+            if (groupDirectory || flatDirectory) {
+                return source
+            }
+            throw new GradleException('Maven seed must contain net/hasor or be a Hasor artifact directory: ' + source)
+        }
+
+        // Maven install 与 Gradle publishToMavenLocal 使用同一布局，缺失的默认缓存保持为空。
+        def configured = System.getProperty('maven.repo.local')
+        def localRepository = configured ? project.rootProject.file(configured) :
+            new File(System.getProperty('user.home'), '.m2/repository')
+        if (configured && !localRepository.isDirectory()) {
+            throw new GradleException("Maven repository directory does not exist: ${localRepository}")
+        }
+        new File(localRepository, 'net/hasor')
+    }
+
     private void executeDocker() {
         repository = project.rootProject.projectDir.canonicalFile
         dockerExecutable = findDocker()
@@ -317,11 +348,7 @@ abstract class MeteorDockerTask extends DefaultTask {
         if (selectors.any { !it?.trim() }) {
             throw new GradleException('Test selectors must not be empty.')
         }
-        def seed = mavenSeed == null ? new File(System.getProperty('user.home'), '.m2/repository/net/hasor') :
-            project.rootProject.file(mavenSeed)
-        if (mavenSeed != null && !seed.isDirectory()) {
-            throw new GradleException("Maven seed directory does not exist: ${seed}")
-        }
+        def seed = resolveMavenSeed()
 
         // 宿主只验证 Docker；Java、SDK 和其它语言均在常驻容器中编译。
         requireDocker(['compose', 'version'])
@@ -614,9 +641,7 @@ abstract class MeteorDockerTask extends DefaultTask {
         try {
             def projectName = environment.METEOR_TEST_PROJECT
             def existing = environmentResources(projectName, deadline)
-            boolean legacy = projectName != 'meteor-test'
-            if (existing.any { it.project != projectName ||
-                (it.runId != runId && !(legacy && !it.runId)) }) {
+            if (existing.any { it.project != projectName || it.runId != runId }) {
                 keepWorkspace = true
                 markFailure('Docker environment ownership changed; resources were not removed.')
                 return
@@ -1344,7 +1369,7 @@ plugins.withId('application') {
             }
             args = ['types', '--run-directory', reportDirectory.absolutePath,
                 '--expectations', rootProject.file(expectations ?:
-                    'meteor-test/src/test/resources/matrix/type-support-expectations.json').absolutePath,
+                    'meteor-test/src/main/resources/matrix/type-support-expectations.json').absolutePath,
                 '--output', rootProject.file(output).absolutePath]
             if (detailsPrefix != null) {
                 args += ['--details-prefix', rootProject.file(detailsPrefix).absolutePath]

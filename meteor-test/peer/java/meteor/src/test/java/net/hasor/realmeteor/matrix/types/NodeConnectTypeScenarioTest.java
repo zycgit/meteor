@@ -69,7 +69,7 @@ public class NodeConnectTypeScenarioTest {
     private void meteorProvides() throws Exception {
         // 通过 bootstrap 启动仅监听 HTTP/1 的 Connect 端点，再发布真实 Java 服务。
         MetConfiguration configuration = this.configuration(true);
-        GrpcProtoResource resource = new GrpcProtoResource(getClass().getResource("/vectors/types/types.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(getClass().getResource("/protocol/proto/types/types.proto"));
         try (MetContext server = configuration.buildContext(); //
              TypeNodePeerProcess peer = TypeNodePeerProcess.connect("consumer", this.format)) {
             peer.awaitReady();
@@ -90,7 +90,7 @@ public class NodeConnectTypeScenarioTest {
     private void meteorConsumes() throws Exception {
         // 独立官方 Node 提供者拥有监听；Meteor 只启用出站通道并订阅普通 Java 接口。
         MetConfiguration configuration = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(getClass().getResource("/vectors/types/types.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(getClass().getResource("/protocol/proto/types/types.proto"));
         try (TypeNodePeerProcess peer = TypeNodePeerProcess.connect("provider", this.format); //
              MetContext client = configuration.buildContext()) {
             int port = peer.awaitReady().required("port").intValue();

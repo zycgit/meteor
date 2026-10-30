@@ -22,9 +22,9 @@ final class JsonRpcTlsUtils {
     static void serverTls(ConnectorSettings connector, int version, String clientAuth) {
         connector.option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsKeyStore", "classpath:/jsonrpc/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/jsonrpc/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsClientAuth", clientAuth) //
                 .option("tlsAlpn", version == 2 ? "h2" : "http/1.1");
@@ -33,11 +33,11 @@ final class JsonRpcTlsUtils {
     static void clientTls(ConnectorSettings connector, int version, String identity) {
         connector.option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/jsonrpc/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsAlpn", version == 2 ? "h2" : "http/1.1");
         if (identity != null) {
-            connector.option("tlsKeyStore", "classpath:/jsonrpc/tls/acceptance/" + identity + ".p12") //
+            connector.option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
         }
     }
@@ -57,7 +57,7 @@ final class JsonRpcTlsUtils {
     }
 
     private static KeyStore loadStore(String name) throws Exception {
-        String resource = "/jsonrpc/tls/acceptance/" + name + ".p12";
+        String resource = "/certs/acceptance/" + name + ".p12";
         KeyStore store = KeyStore.getInstance("PKCS12");
         try (InputStream input = JsonRpcTlsUtils.class.getResourceAsStream(resource)) {
             if (input == null) {

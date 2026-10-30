@@ -46,7 +46,7 @@ public class PythonGrpcSdkVersionCompatibilityTest {
             connector.bind(ContainerProcess.runnerHost(), 0);
         }
         connector.protocol("grpc").contextPath("/");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
 
         if (sdkConsumer) {
             // Python 官方消费者实际保存并查询 Meteor 状态，读取到的字段来自真实 HTTP/2 响应。

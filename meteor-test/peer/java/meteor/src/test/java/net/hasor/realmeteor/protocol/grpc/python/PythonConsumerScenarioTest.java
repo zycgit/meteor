@@ -24,7 +24,7 @@ public class PythonConsumerScenarioTest {
     public void pythonConsumerReadsAsciiOrder() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -49,7 +49,7 @@ public class PythonConsumerScenarioTest {
     public void pythonConsumerReadsUnicodeOrder() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -74,7 +74,7 @@ public class PythonConsumerScenarioTest {
     public void pythonConsumerReadsBinaryOrder() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -99,7 +99,7 @@ public class PythonConsumerScenarioTest {
     public void pythonConsumerReadsMinimumInt32() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -124,7 +124,7 @@ public class PythonConsumerScenarioTest {
     public void pythonConsumerReadsMaximumInt32() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -149,7 +149,7 @@ public class PythonConsumerScenarioTest {
     public void pythonConsumerReadsMissingOrderFailure() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -173,7 +173,7 @@ public class PythonConsumerScenarioTest {
     public void pythonConsumerReadsOrderOverTls() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("tls");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -198,7 +198,7 @@ public class PythonConsumerScenarioTest {
     public void pythonConsumerReadsOrderOverMutualTls() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("mtls");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -225,9 +225,9 @@ public class PythonConsumerScenarioTest {
         var protocol = connector.protocol("grpc").contextPath("/");
         if (!StringUtils.equals("clear", security)) {
             connector.option("tlsEnabled", true) //
-                    .option("tlsKeyStore", "classpath:/grpc/tls/acceptance/server.p12") //
+                    .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                     .option("tlsKeyStorePassword", "meteor-test") //
-                    .option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12") //
+                    .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                     .option("tlsTrustStorePassword", "meteor-test") //
                     .option("tlsAlpn", "h2");
             protocol.addressScheme("https");

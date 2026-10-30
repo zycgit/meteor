@@ -45,7 +45,7 @@ public final class StreamRpcExample {
         service.name("catalog-" + coding).protocol("grpc").serialize(coding);
         if (StringUtils.equals(coding, "Protobuf")) {
             service.aliasName("grpc", "meteor.example.stream.CatalogStreamService");
-            var source = StreamRpcExample.class.getResource("/proto/catalog.proto");
+            var source = StreamRpcExample.class.getResource("/protocol/proto/catalog.proto");
             service.bindResource("grpc", new GrpcProtoResource(source));
         } else {
             service.aliasName("grpc", "meteor.example.stream.JsonCatalogStreamService");

@@ -1,0 +1,1348 @@
+{
+  "purpose": "Peer source and version inventory, not a result matrix. Source present does not mean a migrated suite has passed. Planned peers have no placeholder directory.",
+  "peers": [
+    {
+      "id": "meteor-java",
+      "protocols": [
+        "rsf",
+        "grpc",
+        "grpc-web",
+        "hprose",
+        "soap",
+        "jsonrpc",
+        "xmlrpc",
+        "hessian",
+        "connect",
+        "triple",
+        "dubbo",
+        "thrift",
+        "oncrpc"
+      ],
+      "language": "java",
+      "origin": "meteor",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "test-jvm",
+      "source": "meteor-test/peer/java",
+      "entrypoints": [
+        "net.hasor.peer.application.OrderApplicationMain",
+        "net.hasor.peer.application.RegistryAdministrationMain",
+        "net.hasor.peer.container.MeteorOrderContainerMain"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-java",
+      "protocols": [
+        "grpc"
+      ],
+      "language": "java",
+      "origin": "grpc-java",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "test-jvm-sdk",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/GrpcOfficialInteropTest.java",
+      "versionProperties": [
+        "lib.grpc",
+        "lib.protobuf"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-web-javascript",
+      "protocols": [
+        "grpc-web"
+      ],
+      "language": "javascript",
+      "origin": "grpc-web",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "node-and-browser",
+      "source": "meteor-test/peer/node/grpcweb",
+      "entrypoints": [
+        "client.js",
+        "browser.js"
+      ],
+      "versionManifest": "meteor-test/peer/node/grpcweb/package.json",
+      "versionLock": "meteor-test/peer/node/grpcweb/package-lock.json",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "hprose-java",
+      "protocols": [
+        "hprose"
+      ],
+      "language": "java",
+      "origin": "hprose-java",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "test-jvm-sdk",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/hprose/HproseInteropTest.java",
+      "versionProperties": [
+        "lib.hprose"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "hprose-node",
+      "protocols": [
+        "hprose"
+      ],
+      "language": "javascript",
+      "origin": "hprose",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "node-process",
+      "source": "meteor-test/peer/node/hprose",
+      "entrypoints": [
+        "peer.js"
+      ],
+      "versionManifest": "meteor-test/peer/node/hprose/package.json",
+      "versionLock": "meteor-test/peer/node/hprose/package-lock.json",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "soap-metro-java",
+      "protocols": [
+        "soap"
+      ],
+      "language": "java",
+      "origin": "eclipse-metro",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "independent-jvm",
+      "source": "meteor-test/peer/java/metro-jaxws/src/main/java/net/hasor/peer/protocol/soap/MetroPeer.java",
+      "versionProperties": [
+        "lib.jaxws"
+      ],
+      "entrypoints": [
+        "net.hasor.peer.protocol.soap.MetroPeer"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "soap-axis-java",
+      "protocols": [
+        "soap"
+      ],
+      "language": "java",
+      "origin": "apache-axis",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "independent-jvm",
+      "source": "meteor-test/peer/java/apache-axis/src/main/java/net/hasor/peer/protocol/soap/AxisPeer.java",
+      "versionProperties": [
+        "lib.axis"
+      ],
+      "entrypoints": [
+        "net.hasor.peer.protocol.soap.AxisPeer"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "jsonrpc-jayson-node",
+      "protocols": [
+        "jsonrpc"
+      ],
+      "language": "javascript",
+      "origin": "jayson-and-ws",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "node-process",
+      "source": "meteor-test/peer/node/jsonrpc",
+      "entrypoints": [
+        "peer.js"
+      ],
+      "versionManifest": "meteor-test/peer/node/jsonrpc/package.json",
+      "versionLock": "meteor-test/peer/node/jsonrpc/package-lock.json",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "xmlrpc-python",
+      "protocols": [
+        "xmlrpc"
+      ],
+      "language": "python",
+      "origin": "python-standard-library",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "python-process",
+      "source": "meteor-test/peer/python/xmlrpc/peer.py",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "hessian-caucho-java",
+      "protocols": [
+        "hessian"
+      ],
+      "language": "java",
+      "origin": "caucho-hessian",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "independent-jvm",
+      "source": "meteor-test/peer/java/caucho-hessian/src/main/java/net/hasor/peer/protocol/hessian/CauchoHessianPeer.java",
+      "versionProperties": [
+        "lib.hessian"
+      ],
+      "entrypoints": [
+        "net.hasor.peer.protocol.hessian.CauchoHessianPeer"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "connect-node",
+      "protocols": [
+        "connect",
+        "grpc",
+        "grpc-web"
+      ],
+      "language": "javascript",
+      "origin": "connectrpc",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "node-process",
+      "source": "meteor-test/peer/node/connect",
+      "entrypoints": [
+        "peer.mjs"
+      ],
+      "versionManifest": "meteor-test/peer/node/connect/package.json",
+      "versionLock": "meteor-test/peer/node/connect/package-lock.json",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "triple-dubbo-java",
+      "protocols": [
+        "triple"
+      ],
+      "language": "java",
+      "origin": "apache-dubbo",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "independent-jvm",
+      "source": "meteor-test/peer/java/apache-dubbo/src/main/java/net/hasor/peer/protocol/triple/DubboTriplePeer.java",
+      "versionProperties": [
+        "lib.dubbo"
+      ],
+      "entrypoints": [
+        "net.hasor.peer.protocol.triple.DubboTriplePeer"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "triple-dubbo-legacy-java",
+      "protocols": [
+        "triple"
+      ],
+      "language": "java",
+      "origin": "apache-dubbo",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "independent-jvm-isolated-sdk-version",
+      "source": "meteor-test/peer/java/apache-dubbo/src/main/java/net/hasor/peer/protocol/triple/DubboTriplePeer.java",
+      "versionProperties": [
+        "lib.dubbo.legacy"
+      ],
+      "entrypoints": [
+        "net.hasor.peer.protocol.triple.DubboTriplePeer"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "dubbo3-java",
+      "protocols": [
+        "dubbo"
+      ],
+      "language": "java",
+      "origin": "apache-dubbo",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "independent-jvm",
+      "source": "meteor-test/peer/java/apache-dubbo/src/main/java/net/hasor/peer/protocol/dubbo/DubboPeer.java",
+      "versionProperties": [
+        "lib.dubbo"
+      ],
+      "entrypoints": [
+        "net.hasor.peer.protocol.dubbo.DubboPeer"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "dubbo2-java",
+      "protocols": [
+        "dubbo"
+      ],
+      "language": "java",
+      "origin": "apache-dubbo",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "independent-jvm-isolated-sdk-version",
+      "source": "meteor-test/peer/java/apache-dubbo/src/main/java/net/hasor/peer/protocol/dubbo/DubboPeer.java",
+      "versionProperties": [
+        "lib.dubbo2"
+      ],
+      "entrypoints": [
+        "net.hasor.peer.protocol.dubbo.DubboPeer"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "thrift-java",
+      "protocols": [
+        "thrift"
+      ],
+      "language": "java",
+      "origin": "apache-thrift",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "independent-jvm",
+      "source": "meteor-test/peer/java/apache-thrift/src/main/java/net/hasor/peer/protocol/thrift/ThriftPeer.java",
+      "versionProperties": [
+        "lib.thrift"
+      ],
+      "entrypoints": [
+        "net.hasor.peer.protocol.thrift.ThriftPeer"
+      ],
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "oncrpc-libtirpc-c",
+      "protocols": [
+        "oncrpc"
+      ],
+      "language": "c",
+      "origin": "rpcgen-and-libtirpc",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "execution": "native-process",
+      "source": "meteor-test/peer/c",
+      "entrypoints": [
+        "oncrpc_peer.c",
+        "oncrpc_rpcbind_peer.c"
+      ],
+      "registryAdapterEvidence": {
+        "runId": "20261019-144923-968",
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "scope": "TCP/UDP x JDBC/Nacos/ZooKeeper x provider/consumer; does not claim every native direct or rpcbind scenario."
+      },
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-go",
+      "protocols": [
+        "grpc"
+      ],
+      "language": "go",
+      "origin": "grpc-go",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "source": "meteor-test/peer/go",
+      "execution": "independent-native-process",
+      "versionManifest": "meteor-test/peer/go/go.mod",
+      "versionLock": "meteor-test/peer/go/go.sum",
+      "toolchainManifest": "meteor-test/peer/go/Dockerfile",
+      "entrypoints": [
+        "main.go"
+      ],
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.grpc.go.GrpcGoInteropTest"
+      ],
+      "declaredCaseCount": 30,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "grpc-python",
+      "protocols": [
+        "grpc"
+      ],
+      "language": "python",
+      "origin": "grpcio",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "source": "meteor-test/peer/python/grpc",
+      "execution": "independent-python-process",
+      "versionManifest": "meteor-test/peer/python/grpc/requirements.txt",
+      "entrypoints": [
+        "peer.py"
+      ],
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.grpc.python.PythonProviderScenarioTest",
+        "net.hasor.realmeteor.protocol.grpc.python.PythonConsumerScenarioTest"
+      ],
+      "declaredCaseCount": 16,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "thrift-python",
+      "protocols": [
+        "thrift"
+      ],
+      "language": "python",
+      "origin": "apache-thrift",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "source": "meteor-test/peer/python/thrift",
+      "execution": "independent-python-process",
+      "versionManifest": "meteor-test/peer/python/thrift/requirements.txt",
+      "entrypoints": [
+        "peer.py"
+      ],
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.thrift.python.PythonProviderScenarioTest",
+        "net.hasor.realmeteor.protocol.thrift.python.PythonConsumerScenarioTest"
+      ],
+      "declaredCaseCount": 144,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "soap-python",
+      "protocols": [
+        "soap"
+      ],
+      "language": "python",
+      "origin": "zeep-consumer-and-soapfish2-provider",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "source": "meteor-test/peer/python/soap",
+      "requiredForGoalAcceptance": true,
+      "execution": "independent-python-process",
+      "entrypoints": [
+        "peer.py"
+      ],
+      "versionManifest": "meteor-test/peer/python/soap/requirements.txt",
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.soap.python.SoapPythonOrderInteropTest"
+      ],
+      "declaredCaseCount": 8,
+      "declaredDirectCases": 2,
+      "declaredRegistryAdapterCases": 6,
+      "runId": "20261019-143606-563",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "soap-dotnet",
+      "protocols": [
+        "soap"
+      ],
+      "language": "dotnet",
+      "origin": "to-be-selected",
+      "implementationStatus": "planned",
+      "verification": "not-implemented",
+      "source": null,
+      "optionalFutureExtension": true,
+      "requiredForCurrentAcceptance": false
+    },
+    {
+      "id": "connect-go",
+      "protocols": [
+        "connect",
+        "grpc-web"
+      ],
+      "language": "go",
+      "origin": "connect-go",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "source": "meteor-test/peer/go",
+      "execution": "independent-native-process",
+      "versionManifest": "meteor-test/peer/go/go.mod",
+      "versionLock": "meteor-test/peer/go/go.sum",
+      "toolchainManifest": "meteor-test/peer/go/Dockerfile",
+      "entrypoints": [
+        "main.go"
+      ],
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.connect.go.ConnectGoInteropTest"
+      ],
+      "declaredCaseCount": 30,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "jsonrpc-python",
+      "protocols": [
+        "jsonrpc"
+      ],
+      "language": "python",
+      "origin": "python-standard-library-independent-jsonrpc-wire-peer",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "source": "meteor-test/peer/python/jsonrpc/orders",
+      "requiredForGoalAcceptance": true,
+      "execution": "independent-python-process",
+      "entrypoints": [
+        "order_jsonrpc_peer.py"
+      ],
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.jsonrpc.python.PythonJsonRpcProviderOrderTest",
+        "net.hasor.realmeteor.protocol.jsonrpc.python.PythonJsonRpcConsumerOrderTest",
+        "net.hasor.realmeteor.protocol.jsonrpc.python.PythonJsonRpcRegistryAdapterScenarioTest"
+      ],
+      "declaredDirectCases": 16,
+      "declaredRegistryAdapterCases": 6,
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "thrift-go",
+      "protocols": [
+        "thrift"
+      ],
+      "language": "go",
+      "origin": "apache-thrift-go",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "source": "meteor-test/peer/go",
+      "execution": "independent-native-process",
+      "versionManifest": "meteor-test/peer/go/go.mod",
+      "versionLock": "meteor-test/peer/go/go.sum",
+      "toolchainManifest": "meteor-test/peer/go/Dockerfile",
+      "entrypoints": [
+        "main.go",
+        "thrift_peer.go"
+      ],
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.thrift.go.ThriftGoInteropTest",
+        "net.hasor.realmeteor.protocol.thrift.go.ThriftGoRegistryAdapterScenarioTest"
+      ],
+      "declaredCaseCount": 186,
+      "declaredDirectCases": 180,
+      "declaredRegistryAdapterCases": 6,
+      "sdkSelfCheckScope": "Official SDK-to-SDK checks demonstrate tool readiness only; they are not Meteor interoperability evidence.",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "connect-jvm-java",
+      "protocols": [
+        "connect",
+        "grpc-web"
+      ],
+      "language": "java",
+      "origin": "official-connect-jvm-sdk-called-from-java",
+      "implementationStatus": "source-present",
+      "verification": "passed-targeted-java-provider-scope",
+      "source": "meteor-test/peer/java/connect-kotlin/src/main/java/net/hasor/peer/protocol/connect/ConnectJavaPeer.java",
+      "execution": "independent-java-process",
+      "versionProperties": [
+        "lib.connect.kotlin"
+      ],
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.connect.ConnectJavaInteropTest",
+        "net.hasor.realmeteor.protocol.grpc.web.GrpcWebJavaInteropTest"
+      ],
+      "declaredCaseCount": 2,
+      "scope": "Java source invokes the official JVM SDK with CONNECT and GRPC_WEB respectively; no Kotlin or other-language test source.",
+      "acceptanceRunId": "20261023-174821-873",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261023-174821-873/summary.json"
+    },
+    {
+      "id": "jsonrpc-jsonrpc4j-java",
+      "protocols": [
+        "jsonrpc"
+      ],
+      "language": "java",
+      "origin": "jsonrpc4j-independent-java-implementation",
+      "implementationStatus": "source-present",
+      "verification": "passed-targeted-java-provider-scope",
+      "source": "meteor-test/peer/java/jsonrpc4j/src/main/java/net/hasor/peer/protocol/jsonrpc/JsonRpc4jPeer.java",
+      "execution": "independent-java-process",
+      "versionProperties": [
+        "lib.jsonrpc4j"
+      ],
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.jsonrpc.JsonRpc4jProviderTest"
+      ],
+      "declaredCaseCount": 3,
+      "scope": "Meteor provider: positional Unicode, named non-commutative arguments and method-not-found fault.",
+      "acceptanceRunId": "20261023-174821-873",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261023-174821-873/summary.json"
+    },
+    {
+      "id": "xmlrpc-apache-java",
+      "protocols": [
+        "xmlrpc"
+      ],
+      "language": "java",
+      "origin": "apache-xmlrpc-java",
+      "implementationStatus": "source-present",
+      "verification": "passed-targeted-java-provider-scope",
+      "source": "meteor-test/peer/java/apache-xmlrpc/src/main/java/net/hasor/peer/protocol/xmlrpc/ApacheXmlRpcPeer.java",
+      "execution": "independent-java-process",
+      "versionProperties": [
+        "lib.xmlrpc"
+      ],
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.xmlrpc.ApacheXmlRpcProviderTest"
+      ],
+      "declaredCaseCount": 6,
+      "scope": "Meteor provider: BMP text, positional integers, binary, nested struct, business fault and rejection of Apache 3.1.3 invalid surrogate references.",
+      "acceptanceRunId": "20261023-174821-873",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261023-174821-873/summary.json"
+    },
+    {
+      "id": "oncrpc-remotetea-java",
+      "protocols": [
+        "oncrpc"
+      ],
+      "language": "java",
+      "origin": "remotetea-independent-java-implementation",
+      "implementationStatus": "source-present",
+      "verification": "passed-targeted-java-provider-scope",
+      "source": "meteor-test/peer/java/remotetea/src/main/java/net/hasor/peer/protocol/oncrpc/RemoteTeaClientPeer.java",
+      "execution": "independent-java-process",
+      "versionProperties": [
+        "lib.remotetea"
+      ],
+      "scenarioEntrypoints": [
+        "net.hasor.realmeteor.protocol.oncrpc.RemoteTeaJavaInteropScenarioTest"
+      ],
+      "declaredCaseCount": 4,
+      "scope": "Meteor TCP and UDP providers: ASCII success and precise RPC_CANTDECODEARGS for non-ASCII XDR string input on each transport.",
+      "acceptanceRunId": "20261023-174821-873",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261023-174821-873/summary.json"
+    },
+    {
+      "id": "grpc-web-envoy-java",
+      "protocols": [
+        "grpc-web"
+      ],
+      "language": "java-with-native-proxy",
+      "origin": "envoy-grpc-web-proxy-and-official-grpc-java-server",
+      "implementationStatus": "source-present",
+      "verification": "passed-declared-host-scope",
+      "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/web/EnvoyPeerProcess.java",
+      "execution": "independent-native-proxy-and-grpc-java-server",
+      "versionProperties": [
+        "lib.grpc"
+      ],
+      "imageVersionSource": "meteor-test/docker/services.Dockerfile#ENVOY_IMAGE",
+      "acceptanceRunId": "20261019-164339-488",
+      "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+    },
+    {
+      "id": "connect-python",
+      "protocols": [
+        "connect",
+        "grpc-web"
+      ],
+      "language": "python",
+      "origin": "Connect Python 0.13.0",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/python/connect"
+    },
+    {
+      "id": "hprose-python",
+      "protocols": [
+        "hprose"
+      ],
+      "language": "python",
+      "origin": "Hprose Python 1.4.3",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/python/hprose"
+    },
+    {
+      "id": "hessian-python",
+      "protocols": [
+        "hessian"
+      ],
+      "language": "python",
+      "origin": "python-hessian 1.2.0",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/python/hessian"
+    },
+    {
+      "id": "thrift-node",
+      "protocols": [
+        "thrift"
+      ],
+      "language": "javascript",
+      "origin": "Apache Thrift Node 0.25.0",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/node/thrift"
+    },
+    {
+      "id": "soap-node",
+      "protocols": [
+        "soap"
+      ],
+      "language": "javascript",
+      "origin": "node-soap 1.14.0",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/node/soap"
+    },
+    {
+      "id": "xmlrpc-node",
+      "protocols": [
+        "xmlrpc"
+      ],
+      "language": "javascript",
+      "origin": "node-xmlrpc 1.3.2",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/node/xmlrpc"
+    },
+    {
+      "id": "hprose-go",
+      "protocols": [
+        "hprose"
+      ],
+      "language": "go",
+      "origin": "Hprose Go 2.0.6",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/go/http_peer.go"
+    },
+    {
+      "id": "jsonrpc-gorilla-go",
+      "protocols": [
+        "jsonrpc"
+      ],
+      "language": "go",
+      "origin": "Gorilla rpc 1.2.1 JSON-RPC 2.0",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/go/http_peer.go"
+    },
+    {
+      "id": "xmlrpc-go",
+      "protocols": [
+        "xmlrpc"
+      ],
+      "language": "go",
+      "origin": "kolo/xmlrpc a4b6fa1dd06b",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/go/http_peer.go"
+    },
+    {
+      "id": "grpc-cpp",
+      "protocols": [
+        "grpc"
+      ],
+      "language": "cpp",
+      "origin": "gRPC C++ system SDK",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/cpp/grpc"
+    },
+    {
+      "id": "thrift-cpp",
+      "protocols": [
+        "thrift"
+      ],
+      "language": "cpp",
+      "origin": "Apache Thrift C++ system SDK",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/cpp/thrift"
+    },
+    {
+      "id": "soap-gsoap-c",
+      "protocols": [
+        "soap"
+      ],
+      "language": "c",
+      "origin": "gSOAP C system SDK",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/c/soap"
+    },
+    {
+      "id": "soap-gsoap-cpp",
+      "protocols": [
+        "soap"
+      ],
+      "language": "cpp",
+      "origin": "gSOAP C++ system SDK",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/cpp/soap"
+    },
+    {
+      "id": "xmlrpc-c",
+      "protocols": [
+        "xmlrpc"
+      ],
+      "language": "c",
+      "origin": "xmlrpc-c C API system SDK",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/c/xmlrpc"
+    },
+    {
+      "id": "xmlrpc-cpp",
+      "protocols": [
+        "xmlrpc"
+      ],
+      "language": "cpp",
+      "origin": "xmlrpc-c C++ API system SDK",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/cpp/xmlrpc"
+    },
+    {
+      "id": "hprose-browser",
+      "protocols": [
+        "hprose"
+      ],
+      "language": "javascript",
+      "origin": "Hprose HTML5 2.0.36",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/browser/hprose-consumer.cjs"
+    },
+    {
+      "id": "fetch-browser",
+      "protocols": [
+        "jsonrpc",
+        "connect",
+        "soap",
+        "xmlrpc"
+      ],
+      "language": "javascript",
+      "origin": "Chromium Fetch API",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/browser/http-consumer.cjs"
+    },
+    {
+      "id": "curl-shell",
+      "protocols": [
+        "jsonrpc",
+        "connect",
+        "soap",
+        "xmlrpc",
+        "grpc",
+        "grpc-web",
+        "hprose",
+        "hessian",
+        "triple",
+        "thrift"
+      ],
+      "language": "shell",
+      "origin": "curl HTTP client",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/shell"
+    },
+    {
+      "id": "soap-gowsdl-go",
+      "protocols": [
+        "soap"
+      ],
+      "language": "go",
+      "origin": "gowsdl 0.5.0",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/go/soap_peer.go"
+    },
+    {
+      "id": "dubbo-go",
+      "protocols": [
+        "dubbo",
+        "triple"
+      ],
+      "language": "go",
+      "origin": "Apache Dubbo-Go 3.3.2",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/go/dubbo"
+    },
+    {
+      "id": "jsonrpc-cpp",
+      "protocols": [
+        "jsonrpc"
+      ],
+      "language": "cpp",
+      "origin": "libjson-rpc-cpp system SDK",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/cpp/jsonrpc"
+    },
+    {
+      "id": "thrift-c-glib",
+      "protocols": [
+        "thrift"
+      ],
+      "language": "c",
+      "origin": "Apache Thrift C GLib system SDK",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/c/thrift"
+    },
+    {
+      "id": "grpc-core-c",
+      "protocols": [
+        "grpc"
+      ],
+      "language": "c",
+      "origin": "gRPC Core C API with protobuf-c",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/c/grpc"
+    },
+    {
+      "id": "dubbo-node",
+      "protocols": [
+        "dubbo"
+      ],
+      "language": "javascript",
+      "origin": "dubbo2.js 2.3.9",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/node/dubbo"
+    },
+    {
+      "id": "thrift-browser",
+      "protocols": ["thrift"],
+      "language": "browser",
+      "origin": "Apache Thrift 0.25.0 XHR client, HTTP JSON",
+      "roles": ["consumer"],
+      "implementationStatus": "source-present",
+      "execution": "chromium",
+      "source": "meteor-test/peer/browser/thrift-consumer.cjs"
+    },
+    {
+      "id": "triple-grpc-python",
+      "protocols": ["triple"],
+      "language": "python",
+      "origin": "grpcio, Triple Protobuf/gRPC compatibility only",
+      "roles": ["provider", "consumer"],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/python/grpc"
+    },
+    {
+      "id": "triple-grpc-node",
+      "protocols": ["triple"],
+      "language": "javascript",
+      "origin": "Connect Node gRPC transport, Triple Protobuf/gRPC compatibility only",
+      "roles": ["provider", "consumer"],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/node/connect/grpc-order.mjs"
+    },
+    {
+      "id": "triple-grpc-c",
+      "protocols": ["triple"],
+      "language": "c",
+      "origin": "gRPC Core C API, Triple Protobuf/gRPC compatibility only",
+      "roles": ["provider", "consumer"],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/c/grpc"
+    },
+    {
+      "id": "triple-grpc-cpp",
+      "protocols": ["triple"],
+      "language": "cpp",
+      "origin": "gRPC C++, Triple Protobuf/gRPC compatibility only",
+      "roles": ["provider", "consumer"],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/cpp/grpc"
+    },
+    {
+      "id": "rsf-hasor-legacy-java",
+      "protocols": [
+        "rsf"
+      ],
+      "language": "java",
+      "origin": "Hasor RSF 4.2.5",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "independent-jvm-isolated-sdk-version",
+      "source": "meteor-test/peer/java/hasor-rsf/src/main/java/net/hasor/peer/protocol/rsf/LegacyRsfPeer.java",
+      "entrypoints": [
+        "net.hasor.peer.protocol.rsf.LegacyRsfPeer"
+      ],
+      "sdkStatus": "released",
+      "version": "4.2.5",
+      "versionProperties": [
+        "lib.hasor.rsf",
+        "lib.javax.annotation"
+      ],
+      "scope": "RSF/1 direct String echo with Java serialization; both peers publish listener identities required by the legacy handshake. No Meteor runtime enters the SDK classpath."
+    },
+    {
+      "id": "oncrpc-sunrpc-python",
+      "protocols": [
+        "oncrpc"
+      ],
+      "language": "python",
+      "origin": "sunrpc Python",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/python/oncrpc",
+      "entrypoints": [
+        "peer.py"
+      ],
+      "sdkStatus": "development",
+      "version": "1.1.0",
+      "versionManifest": "meteor-test/peer/python/oncrpc/requirements.txt",
+      "scope": "Direct TCP ONC RPC v2/XDR String echo. Unchanged SDK with standard-xdrlib 3.13.0 providing the module removed from Python 3.13."
+    },
+    {
+      "id": "oncrpc-sunrpc-go-source",
+      "protocols": [
+        "oncrpc"
+      ],
+      "language": "go",
+      "origin": "prashanthpai/sunrpc",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/go/oncrpc",
+      "entrypoints": [
+        "main.go"
+      ],
+      "sdkStatus": "source-only",
+      "version": "v0.0.0-20210303180433-689a3880d90a",
+      "sourceCommit": "689a3880d90a71848bd2ec8a0f414e208ebc5d90",
+      "versionManifest": "meteor-test/peer/go/oncrpc/go.mod",
+      "versionLock": "meteor-test/peer/go/oncrpc/go.sum",
+      "scope": "Direct TCP ONC RPC v2/XDR String echo using the upstream client and server codecs; no tagged SDK release."
+    },
+    {
+      "id": "oncrpc-triton-node-source",
+      "protocols": [
+        "oncrpc"
+      ],
+      "language": "javascript",
+      "origin": "TritonDataCenter/node-oncrpc",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/node/oncrpc",
+      "entrypoints": [
+        "peer.js"
+      ],
+      "sdkStatus": "source-only",
+      "sourceCommit": "aff0a96d39a8d56aad993e39c7c1156539a8472f",
+      "versionManifest": "meteor-test/peer/node/oncrpc/package.json",
+      "versionLock": "meteor-test/peer/node/oncrpc/package-lock.json",
+      "scope": "Direct TCP ONC RPC v2/XDR String echo through unchanged upstream RpcClient and RpcServer APIs at the fixed source revision."
+    },
+    {
+      "id": "triple-apache-python-beta",
+      "protocols": [
+        "triple"
+      ],
+      "language": "python",
+      "origin": "Apache Dubbo Python",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/python/triple",
+      "entrypoints": [
+        "peer.py"
+      ],
+      "sdkStatus": "beta",
+      "version": "3.0.0b1",
+      "versionManifest": "meteor-test/peer/python/triple/requirements.txt",
+      "scope": "SDK-native direct HTTP/2 Triple/Protobuf unary StringValue echo in both declared roles; source presence makes no compatibility claim."
+    },
+    {
+      "id": "triple-apache-node-alpha",
+      "protocols": [
+        "triple"
+      ],
+      "language": "javascript",
+      "origin": "Apache Dubbo JavaScript Node SDK",
+      "roles": [
+        "provider",
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/node/triple-alpha",
+      "entrypoints": [
+        "peer.js"
+      ],
+      "sdkStatus": "alpha",
+      "version": "3.0.0-alpha",
+      "versionManifest": "meteor-test/peer/node/triple-alpha/package.json",
+      "versionLock": "meteor-test/peer/node/triple-alpha/package-lock.json",
+      "scope": "Direct Triple Protobuf/gRPC compatibility surface through the Apache Node SDK; order save/find only, independent of existing Connect Node evidence."
+    },
+    {
+      "id": "triple-apache-browser-alpha",
+      "protocols": [
+        "triple"
+      ],
+      "language": "browser",
+      "origin": "Apache Dubbo JavaScript Web SDK",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "chromium",
+      "source": "meteor-test/peer/browser/triple-alpha-consumer.cjs",
+      "entrypoints": [
+        "triple-alpha-consumer.cjs"
+      ],
+      "sdkStatus": "alpha",
+      "version": "3.0.0-alpha",
+      "versionManifest": "meteor-test/peer/node/triple-alpha/package.json",
+      "versionLock": "meteor-test/peer/node/triple-alpha/package-lock.json",
+      "scope": "Apache Web SDK direct HTTP/1 Triple unary Protobuf order calls in real Chromium; no provider role or gRPC-Web claim."
+    },
+    {
+      "id": "jsonrpc-c-source",
+      "protocols": [
+        "jsonrpc"
+      ],
+      "language": "c",
+      "origin": "initlevel5/json-rpc-client",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/c/jsonrpc",
+      "entrypoints": [
+        "/opt/meteor-peer/native/c/jsonrpc/client"
+      ],
+      "sdkStatus": "source-only",
+      "sourceCommit": "52d7b9068478e08d54407f4a85203093b8e9cc74",
+      "archiveSha256": "2618994da70c74f346fb24ddbccfe05f01bdd531558e7e94fe53b7d27937179e",
+      "versionManifest": "meteor-test/peer/c/jsonrpc/build.sh",
+      "scope": "Direct HTTP JSON-RPC String echo through the unchanged upstream C CLI; upstream owns request serialization and HTTP transport."
+    },
+    {
+      "id": "hprose-cpp-source",
+      "protocols": [
+        "hprose"
+      ],
+      "language": "cpp",
+      "origin": "hprose/hprose-cpp1x",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "container-process",
+      "source": "meteor-test/peer/cpp/hprose",
+      "entrypoints": [
+        "echo_peer.cpp"
+      ],
+      "sdkStatus": "source-only",
+      "sourceCommit": "086de4cb210ee4153fabf7bdc414a3c68b516887",
+      "archiveSha256": "98e31e05783d512973194cb9ec4732cba493377e8d9cf5475a754fc6ee9ce511",
+      "versionManifest": "meteor-test/peer/cpp/hprose/build.sh",
+      "scope": "Direct HTTP String echo; unchanged upstream RPC client and codec use the public Client::sendAndReceive transport extension implemented with system libcurl."
+    },
+    {
+      "id": "connect-loams-cpp-source",
+      "protocols": [
+        "connect"
+      ],
+      "language": "cpp",
+      "origin": "Loams C++ SDK",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "isolated-native-sdk-process",
+      "source": "meteor-test/peer/cpp/connect",
+      "entrypoints": [
+        "echo_peer.cpp"
+      ],
+      "sdkStatus": "source-release",
+      "version": "0.1.2",
+      "sourceCommit": "8d5a955f580ff35d11e06c56cf970258c3212000",
+      "archiveSha256": "caf29484a672672ff5a4aedfd3373e9ddae3d6127864b0fc2b6f514418186b5c",
+      "versionManifest": "meteor-test/peer/cpp/connect/build-sdk.sh",
+      "toolchainManifest": "meteor-test/peer/c/Dockerfile",
+      "scope": "Direct HTTP Connect unary Protobuf StringValue echo using Client::Unary with a private static protobuf 36.1 and libcurl 8.22 SDK runtime."
+    },
+    {
+      "id": "hessian-cpp-legacy-source",
+      "protocols": [
+        "hessian"
+      ],
+      "language": "cpp",
+      "origin": "hessiancpp and SSLPP",
+      "roles": [
+        "consumer"
+      ],
+      "implementationStatus": "source-present",
+      "execution": "isolated-native-sdk-process",
+      "source": "meteor-test/peer/cpp/hessian",
+      "entrypoints": [
+        "consumer.cpp"
+      ],
+      "sdkStatus": "legacy-release-source-build",
+      "version": "1.1.0",
+      "archiveSha256": "52f2dc9eee62d8500fbb51c4e722b1c79d2b7c2e048f47505240ec95d320b9f0",
+      "versionManifest": "meteor-test/peer/cpp/hessian/prepare.sh",
+      "scope": "Direct HTTP Hessian String echo through unchanged hessiancpp 1.1.0 and SSLPP 1.1.0. Private static OpenSSL 1.0.2u source commit e818b74be2170fbe957a07b0da4401c2b694b3b8 supplies legacy APIs; this declares no TLS acceptance or successful RPC result."
+    },
+    {
+      "id": "hessian-node",
+      "protocols": ["hessian"],
+      "language": "javascript",
+      "origin": "hessian-proxy",
+      "roles": ["consumer"],
+      "implementationStatus": "source-present",
+      "execution": "node-process",
+      "source": "meteor-test/peer/node/hessian",
+      "entrypoints": ["consumer.cjs"],
+      "version": "0.0.5",
+      "versionManifest": "meteor-test/peer/node/hessian/package.json",
+      "versionLock": "meteor-test/peer/node/hessian/package-lock.json",
+      "scope": "Direct HTTP Hessian 2 String echo using the unchanged Proxy.invoke API and application/binary. Only the SDK consumer role is provided."
+    }
+  ],
+  "currentAcceptance": {
+    "implementation": "source-complete-for-declared-peers",
+    "finalGreenAcceptance": "passed-declared-host-scope",
+    "latestCompleteHostRunId": "20261019-164339-488",
+    "scope": "The 3923-case complete host run accepts only peers declared in its 20261019 baseline. Later Java SDK additions are accepted separately in javaRpcSupplement, not by that historical run. The optional .NET peer remains planned; no undeclared cross-product coverage is implied.",
+    "summary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
+  },
+  "javaRpcSupplement": {
+    "runId": "20261023-174821-873",
+    "summary": "meteor-test/build/interoperability/20261023-174821-873/summary.json",
+    "newProviderCases": 15,
+    "executedCases": 29,
+    "passed": 29,
+    "failed": 0,
+    "skipped": 0,
+    "scope": "All 15 new Java SDK provider cases plus 14 existing Java SDK representative cases; not a complete host rerun."
+  }
+}

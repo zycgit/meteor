@@ -272,9 +272,9 @@ public class DubboTlsScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("dubbo").setDefaultTimeout(10000);
         ConnectorSettings connector = configuration.connector("tcp").bind("127.0.0.1", 0);
         connector.option("tlsEnabled", true) //
-                .option("tlsKeyStore", "classpath:/tls/acceptance/" + identity + ".p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsClientAuth", clientAuth) //
                 .option("tlsProtocols", protocols);
@@ -286,11 +286,11 @@ public class DubboTlsScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("dubbo").setDefaultTimeout(10000);
         ConnectorSettings connector = configuration.connector("tcp");
         connector.option("tlsEnabled", true) //
-                .option("tlsTrustStore", "classpath:/tls/acceptance/" + trust + ".p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/" + trust + ".p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsProtocols", protocols);
         if (StringUtils.isNotBlank(identity)) {
-            connector.option("tlsKeyStore", "classpath:/tls/acceptance/" + identity + ".p12") //
+            connector.option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
         }
         connector.protocol("dubbo").addressScheme("dubbos");

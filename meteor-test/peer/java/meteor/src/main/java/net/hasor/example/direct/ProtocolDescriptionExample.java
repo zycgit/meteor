@@ -81,7 +81,7 @@ public final class ProtocolDescriptionExample {
     }
 
     private static GrpcProtoResource orderResource() throws IOException {
-        URL source = ProtocolDescriptionExample.class.getResource("/order/order.proto");
+        URL source = ProtocolDescriptionExample.class.getResource("/protocol/proto/order.proto");
         return new GrpcProtoResource(source);
     }
 

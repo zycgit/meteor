@@ -36,7 +36,7 @@ public class WebServicesInteropTest {
         MetConfiguration configuration = this.configuration();
         try (MetContext context = configuration.buildContext()) {
             context.start();
-            URL resource = this.resource("/soap/wsdl/echo.wsdl");
+            URL resource = this.resource("/protocol/wsdl/echo.wsdl");
             context.publisher() //
                     .rsfService(EchoService.class, new EchoServiceImpl()) //
                     .aliasName("soap", "EchoService") //
@@ -68,7 +68,7 @@ public class WebServicesInteropTest {
         MetConfiguration configuration = this.configuration();
         try (MetContext context = configuration.buildContext()) {
             context.start();
-            URL resource = this.resource("/soap/wsdl/signal.wsdl");
+            URL resource = this.resource("/protocol/wsdl/signal.wsdl");
             context.publisher() //
                     .rsfService(SignalService.class, signal) //
                     .aliasName("soap", "SignalService") //
@@ -99,7 +99,7 @@ public class WebServicesInteropTest {
             MetConfiguration configuration = this.outgoingConfiguration();
             try (MetContext context = configuration.buildContext()) {
                 context.start();
-                URL resource = this.resource("/soap/wsdl/echo.wsdl");
+                URL resource = this.resource("/protocol/wsdl/echo.wsdl");
                 MetBindInfo<EchoService> subscribed = context.publisher() //
                         .rsfService(EchoService.class) //
                         .aliasName("soap", "EchoService") //

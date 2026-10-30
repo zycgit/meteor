@@ -2,7 +2,7 @@ ORDER_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 TEST_DIR := $(abspath $(ORDER_DIR)/../../..)
 BUILD_DIR ?= $(TEST_DIR)/build/native/order
 GEN_DIR := $(BUILD_DIR)/generated
-CONTRACT := $(TEST_DIR)/src/test/resources/order/order.x
+CONTRACT := $(TEST_DIR)/resource/protocol/x/order.x
 
 CC ?= cc
 CXX ?= c++

@@ -106,7 +106,7 @@ public class WebServicesQNameTest {
     }
 
     private SoapWsdlResource resource() throws Exception {
-        URL wsdl = this.getClass().getResource("/soap/wsdl/field-namespaces.wsdl");
+        URL wsdl = this.getClass().getResource("/protocol/wsdl/field-namespaces.wsdl");
         assertNotNull("Missing field namespace WSDL", wsdl);
         return new SoapWsdlResource(wsdl);
     }

@@ -1,8 +1,8 @@
 {
-  "source": "meteor-test/src/test/resources/vectors/types/types.thrift",
+  "source": "meteor-test/resource/protocol/thrift/types/types.thrift",
   "sourceSha256": "2588c547ff39b82ce946a067a0789114c8a44534736973262851664494fad494",
   "generator": "Apache Thrift Compiler 0.19.0",
   "runtime": "Apache Thrift Python 0.22.0",
-  "command": "thrift --gen py -out meteor-test/peer/python/types/thriftgen meteor-test/src/test/resources/vectors/types/types.thrift",
+  "command": "thrift --gen py -out meteor-test/peer/python/types/thriftgen meteor-test/resource/protocol/thrift/types/types.thrift",
   "compatibility": "Same compiler/runtime combination as the existing Python Order peer; compiler 0.25 output requires recursion APIs absent in the pinned Python runtime."
 }

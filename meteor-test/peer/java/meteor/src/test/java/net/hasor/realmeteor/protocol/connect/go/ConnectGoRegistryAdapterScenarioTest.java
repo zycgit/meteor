@@ -162,9 +162,9 @@ public class ConnectGoRegistryAdapterScenarioTest {
         if (StringUtils.equals("mtls", this.tlsMode)) {
             String identity = listening ? "server" : "client";
             connector.option("tlsEnabled", true).option("httpScheme", "https") //
-                    .option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12") //
+                    .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                     .option("tlsTrustStorePassword", "meteor-test").option("tlsAlpn", "http/1.1") //
-                    .option("tlsKeyStore", "classpath:/grpc/tls/acceptance/" + identity + ".p12") //
+                    .option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
             if (listening) {
                 connector.option("tlsClientAuth", "REQUIRE");
@@ -179,7 +179,7 @@ public class ConnectGoRegistryAdapterScenarioTest {
     }
 
     private GrpcProtoResource resource() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
     }
 
     private static void awaitAddress(MetContext consumer, MetBindInfo<?> service, InterAddress expected) throws Exception {

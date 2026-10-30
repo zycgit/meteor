@@ -85,7 +85,7 @@ final class PythonGrpcPeer implements AutoCloseable {
         command.add("--security");
         command.add(security);
         command.add("--certificates");
-        var certificate = PythonGrpcPeer.class.getResource("/grpc/tls/acceptance/ca.pem");
+        var certificate = PythonGrpcPeer.class.getResource("/certs/acceptance/ca.pem");
         command.add(Path.of(certificate.toURI()).getParent().toString());
         if (target != null) {
             command.add("--target");

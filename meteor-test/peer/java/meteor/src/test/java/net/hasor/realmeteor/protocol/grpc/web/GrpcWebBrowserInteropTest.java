@@ -41,7 +41,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 容器启动后，按照用户用法发布接口并绑定 proto 文件。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, new GrpcWebServiceImpl()) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();
@@ -71,7 +71,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 容器启动后，按照用户用法发布接口并绑定 proto 文件。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, new GrpcWebServiceImpl()) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();
@@ -100,7 +100,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 容器启动后，按照用户用法发布接口并绑定 proto 文件。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, new GrpcWebServiceImpl()) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();
@@ -135,7 +135,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 容器启动后，按照用户用法发布接口并绑定 proto 文件。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, new GrpcWebServiceImpl()) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();
@@ -164,7 +164,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 容器启动后，按照用户用法发布接口并绑定 proto 文件。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, new GrpcWebServiceImpl()) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();
@@ -196,7 +196,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 容器启动后，按照用户用法发布接口并绑定 proto 文件。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, new GrpcWebServiceImpl()) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();
@@ -233,7 +233,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 计数仅观察实际业务入口，不绕过框架网络链路。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, implementation) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();
@@ -272,7 +272,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 计数仅观察实际业务入口，不绕过框架网络链路。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, implementation) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();
@@ -322,7 +322,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 真实服务只通过 bootstrap 发布，浏览器使用官方 stream.cancel()。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, implementation) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();
@@ -373,7 +373,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 发布后使用官方浏览器客户端调用，测试不向调用传递短期限。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, implementation) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();
@@ -425,7 +425,7 @@ public class GrpcWebBrowserInteropTest {
             try (MetContext server = configuration.buildContext()) {
                 // 启动后发布流服务，使用真实浏览器网络栈发起有期限的调用。
                 server.start();
-                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/grpc/proto/web.proto"));
+                GrpcProtoResource proto = new GrpcProtoResource(getClass().getResource("/protocol/proto/grpc/web.proto"));
                 server.publisher().rsfService(GrpcWebService.class, implementation) //
                         .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //
                         .serialize("Protobuf").bindResource("grpc-web", proto).register();

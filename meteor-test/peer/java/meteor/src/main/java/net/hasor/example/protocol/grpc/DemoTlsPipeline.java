@@ -23,7 +23,7 @@ public final class DemoTlsPipeline implements TransportPipeline {
         // 应用负责准备证书和信任库，再将 TLS 处理器加入传输管线。
         KeyStore store = KeyStore.getInstance("PKCS12");
         char[] password = "meteor-test".toCharArray();
-        try (InputStream certificate = DemoTlsPipeline.class.getResourceAsStream("/grpc/tls/localhost.p12")) {
+        try (InputStream certificate = DemoTlsPipeline.class.getResourceAsStream("/certs/acceptance/server.p12")) {
             store.load(certificate, password);
         }
 

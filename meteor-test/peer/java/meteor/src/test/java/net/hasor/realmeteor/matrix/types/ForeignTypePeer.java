@@ -51,12 +51,12 @@ public final class ForeignTypePeer implements AutoCloseable {
     }
 
     public static ForeignTypePeer provider(String language, String protocol) throws IOException {
-        Path vectors = Path.of("src/test/resources/vectors/types/values.json").toAbsolutePath();
+        Path vectors = Path.of("resource/data/types/values.json").toAbsolutePath();
         return new ForeignTypePeer(language, protocol, List.of("provider", vectors.toString()));
     }
 
     public static ForeignTypePeer consumer(String language, String protocol, String endpoint, String vector) throws IOException {
-        Path vectors = Path.of("src/test/resources/vectors/types/values.json").toAbsolutePath();
+        Path vectors = Path.of("resource/data/types/values.json").toAbsolutePath();
         List<String> arguments = List.of("consumer", vectors.toString(), endpoint, vector);
         return new ForeignTypePeer(language, protocol, arguments);
     }

@@ -8,16 +8,16 @@ plugins {
 description = 'Meteor applications and JUnit interoperability scenarios'
 
 def meteorTestDirectory = rootProject.file('meteor-test')
-def fixtureDirectory = new File(meteorTestDirectory, 'src/test/resources')
+def fixtureDirectory = new File(meteorTestDirectory, 'resource')
 
-// 业务应用和断言驱动使用标准 main/test；公共输入仍由测试根目录统一持有。
+// 公共契约和证书只进入应用资源；Java 测试 SPI 与类型期望使用标准 test 资源。
 sourceSets.main.resources.srcDir(fixtureDirectory)
-sourceSets.test.resources.srcDir(fixtureDirectory)
+
+// WSDL 引用保持在同一资源根，构建时从共享目录补入 XSD。
 tasks.named('processResources') {
-    exclude 'META-INF/services/**', 'META-INF/dubbo/**'
-}
-tasks.named('processTestResources') {
-    include 'META-INF/services/**'
+    from(new File(fixtureDirectory, 'protocol/xsd')) {
+        into 'protocol/wsdl'
+    }
 }
 
 dependencies {

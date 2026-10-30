@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Copyright 2015-2026 the original author or authors. Licensed under the Apache License, Version 2.0.
 import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const [sdkDirectory, outputDirectory, protoFile, bufExecutable] = process.argv.slice(2);
@@ -38,7 +38,7 @@ await symlink(join(sdkRoot, "node_modules"), join(outputRoot, "node_modules"), "
 const template = JSON.stringify({ version: "v1", plugins });
 const contract = resolve(protoFile);
 const buf = bufExecutable || join(sdkRoot, "node_modules/.bin/buf");
-const generated = spawnSync(buf, ["generate", dirname(contract), "--path", contract, "--template", template], {
+const generated = spawnSync(buf, ["generate", contract, "--template", template], {
     stdio: "inherit",
 });
 if (generated.error) {

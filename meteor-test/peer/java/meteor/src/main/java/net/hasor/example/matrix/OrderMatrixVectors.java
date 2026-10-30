@@ -21,7 +21,7 @@ public final class OrderMatrixVectors {
 
     public static Order order(String name) throws IOException {
         // 每次从共享向量创建新业务对象，调用或保存不会污染后续测试。
-        try (InputStream input = OrderMatrixVectors.class.getResourceAsStream("/vectors/basic/orders.json")) {
+        try (InputStream input = OrderMatrixVectors.class.getResourceAsStream("/data/basic/orders.json")) {
             JsonNode vector = JSON.readTree(input).required(name);
             Order order = new Order();
             order.setId(vector.required("id").intValue());

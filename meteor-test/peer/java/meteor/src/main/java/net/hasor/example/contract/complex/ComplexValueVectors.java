@@ -27,7 +27,7 @@ public final class ComplexValueVectors {
     }
 
     private static JsonNode vector(String name) throws IOException {
-        try (InputStream input = ComplexValueVectors.class.getResourceAsStream("/vectors/complex/values.json")) {
+        try (InputStream input = ComplexValueVectors.class.getResourceAsStream("/data/complex/values.json")) {
             if (input == null) {
                 throw new IOException("Missing shared complex value vectors");
             }

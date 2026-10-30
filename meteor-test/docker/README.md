@@ -21,7 +21,17 @@
 ./gradlew :meteor-test:dockerCleanup
 ```
 
-其他配置：`--platform linux/amd64` 或 `linux/arm64` 指定容器架构；`--maven-seed PATH` 指定本地 `net/hasor` Maven 产物目录，默认读取 `~/.m2/repository/net/hasor`。Windows 使用 `gradlew.bat` 调用相同 Gradle 任务和参数。
+其他配置：`--platform linux/amd64` 或 `linux/arm64` 指定容器架构。Windows 使用 `gradlew.bat` 调用相同 Gradle 任务和参数。
+
+容器构建可复用本地 Maven 制品，默认从 `~/.m2/repository/net/hasor` 只读导入。自定义 Maven 仓库可通过 `-Dmaven.repo.local` 指定仓库根目录；`--maven-seed` 优先级更高，接受仓库根目录或 `net/hasor` 目录：
+
+```bash
+./gradlew -Dmaven.repo.local=/path/to/repository :meteor-test:dockerTest
+./meteor-test/runnxn.sh --maven-seed /path/to/repository
+./meteor-test/runnxn.sh --maven-seed /path/to/repository/net/hasor
+```
+
+仅导入所选仓库的 `net/hasor` 产物；显式目录必须存在，默认目录缺失时使用空种子，容器随后按正常依赖仓库解析。
 
 环境名称固定：
 
@@ -51,7 +61,7 @@
 | `envoy` | gRPC-Web 代理场景 |
 | `native-local` | rpcbind 本机控制场景的专用节点 |
 
-语言镜像位于各 `peer/<语言>/Dockerfile`；C/C++ 共用 native 工具链，Node 与浏览器使用不同构建目标。编排、存储及代理镜像位于本目录。
+语言镜像位于各 `peer/<语言>/Dockerfile`；C/C++ 共用 native 工具链，Node 与浏览器使用不同构建目标。共享契约、测试数据与证书分别位于 `resource/protocol/`、`resource/data/`、`resource/certs/`。编排、存储及代理镜像位于本目录。
 
 镜像默认值、网络和卷名由 Compose 定义。`METEOR_TEST_IMAGE_*` 可覆盖对应镜像，归档记录实际使用的镜像身份。`METEOR_TEST_CACHE_KEY` 选择依赖缓存，默认按架构命名。
 
@@ -83,7 +93,7 @@
 sudo ./meteor-test/runnxn.sh
 ```
 
-入口暂停 Linux 的 `systemd-timesyncd` 和 WSL 虚拟机的 `chronyd`。结束或收到 INT、TERM 后，先等待测试清理，再恢复原状态，原先未运行的保持不变。暂停和恢复结果直接打印。
+入口调用 `tools/clock/with-clock-paused.sh` 暂停 Linux 的 `systemd-timesyncd` 和 WSL 虚拟机的 `chronyd`。结束或收到 INT、TERM 后，先等待测试清理，再恢复原状态，原先未运行的保持不变。暂停和恢复结果直接打印。
 
 Linux sudo 不提供 Windows 管理员权限；需要时会请求 UAC。权限或校时准备异常按 `--skipError` 处理：默认继续可执行测试，设为 `false` 则停止，异常均计入最终失败。Gradle 以原 sudo 调用者运行，沿用其 HOME 和缓存。普通入口不修改校时服务。此控制不关闭系统时钟，不修改系统时间、tick 或 freq；其他校时来源需独立确认。
 

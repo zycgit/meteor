@@ -28,7 +28,7 @@ public class PythonProviderScenarioTest {
     public void meteorConsumesPythonAsciiOrder() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (PythonGrpcPeer peer = PythonGrpcPeer.provider("clear"); //
              MetContext client = configuration.buildContext()) {
             int port = peer.awaitPort();
@@ -62,7 +62,7 @@ public class PythonProviderScenarioTest {
     public void meteorConsumesPythonUnicodeOrder() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (PythonGrpcPeer peer = PythonGrpcPeer.provider("clear"); //
              MetContext client = configuration.buildContext()) {
             int port = peer.awaitPort();
@@ -96,7 +96,7 @@ public class PythonProviderScenarioTest {
     public void meteorConsumesPythonBinaryOrder() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (PythonGrpcPeer peer = PythonGrpcPeer.provider("clear"); //
              MetContext client = configuration.buildContext()) {
             int port = peer.awaitPort();
@@ -130,7 +130,7 @@ public class PythonProviderScenarioTest {
     public void meteorConsumesPythonMinimumInt32() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (PythonGrpcPeer peer = PythonGrpcPeer.provider("clear"); //
              MetContext client = configuration.buildContext()) {
             int port = peer.awaitPort();
@@ -164,7 +164,7 @@ public class PythonProviderScenarioTest {
     public void meteorConsumesPythonMaximumInt32() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (PythonGrpcPeer peer = PythonGrpcPeer.provider("clear"); //
              MetContext client = configuration.buildContext()) {
             int port = peer.awaitPort();
@@ -198,7 +198,7 @@ public class PythonProviderScenarioTest {
     public void meteorConsumesPythonMissingOrderFailure() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (PythonGrpcPeer peer = PythonGrpcPeer.provider("clear"); //
              MetContext client = configuration.buildContext()) {
             int port = peer.awaitPort();
@@ -230,7 +230,7 @@ public class PythonProviderScenarioTest {
     public void meteorConsumesPythonOrderOverTls() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("tls");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (PythonGrpcPeer peer = PythonGrpcPeer.provider("tls"); //
              MetContext client = configuration.buildContext()) {
             int port = peer.awaitPort();
@@ -264,7 +264,7 @@ public class PythonProviderScenarioTest {
     public void meteorConsumesPythonOrderOverMutualTls() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("mtls");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (PythonGrpcPeer peer = PythonGrpcPeer.provider("mtls"); //
              MetContext client = configuration.buildContext()) {
             int port = peer.awaitPort();
@@ -300,12 +300,12 @@ public class PythonProviderScenarioTest {
         var protocol = connector.protocol("grpc").contextPath("/");
         if (!StringUtils.equals("clear", security)) {
             connector.option("tlsEnabled", true) //
-                    .option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12") //
+                    .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                     .option("tlsTrustStorePassword", "meteor-test") //
                     .option("tlsAlpn", "h2");
             protocol.addressScheme("https");
             if (StringUtils.equals("mtls", security)) {
-                connector.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/client.p12") //
+                connector.option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                         .option("tlsKeyStorePassword", "meteor-test");
             }
         }

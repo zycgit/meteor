@@ -52,7 +52,6 @@ final class NxnPlan {
         MUTABLE_PROPERTIES.put("oncrpc.peer.output.directory", "peer-logs/oncrpc");
         MUTABLE_PROPERTIES.put("go.order.peer.work-dir", "peer-logs/go");
         MUTABLE_PROPERTIES.put("meteor.test.container.workDirectory", "container-scenarios");
-        MUTABLE_PROPERTIES.put("meteor.test.runDirectory", "interoperability");
         MUTABLE_PROPERTIES.put("meteor.test.output.directory", ".");
         MUTABLE_PROPERTIES.put("meteor.test.evidence.directory", "process-evidence");
         MUTABLE_PROPERTIES.put("java.io.tmpdir", "process/tmp");
@@ -392,7 +391,6 @@ final class NxnPlan {
             launch.put("unsetEnvironment", new ArrayList<>());
             launch.put("temporaryDirectory", directory.resolve("process/tmp").toString());
             Path launchFile = Path.of((String) group.get("launchFile"));
-            writeJson(launchFile, launch);
             NxnProcess.prepareLaunch(launchFile, launch);
         }
         Map<String, Object> manifest = new LinkedHashMap<>();
@@ -460,7 +458,7 @@ final class NxnPlan {
         Path runtime = Path.of("peer/java/meteor/build/execution/runtime.json");
         Path output = Path.of("build/groups");
         Path buildDirectory = Path.of("build");
-        Path weights = Path.of("src/test/resources/matrix/class-durations.json");
+        Path weights = Path.of("src/main/resources/matrix/class-durations.json");
         Path baseline;
         int groups = 16;
         boolean skipError = true;

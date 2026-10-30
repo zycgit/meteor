@@ -42,7 +42,7 @@ public class WebServicesHttpsInteropTest {
                 .option("soapVersion", "1.1");
         try (MetContext context = configuration.buildContext()) {
             context.start();
-            URL wsdl = this.resource("/soap/wsdl/echo.wsdl");
+            URL wsdl = this.resource("/protocol/wsdl/echo.wsdl");
             context.publisher() //
                     .rsfService(EchoService.class, new EchoServiceImpl()) //
                     .aliasName("soap", "EchoService") //

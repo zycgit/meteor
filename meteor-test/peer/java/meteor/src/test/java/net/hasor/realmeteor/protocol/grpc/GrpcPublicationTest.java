@@ -282,7 +282,7 @@ public class GrpcPublicationTest {
         MetConfiguration incoming = this.configuration();
         MetConfiguration outgoing = new MetConfiguration().setDefaultProtocol("grpc");
         outgoing.connector("http").option("httpVersion", 2).protocol("grpc");
-        GrpcProtoResource proto = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/echo.proto"));
+        GrpcProtoResource proto = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/echo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             MetBindInfo<Echo> provider = server.publisher().rsfService(Echo.class, new EchoImpl()) //

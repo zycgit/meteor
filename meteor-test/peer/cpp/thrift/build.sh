@@ -5,7 +5,7 @@ set -euo pipefail
 source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 output_dir=${1:?Output directory is required}
 sdk_prefix=${2:-}
-contract="$source_dir/../../../src/test/resources/order/order.thrift"
+contract="$source_dir/../../../resource/protocol/thrift/order.thrift"
 mkdir -p "$output_dir"
 compiler=thrift
 sdk_flags=()

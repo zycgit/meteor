@@ -1178,7 +1178,7 @@ public class TripleOfficialInteropTest {
     }
 
     private GrpcProtoResource proto() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/proto/triple-interop.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-interop.proto"));
     }
 
     private List<String> values(JsonNode input) {

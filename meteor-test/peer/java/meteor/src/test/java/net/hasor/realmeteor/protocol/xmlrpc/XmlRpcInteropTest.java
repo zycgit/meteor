@@ -619,10 +619,10 @@ public class XmlRpcInteropTest {
                     .protocol("xmlrpc") //
                     .register();
 
-            // Python 不跳过证书校验，使用插件测试资源中的公开测试 CA。
+            // Python 不跳过证书校验，使用共享证书目录中的公开测试 CA。
             int port = server.getListenAddress("xmlrpc").getPort();
             String target = "https://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
-            String trustFile = this.pemFile("trust.pem");
+            String trustFile = this.pemFile("ca.pem");
             try (XmlRpcPeerProcess peer = XmlRpcPeerProcess.start("client", target, "string", trustFile)) {
                 peer.requireSuccess();
             }
@@ -658,7 +658,7 @@ public class XmlRpcInteropTest {
     }
 
     private String pemFile(String name) throws Exception {
-        String resource = "/xmlrpc/tls/acceptance/" + name;
+        String resource = "/certs/acceptance/" + name;
         return Path.of(getClass().getResource(resource).toURI()).toString();
     }
 }

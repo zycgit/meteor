@@ -13,7 +13,7 @@ import net.hasor.example.contract.scalar.ScalarValueService;
 import net.hasor.meteor.annotation.MetMethod;
 import net.hasor.meteor.annotation.MetService;
 
-/** 程序号与过程号对应 vectors/scalar/values.x，业务签名由共享契约持有。 */
+/** 程序号与过程号对应 protocol/x/scalar/values.x，业务签名由共享契约持有。 */
 @MetService(id = 0x31234893L)
 public interface OncScalarService extends ScalarValueService {
     @Override

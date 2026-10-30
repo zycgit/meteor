@@ -53,7 +53,7 @@ public class BrowserGrpcWebTypeScenarioTest {
             MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
             configuration.connector("http").bind(ContainerProcess.runnerHost(), 0).option("httpVersion", 1) //
                     .protocol("grpc-web").contextPath("/types").option("corsOrigins", origin);
-            GrpcProtoResource resource = new GrpcProtoResource(getClass().getResource("/vectors/types/types.proto"));
+            GrpcProtoResource resource = new GrpcProtoResource(getClass().getResource("/protocol/proto/types/types.proto"));
             try (MetContext server = configuration.buildContext()) {
                 // 服务容器启动后正常发布接口和协议资源，所有业务流量经过 Caller/Dispatcher 链路。
                 server.start();

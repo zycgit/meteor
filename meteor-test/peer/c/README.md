@@ -1,6 +1,6 @@
 # 独立 ONC RPC 对端
 
-`../../src/test/resources/oncrpc/interop.x` 是互通测试的 XDR/RPC 契约。`generated` 中的头文件、编解码、客户端和分派器由系统 `rpcgen` 生成，保留工具原始输出。手写 C 程序只提供业务实现、进程控制及 libtirpc 调用，不依赖 Meteor、JVM 或测试类路径。
+`../../resource/protocol/x/interop.x` 是互通测试的 XDR/RPC 契约。`generated` 中的头文件、编解码、客户端和分派器由系统 `rpcgen` 生成，保留工具原始输出。手写 C 程序只提供业务实现、进程控制及 libtirpc 调用，不依赖 Meteor、JVM 或测试类路径。
 
 ## 正式测试
 

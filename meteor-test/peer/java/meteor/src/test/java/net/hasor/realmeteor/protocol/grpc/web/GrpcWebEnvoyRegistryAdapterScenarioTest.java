@@ -81,7 +81,7 @@ public class GrpcWebEnvoyRegistryAdapterScenarioTest {
                 try (MetContext consumer = configuration.buildContext()) {
                     consumer.start();
                     GrpcProtoResource proto = new GrpcProtoResource( //
-                            this.getClass().getResource("/grpc/proto/web.proto"));
+                            this.getClass().getResource("/protocol/proto/grpc/web.proto"));
                     MetBindInfo<GrpcWebService> service = consumer.publisher() //
                             .rsfService(GrpcWebService.class).name("envoy-echo") //
                             .aliasName("grpc-web", "web.Echo").protocol("grpc-web") //

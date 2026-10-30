@@ -23,7 +23,7 @@ from zeep.transports import Transport
 
 NAMESPACE = "urn:hasor:meteor:soap:types"
 ENDPOINT_PATH = "/soap/types"
-VECTOR_PATH = Path(__file__).resolve().parents[3] / "src/test/resources/vectors/types/values.json"
+VECTOR_PATH = Path(__file__).resolve().parents[3] / "resource/data/types/values.json"
 MAP_KEYS = ("alpha", "beta", "minimum", "maximum")
 
 

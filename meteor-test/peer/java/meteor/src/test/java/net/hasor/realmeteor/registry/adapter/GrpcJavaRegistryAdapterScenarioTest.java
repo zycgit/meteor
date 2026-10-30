@@ -178,11 +178,11 @@ public class GrpcJavaRegistryAdapterScenarioTest {
     }
 
     private GrpcProtoResource resource() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
     }
 
     private Order order() throws Exception {
-        try (InputStream input = this.getClass().getResourceAsStream("/vectors/registry/order.json")) {
+        try (InputStream input = this.getClass().getResourceAsStream("/data/registry/order.json")) {
             return JSON.readValue(input, Order.class);
         }
     }

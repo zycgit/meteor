@@ -32,7 +32,7 @@ public class TripleGrpcNativeInteropTest {
     public void cGrpcCoreConsumerCallsMeteorTripleProvider() throws Exception {
         // 只启用 Triple provider，普通字符串接口绑定既有标准 StringValue 契约。
         MetConfiguration configuration = this.configuration(true);
-        var contract = this.getClass().getResource("/contracts/java-sdk-echo.proto");
+        var contract = this.getClass().getResource("/protocol/proto/java-sdk-echo.proto");
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             provider.publisher().rsfService(TextEchoService.class, text -> text) //
@@ -56,7 +56,7 @@ public class TripleGrpcNativeInteropTest {
     public void meteorTripleConsumerCallsCGrpcCoreProvider() throws Exception {
         // 独立 C Core server 复用原有单次 unary 入口，Meteor 明确选用 Triple 出站端点。
         MetConfiguration configuration = this.configuration(false);
-        var contract = this.getClass().getResource("/contracts/java-sdk-echo.proto");
+        var contract = this.getClass().getResource("/protocol/proto/java-sdk-echo.proto");
         List<String> command = List.of("/opt/meteor-peer/native/c/grpc/echo-peer", "provider");
         try (OrderPeerProcess provider = OrderPeerProcess.start("native", command, null); //
              MetContext consumer = configuration.buildContext()) {
@@ -79,7 +79,7 @@ public class TripleGrpcNativeInteropTest {
     public void cppGrpcSdkConsumerSavesAndFindsOrderOnMeteorTriple() throws Exception {
         // C++ 复用现有官方生成的订单客户端，Meteor 只发布 Triple 的 Protobuf 绑定。
         MetConfiguration configuration = this.configuration(true);
-        var contract = this.getClass().getResource("/order/order.proto");
+        var contract = this.getClass().getResource("/protocol/proto/order.proto");
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             provider.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -102,7 +102,7 @@ public class TripleGrpcNativeInteropTest {
     public void meteorTripleConsumerSavesAndFindsOrderOnCppGrpcSdk() throws Exception {
         // 标准 C++ gRPC server 独立保存订单；Meteor 的订阅和客户端均选择 Triple。
         MetConfiguration configuration = this.configuration(false);
-        var contract = this.getClass().getResource("/order/order.proto");
+        var contract = this.getClass().getResource("/protocol/proto/order.proto");
         List<String> command = List.of("/opt/meteor-peer/native/cpp/grpc/order-peer", "provider");
         try (OrderPeerProcess provider = OrderPeerProcess.start("native", command, null); //
              MetContext consumer = configuration.buildContext()) {

@@ -60,7 +60,7 @@ public final class TypeValueVectors {
     }
 
     private static JsonNode table() throws IOException {
-        try (InputStream input = TypeValueVectors.class.getResourceAsStream("/vectors/types/values.json")) {
+        try (InputStream input = TypeValueVectors.class.getResourceAsStream("/data/types/values.json")) {
             if (input == null) {
                 throw new IOException("Missing shared type vectors");
             }

@@ -31,7 +31,7 @@ public class ConnectHttpScenarioTest {
         // 从公开配置入口挂载 Connect，客户端不开放监听端口。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -128,7 +128,7 @@ public class ConnectHttpScenarioTest {
         MetConfiguration outgoing = new MetConfiguration().setDefaultProtocol("connect");
         outgoing.connector("http").option("httpVersion", 2).protocol("connect") //
                 .contextPath("/rpc").option("get", true);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -157,7 +157,7 @@ public class ConnectHttpScenarioTest {
         MetConfiguration outgoing = new MetConfiguration().setDefaultProtocol("connect");
         outgoing.connector("http").option("httpVersion", 2).protocol("connect") //
                 .contextPath("/rpc").option("get", true);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -186,7 +186,7 @@ public class ConnectHttpScenarioTest {
         MetConfiguration outgoing = new MetConfiguration().setDefaultProtocol("connect");
         outgoing.connector("http").option("httpVersion", 2).protocol("connect") //
                 .contextPath("/rpc").option("get", true);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -218,7 +218,7 @@ public class ConnectHttpScenarioTest {
         // 提供者缺少 proto，消费者绑定有效描述以发出合法 Protobuf 请求。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {

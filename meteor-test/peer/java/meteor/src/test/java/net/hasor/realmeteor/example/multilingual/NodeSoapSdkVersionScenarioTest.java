@@ -50,7 +50,7 @@ public class NodeSoapSdkVersionScenarioTest {
 
     private void sdkCallsMeteor() throws Exception {
         // Meteor 按既有 WSDL 发布服务，地址来自实际打开的监听端口。
-        URL contract = this.getClass().getResource("/soap/wsdl/echo.wsdl");
+        URL contract = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(10000);
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap").contextPath("/services");
@@ -72,7 +72,7 @@ public class NodeSoapSdkVersionScenarioTest {
 
     private void meteorCallsSdk() throws Exception {
         // 当前 SDK 使用原版 WSDL 解析和服务端实现，不在测试器内拼装 SOAP 报文。
-        URL contract = this.getClass().getResource("/soap/wsdl/echo.wsdl");
+        URL contract = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
         String source = Path.of(contract.toURI()).toString();
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(10000);
         configuration.connector("http").protocol("soap").contextPath("/services");

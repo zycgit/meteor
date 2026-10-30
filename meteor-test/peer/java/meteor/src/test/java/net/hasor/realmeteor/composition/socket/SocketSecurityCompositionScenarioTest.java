@@ -264,9 +264,9 @@ public class SocketSecurityCompositionScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("rsf").setDefaultTimeout(10000);
         ConnectorSettings tls = configuration.connector("tcp").bind("127.0.0.1", 0);
         tls.option("tlsEnabled", true) //
-                .option("tlsKeyStore", "classpath:/example/composition/socket/tls/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/example/composition/socket/tls/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsClientAuth", clientAuth) //
                 .option("tlsProtocols", "TLSv1.3,TLSv1.2");
@@ -282,11 +282,11 @@ public class SocketSecurityCompositionScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("rsf").setDefaultTimeout(10000);
         ConnectorSettings tls = configuration.connector("tcp");
         tls.option("tlsEnabled", true) //
-                .option("tlsTrustStore", "classpath:/example/composition/socket/tls/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsProtocols", "TLSv1.3,TLSv1.2");
         if (withIdentity) {
-            tls.option("tlsKeyStore", "classpath:/example/composition/socket/tls/client.p12") //
+            tls.option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
         }
         this.protocols(tls, true);

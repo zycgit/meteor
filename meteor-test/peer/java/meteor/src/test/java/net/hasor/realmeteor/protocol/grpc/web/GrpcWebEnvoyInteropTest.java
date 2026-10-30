@@ -259,7 +259,7 @@ public class GrpcWebEnvoyInteropTest {
     }
 
     private GrpcProtoResource resource() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
     }
 
     private MethodDescriptor<Message, Message> method(String name, MethodDescriptor.MethodType type) {

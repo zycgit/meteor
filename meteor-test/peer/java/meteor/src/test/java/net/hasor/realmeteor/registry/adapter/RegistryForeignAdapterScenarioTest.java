@@ -215,7 +215,7 @@ public class RegistryForeignAdapterScenarioTest {
 
     private static JsonNode vector() throws Exception {
         try (InputStream input = RegistryForeignAdapterScenarioTest.class.getResourceAsStream( //
-                "/vectors/registry/order.json")) {
+                "/data/registry/order.json")) {
             return JSON.readTree(input);
         }
     }

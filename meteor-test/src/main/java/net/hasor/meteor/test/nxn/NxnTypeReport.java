@@ -63,13 +63,6 @@ public final class NxnTypeReport {
     private NxnTypeReport() {
     }
 
-    public static void main(String[] arguments) {
-        int status = run(arguments);
-        if (status != 0) {
-            throw new IllegalArgumentException("Type report failed with exit code " + status);
-        }
-    }
-
     /** 执行 types 子命令，输入错误返回 2。 */
     public static int run(String[] arguments) {
         return run(arguments, System.out, System.err);
@@ -923,9 +916,9 @@ public final class NxnTypeReport {
 
     private static Path defaultCatalog() {
         Path root = Path.of(System.getProperty("meteor.test.root", "meteor-test"));
-        Path catalog = root.resolve("src/test/resources/matrix/c-type-catalog.json");
+        Path catalog = root.resolve("peer/c/resource/c-type-catalog.json");
         if (!Files.isRegularFile(catalog)) {
-            catalog = Path.of("src/test/resources/matrix/c-type-catalog.json");
+            catalog = Path.of("peer/c/resource/c-type-catalog.json");
         }
         return catalog;
     }

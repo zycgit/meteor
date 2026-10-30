@@ -27,7 +27,7 @@ public class SoapNodeInteropTest {
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap").contextPath("/services");
-        URL contract = this.getClass().getResource("/soap/wsdl/echo.wsdl");
+        URL contract = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             provider.publisher().rsfService(EchoService.class, new EchoServiceImpl()) //
@@ -47,7 +47,7 @@ public class SoapNodeInteropTest {
     @Test(timeout = 60000)
     public void meteorConsumerCallsNodeSoapProvider() throws Exception {
         // node-soap 使用自己的监听、WSDL 解析及 SOAP 编解码，不代理 Meteor 服务。
-        URL contract = this.getClass().getResource("/soap/wsdl/echo.wsdl");
+        URL contract = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
         String source = Path.of(contract.toURI()).toString();
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
         configuration.connector("http").protocol("soap").contextPath("/services");

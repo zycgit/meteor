@@ -51,7 +51,7 @@ function prepare(source, output, toolchain, entries) {
 
         // 沿用真实业务入口，只有代码生成 ABI 不同的协议分别准备自己的契约。
         if (entry.protocol === 'connect') {
-            const order = path.resolve(source, '../../src/test/resources/order/order.proto');
+            const order = path.resolve(source, '../../resource/protocol/proto/order.proto');
             const buf = path.join(toolchain, 'connect/node_modules/.bin/buf');
             run(path.join(source, 'connect/versions/prepare.mjs'), [entry.installed, profile, order, buf]);
         } else if (entry.protocol === 'thrift') {

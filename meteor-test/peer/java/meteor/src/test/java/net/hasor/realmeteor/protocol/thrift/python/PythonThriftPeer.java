@@ -153,7 +153,7 @@ final class PythonThriftPeer implements AutoCloseable {
     }
 
     private static KeyStore loadStore(String identity) throws Exception {
-        String resource = "/thrift/tls/acceptance/" + identity + ".p12";
+        String resource = "/certs/acceptance/" + identity + ".p12";
         KeyStore store = KeyStore.getInstance("PKCS12");
         try (InputStream input = PythonThriftPeer.class.getResourceAsStream(resource)) {
             store.load(input, "meteor-test".toCharArray());

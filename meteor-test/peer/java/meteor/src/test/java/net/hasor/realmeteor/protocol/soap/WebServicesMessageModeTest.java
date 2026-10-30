@@ -150,7 +150,7 @@ public class WebServicesMessageModeTest {
     public void unannotatedOneWayMethodRemainsLocalAndRejectsSoapRequests() throws Exception {
         // WSDL 声明 one-way，但 Java 接口没有方法注解或服务级消息配置。
         MetConfiguration configuration = this.incomingConfiguration();
-        SoapWsdlResource resource = new SoapWsdlResource(this.resource("/soap/wsdl/signal.wsdl"));
+        SoapWsdlResource resource = new SoapWsdlResource(this.resource("/protocol/wsdl/signal.wsdl"));
         SignalServiceImpl notifications = new SignalServiceImpl();
         try (MetContext context = configuration.buildContext()) {
             context.start();
@@ -200,7 +200,7 @@ public class WebServicesMessageModeTest {
     public void annotatedRequestResponseMethodRemainsLocallyCallable() throws Exception {
         // 方法标记为消息调用，但 WSDL 仍声明请求与业务响应。
         MetConfiguration configuration = this.incomingConfiguration();
-        SoapWsdlResource resource = new SoapWsdlResource(this.resource("/soap/wsdl/echo.wsdl"));
+        SoapWsdlResource resource = new SoapWsdlResource(this.resource("/protocol/wsdl/echo.wsdl"));
         try (MetContext context = configuration.buildContext()) {
             context.start();
 
@@ -225,7 +225,7 @@ public class WebServicesMessageModeTest {
     public void serviceMessageModeKeepsLocalRequestResponseMethodCallable() throws Exception {
         // 整个服务被设为消息模式，其 WSDL 却包含普通 request-response operation。
         MetConfiguration configuration = this.incomingConfiguration();
-        SoapWsdlResource resource = new SoapWsdlResource(this.resource("/soap/wsdl/echo.wsdl"));
+        SoapWsdlResource resource = new SoapWsdlResource(this.resource("/protocol/wsdl/echo.wsdl"));
         try (MetContext context = configuration.buildContext()) {
             context.start();
 

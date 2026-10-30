@@ -58,7 +58,7 @@ public class GrpcWebHttpTest {
         // 在 HTTP/1 上使用 Protobuf，传输体选择 二进制 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
         MetConfiguration outgoing = this.outgoing(1, false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 容器启动之后，通过普通接口发布与订阅，不依赖生成的服务实现。
@@ -115,7 +115,7 @@ public class GrpcWebHttpTest {
         // 在 HTTP/1 上使用 Protobuf，传输体选择 文本 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
         MetConfiguration outgoing = this.outgoing(1, true);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 容器启动之后，通过普通接口发布与订阅，不依赖生成的服务实现。
@@ -172,7 +172,7 @@ public class GrpcWebHttpTest {
         // 在 HTTP/2 上使用 Protobuf，传输体选择 二进制 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
         MetConfiguration outgoing = this.outgoing(2, false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 容器启动之后，通过普通接口发布与订阅，不依赖生成的服务实现。
@@ -229,7 +229,7 @@ public class GrpcWebHttpTest {
         // 在 HTTP/2 上使用 Protobuf，传输体选择 文本 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
         MetConfiguration outgoing = this.outgoing(2, true);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 容器启动之后，通过普通接口发布与订阅，不依赖生成的服务实现。

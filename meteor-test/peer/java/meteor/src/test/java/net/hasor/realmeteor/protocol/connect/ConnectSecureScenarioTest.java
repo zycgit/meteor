@@ -210,7 +210,7 @@ public class ConnectSecureScenarioTest {
         // Protobuf 使用 HTTP/1 HTTPS，与 TLS 相互独立。
         MetConfiguration incoming = this.secureIncoming(1, "NONE");
         MetConfiguration outgoing = this.secureOutgoing(1, null);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -241,7 +241,7 @@ public class ConnectSecureScenarioTest {
         // Protobuf 使用 HTTP/1 HTTPS 并校验客户端证书。
         MetConfiguration incoming = this.secureIncoming(1, "REQUIRE");
         MetConfiguration outgoing = this.secureOutgoing(1, "client");
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -272,7 +272,7 @@ public class ConnectSecureScenarioTest {
         // Protobuf 使用 h2 ALPN 与服务端证书认证。
         MetConfiguration incoming = this.secureIncoming(2, "NONE");
         MetConfiguration outgoing = this.secureOutgoing(2, null);
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -303,7 +303,7 @@ public class ConnectSecureScenarioTest {
         // Protobuf 在 HTTP/2 双向 TLS 后保持原有消息字段。
         MetConfiguration incoming = this.secureIncoming(2, "REQUIRE");
         MetConfiguration outgoing = this.secureOutgoing(2, "client");
-        URL descriptor = this.getClass().getResource("/connect/proto/connect-demo.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/connect/connect-demo.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -462,7 +462,7 @@ public class ConnectSecureScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("connect");
         ConnectorSettings listener = configuration.connector("http").bind("127.0.0.1", 0);
         ConnectTlsUtils.serverTls(listener, 1, "NONE");
-        listener.option("tlsKeyStore", "classpath:/connect/tls/acceptance/wrong-host-server.p12");
+        listener.option("tlsKeyStore", "classpath:/certs/acceptance/wrong-host-server.p12");
         listener.protocol("connect").addressScheme("https").contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
             server.start();

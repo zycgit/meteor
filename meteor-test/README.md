@@ -8,7 +8,7 @@
 
 ## 运行
 
-宿主需要 **JDK 17、Docker 和 Compose**，语言工具链在容器内准备。以下命令在 Meteor 仓库根目录执行：
+宿主需要 **JDK 17、Docker 和 Compose**，语言工具链和测试依赖在容器内准备。以下命令在 Meteor 仓库根目录执行：
 
 ```bash
 ./meteor-test/runnxn.sh                       # 全部测试，默认 16 组
@@ -20,6 +20,15 @@ Windows 使用 `.\gradlew.bat :meteor-test:dockerTest`，测试参数相同。`-
 
 Linux / WSL 遇到时钟回拨时，使用 `sudo ./meteor-test/runnxn.sh` 暂停 timesyncd 和 WSL chronyd；结束或中断后恢复原状态，终端显示暂停、失败和恢复结果。
 
+## 目录
+
+- `src`：NXN 编排、调度、报告框架及其单测。
+- `peer/<语言>`：各语言对端、业务测试及工具链。
+- `resource/protocol`：各语言共用的契约，按 `proto`、`thrift`、`x`、`wsdl`、`xsd` 分类。
+- `resource/data`：各语言共用的测试数据。
+- `resource/certs`：测试证书。
+- `tools`：契约生成、诊断及可选校时工具。
+
 ## 参数
 
 | 参数 | 默认值 | 说明 |
@@ -30,7 +39,7 @@ Linux / WSL 遇到时钟回拨时，使用 `sudo ./meteor-test/runnxn.sh` 暂停
 | `--no-build` | 关闭 | 禁止构建或拉取镜像，仍编译当前源码 |
 | `--rebuild` | 关闭 | 重建工具链镜像，与 `--no-build` 互斥 |
 | `--platform PLATFORM` | Docker 架构 | `linux/amd64` 或 `linux/arm64` |
-| `--maven-seed PATH` | `~/.m2/repository/net/hasor` | 本地 Maven 产物种子；显式路径须存在，默认路径缺失时使用空种子 |
+| `--maven-seed PATH` | `~/.m2/repository/net/hasor` | 本地 Maven 产物种子；接受仓库根目录或 `net/hasor` 目录，优先于 `-Dmaven.repo.local`；显式路径须存在，默认路径缺失时使用空种子 |
 | `--prepare-only` | 关闭 | 只准备环境和构建，收尾后保留工作卷 |
 | `--keep-workspace` | 关闭 | 测试收尾后保留工作卷 |
 | `-h`、`--help` | — | 查看脚本帮助 |
@@ -48,4 +57,4 @@ Linux / WSL 遇到时钟回拨时，使用 `sudo ./meteor-test/runnxn.sh` 暂停
 ./gradlew :meteor-test:dockerCleanup          # 清理保留的环境和工作卷
 ```
 
-Ctrl+C 后等待日志归档和资源清理；再次运行会先停止旧轮。默认回收容器、网络和临时卷，保留 Gradle 依赖缓存。详细维护方法见 [Docker 说明](docker/README.md) 和 [报告工具](scripts/README.md)。
+Ctrl+C 后等待日志归档和资源清理；再次运行会先停止旧轮。默认回收容器、网络和临时卷，保留 Gradle 依赖缓存。详细维护方法见 [Docker 说明](docker/README.md) 和 [维护工具](tools/README.md)。

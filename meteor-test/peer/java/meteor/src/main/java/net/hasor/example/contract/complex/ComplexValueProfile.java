@@ -143,7 +143,7 @@ public enum ComplexValueProfile {
 
         // 每次绑定独立解析匹配的显式 schema，普通 DTO 不依赖未声明的 Protobuf 推断。
         if (this.usesProtobuf()) {
-            var schema = ComplexValueProfile.class.getResource("/vectors/complex/values.proto");
+            var schema = ComplexValueProfile.class.getResource("/protocol/proto/complex/values.proto");
             builder.bindResource(this.protocol, new GrpcProtoResource(schema));
         } else if (this == THRIFT_BINARY) {
             builder.bindResource(this.protocol, new ThriftServiceResource(ThriftComplexValueService.class));

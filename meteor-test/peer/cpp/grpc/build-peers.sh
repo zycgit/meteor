@@ -17,7 +17,7 @@ export HOME="$workspace/home"
 mkdir -p "$TMPDIR" "$HOME" "$output_dir/peer/c" "$output_dir/peer/cpp"
 
 # Only generated bindings belong to this phase; SDK archives and libraries remain untouched.
-contract_dir="$source_dir/../../../src/test/resources/order"
+contract_dir="$source_dir/../../../resource/protocol/proto"
 generated="$workspace/generated"
 mkdir -p "$generated"
 "$prefix/bin/protoc" -I "$contract_dir" --cpp_out="$generated" --grpc_out="$generated" \

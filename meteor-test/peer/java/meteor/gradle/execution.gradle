@@ -5,7 +5,7 @@ import groovy.json.JsonSlurper
 ext.executionProperties = {
     def testDirectory = rootProject.file('meteor-test')
     def outputDirectory = layout.buildDirectory.get().asFile
-    def fixtureDirectory = new File(testDirectory, 'src/test/resources')
+    def certificateDirectory = new File(testDirectory, 'resource/certs/acceptance')
     def sdkManifest = project(':meteor-test-sdk').layout.buildDirectory.file('execution/runtimes.json').get().asFile
     def sdkExecution = new JsonSlurper().parse(sdkManifest)
     def profiles = sdkExecution.profiles
@@ -45,8 +45,8 @@ ext.executionProperties = {
     properties['meteor.test.container.javaClasspath'] = sourceSets.main.runtimeClasspath.asPath
     properties['meteor.test.peerDirectory'] = new File(testDirectory, 'peer').absolutePath
     properties['limitTime'] = System.getProperty('meteor.test.nacos.limitTime', '1000')
-    properties['soap.peer.tls.directory'] = new File(fixtureDirectory, 'soap/tls/acceptance').absolutePath
-    properties['go.order.peer.cert-dir'] = new File(fixtureDirectory, 'grpc/tls/acceptance').absolutePath
+    properties['soap.peer.tls.directory'] = certificateDirectory.absolutePath
+    properties['go.order.peer.cert-dir'] = certificateDirectory.absolutePath
 
     // 常驻容器持有语言工具链；场景输入仍挂载自同一份测试工作区。
     properties.putAll([

@@ -15,9 +15,9 @@ final class ThriftTlsUtils {
 
     static void serverTls(ConnectorSettings connector, String identity, String clientAuth, String protocols) {
         connector.option("tlsEnabled", true) //
-                .option("tlsKeyStore", "classpath:/thrift/tls/acceptance/" + identity + ".p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/thrift/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsClientAuth", clientAuth) //
                 .option("tlsProtocols", protocols);
@@ -25,11 +25,11 @@ final class ThriftTlsUtils {
 
     static void clientTls(ConnectorSettings connector, String identity, String trust, String protocols) {
         connector.option("tlsEnabled", true) //
-                .option("tlsTrustStore", "classpath:/thrift/tls/acceptance/" + trust + ".p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/" + trust + ".p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsProtocols", protocols);
         if (identity != null) {
-            connector.option("tlsKeyStore", "classpath:/thrift/tls/acceptance/" + identity + ".p12") //
+            connector.option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
         }
     }

@@ -4,7 +4,7 @@ set -euo pipefail
 
 source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 output_dir=${1:?Output directory is required}
-contract_dir="$source_dir/../../../src/test/resources/order"
+contract_dir="$source_dir/../../../resource/protocol/proto"
 mkdir -p "$output_dir"
 protoc -I "$contract_dir" --cpp_out="$output_dir" --grpc_out="$output_dir" \
     --plugin=protoc-gen-grpc="$(command -v grpc_cpp_plugin)" "$contract_dir/order.proto"

@@ -1,0 +1,16 @@
+plugins {
+    id 'java'
+}
+
+description = 'Metro JAX-WS 2.3.7 javax peers with an isolated SOAP runtime'
+
+dependencies {
+    // javax 编译域只使用 Metro 2.x，不能借用主 SDK 的 Jakarta JAXB 和 JAX-WS。
+    compileOnly project(':meteor-test-contracts')
+    compileOnly "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+    compileOnly "com.sun.xml.ws:jaxws-rt:${property('test.sdk.soap.javax')}"
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs += '-parameters'
+}

@@ -45,7 +45,7 @@ final class PythonJsonRpcOrderPeer implements AutoCloseable {
     }
 
     static PythonJsonRpcOrderPeer consumer(String endpoint, String scenario) throws IOException {
-        Path vectors = Path.of("src/test/resources/vectors/basic/orders.json").toAbsolutePath();
+        Path vectors = Path.of("resource/data/basic/orders.json").toAbsolutePath();
         List<String> arguments = List.of("consumer", "--endpoint", endpoint, //
                 "--scenario", scenario, "--vectors", vectors.toString());
         return new PythonJsonRpcOrderPeer(arguments);

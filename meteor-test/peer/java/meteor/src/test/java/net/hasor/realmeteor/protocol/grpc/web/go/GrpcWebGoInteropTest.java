@@ -31,7 +31,7 @@ public class GrpcWebGoInteropTest {
     public void goGrpcWebClientSavesAndFindsOrderOnMeteor() throws Exception {
         // Meteor 仅发布 gRPC-Web，复用订单契约，避免把 Connect 请求当作本协议证据。
         MetConfiguration configuration = this.configuration(true);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -51,7 +51,7 @@ public class GrpcWebGoInteropTest {
     public void meteorGrpcWebClientSavesAndFindsOrderOnGo() throws Exception {
         // connect-go 的官方 Handler 自己监听临时端口，Meteor 只启用 gRPC-Web 出站能力。
         MetConfiguration configuration = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (GoPeerProcess peer = GoPeerProcess.start("grpc-web", "server", "plain", "unicode", null); //
              MetContext client = configuration.buildContext()) {
             URI endpoint = URI.create(peer.awaitReady());

@@ -52,7 +52,7 @@ public class TripleHttpScenarioTest {
         // HTTP 版本与 Triple 编码独立配置，不因发布协议增加监听端口。
         MetConfiguration incoming = this.configuration(true, 1, "proto");
         MetConfiguration outgoing = this.configuration(false, 1, "proto");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端先启动，再发布和订阅普通 Java unary 接口。
@@ -105,7 +105,7 @@ public class TripleHttpScenarioTest {
         // HTTP 版本与 Triple 编码独立配置，不因发布协议增加监听端口。
         MetConfiguration incoming = this.configuration(true, 2, "proto");
         MetConfiguration outgoing = this.configuration(false, 2, "proto");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端先启动，再发布和订阅普通 Java unary 接口。

@@ -358,7 +358,7 @@ public class MetXmlMappingScenarioTest {
         // 同一 Java 接口通过显式资源对接外部 WSDL，而不使用生成类或 JAXB。
         MetConfiguration incoming = this.configuration(true, "1.1");
         MetConfiguration outgoing = this.configuration(false, "1.1");
-        URL wsdl = this.getClass().getResource("/soap/wsdl/met-xml-mapping.wsdl");
+        URL wsdl = this.getClass().getResource("/protocol/wsdl/met-xml-mapping.wsdl");
         assertNotNull(wsdl);
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {

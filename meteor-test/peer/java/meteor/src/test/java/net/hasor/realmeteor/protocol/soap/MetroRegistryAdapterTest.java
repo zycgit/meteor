@@ -165,7 +165,7 @@ public class MetroRegistryAdapterTest {
     }
 
     private SoapWsdlResource wsdlResource() throws Exception {
-        URL wsdl = this.getClass().getResource("/soap/wsdl/echo.wsdl");
+        URL wsdl = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
         assertNotNull("Missing standard SOAP interoperability WSDL", wsdl);
         return new SoapWsdlResource(wsdl);
     }

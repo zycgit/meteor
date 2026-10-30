@@ -422,7 +422,7 @@ public class ThriftOfficialSecureScenarioTest {
     }
 
     private String storeFile(String name) throws Exception {
-        String resource = "/thrift/tls/acceptance/" + name + ".p12";
+        String resource = "/certs/acceptance/" + name + ".p12";
         return Path.of(getClass().getResource(resource).toURI()).toString();
     }
 }

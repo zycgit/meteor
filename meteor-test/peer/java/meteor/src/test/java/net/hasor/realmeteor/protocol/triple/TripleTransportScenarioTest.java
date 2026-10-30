@@ -219,7 +219,7 @@ public class TripleTransportScenarioTest {
         // 原生 Protobuf 在 h2 ALPN 后使用服务端证书认证。
         MetConfiguration incoming = this.secureIncoming(2, null, "NONE");
         MetConfiguration outgoing = this.secureOutgoing(2, null, null);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅，客户端没有本地实现可走本地调用。
@@ -249,7 +249,7 @@ public class TripleTransportScenarioTest {
         // 原生 Protobuf 通过双向 TLS 保持标准 gRPC 封装。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
         MetConfiguration outgoing = this.secureOutgoing(2, null, "client");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅，客户端没有本地实现可走本地调用。
@@ -279,7 +279,7 @@ public class TripleTransportScenarioTest {
         // 绑定 proto 的原生 gRPC JSON 在单向 TLS 上传输。
         MetConfiguration incoming = this.secureIncoming(2, null, "NONE");
         MetConfiguration outgoing = this.secureOutgoing(2, null, null);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅，客户端没有本地实现可走本地调用。
@@ -309,7 +309,7 @@ public class TripleTransportScenarioTest {
         // 绑定 proto 的原生 gRPC JSON 在双向 TLS 上传输。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
         MetConfiguration outgoing = this.secureOutgoing(2, null, "client");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅，客户端没有本地实现可走本地调用。
@@ -339,7 +339,7 @@ public class TripleTransportScenarioTest {
         // 裸 Protobuf 在 HTTP/1 HTTPS 上认证服务端。
         MetConfiguration incoming = this.secureIncoming(1, "proto", "NONE");
         MetConfiguration outgoing = this.secureOutgoing(1, "proto", null);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅，客户端没有本地实现可走本地调用。
@@ -369,7 +369,7 @@ public class TripleTransportScenarioTest {
         // 裸 Protobuf 在 HTTP/1 HTTPS 上认证双方。
         MetConfiguration incoming = this.secureIncoming(1, "proto", "REQUIRE");
         MetConfiguration outgoing = this.secureOutgoing(1, "proto", "client");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅，客户端没有本地实现可走本地调用。
@@ -399,7 +399,7 @@ public class TripleTransportScenarioTest {
         // 裸 Protobuf 的普通 HTTP 调用使用 h2 与服务端身份认证。
         MetConfiguration incoming = this.secureIncoming(2, "proto", "NONE");
         MetConfiguration outgoing = this.secureOutgoing(2, "proto", null);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅，客户端没有本地实现可走本地调用。
@@ -429,7 +429,7 @@ public class TripleTransportScenarioTest {
         // 裸 Protobuf 的普通 HTTP 调用同样可使用 h2 双向 TLS。
         MetConfiguration incoming = this.secureIncoming(2, "proto", "REQUIRE");
         MetConfiguration outgoing = this.secureOutgoing(2, "proto", "client");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 两端启动后发布和订阅，客户端没有本地实现可走本地调用。
@@ -459,7 +459,7 @@ public class TripleTransportScenarioTest {
         // 原生 Protobuf 响应流在双向 TLS 上逐条完成并结束。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
         MetConfiguration outgoing = this.secureOutgoing(2, null, "client");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 服务容器启动后发布和订阅流式接口。
@@ -520,7 +520,7 @@ public class TripleTransportScenarioTest {
         // 原生 Protobuf 的请求流通过双向 TLS 后由服务端汇总。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
         MetConfiguration outgoing = this.secureOutgoing(2, null, "client");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 先启动容器，再发布和订阅直接使用 Publisher 的 Java 接口。
@@ -552,7 +552,7 @@ public class TripleTransportScenarioTest {
         // 原生 Protobuf 的双向流在 TLS 上独立完成两个收发方向。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
         MetConfiguration outgoing = this.secureOutgoing(2, null, "client");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 先启动容器，再发布和订阅直接使用 Publisher 的 Java 接口。
@@ -617,7 +617,7 @@ public class TripleTransportScenarioTest {
         // 原生 gRPC JSON 响应流在双向 TLS 上传递多条消息。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
         MetConfiguration outgoing = this.secureOutgoing(2, null, "client");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 先启动容器，再发布和订阅直接使用 Publisher 的 Java 接口。
@@ -799,7 +799,7 @@ public class TripleTransportScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
         ConnectorSettings listener = configuration.connector("http").bind("127.0.0.1", 0);
         serverTls(listener, 1, "NONE");
-        listener.option("tlsKeyStore", "classpath:/tls/acceptance/wrong-host-server.p12");
+        listener.option("tlsKeyStore", "classpath:/certs/acceptance/wrong-host-server.p12");
         listener.protocol("triple").addressScheme("https").contextPath("/rpc").option("httpMode", "json");
         try (MetContext server = configuration.buildContext()) {
             server.start();
@@ -886,9 +886,9 @@ public class TripleTransportScenarioTest {
     private static void serverTls(ConnectorSettings connector, int version, String clientAuth) {
         connector.option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsKeyStore", "classpath:/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsClientAuth", clientAuth) //
                 .option("tlsAlpn", version == 2 ? "h2" : "http/1.1");
@@ -897,11 +897,11 @@ public class TripleTransportScenarioTest {
     private static void clientTls(ConnectorSettings connector, int version, String identity) {
         connector.option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsAlpn", version == 2 ? "h2" : "http/1.1");
         if (identity != null) {
-            connector.option("tlsKeyStore", "classpath:/tls/acceptance/" + identity + ".p12") //
+            connector.option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
         }
     }
@@ -921,7 +921,7 @@ public class TripleTransportScenarioTest {
     }
 
     private static KeyStore loadStore(String name) throws Exception {
-        String resource = "/tls/acceptance/" + name + ".p12";
+        String resource = "/certs/acceptance/" + name + ".p12";
         KeyStore store = KeyStore.getInstance("PKCS12");
         try (InputStream input = TripleTransportScenarioTest.class.getResourceAsStream(resource)) {
             if (input == null) {

@@ -26,7 +26,7 @@ public class TriplePythonGrpcInteropTest {
         var connector = configuration.connector("http").option("httpVersion", 2);
         connector.bind(ContainerProcess.runnerHost(), 0);
         connector.protocol("triple").contextPath("/").option("httpMode", "grpc").option("streamBody", true);
-        var resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        var resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             provider.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -51,7 +51,7 @@ public class TriplePythonGrpcInteropTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
         configuration.connector("http").option("httpVersion", 2) //
                 .protocol("triple").contextPath("/").option("httpMode", "grpc").option("streamBody", true);
-        var resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        var resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (PythonGrpcPeer peer = PythonGrpcPeer.provider("clear"); //
              MetContext consumer = configuration.buildContext()) {
             int port = peer.awaitPort();

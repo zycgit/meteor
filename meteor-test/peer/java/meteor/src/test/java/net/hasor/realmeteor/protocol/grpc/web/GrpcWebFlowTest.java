@@ -64,7 +64,7 @@ public class GrpcWebFlowTest {
         // 单个 HTTP/1 请求逐条接收 Protobuf 响应，结束状态位于 gRPC-Web 正文尾帧。
         MetConfiguration incoming = this.incoming();
         MetConfiguration outgoing = this.outgoing(1, true);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             server.start();
@@ -96,7 +96,7 @@ public class GrpcWebFlowTest {
         // 单个 HTTP/2 请求逐条接收 Protobuf 响应，结束状态位于 gRPC-Web 正文尾帧。
         MetConfiguration incoming = this.incoming();
         MetConfiguration outgoing = this.outgoing(2, false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             server.start();

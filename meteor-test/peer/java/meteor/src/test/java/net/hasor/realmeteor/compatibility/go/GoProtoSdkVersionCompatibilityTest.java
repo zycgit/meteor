@@ -137,7 +137,7 @@ public class GoProtoSdkVersionCompatibilityTest {
         OrderDemoService implementation = provider ? new OrderDemoServiceImpl() : null;
         var builder = context.publisher().rsfService(OrderDemoService.class, implementation) //
                 .name(SERVICE).protocol(this.protocol).aliasName(this.protocol, SERVICE).serialize("Protobuf");
-        var contract = this.getClass().getResource("/order/order.proto");
+        var contract = this.getClass().getResource("/protocol/proto/order.proto");
         builder.bindResource(this.protocol, new GrpcProtoResource(contract));
         return builder.register();
     }

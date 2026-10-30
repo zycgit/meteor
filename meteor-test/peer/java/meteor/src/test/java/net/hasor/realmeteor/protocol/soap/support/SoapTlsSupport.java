@@ -19,7 +19,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 /** SOAP HTTPS 场景共用的公开配置片段和外部客户端证书装载。 */
 public final class SoapTlsSupport {
     private static final String PASSWORD = "meteor-test";
-    private static final String ROOT     = "classpath:/soap/tls/acceptance/";
+    private static final String ROOT     = "classpath:/certs/acceptance/";
 
     private SoapTlsSupport() {
     }
@@ -72,7 +72,7 @@ public final class SoapTlsSupport {
     }
 
     private static KeyStore loadStore(String name) throws Exception {
-        String resource = "/soap/tls/acceptance/" + name + ".p12";
+        String resource = "/certs/acceptance/" + name + ".p12";
         KeyStore store = KeyStore.getInstance("PKCS12");
         try (InputStream input = SoapTlsSupport.class.getResourceAsStream(resource)) {
             if (input == null) {

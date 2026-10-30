@@ -48,7 +48,7 @@ public class ConnectGoInteropTest {
     public void providerGoClientReadsUnicodeAndBinary() throws Exception {
         // Meteor 只挂载 Connect；双方通过同一份公开订单 proto 解释请求和响应。
         MetConfiguration configuration = this.configuration(true);
-        URL descriptor = this.getClass().getResource("/order/order.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/order.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             server.start();
@@ -69,7 +69,7 @@ public class ConnectGoInteropTest {
     public void consumerMeteorReadsUnicodeAndBinary() throws Exception {
         // Go 服务端自己选择空闲端口，Meteor 消费端只声明出站的 Connect 能力。
         MetConfiguration configuration = this.configuration(false);
-        URL descriptor = this.getClass().getResource("/order/order.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/order.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (GoPeerProcess peer = GoPeerProcess.start("connect", "server", this.tlsMode, "unicode", null); //
              MetContext client = configuration.buildContext()) {
@@ -101,7 +101,7 @@ public class ConnectGoInteropTest {
     public void providerGoClientReadsPositiveInt32Boundary() throws Exception {
         // Meteor 只挂载 Connect；双方通过同一份公开订单 proto 解释请求和响应。
         MetConfiguration configuration = this.configuration(true);
-        URL descriptor = this.getClass().getResource("/order/order.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/order.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             server.start();
@@ -122,7 +122,7 @@ public class ConnectGoInteropTest {
     public void consumerMeteorReadsPositiveInt32Boundary() throws Exception {
         // Go 服务端自己选择空闲端口，Meteor 消费端只声明出站的 Connect 能力。
         MetConfiguration configuration = this.configuration(false);
-        URL descriptor = this.getClass().getResource("/order/order.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/order.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (GoPeerProcess peer = GoPeerProcess.start("connect", "server", this.tlsMode, "boundary", null); //
              MetContext client = configuration.buildContext()) {
@@ -154,7 +154,7 @@ public class ConnectGoInteropTest {
     public void providerGoClientReadsNegativeInt32Boundary() throws Exception {
         // Meteor 只挂载 Connect；双方通过同一份公开订单 proto 解释请求和响应。
         MetConfiguration configuration = this.configuration(true);
-        URL descriptor = this.getClass().getResource("/order/order.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/order.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             server.start();
@@ -176,7 +176,7 @@ public class ConnectGoInteropTest {
     public void consumerMeteorReadsNegativeInt32Boundary() throws Exception {
         // Go 服务端自己选择空闲端口，Meteor 消费端只声明出站的 Connect 能力。
         MetConfiguration configuration = this.configuration(false);
-        URL descriptor = this.getClass().getResource("/order/order.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/order.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (GoPeerProcess peer = GoPeerProcess.start("connect", "server", this.tlsMode, "negative-boundary", null); //
              MetContext client = configuration.buildContext()) {
@@ -209,7 +209,7 @@ public class ConnectGoInteropTest {
     public void providerGoClientReadsEmptyProto3Fields() throws Exception {
         // Meteor 只挂载 Connect；双方通过同一份公开订单 proto 解释请求和响应。
         MetConfiguration configuration = this.configuration(true);
-        URL descriptor = this.getClass().getResource("/order/order.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/order.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             server.start();
@@ -230,7 +230,7 @@ public class ConnectGoInteropTest {
     public void consumerMeteorReadsEmptyProto3Fields() throws Exception {
         // Go 服务端自己选择空闲端口，Meteor 消费端只声明出站的 Connect 能力。
         MetConfiguration configuration = this.configuration(false);
-        URL descriptor = this.getClass().getResource("/order/order.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/order.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (GoPeerProcess peer = GoPeerProcess.start("connect", "server", this.tlsMode, "empty", null); //
              MetContext client = configuration.buildContext()) {
@@ -263,7 +263,7 @@ public class ConnectGoInteropTest {
     public void providerGoClientReadsMissingOrderFailure() throws Exception {
         // Meteor 只挂载 Connect；双方通过同一份公开订单 proto 解释请求和响应。
         MetConfiguration configuration = this.configuration(true);
-        URL descriptor = this.getClass().getResource("/order/order.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/order.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (MetContext server = configuration.buildContext()) {
             server.start();
@@ -287,7 +287,7 @@ public class ConnectGoInteropTest {
     public void consumerMeteorReceivesMissingOrderFailure() throws Exception {
         // Go 按 Connect 标准返回 not_found，客户端使用公开订阅与同步代理。
         MetConfiguration configuration = this.configuration(false);
-        URL descriptor = this.getClass().getResource("/order/order.proto");
+        URL descriptor = this.getClass().getResource("/protocol/proto/order.proto");
         GrpcProtoResource resource = new GrpcProtoResource(descriptor);
         try (GoPeerProcess peer = GoPeerProcess.start("connect", "server", this.tlsMode, "missing", null); //
              MetContext client = configuration.buildContext()) {
@@ -320,14 +320,14 @@ public class ConnectGoInteropTest {
         }
         if (!StringUtils.equals("plain", this.tlsMode)) {
             connector.option("tlsEnabled", true).option("httpScheme", "https") //
-                    .option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12") //
+                    .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                     .option("tlsTrustStorePassword", "meteor-test").option("tlsAlpn", "http/1.1");
             if (listening) {
-                connector.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/server.p12") //
+                connector.option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                         .option("tlsKeyStorePassword", "meteor-test") //
                         .option("tlsClientAuth", StringUtils.equals("mtls", this.tlsMode) ? "REQUIRE" : "NONE");
             } else if (StringUtils.equals("mtls", this.tlsMode)) {
-                connector.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/client.p12") //
+                connector.option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                         .option("tlsKeyStorePassword", "meteor-test");
             }
         }

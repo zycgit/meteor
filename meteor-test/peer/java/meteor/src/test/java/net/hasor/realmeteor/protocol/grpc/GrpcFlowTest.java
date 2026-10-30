@@ -31,7 +31,7 @@ public class GrpcFlowTest {
     @Test(timeout = 20000)
     public void protobufServerStreamReturnsEachMessage() throws Exception {
         // 配置 Protobuf 资源和双端 HTTP/2 增量正文。
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
 
         MetConfiguration incoming = this.configuration(true, 5000);
         MetConfiguration outgoing = this.configuration(false, 5000);
@@ -67,7 +67,7 @@ public class GrpcFlowTest {
     @Test(timeout = 20000)
     public void protobufClientStreamReturnsItsSummary() throws Exception {
         // 配置 Protobuf 客户端流，双方绑定相同的 proto 资源。
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
 
         MetConfiguration incoming = this.configuration(true, 5000);
         MetConfiguration outgoing = this.configuration(false, 5000);
@@ -103,7 +103,7 @@ public class GrpcFlowTest {
     @Test(timeout = 20000)
     public void protobufEmptyClientStreamReturnsZero() throws Exception {
         // 配置支持 Protobuf 的客户端流服务。
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
 
         MetConfiguration incoming = this.configuration(true, 5000);
         MetConfiguration outgoing = this.configuration(false, 5000);
@@ -136,7 +136,7 @@ public class GrpcFlowTest {
     @Test(timeout = 20000)
     public void protobufBidirectionalStreamReturnsEachRequest() throws Exception {
         // 配置 Protobuf 双向流，双方通过同一 proto 描述消息。
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
 
         MetConfiguration incoming = this.configuration(true, 5000);
         MetConfiguration outgoing = this.configuration(false, 5000);
@@ -176,7 +176,7 @@ public class GrpcFlowTest {
     @Test(timeout = 20000)
     public void protobufEmptyServerStreamCompletesWithoutMessages() throws Exception {
         // 配置 Protobuf 服务端流，准备请求零条消息。
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
 
         MetConfiguration incoming = this.configuration(true, 5000);
         MetConfiguration outgoing = this.configuration(false, 5000);

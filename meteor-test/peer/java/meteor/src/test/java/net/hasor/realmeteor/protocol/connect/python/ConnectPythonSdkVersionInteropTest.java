@@ -72,7 +72,7 @@ public class ConnectPythonSdkVersionInteropTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol(this.protocol);
         var connector = configuration.connector("http").bind(ContainerProcess.runnerHost(), 0);
         connector.protocol(this.protocol).contextPath("/");
-        var resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        var resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             provider.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -95,7 +95,7 @@ public class ConnectPythonSdkVersionInteropTest {
         // Python 官方 WSGI 服务自行监听端口，Meteor 仅配置当前协议的出站能力。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol(this.protocol);
         configuration.connector("http").protocol(this.protocol).contextPath("/");
-        var resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        var resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (PythonConnectPeerProcess peer = PythonConnectPeerProcess.provider( //
                 this.version, this.protocol, this.messageApi); //
              MetContext consumer = configuration.buildContext()) {

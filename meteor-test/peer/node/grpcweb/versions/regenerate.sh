@@ -5,7 +5,7 @@ set -euo pipefail
 # All tools execute in the existing native image; downloads and temporary output stay in meteor-test/build.
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(cd -- "$script_dir/../../../../.." && pwd)
-[[ -f "$repo_dir/meteor-test/src/test/resources/grpc/proto/web.proto" ]]
+[[ -f "$repo_dir/meteor-test/resource/protocol/proto/grpc/web.proto" ]]
 architecture=$(docker info --format '{{.Architecture}}')
 case "$architecture" in
     amd64|x86_64) architecture=amd64 ;;
@@ -54,7 +54,7 @@ output="$cache/generated-$1"
 mkdir -p "$tools" "$output/binary" "$output/text"
 tar -xzf "$cache/$js_archive" -C "$tools"
 chmod +x "$cache/$web_binary"
-contract=/workspace/meteor/meteor-test/src/test/resources/grpc/proto
+contract=/workspace/meteor/meteor-test/resource/protocol/proto/grpc
 for mode in binary text; do
     wire=grpcweb
     if [[ "$mode" == text ]]; then

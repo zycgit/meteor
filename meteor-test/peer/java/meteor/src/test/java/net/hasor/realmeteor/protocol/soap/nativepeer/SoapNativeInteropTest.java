@@ -49,7 +49,7 @@ public class SoapNativeInteropTest {
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("soap").contextPath("/services");
-        URL contract = this.getClass().getResource("/soap/wsdl/echo.wsdl");
+        URL contract = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             provider.publisher().rsfService(EchoService.class, new EchoServiceImpl()) //
@@ -72,7 +72,7 @@ public class SoapNativeInteropTest {
         // gSOAP 原生服务独立监听端口，Meteor 仅配置出站协议，不持有本地实现。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
         configuration.connector("http").protocol("soap").contextPath("/services");
-        URL contract = this.getClass().getResource("/soap/wsdl/echo.wsdl");
+        URL contract = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
         try (NativeSoapPeer provider = NativeSoapPeer.startExecutable(this.executable, "provider"); //
              MetContext consumer = configuration.buildContext()) {
             int port = provider.awaitPort();

@@ -27,7 +27,7 @@ public class GrpcBootstrapTest {
         incoming.connector("http").bind("127.0.0.1", 0).protocol("grpc");
         MetConfiguration outgoing = new MetConfiguration().setDefaultProtocol("grpc");
         outgoing.connector("http").option("httpVersion", 2).protocol("grpc");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/echo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/echo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 完成容器启动后再发布、订阅业务服务。

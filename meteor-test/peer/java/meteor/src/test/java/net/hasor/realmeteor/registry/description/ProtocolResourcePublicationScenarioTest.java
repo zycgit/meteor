@@ -189,7 +189,7 @@ public class ProtocolResourcePublicationScenarioTest {
     }
 
     private GrpcProtoResource originalResource() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/grpc/proto/echo.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/echo.proto"));
     }
 
     private GrpcProtoResource replacementResource() throws Exception {

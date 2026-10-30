@@ -43,7 +43,7 @@ public class TripleCompositionScenarioTest {
         triple.connector("http").protocol("triple").contextPath("/triple").option("httpMode", "json");
         MetConfiguration grpc = new MetConfiguration().setDefaultProtocol("grpc");
         grpc.connector("http").option("httpVersion", 2).protocol("grpc").contextPath("/grpc");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext tripleClient = triple.buildContext(); //
              MetContext grpcClient = grpc.buildContext()) {
@@ -97,7 +97,7 @@ public class TripleCompositionScenarioTest {
         ConnectorSettings grpcSender = grpc.connector("http");
         this.clientTls(grpcSender);
         grpcSender.protocol("grpc").addressScheme("https").contextPath("/grpc");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext tripleClient = triple.buildContext(); //
              MetContext grpcClient = grpc.buildContext()) {
@@ -179,9 +179,9 @@ public class TripleCompositionScenarioTest {
     private void serverTls(ConnectorSettings connector) {
         connector.option("httpVersion", 2).option("streamBody", true) //
                 .option("tlsEnabled", true).option("httpScheme", "https") //
-                .option("tlsKeyStore", "classpath:/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsClientAuth", "REQUIRE").option("tlsAlpn", "h2");
     }
@@ -189,9 +189,9 @@ public class TripleCompositionScenarioTest {
     private void clientTls(ConnectorSettings connector) {
         connector.option("httpVersion", 2).option("streamBody", true) //
                 .option("tlsEnabled", true).option("httpScheme", "https") //
-                .option("tlsKeyStore", "classpath:/tls/acceptance/client.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test").option("tlsAlpn", "h2");
     }
 }

@@ -32,7 +32,7 @@ public class TripleAlphaSdkScenarioTest {
     public void apacheNodeSdkCallsMeteorTripleProtobuf() throws Exception {
         // Meteor 只发布 Triple 协议，SDK 消费者通过其公开 gRPC/Protobuf 兼容入口调用。
         MetConfiguration configuration = this.configuration(true, 2, "grpc");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //
@@ -52,7 +52,7 @@ public class TripleAlphaSdkScenarioTest {
     public void meteorTripleProtobufCallsApacheNodeSdk() throws Exception {
         // Apache Node SDK 仅发布 gRPC 兼容面；Meteor 消费端仍明确选择 Triple 协议。
         MetConfiguration configuration = this.configuration(false, 2, "grpc");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (NodeRpcPeer provider = NodeRpcPeer.start("triple-alpha", "server"); //
              MetContext client = configuration.buildContext()) {
             int port = provider.awaitPort();
@@ -79,7 +79,7 @@ public class TripleAlphaSdkScenarioTest {
     public void apacheBrowserSdkCallsMeteorTripleHttpProtobuf() throws Exception {
         // Web SDK 的 Triple unary 使用 HTTP/1 裸 Protobuf，与 gRPC-Web 场景分开。
         MetConfiguration configuration = this.configuration(true, 1, "proto");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
         try (MetContext server = configuration.buildContext()) {
             server.start();
             server.publisher().rsfService(OrderDemoService.class, new OrderDemoServiceImpl()) //

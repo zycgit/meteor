@@ -1467,15 +1467,15 @@ public class DubboOfficialInteropTest {
         configuration.setDefaultTimeout(5000);
         var connector = configuration.connector("tcp");
         connector.option("tlsEnabled", true) //
-                .option("tlsTrustStore", "classpath:/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test");
         if (listen) {
             connector.bind("0.0.0.0", 0) //
-                    .option("tlsKeyStore", "classpath:/tls/acceptance/server.p12") //
+                    .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                     .option("tlsKeyStorePassword", "meteor-test") //
                     .option("tlsClientAuth", clientAuth);
         } else {
-            connector.option("tlsKeyStore", "classpath:/tls/acceptance/client.p12") //
+            connector.option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
         }
         connector.protocol("dubbo").addressScheme("dubbos");
@@ -1483,7 +1483,7 @@ public class DubboOfficialInteropTest {
     }
 
     private String pem(String filename) throws Exception {
-        return Path.of(this.getClass().getResource("/tls/acceptance/" + filename).toURI()).toString();
+        return Path.of(this.getClass().getResource("/certs/acceptance/" + filename).toURI()).toString();
     }
 
     private MetConfiguration configuration(boolean listen) {

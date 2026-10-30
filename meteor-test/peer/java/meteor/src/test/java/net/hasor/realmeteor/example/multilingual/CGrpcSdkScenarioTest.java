@@ -46,7 +46,7 @@ public class CGrpcSdkScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
         configuration.connector("http").bind("0.0.0.0", 0).option("httpVersion", 2) //
                 .protocol("grpc").contextPath("/");
-        URL contract = this.getClass().getResource("/contracts/java-sdk-echo.proto");
+        URL contract = this.getClass().getResource("/protocol/proto/java-sdk-echo.proto");
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             provider.publisher().rsfService(TextEchoService.class, text -> text) //
@@ -71,7 +71,7 @@ public class CGrpcSdkScenarioTest {
         // Core C server 独占动态端口；Meteor 只创建出站 HTTP/2 通道。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
         configuration.connector("http").option("httpVersion", 2).protocol("grpc").contextPath("/");
-        URL contract = this.getClass().getResource("/contracts/java-sdk-echo.proto");
+        URL contract = this.getClass().getResource("/protocol/proto/java-sdk-echo.proto");
         List<String> command = List.of(this.executable, "provider");
         try (OrderPeerProcess provider = OrderPeerProcess.start("native", command, null); //
              MetContext consumer = configuration.buildContext()) {

@@ -33,9 +33,9 @@ public class HproseHttpsInteropTest {
                 .bind(ContainerProcess.runnerHost(), 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "http/1.1") //
                 .option("tlsClientAuth", "REQUIRE") //
@@ -73,9 +73,9 @@ public class HproseHttpsInteropTest {
                 .bind(ContainerProcess.runnerHost(), 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "http/1.1") //
                 .option("tlsClientAuth", "REQUIRE") //
@@ -113,9 +113,9 @@ public class HproseHttpsInteropTest {
                 .bind(ContainerProcess.runnerHost(), 0) //
                 .option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
-                .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
                 .option("tlsAlpn", "http/1.1") //
                 .option("tlsClientAuth", "REQUIRE") //
@@ -156,9 +156,9 @@ public class HproseHttpsInteropTest {
             outgoing.connector("http") //
                     .option("tlsEnabled", true) //
                     .option("httpScheme", "https") //
-                    .option("tlsTrustStore", "classpath:/hprose/tls/acceptance/trust.p12") //
+                    .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                     .option("tlsTrustStorePassword", "meteor-test") //
-                    .option("tlsKeyStore", "classpath:/hprose/tls/acceptance/client.p12") //
+                    .option("tlsKeyStore", "classpath:/certs/acceptance/client.p12") //
                     .option("tlsKeyStorePassword", "meteor-test") //
                     .option("tlsAlpn", "http/1.1") //
                     .protocol("hprose").addressScheme("https").contextPath("/rpc");
@@ -186,7 +186,7 @@ public class HproseHttpsInteropTest {
     }
 
     private String tlsDirectory() throws Exception {
-        return Path.of(HproseHttpsInteropTest.class.getResource("/hprose/tls/acceptance/server.p12").toURI()) //
+        return Path.of(HproseHttpsInteropTest.class.getResource("/certs/acceptance/server.p12").toURI()) //
                 .getParent().toString();
     }
 

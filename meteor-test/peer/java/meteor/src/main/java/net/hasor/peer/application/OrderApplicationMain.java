@@ -193,7 +193,7 @@ public final class OrderApplicationMain {
         } else if (StringUtils.equals("thrift", protocol)) {
             builder.aliasName(protocol, "OrderThriftService");
         } else if (usesProtobuf(protocol)) {
-            URL contract = OrderApplicationMain.class.getResource("/order/order.proto");
+            URL contract = OrderApplicationMain.class.getResource("/protocol/proto/order.proto");
             builder.aliasName(protocol, OrderExampleUtils.SERVICE_NAME) //
                     .bindResource(protocol, new GrpcProtoResource(contract));
         } else if (StringUtils.equals("hprose", protocol)) {

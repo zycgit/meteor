@@ -86,7 +86,7 @@ public class PythonGrpcTypeInteropTest {
     }
 
     private GrpcProtoResource resource() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/vectors/types/types.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/types/types.proto"));
     }
 
     private MetConfiguration configuration(boolean listen) {

@@ -138,7 +138,7 @@ public class TripleFlowScenarioTest {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 所有容器启动后再发布和订阅普通 Java 接口。
@@ -165,7 +165,7 @@ public class TripleFlowScenarioTest {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 所有容器启动后再发布和订阅普通 Java 接口。
@@ -195,7 +195,7 @@ public class TripleFlowScenarioTest {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 所有容器启动后再发布和订阅普通 Java 接口。
@@ -223,7 +223,7 @@ public class TripleFlowScenarioTest {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 所有容器启动后再发布和订阅普通 Java 接口。
@@ -256,7 +256,7 @@ public class TripleFlowScenarioTest {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 所有容器启动后再发布和订阅普通 Java 接口。
@@ -283,7 +283,7 @@ public class TripleFlowScenarioTest {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 所有容器启动后再发布和订阅普通 Java 接口。
@@ -313,7 +313,7 @@ public class TripleFlowScenarioTest {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 所有容器启动后再发布和订阅普通 Java 接口。
@@ -341,7 +341,7 @@ public class TripleFlowScenarioTest {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-demo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 所有容器启动后再发布和订阅普通 Java 接口。

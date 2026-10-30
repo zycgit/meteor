@@ -6,7 +6,7 @@ source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 [[ $# == 2 && $1 == --output ]] || { printf 'Usage: %s --output DIRECTORY\n' "$0" >&2; exit 2; }
 mkdir -p -- "$2"
 output_dir=$(cd -- "$2" && pwd)
-contract="$source_dir/../../../src/test/resources/soap/wsdl/echo.wsdl"
+contract="$source_dir/../../../resource/protocol/wsdl/echo.wsdl"
 
 # A private SDK prefix selects both generators and runtime, leaving system tools intact.
 sdk_prefix=${SOAP_SDK_PREFIX:-}
@@ -24,7 +24,8 @@ if [[ -n $sdk_prefix ]]; then
 fi
 
 # Generated source belongs to the disposable runtime volume, never the checkout.
-"$wsdl2h" "${generator_options[@]}" -c -o "$output_dir/echo.h" "$contract"
+"$wsdl2h" "${generator_options[@]}" -I "$source_dir/../../../resource/protocol/xsd" \
+    -c -o "$output_dir/echo.h" "$contract"
 "$soapcpp2" -c -L -x -I"$imports" -d "$output_dir" "$output_dir/echo.h"
 gcc -std=c11 -D_DEFAULT_SOURCE -O2 -Wall -Wextra -I "$output_dir" "$source_dir/peer.c" \
     "$output_dir/soapC.c" "$output_dir/soapClient.c" "$output_dir/soapServer.c" \

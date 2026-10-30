@@ -1,0 +1,22 @@
+plugins {
+    id 'java'
+}
+
+description = 'Connect Kotlin 0.10.0 consumer peers with an independent Protobuf runtime'
+
+// 消费者源码与 0.4.0、0.5.1 共用，独立编译结果仍绑定本版本的 SDK 与 Protobuf API。
+sourceSets.main.java.setSrcDirs([file('../src/main/java')])
+sourceSets.main.java.include 'net/hasor/peer/sdk/connect/**', 'net/hasor/peer/sdk/grpcweb/**'
+
+dependencies {
+    // 新版 SDK 的 OkHttp、Kotlin 和 Protobuf 依赖与历史 SDK 编译域隔离。
+    compileOnly project(':meteor-test-contracts')
+    compileOnly "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+    compileOnly "com.connectrpc:connect-kotlin-okhttp:${property('test.sdk.connect.current')}"
+    compileOnly "com.connectrpc:connect-kotlin-google-java-ext:${property('test.sdk.connect.current')}"
+    compileOnly "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
+}
+
+tasks.named('compileJava') {
+    options.compilerArgs += '-parameters'
+}

@@ -134,7 +134,7 @@ public class GrpcSecureFlowTest {
         // 准备 Protobuf 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
         MetConfiguration outgoing = this.configuration(false, false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
         MessageService implementation = new MessageService();
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -170,7 +170,7 @@ public class GrpcSecureFlowTest {
         // 准备 Protobuf 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
         MetConfiguration outgoing = this.configuration(false, false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
         MessageService implementation = new MessageService();
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -206,7 +206,7 @@ public class GrpcSecureFlowTest {
         // 准备 Protobuf 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
         MetConfiguration outgoing = this.configuration(false, false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
         MessageService implementation = new MessageService();
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -551,7 +551,7 @@ public class GrpcSecureFlowTest {
         // 准备 Protobuf 编码、h2 ALPN 与双向认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, true);
         MetConfiguration outgoing = this.configuration(false, true);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
         MessageService implementation = new MessageService();
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -630,7 +630,7 @@ public class GrpcSecureFlowTest {
         // 准备 Protobuf 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
         MetConfiguration outgoing = this.configuration(false, false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
         MessageService implementation = new MessageService();
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -709,7 +709,7 @@ public class GrpcSecureFlowTest {
         // 准备 Protobuf 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
         MetConfiguration outgoing = this.configuration(false, false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
         MessageService implementation = new MessageService();
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
@@ -751,7 +751,7 @@ public class GrpcSecureFlowTest {
         http.option("tlsEnabled", true);
         http.option("httpScheme", "https");
         http.option("tlsAlpn", "h2");
-        http.option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12");
+        http.option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12");
         http.option("tlsTrustStorePassword", "meteor-test");
         if (server) {
             http.bind("127.0.0.1", 0);
@@ -761,7 +761,7 @@ public class GrpcSecureFlowTest {
         }
         if (server || mutual) {
             String identity = server ? "server" : "client";
-            http.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/" + identity + ".p12");
+            http.option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12");
             http.option("tlsKeyStorePassword", "meteor-test");
         }
         http.protocol("grpc").addressScheme("https").option("streamBody", true);

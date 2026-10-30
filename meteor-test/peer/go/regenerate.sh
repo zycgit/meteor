@@ -30,7 +30,7 @@ for package in google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12 \
 done
 
 # Both contracts use the same pinned generators and committed module graph.
-directories=("$test_dir/src/test/resources/order" "$test_dir/src/test/resources/vectors/types")
+directories=("$test_dir/resource/protocol/proto" "$test_dir/resource/protocol/proto/types")
 filenames=(order.proto types.proto)
 packages=(orderpb typepb)
 for index in "${!filenames[@]}"; do

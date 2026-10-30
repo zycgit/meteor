@@ -61,6 +61,6 @@ public class DubboSdkTlsBaselineTest {
     }
 
     private String pem(String filename) throws Exception {
-        return Path.of(this.getClass().getResource("/tls/acceptance/" + filename).toURI()).toString();
+        return Path.of(this.getClass().getResource("/certs/acceptance/" + filename).toURI()).toString();
     }
 }

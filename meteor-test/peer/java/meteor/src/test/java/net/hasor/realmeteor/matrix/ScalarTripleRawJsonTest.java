@@ -42,7 +42,7 @@ public class ScalarTripleRawJsonTest {
         configuration.connector("http").bind("127.0.0.1", 0).protocol("triple") //
                 .contextPath("/scalar").option("httpMode", "json");
         GrpcProtoResource schema = new GrpcProtoResource(ScalarValueProfile.class //
-                .getResource("/vectors/scalar/values.proto"));
+                .getResource("/protocol/proto/scalar/values.proto"));
         AtomicReference<ScalarValue> observed = new AtomicReference<>();
         ScalarValueServiceImpl implementation = new ScalarValueServiceImpl() {
             @Override

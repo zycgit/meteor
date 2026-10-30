@@ -20,7 +20,7 @@ def main():
 
     # SDK installations belong to the image; the output volume retains the old executable paths.
     source = Path(__file__).resolve().parent
-    resources = source.parents[1] / "src/test/resources"
+    resources = source.parents[1] / "resource"
     output = args.output
     output.mkdir(parents=True, exist_ok=True)
     ready = output / "runtime-python.ready.json"
@@ -36,8 +36,8 @@ def main():
 
     # Generated gRPC modules and SOAP contracts are consumed by both Python and Java scenarios.
     python = str(output / "python-grpc/bin/python")
-    for contract, directory in ((resources / "order/order.proto", "python-grpc-generated"),
-                                (resources / "vectors/types/types.proto", "python-types-grpc-generated")):
+    for contract, directory in ((resources / "protocol/proto/order.proto", "python-grpc-generated"),
+                                (resources / "protocol/proto/types/types.proto", "python-types-grpc-generated")):
         target = output / directory
         target.mkdir(parents=True, exist_ok=True)
         subprocess.run([python, "-m", "grpc_tools.protoc", "-I", str(contract.parent),
@@ -49,7 +49,7 @@ def main():
     connect_package = connect / "order_contract"
     connect_package.mkdir(parents=True, exist_ok=True)
     (connect_package / "__init__.py").touch()
-    contract = resources / "order/order.proto"
+    contract = resources / "protocol/proto/order.proto"
     plugin = output / "python-connect/bin/protoc-gen-connectrpc"
     subprocess.run([python, "-m", "grpc_tools.protoc", "-I", str(contract.parent),
                     f"--python_out={connect_package}", f"--plugin=protoc-gen-connectrpc={plugin}",

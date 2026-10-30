@@ -164,7 +164,7 @@ public class GrpcSecureMetadataTest {
         // 双方启用 TLS、h2 ALPN 和 gRPC gzip，并准备重复与二进制元数据。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/echo.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/echo.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             server.start();
@@ -230,7 +230,7 @@ public class GrpcSecureMetadataTest {
         // 双方启用 TLS、h2 ALPN 和 gRPC gzip，并准备重复与二进制元数据。
         MetConfiguration incoming = this.configuration(true);
         MetConfiguration outgoing = this.configuration(false);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/flow.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             server.start();
@@ -307,11 +307,11 @@ public class GrpcSecureMetadataTest {
         http.option("tlsEnabled", true);
         http.option("httpScheme", "https");
         http.option("tlsAlpn", "h2");
-        http.option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12");
+        http.option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12");
         http.option("tlsTrustStorePassword", "meteor-test");
         if (server) {
             http.bind("127.0.0.1", 0);
-            http.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/server.p12");
+            http.option("tlsKeyStore", "classpath:/certs/acceptance/server.p12");
             http.option("tlsKeyStorePassword", "meteor-test");
         }
         http.protocol("grpc").addressScheme("https") //

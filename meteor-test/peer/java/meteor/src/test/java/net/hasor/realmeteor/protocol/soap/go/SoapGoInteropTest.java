@@ -22,7 +22,7 @@ public class SoapGoInteropTest {
     @Test(timeout = 45000)
     public void gowsdlClientCallsMeteorProvider() throws Exception {
         // Meteor 绑定已有 Echo WSDL；Go 客户端由同一份契约及其导入的 XSD 生成。
-        URL contract = this.getClass().getResource("/soap/wsdl/echo.wsdl");
+        URL contract = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
         configuration.setDefaultTimeout(10000);
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //

@@ -75,7 +75,7 @@ def prepare(source, toolchain, output):
     (output / "python-sdk-versions.json").write_text(json.dumps(installed, indent=2) + "\n")
 
     # Each Connect generator is paired with its own runtime and message API.
-    contract = source.parents[1] / "src/test/resources/order/order.proto"
+    contract = source.parents[1] / "resource/protocol/proto/order.proto"
     protoc = output / "python-grpc/bin/python"
     profiles = (("0.10.1", "google"), ("0.11.1", "google"),
                 ("0.11.1", "native"), ("0.13.0", "google"), ("0.13.0", "native"))

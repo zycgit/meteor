@@ -22,9 +22,9 @@ final class XmlRpcTlsUtils {
     static void serverTls(ConnectorSettings connector, int version, String clientAuth) {
         connector.option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsKeyStore", "classpath:/xmlrpc/tls/acceptance/server.p12") //
+                .option("tlsKeyStore", "classpath:/certs/acceptance/server.p12") //
                 .option("tlsKeyStorePassword", "meteor-test") //
-                .option("tlsTrustStore", "classpath:/xmlrpc/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsClientAuth", clientAuth) //
                 .option("tlsAlpn", version == 2 ? "h2" : "http/1.1");
@@ -33,11 +33,11 @@ final class XmlRpcTlsUtils {
     static void clientTls(ConnectorSettings connector, int version, String identity) {
         connector.option("tlsEnabled", true) //
                 .option("httpScheme", "https") //
-                .option("tlsTrustStore", "classpath:/xmlrpc/tls/acceptance/trust.p12") //
+                .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                 .option("tlsTrustStorePassword", "meteor-test") //
                 .option("tlsAlpn", version == 2 ? "h2" : "http/1.1");
         if (identity != null) {
-            connector.option("tlsKeyStore", "classpath:/xmlrpc/tls/acceptance/" + identity + ".p12") //
+            connector.option("tlsKeyStore", "classpath:/certs/acceptance/" + identity + ".p12") //
                     .option("tlsKeyStorePassword", "meteor-test");
         }
     }
@@ -57,7 +57,7 @@ final class XmlRpcTlsUtils {
     }
 
     private static KeyStore loadStore(String name) throws Exception {
-        String resource = "/xmlrpc/tls/acceptance/" + name + ".p12";
+        String resource = "/certs/acceptance/" + name + ".p12";
         KeyStore store = KeyStore.getInstance("PKCS12");
         try (InputStream input = XmlRpcTlsUtils.class.getResourceAsStream(resource)) {
             if (input == null) {

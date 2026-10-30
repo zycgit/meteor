@@ -25,7 +25,7 @@ public class TriplePythonInteropTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0).option("httpVersion", 2) //
                 .protocol("triple").contextPath("/").option("httpMode", "grpc").option("streamBody", true);
-        var resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-interop.proto"));
+        var resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-interop.proto"));
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
             provider.publisher().rsfService(TripleInteropProtoService.class, new TripleInteropProtoServiceImpl()) //
@@ -49,7 +49,7 @@ public class TriplePythonInteropTest {
             MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
             configuration.connector("http").option("httpVersion", 2) //
                     .protocol("triple").contextPath("/").option("httpMode", "grpc").option("streamBody", true);
-            var resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-interop.proto"));
+            var resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/triple-interop.proto"));
             try (MetContext consumer = configuration.buildContext()) {
                 consumer.start();
                 var service = consumer.publisher().rsfService(TripleInteropProtoService.class) //

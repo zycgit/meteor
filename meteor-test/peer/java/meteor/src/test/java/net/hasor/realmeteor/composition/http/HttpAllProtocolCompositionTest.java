@@ -71,7 +71,7 @@ public class HttpAllProtocolCompositionTest {
                     .protocol("thrift-http").bindResource("thrift-http", thriftResource).register();
 
             // gRPC 家族的四个协议共用同一份 Protobuf 定义，各自保持服务身份和路径。
-            URL proto = this.getClass().getResource("/example/composition/grpc/family.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/composition/family.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             server.publisher().rsfService(GrpcFamilyService.class, new GrpcFamilyServiceImpl()) //
                     .group("grpc").aliasName("grpc", "meteor.composition.FamilyService") //

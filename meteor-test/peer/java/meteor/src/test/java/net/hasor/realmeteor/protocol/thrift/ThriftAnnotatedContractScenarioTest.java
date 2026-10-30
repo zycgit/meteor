@@ -427,7 +427,7 @@ public class ThriftAnnotatedContractScenarioTest {
     }
 
     private ThriftIdlResource contract() throws Exception {
-        Path source = Path.of("src/test/resources/thrift/interop.thrift");
+        Path source = Path.of("resource/protocol/thrift/interop.thrift");
         return new ThriftIdlResource(source.toUri().toURL()).selectService("ExtendedInteropService");
     }
 

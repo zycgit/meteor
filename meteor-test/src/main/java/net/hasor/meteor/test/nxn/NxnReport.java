@@ -40,10 +40,6 @@ public final class NxnReport {
     private NxnReport() {
     }
 
-    public static void main(String[] arguments) {
-        System.exit(run(arguments));
-    }
-
     public static int run(String[] arguments) {
         try {
             // 命令入口只解析报告参数，不启动环境或复用历史测试结果。

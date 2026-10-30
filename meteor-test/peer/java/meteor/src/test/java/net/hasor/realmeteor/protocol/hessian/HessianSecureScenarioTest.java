@@ -299,7 +299,7 @@ public class HessianSecureScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("hessian");
         ConnectorSettings listener = configuration.connector("http").bind("127.0.0.1", 0);
         HessianTlsUtils.serverTls(listener, 1, "NONE");
-        listener.option("tlsKeyStore", "classpath:/hessian/tls/acceptance/wrong-host-server.p12");
+        listener.option("tlsKeyStore", "classpath:/certs/acceptance/wrong-host-server.p12");
         listener.protocol("hessian").addressScheme("https").contextPath("/rpc");
         try (MetContext server = configuration.buildContext()) {
             server.start();

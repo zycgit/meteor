@@ -128,7 +128,7 @@ public class HttpSecureCompositionTest {
                     .group("jsonrpc").aliasName("jsonrpc", "echo").protocol("jsonrpc").register();
             MetBindInfo<HttpCompositionService> json = client.publisher().rsfService(HttpCompositionService.class) //
                     .group("jsonrpc").aliasName("jsonrpc", "echo").protocol("jsonrpc").register();
-            URL proto = this.getClass().getResource("/example/composition/grpc/family.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/composition/family.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             server.publisher().rsfService(GrpcFamilyService.class, new GrpcFamilyServiceImpl()) //
                     .aliasName("grpc", "meteor.composition.FamilyService").protocol("grpc") //

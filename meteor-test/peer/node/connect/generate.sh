@@ -4,7 +4,7 @@ set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 host_dir=$(cd -- "$script_dir/../../.." && pwd)
-order_dir="$host_dir/src/test/resources/order"
+order_contract="$host_dir/resource/protocol/proto/order.proto"
 
 # Select the already-built image for the Docker daemon architecture; do not install tools on the host.
 command -v docker >/dev/null || { printf 'Docker is required.\n' >&2; exit 2; }
@@ -37,12 +37,11 @@ docker create --name "$container" --network none \
     mkdir -p /tmp/meteor-generated
     node_modules/.bin/buf generate /tmp/meteor-connect-contracts \
         --template /tmp/meteor-buf.gen.yaml --output /tmp/meteor-generated
-    node_modules/.bin/buf generate /tmp/meteor-order-contracts \
-        --path /tmp/meteor-order-contracts/order.proto \
+    node_modules/.bin/buf generate /tmp/order.proto \
         --template /tmp/meteor-buf.gen.yaml --output /tmp/meteor-generated
 ' >/dev/null
-docker cp "$host_dir/src/test/resources/connect/proto" "$container:/tmp/meteor-connect-contracts"
-docker cp "$order_dir" "$container:/tmp/meteor-order-contracts"
+docker cp "$host_dir/resource/protocol/proto/connect" "$container:/tmp/meteor-connect-contracts"
+docker cp "$order_contract" "$container:/tmp/order.proto"
 docker cp "$script_dir/buf.gen.yaml" "$container:/tmp/meteor-buf.gen.yaml"
 
 # Replace source output only after both contracts generated successfully.

@@ -65,7 +65,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布包含嵌套符号和 proto2 扩展的服务，供标准反射接口查询。
-            URL proto = this.getClass().getResource("/grpc/proto/reflection-fixture.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/reflection-fixture.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var service = context.publisher().rsfService(DescribedService.class, value -> value);
             service.aliasName("grpc", "fixture.ReflectionFixture") // 协议名称与 proto 服务描述保持一致。
@@ -111,7 +111,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布包含嵌套符号和 proto2 扩展的服务，供标准反射接口查询。
-            URL proto = this.getClass().getResource("/grpc/proto/reflection-fixture.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/reflection-fixture.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var service = context.publisher().rsfService(DescribedService.class, value -> value);
             service.aliasName("grpc", "fixture.ReflectionFixture") // 协议名称与 proto 服务描述保持一致。
@@ -148,7 +148,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布包含嵌套符号和 proto2 扩展的服务，供标准反射接口查询。
-            URL proto = this.getClass().getResource("/grpc/proto/reflection-fixture.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/reflection-fixture.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var service = context.publisher().rsfService(DescribedService.class, value -> value);
             service.aliasName("grpc", "fixture.ReflectionFixture") // 协议名称与 proto 服务描述保持一致。
@@ -186,7 +186,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布包含嵌套符号和 proto2 扩展的服务，供标准反射接口查询。
-            URL proto = this.getClass().getResource("/grpc/proto/reflection-fixture.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/reflection-fixture.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var service = context.publisher().rsfService(DescribedService.class, value -> value);
             service.aliasName("grpc", "fixture.ReflectionFixture") // 协议名称与 proto 服务描述保持一致。
@@ -322,7 +322,7 @@ public class GrpcBuiltinServicesInteropTest {
                 assertEquals(ServingStatus.SERVICE_UNKNOWN, replies.next().getStatus());
 
                 // 在同一条 Watch 流建立后发布服务，观察状态变化。
-                URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+                URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
                 GrpcProtoResource resource = new GrpcProtoResource(proto);
                 var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
                 publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -353,7 +353,7 @@ public class GrpcBuiltinServicesInteropTest {
                 assertEquals(ServingStatus.SERVICE_UNKNOWN, replies.next().getStatus());
 
                 // 在同一条 Watch 流建立后发布服务，观察状态变化。
-                URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+                URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
                 GrpcProtoResource resource = new GrpcProtoResource(proto);
                 var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
                 publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -375,7 +375,7 @@ public class GrpcBuiltinServicesInteropTest {
         // 从 bootstrap 启动 gRPC，并发布一个可由标准 Health 查询的服务。
         try (MetContext context = this.configuration().buildContext()) {
             context.start();
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -412,7 +412,7 @@ public class GrpcBuiltinServicesInteropTest {
                 assertEquals(ServingStatus.SERVICE_UNKNOWN, replies.next().getStatus());
 
                 // 在同一条 Watch 流建立后发布服务，观察状态变化。
-                URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+                URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
                 GrpcProtoResource resource = new GrpcProtoResource(proto);
                 var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
                 publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -437,7 +437,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布带有跨文件消息引用的服务，供反射查询服务和描述文件。
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -478,7 +478,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布带有跨文件消息引用的服务，供反射查询服务和描述文件。
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -527,7 +527,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布带有跨文件消息引用的服务，供反射查询服务和描述文件。
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -565,7 +565,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布带有跨文件消息引用的服务，供反射查询服务和描述文件。
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -603,7 +603,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布带有跨文件消息引用的服务，供反射查询服务和描述文件。
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -646,7 +646,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布带有跨文件消息引用的服务，供反射查询服务和描述文件。
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -687,7 +687,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布带有跨文件消息引用的服务，供反射查询服务和描述文件。
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -736,7 +736,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布带有跨文件消息引用的服务，供反射查询服务和描述文件。
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -774,7 +774,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布带有跨文件消息引用的服务，供反射查询服务和描述文件。
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();
@@ -812,7 +812,7 @@ public class GrpcBuiltinServicesInteropTest {
             context.start();
 
             // 发布带有跨文件消息引用的服务，供反射查询服务和描述文件。
-            URL proto = this.getClass().getResource("/grpc/proto/echo.proto");
+            URL proto = this.getClass().getResource("/protocol/proto/grpc/echo.proto");
             GrpcProtoResource resource = new GrpcProtoResource(proto);
             var publication = context.publisher().rsfService(Echo.class, new EchoImpl());
             publication.aliasName("grpc", "example.Echo").bindResource("grpc", resource).register();

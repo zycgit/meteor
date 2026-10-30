@@ -11,7 +11,7 @@ temporary_root="$source_dir/../../build/tmp/oncrpc-rpcgen"
 mkdir -p -- "$temporary_root"
 temporary=$(mktemp -d "$temporary_root/run.XXXXXX")
 trap 'rm -rf -- "$temporary"' EXIT
-cp "$source_dir/../../src/test/resources/oncrpc/interop.x" "$temporary/interop.x"
+cp "$source_dir/../../resource/protocol/x/interop.x" "$temporary/interop.x"
 cd -- "$temporary"
 options=(-h -c -l -m)
 names=(interop.h interop_xdr.c interop_clnt.c interop_svc.c)

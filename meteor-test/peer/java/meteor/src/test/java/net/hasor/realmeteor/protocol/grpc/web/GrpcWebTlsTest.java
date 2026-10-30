@@ -75,7 +75,7 @@ public class GrpcWebTlsTest {
         // 配置 HTTP/1、服务端证书认证与文本 gRPC-Web 消息。
         MetConfiguration incoming = this.serverConfiguration(1, "NONE");
         MetConfiguration outgoing = this.clientConfiguration(1, true, null);
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 容器启动以后发布与订阅普通接口，调用不经过本地服务捷径。
@@ -105,7 +105,7 @@ public class GrpcWebTlsTest {
         // 配置 HTTP/2、双向身份认证与二进制 gRPC-Web 消息。
         MetConfiguration incoming = this.serverConfiguration(2, "REQUIRE");
         MetConfiguration outgoing = this.clientConfiguration(2, false, "client");
-        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/grpc/proto/web.proto"));
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/web.proto"));
         try (MetContext server = incoming.buildContext(); //
              MetContext client = outgoing.buildContext()) {
             // 容器启动以后发布与订阅普通接口，调用不经过本地服务捷径。

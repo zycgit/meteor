@@ -153,10 +153,10 @@ public class GrpcGoRegistryAdapterScenarioTest {
         }
         if (StringUtils.equals("mtls", this.tlsMode)) {
             http.option("tlsEnabled", true).option("httpScheme", "https").option("tlsAlpn", "h2") //
-                    .option("tlsTrustStore", "classpath:/grpc/tls/acceptance/trust.p12") //
+                    .option("tlsTrustStore", "classpath:/certs/acceptance/trust.p12") //
                     .option("tlsTrustStorePassword", "meteor-test");
             String identity = provider ? "server.p12" : "client.p12";
-            http.option("tlsKeyStore", "classpath:/grpc/tls/acceptance/" + identity) //
+            http.option("tlsKeyStore", "classpath:/certs/acceptance/" + identity) //
                     .option("tlsKeyStorePassword", "meteor-test");
             if (provider) {
                 http.option("tlsClientAuth", "REQUIRE");
@@ -171,7 +171,7 @@ public class GrpcGoRegistryAdapterScenarioTest {
     }
 
     private GrpcProtoResource resource() throws Exception {
-        return new GrpcProtoResource(this.getClass().getResource("/order/order.proto"));
+        return new GrpcProtoResource(this.getClass().getResource("/protocol/proto/order.proto"));
     }
 
     private Order order() {

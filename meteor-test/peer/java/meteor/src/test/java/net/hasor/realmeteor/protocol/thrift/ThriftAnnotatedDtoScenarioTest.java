@@ -104,7 +104,7 @@ public class ThriftAnnotatedDtoScenarioTest {
     }
 
     private ThriftIdlResource contract() throws Exception {
-        Path source = Path.of("src/test/resources/thrift/interop.thrift");
+        Path source = Path.of("resource/protocol/thrift/interop.thrift");
         return new ThriftIdlResource(source.toUri().toURL()).selectService("ExtendedInteropService");
     }
 
@@ -160,7 +160,7 @@ public class ThriftAnnotatedDtoScenarioTest {
     }
 
     private String store(String identity) throws Exception {
-        String resource = "/thrift/tls/acceptance/" + identity + ".p12";
+        String resource = "/certs/acceptance/" + identity + ".p12";
         return Path.of(getClass().getResource(resource).toURI()).toString();
     }
 

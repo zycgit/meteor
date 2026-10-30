@@ -64,15 +64,14 @@ RUN bash /build/meteor-test/peer/cpp/grpc/build-version.sh \
     /opt/meteor-toolchain/sdk-versions/grpc/1.85.0 8 sdk
 COPY meteor-test/peer/cpp/grpc/build-peers.sh meteor-test/peer/cpp/grpc/order_peer.cpp /build/meteor-test/peer/cpp/grpc/
 COPY meteor-test/peer/c/grpc /build/meteor-test/peer/c/grpc
-COPY meteor-test/src/test/resources/order /build/meteor-test/src/test/resources/order
+COPY meteor-test/resource/protocol/proto /build/meteor-test/resource/protocol/proto
 RUN bash /build/meteor-test/peer/cpp/grpc/build-version.sh \
     /opt/meteor-toolchain/sdk-versions/grpc/1.85.0 8 peer
 
 FROM native-sdk-tools AS thrift-latest
 COPY meteor-test/peer/cpp/thrift /build/meteor-test/peer/cpp/thrift
 COPY meteor-test/peer/c/thrift /build/meteor-test/peer/c/thrift
-COPY meteor-test/src/test/resources/order /build/meteor-test/src/test/resources/order
-COPY meteor-test/src/test/resources/example/contracts/thrift /build/meteor-test/src/test/resources/example/contracts/thrift
+COPY meteor-test/resource/protocol/thrift /build/meteor-test/resource/protocol/thrift
 RUN bash /build/meteor-test/peer/cpp/thrift/build-version.sh \
     /opt/meteor-toolchain/sdk-versions/thrift/0.25.0 4 && \
     rm -rf /opt/meteor-toolchain/sdk-versions/thrift/0.25.0/source \
@@ -81,7 +80,8 @@ RUN bash /build/meteor-test/peer/cpp/thrift/build-version.sh \
 FROM native-sdk-tools AS soap-latest
 COPY meteor-test/peer/c/soap /build/meteor-test/peer/c/soap
 COPY meteor-test/peer/cpp/soap /build/meteor-test/peer/cpp/soap
-COPY meteor-test/src/test/resources/soap/wsdl /build/meteor-test/src/test/resources/soap/wsdl
+COPY meteor-test/resource/protocol/wsdl /build/meteor-test/resource/protocol/wsdl
+COPY meteor-test/resource/protocol/xsd /build/meteor-test/resource/protocol/xsd
 RUN bash /build/meteor-test/peer/c/soap/build-version.sh \
     /opt/meteor-toolchain/sdk-versions/soap/2.8.146 4
 
@@ -95,7 +95,7 @@ FROM native-sdk-tools AS oncrpc-latest
 COPY meteor-test/peer/c/build-version.sh /build/meteor-test/peer/c/build-version.sh
 COPY meteor-test/peer/c/order /build/meteor-test/peer/c/order
 COPY meteor-test/peer/cpp/order /build/meteor-test/peer/cpp/order
-COPY meteor-test/src/test/resources/order /build/meteor-test/src/test/resources/order
+COPY meteor-test/resource/protocol/x /build/meteor-test/resource/protocol/x
 RUN bash /build/meteor-test/peer/c/build-version.sh \
     /opt/meteor-toolchain/sdk-versions/oncrpc/1.3.8 4 && \
     rm -rf /opt/meteor-toolchain/sdk-versions/oncrpc/1.3.8/libtirpc-1.3.8 \
