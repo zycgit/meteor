@@ -6,18 +6,81 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.dubbo;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import com.caucho.hessian.io.Hessian2Input;
+import com.caucho.hessian.io.Hessian2Output;
+import net.hasor.example.protocol.dubbo.WireEcho;
 import net.hasor.example.protocol.dubbo.interop.DubboInteropService;
 import net.hasor.example.protocol.dubbo.interop.DubboInteropServiceImpl;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 /** 插件从公开 bootstrap 完成一次基本网络调用。 */
 public class DubboBootstrapTest {
+    @Test(timeout = 15000)
+    public void zeroWireTimeoutUsesTheFiniteServerDefault() throws Exception {
+        // 通过正式入口启动服务，在真实入站过滤器中观察执行层最终采用的期限。
+        try (MetContext server = this.configuration(true).buildContext()) {
+            AtomicInteger timeout = new AtomicInteger();
+            server.publisher().bindFilter("observe-timeout", (request, response, chain) -> {
+                timeout.set(request.getTimeout());
+                chain.doFilter(request, response);
+            });
+            server.start();
+            server.publisher().rsfService(WireEcho.class, value -> value) //
+                    .aliasName("dubbo", WireEcho.class.getName()).register();
+
+            // 发送标准 Dubbo 请求，仅把线上 timeout 显式写为旧 SDK 产生的 0。
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            Hessian2Output output = new Hessian2Output(bytes);
+            output.writeString("2.0.2");
+            output.writeString(WireEcho.class.getName());
+            output.writeString("1.0.0");
+            output.writeString("echo");
+            output.writeString("Ljava/lang/String;");
+            output.writeString("zero-timeout");
+            Map<String, String> attachments = new LinkedHashMap<>();
+            attachments.put("group", "default");
+            attachments.put("version", "1.0.0");
+            attachments.put("timeout", "0");
+            output.writeObject(attachments);
+            output.flush();
+            byte[] body = bytes.toByteArray();
+            byte[] frame = ByteBuffer.allocate(16 + body.length) //
+                    .putShort((short) 0xdabb).put((byte) 0xc2).put((byte) 0) //
+                    .putLong(123).putInt(body.length).put(body).array();
+
+            // 真实调用成功，MetRequest 得到 5000ms 默认值，既非无限等待也非伪造的 1ms。
+            InterAddress address = server.getListenAddress("dubbo");
+            try (Socket socket = new Socket(address.getHost(), address.getPort())) {
+                socket.setSoTimeout(5000);
+                socket.getOutputStream().write(frame);
+                DataInputStream incoming = new DataInputStream(socket.getInputStream());
+                byte[] header = incoming.readNBytes(16);
+                int length = ByteBuffer.wrap(header).getInt(12);
+                byte[] response = incoming.readNBytes(length);
+                Hessian2Input input = new Hessian2Input(new ByteArrayInputStream(response));
+                assertEquals(20, header[3]);
+                assertEquals(4, input.readInt());
+                assertEquals("zero-timeout", input.readString());
+                assertEquals(5000, timeout.get());
+            }
+        }
+    }
+
     @Test(timeout = 15000)
     public void unicodeValueSurvivesTheDefaultHessian2RoundTrip() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。

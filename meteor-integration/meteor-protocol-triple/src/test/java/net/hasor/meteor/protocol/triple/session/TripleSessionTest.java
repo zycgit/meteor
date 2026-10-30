@@ -8,15 +8,15 @@
 package net.hasor.meteor.protocol.triple.session;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.example.protocol.triple.TripleFlowService;
+import net.hasor.example.protocol.triple.TripleFlowServiceImpl;
+import net.hasor.example.protocol.triple.TripleMessage;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
@@ -36,6 +36,7 @@ import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
+import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.triple.codec.TripleHttpCodec;
 import net.hasor.meteor.rpc.MetCaller;
 import org.junit.Test;
@@ -188,6 +189,263 @@ public class TripleSessionTest {
     }
 
     @Test
+    public void completeBufferedResponseSurvivesPeerCloseBeforeQueuedDecode() throws Exception {
+        // HTTP 已完整接收响应，业务解码回调尚未执行。
+        try (MetContext context = context()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, true);
+            try {
+                RequestPayload request = request(21);
+                session.send(request).get(1, TimeUnit.SECONDS);
+                HttpExchange exchange = network.writes.get(0);
+                exchange.respond(codec(context).encode(request, response(21)));
+                exchange.complete(null);
+
+                // 服务端正常关闭连接不影响已经接收完成的响应。
+                session.closed(new IOException("peer closed after response"));
+                network.runTasks();
+                assertEquals(1, received.size());
+                assertEquals("result", ((ResponsePayload) received.get(0)).getReturnData());
+                assertNull(request.completion().getCause());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
+    public void completeStreamedResponseSurvivesPeerCloseBeforeQueuedDecode() throws Exception {
+        // 增量正文已读取到 EOF，但业务解码尚在连接执行器中排队。
+        try (MetContext context = context()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, true);
+            try {
+                RequestPayload request = request(22);
+                session.send(request).get(1, TimeUnit.SECONDS);
+                HttpResponse buffered = codec(context).encode(request, response(22));
+                HttpBodyStream body = new HttpBodyStream(4096);
+                body.offer(buffered.body(), () -> {
+                });
+                body.finish(buffered.trailers());
+                HttpExchange exchange = network.writes.get(0);
+                exchange.respond(HttpResponse.newStreaming(200, buffered.headers(), body, Map.of()));
+                network.runNextTask();
+                body.completion().get(2, TimeUnit.SECONDS);
+                exchange.complete(null);
+
+                // 已读完的响应继续解码，关闭只阻止新调用。
+                session.closed(new IOException("peer closed after body EOF"));
+                network.runNextTask();
+                network.runTasks();
+                assertEquals(1, received.size());
+                assertEquals("result", ((ResponsePayload) received.get(0)).getReturnData());
+                assertNull(request.completion().getCause());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
+    public void completeResponseStartsItsQueuedBodyReaderAfterPeerClose() throws Exception {
+        // HTTP 输入已经结束，协议的正文读取 worker 尚未启动。
+        try (MetContext context = context()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, true);
+            try {
+                RequestPayload request = request(23);
+                session.send(request).get(1, TimeUnit.SECONDS);
+                HttpResponse buffered = codec(context).encode(request, response(23));
+                HttpBodyStream body = new HttpBodyStream(4096);
+                body.offer(buffered.body(), () -> {
+                });
+                body.finish(buffered.trailers());
+                HttpExchange exchange = network.writes.get(0);
+                exchange.respond(HttpResponse.newStreaming(200, buffered.headers(), body, Map.of()));
+
+                // 挂载 worker 租约保留到响应终结，不能因最后一个物理连接关闭而抢先释放。
+                session.closed(new IOException("peer closed after complete HTTP input"));
+                network.runNextTask();
+                body.completion().get(2, TimeUnit.SECONDS);
+                network.runNextTask();
+                network.runTasks();
+                assertEquals(1, received.size());
+                assertEquals("result", ((ResponsePayload) received.get(0)).getReturnData());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
+    public void truncatedResponseStillFailsWhenPeerCloses() throws Exception {
+        // 仅收到部分增量正文，网络输入尚未结束。
+        try (MetContext context = context()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, true);
+            try {
+                RequestPayload request = request(24);
+                session.send(request).get(1, TimeUnit.SECONDS);
+                HttpResponse buffered = codec(context).encode(request, response(24));
+                HttpBodyStream body = new HttpBodyStream(4096);
+                body.offer(new byte[] { 1, 2 }, () -> {
+                });
+                HttpExchange exchange = network.writes.get(0);
+                exchange.respond(HttpResponse.newStreaming(200, buffered.headers(), body, Map.of()));
+                network.runNextTask();
+                IOException failure = new IOException("peer closed before body EOF");
+
+                // 截断响应保留关闭原因，不能利用正常 EOF 的处理分支成功返回。
+                session.closed(failure);
+                network.runTasks();
+                assertEquals(1, received.size());
+                assertSame(failure, ((ThrowPayload) received.get(0)).getThrowable());
+                assertSame(failure, request.completion().getCause());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
+    public void completeResponseDoesNotHideALateWriteFailureAfterPeerClose() throws Exception {
+        // 已收到完整响应，但物理发送 Future 仍未确认成功。
+        try (MetContext context = context()) {
+            ControlledNetwork network = new ControlledNetwork();
+            network.writeResult = new BasicFuture<>();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, true);
+            try {
+                RequestPayload request = request(27);
+                Future<Void> sent = session.send(request);
+                HttpExchange exchange = network.writes.get(0);
+                exchange.respond(codec(context).encode(request, response(27)));
+                exchange.complete(null);
+                session.closed(new IOException("peer closed after response"));
+
+                // 真实写失败仍由发送 Future 报告，不被完整响应或关闭保留逻辑覆盖。
+                IOException failure = new IOException("physical request write failed");
+                network.writeResult.failed(failure);
+                network.runTasks();
+                assertSame(failure, sent.getCause());
+                assertSame(failure, request.completion().getCause());
+                assertTrue(received.isEmpty());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
+    public void failedExchangeDoesNotDeliverItsCompleteResponseAfterPeerClose() throws Exception {
+        // 响应已经到达，但 HTTP 交换明确报告失败。
+        try (MetContext context = context()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, network, received, true);
+            try {
+                RequestPayload request = request(28);
+                session.send(request).get(1, TimeUnit.SECONDS);
+                HttpExchange exchange = network.writes.get(0);
+                exchange.respond(codec(context).encode(request, response(28)));
+                IOException failure = new IOException("HTTP exchange failed");
+                exchange.complete(failure);
+
+                // 连接关闭保留交换的具体错误，不交付已经失效的响应。
+                session.closed(new IOException("peer closed after failed exchange"));
+                network.runTasks();
+                assertEquals(1, received.size());
+                assertSame(failure, ((ThrowPayload) received.get(0)).getThrowable());
+                assertSame(failure, request.completion().getCause());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
+    public void cancelledCompleteResponseReleasesItsRuntimeLeaseOnce() throws Exception {
+        // 第二份租约代表同一挂载上的其他会话，当前响应取消不能提前释放它。
+        try (MetContext context = context()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolConfig config = config();
+            String endpoint = context.getSettings().getConnectorConfigs().iterator().next().name();
+            RouteMountIndex routes = new RouteMountIndex(endpoint, config);
+            ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext(context, (action, delay) -> {
+                return () -> true;
+            }, network.getLocal(), true, routes);
+            TripleMountRuntime mount = new TripleMountRuntime(config, routes).retain(context);
+            mount.retain(context);
+            ProtocolSession<HttpExchange> session = new TripleSession( //
+                    runtime, network, (payload, id) -> received.add(payload), mount);
+            try {
+                RequestPayload request = request(25);
+                session.send(request).get(1, TimeUnit.SECONDS);
+                HttpExchange exchange = network.writes.get(0);
+                exchange.respond(codec(context).encode(request, response(25)));
+                exchange.complete(null);
+                session.closed(new IOException("peer closed after response"));
+
+                // 取消结束等待并归还当前租约，重复 closed 不再释放其他会话拥有的租约。
+                CancellationException failure = new CancellationException("caller cancelled before decode");
+                request.complete(failure);
+                session.closed(null);
+                network.runTasks();
+                assertSame(failure, request.completion().getCause());
+                assertTrue(received.isEmpty());
+                assertNotNull(mount.workers());
+                mount.release();
+                assertNull(mount.workers());
+            } finally {
+                session.closed(null);
+                mount.release();
+            }
+        }
+    }
+
+    @Test
+    public void expiredCompleteResponseReleasesItsRuntimeLease() throws Exception {
+        // 完整响应等待解码时，RPC 期限仍由 Caller 管理。
+        try (MetContext context = context()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolConfig config = config();
+            String endpoint = context.getSettings().getConnectorConfigs().iterator().next().name();
+            RouteMountIndex routes = new RouteMountIndex(endpoint, config);
+            ProtocolSessionContext runtime = ProtocolSessionContextTestAccess.newContext(context, (action, delay) -> {
+                return () -> true;
+            }, network.getLocal(), true, routes);
+            TripleMountRuntime mount = new TripleMountRuntime(config, routes).retain(context);
+            ProtocolSession<HttpExchange> session = new TripleSession( //
+                    runtime, network, (payload, id) -> received.add(payload), mount);
+            try {
+                RequestPayload request = request(26);
+                session.send(request).get(1, TimeUnit.SECONDS);
+                HttpExchange exchange = network.writes.get(0);
+                exchange.respond(codec(context).encode(request, response(26)));
+                exchange.complete(null);
+                session.closed(new IOException("peer closed after response"));
+                assertNotNull(mount.workers());
+
+                // Caller 的超时终结会释放最后的 worker 租约，迟到解码不再交付结果。
+                MetTimeoutException failure = new MetTimeoutException("caller deadline before decode");
+                request.complete(failure);
+                network.runTasks();
+                assertSame(failure, request.completion().getCause());
+                assertTrue(received.isEmpty());
+                assertNull(mount.workers());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
     public void responseBeforeWriteFailureIsDeliveredOnlyOnce() throws Exception {
         // 响应先到，物理写入 Future 仍暂不完成。
         try (MetContext context = context()) {
@@ -272,6 +530,116 @@ public class TripleSessionTest {
                 assertEquals(413, response.status());
                 String content = new String(response.body(), StandardCharsets.UTF_8);
                 assertTrue(content.contains("\"status\":8"));
+                assertTrue(received.isEmpty());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
+    public void grpcDataUnaryBodyDecodesAcrossHttpChunks() throws Exception {
+        // 原生 Protobuf 请求在五字节消息头中间分块，正文读取仍经过正式会话链路。
+        try (MetContext context = nativeContext()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = sessionWithConfig( //
+                    context, network, received, false, nativeConfig());
+            try {
+                byte[] frame = HexFormat.of().parseHex( //
+                        "000000001b0a19507974686f6e20547269706c6520e4b8ade6968720f09f9982");
+                HttpExchange exchange = nativeExchange("application/grpc+data", frame);
+                session.receive(exchange);
+                assertTrue(network.awaitTask());
+                network.runTasks();
+
+                // HTTP 分块不改变消息个数，唯一消息按已绑定的 proto 恢复业务参数。
+                assertEquals(1, received.size());
+                RequestPayload request = (RequestPayload) received.get(0);
+                TripleMessage message = (TripleMessage) request.getParameterValues().get(0);
+                assertEquals("Python Triple 中文 🙂", message.getText());
+                assertEquals(0, message.getNumber());
+                assertTrue(network.writes.isEmpty());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
+    public void grpcDataUnaryBodyPreservesAnEmptyProtobufMessage() throws Exception {
+        // 零字节 Protobuf 正文是一条合法默认值消息，不能把五字节空消息头当作 EOF。
+        try (MetContext context = nativeContext()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = sessionWithConfig( //
+                    context, network, received, false, nativeConfig());
+            try {
+                HttpExchange exchange = nativeExchange("application/grpc+data", new byte[5]);
+                session.receive(exchange);
+                assertTrue(network.awaitTask());
+                network.runTasks();
+
+                // 默认值正文依旧交付一次，协议不能静默丢弃有效业务消息。
+                assertEquals(1, received.size());
+                RequestPayload request = (RequestPayload) received.get(0);
+                TripleMessage message = (TripleMessage) request.getParameterValues().get(0);
+                assertEquals("", message.getText());
+                assertEquals(0, message.getNumber());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
+    public void grpcDataUnaryBodyAcceptsThePythonBetaTerminator() throws Exception {
+        // Apache Python Beta 在业务消息后发送五零字节终止标记，完整正文沿用该 SDK 的真实报文。
+        try (MetContext context = nativeContext()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = sessionWithConfig( //
+                    context, network, received, false, nativeConfig());
+            try {
+                byte[] frames = HexFormat.of().parseHex( //
+                        "000000001b0a19507974686f6e20547269706c6520e4b8ade6968720f09f99820000000000");
+                HttpExchange exchange = nativeExchange("application/grpc+data", frames);
+                session.receive(exchange);
+                assertTrue(network.awaitTask());
+                network.runTasks();
+
+                // 限定的 Beta 终止标记不成为第二次业务调用，也不改变唯一业务消息。
+                assertEquals(1, received.size());
+                RequestPayload request = (RequestPayload) received.get(0);
+                TripleMessage message = (TripleMessage) request.getParameterValues().get(0);
+                assertEquals("Python Triple 中文 🙂", message.getText());
+                assertEquals(0, message.getNumber());
+                assertTrue(network.writes.isEmpty());
+            } finally {
+                session.closed(null);
+            }
+        }
+    }
+
+    @Test
+    public void grpcProtoUnaryBodyRejectsThePythonBetaTerminator() throws Exception {
+        // 标准 Protobuf 媒体类型不能沿用 Python Beta 的私有结束标记。
+        try (MetContext context = nativeContext()) {
+            ControlledNetwork network = new ControlledNetwork();
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = sessionWithConfig( //
+                    context, network, received, false, nativeConfig());
+            try {
+                byte[] frames = HexFormat.of().parseHex( //
+                        "000000001b0a19507974686f6e20547269706c6520e4b8ade6968720f09f99820000000000");
+                HttpExchange exchange = nativeExchange("application/grpc+proto", frames);
+                session.receive(exchange);
+                assertTrue(network.awaitTask());
+                network.runTasks();
+
+                // 同样的额外消息在标准链路中保留严格的单消息校验。
+                HttpResponse response = exchange.response().getResult();
+                assertEquals("13", response.trailers().get("grpc-status").get(0));
                 assertTrue(received.isEmpty());
             } finally {
                 session.closed(null);
@@ -749,6 +1117,38 @@ public class TripleSessionTest {
         Flow.Publisher<String> exchange(Flow.Publisher<String> source);
     }
 
+    private static MetContext nativeContext() throws Exception {
+        MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
+        configuration.connector("http").option("httpVersion", 2) //
+                .protocol("triple").contextPath("/triple").option("httpMode", "grpc").option("streamBody", true);
+        MetContext context = configuration.buildContext();
+        GrpcProtoResource resource = new GrpcProtoResource( //
+                TripleSessionTest.class.getResource("/proto/triple-demo.proto"));
+        context.publisher().rsfService(TripleFlowService.class, new TripleFlowServiceImpl()) //
+                .aliasName("triple", "meteor.triple.demo.TripleFlowService") //
+                .serialize("Protobuf").bindResource("triple", resource).register();
+        return context;
+    }
+
+    private static ProtocolConfig nativeConfig() {
+        return ProtocolConfig.newConfig("triple", "triple", Map.of( //
+                "contextPath", "/triple", "httpMode", "grpc", "httpVersion", "2", "streamBody", "true"));
+    }
+
+    private static HttpExchange nativeExchange(String contentType, byte[] frames) throws IOException {
+        // 故意在消息头中间分块，测试不依赖 HTTP DATA 与消息边界对齐。
+        HttpBodyStream body = new HttpBodyStream(1024);
+        body.offer(Arrays.copyOfRange(frames, 0, 2), () -> {
+        });
+        body.offer(Arrays.copyOfRange(frames, 2, frames.length), () -> {
+        });
+        body.finish(Map.of());
+        Map<String, List<String>> headers = Map.of("content-type", List.of(contentType));
+        HttpRequest request = HttpRequest.newStreaming( //
+                "POST", "/triple/meteor.triple.demo.TripleFlowService/echo", headers, body, 2);
+        return new HttpExchange(request);
+    }
+
     private static MetContext context() throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire").setDefaultProtocol("triple");
         configuration.connector("http").protocol("triple").contextPath("/triple").option("httpMode", "json");
@@ -815,11 +1215,11 @@ public class TripleSessionTest {
     }
 
     private static final class ControlledNetwork implements NetworkChannel<HttpExchange> {
-        private final List<HttpExchange> writes      = new ArrayList<>();
-        private final Queue<Runnable>    tasks       = new ConcurrentLinkedQueue<>();
-        private final CountDownLatch     queued      = new CountDownLatch(1);
-        private       BasicFuture<Void>  writeResult = new BasicFuture<>((Void) null);
-        private       int                closes;
+        private final List<HttpExchange>      writes      = new ArrayList<>();
+        private final BlockingQueue<Runnable> tasks       = new LinkedBlockingQueue<>();
+        private final CountDownLatch          queued      = new CountDownLatch(1);
+        private       BasicFuture<Void>       writeResult = new BasicFuture<>((Void) null);
+        private       int                     closes;
 
         @Override
         public InterAddress getLocal() {
@@ -857,6 +1257,12 @@ public class TripleSessionTest {
             while ((task = this.tasks.poll()) != null) {
                 task.run();
             }
+        }
+
+        private void runNextTask() throws InterruptedException {
+            Runnable task = this.tasks.poll(2, TimeUnit.SECONDS);
+            assertNotNull("Expected queued protocol task", task);
+            task.run();
         }
 
         @Override

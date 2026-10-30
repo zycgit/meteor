@@ -83,7 +83,9 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
         String mediaType = contentType == null ? null : contentType.split(";", 2)[0].trim();
         boolean standard = StringUtils.equalsIgnoreCase(mediaType, "application/x-hessian");
         boolean caucho = StringUtils.equalsIgnoreCase(mediaType, "x-application/hessian");
-        if (!standard && !caucho) {
+        // hessiancpp 等旧版 SDK 使用 application/binary，正文仍按 Hessian 协议解码。
+        boolean legacyBinary = StringUtils.equalsIgnoreCase(mediaType, "application/binary");
+        if (!standard && !caucho && !legacyBinary) {
             this.reply(exchange, 415, Map.of(), new byte[0]);
             return;
         }
@@ -134,6 +136,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
 
             return this.failed(this.closeCause);
         }
+
         try {
             if (payload instanceof RequestPayload request && this.outbound) {
                 return this.request(request);
@@ -188,6 +191,7 @@ public final class HessianSession implements ProtocolSession<HttpExchange> {
                 this.fail(call, failure);
             }
         }));
+
         this.write(call);
         return call.sent();
     }

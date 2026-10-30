@@ -549,6 +549,50 @@ public class SoapGeneratedDefinitionResourceTest {
     }
 
     @Test
+    public void generatedSoap12RequiresActionByDefault() throws Exception {
+        // 自动生成 SOAP 1.2 契约，未声明可选 action 配置。
+        ProtocolConfig config = ProtocolConfig.newConfig("soap", "soap", Map.of("soapVersion", "1.2"));
+        ServiceDomain<NamedService> service = this.service(NamedService.class);
+        SoapGeneratedDefinitionResource resource = new SoapGeneratedDefinitionResource( //
+                service, config, SoapXmlMapping.newMapper());
+
+        // 运行定义与公开 WSDL 均保留标准缺省的必填要求。
+        assertTrue(resource.definition().operation("combine").actionRequired());
+        String wsdl = new String(resource.renderWsdl(ENDPOINT), StandardCharsets.UTF_8);
+        assertTrue(wsdl, wsdl.contains("soapActionRequired=\"true\""));
+    }
+
+    @Test
+    public void generatedSoap12CanDeclareOptionalAction() throws Exception {
+        // 通过我方协议配置生成明确允许缺少 action 的 SOAP 1.2 契约。
+        Map<String, String> options = Map.of("soapVersion", "1.2", "soapActionRequired", "false");
+        ProtocolConfig config = ProtocolConfig.newConfig("soap", "soap", options);
+        ServiceDomain<NamedService> service = this.service(NamedService.class);
+        SoapGeneratedDefinitionResource resource = new SoapGeneratedDefinitionResource( //
+                service, config, SoapXmlMapping.newMapper());
+
+        // WSDL 与运行定义采用相同要求，不修改必填契约的解码规则。
+        assertFalse(resource.definition().operation("combine").actionRequired());
+        String wsdl = new String(resource.renderWsdl(ENDPOINT), StandardCharsets.UTF_8);
+        assertTrue(wsdl, wsdl.contains("soapActionRequired=\"false\""));
+    }
+
+    @Test
+    public void soap12OptionalActionOptionDoesNotChangeSoap11() throws Exception {
+        // SOAP 1.1 不使用 SOAP 1.2 的媒体类型 action 可选配置。
+        Map<String, String> options = Map.of("soapVersion", "1.1", "soapActionRequired", "false");
+        ProtocolConfig config = ProtocolConfig.newConfig("soap", "soap", options);
+        ServiceDomain<NamedService> service = this.service(NamedService.class);
+        SoapGeneratedDefinitionResource resource = new SoapGeneratedDefinitionResource( //
+                service, config, SoapXmlMapping.newMapper());
+
+        // SOAPAction 要求保持原样，WSDL 不添加 SOAP 1.2 的属性。
+        assertTrue(resource.definition().operation("combine").actionRequired());
+        String wsdl = new String(resource.renderWsdl(ENDPOINT), StandardCharsets.UTF_8);
+        assertFalse(wsdl, wsdl.contains("soapActionRequired="));
+    }
+
+    @Test
     public void jsonPropertyNamespacesAreRetained() throws Exception {
         // JsonProperty namespace 保留为属性实际的 XML QName。
         ServiceDomain<JsonNamespacedService> service = this.service(JsonNamespacedService.class);

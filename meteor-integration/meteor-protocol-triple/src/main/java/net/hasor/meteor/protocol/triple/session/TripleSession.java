@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.concurrent.future.BasicFuture;
@@ -78,19 +79,36 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
         this.closed = true;
         this.closeCause = cause == null ? new IOException("Triple session closed") : cause;
         this.ready.failed(this.closeCause);
+        Map<RequestPayload, HttpBodyStream> received = new HashMap<>();
         try {
+            // 已完整接收的普通响应继续解码，其正文不能因物理连接关闭而被丢弃。
+            List<Tuple> closing = new ArrayList<>(this.pending.values());
+            if (this.context.isOutbound()) {
+                for (Tuple item : closing) {
+                    HttpResponse response = this.completeResponse(item.getArg0());
+                    if (response != null) {
+                        received.put(item.getArg1(), response.stream());
+                    }
+                }
+            }
+
             for (TripleStreamingCall call : new ArrayList<>(this.streams.values())) {
                 call.fail(this.closeCause);
             }
+
             for (HttpBodyStream body : new ArrayList<>(this.bodies)) {
-                body.fail(this.closeCause);
+                if (!received.containsValue(body)) {
+                    body.fail(this.closeCause);
+                }
             }
+
             this.bodies.clear();
-            List<Tuple> closing = new ArrayList<>(this.pending.values());
             this.pending.clear();
             for (Tuple item : closing) {
                 RequestPayload request = item.getArg1();
-                if (this.context.isOutbound()) {
+                if (received.containsKey(request)) {
+                    continue;
+                } else if (this.context.isOutbound()) {
                     HttpExchange exchange = item.getArg0();
                     Throwable failure = exchange.completion().getCause();
                     this.responseFailed(request, failure == null ? this.closeCause : failure);
@@ -99,8 +117,34 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
                 }
             }
         } finally {
-            this.runtime.release();
+            // 完整响应仍受 Caller 的取消和期限约束，最后一条终结后归还本会话的 worker 租约。
+            if (received.isEmpty()) {
+                this.runtime.release();
+            } else {
+                AtomicInteger remaining = new AtomicInteger(received.size());
+                for (RequestPayload request : received.keySet()) {
+                    request.completion().onFinal(done -> {
+                        if (remaining.decrementAndGet() == 0) {
+                            this.runtime.release();
+                        }
+                    });
+                }
+            }
         }
+    }
+
+    private HttpResponse completeResponse(HttpExchange exchange) {
+        Future<HttpResponse> response = exchange.response();
+        if (!response.isDone() || response.getCause() != null || exchange.completion().getCause() != null) {
+            return null;
+        }
+
+        HttpResponse complete = response.getResult();
+        HttpBodyStream body = complete.stream();
+        if (body != null && (!body.inputEnded() || body.completion().getCause() != null)) {
+            return null;
+        }
+        return complete;
     }
 
     public void receive(HttpExchange exchange) {
@@ -108,6 +152,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
             this.closeExchange(exchange);
             return;
         }
+
         try {
             RequestPayload request = this.codec.open(exchange.request());
             request.setRequestID(++this.requestId);
@@ -117,6 +162,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
                 this.resolveRequest(exchange, request);
                 return;
             }
+
             if (resolve) {
                 this.codec.readRequest(request, unaryInput);
                 unaryInput = null;
@@ -133,6 +179,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
                     request.complete(failure);
                     this.reject(exchange, this.codec.error(exchange.request(), failure), failure);
                 }));
+
                 try {
                     HttpBodyStream body = exchange.request().stream();
                     this.executeBody(body, () -> this.receiveUnaryBody(exchange, request, reading));
@@ -154,6 +201,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
             request.complete(failure);
             this.reject(exchange, this.codec.error(exchange.request(), failure), failure);
         }));
+
         HttpBodyStream body = exchange.request().stream();
         try {
             this.executeBody(body, () -> this.readFirstRequest(exchange, request, reading));
@@ -180,6 +228,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
                 });
                 return;
             }
+
             byte[] extra = this.codec.readMessage(input.stream(), input.header("grpc-encoding"));
             if (first == null || extra != null) {
                 throw new IOException("Triple method requires exactly one request message");
@@ -236,7 +285,9 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
         Cancellable deadline = this.context.schedule(() -> {
             reading.failed(new MetTimeoutException("Triple request body deadline exceeded"));
         }, remaining);
-        reading.onFinal(done -> deadline.cancel());
+        reading.onFinal(done -> {
+            deadline.cancel();
+        });
         reading.onCompleted(done -> {
             // Caller 从接收业务开始计时，因此交付前扣除已消费的正文读取期限。
             long consumed = System.currentTimeMillis() - request.getReceiveTime();
@@ -257,6 +308,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
             if (input != null) {
                 this.codec.readRequest(request, input);
             }
+
             long id = request.getRequestID();
             Tuple item = Tuple.of(exchange, request);
             this.pending.put(id, item);
@@ -289,6 +341,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
             sent.failed(this.closeCause);
             return sent;
         }
+
         try {
             if (payload instanceof RequestPayload request && this.context.isOutbound()) {
                 if (request.isMessage()) {
@@ -340,6 +393,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
         if (request.completion().isDone()) {
             throw new CancellationException("RPC already completed");
         }
+
         TripleStreamingCall call = this.stream(request, this.messages);
         HttpRequest message = this.codec.streamRequest(request, call.output());
         HttpExchange exchange = new HttpExchange(message);
@@ -356,11 +410,11 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
         call.startRequest();
     }
 
-    private void receiveStream(HttpExchange exchange, RequestPayload request, //
-            byte[] firstMessage, BasicFuture<Void> prefetched) {
+    private void receiveStream(HttpExchange exchange, RequestPayload request, byte[] firstMessage, BasicFuture<Void> prefetched) {
         if (exchange.request().stream() == null) {
             throw new IllegalArgumentException("Configure streamBody=true on the Triple protocol mount");
         }
+
         TripleMethodShape method = this.codec.shape(request);
         BasicFuture<Void> reading = prefetched == null ? new BasicFuture<>() : prefetched;
         TripleStreamingCall call = this.stream(request, (payload, id) -> {
@@ -368,6 +422,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
                 this.messages.accept(payload, id);
             }
         });
+
         call.attach(exchange, response -> {
             try {
                 if (exchange.respond(response)) {
@@ -379,6 +434,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
                 call.fail(failure);
             }
         });
+
         if (prefetched == null && !method.streamingRequest()) {
             this.readDeadline(request, reading, call::receiveFailure);
         }
@@ -407,14 +463,17 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
             if (request.completion().isDone()) {
                 return;
             }
+
             if (done.getCause() != null) {
                 this.responseFailed(request, done.getCause());
                 return;
             }
-            if (this.closed) {
+
+            if (this.closed && this.completeResponse(exchange) == null) {
                 this.responseFailed(request, this.closeCause);
                 return;
             }
+
             HttpResponse response = done.getResult();
             try {
                 if (response.stream() == null) {
@@ -481,12 +540,10 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
     }
 
     private void decodeResponse(RequestPayload request, HttpResponse input) {
-        if (this.closed) {
-            this.responseFailed(request, this.closeCause);
-            return;
-        } else if (request.completion().isDone()) {
+        if (request.completion().isDone()) {
             return;
         }
+
         try {
             ResponsePayload response = this.codec.decode(request, input);
             if (request.completion().isDone()) {
@@ -518,6 +575,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
             sent.failed(new IllegalStateException("HTTP response has no pending request on this channel"));
             return;
         }
+
         RequestPayload request = item.getArg1();
         if (request.completion().isDone()) {
             Throwable failure = request.completion().getCause();
@@ -527,6 +585,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
             sent.failed(failure);
             return;
         }
+
         if (response.getStatus() == ProtocolStatus.Accept) {
             sent.completed(null);
             return;
@@ -554,6 +613,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
             sent.failed(failure);
             return;
         }
+
         Future<Void> writing = this.connection.write(exchange);
         writing.onFailed(done -> {
             request.complete(done.getCause());
@@ -605,6 +665,7 @@ public final class TripleSession implements ProtocolSession<HttpExchange> {
         for (TripleStreamingCall call : new ArrayList<>(this.streams.values())) {
             call.fail(new IOException("HTTP connector closing"));
         }
+
         // 入站调用先回送关闭错误；出站调用取消交换，不关闭借用的物理连接。
         List<Tuple> unanswered = new ArrayList<>(this.pending.values());
         this.pending.clear();

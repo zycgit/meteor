@@ -211,22 +211,29 @@ public final class DubboCodec {
         request.setTargetMethod(selected.getName());
         request.setSerializeType("Hessian2");
         copyAttachments(attachments, request);
+        // 响应能力由请求首字段声明，附加项不能覆盖协商的协议版本。
+        request.addOption("dubbo", dubboVersion);
         request.removeOption("dubbo.binary.generic");
         if (generic) {
             request.addOption("dubbo.binary.generic", "true");
         }
+
         String timeout = text(attachments.get("timeout"));
         if (timeout != null) {
             try {
                 int millis = Integer.parseInt(timeout);
-                if (millis <= 0) {
-                    throw new NumberFormatException("not positive");
+                if (millis < 0) {
+                    throw new NumberFormatException("negative timeout");
                 }
-                request.setClientTimeout(millis);
+                // 旧 Dubbo-Go 将毫秒误作纳秒后写出 0；未声明有效期限时沿用服务端默认值。
+                if (millis > 0) {
+                    request.setClientTimeout(millis);
+                }
             } catch (NumberFormatException failure) {
                 throw new IOException("Invalid Dubbo timeout", failure);
             }
         }
+
         for (int index = 0; index < values.length; index++) {
             request.addParameter(types[index].getName(), values[index]);
         }
@@ -239,24 +246,30 @@ public final class DubboCodec {
         if (failure == null && response.getStatus() != ProtocolStatus.OK) {
             return this.error(incoming.getRequestID(), status(response.getStatus()), response.getOption("message"));
         }
+
         DubboBoundedOutputStream bytes = new DubboBoundedOutputStream(this.maximum);
         Hessian2Output output = this.output(bytes);
         Object value = response.getReturnData();
         if (value != null && StringUtils.equals(incoming.getOption("dubbo.binary.generic"), "true")) {
             value = generalize(value);
         }
+
+        boolean attach = supportsResponseAttachments(incoming.getOption("dubbo"));
         if (failure != null) {
-            output.writeInt(3);
+            output.writeInt(attach ? 3 : 0);
             output.writeObject(failure);
         } else if (value == null) {
-            output.writeInt(5);
+            output.writeInt(attach ? 5 : 2);
         } else {
-            output.writeInt(4);
+            output.writeInt(attach ? 4 : 1);
             output.writeObject(value);
         }
-        Map<String, Object> attachments = attachments(response);
-        attachments.put("dubbo", VERSION);
-        output.writeObject(attachments);
+
+        if (attach) {
+            Map<String, Object> attachments = attachments(response);
+            attachments.put("dubbo", VERSION);
+            output.writeObject(attachments);
+        }
         output.flush();
         return this.frame((byte) 2, (byte) 20, incoming.getRequestID(), bytes.toByteArray());
     }
@@ -266,6 +279,7 @@ public final class DubboCodec {
         if (frame.requestId() != outgoing.getRequestID()) {
             throw new IOException("Dubbo response request ID differs from pending request");
         }
+
         Hessian2Input input = this.input(frame.body());
         ResponsePayload response = new ResponsePayload();
         response.setRequestID(frame.requestId());
@@ -273,7 +287,7 @@ public final class DubboCodec {
         response.setSerializeType("Hessian2");
         if (frame.status() != 20) {
             String message = input.readString();
-            this.end(input);
+            this.endResponse(input);
             response.setStatus(protocolStatus(frame.status()));
             response.addOption("message", message);
             response.setFailure(new IOException(message));
@@ -285,6 +299,7 @@ public final class DubboCodec {
         if (flag < 0 || flag > 5) {
             throw new IOException("Unknown Dubbo response value flag: " + flag);
         }
+
         Method method = this.method(this.service(outgoing), outgoing);
         boolean exceptional = flag == 0 || flag == 3;
         boolean hasValue = flag == 1 || flag == 4;
@@ -305,10 +320,11 @@ public final class DubboCodec {
             response.setReturnType(method.getReturnType().getName());
             response.setReturnData(value);
         }
+
         if (flag >= 3) {
             copyAttachments(this.readAttachments(input), response);
         }
-        this.end(input);
+        this.endResponse(input);
         return response;
     }
 
@@ -318,9 +334,14 @@ public final class DubboCodec {
         if (!frame.event()) {
             throw new IOException("Expected Dubbo event frame");
         }
+
         Hessian2Input input = this.input(frame.body());
         Object value = input.readObject();
-        this.end(input);
+        if (frame.request()) {
+            this.end(input);
+        } else {
+            this.endResponse(input);
+        }
         return value;
     }
 
@@ -351,6 +372,7 @@ public final class DubboCodec {
         if (body.length > this.maximum) {
             throw new IOException("Dubbo body exceeds configured maxFrameSize");
         }
+
         DubboHessianValueGuard.validate(body);
         ByteBuffer output = ByteBuffer.allocate(16 + body.length);
         output.putShort((short) 0xdabb);
@@ -405,6 +427,48 @@ public final class DubboCodec {
     private void end(Hessian2Input input) throws IOException {
         if (input.read() != -1) {
             throw new IOException("Unexpected trailing Dubbo Hessian values");
+        }
+    }
+
+    private void endResponse(Hessian2Input input) throws IOException {
+        // Dubbo-Go 在完整响应后额外写一个 Hessian NULL；仅接受该单字节终止标记。
+        int trailing = input.read();
+        if (trailing == -1) {
+            return;
+        }
+        if (trailing != 'N') {
+            throw new IOException("Unexpected trailing Dubbo Hessian values");
+        }
+        this.end(input);
+    }
+
+    private static boolean supportsResponseAttachments(String version) {
+        if (StringUtils.isEmpty(version)) {
+            return false;
+        }
+
+        // Apache Dubbo 协议版本 2.0.2..2.0.99 支持响应附加项；旧 SDK 发行版不属于该区间。
+        String[] parts = version.split("\\.");
+        if (parts.length < 3 || parts.length > 4) {
+            return false;
+        }
+
+        try {
+            int number = 0;
+            for (String part : parts) {
+                int length = 0;
+                while (length < part.length() && part.charAt(length) >= '0' && part.charAt(length) <= '9') {
+                    length++;
+                }
+                int component = Integer.parseInt(part.substring(0, length));
+                number = Math.addExact(Math.multiplyExact(number, 100), component);
+            }
+            if (parts.length == 3) {
+                number = Math.multiplyExact(number, 100);
+            }
+            return number >= 2000200 && number <= 2009900;
+        } catch (NumberFormatException | ArithmeticException failure) {
+            return false;
         }
     }
 

@@ -415,6 +415,39 @@ public class TripleHttpCodecTest {
     }
 
     @Test
+    public void grpcDataRequestDoesNotGuessPojoWrapperEncoding() throws Exception {
+        // 无 proto 的 Java 服务使用 Hessian wrapper，不能猜测通用 data 正文的契约。
+        try (MetContext context = this.configuration().buildContext()) {
+            this.publishPojo(context, "Hessian2");
+            TripleHttpCodec codec = this.codec(context, Map.of());
+            HttpRequest input = this.input("echo", "application/grpc+data", "", 2, Map.of());
+
+            // 缺少原生 Protobuf 定义时，别名不能绕过 wrapper 的媒体检查。
+            GrpcStatusException failure = assertThrows(GrpcStatusException.class, () -> codec.open(input));
+            assertEquals(12, failure.getCode());
+        }
+    }
+
+    @Test
+    public void grpcDataResponseDoesNotReplacePojoWrapperEncoding() throws Exception {
+        // POJO 请求需要原来的 Hessian wrapper，不继承原生 Protobuf 的别名兼容。
+        try (MetContext context = this.configuration().buildContext()) {
+            MetBindInfo<TripleDemoService> service = this.publishPojo(context, "Hessian2");
+            TripleHttpCodec codec = this.codec(context, Map.of());
+            RequestPayload request = this.payload(service, "greet");
+            request.addParameter(String.class.getName(), "hello");
+            request.addParameter("int", 1);
+            Map<String, List<String>> headers = Map.of("content-type", List.of("application/grpc+data"));
+            Map<String, List<String>> trailers = Map.of("grpc-status", List.of("0"));
+            HttpResponse input = HttpResponse.newBuffered(200, headers, new byte[0], trailers);
+
+            // 在解析正文之前拒绝响应编码变化。
+            GrpcStatusException failure = assertThrows(GrpcStatusException.class, () -> codec.decode(request, input));
+            assertEquals(13, failure.getCode());
+        }
+    }
+
+    @Test
     public void unknownContentTypeIsRejected() throws Exception {
         // 准备普通 Java 提供者与独立的协议编解码器。
         try (MetContext context = this.configuration().buildContext()) {

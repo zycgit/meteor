@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.triple.codec;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
@@ -297,9 +298,47 @@ public final class TripleHttpCodec {
     }
 
     public void readRequest(RequestPayload request, HttpRequest input) throws Exception {
-        byte[] bytes = this.framed(request) ? this.frames.unframe(input.body(), input.header("grpc-encoding")) //
-                : this.frames.decompress(input.body(), input.header("content-encoding"));
+        byte[] bytes;
+        if (this.framed(request)) {
+            bytes = this.readRequestMessage(request, input);
+        } else {
+            bytes = this.frames.decompress(input.body(), input.header("content-encoding"));
+        }
         this.decodeRequestValue(request, bytes);
+    }
+
+    private byte[] readRequestMessage(RequestPayload request, HttpRequest input) throws IOException {
+        // 标准调用和流式方法保持单消息解帧；Beta 方言只用于已有 proto 的普通 Protobuf 请求。
+        String encoding = input.header("grpc-encoding");
+        boolean protobuf = StringUtils.equals(request.getSerializeType(), "Protobuf") && !this.wrapped(request);
+        boolean dataMedia = StringUtils.equals(media(input.header("content-type")), "application/grpc+data");
+        if (!protobuf || !dataMedia || this.shape(request).streaming()) {
+            return this.frames.unframe(input.body(), encoding);
+        }
+
+        // Apache Python 3.0.0b1 将 done_writing 编码为额外的五零字节帧，且该帧必须位于正文末尾。
+        ByteArrayInputStream body = new ByteArrayInputStream(input.body());
+        byte[] message = this.frames.readMessage(body, encoding);
+        if (message == null) {
+            throw status(13, "Expected exactly one Triple message");
+        }
+
+        int remaining = body.available();
+        if (remaining == 0) {
+            return message;
+        }
+
+        if (remaining == 5) {
+            boolean terminator = true;
+            while (body.available() > 0) {
+                terminator &= body.read() == 0;
+            }
+
+            if (terminator) {
+                return message;
+            }
+        }
+        throw status(13, "Expected exactly one Triple message");
     }
 
     /** wrapper 自带参数签名；先选择已发布的方法，再按其真实类型反序列化。 */
@@ -563,7 +602,10 @@ public final class TripleHttpCodec {
         boolean grpcMedia = StringUtils.equals(media, "application/grpc");
         boolean protobuf = StringUtils.equals(expected, "application/grpc+proto");
         boolean implicitProto = grpcMedia && protobuf;
-        if (!implicitProto && !StringUtils.equals(media, expected)) {
+        // Python SDK 的 +data 携带原生消息，仅允许已绑定 proto 的 Protobuf 调用使用该别名。
+        boolean protobufData = protobuf && !this.wrapped(request) //
+                && StringUtils.equals(media, "application/grpc+data");
+        if (!implicitProto && !protobufData && !StringUtils.equals(media, expected)) {
             throw status(13, "Triple response content-type differs from request");
         }
         encoding(input.header(this.framed(request) ? "grpc-encoding" : "content-encoding"));
@@ -929,7 +971,11 @@ public final class TripleHttpCodec {
         if (StringUtils.equals(type, "application/grpc+json")) {
             return "Json";
         }
-        if (StringUtils.equals(type, "application/grpc+proto") || StringUtils.equals(type, "application/grpc")) {
+        // 此分支已经取得 proto 定义，SDK 的通用 +data 正文按该定义恢复原生 Protobuf。
+        boolean protobuf = StringUtils.equals(type, "application/grpc+proto") //
+                || StringUtils.equals(type, "application/grpc") //
+                || StringUtils.equals(type, "application/grpc+data");
+        if (protobuf) {
             return "Protobuf";
         }
         throw new TripleHttpStatusException(415, "Unsupported Triple content-type: " + type);

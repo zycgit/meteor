@@ -66,6 +66,10 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         Set<String> names = new HashSet<>();
         Set<String> wrappers = new HashSet<>();
         List<SoapOperation> operations = new ArrayList<>();
+        boolean actionRequired = true;
+        if (version == SoapVersion.SOAP_12) {
+            actionRequired = Boolean.parseBoolean(config.option("soapActionRequired", "true"));
+        }
 
         for (Method method : methods) {
             String name = MetRuntimeUtils.getProtocolMethodName(method);
@@ -90,7 +94,7 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
             SoapBody output = oneWay ? null //
                     : this.generatedBody(schemaGenerator, namespace, method, true, version, wrappers);
             String action = namespace + "/" + name;
-            operations.add(new SoapOperation(name, action, this.style, input, output, true, //
+            operations.add(new SoapOperation(name, action, this.style, input, output, actionRequired, //
                     List.of(), List.of(), Map.of()));
         }
         if (operations.isEmpty()) {

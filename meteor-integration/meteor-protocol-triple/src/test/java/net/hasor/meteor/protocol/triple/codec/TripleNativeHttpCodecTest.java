@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.triple.codec;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -155,6 +156,198 @@ public class TripleNativeHttpCodecTest {
     }
 
     @Test
+    public void grpcDataRequestUsesBoundProtobufMessage() throws Exception {
+        // Python SDK 用 +data 标记标准 gRPC 帧，消息形状仍由已绑定的 proto 决定。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            GrpcProtoResource resource = this.resource();
+            this.publish(context, "Protobuf", resource);
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            byte[] value = this.message(this.method(resource).getInputType(), "python", 6).toByteArray();
+            HttpRequest input = this.input("application/grpc+data", this.frame(value), 2);
+
+            // 别名只选择原生 Protobuf 解码，不把正文当成 Hessian wrapper 或 JSON。
+            RequestPayload request = codec.open(input);
+            codec.readRequest(request, input);
+            assertEquals("Protobuf", request.getSerializeType());
+            assertFalse(codec.wrapped(request));
+            this.assertDto(request.getParameterValues().get(0), "python", 6);
+        }
+    }
+
+    @Test
+    public void grpcDataRequestReturnsCanonicalProtobufMediaType() throws Exception {
+        // 请求接受 SDK 别名，成功响应仍使用对端同样接受的标准 Protobuf 媒体类型。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            GrpcProtoResource resource = this.resource();
+            this.publish(context, "Protobuf", resource);
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            byte[] value = this.message(this.method(resource).getInputType(), "request", 1).toByteArray();
+            HttpRequest input = this.input("application/grpc+data", this.frame(value), 2);
+            RequestPayload request = codec.open(input);
+            codec.readRequest(request, input);
+
+            // 独立解帧和 Protobuf 解析确认响应没有引入额外包装。
+            HttpResponse encoded = codec.encode(request, this.success(TripleMessage.of("reply", 2)));
+            DynamicMessage message = DynamicMessage.parseFrom(this.method(resource).getOutputType(), //
+                    this.unframe(encoded.body()));
+            assertEquals("application/grpc+proto", encoded.header("content-type"));
+            this.assertMessage(message, "reply", 2);
+        }
+    }
+
+    @Test
+    public void grpcDataRequestAcceptsAnEmptyMessageBeforeTheBetaTerminator() throws Exception {
+        // 默认值请求本身也可为空消息，第二个空帧仅在完整正文末尾充当 Beta 结束标记。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            this.publish(context, "Protobuf", this.resource());
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            byte[] body = this.concatenate(this.frame(new byte[0]), this.frame(new byte[0]));
+            HttpRequest input = this.input("application/grpc+data", body, 2);
+
+            // 首条消息仍按正式 proto 映射，不能因为它为空而漏掉业务参数。
+            RequestPayload request = codec.open(input);
+            codec.readRequest(request, input);
+            assertEquals(1, request.getParameterValues().size());
+            TripleMessage message = (TripleMessage) request.getParameterValues().get(0);
+            assertEquals("", message.getText());
+            assertEquals(0, message.getNumber());
+        }
+    }
+
+    @Test
+    public void grpcDataRequestRejectsANonEmptySecondMessage() throws Exception {
+        // +data 的兼容分支不接受第二条业务消息。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            GrpcProtoResource resource = this.resource();
+            this.publish(context, "Protobuf", resource);
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            byte[] value = this.message(this.method(resource).getInputType(), "first", 1).toByteArray();
+            byte[] body = this.concatenate(this.frame(value), this.frame(value));
+            HttpRequest input = this.input("application/grpc+data", body, 2);
+            RequestPayload request = codec.open(input);
+
+            // 原有 unary 消息数量约束仍报告 INTERNAL，且没有交付部分参数。
+            GrpcStatusException failure = assertThrows(GrpcStatusException.class, //
+                    () -> codec.readRequest(request, input));
+            assertEquals(13, failure.getCode());
+            assertTrue(request.getParameterValues().isEmpty());
+        }
+    }
+
+    @Test
+    public void grpcDataRequestRejectsAThirdMessageAfterTheBetaTerminator() throws Exception {
+        // 首业务帧后跟两个空帧，不能把多个空消息都当成结束标记。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            GrpcProtoResource resource = this.resource();
+            this.publish(context, "Protobuf", resource);
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            byte[] value = this.message(this.method(resource).getInputType(), "first", 1).toByteArray();
+            byte[] body = this.concatenate(this.frame(value), this.frame(new byte[0]), this.frame(new byte[0]));
+            HttpRequest input = this.input("application/grpc+data", body, 2);
+            RequestPayload request = codec.open(input);
+
+            // 只接受恰好一个末尾标记，不能截断完整正文。
+            GrpcStatusException failure = assertThrows(GrpcStatusException.class, //
+                    () -> codec.readRequest(request, input));
+            assertEquals(13, failure.getCode());
+        }
+    }
+
+    @Test
+    public void grpcDataRequestRejectsACompressedEmptyTerminator() throws Exception {
+        // 压缩位不为零的五字节空帧不是该 SDK 的结束标记。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            GrpcProtoResource resource = this.resource();
+            this.publish(context, "Protobuf", resource);
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            byte[] value = this.message(this.method(resource).getInputType(), "first", 1).toByteArray();
+            byte[] body = this.concatenate(this.frame(value), new byte[] { 1, 0, 0, 0, 0 });
+            Map<String, List<String>> headers = Map.of( //
+                    "content-type", List.of("application/grpc+data"), "grpc-encoding", List.of("gzip"));
+            HttpRequest input = HttpRequest.newBuffered("POST", "/rpc/" + ALIAS + "/echo", headers, body, 2, Map.of());
+            RequestPayload request = codec.open(input);
+
+            // 即使已经声明 gzip，也不将压缩空帧静默解释成 EOF。
+            GrpcStatusException failure = assertThrows(GrpcStatusException.class, //
+                    () -> codec.readRequest(request, input));
+            assertEquals(13, failure.getCode());
+        }
+    }
+
+    @Test
+    public void grpcDataRequestRejectsAnEmptyMessageInTheMiddle() throws Exception {
+        // 空帧后继续出现业务消息，说明该空帧并非正文末尾的结束标记。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            GrpcProtoResource resource = this.resource();
+            this.publish(context, "Protobuf", resource);
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            byte[] value = this.message(this.method(resource).getInputType(), "last", 1).toByteArray();
+            byte[] body = this.concatenate(this.frame(value), this.frame(new byte[0]), this.frame(value));
+            HttpRequest input = this.input("application/grpc+data", body, 2);
+            RequestPayload request = codec.open(input);
+
+            // 不能忽略任意位置的空帧，也不能只读取第一条业务消息。
+            GrpcStatusException failure = assertThrows(GrpcStatusException.class, //
+                    () -> codec.readRequest(request, input));
+            assertEquals(13, failure.getCode());
+        }
+    }
+
+    @Test
+    public void grpcDataResponseRejectsTheRequestOnlyBetaTerminator() throws Exception {
+        // Python Beta 的特例仅作用于请求，响应仍必须恰好包含一条业务消息。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            GrpcProtoResource resource = this.resource();
+            MetBindInfo<Unary> service = this.publish(context, "Protobuf", resource);
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            RequestPayload request = this.request(service, TripleMessage.of("request", 1));
+            byte[] value = this.message(this.method(resource).getOutputType(), "reply", 2).toByteArray();
+            byte[] body = this.concatenate(this.frame(value), this.frame(new byte[0]));
+            HttpResponse input = this.response("application/grpc+data", body, Map.of("grpc-status", List.of("0")));
+
+            // 编码别名不放宽成功响应的消息数量约束。
+            GrpcStatusException failure = assertThrows(GrpcStatusException.class, () -> codec.decode(request, input));
+            assertEquals(13, failure.getCode());
+        }
+    }
+
+    @Test
+    public void grpcDataStreamingMethodRejectsTheUnaryBetaTerminator() throws Exception {
+        // 带响应流的方法不能借用普通调用的 Beta 结束标记兼容分支。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            GrpcProtoResource resource = this.resource();
+            context.publisher().rsfService(TripleFlowService.class, new TripleFlowServiceImpl()) //
+                    .aliasName("triple", ALIAS).serialize("Protobuf").bindResource("triple", resource).register();
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            byte[] value = this.message(this.method(resource).getInputType(), "count", 1).toByteArray();
+            byte[] body = this.concatenate(this.frame(value), this.frame(new byte[0]));
+            Map<String, List<String>> headers = Map.of("content-type", List.of("application/grpc+data"));
+            HttpRequest input = HttpRequest.newBuffered("POST", "/rpc/" + ALIAS + "/count", headers, body, 2, Map.of());
+            RequestPayload request = codec.open(input);
+
+            // 普通解码入口对流式签名同样保留严格消息数量，流读取器自身不作特殊处理。
+            GrpcStatusException failure = assertThrows(GrpcStatusException.class, //
+                    () -> codec.readRequest(request, input));
+            assertEquals(13, failure.getCode());
+        }
+    }
+
+    @Test
+    public void grpcNativeRequestRejectsUnknownMediaSuffix() throws Exception {
+        // 有 proto 绑定也不能接受未约定的任意 gRPC 消息编码。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            this.publish(context, "Protobuf", this.resource());
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            HttpRequest input = this.input("application/grpc+unknown", this.frame(new byte[0]), 2);
+
+            // 在正文解码前保留明确的 HTTP 415。
+            TripleHttpStatusException failure = assertThrows(TripleHttpStatusException.class, //
+                    () -> codec.open(input));
+            assertEquals(415, failure.getHttpStatus());
+        }
+    }
+
+    @Test
     public void grpcProtobufResponseContainsOneNativeFrame() throws Exception {
         // 正常响应使用描述符对应的输出消息以及 gRPC 成功 trailer。
         try (MetContext context = this.configuration("grpc").buildContext()) {
@@ -187,6 +380,56 @@ public class TripleNativeHttpCodecTest {
             // 收到成功 trailer 后恢复唯一返回值。
             ResponsePayload decoded = codec.decode(request, input);
             this.assertDto(decoded.getReturnData(), "reply", 4);
+        }
+    }
+
+    @Test
+    public void grpcDataResponseDecodesBoundProtobufMessage() throws Exception {
+        // 请求使用标准 Protobuf，Python SDK 成功响应使用相同帧和正文的 +data 别名。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            GrpcProtoResource resource = this.resource();
+            MetBindInfo<Unary> service = this.publish(context, "Protobuf", resource);
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            RequestPayload request = this.request(service, TripleMessage.of("request", 1));
+            byte[] value = this.message(this.method(resource).getOutputType(), "python", 4).toByteArray();
+            Map<String, List<String>> trailers = Map.of("grpc-status", List.of("0"));
+            HttpResponse input = this.response("application/grpc+data", this.frame(value), trailers);
+
+            // 消费端继续按原请求的 proto 输出描述恢复 DTO。
+            ResponsePayload decoded = codec.decode(request, input);
+            this.assertDto(decoded.getReturnData(), "python", 4);
+        }
+    }
+
+    @Test
+    public void grpcJsonRequestRejectsDataResponse() throws Exception {
+        // +data 不是 JSON 的别名，不能改变调用方已选择的 ProtoJSON 编码。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            MetBindInfo<Unary> service = this.publish(context, "Json", this.resource());
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            RequestPayload request = this.request(service, TripleMessage.of("request", 1));
+            Map<String, List<String>> trailers = Map.of("grpc-status", List.of("0"));
+            HttpResponse input = this.response("application/grpc+data", this.frame(new byte[0]), trailers);
+
+            // 编码不匹配仍返回协议错误，不能依赖正文恰好能被另一种解析器读取。
+            GrpcStatusException failure = assertThrows(GrpcStatusException.class, () -> codec.decode(request, input));
+            assertEquals(13, failure.getCode());
+        }
+    }
+
+    @Test
+    public void grpcProtobufRequestRejectsUnknownResponseMediaSuffix() throws Exception {
+        // 已绑定 Protobuf 也只接受明确支持的响应媒体类型。
+        try (MetContext context = this.configuration("grpc").buildContext()) {
+            MetBindInfo<Unary> service = this.publish(context, "Protobuf", this.resource());
+            TripleHttpCodec codec = this.codec(context, "grpc");
+            RequestPayload request = this.request(service, TripleMessage.of("request", 1));
+            Map<String, List<String>> trailers = Map.of("grpc-status", List.of("0"));
+            HttpResponse input = this.response("application/grpc+unknown", this.frame(new byte[0]), trailers);
+
+            // 未知 suffix 不能因为共享 application/grpc 前缀而被放行。
+            GrpcStatusException failure = assertThrows(GrpcStatusException.class, () -> codec.decode(request, input));
+            assertEquals(13, failure.getCode());
         }
     }
 
@@ -525,6 +768,14 @@ public class TripleNativeHttpCodecTest {
 
     private byte[] frame(byte[] body) {
         return ByteBuffer.allocate(body.length + 5).put((byte) 0).putInt(body.length).put(body).array();
+    }
+
+    private byte[] concatenate(byte[]... frames) {
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        for (byte[] frame : frames) {
+            body.writeBytes(frame);
+        }
+        return body.toByteArray();
     }
 
     private byte[] unframe(byte[] body) {

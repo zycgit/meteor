@@ -791,6 +791,60 @@ public class HessianSessionTest {
     }
 
     @Test
+    public void legacyBinaryMediaTypeReceivesHessianOneReply() throws Throwable {
+        // 旧版 C++ SDK 使用 application/binary 提交 Hessian 1 调用。
+        try (MetContext context = context()) {
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, new MemoryNetwork(), received, false);
+            byte[] body = call(1).request().body();
+            HttpExchange exchange = exchange("POST", "/rpc/demo", "application/binary", body);
+
+            session.receive(exchange);
+            assertEquals(1, received.size());
+            RequestPayload request = (RequestPayload) received.get(0);
+            assertEquals("echo", request.getTargetMethod());
+            assertEquals(List.of("value"), request.getParameterValues());
+
+            // 媒体类型兼容后仍由请求版本决定响应格式。
+            session.send(reply(request.getRequestID(), "legacy")).get(1, TimeUnit.SECONDS);
+            HttpResponse response = exchange.response().getResult();
+            assertEquals(200, response.status());
+            assertEquals("legacy", readReply(response.body()));
+        }
+    }
+
+    @Test
+    public void legacyBinaryMediaTypeAllowsCaseAndParameters() throws Exception {
+        // HTTP 媒体类型忽略大小写，参数不影响 Hessian 路由。
+        try (MetContext context = context()) {
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, new MemoryNetwork(), received, false);
+            byte[] body = call(1).request().body();
+            String contentType = "Application/Binary; charset=UTF-8";
+            HttpExchange exchange = exchange("POST", "/rpc/demo", contentType, body);
+
+            session.receive(exchange);
+            assertEquals(1, received.size());
+            assertFalse(exchange.response().isDone());
+        }
+    }
+
+    @Test
+    public void genericBinaryMediaTypeProducesHttp415() throws Exception {
+        // 只兼容明确使用过的 Hessian 媒体类型，不接受任意二进制上传。
+        try (MetContext context = context()) {
+            List<Payload> received = new ArrayList<>();
+            ProtocolSession<HttpExchange> session = session(context, new MemoryNetwork(), received, false);
+            byte[] body = call(1).request().body();
+            HttpExchange exchange = exchange("POST", "/rpc/demo", "application/octet-stream", body);
+
+            session.receive(exchange);
+            assertEquals(415, exchange.response().getResult().status());
+            assertTrue(received.isEmpty());
+        }
+    }
+
+    @Test
     public void unknownMountProducesHttp404() throws Exception {
         // 配置挂载范围外的 URL 不暴露服务。
         try (MetContext context = context()) {
