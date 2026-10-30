@@ -1,0 +1,11 @@
+plugins {
+    id 'java'
+}
+
+description = 'Apache Thrift SDK examples'
+
+dependencies {
+    implementation project(':peer:java:contracts')
+    implementation "org.apache.thrift:libthrift:${property('lib.thrift')}"
+    implementation "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+}

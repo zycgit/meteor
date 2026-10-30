@@ -1,0 +1,10 @@
+plugins {
+    id 'java'
+}
+
+description = 'oncrpc Java SDK examples'
+
+dependencies {
+    implementation project(':peer:java:contracts')
+    implementation "org.acplt.remotetea:remotetea-oncrpc:${property('lib.remotetea')}"
+}

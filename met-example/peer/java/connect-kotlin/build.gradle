@@ -1,0 +1,12 @@
+plugins {
+    id 'java'
+}
+
+description = 'Connect Kotlin/JVM consumers for Connect and gRPC-Web'
+
+dependencies {
+    implementation project(':peer:java:contracts')
+    implementation "com.connectrpc:connect-kotlin-okhttp:${property('lib.connect.kotlin')}"
+    implementation "com.connectrpc:connect-kotlin-google-java-ext:${property('lib.connect.kotlin')}"
+    implementation "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
+}

@@ -1,0 +1,13 @@
+plugins {
+    id 'java'
+}
+
+description = 'Community Connect RPC Java provider'
+
+dependencies {
+    implementation project(':peer:java:contracts')
+    implementation "me.ivovk:connect-rpc-java-netty:${property('lib.connect.java')}"
+    implementation "io.grpc:grpc-protobuf:${property('lib.grpc.connect')}"
+    implementation "io.grpc:grpc-stub:${property('lib.grpc.connect')}"
+    implementation "com.google.protobuf:protobuf-java:${property('lib.protobuf.connect')}"
+}

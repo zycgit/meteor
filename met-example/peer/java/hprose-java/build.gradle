@@ -1,0 +1,10 @@
+plugins {
+    id 'java'
+}
+
+description = 'Hprose Java SDK examples'
+
+dependencies {
+    implementation project(':peer:java:contracts')
+    implementation "org.hprose:hprose-java:${property('lib.hprose')}"
+}
