@@ -43,10 +43,7 @@
       "verification": "passed-declared-host-scope",
       "execution": "test-jvm-sdk",
       "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/GrpcOfficialInteropTest.java",
-      "versionProperties": [
-        "lib.grpc",
-        "lib.protobuf"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "acceptanceRunId": "20261019-164339-488",
       "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
     },
@@ -81,9 +78,7 @@
       "verification": "passed-declared-host-scope",
       "execution": "test-jvm-sdk",
       "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/hprose/HproseInteropTest.java",
-      "versionProperties": [
-        "lib.hprose"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "acceptanceRunId": "20261019-164339-488",
       "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
     },
@@ -117,9 +112,7 @@
       "verification": "passed-declared-host-scope",
       "execution": "independent-jvm",
       "source": "meteor-test/peer/java/metro-jaxws/src/main/java/net/hasor/peer/protocol/soap/MetroPeer.java",
-      "versionProperties": [
-        "lib.jaxws"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "entrypoints": [
         "net.hasor.peer.protocol.soap.MetroPeer"
       ],
@@ -137,9 +130,7 @@
       "verification": "passed-declared-host-scope",
       "execution": "independent-jvm",
       "source": "meteor-test/peer/java/apache-axis/src/main/java/net/hasor/peer/protocol/soap/AxisPeer.java",
-      "versionProperties": [
-        "lib.axis"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "entrypoints": [
         "net.hasor.peer.protocol.soap.AxisPeer"
       ],
@@ -190,9 +181,7 @@
       "verification": "passed-declared-host-scope",
       "execution": "independent-jvm",
       "source": "meteor-test/peer/java/caucho-hessian/src/main/java/net/hasor/peer/protocol/hessian/CauchoHessianPeer.java",
-      "versionProperties": [
-        "lib.hessian"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "entrypoints": [
         "net.hasor.peer.protocol.hessian.CauchoHessianPeer"
       ],
@@ -231,9 +220,7 @@
       "verification": "passed-declared-host-scope",
       "execution": "independent-jvm",
       "source": "meteor-test/peer/java/apache-dubbo/src/main/java/net/hasor/peer/protocol/triple/DubboTriplePeer.java",
-      "versionProperties": [
-        "lib.dubbo"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "entrypoints": [
         "net.hasor.peer.protocol.triple.DubboTriplePeer"
       ],
@@ -251,9 +238,7 @@
       "verification": "passed-declared-host-scope",
       "execution": "independent-jvm-isolated-sdk-version",
       "source": "meteor-test/peer/java/apache-dubbo/src/main/java/net/hasor/peer/protocol/triple/DubboTriplePeer.java",
-      "versionProperties": [
-        "lib.dubbo.legacy"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "entrypoints": [
         "net.hasor.peer.protocol.triple.DubboTriplePeer"
       ],
@@ -271,9 +256,7 @@
       "verification": "passed-declared-host-scope",
       "execution": "independent-jvm",
       "source": "meteor-test/peer/java/apache-dubbo/src/main/java/net/hasor/peer/protocol/dubbo/DubboPeer.java",
-      "versionProperties": [
-        "lib.dubbo"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "entrypoints": [
         "net.hasor.peer.protocol.dubbo.DubboPeer"
       ],
@@ -291,9 +274,7 @@
       "verification": "passed-declared-host-scope",
       "execution": "independent-jvm-isolated-sdk-version",
       "source": "meteor-test/peer/java/apache-dubbo/src/main/java/net/hasor/peer/protocol/dubbo/DubboPeer.java",
-      "versionProperties": [
-        "lib.dubbo2"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "entrypoints": [
         "net.hasor.peer.protocol.dubbo.DubboPeer"
       ],
@@ -311,9 +292,7 @@
       "verification": "passed-declared-host-scope",
       "execution": "independent-jvm",
       "source": "meteor-test/peer/java/apache-thrift/src/main/java/net/hasor/peer/protocol/thrift/ThriftPeer.java",
-      "versionProperties": [
-        "lib.thrift"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "entrypoints": [
         "net.hasor.peer.protocol.thrift.ThriftPeer"
       ],
@@ -548,9 +527,7 @@
       "verification": "passed-targeted-java-provider-scope",
       "source": "meteor-test/peer/java/connect-kotlin/src/main/java/net/hasor/peer/protocol/connect/ConnectJavaPeer.java",
       "execution": "independent-java-process",
-      "versionProperties": [
-        "lib.connect.kotlin"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "scenarioEntrypoints": [
         "net.hasor.realmeteor.protocol.connect.ConnectJavaInteropTest",
         "net.hasor.realmeteor.protocol.grpc.web.GrpcWebJavaInteropTest"
@@ -571,9 +548,7 @@
       "verification": "passed-targeted-java-provider-scope",
       "source": "meteor-test/peer/java/jsonrpc4j/src/main/java/net/hasor/peer/protocol/jsonrpc/JsonRpc4jPeer.java",
       "execution": "independent-java-process",
-      "versionProperties": [
-        "lib.jsonrpc4j"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "scenarioEntrypoints": [
         "net.hasor.realmeteor.protocol.jsonrpc.JsonRpc4jProviderTest"
       ],
@@ -593,9 +568,7 @@
       "verification": "passed-targeted-java-provider-scope",
       "source": "meteor-test/peer/java/apache-xmlrpc/src/main/java/net/hasor/peer/protocol/xmlrpc/ApacheXmlRpcPeer.java",
       "execution": "independent-java-process",
-      "versionProperties": [
-        "lib.xmlrpc"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "scenarioEntrypoints": [
         "net.hasor.realmeteor.protocol.xmlrpc.ApacheXmlRpcProviderTest"
       ],
@@ -615,9 +588,7 @@
       "verification": "passed-targeted-java-provider-scope",
       "source": "meteor-test/peer/java/remotetea/src/main/java/net/hasor/peer/protocol/oncrpc/RemoteTeaClientPeer.java",
       "execution": "independent-java-process",
-      "versionProperties": [
-        "lib.remotetea"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "scenarioEntrypoints": [
         "net.hasor.realmeteor.protocol.oncrpc.RemoteTeaJavaInteropScenarioTest"
       ],
@@ -637,9 +608,7 @@
       "verification": "passed-declared-host-scope",
       "source": "meteor-test/peer/java/meteor/src/test/java/net/hasor/realmeteor/protocol/grpc/web/EnvoyPeerProcess.java",
       "execution": "independent-native-proxy-and-grpc-java-server",
-      "versionProperties": [
-        "lib.grpc"
-      ],
+      "versionManifest": "meteor-test/peer/java/build.gradle",
       "imageVersionSource": "meteor-test/docker/services.Dockerfile#ENVOY_IMAGE",
       "acceptanceRunId": "20261019-164339-488",
       "acceptanceSummary": "meteor-test/build/interoperability/20261019-164339-488/summary.json"
@@ -1060,31 +1029,6 @@
       "implementationStatus": "source-present",
       "execution": "container-process",
       "source": "meteor-test/peer/cpp/grpc"
-    },
-    {
-      "id": "rsf-hasor-legacy-java",
-      "protocols": [
-        "rsf"
-      ],
-      "language": "java",
-      "origin": "Hasor RSF 4.2.5",
-      "roles": [
-        "provider",
-        "consumer"
-      ],
-      "implementationStatus": "source-present",
-      "execution": "independent-jvm-isolated-sdk-version",
-      "source": "meteor-test/peer/java/hasor-rsf/src/main/java/net/hasor/peer/protocol/rsf/LegacyRsfPeer.java",
-      "entrypoints": [
-        "net.hasor.peer.protocol.rsf.LegacyRsfPeer"
-      ],
-      "sdkStatus": "released",
-      "version": "4.2.5",
-      "versionProperties": [
-        "lib.hasor.rsf",
-        "lib.javax.annotation"
-      ],
-      "scope": "RSF/1 direct String echo with Java serialization; both peers publish listener identities required by the legacy handshake. No Meteor runtime enters the SDK classpath."
     },
     {
       "id": "oncrpc-sunrpc-python",

@@ -1,19 +1,39 @@
 plugins {
     id 'java-library'
+    id 'com.gradleup.shadow'
 }
 
 ext.pomName = 'Meteor Framework'
 description = 'Meteor framework with configuration, context assembly, RPC, service container, addresses, serialization and Neta transports.'
+
+configurations {
+    shaded
+}
 
 dependencies {
     api "net.hasor:cobble-all:${property('lib.cobble')}"
     api "net.hasor:neta-core:${property('lib.neta')}"
     api "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
     api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${property('lib.jackson')}"
-    api "ognl:ognl:${property('lib.ognl')}"
     api "net.hasor:neta-codec-http:${property('lib.neta')}"
+    shaded "ognl:ognl:${property('lib.ognl')}"
+    compileOnly "ognl:ognl:${property('lib.ognl')}"
 
     // for test
-    testImplementation "com.google.code.gson:gson:${property('lib.gson')}"
-    testImplementation "io.netty:netty-codec-http2:${property('lib.netty')}"
+    testImplementation "ognl:ognl:${property('lib.ognl')}"
+    testImplementation 'com.google.code.gson:gson:2.12.1'
+    testImplementation 'io.netty:netty-codec-http2:4.2.16.Final'
+}
+
+tasks.named('jar') {
+    archiveClassifier = 'plain'
+}
+
+tasks.named('shadowJar') {
+    archiveClassifier = ''
+    configurations = [project.configurations.shaded]
+    relocate 'ognl', 'net.hasor.meteor.utils.ognl'
+    relocate 'javassist', 'net.hasor.meteor.utils.ognl.javassist'
+    exclude 'META-INF/maven/ognl/**'
+    exclude 'META-INF/maven/org.javassist/**'
 }

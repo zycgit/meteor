@@ -6,6 +6,6 @@ description = 'Apache XML-RPC SDK examples'
 
 dependencies {
     implementation project(':peer:java:contracts')
-    implementation "org.apache.xmlrpc:xmlrpc-client:${property('lib.xmlrpc')}"
-    implementation "org.apache.xmlrpc:xmlrpc-server:${property('lib.xmlrpc')}"
+    implementation 'org.apache.xmlrpc:xmlrpc-client:3.1.3'
+    implementation 'org.apache.xmlrpc:xmlrpc-server:3.1.3'
 }

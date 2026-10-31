@@ -7,9 +7,10 @@ description = 'Meteor nacos registry adapter.'
 
 dependencies {
     api project(':meteor-registry')
-    api "com.alibaba.nacos:nacos-client:${property('lib.nacos')}"
-    api "com.alibaba.nacos:nacos-maintainer-client:${property('lib.nacos')}"
+    api 'com.alibaba.nacos:nacos-client:3.1.2'
+    api 'com.alibaba.nacos:nacos-maintainer-client:3.1.2'
 
     // for test
+    testImplementation "ognl:ognl:${property('lib.ognl')}"
     testImplementation "org.mockito:mockito-core:${property('lib.mockito')}"
 }

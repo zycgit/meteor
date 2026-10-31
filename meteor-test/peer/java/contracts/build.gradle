@@ -7,12 +7,11 @@ description = 'Shared Java peer contracts and business models'
 dependencies {
     // 公共订单保留 Meteor 注解；这些编译依赖不进入 SDK 的独立运行图。
     compileOnly project(':meteor')
-    compileOnly "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
-    compileOnly "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
-    compileOnly "org.apache.thrift:libthrift:${property('lib.thrift')}"
+    compileOnly "com.google.protobuf:protobuf-java:3.25.9"
+    compileOnly "org.apache.thrift:libthrift:0.25.0"
     // 官方 Thrift 生成代码直接引用日志 API，libthrift 自身只在运行变体声明它。
-    compileOnly "org.slf4j:slf4j-api:${property('lib.slf4j')}"
-    compileOnly "com.sun.xml.ws:jaxws-rt:${property('lib.jaxws')}"
+    compileOnly "org.slf4j:slf4j-api:1.7.36"
+    compileOnly "com.sun.xml.ws:jaxws-rt:4.0.5"
 }
 
 tasks.named('compileJava') {

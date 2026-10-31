@@ -7,9 +7,9 @@ description = 'SOAP Web Services protocol adapter for ordinary Meteor Java servi
 
 dependencies {
     api project(':meteor')
-    api "jakarta.mail:jakarta.mail-api:${property('lib.jakarta.mail')}"
+    api 'jakarta.mail:jakarta.mail-api:2.1.5'
 
     // for test
-    testImplementation "org.eclipse.angus:angus-mail:${property('lib.angus.mail')}"
-    testImplementation "com.sun.xml.ws:jaxws-rt:${property('lib.jaxws')}"
+    testImplementation 'org.eclipse.angus:angus-mail:2.0.5'
+    testImplementation 'com.sun.xml.ws:jaxws-rt:4.0.5'
 }

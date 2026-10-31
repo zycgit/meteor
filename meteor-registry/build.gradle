@@ -7,4 +7,7 @@ description = 'Meteor registry storage, application client, and administration.'
 
 dependencies {
     api project(':meteor')
+
+    // for test
+    testImplementation "ognl:ognl:${property('lib.ognl')}"
 }

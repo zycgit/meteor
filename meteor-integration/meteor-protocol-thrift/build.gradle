@@ -7,10 +7,9 @@ description = 'Apache Thrift RPC over TCP, HTTP and their secure transports.'
 
 dependencies {
     api project(':meteor')
-    api "org.apache.thrift:libthrift:${property('lib.thrift')}"
+    api 'org.apache.thrift:libthrift:0.25.0'
 
     // for test
-    testImplementation "org.apache.thrift:libthrift:${property('lib.thrift')}"
-    testImplementation "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+    testImplementation 'org.slf4j:slf4j-api:1.7.36'
     testImplementation "org.mockito:mockito-core:${property('lib.mockito')}"
 }

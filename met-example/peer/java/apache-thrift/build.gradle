@@ -6,6 +6,6 @@ description = 'Apache Thrift SDK examples'
 
 dependencies {
     implementation project(':peer:java:contracts')
-    implementation "org.apache.thrift:libthrift:${property('lib.thrift')}"
-    implementation "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+    implementation 'org.apache.thrift:libthrift:0.25.0'
+    implementation 'org.slf4j:slf4j-api:1.7.36'
 }

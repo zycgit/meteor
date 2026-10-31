@@ -21,33 +21,36 @@ tasks.named('processResources') {
 }
 
 dependencies {
+    implementation project(':meteor')
     implementation project(':meteor-test-contracts')
     def applicationModules = [
-        'meteor', 'meteor-registry', 'meteor-registry-jdbc', 'meteor-registry-nacos',
+        'meteor-registry', 'meteor-registry-jdbc', 'meteor-registry-nacos',
         'meteor-registry-zookeeper', 'meteor-registry-dubbo', 'meteor-protocol-grpc',
         'meteor-protocol-hprose', 'meteor-protocol-soap', 'meteor-protocol-jsonrpc',
         'meteor-protocol-xmlrpc', 'meteor-protocol-hessian', 'meteor-protocol-connect',
         'meteor-protocol-triple', 'meteor-protocol-dubbo', 'meteor-protocol-thrift', 'meteor-protocol-oncrpc'
     ]
     applicationModules.each { module -> implementation project(":${module}") }
-    implementation "com.h2database:h2:${property('lib.h2')}"
+    implementation "com.h2database:h2:2.3.232"
+    // 源码对端的主运行图也用于独立进程，显式提供脚本引擎。
+    runtimeOnly "ognl:ognl:${property('lib.ognl')}"
     // 标准 main 中的已签入 Thrift 绑定直接引用日志 API。
-    implementation "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+    implementation "org.slf4j:slf4j-api:1.7.36"
 
     // 这些 SDK API 由仍在 JUnit 内执行的原有断言使用；进程对端另有独立运行图。
-    testImplementation "io.grpc:grpc-netty-shaded:${property('lib.grpc')}"
-    testImplementation "io.grpc:grpc-stub:${property('lib.grpc')}"
-    testImplementation "io.grpc:grpc-protobuf:${property('lib.grpc')}"
-    testImplementation "io.grpc:grpc-services:${property('lib.grpc')}"
-    testImplementation("io.grpc:grpc-interop-testing:${property('lib.grpc')}") {
+    testImplementation "io.grpc:grpc-netty-shaded:1.84.1"
+    testImplementation "io.grpc:grpc-stub:1.84.1"
+    testImplementation "io.grpc:grpc-protobuf:1.84.1"
+    testImplementation "io.grpc:grpc-services:1.84.1"
+    testImplementation("io.grpc:grpc-interop-testing:1.84.1") {
         exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-prometheus'
         exclude group: 'dev.cel'
     }
-    testImplementation "com.sun.xml.ws:jaxws-rt:${property('lib.jaxws')}"
-    testImplementation "org.eclipse.angus:angus-mail:${property('lib.angus.mail')}"
-    testImplementation "org.apache.dubbo:dubbo:${property('lib.dubbo')}"
+    testImplementation "com.sun.xml.ws:jaxws-rt:4.0.5"
+    testImplementation "org.eclipse.angus:angus-mail:2.0.5"
+    testImplementation "org.apache.dubbo:dubbo:3.3.6"
     testImplementation "net.hasor:dbvisitor:${property('lib.dbvisitor')}"
-    testImplementation "org.apache.curator:curator-test:${property('lib.curator')}"
+    testImplementation "org.apache.curator:curator-test:5.2.0"
     testImplementation project(':meteor-test')
 }
 
@@ -60,8 +63,23 @@ apply from: 'gradle/execution.gradle'
 tasks.named('test') {
     workingDir meteorTestDirectory
     maxHeapSize = '1536m'
+    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
     dependsOn ':meteor-test-sdk:exportRuntimes'
     doFirst {
+        // 官方 SDK 及其他对端在独立进程运行，继承当前测试的隔离目录。
+        def workDirectory = layout.buildDirectory.dir("test-work/${name}").get().asFile
+        def userDirectory = new File(workDirectory, 'home').absolutePath
+        def temporaryDirectory = new File(workDirectory, 'tmp').absolutePath
+        environment HOME: userDirectory, USERPROFILE: userDirectory,
+            TMPDIR: temporaryDirectory, TMP: temporaryDirectory, TEMP: temporaryDirectory
+
+        // 嵌套 JVM 保留调用方选项，并支持目录名中的空格与引号。
+        def quoteJvmOption = { String option -> '"' + option.replace('"', '"\'"\'"') + '"' }
+        def toolOptions = environment['JAVA_TOOL_OPTIONS'] ?: ''
+        def homeOption = quoteJvmOption("-Duser.home=${userDirectory}")
+        def temporaryOption = quoteJvmOption("-Djava.io.tmpdir=${temporaryDirectory}")
+        environment 'JAVA_TOOL_OPTIONS', "${toolOptions} ${homeOption} ${temporaryOption}".trim()
+
         systemProperties executionProperties()
 
         // SDK 运行图通过 JDK 参数文件传递，避免长类路径触发 Gradle 二次缩短。

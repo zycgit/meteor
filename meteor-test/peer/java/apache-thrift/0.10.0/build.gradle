@@ -8,8 +8,8 @@ dependencies {
     // 经典 transport 与生成代码独立编译，不将旧版 Thrift 加入其他 SDK 的编译图。
     compileOnly project(':meteor-test-contracts')
     compileOnly "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
-    compileOnly "org.apache.thrift:libthrift:${property('test.sdk.thrift.classic')}"
-    compileOnly "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+    compileOnly "org.apache.thrift:libthrift:0.10.0"
+    compileOnly "org.slf4j:slf4j-api:1.7.36"
 }
 
 tasks.named('compileJava') {

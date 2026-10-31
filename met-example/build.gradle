@@ -4,14 +4,13 @@ plugins {
 
 description = 'Meteor getting-started examples by language and role'
 
-// 示例构建独立维护工程结构，依赖版本沿用仓库配置。
-def libraryVersions = new Properties()
-file('../gradle.properties').withInputStream { libraryVersions.load(it) }
+// 示例独立维护 SDK 依赖，Meteor 版本与仓库保持一致。
+def frameworkProperties = new Properties()
+file('../gradle.properties').withInputStream { frameworkProperties.load(it) }
 
 allprojects {
     group = 'net.hasor.example'
-    version = libraryVersions.getProperty('version')
-    libraryVersions.each { key, value -> extensions.extraProperties.set(key.toString(), value) }
+    version = frameworkProperties.getProperty('version')
 }
 
 subprojects {

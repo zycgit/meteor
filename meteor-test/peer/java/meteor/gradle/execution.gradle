@@ -26,7 +26,6 @@ ext.executionProperties = {
         'triple.peer.legacy.classpath': classpaths.tripleLegacy,
         'hessian.peer.classpath': classpaths.hessian,
         'hprose.java.peer.classpath': classpaths.hprose,
-        'rsf.java.peer.classpath': classpaths.rsf,
         'soap.metro.peer.classpath': classpaths.soap,
         'soap.axis.peer.classpath': classpaths.axis,
         'thrift.peer.classpath': classpaths.thrift,

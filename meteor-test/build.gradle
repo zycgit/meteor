@@ -25,6 +25,24 @@ tasks.named('test') {
     if (nativeExecutable.isPresent()) {
         systemProperty 'meteor.test.native.executable', rootProject.file(nativeExecutable.get()).absolutePath
     }
+    doFirst {
+        // 编排器单测启动子 Gradle 和原生进程，沿用当前测试的隔离目录。
+        def workDirectory = layout.buildDirectory.dir("test-work/${name}").get().asFile
+        def userDirectory = new File(workDirectory, 'home').absolutePath
+        def temporaryDirectory = new File(workDirectory, 'tmp').absolutePath
+        environment HOME: userDirectory,
+                USERPROFILE: userDirectory,
+                TMPDIR: temporaryDirectory,
+                TMP: temporaryDirectory,
+                TEMP: temporaryDirectory
+
+        // 嵌套 JVM 保留调用方选项，并支持目录名中的空格与引号。
+        def quoteJvmOption = { String option -> '"' + option.replace('"', '"\'"\'"') + '"' }
+        def toolOptions = environment['JAVA_TOOL_OPTIONS'] ?: ''
+        def homeOption = quoteJvmOption("-Duser.home=${userDirectory}")
+        def temporaryOption = quoteJvmOption("-Djava.io.tmpdir=${temporaryDirectory}")
+        environment 'JAVA_TOOL_OPTIONS', "${toolOptions} ${homeOption} ${temporaryOption}".trim()
+    }
 }
 
 def peerDirectory = nxnPeerDirectory
@@ -80,9 +98,9 @@ gradle.taskGraph.whenReady { graph ->
 gradle.buildFinished { result ->
     if (javaBuildStarted != null) {
         def command = ['bash', './gradlew', ':meteor-test:prepareJava',
-            '--build-cache', '--no-daemon', '--console=plain']
+                       '--build-cache', '--no-daemon', '--console=plain']
         def evidence = [command: command, exitCode: result.failure == null ? 0 : 1,
-            seconds: (System.nanoTime() - javaBuildStarted) / 1_000_000_000d]
+                        seconds: (System.nanoTime() - javaBuildStarted) / 1_000_000_000d]
         writeJson(new File(preparationDirectory, 'java-build.json'), evidence)
     }
 }

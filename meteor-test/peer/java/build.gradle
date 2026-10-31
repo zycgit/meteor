@@ -9,7 +9,7 @@ description = 'Official Java SDK peers with isolated execution profiles'
 
 // 普通 SDK 按实现保存源码，复用原有 main 编译域；根 src 只保存共享控制辅助。
 def peerImplementations = [
-    'hasor-rsf', 'apache-axis', 'apache-dubbo', 'apache-thrift', 'hprose-java', 'metro-jaxws',
+    'apache-axis', 'apache-dubbo', 'apache-thrift', 'hprose-java', 'metro-jaxws',
     'jsonrpc4j', 'apache-xmlrpc', 'caucho-hessian', 'grpc-java', 'connect-kotlin', 'remotetea'
 ]
 peerImplementations.each { implementation ->
@@ -18,106 +18,101 @@ peerImplementations.each { implementation ->
 
 // 各版本的运行依赖独立解析，有 ABI 差异的版本继续单独编译。
 def sdkCoordinates = [
-    rsf: [
-        "net.hasor:hasor-rsf:${property('lib.hasor.rsf')}",
-        "javax.annotation:javax.annotation-api:${property('lib.javax.annotation')}",
-        "org.slf4j:slf4j-simple:${property('lib.slf4j')}"
-    ],
-    axis: ["axis:axis:${property('lib.axis')}"],
+    axis: ["axis:axis:1.4"],
     dubbo: [
-        "org.apache.dubbo:dubbo:${property('lib.dubbo')}",
-        "org.apache.curator:curator-recipes:${property('lib.curator')}",
-        "org.apache.curator:curator-x-discovery:${property('lib.curator')}"
+        "org.apache.dubbo:dubbo:3.3.6",
+        "org.apache.curator:curator-recipes:5.2.0",
+        "org.apache.curator:curator-x-discovery:5.2.0"
     ],
     dubboTls: [
-        "org.apache.dubbo:dubbo:${property('lib.dubbo')}",
-        "io.netty:netty-all:${property('test.sdk.dubbo.tls.netty')}",
-        "org.apache.curator:curator-recipes:${property('lib.curator')}",
-        "org.apache.curator:curator-x-discovery:${property('lib.curator')}"
+        "org.apache.dubbo:dubbo:3.3.6",
+        "io.netty:netty-all:4.1.113.Final",
+        "org.apache.curator:curator-recipes:5.2.0",
+        "org.apache.curator:curator-x-discovery:5.2.0"
     ],
     dubboLegacy: [
-        "org.apache.dubbo:dubbo:${property('lib.dubbo2')}",
-        "org.apache.curator:curator-recipes:${property('lib.curator')}",
-        "org.apache.curator:curator-x-discovery:${property('lib.curator')}"
+        "org.apache.dubbo:dubbo:2.7.23",
+        "org.apache.curator:curator-recipes:5.2.0",
+        "org.apache.curator:curator-x-discovery:5.2.0"
     ],
     dubboClassic: [
-        "com.alibaba:dubbo:${property('test.sdk.dubbo.classic')}",
-        "com.alibaba:dubbo-remoting-netty4:${property('test.sdk.dubbo.classic')}"
+        "com.alibaba:dubbo:2.6.12",
+        "com.alibaba:dubbo-remoting-netty4:2.6.12"
     ],
     tripleLegacy: [
-        "org.apache.dubbo:dubbo:${property('lib.dubbo.legacy')}",
-        "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
+        "org.apache.dubbo:dubbo:3.2.20",
+        "com.google.protobuf:protobuf-java:3.25.9"
     ],
     thrift: [
-        "org.apache.thrift:libthrift:${property('lib.thrift')}",
-        "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+        "org.apache.thrift:libthrift:0.25.0",
+        "org.slf4j:slf4j-api:1.7.36"
     ],
     thriftLegacy: [
-        "org.apache.thrift:libthrift:${property('test.sdk.thrift.legacy')}",
-        "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+        "org.apache.thrift:libthrift:0.22.0",
+        "org.slf4j:slf4j-api:1.7.36"
     ],
     thriftClassic: [
-        "org.apache.thrift:libthrift:${property('test.sdk.thrift.classic')}",
-        "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+        "org.apache.thrift:libthrift:0.10.0",
+        "org.slf4j:slf4j-api:1.7.36"
     ],
     thriftPreLayered: [
-        "org.apache.thrift:libthrift:${property('test.sdk.thrift.preLayered')}",
-        "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+        "org.apache.thrift:libthrift:0.13.0",
+        "org.slf4j:slf4j-api:1.7.36"
     ],
     thriftLayered: [
-        "org.apache.thrift:libthrift:${property('test.sdk.thrift.layered')}",
-        "org.slf4j:slf4j-api:${property('lib.slf4j')}"
+        "org.apache.thrift:libthrift:0.16.0",
+        "org.slf4j:slf4j-api:1.7.36"
     ],
-    hprose: ["org.hprose:hprose-java:${property('lib.hprose')}"],
-    soap: ["com.sun.xml.ws:jaxws-rt:${property('lib.jaxws')}"],
-    soapLegacy: ["com.sun.xml.ws:jaxws-rt:${property('test.sdk.soap.legacy')}"],
-    soapJavax: ["com.sun.xml.ws:jaxws-rt:${property('test.sdk.soap.javax')}"],
-    jsonrpc: ["com.github.briandilley.jsonrpc4j:jsonrpc4j:${property('lib.jsonrpc4j')}"],
+    hprose: ["org.hprose:hprose-java:2.0.38"],
+    soap: ["com.sun.xml.ws:jaxws-rt:4.0.5"],
+    soapLegacy: ["com.sun.xml.ws:jaxws-rt:3.0.2"],
+    soapJavax: ["com.sun.xml.ws:jaxws-rt:2.3.7"],
+    jsonrpc: ["com.github.briandilley.jsonrpc4j:jsonrpc4j:1.7"],
     xmlrpc: [
-        "org.apache.xmlrpc:xmlrpc-client:${property('lib.xmlrpc')}",
-        "org.apache.xmlrpc:xmlrpc-server:${property('lib.xmlrpc')}"
+        "org.apache.xmlrpc:xmlrpc-client:3.1.3",
+        "org.apache.xmlrpc:xmlrpc-server:3.1.3"
     ],
-    hessian: ["com.caucho:hessian:${property('lib.hessian')}"],
-    hessianLegacy: ["com.caucho:hessian:${property('test.sdk.hessian.legacy')}"],
-    hessianRecent: ["com.caucho:hessian:${property('test.sdk.hessian.recent')}"],
+    hessian: ["com.caucho:hessian:4.0.63"],
+    hessianLegacy: ["com.caucho:hessian:4.0.51"],
+    hessianRecent: ["com.caucho:hessian:4.0.66"],
     grpc: [
-        "io.grpc:grpc-netty-shaded:${property('lib.grpc')}",
-        "io.grpc:grpc-stub:${property('lib.grpc')}",
-        "io.grpc:grpc-protobuf:${property('lib.grpc')}",
-        "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
+        "io.grpc:grpc-netty-shaded:1.84.1",
+        "io.grpc:grpc-stub:1.84.1",
+        "io.grpc:grpc-protobuf:1.84.1",
+        "com.google.protobuf:protobuf-java:3.25.9"
     ],
     grpcCurrent: [
-        "io.grpc:grpc-netty-shaded:${property('test.sdk.grpc.current')}",
-        "io.grpc:grpc-stub:${property('test.sdk.grpc.current')}",
-        "io.grpc:grpc-protobuf:${property('test.sdk.grpc.current')}",
-        "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
+        "io.grpc:grpc-netty-shaded:1.85.1",
+        "io.grpc:grpc-stub:1.85.1",
+        "io.grpc:grpc-protobuf:1.85.1",
+        "com.google.protobuf:protobuf-java:3.25.9"
     ],
     connect: [
-        "com.connectrpc:connect-kotlin-okhttp:${property('lib.connect.kotlin')}",
-        "com.connectrpc:connect-kotlin-google-java-ext:${property('lib.connect.kotlin')}",
-        "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
+        "com.connectrpc:connect-kotlin-okhttp:0.5.1",
+        "com.connectrpc:connect-kotlin-google-java-ext:0.5.1",
+        "com.google.protobuf:protobuf-java:3.25.9"
     ],
     connectLegacy: [
-        "com.connectrpc:connect-kotlin-okhttp:${property('test.sdk.connect.legacy')}",
-        "com.connectrpc:connect-kotlin-google-java-ext:${property('test.sdk.connect.legacy')}",
-        "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
+        "com.connectrpc:connect-kotlin-okhttp:0.4.0",
+        "com.connectrpc:connect-kotlin-google-java-ext:0.4.0",
+        "com.google.protobuf:protobuf-java:3.25.9"
     ],
     connectCurrent: [
-        "com.connectrpc:connect-kotlin-okhttp:${property('test.sdk.connect.current')}",
-        "com.connectrpc:connect-kotlin-google-java-ext:${property('test.sdk.connect.current')}"
+        "com.connectrpc:connect-kotlin-okhttp:0.10.0",
+        "com.connectrpc:connect-kotlin-google-java-ext:0.10.0"
     ],
     connectServer: [
-        "me.ivovk:connect-rpc-java-netty:${property('lib.connect.java')}",
-        "io.grpc:grpc-protobuf:${property('lib.grpc.connect')}",
-        "io.grpc:grpc-stub:${property('lib.grpc.connect')}",
-        "com.google.protobuf:protobuf-java:${property('lib.protobuf.connect')}"
+        "me.ivovk:connect-rpc-java-netty:0.2.1",
+        "io.grpc:grpc-protobuf:1.76.0",
+        "io.grpc:grpc-stub:1.76.0",
+        "com.google.protobuf:protobuf-java:4.33.1"
     ],
-    oncrpc: ["org.acplt.remotetea:remotetea-oncrpc:${property('lib.remotetea')}"]
+    oncrpc: ["org.acplt.remotetea:remotetea-oncrpc:1.1.6"]
 ]
 
 // SDK 名称对应实际实现；同一实现的历史 profile 继续复用相同的 Main 编译结果。
 def sdkNames = [
-    'net.hasor:hasor-rsf': 'Hasor RSF', 'axis:axis': 'Apache Axis',
+    'axis:axis': 'Apache Axis',
     'org.apache.dubbo:dubbo': 'Apache Dubbo', 'com.alibaba:dubbo': 'Alibaba Dubbo',
     'org.apache.thrift:libthrift': 'Apache Thrift', 'org.hprose:hprose-java': 'Hprose Java',
     'com.sun.xml.ws:jaxws-rt': 'Metro JAX-WS', 'com.github.briandilley.jsonrpc4j:jsonrpc4j': 'jsonrpc4j',
@@ -134,12 +129,12 @@ def isolatedProjects = [
     thriftPreLayered: ':meteor-test-sdk:apache-thrift-0.10'
 ]
 def profileNotes = [
-    dubboTls: "原厂 Apache Dubbo ${property('lib.dubbo')} + Netty ${property('test.sdk.dubbo.tls.netty')} + JDK 17 TLS；" +
+    dubboTls: "原厂 Apache Dubbo 3.3.6 + Netty 4.1.113.Final + JDK 17 TLS；" +
               '该 Netty 版本默认不校验证书主机名，此组合验证证书链及双向认证，不表示支持主机名校验。',
     hessianLegacy: 'JDK 17 运行该 SDK 需要在独立 JVM 开放 java.lang 反射访问。',
 ]
 def currentCompileProfiles = [
-    'rsf', 'axis', 'dubbo', 'thrift', 'hprose', 'soap', 'jsonrpc', 'xmlrpc', 'hessian', 'grpc', 'connect', 'oncrpc'
+    'axis', 'dubbo', 'thrift', 'hprose', 'soap', 'jsonrpc', 'xmlrpc', 'hessian', 'grpc', 'connect', 'oncrpc'
 ]
 
 // 矩阵只列真实存在的 SDK 入口；gRPC-Web 为消费方向，Connect 两个方向使用各自的 SDK。
@@ -152,6 +147,7 @@ def compatibilityProfiles = [
     connect: ['connectLegacy', 'connect', 'connectCurrent'],
     triple: ['tripleLegacy', 'dubbo'], oncrpc: ['oncrpc']
 ]
+def jacksonDependency = "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
 def sdkRuntimes = sdkCoordinates.collectEntries { sdk, coordinates ->
     def runtime = configurations.create("${sdk}PeerRuntime") {
         canBeConsumed = false
@@ -161,7 +157,7 @@ def sdkRuntimes = sdkCoordinates.collectEntries { sdk, coordinates ->
     }
     // 控制数据的 JSON 编码只加入各自 profile，不借用 Meteor 或驱动依赖。
     if (sdk != 'axis') {
-        dependencies.add(runtime.name, "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}")
+        dependencies.add(runtime.name, jacksonDependency)
     }
     coordinates.each { coordinate ->
         // TLS 固定组合只替换该 profile 的 Netty 依赖，普通 Dubbo 与 Triple 保持原运行图。
@@ -178,7 +174,7 @@ def sdkRuntimes = sdkCoordinates.collectEntries { sdk, coordinates ->
 
 dependencies {
     compileOnly project(':meteor-test-contracts')
-    compileOnly "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
+    compileOnly jacksonDependency
     sdkCoordinates.each { sdk, coordinates ->
         // 旧版 SDK 只在各自运行图中使用；Connect 服务端由独立标准 main 编译。
         if (sdk in currentCompileProfiles) {
@@ -234,7 +230,8 @@ tasks.register('exportRuntimes') {
                 throw new GradleException("SDK profile ${sdk} requires ${sdkCoordinates[sdk][0]}, resolved ${selected}")
             }
             if (sdk == 'dubboTls') {
-                def nettyVersion = project.property('test.sdk.dubbo.tls.netty')
+                def nettyCoordinate = sdkCoordinates.dubboTls.find { it.startsWith('io.netty:netty-all:') }
+                def nettyVersion = nettyCoordinate.split(':')[2]
                 def nettyComponents = components.findAll { component -> component.group == 'io.netty' }
                 def nettyMismatch = nettyComponents.findAll { component -> component.version != nettyVersion }
                 if (nettyComponents.isEmpty() || !nettyMismatch.isEmpty()) {

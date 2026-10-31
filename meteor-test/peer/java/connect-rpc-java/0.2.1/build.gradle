@@ -8,10 +8,10 @@ dependencies {
     // 服务端独占 Protobuf 4 与对应 gRPC 版本，不参与其他 SDK 的 main 编译图。
     compileOnly project(':meteor-test-contracts')
     compileOnly "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
-    compileOnly "me.ivovk:connect-rpc-java-netty:${property('lib.connect.java')}"
-    compileOnly "io.grpc:grpc-protobuf:${property('lib.grpc.connect')}"
-    compileOnly "io.grpc:grpc-stub:${property('lib.grpc.connect')}"
-    compileOnly "com.google.protobuf:protobuf-java:${property('lib.protobuf.connect')}"
+    compileOnly "me.ivovk:connect-rpc-java-netty:0.2.1"
+    compileOnly "io.grpc:grpc-protobuf:1.76.0"
+    compileOnly "io.grpc:grpc-stub:1.76.0"
+    compileOnly "com.google.protobuf:protobuf-java:4.33.1"
 }
 
 tasks.named('compileJava') {

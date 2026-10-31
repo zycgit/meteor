@@ -7,12 +7,12 @@ description = 'Native Apache Dubbo service registration and discovery for Meteor
 
 dependencies {
     api project(':meteor-protocol-dubbo')
-    api "org.apache.dubbo:dubbo:${property('lib.dubbo')}"
-    api "org.apache.curator:curator-recipes:${property('lib.curator')}"
-    api platform("io.netty:netty-bom:${property('lib.netty')}")
-    api "io.netty:netty-handler-proxy:${property('lib.netty')}"
-    runtimeOnly "org.apache.curator:curator-x-discovery:${property('lib.curator')}"
+    api 'org.apache.dubbo:dubbo:3.3.6'
+    api 'org.apache.curator:curator-recipes:5.2.0'
+    api platform('io.netty:netty-bom:4.2.16.Final')
+    api 'io.netty:netty-handler-proxy:4.2.16.Final'
+    runtimeOnly 'org.apache.curator:curator-x-discovery:5.2.0'
 
     // for test
-    testImplementation "org.apache.curator:curator-test:${property('lib.curator')}"
+    testImplementation 'org.apache.curator:curator-test:5.2.0'
 }

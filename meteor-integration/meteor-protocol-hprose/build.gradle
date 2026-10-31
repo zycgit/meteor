@@ -7,8 +7,10 @@ description = 'HTTP/Hprose protocol plugin and Hprose serialization'
 
 dependencies {
     api project(':meteor')
-    api "org.hprose:hprose-java:${property('lib.hprose')}"
+    api 'org.hprose:hprose-java:2.0.38'
+}
 
-    // for test
-    testImplementation "org.hprose:hprose-java:${property('lib.hprose')}"
+// Hprose 对象编解码需要访问 JDK 的流类型字段。
+tasks.named('test') {
+    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
 }

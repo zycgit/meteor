@@ -6,8 +6,8 @@ description = 'gRPC-Java SDK examples'
 
 dependencies {
     implementation project(':peer:java:contracts')
-    implementation "io.grpc:grpc-netty-shaded:${property('lib.grpc')}"
-    implementation "io.grpc:grpc-stub:${property('lib.grpc')}"
-    implementation "io.grpc:grpc-protobuf:${property('lib.grpc')}"
-    implementation "com.google.protobuf:protobuf-java:${property('lib.protobuf')}"
+    implementation 'io.grpc:grpc-netty-shaded:1.84.1'
+    implementation 'io.grpc:grpc-stub:1.84.1'
+    implementation 'io.grpc:grpc-protobuf:1.84.1'
+    implementation 'com.google.protobuf:protobuf-java:3.25.9'
 }
