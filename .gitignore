@@ -6,7 +6,6 @@ bin/
 /out/
 .cache/
 test-work/
-gen/
 logs/
 
 # Local tooling
@@ -16,7 +15,6 @@ __pycache__/
 *.pyc
 
 # Node.js and documentation
-package-lock.json
 node_modules/
 dist/
 _book/
