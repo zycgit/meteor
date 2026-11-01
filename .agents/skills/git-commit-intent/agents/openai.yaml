@@ -1,0 +1,4 @@
+interface:
+  display_name: "功能与意图提交说明"
+  short_description: "依据真实 diff 编写功能明确的提交日志，并保留代码安全重写提交消息"
+  default_prompt: "使用 $git-commit-intent，按功能和真实改动意图编写提交说明，并按指定范围更新 Git 提交。"

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Meteor 测试编写与整理"
+  short_description: "按正式入口、资源生命周期与场景步骤编写和整理 Meteor 测试"
