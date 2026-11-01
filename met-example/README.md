@@ -1,100 +1,99 @@
 # Meteor 示例目录
 
-## 介绍
+本工程演示各语言发布和调用订单服务的用法。Meteor 运行在 Java 端，源码按 `peer/<语言>` 组织，各语言 README 按协议给出双方入口和运行步骤。
 
-本工程展示各语言发布和调用订单服务的用法，以及独立的管理 API 查询示例。Meteor 运行在 Java 端。
+- [运行约定](#run)
+- [业务服务示例](#service-examples)
+- [管理 API](#management-api)
+- [共享资源](#resources)
 
-提供者与消费者分别启动，各协议 Demo 提供直连和适用的注册发现用法。
+<a id="run"></a>
 
-Java 使用 JDK 17，在 IDEA 中独立打开 `met-example` 并同步 Gradle，直接运行各 Demo 的 `main`。
+## 运行约定
 
-各语言源码位于 `peer/<语言>`。Java 按实际 SDK 分目录，不同版本放在 SDK 的版本子目录；公共 Java 接口和 DTO 位于 `peer/java/contracts`，公共协议契约位于 `resource`。
+1. 准备 JDK 17，在 IDEA 中独立打开 `met-example` 并同步 Gradle。工程通过 `includeBuild('..')` 引用当前 Meteor 源码，Java 入口直接运行各自模块的 `main`。
+2. 按语言 README 准备对应工具链。除另有说明，命令从 Meteor 仓库根目录执行。
+3. 每次选择一组示例，先启动提供者，再在另一进程运行消费者。各示例共用本地业务端口 `8080`，切换前停止原提供者。
 
-## 目录
-
-- [业务服务示例](#service-examples)：按语言和协议组织，包含直连、注册发现及 SDK 互通。
-- [管理 API](#management-api)：通过 Meteor Java API 查询注册中心信息、实例和服务目录。
-- [共享资源](#resources)：订单接口、业务实现和协议契约。
+消费者保存并查询订单 `1001`，结果包含编号、描述和附件。`→` 表示消费者调用提供者，`↔` 表示分别提供两个调用方向的示例。
 
 <a id="service-examples"></a>
 
 ## 业务服务示例
 
-先选择语言和协议，再在对应 Demo 中选择提供者、消费者及接入方式。`→` 表示消费者调用提供者，`↔` 表示分别提供两个调用方向的示例。
-
-<a id="java"></a>
-
 ### Java
 
-- **[RSF](peer/java/meteor/src/main/java/net/hasor/example/rsf/README.md)**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/rsf/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/rsf/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/rsf/README.md#meteor-to-meteor-zookeeper)）。
-- **[Dubbo](peer/java/meteor/src/main/java/net/hasor/example/dubbo/README.md)（Apache Dubbo）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/dubbo/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/dubbo/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/dubbo/README.md#meteor-to-meteor-zookeeper)）、Apache Dubbo → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/dubbo/README.md#sdk-to-meteor)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/dubbo/README.md#sdk-registry-to-meteor)）、Meteor → Apache Dubbo（[直连](peer/java/meteor/src/main/java/net/hasor/example/dubbo/README.md#meteor-to-sdk)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/dubbo/README.md#meteor-registry-to-sdk)）。
-- **[Thrift](peer/java/meteor/src/main/java/net/hasor/example/thrift/README.md)（Apache Thrift）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/thrift/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/thrift/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/thrift/README.md#meteor-to-meteor-zookeeper)）、[Apache Thrift → Meteor](peer/java/meteor/src/main/java/net/hasor/example/thrift/README.md#sdk-to-meteor)、[Meteor → Apache Thrift](peer/java/meteor/src/main/java/net/hasor/example/thrift/README.md#meteor-to-sdk)。
-- **[Hprose](peer/java/meteor/src/main/java/net/hasor/example/hprose/README.md)（Hprose Java SDK）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/hprose/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/hprose/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/hprose/README.md#meteor-to-meteor-zookeeper)）、[Hprose Java → Meteor](peer/java/meteor/src/main/java/net/hasor/example/hprose/README.md#sdk-to-meteor)、[Meteor → Hprose Java](peer/java/meteor/src/main/java/net/hasor/example/hprose/README.md#meteor-to-sdk)。
-- **[SOAP](peer/java/meteor/src/main/java/net/hasor/example/soap/README.md)（Metro JAX-WS）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/soap/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/soap/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/soap/README.md#meteor-to-meteor-zookeeper)）、[Metro JAX-WS → Meteor](peer/java/meteor/src/main/java/net/hasor/example/soap/README.md#sdk-to-meteor)、[Meteor → Metro JAX-WS](peer/java/meteor/src/main/java/net/hasor/example/soap/README.md#meteor-to-sdk)。
-- **[JSON-RPC](peer/java/meteor/src/main/java/net/hasor/example/jsonrpc/README.md)（jsonrpc4j）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/jsonrpc/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/jsonrpc/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/jsonrpc/README.md#meteor-to-meteor-zookeeper)）、[jsonrpc4j → Meteor](peer/java/meteor/src/main/java/net/hasor/example/jsonrpc/README.md#sdk-to-meteor)、[Meteor → jsonrpc4j](peer/java/meteor/src/main/java/net/hasor/example/jsonrpc/README.md#meteor-to-sdk)。
-- **[XML-RPC](peer/java/meteor/src/main/java/net/hasor/example/xmlrpc/README.md)（Apache XML-RPC）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/xmlrpc/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/xmlrpc/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/xmlrpc/README.md#meteor-to-meteor-zookeeper)）、[Apache XML-RPC → Meteor](peer/java/meteor/src/main/java/net/hasor/example/xmlrpc/README.md#sdk-to-meteor)、[Meteor → Apache XML-RPC](peer/java/meteor/src/main/java/net/hasor/example/xmlrpc/README.md#meteor-to-sdk)。
-- **[Hessian](peer/java/meteor/src/main/java/net/hasor/example/hessian/README.md)（Caucho Hessian）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/hessian/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/hessian/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/hessian/README.md#meteor-to-meteor-zookeeper)）、[Caucho Hessian → Meteor](peer/java/meteor/src/main/java/net/hasor/example/hessian/README.md#sdk-to-meteor)、[Meteor → Caucho Hessian](peer/java/meteor/src/main/java/net/hasor/example/hessian/README.md#meteor-to-sdk)。
-- **[gRPC](peer/java/meteor/src/main/java/net/hasor/example/grpc/README.md)（gRPC-Java）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/grpc/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/grpc/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/grpc/README.md#meteor-to-meteor-zookeeper)）、[gRPC-Java → Meteor](peer/java/meteor/src/main/java/net/hasor/example/grpc/README.md#sdk-to-meteor)、[Meteor → gRPC-Java](peer/java/meteor/src/main/java/net/hasor/example/grpc/README.md#meteor-to-sdk)。
-- **[gRPC-Web](peer/java/meteor/src/main/java/net/hasor/example/grpcweb/README.md)（Connect Kotlin/JVM）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/grpcweb/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/grpcweb/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/grpcweb/README.md#meteor-to-meteor-zookeeper)）、[Connect Kotlin/JVM → Meteor](peer/java/meteor/src/main/java/net/hasor/example/grpcweb/README.md#sdk-to-meteor)。
-- **[Connect](peer/java/meteor/src/main/java/net/hasor/example/connect/README.md)（Connect Kotlin/JVM、connect-rpc-java（社区））**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/connect/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/connect/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/connect/README.md#meteor-to-meteor-zookeeper)）、[Connect Kotlin/JVM → Meteor](peer/java/meteor/src/main/java/net/hasor/example/connect/README.md#sdk-to-meteor)、[Meteor → connect-rpc-java（社区）](peer/java/meteor/src/main/java/net/hasor/example/connect/README.md#meteor-to-sdk)。
-- **[Triple](peer/java/meteor/src/main/java/net/hasor/example/triple/README.md)（Apache Dubbo Triple）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/triple/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/triple/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/triple/README.md#meteor-to-meteor-zookeeper)）、[Apache Dubbo Triple → Meteor](peer/java/meteor/src/main/java/net/hasor/example/triple/README.md#sdk-to-meteor)、[Meteor → Apache Dubbo Triple](peer/java/meteor/src/main/java/net/hasor/example/triple/README.md#meteor-to-sdk)。
-- **[ONC RPC](peer/java/meteor/src/main/java/net/hasor/example/oncrpc/README.md)（RemoteTea）**，例如：Meteor → Meteor（[直连](peer/java/meteor/src/main/java/net/hasor/example/oncrpc/README.md#meteor-to-meteor)、[Nacos](peer/java/meteor/src/main/java/net/hasor/example/oncrpc/README.md#meteor-to-meteor-nacos)、[ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/oncrpc/README.md#meteor-to-meteor-zookeeper)）、[RemoteTea → Meteor](peer/java/meteor/src/main/java/net/hasor/example/oncrpc/README.md#sdk-to-meteor)、[Meteor → RemoteTea](peer/java/meteor/src/main/java/net/hasor/example/oncrpc/README.md#meteor-to-sdk)。
+[Java 运行准备与协议入口](peer/java/README.md)。以下协议的 Meteor → Meteor 示例均包含直连、Nacos、ZooKeeper；SDK 互通方向见各项说明。
 
-<a id="python"></a>
+- [RSF](peer/java/README.md#rsf)：Meteor → Meteor。
+- [Dubbo](peer/java/README.md#dubbo)：Apache Dubbo ↔ Meteor（直连、[注册中心](peer/java/README.md#dubbo-registry)）。
+- [Thrift](peer/java/README.md#thrift)：Apache Thrift ↔ Meteor。
+- [Hprose](peer/java/README.md#hprose)：Hprose Java ↔ Meteor。
+- [SOAP](peer/java/README.md#soap)：Metro JAX-WS ↔ Meteor。
+- [JSON-RPC](peer/java/README.md#jsonrpc)：jsonrpc4j ↔ Meteor。
+- [XML-RPC](peer/java/README.md#xmlrpc)：Apache XML-RPC ↔ Meteor。
+- [Hessian](peer/java/README.md#hessian)：Caucho Hessian ↔ Meteor。
+- [gRPC](peer/java/README.md#grpc)：gRPC-Java ↔ Meteor。
+- [gRPC-Web](peer/java/README.md#grpcweb)：Connect Kotlin/JVM → Meteor。
+- [Connect](peer/java/README.md#connect)：Connect Kotlin/JVM → Meteor、Meteor → connect-rpc-java（社区）。
+- [Triple](peer/java/README.md#triple)：Apache Dubbo Triple ↔ Meteor。
+- [ONC RPC](peer/java/README.md#oncrpc)：RemoteTea ↔ Meteor。
 
 ### Python
 
-- **[gRPC](peer/python/grpc/README.md)（grpcio）**，例如：[Meteor ↔ grpcio](peer/python/grpc/README.md#demo-如何启动)。
-- **[Thrift](peer/python/thrift/README.md)（Apache Thrift Python SDK）**，例如：[Meteor ↔ Apache Thrift](peer/python/thrift/README.md#demo-如何启动)。
-- **[SOAP](peer/python/soap/README.md)（Zeep、soapfish2）**，例如：[Zeep → Meteor](peer/python/soap/README.md#sdk-to-meteor)、[Meteor → soapfish2](peer/python/soap/README.md#meteor-to-sdk)。
-- **[JSON-RPC](peer/python/jsonrpc/README.md)（Python 标准库）**，例如：[Meteor ↔ Python 标准库](peer/python/jsonrpc/README.md#demo-如何启动)。
-- **[XML-RPC](peer/python/xmlrpc/README.md)（Python 标准库）**，例如：[Meteor ↔ Python xmlrpc](peer/python/xmlrpc/README.md#demo-如何启动)。
+[Python 环境准备](peer/python/README.md)。
+
+- [gRPC](peer/python/README.md#grpc)：grpcio ↔ Meteor。
+- [Thrift](peer/python/README.md#thrift)：Apache Thrift ↔ Meteor。
+- [SOAP](peer/python/README.md#soap)：Zeep → Meteor、Meteor → soapfish2。
+- [JSON-RPC](peer/python/README.md#jsonrpc)：Python 标准库 ↔ Meteor。
+- [XML-RPC](peer/python/README.md#xmlrpc)：Python 标准库 ↔ Meteor。
 
 <a id="node"></a>
 
 ### Node.js
 
-- **[Hprose](peer/node/hprose/README.md)（hprose SDK）**，例如：[Meteor ↔ hprose](peer/node/hprose/README.md#demo-如何启动)。
-- **[JSON-RPC](peer/node/jsonrpc/README.md)（Node.js 标准库）**，例如：[Meteor ↔ Node.js 标准库](peer/node/jsonrpc/README.md#demo-如何启动)。
-- **[Connect](peer/node/connect/README.md)（Connect SDK）**，例如：[Meteor ↔ Connect SDK](peer/node/connect/README.md#demo-如何启动)。
+[Node.js 环境准备](peer/node/README.md)。
 
-<a id="go"></a>
+- [Hprose](peer/node/README.md#hprose)：hprose ↔ Meteor。
+- [JSON-RPC](peer/node/README.md#jsonrpc)：Node.js 标准库 ↔ Meteor。
+- [Connect](peer/node/README.md#connect)：Connect SDK ↔ Meteor。
 
 ### Go
 
-- **[gRPC](peer/go/grpc/README.md)（grpc-go）**，例如：[Meteor ↔ grpc-go](peer/go/grpc/README.md#demo-如何启动)。
-- **[Connect](peer/go/connect/README.md)（connect-go）**，例如：[Meteor ↔ connect-go](peer/go/connect/README.md#demo-如何启动)。
-- **[Thrift](peer/go/thrift/README.md)（Apache Thrift Go SDK）**，例如：[Meteor ↔ Apache Thrift](peer/go/thrift/README.md#demo-如何启动)。
+[Go 环境准备](peer/go/README.md)。
 
-<a id="c"></a>
+- [gRPC](peer/go/README.md#grpc)：grpc-go ↔ Meteor。
+- [Connect](peer/go/README.md#connect)：connect-go ↔ Meteor。
+- [Thrift](peer/go/README.md#thrift)：Apache Thrift Go SDK ↔ Meteor。
 
 ### C
 
-- **[ONC RPC](peer/c/oncrpc/README.md)（libtirpc）**，例如：[Meteor ↔ libtirpc](peer/c/oncrpc/README.md#demo-如何启动)。
+- [ONC RPC](peer/c/README.md#oncrpc)：libtirpc ↔ Meteor，编译步骤见 [C 环境准备](peer/c/README.md)。
 
 <a id="cpp"></a>
 
 ### C++
 
-- **[ONC RPC](peer/cpp/oncrpc/README.md)（libtirpc）**，例如：[Meteor ↔ libtirpc](peer/cpp/oncrpc/README.md#demo-如何启动)。
+- [ONC RPC](peer/cpp/README.md#oncrpc)：libtirpc ↔ Meteor，编译步骤见 [C++ 环境准备](peer/cpp/README.md)。
 
 <a id="browser"></a>
 
 ### 浏览器 JavaScript
 
-- **[gRPC-Web](peer/browser/grpcweb/README.md)（grpc-web SDK）**，例如：[grpc-web → Meteor](peer/browser/grpcweb/README.md#demo-如何启动)。
+- [gRPC-Web](peer/browser/README.md#grpcweb)：grpc-web → Meteor，页面构建与启动见[浏览器示例](peer/browser/README.md)。
 
 <a id="shell"></a>
 
 ### Shell / curl
 
-- **[JSON-RPC](peer/shell/jsonrpc/README.md)（curl）**，例如：[curl → Meteor](peer/shell/jsonrpc/README.md#demo-如何启动)。
+- [JSON-RPC](peer/shell/README.md#jsonrpc)：curl → Meteor，环境要求见 [Shell 示例](peer/shell/README.md)。
 
 <a id="management-api"></a>
 
 ## 管理 API
 
-通过 Meteor Java API 查询注册中心信息、实例和服务目录。
+通过 Meteor Java API 查询注册中心信息、实例和服务目录：
 
 - [Nacos](peer/java/meteor/src/main/java/net/hasor/example/NacosRegistryAdminMain.java)
 - [ZooKeeper](peer/java/meteor/src/main/java/net/hasor/example/ZookeeperRegistryAdminMain.java)
@@ -103,6 +102,6 @@ Java 使用 JDK 17，在 IDEA 中独立打开 `met-example` 并同步 Gradle，�
 
 ## 共享资源
 
-- Java 订单[接口](peer/java/contracts/src/main/java/net/hasor/example/OrderDemoService.java)、[DTO](peer/java/contracts/src/main/java/net/hasor/example/Order.java)和[实现](peer/java/contracts/src/main/java/net/hasor/example/OrderDemoServiceImpl.java)。
+- Java 订单[接口](peer/java/contracts/src/main/java/net/hasor/example/OrderDemoService.java)、[DTO](peer/java/contracts/src/main/java/net/hasor/example/Order.java)和[实现](peer/java/contracts/src/main/java/net/hasor/example/OrderDemoServiceImpl.java)位于 `peer/java/contracts`。Java SDK 按实现和必要版本分目录。
 - Go [共享订单业务](peer/go/orders.go)。
 - 协议契约 [order.proto](resource/order.proto)、[order.thrift](resource/order.thrift) 和 [order.x](resource/order.x)。
