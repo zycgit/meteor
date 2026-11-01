@@ -1,4 +1,4 @@
 # Keep launchers usable after checkout on every platform.
 gradlew text eol=lf
-gradlew.bat text eol=lf
 *.sh text eol=lf
+gradlew.bat text eol=crlf
