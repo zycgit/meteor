@@ -64,21 +64,23 @@ project(':meteor-registry-nacos').projectDir = file('meteor-integration/meteor-r
 project(':meteor-registry-zookeeper').projectDir = file('meteor-integration/meteor-registry-zookeeper')
 project(':meteor-registry-dubbo').projectDir = file('meteor-integration/meteor-registry-dubbo')
 
-//
-include 'meteor-test'
-include 'meteor-test-app'
-include 'meteor-test-contracts'
-include 'meteor-test-sdk'
-include 'meteor-test-sdk:connect-rpc-java-0.2'
-include 'meteor-test-sdk:connect-kotlin-0.10'
-include 'meteor-test-sdk:alibaba-dubbo-2.6'
-include 'meteor-test-sdk:metro-jaxws-2.3'
-include 'meteor-test-sdk:apache-thrift-0.10'
-project(':meteor-test-app').projectDir = file('meteor-test/peer/java/meteor')
-project(':meteor-test-contracts').projectDir = file('meteor-test/peer/java/contracts')
-project(':meteor-test-sdk').projectDir = file('meteor-test/peer/java')
-project(':meteor-test-sdk:connect-rpc-java-0.2').projectDir = file('meteor-test/peer/java/connect-rpc-java/0.2.1')
-project(':meteor-test-sdk:connect-kotlin-0.10').projectDir = file('meteor-test/peer/java/connect-kotlin/0.10.0')
-project(':meteor-test-sdk:alibaba-dubbo-2.6').projectDir = file('meteor-test/peer/java/alibaba-dubbo/2.6.12')
-project(':meteor-test-sdk:metro-jaxws-2.3').projectDir = file('meteor-test/peer/java/metro-jaxws/2.3.7')
-project(':meteor-test-sdk:apache-thrift-0.10').projectDir = file('meteor-test/peer/java/apache-thrift/0.10.0')
+// Dedicated test commands and IDE imports include the matrix; build.sh selects product projects only.
+if (providers.gradleProperty('includeTestProjects').getOrElse('true').toBoolean()) {
+    include 'meteor-test'
+    include 'meteor-test-app'
+    include 'meteor-test-contracts'
+    include 'meteor-test-sdk'
+    include 'meteor-test-sdk:connect-rpc-java-0.2'
+    include 'meteor-test-sdk:connect-kotlin-0.10'
+    include 'meteor-test-sdk:alibaba-dubbo-2.6'
+    include 'meteor-test-sdk:metro-jaxws-2.3'
+    include 'meteor-test-sdk:apache-thrift-0.10'
+    project(':meteor-test-app').projectDir = file('meteor-test/peer/java/meteor')
+    project(':meteor-test-contracts').projectDir = file('meteor-test/peer/java/contracts')
+    project(':meteor-test-sdk').projectDir = file('meteor-test/peer/java')
+    project(':meteor-test-sdk:connect-rpc-java-0.2').projectDir = file('meteor-test/peer/java/connect-rpc-java/0.2.1')
+    project(':meteor-test-sdk:connect-kotlin-0.10').projectDir = file('meteor-test/peer/java/connect-kotlin/0.10.0')
+    project(':meteor-test-sdk:alibaba-dubbo-2.6').projectDir = file('meteor-test/peer/java/alibaba-dubbo/2.6.12')
+    project(':meteor-test-sdk:metro-jaxws-2.3').projectDir = file('meteor-test/peer/java/metro-jaxws/2.3.7')
+    project(':meteor-test-sdk:apache-thrift-0.10').projectDir = file('meteor-test/peer/java/apache-thrift/0.10.0')
+}

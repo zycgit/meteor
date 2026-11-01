@@ -3,13 +3,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# Project-specific targets; build and release logic below is shared across repositories.
+# Build and publish Meteor product modules; cross-language tests have their own entrypoint.
 project_name=meteor
 release_tag_prefix=v
 local_publish_task=publishAllPublicationsToBuildLocalRepository
 web_project=
 web_command=(./meteor-console/build.sh web)
-nxn_command=()
 plugin_build=
 
 usage() {
@@ -30,9 +29,6 @@ EOF
     if [[ -n "$web_project" || ${#web_command[@]} -gt 0 ]]; then
         echo '  web        Build the project frontend.'
     fi
-    if [[ ${#nxn_command[@]} -gt 0 ]]; then
-        echo '  nxn        Run the real-datasource matrix; can be combined with test or install.'
-    fi
     if [[ "$local_publish_task" == publishToMavenLocal ]]; then
         echo 'Local publication: the standard Maven Local repository.'
     else
@@ -48,18 +44,18 @@ Deploy properties (Gradle user-home gradle.properties or -Pkey=value):
   maven.central.publishing_type=USER_MANAGED
 
 Windows (CMD or PowerShell, JDK 17):
-  .\gradlew.bat clean
-  .\gradlew.bat build -x test
-  .\gradlew.bat build
+  .\gradlew.bat -PincludeTestProjects=false clean
+  .\gradlew.bat -PincludeTestProjects=false build -x test
+  .\gradlew.bat -PincludeTestProjects=false build
 EOF
-    printf '  .\\gradlew.bat %s\n' "$local_publish_task"
+    printf '  .\\gradlew.bat -PincludeTestProjects=false %s\n' "$local_publish_task"
     if [[ -n "$plugin_build" ]]; then
         printf '  .\\gradlew.bat --include-build %s :%s:publishToMavenLocal\n' "$plugin_build" "${plugin_build##*/}"
     fi
     if [[ -n "$web_project" ]]; then
         printf '  .\\gradlew.bat :%s:assemble -x test\n' "$web_project"
     elif [[ ${#web_command[@]} -gt 0 ]]; then
-        echo '  .\gradlew.bat :meteor-console:processResources'
+        echo '  .\gradlew.bat -PincludeTestProjects=false :meteor-console:processResources'
     fi
 }
 
@@ -131,7 +127,7 @@ prepare_release() {
     next_version="$(prompt_with_default 'Next development version' "$(next_snapshot_of "$release_version")")"
     local release_tag="${release_tag_prefix}${release_version}"
     echo "Release version: ${release_version}; tag: ${release_tag}; next version: ${next_version}"
-    echo "Tests: ${run_tests}; NXN: ${run_nxn}; deploy: ${release_deploy}"
+    echo "Tests: ${run_tests}; deploy: ${release_deploy}"
     read -r -p 'Continue? [y/N]: ' confirm
     if [[ "$confirm" != y && "$confirm" != Y ]]; then
         echo 'Release cancelled.'
@@ -141,7 +137,6 @@ prepare_release() {
     # Build with the selected project options; restore the version if verification fails.
     local build_args=(package)
     if [[ "$run_tests" == true ]]; then build_args+=(test); fi
-    if [[ "$run_nxn" == true ]]; then build_args+=(nxn); fi
     if [[ "$web_only" == true ]]; then build_args+=(web); fi
     set_project_version "$release_version"
     if ! ./build.sh "${build_args[@]}" "${gradle_args[@]}"; then
@@ -175,7 +170,6 @@ fi
 mode=package
 mode_explicit=false
 run_tests=false
-run_nxn=false
 web_only=false
 dry_run=false
 release_deploy=false
@@ -198,7 +192,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         test) run_tests=true ;;
         web) web_only=true ;;
-        nxn) run_nxn=true ;;
+        nxn)
+            echo 'Run cross-language tests separately with ./meteor-test/runnxn.sh.' >&2
+            exit 2
+            ;;
         --dry-run|-m) dry_run=true; gradle_args+=("$1") ;;
         -p|--project-dir|--include-build|--project-cache-dir|--priority|\
         -g|--gradle-user-home|-x|--exclude-task|-P|--project-prop|-D|--system-prop|\
@@ -217,23 +214,14 @@ done
 
 if [[ "$web_only" == true ]]; then
     if [[ ${#web_command[@]} -gt 0 ]]; then
-        if [[ "$mode_explicit" == true || "$run_tests" == true || "$run_nxn" == true ]]; then
+        if [[ "$mode_explicit" == true || "$run_tests" == true ]]; then
             echo 'Use web as a standalone frontend command.' >&2
             exit 2
         fi
-        exec "${web_command[@]}" "${gradle_args[@]}"
+        exec "${web_command[@]}" "${gradle_args[@]}" -PincludeTestProjects=false
     elif [[ -z "$web_project" ]]; then
         echo 'This project has no web build command.' >&2
         exit 2
-    fi
-fi
-if [[ "$run_nxn" == true ]]; then
-    if [[ ${#nxn_command[@]} -eq 0 ]]; then
-        echo 'This project has no NXN command.' >&2
-        exit 2
-    fi
-    if [[ "$run_tests" == false && "$mode_explicit" == false ]]; then
-        exec "${nxn_command[@]}" "${gradle_args[@]}"
     fi
 fi
 if [[ "$mode" == release ]]; then
@@ -301,6 +289,8 @@ gradle_defaults=()
 if [[ "$has_parallel_option" == false ]]; then gradle_defaults+=(--parallel); fi
 if [[ "$has_max_workers_option" == false ]]; then gradle_defaults+=(--max-workers 8); fi
 build_gradle_args=("${gradle_args[@]}")
+# Exclude the matrix projects from configuration as well as clean/build/test selection.
+build_gradle_args+=(-PincludeTestProjects=false)
 if [[ "$run_tests" == false ]]; then build_gradle_args+=(-x test); fi
 
 # Finish cleaning before parallel build tasks can consume their outputs.
@@ -308,17 +298,6 @@ if [[ "$run_tests" == false ]]; then build_gradle_args+=(-x test); fi
 ./gradlew "${tasks[@]}" "${gradle_defaults[@]}" "${build_gradle_args[@]}"
 if [[ ${#plugin_tasks[@]} -gt 0 ]]; then
     ./gradlew "${plugin_tasks[@]}" "${gradle_defaults[@]}" "${build_gradle_args[@]}"
-fi
-if [[ "$run_nxn" == true ]]; then
-    if [[ "$mode" != deploy || "$dry_run" == true ]]; then
-        exec "${nxn_command[@]}" "${gradle_args[@]}"
-    fi
-    "${nxn_command[@]}" "${gradle_args[@]}" &
-    nxn_pid=$!
-    trap 'kill -TERM "$nxn_pid" 2>/dev/null || true; wait "$nxn_pid" 2>/dev/null || true; exit 130' INT
-    trap 'kill -TERM "$nxn_pid" 2>/dev/null || true; wait "$nxn_pid" 2>/dev/null || true; exit 143' TERM
-    wait "$nxn_pid"
-    trap - INT TERM
 fi
 
 if [[ "$mode" == deploy && "$dry_run" == false ]]; then
