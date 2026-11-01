@@ -13,8 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class XmlRpcWireValuesTest {
     @Test

@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.Parameter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,23 +24,32 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.storage.NacosTestServer;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 每个协议分别启动测试自有的提供者和消费者 JVM。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "{0}", quoteTextArguments = false)
+@MethodSource("protocols")
+@NxnRpc(name = "rsf", version = "1", cases = "rsf")
+@NxnRpc(name = "dubbo", cases = "dubbo")
+@NxnRpc(name = "thrift", cases = "thrift")
+@NxnRpc(name = "hprose", cases = "hprose")
+@NxnRpc(name = "soap", version = "1.1", cases = "soap")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "jsonrpc")
+@NxnRpc(name = "xmlrpc", cases = "xmlrpc")
+@NxnRpc(name = "hessian", version = "2", cases = "hessian")
+@NxnRpc(name = "grpc", cases = "grpc")
+@NxnRpc(name = "grpc-web", cases = "grpc-web")
+@NxnRpc(name = "connect", version = "1", cases = "connect")
+@NxnRpc(name = "triple", cases = "triple")
+@NxnRpc(name = "oncrpc", version = "2", cases = "oncrpc")
 public class LauncherScenarioTest {
-    @Parameterized.Parameter
+    @Parameter
     public String protocol;
 
-    @Rule
-    public final TemporaryFolder files = new TemporaryFolder();
-
-    @Parameterized.Parameters(name = "{0}")
+    @TempDir
+    public Path files;
     public static Collection<Object[]> protocols() {
         // 按示例目录逐项登记，每项分别执行直连、Nacos 和 ZooKeeper 注册发现。
         List<Object[]> protocols = new ArrayList<>();
@@ -55,16 +69,17 @@ public class LauncherScenarioTest {
         return protocols;
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentDirectProcessesUseOneProtocol() throws Exception {
         // 提供者绑定独立端口，消费者与它在不同的常驻 Java 容器中运行。
-        Path providerLog = this.files.newFile("provider.log").toPath();
+        Path providerLog = Files.createFile(this.files.resolve("provider.log"));
         Process provider = this.launch("ProviderMain", providerLog, null);
         try {
             String target = this.awaitReady(provider, providerLog);
 
             // 消费者运行真实 Main，业务写入和查询通过网络回到当前提供者。
-            Path consumerLog = this.files.newFile("consumer.log").toPath();
+            Path consumerLog = Files.createFile(this.files.resolve("consumer.log"));
             Process consumer = this.launch("ConsumerMain", consumerLog, target);
             String output = this.completed(consumer, consumerLog);
             this.assertOrder(output);
@@ -73,50 +88,52 @@ public class LauncherScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentNacosDiscoveryProcessesUseOneProtocol() throws Exception {
         // Nacos 服务由 worker 复用，当前句柄分配独立数据分组。
-        Path serverHome = this.files.newFolder("nacos").toPath();
+        Path serverHome = Files.createDirectory(this.files.resolve("nacos"));
         try (NacosTestServer registry = new NacosTestServer(serverHome)) {
             registry.start();
             String address = registry.address();
             String group = registry.group();
 
             // 提供者运行当前协议的公开 Main，登记它实际监听的业务端点。
-            Path providerLog = this.files.newFile("nacos-provider.log").toPath();
+            Path providerLog = Files.createFile(this.files.resolve("nacos-provider.log"));
             Process provider = this.launch("NacosRegistryProviderMain", providerLog, null, address, group);
             try {
                 this.awaitReady(provider, providerLog);
 
                 // 消费者原样运行，通过注册中心自动发现提供者并保存、查询订单。
-                Path consumerLog = this.files.newFile("nacos-consumer.log").toPath();
+                Path consumerLog = Files.createFile(this.files.resolve("nacos-consumer.log"));
                 Process consumer = this.launch("NacosRegistryConsumerMain", consumerLog, null, address, group);
                 String output = this.completed(consumer, consumerLog);
                 this.assertOrder(output);
-                assertTrue(output, output.contains("Discovered addresses:"));
+                assertTrue(output.contains("Discovered addresses:"), output);
             } finally {
                 this.stop(provider);
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentZookeeperDiscoveryProcessesUseOneProtocol() throws Exception {
         // ZooKeeper 服务由 worker 复用，当前场景的应用共用一个独立 chroot。
         try (ZookeeperTestServer registry = ZookeeperTestServer.shared()) {
             String address = registry.getConnectString();
             // 提供者使用独立的 ZooKeeper 入口，发布当前协议的业务端点。
-            Path providerLog = this.files.newFile("zookeeper-provider.log").toPath();
+            Path providerLog = Files.createFile(this.files.resolve("zookeeper-provider.log"));
             Process provider = this.launch("ZookeeperRegistryProviderMain", providerLog, null, address);
             try {
                 this.awaitReady(provider, providerLog);
 
                 // 消费者使用独立入口自动发现服务，业务写入和查询通过真实网络完成。
-                Path consumerLog = this.files.newFile("zookeeper-consumer.log").toPath();
+                Path consumerLog = Files.createFile(this.files.resolve("zookeeper-consumer.log"));
                 Process consumer = this.launch("ZookeeperRegistryConsumerMain", consumerLog, null, address);
                 String output = this.completed(consumer, consumerLog);
                 this.assertOrder(output);
-                assertTrue(output, output.contains("Discovered addresses:"));
+                assertTrue(output.contains("Discovered addresses:"), output);
             } finally {
                 this.stop(provider);
             }
@@ -179,7 +196,7 @@ public class LauncherScenarioTest {
                     return line.substring(prefix.length()).trim();
                 }
             }
-            assertTrue(output, process.isAlive());
+            assertTrue(process.isAlive(), output);
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
         }
         throw new AssertionError("Provider did not become ready: " + Files.readString(log));
@@ -187,9 +204,9 @@ public class LauncherScenarioTest {
 
     private String completed(Process consumer, Path log) throws Exception {
         try {
-            assertTrue("Consumer did not exit: " + log, consumer.waitFor(30, TimeUnit.SECONDS));
+            assertTrue(consumer.waitFor(30, TimeUnit.SECONDS), "Consumer did not exit: " + log);
             String output = Files.readString(log, StandardCharsets.UTF_8);
-            assertEquals(output, 0, consumer.exitValue());
+            assertEquals(0, consumer.exitValue(), output);
             return output;
         } finally {
             this.stop(consumer);
@@ -200,7 +217,7 @@ public class LauncherScenarioTest {
         process.destroy();
         if (!process.waitFor(10, TimeUnit.SECONDS)) {
             process.destroyForcibly();
-            assertTrue("Process did not exit", process.waitFor(5, TimeUnit.SECONDS));
+            assertTrue(process.waitFor(5, TimeUnit.SECONDS), "Process did not exit");
         }
     }
 }

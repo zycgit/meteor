@@ -21,13 +21,16 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.example.connector.protocol.UdpTestProtocol.*;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 通过正式 SPI 和真实回环报文验证 UDP 连接器契约，不依赖 RPC 调度器。 */
 public class UdpConnectorTest {
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void peersWithTheSameRequestIdRemainIndependent() throws Exception {
         // 同一客户端建立两个 UDP peer，并使用相同请求号验证按通道隔离。
         ConnectorConfig serverConfig = SocketTestSupport.udpConfig(65507, "testprotocol");
@@ -69,7 +72,8 @@ public class UdpConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void acceptedPeerCanInitiateAReverseRequest() throws Exception {
         // 正向报文先建立服务端 peer，反向请求必须复用同一对 UDP 通道。
         ConnectorConfig serverConfig = SocketTestSupport.udpConfig(65507, "testprotocol");
@@ -102,7 +106,8 @@ public class UdpConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void stoppedInboundRestartsTheSameUdpListenerAndAcceptsAFreshPeer() throws Exception {
         // 通过正式管理器开放 UDP 监听，并用原始数据报建立一个入站 peer。
         ConnectorConfig config = SocketTestSupport.udpConfig(65507, "testprotocol");
@@ -137,7 +142,8 @@ public class UdpConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jvmPeerPreservesIndependentDatagramBoundaries() throws Exception {
         // JVM 原始 UDP 对端连续发送不同长度报文，接收端不得串接或残留正文。
         ConnectorConfig config = SocketTestSupport.udpConfig(65507, "testprotocol");
@@ -171,7 +177,8 @@ public class UdpConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void malformedFirstDatagramDoesNotInterruptHealthyPeer() throws Exception {
         // 正常 peer 已接纳，另一个源端口的首包直接发送残缺协议头。
         ConnectorConfig config = SocketTestSupport.udpConfig(65507, "testprotocol");
@@ -205,7 +212,8 @@ public class UdpConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void malformedPeerDoesNotInterruptHealthyPeer() throws Exception {
         // 先接纳正常与故障两个源端口，使坏报文关闭的目标可被直接观察。
         ConnectorConfig config = SocketTestSupport.udpConfig(65507, "testprotocol");
@@ -241,7 +249,8 @@ public class UdpConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void inboundLimitRejectsWholeDatagramWithoutTruncatingIt() throws Exception {
         // 用小于第二条报文的配置上限，先建立可观察的 UDP peer。
         ConnectorConfig config = SocketTestSupport.udpConfig(16, "testprotocol");
@@ -264,7 +273,8 @@ public class UdpConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void managerCloseDrainsSubmittedRepliesAndReleasesPort() throws Exception {
         // 建立一个入站 peer，关闭管理器时已有响应必须先完成物理发送。
         ConnectorConfig config = SocketTestSupport.udpConfig(65507, "testprotocol");
@@ -308,7 +318,8 @@ public class UdpConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectsZeroListenPortWhenStartingInbound() throws Exception {
         // 地址模型允许表达零端口，但 UDP 监听必须明确拒绝这个配置。
         Map<String, String> options = Map.of("workerThread", "1");
@@ -328,7 +339,8 @@ public class UdpConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectsZeroDatagramLimitBeforeBinding() throws Exception {
         // 零长度上限不是有效 UDP 网络资源参数。
         ConnectorConfig config = SocketTestSupport.udpConfig(0, "testprotocol");
@@ -344,7 +356,8 @@ public class UdpConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectsDatagramLimitAboveMaximumBeforeBinding() throws Exception {
         // 配置上限不能超过 UDP 可用的 65507 字节。
         ConnectorConfig config = SocketTestSupport.udpConfig(65508, "testprotocol");

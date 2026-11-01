@@ -10,9 +10,9 @@ import java.io.IOException;
 import net.hasor.example.contract.types.TypeRecord;
 import net.hasor.example.contract.types.TypeValue;
 import net.hasor.example.contract.types.TypeValueVectors;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /** 每次只断言当前向量对应的业务字段和服务端生成的收据。 */
 public final class TypeValueAssertions {

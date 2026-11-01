@@ -4,6 +4,12 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,15 +25,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 C++ SDK 与 Meteor 的基本双向订单调用，不扩展 TLS、注册发现或类型矩阵。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/cpp/{0}/{1}@{2}/{3}", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "grpc", cases = "sdk/cpp/grpc/*")
+@NxnRpc(name = "thrift", cases = "sdk/cpp/thrift/*")
 public class CppSdkOrderScenarioTest {
     private final OrderProtocol protocol;
     private final String executable;
@@ -36,8 +43,6 @@ public class CppSdkOrderScenarioTest {
         this.protocol = OrderProtocol.valueOf(protocol.toUpperCase(Locale.ROOT));
         this.executable = executable;
     }
-
-    @Parameterized.Parameters(name = "sdk/cpp/{0}/{1}@{2}/{3}")
     public static List<Object[]> versions() {
         // 同一业务分别验证发行包基线和上游最新，生成器与运行库使用各自的独立前缀。
         List<Object[]> versions = new ArrayList<>();
@@ -52,10 +57,11 @@ public class CppSdkOrderScenarioTest {
         return versions;
     }
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sdkToMeteorOrderRoundTrip() throws Exception {
         // Meteor 从 bootstrap 启动，gRPC 根路径与 Thrift framed 配置分别沿用公开入口。
         MetConfiguration configuration = this.configuration(true);
@@ -75,7 +81,8 @@ public class CppSdkOrderScenarioTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorToSdkOrderRoundTrip() throws Exception {
         // 官方 C++ 服务独占动态端口；Meteor 只创建当前协议的出站端点。
         MetConfiguration configuration = this.configuration(false);
@@ -104,7 +111,7 @@ public class CppSdkOrderScenarioTest {
     private MetConfiguration configuration(boolean listen) throws Exception {
         // 每例独占数据目录和临时端口，根路径与标准生成 SDK 的方法路径一致。
         MetConfiguration configuration = new MetConfiguration().setUnitName("local");
-        configuration.setDataHome(this.data.newFolder().toPath());
+        configuration.setDataHome(Files.createTempDirectory(this.data, "case-"));
         String transport = "tcp";
         if (this.protocol == OrderProtocol.GRPC) {
             transport = "http";

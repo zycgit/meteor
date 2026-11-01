@@ -3,6 +3,9 @@
  * Licensed under the Apache License, Version 2.0. See LICENSE.txt.
  */
 package net.hasor.realmeteor.protocol.grpc.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.example.Order;
@@ -14,14 +17,16 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** gRPC Python 1.x 取最新补丁，生成器和运行时使用同一版本。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/python/grpc/grpcio@{0}/protobuf/{1}", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "grpc")
 public class PythonGrpcSdkVersionCompatibilityTest {
     private final String version;
     private final String direction;
@@ -30,13 +35,12 @@ public class PythonGrpcSdkVersionCompatibilityTest {
         this.version = version;
         this.direction = direction;
     }
-
-    @Parameterized.Parameters(name = "sdk/python/grpc/grpcio@{0}/protobuf/{1}")
     public static Object[][] versions() {
         return new Object[][] { { "1.85.0", "SDK-to-Meteor" }, { "1.85.0", "Meteor-to-SDK" } };
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exchangesOrderUsingTheLatestSdkBranch() throws Exception {
         // 通道从公开 bootstrap 创建，当前发行版与对应生成器一起准备。
         boolean sdkConsumer = StringUtils.equals(this.direction, "SDK-to-Meteor");

@@ -16,8 +16,8 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.example.connector.protocol.rsf.EchoService;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** 两个独立应用经公开入口执行 Meteor 到 Meteor 的真实 RSF 调用。 */
 public class RsfInvocationTest {

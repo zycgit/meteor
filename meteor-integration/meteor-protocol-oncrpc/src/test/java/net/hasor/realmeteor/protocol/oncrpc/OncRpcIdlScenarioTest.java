@@ -16,13 +16,16 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.oncrpc.binding.OncRpcIdlResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 从 bootstrap 发布普通接口和 DTO，两个传输分别验证文件绑定。 */
 public class OncRpcIdlScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpCallMapsAnOrdinaryDtoUsingTheFile() throws Exception {
         // 先启动独立的服务容器，再分别发布和订阅服务。
         try (MetContext server = this.configuration("tcp", "oncrpc", true).buildContext(); //
@@ -47,7 +50,8 @@ public class OncRpcIdlScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpCallRestoresTheDifferentJavaParameterOrder() throws Exception {
         // 同一契约通过 UDP 发布，复用已有超时、重传和回包管理。
         try (MetContext server = this.configuration("udp", "oncrpc-udp", true).buildContext(); //

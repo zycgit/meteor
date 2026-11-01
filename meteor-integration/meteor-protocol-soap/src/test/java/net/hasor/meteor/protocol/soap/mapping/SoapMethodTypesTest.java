@@ -10,8 +10,8 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JavaType;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class SoapMethodTypesTest {
     @Test

@@ -23,8 +23,8 @@ import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.protocol.grpc.codec.GrpcWebCodec;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class GrpcWebChannelTest {
     @Test

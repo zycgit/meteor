@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.hprose.types;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -19,28 +24,27 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.matrix.types.ForeignTypePeer;
 import net.hasor.realmeteor.matrix.types.TypeValueAssertions;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Node Hprose 与 Meteor 逐类型双向互通；文本长整数映射和负零限制单独记录。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/node/hprose/direct/{1}/{0}", quoteTextArguments = false)
+@MethodSource("vectors")
+@NxnRpc(name = "hprose")
 public class NodeHproseTypeTest {
-    @Rule
-    public final  TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final String          vector;
 
     public NodeHproseTypeTest(String vector, String type) {
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/node/hprose/direct/{1}/{0}")
     public static Collection<Object[]> vectors() throws Exception {
         // 固定顺序沿用共享契约，每个向量与调用方向均为独立 JUnit 实例。
         List<Object[]> cases = new ArrayList<>();
@@ -50,11 +54,12 @@ public class NodeHproseTypeTest {
         return cases;
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorProviderAcceptsOneNodeTypeVector() throws Exception {
         // 从 bootstrap 启动提供者，再发布同一份类型业务接口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.setDataHome(this.data.newFolder("provider").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("hprose").contextPath("/types");
         try (MetContext provider = configuration.buildContext()) {
@@ -71,13 +76,14 @@ public class NodeHproseTypeTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerAcceptsOneNodeTypeVector() throws Exception {
         // 官方 Node 服务端独立拥有监听，Meteor 消费者只配置出站通道。
         try (ForeignTypePeer peer = ForeignTypePeer.provider("node", "hprose")) {
             int port = peer.awaitPort();
             MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-            configuration.setDataHome(this.data.newFolder("consumer").toPath());
+            configuration.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
             configuration.connector("http").protocol("hprose").contextPath("/types");
             try (MetContext consumer = configuration.buildContext()) {
                 consumer.start();

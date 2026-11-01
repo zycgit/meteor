@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
@@ -17,13 +20,15 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.node.NodeRpcPeer;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** node-soap 0.x 和 1.x 通过同一 WSDL 验证双向 document/literal 调用。 */
-@RunWith(Parameterized.class)
+@NxnRpc(name = "soap", version = "1.1")
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/node/soap/{0}@{1}/{2}/{3}", quoteTextArguments = false)
+@MethodSource("versions")
 public class NodeSoapSdkVersionScenarioTest {
     private final String profile;
     private final String direction;
@@ -32,13 +37,12 @@ public class NodeSoapSdkVersionScenarioTest {
         this.profile = profile;
         this.direction = direction;
     }
-
-    @Parameterized.Parameters(name = "sdk/node/soap/{0}@{1}/{2}/{3}")
     public static List<Object[]> versions() throws Exception {
         return NodeRpcPeer.compatibilityCases("soap");
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void selectedSdkDirectionPreservesXmlText() throws Exception {
         // 每个参数化实例只验证一个 SDK 版本与调用方向，错误原样向测试框架传播。
         if (StringUtils.equals("SDK-to-Meteor", this.direction)) {

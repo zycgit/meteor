@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.discovery.zookeeper;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import java.util.concurrent.TimeUnit;
 import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.discovery.RegistryDiscoveryExample;
@@ -19,16 +23,15 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.zookeeper.ZookeeperRegistryConfiguration;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** 一个应用下线再上线，ZooKeeper 自动订阅撤回并恢复其订单服务地址。 */
+@NxnRpc(name = "rsf", version = "1")
 public class ZookeeperScenarioTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     @Test
     public void restoresDiscoveredProviderAfterOfflineAndOnline() throws Exception {
@@ -38,9 +41,9 @@ public class ZookeeperScenarioTest {
             registry.setAddress(storage.getConnectString());
             registry.setRefreshMillis(60000);
             MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-            incoming.setDataHome(this.data.newFolder("provider").toPath());
+            incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
             MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-            outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+            outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
 
             try (MetContext provider = incoming.buildContext(); //
                  MetContext consumer = outgoing.buildContext()) {
@@ -67,8 +70,8 @@ public class ZookeeperScenarioTest {
                     }
                     TimeUnit.MILLISECONDS.sleep(20);
                 }
-                assertTrue("Offline provider is still discoverable", //
-                        consumer.getUpdater().queryAvailableAddresses(serviceId).isEmpty());
+                assertTrue(//
+                        consumer.getUpdater().queryAvailableAddresses(serviceId).isEmpty(), "Offline provider is still discoverable");
 
                 // 重新上线后等待同一个订阅恢复，再远程读取下线前保存的订单。
                 provider.online();

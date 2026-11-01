@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import net.hasor.example.protocol.jsonrpc.JsonRpcInteropService;
@@ -18,12 +19,15 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.jsonrpc.JsonRpcException;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.cobble.StringUtils;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class JsonRpcInteropTest {
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jaysonHttpClientPositionalArguments() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -48,7 +52,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jaysonHttpClientNamedArguments() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -73,7 +78,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jaysonHttpClientNotification() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -98,7 +104,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jaysonHttpClientMixedBatch() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -123,7 +130,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jaysonHttpClientUnknownMethod() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -148,7 +156,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jaysonWebSocketClientPositionalArguments() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -174,7 +183,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jaysonWebSocketClientNamedArguments() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -200,7 +210,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jaysonWebSocketClientNotification() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -226,7 +237,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jaysonWebSocketClientMixedBatch() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -252,7 +264,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jaysonWebSocketClientUnknownMethod() throws Exception {
         // 通过公开入口配置挂载点，对端只连接实际监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -278,7 +291,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsJaysonHttpUnicode() throws Exception {
         // 客户端只配置出站能力，独立 Node.js 服务端持有监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -305,7 +319,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsJaysonHttpNotification() throws Exception {
         // 客户端只配置出站能力，独立 Node.js 服务端持有监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -339,7 +354,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsJaysonHttpError() throws Exception {
         // 客户端只配置出站能力，独立 Node.js 服务端持有监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -373,7 +389,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsJaysonWebSocketUnicode() throws Exception {
         // 客户端只配置出站能力，独立 Node.js 服务端持有监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -401,7 +418,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsJaysonWebSocketNotification() throws Exception {
         // 客户端只配置出站能力，独立 Node.js 服务端持有监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
@@ -436,7 +454,8 @@ public class JsonRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsJaysonWebSocketError() throws Exception {
         // 客户端只配置出站能力，独立 Node.js 服务端持有监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);

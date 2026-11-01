@@ -12,10 +12,10 @@
 
 ```bash
 # 只准备环境和容器内构建，保留工作卷
-./meteor-test/runnxn.sh --prepare-only
+./meteor-test/runnxn.sh all --prepare-only
 
 # 测试结束后保留工作卷
-./meteor-test/runnxn.sh --keep-workspace
+./meteor-test/runnxn.sh all --keep-workspace
 
 # 清理保留的测试环境
 ./gradlew :meteor-test:dockerCleanup
@@ -27,8 +27,8 @@
 
 ```bash
 ./gradlew -Dmaven.repo.local=/path/to/repository :meteor-test:dockerTest
-./meteor-test/runnxn.sh --maven-seed /path/to/repository
-./meteor-test/runnxn.sh --maven-seed /path/to/repository/net/hasor
+./meteor-test/runnxn.sh all --maven-seed /path/to/repository
+./meteor-test/runnxn.sh all --maven-seed /path/to/repository/net/hasor
 ```
 
 仅导入所选仓库的 `net/hasor` 产物；显式目录必须存在，默认目录缺失时使用空种子，容器随后按正常依赖仓库解析。
@@ -69,7 +69,7 @@
 
 源码作为只读输入导入空白工作卷，编译输出不写回宿主源码。Gradle 依赖缓存跨轮保留，Maven、peer 和 workspace 使用上述固定临时卷名。所有模式均在容器内构建当前源码，不读取旧测试结果。
 
-宿主 Wrapper 默认将 Gradle 缓存及 daemon 日志放入仓库共享的 `.gradle/user-home/`，可显式设置 `GRADLE_USER_HOME`。容器通过同名环境变量使用受管理的 Gradle 缓存卷；运行日志和结果归档到宿主 `meteor-test/build/docker-runs/`。用户 Maven 目录仅作为只读依赖种子。
+宿主 Gradle 缓存及 daemon 日志使用默认用户目录，可通过 `GRADLE_USER_HOME` 指定。容器使用受管理的 Gradle 缓存卷；运行日志和结果归档到宿主 `meteor-test/build/docker-runs/`。用户 Maven 目录仅作为只读依赖种子。
 
 ## 网络与进程
 
@@ -90,7 +90,7 @@
 需要暂停 Linux / WSL 校时时，在仓库根目录执行：
 
 ```bash
-sudo ./meteor-test/runnxn.sh
+sudo ./meteor-test/runnxn.sh all
 ```
 
 入口调用 `tools/clock/with-clock-paused.sh` 暂停 Linux 的 `systemd-timesyncd` 和 WSL 虚拟机的 `chronyd`。结束或收到 INT、TERM 后，先等待测试清理，再恢复原状态，原先未运行的保持不变。暂停和恢复结果直接打印。

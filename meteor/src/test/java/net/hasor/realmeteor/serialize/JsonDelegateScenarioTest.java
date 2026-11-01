@@ -15,8 +15,8 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.serialize.coder.JsonSerializeCoder;
 import net.hasor.meteor.serialize.coder.JsonSerializeDelegate;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class JsonDelegateScenarioTest {
     @Test

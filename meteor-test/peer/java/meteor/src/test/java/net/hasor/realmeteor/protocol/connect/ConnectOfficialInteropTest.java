@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.connect;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -32,13 +35,14 @@ import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcProtoSchema;
 import net.hasor.meteor.rpc.MetCaller;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 与官方 Connect Node 双向互通，Meteor 一侧只经 bootstrap 发布和订阅服务。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "encoding={0}", quoteTextArguments = false)
+@MethodSource("formats")
+@NxnRpc(name = "connect", version = "1")
 public class ConnectOfficialInteropTest {
     private static final String SERVICE = "meteor.connect.demo.ConnectDemoService";
     private final        String serialization;
@@ -48,13 +52,12 @@ public class ConnectOfficialInteropTest {
         this.serialization = serialization;
         this.format = format;
     }
-
-    @Parameterized.Parameters(name = "encoding={0}")
     public static Object[][] formats() {
         return new Object[][] { { "Protobuf", "proto" }, { "Json", "json" } };
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorUnaryHttp1() throws Exception {
         // 配置 HTTP/1 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 1);
@@ -77,14 +80,15 @@ public class ConnectOfficialInteropTest {
             };
             try (ConnectNodeProcess peer = ConnectNodeProcess.start(peerArguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Connect 中文 🙂", result.path("result").path("text").asText());
                 assertEquals(42, result.path("result").path("number").asInt());
             }
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorUnaryHttp2() throws Exception {
         // 配置 HTTP/2 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 2);
@@ -107,14 +111,15 @@ public class ConnectOfficialInteropTest {
             };
             try (ConnectNodeProcess peer = ConnectNodeProcess.start(peerArguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Connect 中文 🙂", result.path("result").path("text").asText());
                 assertEquals(42, result.path("result").path("number").asInt());
             }
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorServerStreamHttp1() throws Exception {
         // 配置 HTTP/1 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 1);
@@ -137,7 +142,7 @@ public class ConnectOfficialInteropTest {
             };
             try (ConnectNodeProcess peer = ConnectNodeProcess.start(peerArguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals(3, result.path("result").size());
                 assertEquals(0, result.path("result").get(0).path("number").asInt());
                 assertEquals(2, result.path("result").get(2).path("number").asInt());
@@ -146,7 +151,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorServerStreamHttp2() throws Exception {
         // 配置 HTTP/2 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 2);
@@ -169,7 +175,7 @@ public class ConnectOfficialInteropTest {
             };
             try (ConnectNodeProcess peer = ConnectNodeProcess.start(peerArguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals(3, result.path("result").size());
                 assertEquals(0, result.path("result").get(0).path("number").asInt());
                 assertEquals(2, result.path("result").get(2).path("number").asInt());
@@ -178,7 +184,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorClientStream() throws Exception {
         // 配置 HTTP/2 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 2);
@@ -201,14 +208,15 @@ public class ConnectOfficialInteropTest {
             };
             try (ConnectNodeProcess peer = ConnectNodeProcess.start(peerArguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("sum", result.path("result").path("text").asText());
                 assertEquals(10, result.path("result").path("number").asInt());
             }
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorBidiStream() throws Exception {
         // 配置 HTTP/2 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 2);
@@ -231,7 +239,7 @@ public class ConnectOfficialInteropTest {
             };
             try (ConnectNodeProcess peer = ConnectNodeProcess.start(peerArguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals(3, result.path("result").size());
                 assertEquals("中文", result.path("result").get(1).path("text").asText());
                 assertEquals(3, result.path("result").get(1).path("number").asInt());
@@ -239,7 +247,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorSafeGet() throws Exception {
         // 配置 HTTP/1 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 1);
@@ -262,14 +271,15 @@ public class ConnectOfficialInteropTest {
             };
             try (ConnectNodeProcess peer = ConnectNodeProcess.start(peerArguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Connect GET 中文 🙂", result.path("result").path("text").asText());
                 assertEquals(42, result.path("result").path("number").asInt());
             }
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorCompressedUnary() throws Exception {
         // 配置 HTTP/1 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 1, true, false);
@@ -292,7 +302,7 @@ public class ConnectOfficialInteropTest {
             };
             try (ConnectNodeProcess peer = ConnectNodeProcess.start(peerArguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Connect 中文 🙂", result.path("result").path("text").asText());
                 assertEquals(42, result.path("result").path("number").asInt());
                 assertEquals("gzip", result.path("header").path("content-encoding").asText());
@@ -300,7 +310,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorCompressedServerStream() throws Exception {
         // 配置 HTTP/2 和 Connect 挂载，双方使用同一份公开 proto 定义。
         MetConfiguration configuration = this.configuration(true, 2, true, false);
@@ -323,7 +334,7 @@ public class ConnectOfficialInteropTest {
             };
             try (ConnectNodeProcess peer = ConnectNodeProcess.start(peerArguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals(3, result.path("result").size());
                 assertEquals(0, result.path("result").get(0).path("number").asInt());
                 assertEquals(2, result.path("result").get(2).path("number").asInt());
@@ -333,7 +344,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialUnaryHttp1() throws Exception {
         // 独立官方服务监听 HTTP/1，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 1);
@@ -358,7 +370,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialUnaryHttp2() throws Exception {
         // 独立官方服务监听 HTTP/2，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 2);
@@ -383,7 +396,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialServerStreamHttp1() throws Exception {
         // 独立官方服务监听 HTTP/1，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 1);
@@ -412,7 +426,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialServerStreamHttp2() throws Exception {
         // 独立官方服务监听 HTTP/2，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 2);
@@ -441,7 +456,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialClientStream() throws Exception {
         // 独立官方服务监听 HTTP/2，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 2);
@@ -468,7 +484,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialBidiStream() throws Exception {
         // 独立官方服务监听 HTTP/2，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 2);
@@ -498,7 +515,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialSafeGet() throws Exception {
         // 独立官方服务监听 HTTP/1，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 1, false, true);
@@ -528,7 +546,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialCompressedUnary() throws Exception {
         // 独立官方服务监听 HTTP/1，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 1, true, false);
@@ -553,7 +572,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialCompressedServerStream() throws Exception {
         // 独立官方服务监听 HTTP/2，Meteor 只配置出站 Connect 通道。
         MetConfiguration configuration = this.configuration(false, 2, true, false);
@@ -582,7 +602,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesMeteorMetadata() throws Exception {
         // 启动 HTTP/1 服务，在公开过滤器中回送单次调用的文本与二进制元数据。
         MetConfiguration configuration = this.configuration(true, 1);
@@ -611,7 +632,7 @@ public class ConnectOfficialInteropTest {
             try (ConnectNodeProcess peer = ConnectNodeProcess.start("client", target, "--http-version=1.1", //
                     "--format=" + this.format, "--scenario=metadata")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("request-value", result.path("header").path("x-connect-test-request").asText());
                 assertEquals("first, second", result.path("header").path("x-connect-test-repeat").asText());
                 assertEquals("finished", result.path("trailer").path("x-connect-test-trailer").asText());
@@ -621,7 +642,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesOfficialMetadata() throws Exception {
         // 官方 Node 服务维护自己的元数据，Meteor 只通过业务接口和异步调用入口访问。
         MetConfiguration configuration = this.configuration(false, 1);
@@ -654,7 +676,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesMeteorStreamTrailers() throws Exception {
         // 流式结束字段通过 Connect 结束帧传递，与 HTTP/2 原生 trailer 分开验证。
         MetConfiguration configuration = this.configuration(true, 2);
@@ -679,7 +702,7 @@ public class ConnectOfficialInteropTest {
             try (ConnectNodeProcess peer = ConnectNodeProcess.start("client", target, "--http-version=2", //
                     "--format=" + this.format, "--scenario=count")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals(3, result.path("result").size());
                 assertEquals("request-value", result.path("header").path("x-connect-test-request").asText());
                 assertEquals("finished", result.path("trailer").path("x-connect-test-trailer").asText());
@@ -689,7 +712,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @SuppressWarnings("unchecked")
     public void meteorClientReceivesOfficialStreamTrailers() throws Exception {
         // 从正式异步入口取得流和响应元数据视图，保持用户可见的真实生命周期。
@@ -720,7 +744,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesMeteorErrorDetails() throws Exception {
         // 服务可显式抛出 Connect 错误，详情依照 proto 编为 Any 值。
         MetConfiguration configuration = this.configuration(true, 1);
@@ -756,7 +781,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesOfficialErrorDetails() throws Exception {
         // 官方服务独立生成 InvalidArgument 与 Any 详情，Meteor 使用正式订阅入口。
         MetConfiguration configuration = this.configuration(false, 1);
@@ -791,7 +817,8 @@ public class ConnectOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesMeteorStreamFailure() throws Exception {
         // 消息源在流中失败，协议需以结束帧传回错误而非正常 EOF。
         MetConfiguration configuration = this.configuration(true, 2);
@@ -813,14 +840,15 @@ public class ConnectOfficialInteropTest {
             };
             try (ConnectNodeProcess peer = ConnectNodeProcess.start(peerArguments)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.has("error"));
+                assertTrue(result.has("error"), result.toString());
                 assertEquals(2, result.path("error").path("code").asInt());
                 assertEquals("connect source failure 中文", result.path("error").path("message").asText());
             }
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesOfficialStreamFailureAfterData() throws Exception {
         // 官方服务先独立发送一条数据，再发送 ResourceExhausted 错误结束帧。
         MetConfiguration configuration = this.configuration(false, 2);

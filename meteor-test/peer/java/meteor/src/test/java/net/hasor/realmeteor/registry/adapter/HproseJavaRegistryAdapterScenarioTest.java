@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.adapter;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -28,20 +33,19 @@ import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Java Hprose SDK 与 Meteor 双向互通，发现方式明确为公开存储适配。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "Hprose-java/storage-adapter/{0}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "hprose")
 public class HproseJavaRegistryAdapterScenarioTest {
-    @Parameterized.Parameters(name = "Hprose-java/storage-adapter/{0}")
     public static Collection<Object[]> backends() {
         List<Object[]> result = new ArrayList<>();
         result.add(new Object[] { "jdbc" });
@@ -50,8 +54,8 @@ public class HproseJavaRegistryAdapterScenarioTest {
         return result;
     }
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
@@ -59,16 +63,17 @@ public class HproseJavaRegistryAdapterScenarioTest {
         this.backend = backend;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaConsumerResolvesMeteorProviderThroughStorageAdapter() throws Exception {
         // 通过 bootstrap 启动 Meteor 并发布统一订单接口，注册库保存实际监听端点。
-        Path directory = this.data.newFolder("hprose-registry").toPath();
+        Path directory = Files.createDirectory(this.data.resolve("hprose-registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
             registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("hprose");
             configuration.addExtension(registry).setApplicationName("hprose-java-adapter-provider");
-            configuration.setDataHome(this.data.newFolder("hprose-provider-data").toPath());
+            configuration.setDataHome(Files.createDirectory(this.data.resolve("hprose-provider-data")));
             configuration.connector("tcp").protocol("rsf"); // 注册扩展的内部管理出口，不开放监听。
             configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                     .protocol("hprose").addressScheme("http").contextPath("/orders");
@@ -79,7 +84,7 @@ public class HproseJavaRegistryAdapterScenarioTest {
                         .name("orders").protocol("hprose").aliasName("Hprose", "orders").register();
 
                 // 官方客户端先独立启动，再从存储订阅获得 URL，测试线程不代发业务 RPC。
-                Path logs = this.data.newFolder("hprose-java-consumer").toPath();
+                Path logs = Files.createDirectory(this.data.resolve("hprose-java-consumer"));
                 try (HproseJavaOrderPeerProcess consumer = HproseJavaOrderPeerProcess.consumer(logs); //
                      StorageAccess storage = registry.openStorage(); //
                      RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(), //
@@ -100,16 +105,17 @@ public class HproseJavaRegistryAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversOfficialJavaProviderThroughStorageAdapter() throws Exception {
         // 消费者只配置出站协议和注册库，不监听业务端口，也没有预先指定的业务地址。
-        Path directory = this.data.newFolder("hprose-registry").toPath();
+        Path directory = Files.createDirectory(this.data.resolve("hprose-registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
             registry.setPublishHost(ContainerProcess.runnerHost());
             MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("hprose");
             configuration.addExtension(registry).setApplicationName("hprose-java-adapter-consumer");
-            configuration.setDataHome(this.data.newFolder("hprose-consumer-data").toPath());
+            configuration.setDataHome(Files.createDirectory(this.data.resolve("hprose-consumer-data")));
             configuration.connector("tcp").protocol("rsf"); // 注册扩展的内部管理出口，不开放监听。
             configuration.connector("http") //
                     .protocol("hprose").addressScheme("http").contextPath("/orders");
@@ -121,7 +127,7 @@ public class HproseJavaRegistryAdapterScenarioTest {
                 assertTrue(consumer.getUpdater().queryAvailableAddresses(service.getBindID()).isEmpty());
 
                 // 官方服务引擎报告真实监听端口后，以 java/hprose/http 身份登记存储。
-                Path logs = this.data.newFolder("hprose-java-provider").toPath();
+                Path logs = Files.createDirectory(this.data.resolve("hprose-java-provider"));
                 try (HproseJavaOrderPeerProcess provider = HproseJavaOrderPeerProcess.provider(logs); //
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     InterAddress address = provider.address(consumer.getSettings().getUnitName());

@@ -17,17 +17,17 @@ import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.protocol.xmlrpc.XmlRpcException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class XmlRpcResponseTest {
     private MetContext      context;
     private XmlRpcCodec     codec;
     private XmlRpcWireCodec wire;
 
-    @Before
+    @BeforeEach
     public void prepareConsumerMetadata() throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         configuration.connector("http").protocol("xmlrpc").contextPath("/rpc");
@@ -39,7 +39,7 @@ public class XmlRpcResponseTest {
         this.wire = new XmlRpcWireCodec(protocol);
     }
 
-    @After
+    @AfterEach
     public void closeContext() throws Exception {
         this.context.close();
     }

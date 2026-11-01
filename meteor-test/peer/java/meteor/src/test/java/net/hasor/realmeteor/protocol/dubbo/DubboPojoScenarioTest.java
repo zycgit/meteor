@@ -20,12 +20,16 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 普通 Java 方法通过真实 Dubbo TCP 通道传递业务值。 */
+@NxnRpc(name = "dubbo")
 public class DubboPojoScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void multipleArgumentsRetainTheirDeclaredPositions() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -45,7 +49,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void stringOverloadUsesItsDeclaredSignature() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -65,7 +70,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void primitiveOverloadUsesItsDeclaredSignature() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -85,7 +91,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void noArgumentMethodReturnsItsBusinessValue() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -105,7 +112,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryParameterPreservesZeroAndSignedBytes() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -126,7 +134,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dtoResultUsesTheDeclaredBusinessClass() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -148,7 +157,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void genericListRestoresEachBusinessElement() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -173,7 +183,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mapResultPreservesItsValueTypes() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -198,7 +209,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nullArgumentAndResultRemainNull() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -218,7 +230,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void voidOrdinaryCallWaitsForAResponse() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -240,7 +253,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void businessFailureDoesNotPoisonFollowingCalls() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -265,7 +279,7 @@ public class DubboPojoScenarioTest {
             while (business != null && !(business instanceof IllegalArgumentException)) {
                 business = business.getCause();
             }
-            assertNotNull("Original business exception must remain observable", business);
+            assertNotNull(business, "Original business exception must remain observable");
             assertEquals("dubbo failure 中文", business.getMessage());
 
             // 同一客户端的后续请求仍可正常工作。
@@ -273,7 +287,8 @@ public class DubboPojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentRequestsCorrelateResponsesByRequestId() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //

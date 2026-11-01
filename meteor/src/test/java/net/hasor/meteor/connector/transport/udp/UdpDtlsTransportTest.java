@@ -17,10 +17,12 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.example.connector.protocol.UdpTestProtocol.request;
 import static net.hasor.example.connector.protocol.UdpTestProtocol.response;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Verifies that secure UDP endpoint options reach Neta as a DTLS pipeline. */
 public class UdpDtlsTransportTest {
@@ -29,17 +31,20 @@ public class UdpDtlsTransportTest {
     private static final String TRUST_STORE  = "classpath:/tls/acceptance/trust.p12";
     private static final String PASSWORD     = "meteor-test";
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serverAuthenticationNegotiatesDtlsAndCarriesMessages() throws Exception {
         this.verifyRoundTrip(false);
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualAuthenticationNegotiatesDtlsAndCarriesMessages() throws Exception {
         this.verifyRoundTrip(true);
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oversizedDtlsDatagramIsRejectedBeforeEncryption() throws Exception {
         // DTLS 一次写入必须保持为一条 UDP 业务报文，不能让 SSLEngine 静默拆成多条消息。
         int port = SocketTestSupport.availableUdpPort();
@@ -69,7 +74,8 @@ public class UdpDtlsTransportTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientGracefulCloseDoesNotHang() throws Exception {
         // 安全 UDP 不能半关闭；本地排空关闭必须在时限内完成并释放连接。
         int port = SocketTestSupport.availableUdpPort();
@@ -96,7 +102,8 @@ public class UdpDtlsTransportTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void writesQueuedDuringHandshakeRemainSeparateDatagrams() throws Exception {
         // 握手完成前连续写入仍要逐条进入 SSLEngine，不能合并为一条 DTLS record。
         int port = SocketTestSupport.availableUdpPort();
@@ -131,7 +138,8 @@ public class UdpDtlsTransportTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void droppedInitialClientHelloIsRetransmittedBeforeRoundTrip() throws Exception {
         // 真实 UDP 中继只丢第一次 ClientHello，并将同一握手键的后续报文作为重传放行。
         int port = SocketTestSupport.availableUdpPort();
@@ -175,7 +183,8 @@ public class UdpDtlsTransportTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void silentPeerFailsQueuedWriteAtHandshakeTimeoutAndClosesChannel() throws Exception {
         // 静默对端持续接收握手数据但从不回复，客户端使用短握手总超时。
         String observation = "client-silent-" + SocketTestSupport.availableUdpPort();

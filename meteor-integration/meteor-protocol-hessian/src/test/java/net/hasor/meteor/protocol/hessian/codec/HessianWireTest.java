@@ -20,20 +20,20 @@ import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodecTestFixture.BusinessException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class HessianWireTest {
     private HessianCodecTestFixture fixture;
 
-    @Before
+    @BeforeEach
     public void prepareMetadata() throws Exception {
         this.fixture = new HessianCodecTestFixture();
     }
 
-    @After
+    @AfterEach
     public void closeContext() throws Exception {
         this.fixture.close();
     }

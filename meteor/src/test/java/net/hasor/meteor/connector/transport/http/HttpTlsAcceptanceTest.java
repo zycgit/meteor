@@ -31,11 +31,12 @@ import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 验证 HTTP 明文路由以及生产 TLS、ALPN 和客户端身份校验边界。 */
 public class HttpTlsAcceptanceTest {
@@ -47,7 +48,8 @@ public class HttpTlsAcceptanceTest {
     private static final String TRUST_STORE            = "classpath:/tls/acceptance/trust.p12";
     private static final String UNTRUSTED_TRUST_STORE  = "classpath:/tls/acceptance/untrusted-trust.p12";
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cleartextListenerAcceptsHttp1AndH2PriorKnowledge() throws Exception {
         // 同一个明文监听器分别接收 HTTP/1.1 和 HTTP/2 prior-knowledge 连接。
         ConnectorConfig serverConfig = this.config(true, 1, Map.of());
@@ -68,7 +70,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneWayTlsAllowsHttp1WithoutAlpn() throws Exception {
         // 服务端提供身份，客户端只信任服务端；两端都不声明 ALPN。
         String serverProbe = "one-way-server";
@@ -95,7 +98,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sameTlsListenerSelectsH2AndHttp1ByAlpn() throws Exception {
         // 一个监听器声明两种 ALPN，各客户端只声明自己实际使用的 HTTP 版本。
         String serverProbe = "alpn-server";
@@ -130,7 +134,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsUsesDistinctServerAndClientIdentities() throws Exception {
         // 服务端要求客户端证书，两端使用同一 CA 签发的不同身份。
         String serverProbe = "mtls-server";
@@ -165,7 +170,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsRejectsClientWithoutCertificate() throws Exception {
         // 服务端信任测试 CA 并强制客户端认证，客户端只配置服务端信任。
         LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
@@ -188,7 +194,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsRejectsClientFromUntrustedCa() throws Exception {
         // 客户端证书由另一 CA 签发，服务端仍只信任主测试 CA。
         LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
@@ -214,7 +221,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientRejectsServerOutsideItsTrustStore() throws Exception {
         // 服务端使用主测试 CA，客户端故意只信任另一套测试 CA。
         LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
@@ -234,7 +242,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientRejectsServerWithWrongHostname() throws Exception {
         // 服务端证书受信任，但 SAN 只包含 other.invalid。
         LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
@@ -255,7 +264,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tlsHandshakeFailsWhenAlpnHasNoCommonProtocol() throws Exception {
         // 服务端只允许 HTTP/1.1，客户端只允许 h2，两端没有 ALPN 交集。
         LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
@@ -274,7 +284,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2ClientDoesNotDowngradeAfterHttp1AlpnSelection() throws Exception {
         // 客户端允许协商两种协议但调用通道明确要求 HTTP/2，服务端只选择 HTTP/1.1。
         String clientProbe = "no-downgrade-client";
@@ -297,7 +308,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tlsHttp1RequestCannotUpgradeToH2c() throws Exception {
         // TLS 监听通过 ALPN 选择 HTTP/1.1，客户端随后发送一份语法有效的 h2c Upgrade 请求。
         ConnectorConfig serverConfig = this.config(true, 1, this.serverTls("http/1.1", "tls-upgrade-server"));
@@ -324,7 +336,8 @@ public class HttpTlsAcceptanceTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsSchemeWithoutTlsFailsBeforeSendingPlaintext() throws Exception {
         // 服务端保持明文，客户端只声明 https scheme，没有启用 TLS 或安装自定义 TLS pipeline。
         LinkedBlockingQueue<HttpExchange> received = new LinkedBlockingQueue<>();
@@ -490,7 +503,7 @@ public class HttpTlsAcceptanceTest {
             }
             current = current.getCause();
         }
-        assertNotNull(describe(failure), selected);
+        assertNotNull(selected, describe(failure));
     }
 
     private static void assertCauseMessage(Throwable failure, String text) {
@@ -527,7 +540,7 @@ public class HttpTlsAcceptanceTest {
                 length = Integer.parseInt(line.substring(separator + 1).trim());
             }
         }
-        assertFalse("Missing Content-Length", length < 0);
+        assertFalse(length < 0, "Missing Content-Length");
         return length;
     }
 

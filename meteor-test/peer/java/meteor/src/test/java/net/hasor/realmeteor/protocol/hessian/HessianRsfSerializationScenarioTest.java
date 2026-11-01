@@ -14,14 +14,18 @@ import net.hasor.example.protocol.hessian.HessianRsfValueServiceImpl;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.After;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "rsf", version = "1")
 public class HessianRsfSerializationScenarioTest {
     private final Set<Thread> originalThreads = Thread.getAllStackTraces().keySet();
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rsfWithHessianPreservesUnicode() throws Exception {
         // 准备 RSF 两端，通过 Hessian 序列化验证中文和补充平面字符。
         MetConfiguration serverConfiguration = this.configuration();
@@ -59,7 +63,8 @@ public class HessianRsfSerializationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rsfWithHessianPreservesEmptyString() throws Exception {
         // 准备 RSF 两端，通过 Hessian 序列化验证空字符串。
         MetConfiguration serverConfiguration = this.configuration();
@@ -97,7 +102,8 @@ public class HessianRsfSerializationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rsfWithHessianPreservesNull() throws Exception {
         // 准备 RSF 两端，通过 Hessian 序列化验证 null。
         MetConfiguration serverConfiguration = this.configuration();
@@ -135,7 +141,8 @@ public class HessianRsfSerializationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rsfWithHessianPreservesPrimitiveParameters() throws Exception {
         // 准备 RSF 两端，通过 Hessian 序列化验证基本类型参数。
         MetConfiguration serverConfiguration = this.configuration();
@@ -173,7 +180,8 @@ public class HessianRsfSerializationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rsfWithHessianPreservesArray() throws Exception {
         // 准备 RSF 两端，通过 Hessian 序列化验证数组内容。
         MetConfiguration serverConfiguration = this.configuration();
@@ -217,7 +225,7 @@ public class HessianRsfSerializationScenarioTest {
         return configuration;
     }
 
-    @After
+    @AfterEach
     public void contextsReleaseTheirFrameworkThreads() throws Exception {
         // 沿用迁移前的生命周期检查，有界等待当前场景创建的框架线程结束。
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
@@ -239,6 +247,6 @@ public class HessianRsfSerializationScenarioTest {
         } while (System.nanoTime() < deadline);
 
         // 超过等待时间的存活线程应保留名称，便于定位资源未释放的原因。
-        assertTrue("Meteor threads leaked: " + remaining, remaining.isEmpty());
+        assertTrue(remaining.isEmpty(), "Meteor threads leaked: " + remaining);
     }
 }

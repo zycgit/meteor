@@ -19,8 +19,8 @@ import java.util.concurrent.TimeUnit;
 import net.hasor.meteor.protocol.hprose.HproseProtocol;
 import net.hasor.meteor.serialize.SerializeCoder;
 import net.hasor.meteor.serialize.SerializeFactory;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class HproseSerializeCoderTest {
     private final SerializeCoder coder = new HproseSerializeCoder();

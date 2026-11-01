@@ -4,6 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.example.echo.TextEchoService;
@@ -11,14 +12,18 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Loams 0.1.3 源码 SDK 的客户端；本类记录通用 Unary API 的单向基础证据。 */
+@NxnRpc(name = "connect", version = "1")
 public class ConnectLoamsCppInteropTest {
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void loamsCppConnectClientCallsMeteorProvider() throws Exception {
         // 从 bootstrap 启动 Connect 提供者，沿用已有文本回声契约和普通 Java 接口。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -43,7 +48,7 @@ public class ConnectLoamsCppInteropTest {
             String executable = "/opt/meteor-peer/native/connect/cpp/echo-peer";
             try (OrderPeerProcess consumer = OrderPeerProcess.start("native", List.of(executable, message), target)) {
                 String output = consumer.awaitOutput();
-                assertTrue(output, output.contains("OK Loams 0.1.3: " + message + "|meteor"));
+                assertTrue(output.contains("OK Loams 0.1.3: " + message + "|meteor"), output);
                 assertEquals(1, calls.get());
             }
         }

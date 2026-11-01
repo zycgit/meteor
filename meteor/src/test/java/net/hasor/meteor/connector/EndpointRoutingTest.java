@@ -27,12 +27,15 @@ import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 通过真实 socket 验证端点路由和协议视图的内部契约。 */
 public class EndpointRoutingTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpPartitionsSharePortAndConnectionWithoutMixingReplies() throws Exception {
         // 两个逻辑协议共享 HTTP 地址 scheme，由同一监听上的完整路径选择挂载。
         ConnectorConfig config = endpointConfig("http", HttpA.class, HttpB.class, "http", "http");
@@ -68,7 +71,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpPartitionsRemainUsableOnTheSharedConnection() throws Exception {
         // 在同一连接上依次使用两个协议视图，并继续复用后一个视图。
         ConnectorConfig config = endpointConfig("http", HttpA.class, HttpB.class);
@@ -99,7 +103,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unknownHttpRouteReturns404AndKeepAliveRemainsUsable() throws Exception {
         // 未知挂载路径返回 404，且不污染当前 keep-alive 连接。
         ConnectorConfig config = endpointConfig("http", HttpA.class, HttpB.class);
@@ -123,7 +128,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingSharedEndpointDrainsSubmittedResponseAcrossPartitions() throws Exception {
         // A 的应答尚未提交，B 的应答已排入共享连接的有序队列。
         ConnectorConfig config = endpointConfig("http", HttpA.class, HttpB.class);
@@ -158,7 +164,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void outboundSchemeASelectsProtocolWithoutBindingLocally() throws Exception {
         // 地址 scheme 选择 A 协议，发起连接不创建本地监听。
         ConnectorConfig serverConfig = endpointConfig("http", HttpA.class, HttpB.class);
@@ -194,7 +201,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void outboundSchemeBSelectsProtocolWithoutBindingLocally() throws Exception {
         // 地址 scheme 选择 B 协议，发起连接不创建本地监听。
         ConnectorConfig serverConfig = endpointConfig("http", HttpA.class, HttpB.class);
@@ -230,7 +238,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpSelectsFragmentedPrefixAndKeepsSelectedProtocol() throws Exception {
         // 两个协议共享公开 scheme，TCP 探测器以协议名固定当前连接的协议。
         ConnectorConfig config = endpointConfig("tcp", WireA.class, WireB.class, "wire", "wire");
@@ -258,7 +267,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rsfRequestFrameSelectsRsfOnSharedTcpEndpoint() throws Exception {
         // 用真实 RSF/1 请求作为连接首包，验证共享 TCP 端点选择 RSF 协议。
         byte[] request = fixture("request-v1.bin");
@@ -281,7 +291,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rsfMessageFrameSelectsRsfOnSharedTcpEndpoint() throws Exception {
         // Message 与普通请求共享 RSF/1 帧结构，仅使用独立的消息帧类型。
         byte[] message = fixture("request-v1.bin");
@@ -304,7 +315,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpWaitsUntilPendingProbeRejectsThePrefix() throws Exception {
         // RSF 已匹配首字节，另一个协议仍可能匹配时不能提前固定静态路由。
         byte[] request = fixture("request-v1.bin");
@@ -330,7 +342,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpRejectsUnknownPrefixWithoutDeliveringRpcMessages() throws Exception {
         // 未知 TCP 前缀关闭连接，不把报文交给 RPC 订阅器。
         ConnectorConfig config = endpointConfig("tcp", WireA.class, WireB.class);
@@ -349,7 +362,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpPartitionsCompleteDatagramsAndReplyIndependently() throws Exception {
         // 共享公开 scheme 的 UDP 挂载按完整报文选择协议，各自维护独立协议视图。
         ConnectorConfig config = endpointConfig("udp", WireA.class, WireB.class, "wire", "wire");
@@ -378,7 +392,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void ambiguousTcpProtocolIsRejected() throws Exception {
         // 两个挂载都接受同一前缀时拒绝连接，避免不确定路由。
         ConnectorConfig config = endpointConfig("tcp", WireA.class, WireAliasB.class);
@@ -397,7 +412,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incompleteProtocolProbeCannotBufferBeyondLimit() throws Exception {
         // 始终等待更多字节的探测器也必须遵守前缀缓冲上限。
         ConnectorConfig config = endpointConfig("tcp", IncompleteProbe.class, IncompleteProbeB.class);
@@ -416,7 +432,8 @@ public class EndpointRoutingTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void outgoingTcpPreselectsTargetProtocolBeforeFirstWrite() throws Exception {
         // 主动连接在首个报文写入前按目标地址选定协议。
         ConnectorConfig serverConfig = endpointConfig("tcp", WireA.class, WireB.class);
@@ -448,7 +465,7 @@ public class EndpointRoutingTest {
     private static byte[] fixture(String name) throws Exception {
         String path = "/rsf-v1-wire-fixtures/" + name;
         try (InputStream input = EndpointRoutingTest.class.getResourceAsStream(path)) {
-            assertNotNull("Missing RSF wire fixture " + path, input);
+            assertNotNull(input, "Missing RSF wire fixture " + path);
             return input.readAllBytes();
         }
     }
@@ -589,7 +606,7 @@ public class EndpointRoutingTest {
 
         Delivery take() throws Exception {
             Delivery message = this.messages.poll(3, TimeUnit.SECONDS);
-            assertNotNull("Expected routed message", message);
+            assertNotNull(message, "Expected routed message");
             return message;
         }
     }

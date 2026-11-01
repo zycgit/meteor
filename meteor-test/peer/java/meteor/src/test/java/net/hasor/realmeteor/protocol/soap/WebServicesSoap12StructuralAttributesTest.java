@@ -19,12 +19,16 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import net.hasor.example.protocol.soap.EchoService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.2")
 public class WebServicesSoap12StructuralAttributesTest {
     private static final String NAMESPACE    = "http://www.w3.org/2003/05/soap-envelope";
     private static final String ACTION       = "urn:hasor:meteor:soap:EchoService/echo";
@@ -33,7 +37,8 @@ public class WebServicesSoap12StructuralAttributesTest {
             <m:echo xmlns:m="urn:hasor:meteor:soap:EchoService"><arg0>hello</arg0></m:echo>
             """;
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unqualifiedEnvelopeAttributeIsRejected() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -73,7 +78,8 @@ public class WebServicesSoap12StructuralAttributesTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void encodingStyleOnEnvelopeIsRejected() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -113,7 +119,8 @@ public class WebServicesSoap12StructuralAttributesTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void encodingStyleOnBodyIsRejected() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();

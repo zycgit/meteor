@@ -9,8 +9,8 @@ package net.hasor.meteor.protocol.dubbo.codec;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 固定头、分片、粘包与长度上限。 */
 public class DubboFrameDecoderTest {

@@ -13,12 +13,15 @@ import net.hasor.example.protocol.hprose.Echo;
 import net.hasor.example.protocol.hprose.EchoService;
 import net.hasor.meteor.*;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
+@NxnRpc(name = "rsf", version = "1")
 public class ContextPublisherTest extends BootstrapTestSupport {
 
+    @NxnRpc(name = "hprose")
     @Test
     public void hproseAliasDefaultsApplyToConsumer() throws Exception {
         // 启动提供 Hprose 默认别名的上下文。
@@ -37,6 +40,7 @@ public class ContextPublisherTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
     @Test
     public void hproseAliasDefaultsApplyToInstance() throws Exception {
         // 启动提供 Hprose 默认别名的上下文。
@@ -55,6 +59,7 @@ public class ContextPublisherTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
     @Test
     public void hproseAliasDefaultsApplyToImplementationClass() throws Exception {
         // 启动提供 Hprose 默认别名的上下文。
@@ -73,6 +78,7 @@ public class ContextPublisherTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
     @Test
     public void hproseAliasDefaultsApplyToSupplier() throws Exception {
         // 启动提供 Hprose 默认别名的上下文。
@@ -92,6 +98,7 @@ public class ContextPublisherTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
     @Test
     public void duplicateAliasSelectsTheFirstRegistration() throws Exception {
         // 启动上下文，准备同一协议别名下的两个注册项。
@@ -133,6 +140,8 @@ public class ContextPublisherTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void registrationQueriesResolveTheSameService() throws Exception {
         // 构建上下文后注册本地服务实例。
@@ -184,6 +193,8 @@ public class ContextPublisherTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void duplicateServiceRegistrationPreservesOriginal() throws Exception {
         // 构建上下文后注册本地服务实例。

@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.discovery.jdbc;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.example.Order;
@@ -19,27 +23,29 @@ import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.admin.MetDirectoryQuery;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 应用退出后重新接入同一个 JDBC 注册库，持久治理仍在，运行期成员已撤回。 */
 public class JdbcRegistryScenarioTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "thrift")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void discoversTheAnnotatedThriftOrderService() throws Exception {
         // 示例提供者发布全部协议，消费者只选择 Thrift；端点地址从 JDBC 注册库自动发现。
-        var home = this.data.newFolder("thrift-registry").toPath();
+        var home = Files.createDirectory(this.data.resolve("thrift-registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open("jdbc", home)) {
             var registry = environment.configuration();
             MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-            incoming.setDataHome(this.data.newFolder("thrift-provider").toPath());
+            incoming.setDataHome(Files.createDirectory(this.data.resolve("thrift-provider")));
             MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "thrift");
-            outgoing.setDataHome(this.data.newFolder("thrift-consumer").toPath());
+            outgoing.setDataHome(Files.createDirectory(this.data.resolve("thrift-consumer")));
             try (MetContext provider = incoming.buildContext(); //
                  MetContext consumer = outgoing.buildContext()) {
                 provider.start();
@@ -65,18 +71,19 @@ public class JdbcRegistryScenarioTest {
         }
     }
 
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void keepsGovernanceAfterRegisteredApplicationsExit() throws Exception {
         // 独立数据库容器跨越应用关闭和重新接入阶段，所有会话都通过 TCP 访问。
-        var home = this.data.newFolder("persistent-registry").toPath();
+        var home = Files.createDirectory(this.data.resolve("persistent-registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open("jdbc", home)) {
             var registry = environment.configuration();
             registry.setManagementToken("order-admin");
             registry.setRefreshMillis(60000);
             MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-            incoming.setDataHome(this.data.newFolder("provider").toPath());
+            incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
             MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-            outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+            outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
             String serviceId;
             try (MetContext provider = incoming.buildContext(); //
                  MetContext consumer = outgoing.buildContext()) {
@@ -100,7 +107,7 @@ public class JdbcRegistryScenarioTest {
 
             // 新应用只接入管理入口，观察同一个服务保留的治理数据及已清空的成员目录。
             MetConfiguration management = RegistryDiscoveryExample.consumer(registry, "rsf");
-            management.setDataHome(this.data.newFolder("management").toPath());
+            management.setDataHome(Files.createDirectory(this.data.resolve("management")));
             try (MetContext context = management.buildContext()) {
                 context.start();
                 RegistryAdmin admin = context.getExtension(RegistryAdmin.class);

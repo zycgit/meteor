@@ -31,13 +31,15 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.peer.protocol.grpc.GrpcSdkContract;
 import okhttp3.OkHttpClient;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 同进程直接调用官方 JVM 客户端与 Armeria 服务端，分别和 Meteor 的 gRPC-Web 端点互通。 */
 public class GrpcWebJavaSdkBasicTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaSdkCallsPublishedJsonService() throws Exception {
         // 只挂载 gRPC-Web，不能拿普通 gRPC 的成功替代本协议可用。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc-web");
@@ -75,12 +77,13 @@ public class GrpcWebJavaSdkBasicTest {
                 ExecutorService executor = http.dispatcher().executorService();
                 executor.shutdownNow();
                 http.connectionPool().evictAll();
-                assertTrue("gRPC-Web 客户端执行器未在 5 秒内关闭", executor.awaitTermination(5, TimeUnit.SECONDS));
+                assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS), "gRPC-Web 客户端执行器未在 5 秒内关闭");
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerCallsExternalJavaSdkServer() throws Exception {
         // Armeria 只接受 gRPC-Web Protobuf，不启用普通 gRPC 或手写 wire 层。
         GrpcSdkContract contract = new GrpcSdkContract();

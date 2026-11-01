@@ -33,16 +33,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.function.EFunction;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 只替身本地 exec 和共享状态文件，不启动 Docker 或业务服务。 */
 public class ContainerProcessTest {
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void completedPeerReturnsRealExitWhenExecCliStaysAlive() throws Exception {
         // 业务已经退出，Docker exec CLI 尚未完成收尾。
         try (Fixture fixture = new Fixture()) {
@@ -57,7 +59,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nonzeroPeerExitIsNotReplacedByCliCleanup() throws Exception {
         // 包装器持久化业务失败码，服务容器仍然存活。
         try (Fixture fixture = new Fixture()) {
@@ -70,7 +73,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void runningPeerStillTimesOut() throws Exception {
         // 真实进程仍在运行，不能把常驻容器的存活或 CLI 默认值当作完成。
         try (Fixture fixture = new Fixture()) {
@@ -86,7 +90,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingStatusAfterCliExitCancelsTheOwnedPeer() throws Exception {
         // exec 提前退出时，状态尚未落盘。
         try (Fixture fixture = new Fixture()) {
@@ -103,7 +108,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void malformedStatusDoesNotReturnSuccess() throws Exception {
         // 无法解析状态时，不能采用常驻服务容器的零退出码。
         try (Fixture fixture = new Fixture()) {
@@ -116,7 +122,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void execCliExitDoesNotHideARunningPeer() throws Exception {
         // CLI 自己零退出，但持久状态表明业务仍在执行。
         try (Fixture fixture = new Fixture()) {
@@ -130,7 +137,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void execFailureDoesNotHideASuccessfulPeer() throws Exception {
         // 业务退出零不能掩盖 exec 输出传输错误。
         try (Fixture fixture = new Fixture()) {
@@ -145,7 +153,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void completedPeerPreservesTheCompleteOutputFiles() throws Exception {
         // 包装器已排空并保存标准输出和错误输出。
         try (Fixture fixture = new Fixture()) {
@@ -162,7 +171,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingOutputLogDoesNotReturnSuccess() throws Exception {
         // 零退出状态没有配套的完整日志，不是完整的可审计结果。
         try (Fixture fixture = new Fixture()) {
@@ -177,7 +187,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void repeatedCloseStopsOnlyTheOwnedProcessOnce() throws Exception {
         // 业务仍在运行，关闭通过独占 launch 定位进程树。
         try (Fixture fixture = new Fixture()) {
@@ -194,7 +205,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void stopControlFailureRemainsVisible() throws Exception {
         // Docker 无法执行进程树取消命令。
         try (Fixture fixture = new Fixture()) {
@@ -209,7 +221,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingAnAlreadyExitedPeerNeedsNoDockerControl() throws Exception {
         // 业务已自然结束，destroy 只负责完成本对象的控制通道清理。
         try (Fixture fixture = new Fixture()) {
@@ -222,7 +235,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentCloseObservesTheSameControlFailure() throws Exception {
         // 一个调用拥有取消，另一个调用必须等待相同清理结果。
         try (Fixture fixture = new Fixture()) {
@@ -255,7 +269,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void terminalQueriesWaitForTheSameCleanupFailure() throws Exception {
         // 业务已经零退出，但 exec CLI 的回收被信号阻塞，稍后会明确失败。
         try (Fixture fixture = new Fixture()) {
@@ -304,7 +319,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void remainingDescendantsPreventSuccessfulCleanup() throws Exception {
         // 主进程零退出，但包装器明确记录还有未回收的子孙。
         try (Fixture fixture = new Fixture()) {
@@ -318,7 +334,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void leftoverTemporaryDirectoryPreventsSuccessfulCleanup() throws Exception {
         // 包装器无法删除本场景独占临时目录。
         try (Fixture fixture = new Fixture()) {
@@ -331,7 +348,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void anotherProcessStatusCannotCompleteThisPeer() throws Exception {
         // 共享服务里的另一份状态不属于当前 launch。
         try (Fixture fixture = new Fixture()) {
@@ -347,7 +365,8 @@ public class ContainerProcessTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void commandOutputReadHasABoundedDeadline() throws Exception {
         // CLI 已退出，但模拟继承 stdout 的后代仍持有输出管道。
         AttachedProcess command = new AttachedProcess();

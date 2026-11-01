@@ -17,12 +17,14 @@ import net.hasor.example.rpc.websocket.WebSocketConfigurations;
 import net.hasor.example.rpc.websocket.WebSocketObservation;
 import net.hasor.example.rpc.websocket.WebSocketSample;
 import net.hasor.example.rpc.websocket.WebSocketSampleService;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 无回执消息的 Caller 完成只确认协议写出，不承诺远端业务完成。 */
 public class WebSocketMessageTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void notificationCompletesAfterWriteWithoutAResponseFrame() throws Exception {
         // 两侧通过扩展观察真实应用消息，业务方法保持阻塞。
         MetConfiguration incoming = new MetConfiguration();

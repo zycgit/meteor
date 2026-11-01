@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.soap.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Path;
@@ -30,31 +35,29 @@ import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.matrix.OrderDiscovery;
 import net.hasor.realmeteor.matrix.OrderRegistryEnvironment;
-import org.junit.*;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.*;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
 
 /** 独立 Python SOAP SDK 的双向订单矩阵，注册模式明确使用存储发现和登记适配。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "soap/python/{0}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "soap", version = "1.1")
 public class SoapPythonOrderInteropTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @ClassRule
-    public static final TemporaryFolder          serverData = new TemporaryFolder();
+    @TempDir
+    public static Path serverData;
     private static      OrderRegistryEnvironment environment;
 
-    @Rule
-    public final  TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final OrderDiscovery  discovery;
 
     public SoapPythonOrderInteropTest(OrderDiscovery discovery) {
         this.discovery = discovery;
     }
-
-    @Parameterized.Parameters(name = "soap/python/{0}")
     public static Collection<Object[]> configurations() {
         List<Object[]> configurations = new ArrayList<>();
         for (OrderDiscovery discovery : OrderDiscovery.selected()) {
@@ -63,19 +66,20 @@ public class SoapPythonOrderInteropTest {
         return configurations;
     }
 
-    @BeforeClass
+    @BeforeAll
     public static void createEnvironment() {
-        environment = new OrderRegistryEnvironment(serverData.getRoot().toPath());
+        environment = new OrderRegistryEnvironment(serverData);
     }
 
-    @AfterClass
+    @AfterAll
     public static void closeEnvironment() throws Exception {
         if (environment != null) {
             environment.close();
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonZeepConsumerSavesAndFindsOrdersFromMeteorGeneratedWsdl() throws Exception {
         // Meteor 从 bootstrap 启动；业务接口不绑定手写 WSDL，Python 消费者启动时没有 URL。
         String scope = "soap-zeep-" + UUID.randomUUID();
@@ -122,7 +126,8 @@ public class SoapPythonOrderInteropTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerSavesAndFindsOrdersFromPythonSoapfishProvider() throws Exception {
         // soapfish2 持有唯一 Python 订单存储，Java 绑定该 SDK 自动生成的本地契约。
         String scope = "soap-soapfish-" + UUID.randomUUID();
@@ -174,7 +179,7 @@ public class SoapPythonOrderInteropTest {
     private MetConfiguration configuration(String scope, boolean listen) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setUnitName("local");
         configuration.setDefaultGroup(scope).setApplicationName("python-soap-interop");
-        configuration.setDataHome(this.data.newFolder("application").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("application")));
         var http = configuration.connector("http");
         if (listen) {
             http.bind(ContainerProcess.runnerHost(), 0);

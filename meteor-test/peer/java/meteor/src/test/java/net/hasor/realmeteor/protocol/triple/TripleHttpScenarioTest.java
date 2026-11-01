@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.TimeUnit;
 import net.hasor.example.protocol.triple.TripleDemoService;
 import net.hasor.example.protocol.triple.TripleDemoServiceImpl;
@@ -17,12 +18,15 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Triple 普通 HTTP unary 与 HTTP/2 gRPC 传输分开验收。 */
+@NxnRpc(name = "triple")
 public class TripleHttpScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1JsonUnaryPreservesUnicode() throws Exception {
         // HTTP 版本与 Triple 编码独立配置，不因发布协议增加监听端口。
         MetConfiguration incoming = this.configuration(true, 1, "json");
@@ -47,7 +51,8 @@ public class TripleHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1ProtobufUnaryPreservesUnicode() throws Exception {
         // HTTP 版本与 Triple 编码独立配置，不因发布协议增加监听端口。
         MetConfiguration incoming = this.configuration(true, 1, "proto");
@@ -75,7 +80,8 @@ public class TripleHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2JsonUnaryPreservesUnicode() throws Exception {
         // HTTP 版本与 Triple 编码独立配置，不因发布协议增加监听端口。
         MetConfiguration incoming = this.configuration(true, 2, "json");
@@ -100,7 +106,8 @@ public class TripleHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2ProtobufUnaryPreservesUnicode() throws Exception {
         // HTTP 版本与 Triple 编码独立配置，不因发布协议增加监听端口。
         MetConfiguration incoming = this.configuration(true, 2, "proto");
@@ -128,7 +135,8 @@ public class TripleHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpJsonMultipleArgumentsRemainPositional() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true, 1, "json");
@@ -150,7 +158,8 @@ public class TripleHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpJsonVoidHasAnEmptyBusinessReturn() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true, 1, "json");
@@ -175,7 +184,8 @@ public class TripleHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpJsonNullReturnRemainsNull() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true, 1, "json");

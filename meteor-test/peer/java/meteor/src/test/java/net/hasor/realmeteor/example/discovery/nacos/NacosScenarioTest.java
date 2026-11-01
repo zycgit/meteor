@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.discovery.nacos;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import java.util.ConcurrentModificationException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -34,47 +38,47 @@ import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntRuleConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
 import net.hasor.meteor.registry.shared.storage.domain.RuleKind;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 独占真实 Nacos 进程；每个场景使用独立分组和缓存，观察自动通知及公开存储契约。 */
 public class NacosScenarioTest {
-    @ClassRule
-    public static final TemporaryFolder serverData = new TemporaryFolder();
+    @TempDir
+    public static Path serverData;
     private static      NacosTestServer nacos;
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
-    @BeforeClass
+    @BeforeAll
     public static void startNacos() throws Exception {
         // 测试持有外部 Nacos 进程的生命周期；应用本身只配置它暴露的服务地址。
-        nacos = new NacosTestServer(serverData.newFolder("nacos").toPath());
+        nacos = new NacosTestServer(Files.createDirectory(serverData.resolve("nacos")));
         nacos.start();
     }
 
-    @AfterClass
+    @AfterAll
     public static void closeNacos() throws Exception {
         if (nacos != null) {
             nacos.close();
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "rsf", version = "1")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void appliesGovernanceThroughNacosNotification() throws Exception {
         // 核对间隔晚于场景等待上限，元数据只能通过存储变更通知自动生效。
         NacosRegistryConfiguration registry = this.registry();
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             // 启动完成后才发布和订阅，同一个订单接口通过 Nacos 发现提供者。
@@ -98,7 +102,8 @@ public class NacosScenarioTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void staleRuleRevisionCannotOverwriteNewBody() throws Exception {
         // 独立存储会话读取两份同版本快照，不启动无关业务应用。
         String group = nacos.group("order-discovery-" + UUID.randomUUID());
@@ -138,14 +143,16 @@ public class NacosScenarioTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "rsf", version = "1")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerExitWithdrawsAddressAndMembership() throws Exception {
         // 独立分组内构建提供者和消费者，消费者从订阅事件取得订单地址。
         NacosRegistryConfiguration registry = this.registry();
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             provider.start();
@@ -250,6 +257,6 @@ public class NacosScenarioTest {
         while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
             TimeUnit.MILLISECONDS.sleep(20);
         }
-        assertTrue("Nacos notification did not converge", condition.getAsBoolean());
+        assertTrue(condition.getAsBoolean(), "Nacos notification did not converge");
     }
 }

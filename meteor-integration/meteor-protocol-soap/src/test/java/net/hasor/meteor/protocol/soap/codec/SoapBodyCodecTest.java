@@ -20,9 +20,9 @@ import net.hasor.meteor.protocol.soap.definition.SoapDefinitionAccess;
 import net.hasor.meteor.protocol.soap.definition.SoapPart;
 import net.hasor.meteor.protocol.soap.definition.SoapVersion;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Element;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapBodyCodecTest {
     private static final QName WRAPPER = new QName("urn:test:body", "call");

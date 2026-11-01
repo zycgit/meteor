@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.dubbo;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.example.protocol.dubbo.interop.DubboInteropService;
 import net.hasor.example.protocol.dubbo.interop.DubboInteropServiceImpl;
@@ -17,7 +18,7 @@ import net.hasor.meteor.registry.dubbo.DubboRegistryClient;
 import net.hasor.meteor.registry.dubbo.DubboRegistryConfiguration;
 import net.hasor.realmeteor.protocol.dubbo.DubboProcess;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.assertInterfaceProvidersAbsent;
@@ -25,12 +26,16 @@ import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.a
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.pem;
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.tlsClient;
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.tlsServer;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 真实 ZooKeeper 加独立官方 JVM；两个方向都通过注册中心发现，不设置业务直连地址。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboRegistryOfficialInteropTest {
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void referenceByClassUsesNativeEmptyGroupAndVersion() throws Exception {
         // 原生 Dubbo 不设置分组与版本；便利引用不能误用 Meteor 的默认服务身份。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -54,7 +59,9 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void referenceByClassUsesDubbo27NativeEmptyIdentity() throws Exception {
         // 2.7 服务未设置分组和版本，便利引用使用原生空身份。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -78,7 +85,9 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo27NativeDefaultConsumerReferencesMeteor() throws Exception {
         // 原生默认引用没有分组和版本，Meteor 的本地身份与对外协议身份分别明确配置。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -97,14 +106,15 @@ public class DubboRegistryOfficialInteropTest {
                 try (DubboProcess consumer = DubboProcess.startLegacy( //
                         "--command=client", "--registry=" + registryUrl)) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo33NativeDefaultConsumerReferencesMeteor() throws Exception {
         // 原生默认引用没有分组和版本，Meteor 的本地身份与对外协议身份分别明确配置。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -123,14 +133,16 @@ public class DubboRegistryOfficialInteropTest {
                 try (DubboProcess consumer = DubboProcess.start( //
                         "--command=client", "--registry=" + registryUrl)) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReferencesDubbo27Provider() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -156,7 +168,9 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo27ReferencesMeteorProvider() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -174,14 +188,16 @@ public class DubboRegistryOfficialInteropTest {
                         "--command=client", "--registry=" + registryUrl, //
                         "--group=default", "--version=1.0.0")) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReferencesDubbo27ProviderTls() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated(); //
@@ -213,7 +229,9 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo27ReferencesMeteorProviderTls() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -236,14 +254,16 @@ public class DubboRegistryOfficialInteropTest {
                         "--private-key=" + pem("client-key"), //
                         "--trust-certificate=" + pem("ca"))) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReferencesDubbo27ProviderMutualTls() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated(); //
@@ -276,7 +296,9 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo27ReferencesMeteorProviderMutualTls() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -299,14 +321,15 @@ public class DubboRegistryOfficialInteropTest {
                         "--private-key=" + pem("client-key"), //
                         "--trust-certificate=" + pem("ca"))) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReferencesDubbo33Provider() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -332,7 +355,8 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo33ReferencesMeteorProvider() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -350,14 +374,15 @@ public class DubboRegistryOfficialInteropTest {
                         "--command=client", "--registry=" + registryUrl, //
                         "--group=default", "--version=1.0.0")) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReferencesDubbo33ProviderTls() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated(); //
@@ -389,7 +414,8 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo33ReferencesMeteorProviderTls() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -412,14 +438,15 @@ public class DubboRegistryOfficialInteropTest {
                         "--private-key=" + pem("client-key"), //
                         "--trust-certificate=" + pem("ca"))) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReferencesDubbo33ProviderMutualTls() throws Exception {
         // 独立原生服务向真实 ZooKeeper 发布，Meteor 只配置注册中心和出站传输。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated(); //
@@ -452,7 +479,8 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo33ReferencesMeteorProviderMutualTls() throws Exception {
         // Meteor 通过正式扩展连接注册中心，先启动监听再发布普通 Java 接口。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -475,14 +503,15 @@ public class DubboRegistryOfficialInteropTest {
                         "--private-key=" + pem("client-key"), //
                         "--trust-certificate=" + pem("ca"))) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReferencesDubbo33ApplicationOnlyProvider() throws Exception {
         // 官方 3.3 服务仅注册应用实例，不能依赖旧版接口级 providers 节点完成发现。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -510,7 +539,8 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo33ApplicationOnlyConsumerReferencesMeteor() throws Exception {
         // Meteor 正式发布服务，扩展同时提供原生应用级服务发现所需的服务元信息。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -528,14 +558,15 @@ public class DubboRegistryOfficialInteropTest {
                         "--command=client", "--registry=" + registryUrl, //
                         "--group=default", "--version=1.0.0", "--register-mode=instance")) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReferencesApplicationOnlyProviderTls() throws Exception {
         // 应用实例元信息必须保留安全端点，发现过程不能改用接口级目录。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated(); //
@@ -573,7 +604,8 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void applicationOnlyConsumerReferencesMeteorTls() throws Exception {
         // Meteor 只发布安全业务监听，应用级服务元信息也必须报告这个端点。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -596,14 +628,15 @@ public class DubboRegistryOfficialInteropTest {
                         "--private-key=" + pem("client-key"), //
                         "--trust-certificate=" + pem("ca"))) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReferencesApplicationOnlyProviderMutualTls() throws Exception {
         // 应用实例元信息必须保留安全端点，发现过程不能改用接口级目录。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated(); //
@@ -644,7 +677,8 @@ public class DubboRegistryOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void applicationOnlyConsumerReferencesMeteorMutualTls() throws Exception {
         // Meteor 只发布安全业务监听，应用级服务元信息也必须报告这个端点。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -667,14 +701,15 @@ public class DubboRegistryOfficialInteropTest {
                         "--private-key=" + pem("client-key"), //
                         "--trust-certificate=" + pem("ca"))) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void referenceUsesExplicitGroupAndVersion() throws Exception {
         // 官方服务使用非默认身份，消费者通过公开发布器声明相同分组和版本。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {

@@ -29,14 +29,13 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class GrpcServiceBindingTest {
-    @Rule
-    public TemporaryFolder directory = new TemporaryFolder();
+    @TempDir
+    public Path directory;
 
     @Test
     public void generatedDescriptionUsesActualProtobufFieldNamesAndNumbers() throws Exception {
@@ -456,7 +455,7 @@ public class GrpcServiceBindingTest {
     public void generatedContractCanBeExportedAndLoadedByTheFileEntry() throws Exception {
         // 保存注解编译出的标准 proto3 文件，不把描述符二进制当作源文件。
         GrpcServiceBinding generated = this.binding(Notes.class, null);
-        Path root = this.directory.newFolder().toPath();
+        Path root = Files.createTempDirectory(this.directory, "proto-");
         for (Map.Entry<String, String> source : generated.schema().getSources().entrySet()) {
             Files.writeString(root.resolve(source.getKey()), source.getValue());
         }
@@ -608,7 +607,7 @@ public class GrpcServiceBindingTest {
                 }
                 service Notes { rpc mirror (CharacterNote) returns (CharacterNote); }
                 """.formatted(primitiveType);
-        Path file = this.directory.newFolder().toPath().resolve("characters.proto");
+        Path file = Files.createTempDirectory(this.directory, "proto-").resolve("characters.proto");
         Files.writeString(file, source);
         return new GrpcProtoResource(file.toUri().toURL());
     }

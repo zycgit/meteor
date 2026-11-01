@@ -42,8 +42,8 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.protocol.hprose.HproseProtocol;
 import net.hasor.meteor.protocol.hprose.codec.HproseHttpCodec;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class HproseSessionTest {
     public interface Echo {

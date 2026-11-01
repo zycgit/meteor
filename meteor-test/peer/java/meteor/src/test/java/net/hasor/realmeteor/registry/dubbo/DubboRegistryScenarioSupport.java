@@ -23,7 +23,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** 无业务模拟，只提供配置与有界的异步状态等待。 */
 final class DubboRegistryScenarioSupport {
@@ -74,11 +74,11 @@ final class DubboRegistryScenarioSupport {
         // 原生节点观测只证明对端没有接口级提供者，不能替代待测扩展的业务服务发现。
         try (CuratorFramework observer = CuratorFrameworkFactory.newClient(registryAddress, new RetryOneTime(1000))) {
             observer.start();
-            assertTrue("Registry observer did not connect", observer.blockUntilConnected(10, TimeUnit.SECONDS));
+            assertTrue(observer.blockUntilConnected(10, TimeUnit.SECONDS), "Registry observer did not connect");
             String providersPath = "/dubbo/" + serviceName + "/providers";
             if (observer.checkExists().forPath(providersPath) != null) {
                 List<String> providers = observer.getChildren().forPath(providersPath);
-                assertTrue("Application-only provider unexpectedly published an interface URL", providers.isEmpty());
+                assertTrue(providers.isEmpty(), "Application-only provider unexpectedly published an interface URL");
             }
         }
     }

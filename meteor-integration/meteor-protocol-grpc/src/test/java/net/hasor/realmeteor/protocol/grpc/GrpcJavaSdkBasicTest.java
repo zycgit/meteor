@@ -24,13 +24,15 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.peer.protocol.grpc.GrpcSdkContract;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 同一 JUnit 进程内，官方 grpc-java 与 Meteor 通过真实网络完成双向基础调用。 */
 public class GrpcJavaSdkBasicTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaSdkCallsPublishedProtobufService() throws Exception {
         // 只挂载当前被测协议，不能以其它协议成功代替本协议可用。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc");
@@ -57,12 +59,13 @@ public class GrpcJavaSdkBasicTest {
                 assertEquals(1, implementation.getCalls());
             } finally {
                 channel.shutdownNow();
-                assertTrue("gRPC 客户端通道未在 5 秒内关闭", channel.awaitTermination(5, TimeUnit.SECONDS));
+                assertTrue(channel.awaitTermination(5, TimeUnit.SECONDS), "gRPC 客户端通道未在 5 秒内关闭");
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerCallsExternalJavaSdkServer() throws Exception {
         // 当前方法拥有官方 SDK 服务端；只在 start 完成后创建 Meteor 消费者。
         GrpcSdkContract contract = new GrpcSdkContract();
@@ -88,7 +91,7 @@ public class GrpcJavaSdkBasicTest {
             }
         } finally {
             server.shutdownNow();
-            assertTrue("gRPC 服务端未在 5 秒内关闭", server.awaitTermination(5, TimeUnit.SECONDS));
+            assertTrue(server.awaitTermination(5, TimeUnit.SECONDS), "gRPC 服务端未在 5 秒内关闭");
         }
     }
 }

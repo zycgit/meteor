@@ -21,11 +21,15 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.soap.support.SoapResponseUtils;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesHttpVersionTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11UsesCleartextHttp1() throws Exception {
         // 从公开 Bootstrap 配置 SOAP 1.1 的明文 HTTP 监听。
         MetConfiguration configuration = this.incoming("1.1");
@@ -36,13 +40,15 @@ public class WebServicesHttpVersionTest {
             // 外部 JDK 客户端固定使用 HTTP/1.1，响应同时证明版本和业务结果。
             URI endpoint = this.endpoint(context);
             HttpResponse<String> response = this.invoke(endpoint, "1.1", HttpClient.Version.HTTP_1_1, "soap11-h1");
-            assertEquals(response.body(), 200, response.statusCode());
+            assertEquals(200, response.statusCode(), response.body());
             assertEquals(HttpClient.Version.HTTP_1_1, response.version());
             assertEquals("soap11-h1", SoapResponseUtils.returnText(response.body()));
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12UsesCleartextHttp1() throws Exception {
         // 从公开 Bootstrap 配置 SOAP 1.2 的明文 HTTP 监听。
         MetConfiguration configuration = this.incoming("1.2");
@@ -59,7 +65,8 @@ public class WebServicesHttpVersionTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11UsesH2cUpgrade() throws Exception {
         // SOAP 1.1 服务保持普通明文监听，由连接器识别 h2c Upgrade。
         MetConfiguration configuration = this.incoming("1.1");
@@ -76,7 +83,9 @@ public class WebServicesHttpVersionTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12UsesH2cUpgrade() throws Exception {
         // SOAP 1.2 服务保持普通明文监听，由连接器识别 h2c Upgrade。
         MetConfiguration configuration = this.incoming("1.2");
@@ -93,7 +102,8 @@ public class WebServicesHttpVersionTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11UsesH2PriorKnowledge() throws Exception {
         // 服务端自动识别 HTTP/2 preface，客户端端点只创建 HTTP/2 通道。
         MetConfiguration incoming = this.incoming("1.1");
@@ -112,7 +122,9 @@ public class WebServicesHttpVersionTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12UsesH2PriorKnowledge() throws Exception {
         // 服务端自动识别 HTTP/2 preface，客户端端点只创建 HTTP/2 通道。
         MetConfiguration incoming = this.incoming("1.2");

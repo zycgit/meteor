@@ -16,8 +16,8 @@ import net.hasor.meteor.container.ContainerFixtures.Echo;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MetContainerEventTest {
     private final AddressPool  addresses = new AddressPool("unit", 1000);

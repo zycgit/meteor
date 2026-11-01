@@ -17,12 +17,16 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Dubbo 接口别名、group 和 version 共同决定调用的目标服务。 */
+@NxnRpc(name = "dubbo")
 public class DubboIdentityScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void groupSelectsTheExactProvider() throws Exception {
         // 两个提供者使用相同协议接口名，只改变本场景要验证的服务身份。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -42,7 +46,8 @@ public class DubboIdentityScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void versionSelectsTheExactProvider() throws Exception {
         // 两个提供者使用相同协议接口名，只改变本场景要验证的服务身份。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -62,7 +67,8 @@ public class DubboIdentityScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingGroupDoesNotFallBackToAnotherProvider() throws Exception {
         // 两个提供者使用相同协议接口名，只改变本场景要验证的服务身份。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -85,7 +91,8 @@ public class DubboIdentityScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void differentServicesRemainIsolatedUnderConcurrency() throws Exception {
         // 两个提供者使用相同协议接口名，只改变本场景要验证的服务身份。
         try (MetContext server = this.configuration(true).buildContext(); //

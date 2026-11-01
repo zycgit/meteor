@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.xmlrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -29,13 +30,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.xmlrpc.XmlRpcException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "xmlrpc")
 public class XmlRpcHttpScenarioTest {
 
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaProxyCallsOverHttp2PriorKnowledge() throws Exception {
         // 显式选择 HTTP/2，验证代理调用在实际网络上完成。
         MetConfiguration incoming = this.serverConfiguration();
@@ -60,7 +64,8 @@ public class XmlRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void genericDtoArgumentsAndResultsKeepTheirElementTypes() throws Exception {
         // 泛型集合直接使用接口签名中的元素类型进行 XML-RPC struct 映射。
         MetConfiguration incoming = this.serverConfiguration();
@@ -93,7 +98,8 @@ public class XmlRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incomingCallsPassThroughPublishedFilters() throws Exception {
         // 过滤器由用户发布 API 绑定，协议不能绕过 Dispatcher 调用链。
         MetConfiguration incoming = this.serverConfiguration();
@@ -123,7 +129,8 @@ public class XmlRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentHttp2CallsKeepTheirOwnResults() throws Exception {
         // HTTP/2 在一个连接中并发承载多个普通 RPC。
         MetConfiguration incoming = this.serverConfiguration();
@@ -157,7 +164,8 @@ public class XmlRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requestTimeoutCompletesTheCallerFuture() throws Exception {
         // 用闩锁保持一次真实远程调用在途，控制取消或超时的触发时刻。
         MetConfiguration incoming = this.serverConfiguration();
@@ -212,7 +220,8 @@ public class XmlRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingOneHttp2CallDoesNotCancelOtherCalls() throws Exception {
         // 用闩锁保持一次真实远程调用在途，控制取消或超时的触发时刻。
         MetConfiguration incoming = this.serverConfiguration();
@@ -269,7 +278,10 @@ public class XmlRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @NxnRpc(name = "xmlrpc")
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void xmlRpcAndJsonRpcShareOneHttpPortThroughContextRouting() throws Exception {
         // 两个正式插件在同一端口按上下文挂载，无需额外监听器。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("xmlrpc");
@@ -320,7 +332,8 @@ public class XmlRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void h2cUpgradePreservesTheXmlRpcResponse() throws Exception {
         // 独立 JDK 客户端通过 HTTP/1 Upgrade 协商明文 HTTP/2。
         MetConfiguration configuration = this.serverConfiguration();
@@ -354,7 +367,8 @@ public class XmlRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void businessFaultRetainsItsCodeAndMessageAtTheCaller() throws Exception {
         // 应用可以用协议公开的异常类型表达业务 fault。
         MetConfiguration incoming = this.serverConfiguration();
@@ -386,7 +400,8 @@ public class XmlRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingTheServerFailsPendingCallsWithoutWaitingForTimeout() throws Exception {
         // 阻塞一次业务执行，观察连接关闭对在途调用的终止通知。
         MetConfiguration incoming = this.serverConfiguration();

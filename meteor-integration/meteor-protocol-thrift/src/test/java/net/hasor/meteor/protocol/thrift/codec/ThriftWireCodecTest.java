@@ -16,8 +16,8 @@ import org.apache.thrift.TException;
 import org.apache.thrift.protocol.*;
 import org.apache.thrift.transport.TMemoryBuffer;
 import org.apache.thrift.transport.TMemoryInputTransport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ThriftWireCodecTest {
     @Test
@@ -262,7 +262,7 @@ public class ThriftWireCodecTest {
 
         // 所有前缀都需要继续收包，不提前输出消息。
         for (int length = 0; length < data.length; length++) {
-            assertEquals("prefix length " + length, 0, codec.scan(data, 0, length));
+            assertEquals(0, codec.scan(data, 0, length), "prefix length " + length);
         }
     }
 
@@ -274,7 +274,7 @@ public class ThriftWireCodecTest {
 
         // 不完整变长整数和正文均只报告需要更多输入。
         for (int length = 0; length < data.length; length++) {
-            assertEquals("prefix length " + length, 0, codec.scan(data, 0, length));
+            assertEquals(0, codec.scan(data, 0, length), "prefix length " + length);
         }
     }
 
@@ -286,7 +286,7 @@ public class ThriftWireCodecTest {
 
         // 只有最外层消息完整闭合后才允许输出。
         for (int length = 0; length < data.length; length++) {
-            assertEquals("prefix length " + length, 0, codec.scan(data, 0, length));
+            assertEquals(0, codec.scan(data, 0, length), "prefix length " + length);
         }
     }
 

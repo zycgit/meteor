@@ -34,8 +34,8 @@ import net.hasor.meteor.serialize.SerializeCoder;
 import net.hasor.meteor.serialize.SerializeFactory;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import net.hasor.meteor.serialize.coder.JsonSerializeCoder;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class BootstrapBoundaryTest {
     @Test
@@ -66,9 +66,9 @@ public class BootstrapBoundaryTest {
         for (Class<?> type : types) {
             String resource = type.getName().replace('.', '/') + ".class";
             List<URL> definitions = Collections.list(loader.getResources(resource));
-            assertEquals(type.getName(), 1, definitions.size());
+            assertEquals(1, definitions.size(), type.getName());
             URL location = type.getProtectionDomain().getCodeSource().getLocation();
-            assertEquals(type.getName(), framework, location);
+            assertEquals(framework, location, type.getName());
         }
         assertThrows(ClassNotFoundException.class, () -> Class.forName("net.hasor.meteor.InterAddress"));
     }
@@ -84,7 +84,7 @@ public class BootstrapBoundaryTest {
 
         // 逐项检查旧入口均不可加载，旧容器的资源描述也不应被带入。
         for (String name : legacyTypes) {
-            assertThrows("Unexpected dependency: " + name, ClassNotFoundException.class, () -> Class.forName(name));
+            assertThrows(ClassNotFoundException.class, () -> Class.forName(name), "Unexpected dependency: " + name);
         }
         assertNull(this.getClass().getClassLoader().getResource("META-INF/hasor.schemas"));
     }
@@ -117,7 +117,7 @@ public class BootstrapBoundaryTest {
         for (Class<?> type : types) {
             for (Method method : type.getMethods()) {
                 String signature = method.toGenericString();
-                assertFalse(signature, signature.contains("net.hasor.core"));
+                assertFalse(signature.contains("net.hasor.core"), signature);
             }
         }
     }

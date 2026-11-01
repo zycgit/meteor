@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -22,12 +23,15 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 公开 bootstrap 链路上的 UDP 丢包、重传和重复应答缓存。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcUdpReliabilityScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void retransmitsAfterFirstRequestIsLost() throws Exception {
         // 代理丢掉第一份请求，服务端只会看到客户端重新发送的原始报文。
         int port = this.freePort();
@@ -56,7 +60,8 @@ public class OncRpcUdpReliabilityScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void retransmittedRequestReplaysLostReplyWithoutRepeatingBusiness() throws Exception {
         // 首个应答丢失后，客户端的重传必须命中服务端已完成的应答缓存。
         int port = this.freePort();
@@ -84,7 +89,8 @@ public class OncRpcUdpReliabilityScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void duplicateWhileBusinessIsPendingDoesNotDispatchAgain() throws Exception {
         // 暂停首次业务调用，用同一来源地址重放仍在执行中的原始请求。
         int port = this.freePort();
@@ -110,7 +116,7 @@ public class OncRpcUdpReliabilityScenarioTest {
                 assertTrue(implementation.entered.await(3, TimeUnit.SECONDS));
                 relay.replayFirstRequest();
                 boolean dispatchedTwice = implementation.duplicateEntered.await(200, TimeUnit.MILLISECONDS);
-                assertFalse("Pending duplicate must not invoke the business method again", dispatchedTwice);
+                assertFalse(dispatchedTwice, "Pending duplicate must not invoke the business method again");
 
                 // 原调用结束后只生成一个业务结果。
                 implementation.release.countDown();
@@ -122,7 +128,8 @@ public class OncRpcUdpReliabilityScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void duplicateAfterCompletionReplaysIdenticalReply() throws Exception {
         // 先完成调用，再显式重放已完成的同一份原始请求。
         int port = this.freePort();
@@ -151,7 +158,8 @@ public class OncRpcUdpReliabilityScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void expiredDuplicateReplyAllowsSameDatagramToExecuteAgain() throws Exception {
         // 缓存设置为短期有效，以同一份请求观察过期前后的业务执行边界。
         int port = this.freePort();
@@ -179,7 +187,8 @@ public class OncRpcUdpReliabilityScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void disablingRetriesLeavesLostRequestToCoreDeadline() throws Exception {
         // 禁用协议重传并丢掉所有请求，调用期限仍由公开 RPC 超时配置控制。
         int port = this.freePort();

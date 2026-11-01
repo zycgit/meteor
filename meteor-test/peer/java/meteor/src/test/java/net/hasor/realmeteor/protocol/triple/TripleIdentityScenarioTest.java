@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import net.hasor.example.protocol.triple.TripleDemoService;
@@ -17,12 +18,15 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 服务别名、分组和版本共同确定 Triple 的远端业务身份。 */
+@NxnRpc(name = "triple")
 public class TripleIdentityScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void groupHeaderSelectsTheCorrectProvider() throws Exception {
         // 相同协议别名下发布两个服务身份，只改变当前场景要验证的维度。
         MetConfiguration incoming = this.configuration(true);
@@ -49,7 +53,8 @@ public class TripleIdentityScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void versionHeaderSelectsTheCorrectProvider() throws Exception {
         // 相同协议别名下发布两个服务身份，只改变当前场景要验证的维度。
         MetConfiguration incoming = this.configuration(true);
@@ -76,7 +81,8 @@ public class TripleIdentityScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unknownGroupDoesNotFallBackToAnotherProvider() throws Exception {
         // 服务存在但 group 不同，不能因协议别名相同而选中错误提供者。
         MetConfiguration incoming = this.configuration(true);

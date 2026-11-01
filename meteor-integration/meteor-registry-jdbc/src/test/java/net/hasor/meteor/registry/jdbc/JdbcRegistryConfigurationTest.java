@@ -18,10 +18,10 @@ import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntMetadataData;
 import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
 import org.h2.jdbcx.JdbcConnectionPool;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.*;
 import static net.hasor.meteor.registry.jdbc.JdbcStorageData.instance;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class JdbcRegistryConfigurationTest {
     @Test
@@ -59,7 +59,7 @@ public class JdbcRegistryConfigurationTest {
                 probe.beforeExecute(sql -> write.countDown());
 
                 // 正常只读操作结束后，跨过多个周期也不应出现后台查询或更新。
-                assertFalse("Management storage must not run heartbeat SQL", write.await(800, TimeUnit.MILLISECONDS));
+                assertFalse(write.await(800, TimeUnit.MILLISECONDS), "Management storage must not run heartbeat SQL");
             }
 
             // 纯管理端关闭也不需要清理实例或租约。

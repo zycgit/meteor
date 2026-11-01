@@ -12,25 +12,34 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Apache Dubbo-Go 的经典 Dubbo 消费与 Triple 双向基础调用证据。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboGoInteropTest {
     private static final String SERVICE = "meteor.example.GoEcho";
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubboGoConsumerCallsMeteorDubboProvider() throws Exception {
         this.verifyGoConsumer("dubbo");
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "triple")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubboGoConsumerCallsMeteorTripleProvider() throws Exception {
         this.verifyGoConsumer("triple");
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "triple")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTripleConsumerCallsDubboGoProvider() throws Exception {
         this.verifyMeteorConsumer("triple");
     }
@@ -48,7 +57,7 @@ public class DubboGoInteropTest {
             // 官方 Go SDK 在独立 module 编译的进程中执行一次真实 RPC，不启用重试。
             try (DubboGoPeer peer = DubboGoPeer.start(protocol, "client", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
                 assertEquals("Dubbo-Go → Meteor 中文🙂|meteor", result.path("message").asText());
             }
         }

@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.cobble.StringUtils;
@@ -18,14 +21,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.node.NodeRpcPeer;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Connect Node 的两个 SDK 世代分别使用自己的依赖和生成契约，通过真实 HTTP/1.1 双向调用订单。 */
-@RunWith(Parameterized.class)
+@NxnRpc(name = "connect", version = "1")
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/node/connect/{0}@{1}/{2}/{3}", quoteTextArguments = false)
+@MethodSource("versions")
 public class NodeConnectSdkVersionScenarioTest {
     private final String profile;
     private final String direction;
@@ -34,14 +39,13 @@ public class NodeConnectSdkVersionScenarioTest {
         this.profile = profile;
         this.direction = direction;
     }
-
-    @Parameterized.Parameters(name = "sdk/node/connect/{0}@{1}/{2}/{3}")
     public static List<Object[]> versions() throws Exception {
         // 实际 SDK 版本由容器准备阶段核验，每个版本与调用方向形成独立用例。
         return NodeRpcPeer.compatibilityCases("connect");
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void orderRoundTripUsesTheSelectedSdkVersion() throws Exception {
         // 每个参数实例只验证一个方向，不修改其它用例共用的 SDK 路径或系统属性。
         if (StringUtils.equals(this.direction, "SDK-to-Meteor")) {

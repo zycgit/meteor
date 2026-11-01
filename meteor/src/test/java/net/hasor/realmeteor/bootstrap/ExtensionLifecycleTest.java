@@ -21,8 +21,8 @@ import net.hasor.meteor.MetContextEvent;
 import net.hasor.meteor.MetContextEventType;
 import net.hasor.meteor.MetExtension;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ExtensionLifecycleTest {
     public interface Echo {

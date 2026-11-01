@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.protocol.soap.codec;
-
 import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 

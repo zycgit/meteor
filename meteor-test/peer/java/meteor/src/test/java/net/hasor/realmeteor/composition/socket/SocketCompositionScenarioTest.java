@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.composition.socket;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -25,12 +26,18 @@ import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.oncrpc.binding.OncRpcServiceResource;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
 import org.apache.thrift.TException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 所有插件同时存在时，二进制协议按连接独立探测和分派。 */
+@NxnRpc(name = "rsf", version = "1")
+@NxnRpc(name = "dubbo")
+@NxnRpc(name = "thrift")
+@NxnRpc(name = "oncrpc", version = "2")
 public class SocketCompositionScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentProtocolsShareOneTcpListenerWithoutCrossedResponses() throws Exception {
         // 一个 TCP 端点挂载四个协议；客户端也一次性准备四条协议分支。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("rsf").setDefaultTimeout(15000);
@@ -107,7 +114,8 @@ public class SocketCompositionScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectedProbeConnectionDoesNotPoisonSharedTcpListener() throws Exception {
         // 一个 TCP 端点挂载四个协议；客户端也一次性准备四条协议分支。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("rsf").setDefaultTimeout(15000);
@@ -172,7 +180,8 @@ public class SocketCompositionScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingThriftCallDoesNotCancelOtherProtocolCalls() throws Exception {
         // 一个 TCP 端点挂载四个协议；客户端也一次性准备四条协议分支。
         // 两个业务线程允许其它协议在 Thrift 仍被 latch 阻塞时完成。
@@ -261,7 +270,10 @@ public class SocketCompositionScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "rsf", version = "1")
+    @NxnRpc(name = "oncrpc", version = "2")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpAndUdpEndpointsRemainIndependentWithinOneRuntime() throws Exception {
         // RSF 只提供 TCP；同一应用另挂 ONC RPC UDP，不伪装 RSF UDP 能力。
         int udpPort;
@@ -311,7 +323,8 @@ public class SocketCompositionScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingThriftClientLeavesOtherProtocolClientsConnected() throws Exception {
         // 四协议共享服务端监听，Thrift 与其它协议分别由两个客户端实例持有。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("rsf");
@@ -376,7 +389,8 @@ public class SocketCompositionScenarioTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void twoRuntimesConcurrentlyProvideAndConsumeAllFourTcpProtocols() throws Exception {
         // 两个运行实例各自以同一 TCP 端口挂载四协议，同时接受和发起请求。
         MetConfiguration leftConfiguration = new MetConfiguration().setDefaultProtocol("rsf");

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.composition;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -20,12 +21,28 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ProtocolProvider;
 import net.hasor.meteor.connector.transport.TransportFactory;
 import net.hasor.realmeteor.protocol.hprose.bootstrap.spi.TestHproseProtocolA;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 所有插件同时进入真实运行类路径后，SPI 和序列化器保持独立。 */
+@NxnRpc(name = "rsf", version = "1")
+@NxnRpc(name = "grpc")
+@NxnRpc(name = "grpc-web")
+@NxnRpc(name = "hprose")
+@NxnRpc(name = "soap")
+@NxnRpc(name = "jsonrpc")
+@NxnRpc(name = "xmlrpc")
+@NxnRpc(name = "hessian")
+@NxnRpc(name = "connect")
+@NxnRpc(name = "triple")
+@NxnRpc(name = "dubbo")
+@NxnRpc(name = "thrift")
+@NxnRpc(name = "oncrpc")
 public class SpiCompositionScenarioTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void allProtocolAndTransportProvidersCoexistInOneBootstrapRuntime() throws Exception {
         // 测试宿主登记的扩展同时检查实现类型与 SPI 名称，不排除未知提供者。
         Map<Class<?>, String> expectedTestProtocols = Map.of( //
@@ -41,10 +58,10 @@ public class SpiCompositionScenarioTest {
         Set<String> protocols = new HashSet<>();
         for (ProtocolProvider<?> provider : ServiceLoader.load(ProtocolProvider.class, loader)) {
             String name = provider.name().toLowerCase(Locale.ROOT);
-            assertTrue("Duplicate protocol SPI: " + name, protocolNames.add(name));
+            assertTrue(protocolNames.add(name), "Duplicate protocol SPI: " + name);
             if (expectedTestProtocols.containsKey(provider.getClass())) {
                 String previous = testProtocols.put(provider.getClass(), name);
-                assertNull("Duplicate test protocol provider: " + provider.getClass().getName(), previous);
+                assertNull(previous, "Duplicate test protocol provider: " + provider.getClass().getName());
             } else {
                 protocols.add(name);
             }
@@ -63,10 +80,10 @@ public class SpiCompositionScenarioTest {
         Set<String> transports = new HashSet<>();
         for (TransportFactory<?> factory : ServiceLoader.load(TransportFactory.class, loader)) {
             String name = factory.name();
-            assertTrue("Duplicate transport SPI: " + name, transportNames.add(name));
+            assertTrue(transportNames.add(name), "Duplicate transport SPI: " + name);
             if (expectedTestTransports.containsKey(factory.getClass())) {
                 String previous = testTransports.put(factory.getClass(), name);
-                assertNull("Duplicate test transport provider: " + factory.getClass().getName(), previous);
+                assertNull(previous, "Duplicate test transport provider: " + factory.getClass().getName());
             } else {
                 transports.add(name);
             }

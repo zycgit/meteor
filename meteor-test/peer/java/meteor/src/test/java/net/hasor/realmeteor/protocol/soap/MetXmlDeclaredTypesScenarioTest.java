@@ -37,15 +37,19 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class MetXmlDeclaredTypesScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void publishedContractDoesNotDependOnRuntimeMapContents() throws Exception {
         // 接口声明完整类型图，两端通过公开入口注册相同服务。
         MetConfiguration incoming = this.configuration(true);
@@ -90,7 +94,8 @@ public class MetXmlDeclaredTypesScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void typedMapUsesDeclaredDtoAttributesAndFieldsInBothDirections() throws Exception {
         // 服务实现会读取 User 并改写 id，不能用动态 Map 冒充已声明的 DTO。
         MetConfiguration incoming = this.configuration(true);
@@ -127,7 +132,8 @@ public class MetXmlDeclaredTypesScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rawTypedMapKeepsTheKeyAsTheDtoElementName() throws Exception {
         // 线上固定 XSD 包含 User，而请求中的 administrator 由 Map key 决定。
         MetConfiguration configuration = this.configuration(true);
@@ -185,7 +191,8 @@ public class MetXmlDeclaredTypesScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void objectListPreservesMixedScalarTypesAcrossTheProxy() throws Exception {
         // List 的条目类型声明为 Object，双端按 anyType 的标准类型信息读写。
         MetConfiguration incoming = this.configuration(true);
@@ -222,7 +229,8 @@ public class MetXmlDeclaredTypesScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void objectSetPreservesMixedScalarTypesAcrossTheProxy() throws Exception {
         // Set 和 List 共用重复元素的 XML 表达，Java 回读仍遵循声明的容器类型。
         MetConfiguration incoming = this.configuration(true);
@@ -255,7 +263,8 @@ public class MetXmlDeclaredTypesScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nestedGenericMapsAndListsPreserveEveryContainerBoundary() throws Exception {
         // Map<String,List<Map<String,User>>> 的所有层次均在发布时确定。
         MetConfiguration incoming = this.configuration(true);
@@ -297,7 +306,8 @@ public class MetXmlDeclaredTypesScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void inheritedGenericMethodResolvesTheConcreteDtoAtBothEndpoints() throws Exception {
         // 子接口将父接口的 T 绑定为 User，服务不需要重新声明继承的方法。
         MetConfiguration incoming = this.configuration(true);
@@ -343,7 +353,8 @@ public class MetXmlDeclaredTypesScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rawAnyTypeIntegerUsesStandardTypeInformationAndPublishedSchema() throws Exception {
         // Object 参数与返回值是 anyType，外部客户端无需使用 Meteor 的编码器。
         MetConfiguration configuration = this.configuration(true);
@@ -398,7 +409,8 @@ public class MetXmlDeclaredTypesScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unknownAnyTypeStructurePreservesXmlAcrossTheProxy() throws Exception {
         // Object 中未知的复杂内容通过 DOM 表达，不要求双方存在同名 Java 类。
         MetConfiguration incoming = this.configuration(true);

@@ -117,7 +117,7 @@ tasks.register('exportExecution') {
         sourceSets.test.allJava.files.sort().each { source ->
             def text = source.getText('UTF-8')
             def packageMatch = text =~ /(?m)^package\s+([\w.]+)\s*;/
-            def methodMatches = text =~ /@(?:org\.junit\.)?Test\b(?:\s*\([^)]*\))?\s+[^{};]*?\bvoid\s+(\w+)\s*\(/
+            def methodMatches = text =~ /@(?:org\.junit\.jupiter\.api\.)?Test\b(?:\s*\([^)]*\))?\s+[^{};]*?\bvoid\s+(\w+)\s*\(/
             if (methodMatches.find() && packageMatch.find()) {
                 def className = packageMatch.group(1) + '.' + source.name.replaceFirst(/\.java$/, '')
                 classNames.add(className)
@@ -126,13 +126,34 @@ tasks.register('exportExecution') {
         def classpath = sourceSets.test.runtimeClasspath.files.findAll { it.exists() }
         def urls = classpath.collect { it.toURI().toURL() } as URL[]
         def classMethods = new TreeMap<String, List<String>>()
+        def rpcCases = new TreeMap<String, Map<String, List<Map>>>()
         new URLClassLoader(urls, ClassLoader.getPlatformClassLoader()).withCloseable { loader ->
+            def rpcAnnotation = Class.forName('net.hasor.meteor.test.nxn.NxnRpc', false, loader)
             classNames.each { className ->
                 // false 禁止类初始化；不创建 JUnit Runner，也不执行参数工厂或任何测试方法。
                 def type = Class.forName(className, false, loader)
-                classMethods[className] = type.declaredMethods.findAll { method ->
-                    method.declaredAnnotations.any { annotation -> annotation.annotationType().name == 'org.junit.Test' }
-                }.collect { it.name }.unique().sort()
+                def testMethods = type.declaredMethods.findAll { method ->
+                    method.declaredAnnotations.any { annotation -> annotation.annotationType().name == 'org.junit.jupiter.api.Test' }
+                }
+                classMethods[className] = testMethods.collect { it.name }.unique().sort()
+
+                // 方法声明覆盖类声明；线协议版本及参数范围由场景自己声明。
+                def classDeclarations = type.getDeclaredAnnotationsByType(rpcAnnotation)
+                def methods = new TreeMap<String, List<Map>>()
+                testMethods.each { method ->
+                    def declarations = method.getDeclaredAnnotationsByType(rpcAnnotation)
+                    if (declarations.length == 0) {
+                        declarations = classDeclarations
+                    }
+                    if (declarations.length > 0) {
+                        methods[method.name] = declarations.collect { declaration ->
+                            [name: declaration.name(), version: declaration.version(), cases: declaration.cases()]
+                        }
+                    }
+                }
+                if (!methods.isEmpty()) {
+                    rpcCases[className] = methods
+                }
             }
         }
         def runtime = [
@@ -141,6 +162,7 @@ tasks.register('exportExecution') {
             systemProperties: executionProperties(),
             classNames: classNames.toList(),
             classMethods: classMethods,
+            rpcCases: rpcCases,
             sourceRoots: sourceSets.test.java.srcDirs.collect { it.absolutePath },
             workingDirectory: meteorTestDirectory.absolutePath
         ]

@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.List;
 import net.hasor.example.protocol.dubbo.interop.DubboInteropService;
 import net.hasor.example.protocol.dubbo.interop.DubboInteropServiceImpl;
@@ -11,25 +14,26 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.node.NodeRpcPeer;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** dubbo2.js 1.x 与 2.x 的真实 SDK 消费者分别调用 Meteor 提供者。 */
-@RunWith(Parameterized.class)
+@NxnRpc(name = "dubbo", version = "2")
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/node/dubbo/{0}@{1}/{2}/{3}", quoteTextArguments = false)
+@MethodSource("versions")
 public class NodeDubboSdkVersionScenarioTest {
     private final String profile;
 
     public NodeDubboSdkVersionScenarioTest(String sdk, String version, String profile, String direction) {
         this.profile = profile;
     }
-
-    @Parameterized.Parameters(name = "sdk/node/dubbo/{0}@{1}/{2}/{3}")
     public static List<Object[]> versions() throws Exception {
         return NodeRpcPeer.compatibilityCases("dubbo");
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void selectedSdkConsumerPreservesUnicodeArguments() throws Exception {
         // 公开 bootstrap 先启动真实 TCP 监听，再发布现有普通接口及业务实现。
         MetConfiguration configuration = new MetConfiguration().setApplicationName("node-dubbo-version-provider");

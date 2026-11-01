@@ -4,6 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.protocol.xmlrpc.node;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.echo.TextEchoService;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
@@ -11,13 +12,17 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.node.NodeRpcPeer;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** node-xmlrpc 与 Meteor 的最小字符串调用矩阵，各方向独立验证。 */
+@NxnRpc(name = "xmlrpc")
 public class XmlRpcNodeInteropTest {
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeXmlRpcConsumerCallsMeteorProvider() throws Exception {
         // 从正式 bootstrap 入口启动 XML-RPC 监听，再发布普通 Java 接口。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -38,7 +43,8 @@ public class XmlRpcNodeInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerCallsNodeXmlRpcProvider() throws Exception {
         // 独立 node-xmlrpc 服务只实现回声方法，监听端口由本场景申请。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);

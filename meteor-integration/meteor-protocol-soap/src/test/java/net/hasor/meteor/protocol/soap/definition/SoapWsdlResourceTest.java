@@ -13,8 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapWsdlResourceTest {
     @Test
@@ -419,7 +419,7 @@ public class SoapWsdlResourceTest {
 
     private URL resource(String path) {
         URL resource = this.getClass().getResource(path);
-        assertNotNull("Missing test resource " + path, resource);
+        assertNotNull(resource, "Missing test resource " + path);
         return resource;
     }
 }

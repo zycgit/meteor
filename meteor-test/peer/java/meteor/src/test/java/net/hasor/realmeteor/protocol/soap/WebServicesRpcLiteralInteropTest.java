@@ -18,13 +18,18 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesRpcLiteralInteropTest {
     private static final String NAMESPACE = "urn:hasor:meteor:soap:RpcEchoService";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void metroTypedProxyInvokesMeteorRpcLiteralSoap11() throws Exception {
         // Meteor 以 RPC/literal SOAP 1.1 发布普通 Java 接口，并自动生成契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -61,7 +66,9 @@ public class WebServicesRpcLiteralInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void metroTypedProxyInvokesMeteorRpcLiteralSoap12() throws Exception {
         // Meteor 以 RPC/literal SOAP 1.2 发布普通 Java 接口，并自动生成契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -98,7 +105,8 @@ public class WebServicesRpcLiteralInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientInvokesMetroRpcLiteralSoap11Endpoint() throws Exception {
         // Metro 从真实 SEI 注解生成 RPC/literal SOAP 1.1 Endpoint。
         try (SoapPeerProcess server = SoapPeerProcess.metroServer("rpc", "1.1", false)) {
@@ -128,7 +136,9 @@ public class WebServicesRpcLiteralInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientInvokesMetroRpcLiteralSoap12Endpoint() throws Exception {
         // Metro 从同一个真实 SEI 注解生成 RPC/literal SOAP 1.2 Endpoint。
         try (SoapPeerProcess server = SoapPeerProcess.metroServer("rpc", "1.2", false)) {

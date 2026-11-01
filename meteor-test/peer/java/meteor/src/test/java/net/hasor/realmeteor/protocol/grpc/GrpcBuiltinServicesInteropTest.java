@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,9 +39,11 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.builtin.GrpcBuiltinServicesFactory;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc")
 public class GrpcBuiltinServicesInteropTest {
 
     @Test
@@ -58,7 +61,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionResolvesNestedProtoSymbols() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -91,7 +95,7 @@ public class GrpcBuiltinServicesInteropTest {
                             .setFileContainingSymbol(symbol).build();
                     requests.onNext(query);
                     ServerReflectionResponse result = replies.next();
-                    assertTrue(symbol + ": " + result, result.hasFileDescriptorResponse());
+                    assertTrue(result.hasFileDescriptorResponse(), symbol + ": " + result);
                 }
 
                 // 结束请求方向，确认反射流正常完成。
@@ -104,7 +108,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionListsProto2ExtensionNumbers() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -141,7 +146,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionFindsTheFileContainingAProto2Extension() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -179,7 +185,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionRejectsUnknownExtensionContainer() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -215,7 +222,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void healthUsesItsExactRootPathAlongsideBusinessPrefixes() throws Exception {
         // 只启用 Health，并让两个协议共用端口且各自使用独立路径。
         GrpcBuiltinServicesFactory services = new GrpcBuiltinServicesFactory();
@@ -248,7 +256,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void healthCheckReportsTheServingInstance() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -267,7 +276,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void healthCheckRejectsAnUnpublishedService() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -287,7 +297,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void healthListIncludesPublishedStandardServices() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -306,7 +317,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void healthWatchObservesServicePublication() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -337,7 +349,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void healthWatchTerminatesWhenContextGoesOffline() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -370,7 +383,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void healthCheckIsAvailableAfterContextReturnsOnline() throws Exception {
         // 从 bootstrap 启动 gRPC，并发布一个可由标准 Health 查询的服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -395,7 +409,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void healthWatchCancellationLeavesUnaryChecksAvailable() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -430,7 +445,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1ListsServices() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -471,7 +487,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1IncludesImportedDescriptors() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -520,7 +537,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1FindsFileByName() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -558,7 +576,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1ReportsEmptyExtensionNumbers() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -596,7 +615,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1ContinuesAfterUnknownSymbol() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -639,7 +659,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1AlphaListsServices() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -680,7 +701,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1AlphaIncludesImportedDescriptors() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -729,7 +751,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1AlphaFindsFileByName() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -767,7 +790,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1AlphaReportsEmptyExtensionNumbers() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -805,7 +829,8 @@ public class GrpcBuiltinServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1AlphaContinuesAfterUnknownSymbol() throws Exception {
         // 从 bootstrap 启动 gRPC，并显式安装 Health 和 Reflection 标准服务。
         try (MetContext context = this.configuration().buildContext()) {
@@ -941,7 +966,7 @@ public class GrpcBuiltinServicesInteropTest {
         T next() throws Exception {
             // 有界等待下一条消息，将异步错误和提前结束转换成当前用例失败。
             Object value = this.values.poll(5, TimeUnit.SECONDS);
-            assertNotNull("Missing message", value);
+            assertNotNull(value, "Missing message");
             if (value instanceof Throwable failure) {
                 throw new AssertionError(failure);
             }
@@ -952,7 +977,7 @@ public class GrpcBuiltinServicesInteropTest {
         Throwable failure() throws Exception {
             // 故障场景必须观察到流失败，不能把无响应当作期望结果。
             Object value = this.values.poll(5, TimeUnit.SECONDS);
-            assertTrue("Expected stream failure: " + value, value instanceof Throwable);
+            assertTrue(value instanceof Throwable, "Expected stream failure: " + value);
             return (Throwable) value;
         }
 

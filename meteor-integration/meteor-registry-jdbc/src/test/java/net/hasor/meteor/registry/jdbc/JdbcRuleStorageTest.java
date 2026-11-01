@@ -23,12 +23,12 @@ import net.hasor.meteor.registry.shared.storage.domain.EntRuleConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
 import net.hasor.meteor.registry.shared.storage.domain.RuleKind;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.configuration;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.createDatabase;
 import static net.hasor.meteor.registry.jdbc.JdbcStorageData.instance;
 import static net.hasor.meteor.registry.jdbc.JdbcStorageData.service;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** H2 实测 JDBC 的规则正文、业务详情和事务，不代表其他数据库已经验收。 */
 public class JdbcRuleStorageTest {
@@ -537,6 +537,6 @@ public class JdbcRuleStorageTest {
         while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }
-        assertTrue("Configuration notification did not arrive", condition.getAsBoolean());
+        assertTrue(condition.getAsBoolean(), "Configuration notification did not arrive");
     }
 }

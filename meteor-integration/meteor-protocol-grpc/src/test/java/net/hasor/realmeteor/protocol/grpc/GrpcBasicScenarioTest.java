@@ -13,12 +13,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 插件基础验证：仅用自身公开 API 完成一次 Protobuf 调用。 */
 public class GrpcBasicScenarioTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void bootstrapPublishesAndConsumesProtobufService() throws Exception {
         // 声明服务端监听和客户端通道，两端使用同一份本地 proto 契约。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc");

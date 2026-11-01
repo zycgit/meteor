@@ -22,8 +22,8 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlText;
 import net.hasor.meteor.annotation.MetEnumValue;
 import net.hasor.meteor.annotation.MetField;
 import net.hasor.meteor.annotation.MetType;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapXmlMappingTest {
     private final XmlMapper      mapper  = SoapXmlMapping.newMapper();

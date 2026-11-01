@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.xmlrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.StringReader;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -22,15 +23,19 @@ import net.hasor.example.protocol.xmlrpc.XmlRpcDemoService;
 import net.hasor.example.protocol.xmlrpc.XmlRpcDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "xmlrpc")
 public class XmlRpcWireScenarioTest {
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void positionalParametersFollowTheJavaDeclaration() throws Exception {
         // 位置参数按照接口声明顺序传入，减法使顺序差异可见。
         MetConfiguration configuration = this.configuration();
@@ -59,7 +64,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void untypedValuesAreStrings() throws Exception {
         // 没有类型标签的 value 按标准作为字符串。
         MetConfiguration configuration = this.configuration();
@@ -86,7 +92,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unicodeAndXmlEscapingRemainBusinessText() throws Exception {
         // UTF-8 和 XML 转义还原为原始业务文本。
         MetConfiguration configuration = this.configuration();
@@ -114,7 +121,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void booleanUsesTheStandardZeroAndOneEncoding() throws Exception {
         // boolean 输入值 1 以布尔值进入 Java 方法。
         MetConfiguration configuration = this.configuration();
@@ -141,7 +149,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void floatingPointValuesRetainTheirFraction() throws Exception {
         // double 通过业务计算返回非整数结果。
         MetConfiguration configuration = this.configuration();
@@ -168,7 +177,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void base64ValuesReachTheServiceAsBytes() throws Exception {
         // base64 编码承载包含零字节和高位字节的数据。
         MetConfiguration configuration = this.configuration();
@@ -195,7 +205,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dateTimeUsesTheStandardWireRepresentation() throws Exception {
         // dateTime.iso8601 作为 Date 参数和返回值往返。
         MetConfiguration configuration = this.configuration();
@@ -223,7 +234,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void arrayOfStructValuesBindsGenericBusinessObjects() throws Exception {
         // array 中的 struct 按泛型签名映射为业务 POJO。
         MetConfiguration configuration = this.configuration();
@@ -255,7 +267,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void structMembersRemainNamedBusinessValues() throws Exception {
         // struct 的名字和值共同到达 Map 参数。
         MetConfiguration configuration = this.configuration();
@@ -287,7 +300,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void omittedParamsCallsAZeroArgumentMethod() throws Exception {
         // 无参方法允许省略 params。
         MetConfiguration configuration = this.configuration();
@@ -313,7 +327,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void businessErrorsReturnAStandardFault() throws Exception {
         // 业务异常的错误码和消息写入标准 fault struct。
         MetConfiguration configuration = this.configuration();
@@ -344,7 +359,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unknownMethodReturnsAFault() throws Exception {
         // 未发布的方法无法从协议入口调用。
         MetConfiguration configuration = this.configuration();
@@ -370,7 +386,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrongParameterCountReturnsAFault() throws Exception {
         // 错误参数数量在进入业务之前报告。
         MetConfiguration configuration = this.configuration();
@@ -397,7 +414,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrongParameterTypeReturnsAFault() throws Exception {
         // 字符串不会被静默转换为方法声明的 int。
         MetConfiguration configuration = this.configuration();
@@ -425,7 +443,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void malformedXmlReturnsAParseFault() throws Exception {
         // XML 文档不完整时返回可读 fault。
         MetConfiguration configuration = this.configuration();
@@ -451,7 +470,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unexpectedEnvelopeReturnsAParseFault() throws Exception {
         // HTTP 中的 XML 必须是 methodCall。
         MetConfiguration configuration = this.configuration();
@@ -477,7 +497,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nilIsRejectedUnlessExplicitlyConfigured() throws Exception {
         // 默认配置保留 XML-RPC 核心类型边界，不接受 nil 扩展。
         MetConfiguration configuration = this.configuration();
@@ -504,7 +525,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitlyEnabledNilRoundTripsANullValue() throws Exception {
         // nil 是显式启用的扩展，两端通过同一 HTTP 端点交换空值。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("xmlrpc");
@@ -530,7 +552,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void externalEntityDeclarationsNeverFetchRemoteData() throws Exception {
         // 独立 HTTP 对端记录实体读取，安全验证不依赖本地敏感文件。
         AtomicInteger fetched = new AtomicInteger();
@@ -572,7 +595,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nonPostHttpMethodIsRejected() throws Exception {
         // XML-RPC 的普通 HTTP 入口只接受 POST。
         MetConfiguration configuration = this.configuration();
@@ -592,7 +616,8 @@ public class XmlRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incompatibleContentTypeIsRejected() throws Exception {
         // 同端口中的其它正文类型不能误入 XML-RPC 编解码。
         MetConfiguration configuration = this.configuration();

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import net.hasor.example.protocol.oncrpc.OncRpcDemoCodecs;
@@ -14,11 +15,15 @@ import net.hasor.example.protocol.oncrpc.OncRpcDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** RemoteTea Java SDK 经真实 TCP、UDP 调用 Meteor 提供者，不依赖跨语言对端。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class RemoteTeaJavaInteropScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void remoteTeaJavaTcpClientCallsMeteor() throws Exception {
         // Meteor 通过公开入口监听 TCP；普通业务接口绑定既有 ONC RPC 契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -37,7 +42,8 @@ public class RemoteTeaJavaInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void remoteTeaJavaUdpClientCallsMeteor() throws Exception {
         // 沿用 UDP 基础场景的随机端口准备方式，避免给对端传递尚未确定的零端口。
         int port;
@@ -60,7 +66,8 @@ public class RemoteTeaJavaInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void remoteTeaJavaTcpClientReceivesGarbageArgumentsForNonAsciiString() throws Exception {
         // 同一标准 IDL 没有约定 UTF-8 扩展，Meteor 应拒绝非 ASCII 参数而不是静默替换。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -78,7 +85,8 @@ public class RemoteTeaJavaInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void remoteTeaJavaUdpClientReceivesGarbageArgumentsForNonAsciiString() throws Exception {
         // 保留标准 ASCII string 契约，UDP 同样不能隐式放宽为 UTF-8 扩展。
         int port;

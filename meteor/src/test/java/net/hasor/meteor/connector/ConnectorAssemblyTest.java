@@ -11,8 +11,8 @@ import java.util.Map;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 通过公开的传输与协议 SPI 入口验证连接器组装。 */
 public class ConnectorAssemblyTest {

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -22,10 +23,12 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetUpdater;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 在点对点订单示例上维护地址与单元、限速规则。 */
+@NxnRpc(name = "rsf", version = "1")
 public class AddressScenarioTest {
     private static final String UNIT_RULE = """
             <controlSet>
@@ -164,7 +167,8 @@ public class AddressScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void updateAnActiveRateLimitWithoutRecreatingTheClient() throws Exception {
         // 使用单独线程观察正在等待配额的调用，业务实现不包含测试同步逻辑。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);

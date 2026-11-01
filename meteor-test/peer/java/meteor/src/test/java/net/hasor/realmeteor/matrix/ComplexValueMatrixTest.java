@@ -6,6 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.*;
 import net.hasor.cobble.StringUtils;
 import net.hasor.example.contract.complex.*;
@@ -16,21 +22,37 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
-import org.junit.*;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
 
 /** 第二层公共向量：嵌套对象与集合、声明泛型的 Map 各自独立报告。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "complex/self/{0}/{1}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "rsf", version = "1", cases = "complex/self/rsf-json/*")
+@NxnRpc(name = "dubbo", cases = "complex/self/dubbo-hessian2/*")
+@NxnRpc(name = "hprose", cases = "complex/self/hprose/*")
+@NxnRpc(name = "hessian", version = "2", cases = "complex/self/hessian-2/*")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "complex/self/jsonrpc-json/*")
+@NxnRpc(name = "xmlrpc", cases = "complex/self/xmlrpc-struct/*")
+@NxnRpc(name = "soap", version = "1.1", cases = "complex/self/soap-literal/*")
+@NxnRpc(name = "grpc", cases = "complex/self/grpc-custom-json/*")
+@NxnRpc(name = "grpc", cases = "complex/self/grpc-protobuf/*")
+@NxnRpc(name = "grpc-web", cases = "complex/self/grpc-web-custom-json/*")
+@NxnRpc(name = "grpc-web", cases = "complex/self/grpc-web-protobuf/*")
+@NxnRpc(name = "connect", version = "1", cases = "complex/self/connect-json/*")
+@NxnRpc(name = "connect", version = "1", cases = "complex/self/connect-protobuf/*")
+@NxnRpc(name = "triple", cases = "complex/self/triple-java-hessian2/*")
+@NxnRpc(name = "triple", cases = "complex/self/triple-protobuf/*")
+@NxnRpc(name = "thrift", cases = "complex/self/thrift-binary-framed/*")
+@NxnRpc(name = "oncrpc", version = "2", cases = "complex/self/oncrpc-xdr/*")
 public class ComplexValueMatrixTest {
-    @ClassRule
-    public static final TemporaryFolder          environmentData = new TemporaryFolder();
+    @TempDir
+    public static Path environmentData;
     private static      OrderRegistryEnvironment environment;
 
-    @Rule
-    public final  TemporaryFolder     data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final ComplexValueProfile profile;
     private final OrderDiscovery      discovery;
     private       String              scope;
@@ -41,8 +63,6 @@ public class ComplexValueMatrixTest {
         this.profile = profile;
         this.discovery = discovery;
     }
-
-    @Parameterized.Parameters(name = "complex/self/{0}/{1}")
     public static Collection<Object[]> configurations() {
         // 这里只枚举 profile 和发现方式；两个业务目标仍然是独立的测试方法。
         List<String> availableProtocols = new ArrayList<>();
@@ -73,28 +93,28 @@ public class ComplexValueMatrixTest {
         return result;
     }
 
-    @BeforeClass
+    @BeforeAll
     public static void createEnvironment() {
-        environment = new OrderRegistryEnvironment(environmentData.getRoot().toPath());
+        environment = new OrderRegistryEnvironment(environmentData);
     }
 
-    @AfterClass
+    @AfterAll
     public static void closeEnvironment() throws Exception {
         if (environment != null) {
             environment.close();
         }
     }
 
-    @Before
+    @BeforeEach
     public void configureApplications() throws Exception {
         // 每个方法独占缓存、服务分组和注册空间，不继承上一用例发现的业务地址。
         this.scope = "complex-" + UUID.randomUUID();
         this.incoming = this.profile.providerConfiguration();
         this.incoming.setDefaultGroup(this.scope).setApplicationName("complex-provider");
-        this.incoming.setDataHome(this.data.newFolder("provider").toPath());
+        this.incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         this.outgoing = this.profile.consumerConfiguration();
         this.outgoing.setDefaultGroup(this.scope).setApplicationName("complex-consumer");
-        this.outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        this.outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
 
         // 注册模式只有存储配置；独立 RSF 挂载只承载内部管理服务。
         if (this.discovery != OrderDiscovery.DIRECT) {
@@ -108,13 +128,14 @@ public class ComplexValueMatrixTest {
         }
     }
 
-    @After
+    @AfterEach
     public void releaseDatabase() throws Exception {
         // 业务上下文已退出，再释放本方法持有的独立内存数据库。
         environment.release(this.scope);
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nestedObjectsAndOrderedListsPreserveTheirDeclaredTypes() throws Exception {
         // 两个应用通过正式 bootstrap 启动；订阅时尚未发布本次业务服务。
         try (MetContext provider = this.incoming.buildContext(); //
@@ -153,7 +174,8 @@ public class ComplexValueMatrixTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void typedMapsPreserveDtoAndInt32Values() throws Exception {
         // 每次使用独立应用和业务实例，Map 场景不复用嵌套集合场景的调用结果。
         try (MetContext provider = this.incoming.buildContext(); //

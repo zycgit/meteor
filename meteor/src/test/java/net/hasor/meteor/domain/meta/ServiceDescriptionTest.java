@@ -14,8 +14,8 @@ import net.hasor.meteor.annotation.*;
 import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 公共声明导出为可存储的数据图，不依赖协议或业务对象实例。 */
 public class ServiceDescriptionTest {

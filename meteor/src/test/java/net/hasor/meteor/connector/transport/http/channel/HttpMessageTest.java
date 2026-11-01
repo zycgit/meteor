@@ -12,8 +12,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 public class HttpMessageTest {
     @Test
@@ -66,7 +68,8 @@ public class HttpMessageTest {
         }
     }
 
-    @Test(timeout = 5000)
+    @Test
+    @Timeout(value = 5000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void boundedBodyBlocksItsProducerAndCloseReleasesTheWaiter() throws Exception {
         // 有界正文故意小于待写入数据，生产者必须等待消费。
         ExecutorService producer = Executors.newSingleThreadExecutor();

@@ -6,6 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc.types;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -21,25 +27,23 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.matrix.types.ForeignTypePeer;
 import net.hasor.realmeteor.matrix.types.TypeValueAssertions;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Python 标准库 JSON-RPC 两方向逐类型验证，保留精确整数而不经 Number 或文本中转。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/python/jsonrpc/direct/{1}/{0}", quoteTextArguments = false)
+@MethodSource("vectors")
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class PythonJsonRpcTypeTest {
-    @Rule
-    public final  TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final String          vector;
 
     public PythonJsonRpcTypeTest(String vector, String type) {
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/python/jsonrpc/direct/{1}/{0}")
     public static Collection<Object[]> vectors() throws Exception {
         // 每种边界值独立运行，不把多个类型的成功或失败折叠进一个 case。
         List<Object[]> cases = new ArrayList<>();
@@ -49,11 +53,12 @@ public class PythonJsonRpcTypeTest {
         return cases;
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorProviderAcceptsOnePythonTypeVector() throws Exception {
         // 正式 bootstrap 启动 HTTP 挂载，再发布同一类型契约和业务实现。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.setDataHome(this.data.newFolder("provider").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc").contextPath("/types");
         try (MetContext provider = configuration.buildContext()) {
@@ -74,13 +79,14 @@ public class PythonJsonRpcTypeTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerAcceptsOnePythonTypeVector() throws Exception {
         // Python HTTP 服务自行监听，Meteor 通过公开订阅入口创建纯远程代理。
         try (ForeignTypePeer peer = ForeignTypePeer.provider("python", "jsonrpc")) {
             int port = peer.awaitPort();
             MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-            configuration.setDataHome(this.data.newFolder("consumer").toPath());
+            configuration.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
             configuration.connector("http").protocol("jsonrpc").contextPath("/types");
             try (MetContext consumer = configuration.buildContext()) {
                 consumer.start();

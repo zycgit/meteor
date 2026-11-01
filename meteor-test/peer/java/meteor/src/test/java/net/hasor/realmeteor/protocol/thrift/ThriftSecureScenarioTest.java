@@ -20,12 +20,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Thrift 的 TCP TLS、HTTPS 版本、双向认证和明文边界均通过公开启动入口验证。 */
+@NxnRpc(name = "thrift")
 public class ThriftSecureScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTls12ServerAuthentication() throws Exception {
         // TCP 两端只启用 TLS 1.2，通过服务端认证传输 framed binary Thrift。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.2");
@@ -50,7 +54,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTls12MutualAuthentication() throws Exception {
         // TCP 两端只启用 TLS 1.2，通过双向认证传输 framed binary Thrift。
         MetConfiguration incoming = this.incomingTcp("server", "REQUIRE", "TLSv1.2");
@@ -75,7 +80,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTls13ServerAuthentication() throws Exception {
         // TCP 两端只启用 TLS 1.3，通过服务端认证传输 framed binary Thrift。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.3");
@@ -100,7 +106,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTls13MutualAuthentication() throws Exception {
         // TCP 两端只启用 TLS 1.3，通过双向认证传输 framed binary Thrift。
         MetConfiguration incoming = this.incomingTcp("server", "REQUIRE", "TLSv1.3");
@@ -125,7 +132,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1Tls12ServerAuthentication() throws Exception {
         // 双方固定 TLS 1.2 与 HTTP/1 的 ALPN，通过服务端认证传输 Thrift。
         MetConfiguration incoming = this.incomingHttp(1, "server", "NONE", "TLSv1.2");
@@ -150,7 +158,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1Tls12MutualAuthentication() throws Exception {
         // 双方固定 TLS 1.2 与 HTTP/1 的 ALPN，通过双向认证传输 Thrift。
         MetConfiguration incoming = this.incomingHttp(1, "server", "REQUIRE", "TLSv1.2");
@@ -175,7 +184,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1Tls13ServerAuthentication() throws Exception {
         // 双方固定 TLS 1.3 与 HTTP/1 的 ALPN，通过服务端认证传输 Thrift。
         MetConfiguration incoming = this.incomingHttp(1, "server", "NONE", "TLSv1.3");
@@ -200,7 +210,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1Tls13MutualAuthentication() throws Exception {
         // 双方固定 TLS 1.3 与 HTTP/1 的 ALPN，通过双向认证传输 Thrift。
         MetConfiguration incoming = this.incomingHttp(1, "server", "REQUIRE", "TLSv1.3");
@@ -225,7 +236,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2Tls12ServerAuthentication() throws Exception {
         // 双方固定 TLS 1.2 与 HTTP/2 的 ALPN，通过服务端认证传输 Thrift。
         MetConfiguration incoming = this.incomingHttp(2, "server", "NONE", "TLSv1.2");
@@ -250,7 +262,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2Tls12MutualAuthentication() throws Exception {
         // 双方固定 TLS 1.2 与 HTTP/2 的 ALPN，通过双向认证传输 Thrift。
         MetConfiguration incoming = this.incomingHttp(2, "server", "REQUIRE", "TLSv1.2");
@@ -275,7 +288,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2Tls13ServerAuthentication() throws Exception {
         // 双方固定 TLS 1.3 与 HTTP/2 的 ALPN，通过服务端认证传输 Thrift。
         MetConfiguration incoming = this.incomingHttp(2, "server", "NONE", "TLSv1.3");
@@ -300,7 +314,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2Tls13MutualAuthentication() throws Exception {
         // 双方固定 TLS 1.3 与 HTTP/2 的 ALPN，通过双向认证传输 Thrift。
         MetConfiguration incoming = this.incomingHttp(2, "server", "REQUIRE", "TLSv1.3");
@@ -325,7 +340,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTlsRejectsMissingClientCertificate() throws Exception {
         // 服务器要求客户端证书，客户端只信任 CA 而不提供身份。
         MetConfiguration incoming = this.incomingTcp("server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -348,11 +364,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTlsRejectsUntrustedClientCertificate() throws Exception {
         // 客户端提供另一 CA 签发的证书，服务器的信任集不接受该身份。
         MetConfiguration incoming = this.incomingTcp("server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -375,11 +392,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTlsRejectsUntrustedServerCertificate() throws Exception {
         // 客户端只信任另一 CA，当前服务器的证书链不在其信任集内。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.3,TLSv1.2");
@@ -402,11 +420,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTlsRejectsWrongServerHostname() throws Exception {
         // 证书由受信 CA 签发，但 SAN 中没有实际访问的 127.0.0.1。
         MetConfiguration incoming = this.incomingTcp("wrong-host-server", "NONE", "TLSv1.3,TLSv1.2");
@@ -429,11 +448,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1RejectsMissingClientCertificate() throws Exception {
         // 服务器要求客户端证书，客户端只信任 CA 而不提供身份。
         MetConfiguration incoming = this.incomingHttp(1, "server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -456,11 +476,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1RejectsUntrustedClientCertificate() throws Exception {
         // 客户端提供另一 CA 签发的证书，服务器的信任集不接受该身份。
         MetConfiguration incoming = this.incomingHttp(1, "server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -483,11 +504,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1RejectsUntrustedServerCertificate() throws Exception {
         // 客户端只信任另一 CA，当前服务器的证书链不在其信任集内。
         MetConfiguration incoming = this.incomingHttp(1, "server", "NONE", "TLSv1.3,TLSv1.2");
@@ -510,11 +532,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1RejectsWrongServerHostname() throws Exception {
         // 证书由受信 CA 签发，但 SAN 中没有实际访问的 127.0.0.1。
         MetConfiguration incoming = this.incomingHttp(1, "wrong-host-server", "NONE", "TLSv1.3,TLSv1.2");
@@ -537,11 +560,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1RejectsIncompatibleAlpn() throws Exception {
         // 服务器只接受 HTTP/1，客户端只宣告 HTTP/2 的 ALPN。
         MetConfiguration incoming = this.incomingHttp(1, "server", "NONE", "TLSv1.3,TLSv1.2");
@@ -564,11 +588,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2RejectsMissingClientCertificate() throws Exception {
         // 服务器要求客户端证书，客户端只信任 CA 而不提供身份。
         MetConfiguration incoming = this.incomingHttp(2, "server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -591,11 +616,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2RejectsUntrustedClientCertificate() throws Exception {
         // 客户端提供另一 CA 签发的证书，服务器的信任集不接受该身份。
         MetConfiguration incoming = this.incomingHttp(2, "server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -618,11 +644,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2RejectsUntrustedServerCertificate() throws Exception {
         // 客户端只信任另一 CA，当前服务器的证书链不在其信任集内。
         MetConfiguration incoming = this.incomingHttp(2, "server", "NONE", "TLSv1.3,TLSv1.2");
@@ -645,11 +672,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2RejectsWrongServerHostname() throws Exception {
         // 证书由受信 CA 签发，但 SAN 中没有实际访问的 127.0.0.1。
         MetConfiguration incoming = this.incomingHttp(2, "wrong-host-server", "NONE", "TLSv1.3,TLSv1.2");
@@ -672,11 +700,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2RejectsIncompatibleAlpn() throws Exception {
         // 服务器只接受 HTTP/2，客户端只宣告 HTTP/1 的 ALPN。
         MetConfiguration incoming = this.incomingHttp(2, "server", "NONE", "TLSv1.3,TLSv1.2");
@@ -699,11 +728,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTlsRejectsIncompatibleTlsVersion() throws Exception {
         // 服务器仅启用 TLS 1.2，客户端仅启用 TLS 1.3。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.2");
@@ -726,11 +756,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1RejectsIncompatibleTlsVersion() throws Exception {
         // HTTP/1 两端的 TLS 版本没有交集，但服务元数据完全一致。
         MetConfiguration incoming = this.incomingHttp(1, "server", "NONE", "TLSv1.2");
@@ -753,11 +784,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2RejectsIncompatibleTlsVersion() throws Exception {
         // HTTP/2 两端的 TLS 版本没有交集，但服务元数据完全一致。
         MetConfiguration incoming = this.incomingHttp(2, "server", "NONE", "TLSv1.2");
@@ -780,11 +812,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void plaintextAndSecureTcpEndpointsRemainIndependent() throws Exception {
         // 同一上下文使用两个独立 TCP 端口，分别承载明文与 TLS Thrift。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.3,TLSv1.2");
@@ -814,7 +847,8 @@ public class ThriftSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void secureTcpClientNeverFallsBackToPlaintext() throws Exception {
         // 服务器只提供明文监听，客户端明确要求 TLS。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("thrift").setDefaultTimeout(10000);
@@ -839,11 +873,12 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void secureTcpListenerRejectsPlaintextClient() throws Exception {
         // 服务器只提供 TLS，客户端只准备普通 TCP Thrift。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.3,TLSv1.2");
@@ -867,7 +902,7 @@ public class ThriftSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 

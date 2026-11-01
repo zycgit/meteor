@@ -110,6 +110,7 @@ public final class NxnReport {
         List<String> notExecutedCases = new ArrayList<>();
         Map<String, Map<String, Path>> suites = new LinkedHashMap<>();
         Set<String> executedClasses = new LinkedHashSet<>();
+        boolean rpcSelection = present(manifest.get("rpc"));
         for (Map<String, Object> group : objects(manifest.get("groups"))) {
             List<Map<String, Object>> current = new ArrayList<>();
             List<Path> files = new ArrayList<>();
@@ -124,11 +125,18 @@ public final class NxnReport {
             }
             executedClasses.addAll(currentClasses);
             String groupId = string(group.get("id"));
-            if (!currentClasses.equals(new LinkedHashSet<>(strings(group.get("classes"))))) {
+            Set<String> assignedClasses = new LinkedHashSet<>(strings(group.get("classes")));
+            boolean rpcVerified = Boolean.TRUE.equals(detail.get("rpcSelectionVerified"));
+            boolean classesCovered = currentClasses.equals(assignedClasses);
+            if (rpcVerified) {
+                // 参数展开后可能没有该协议向量，已核验的叶子计划决定实际执行范围。
+                classesCovered = assignedClasses.containsAll(currentClasses);
+            }
+            if (!classesCovered) {
                 errors.add("Group " + groupId + " executed classes differ from its assignment");
             }
             List<String> filters = strings(group.getOrDefault("filters", group.get("classes")));
-            checkSelections(groupId, current, filters, errors);
+            checkSelections(groupId, current, filters, !rpcVerified, errors);
             cases.addAll(current);
             for (Path source : files) {
                 String filename = source.getFileName().toString();
@@ -139,8 +147,16 @@ public final class NxnReport {
             NxnJUnitReport.mergeSuites(suite.getValue(), results.resolve(suite.getKey()));
         }
         Set<String> selectedClasses = new LinkedHashSet<>(strings(manifest.get("selectedClasses")));
-        if (!executedClasses.equals(selectedClasses)) {
+        boolean rpcCovered = rpcSelection && allTrue(details, "rpcSelectionVerified");
+        boolean classesCovered = executedClasses.equals(selectedClasses);
+        if (rpcCovered) {
+            classesCovered = selectedClasses.containsAll(executedClasses);
+        }
+        if (!classesCovered) {
             errors.add("Executed classes do not cover selected classes");
+        }
+        if (cases.isEmpty()) {
+            errors.add("No testcases were executed");
         }
 
         // 校验每个参数化用例恰好执行一次，失败和跳过都不能被汇总成功掩盖。
@@ -200,6 +216,9 @@ public final class NxnReport {
         summary.put("aggregationErrors", errors);
         summary.put("duplicateCases", duplicateCases);
         summary.put("includes", manifest.getOrDefault("userIncludes", List.of()));
+        summary.put("rpc", manifest.getOrDefault("rpc", ""));
+        summary.put("rpcVersion", manifest.getOrDefault("rpcVersion", ""));
+        summary.put("rpcCases", manifest.getOrDefault("rpcCases", Map.of()));
         Map<String, Object> mergedSuites = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, Path>> suite : suites.entrySet()) {
             if (suite.getValue().size() > 1) {
@@ -235,10 +254,20 @@ public final class NxnReport {
         StringBuilder markdown = new StringBuilder("# Meteor RPC 测试报告\n\n");
         markdown.append("结果：").append(errors.isEmpty() ? "通过" : "失败").append("。\n\n");
         markdown.append("skipError：`").append(summary.get("skipError")).append("`。\n\n");
+        boolean rpcSelection = present(summary.get("rpc"));
+        if (rpcSelection) {
+            markdown.append("RPC：`").append(summary.get("rpc")).append('`');
+            if (present(summary.get("rpcVersion"))) {
+                markdown.append("，协议版本：`").append(summary.get("rpcVersion")).append('`');
+            } else {
+                markdown.append("，协议版本不限");
+            }
+            markdown.append("。\n\n");
+        }
         List<String> includes = strings(summary.get("includes"));
-        markdown.append("筛选：");
+        markdown.append("用例筛选：");
         if (includes.isEmpty()) {
-            markdown.append("全部");
+            markdown.append(rpcSelection ? "该协议声明范围" : "全部");
         } else {
             markdown.append('`').append(String.join("`、`", includes)).append('`');
         }
@@ -470,12 +499,15 @@ public final class NxnReport {
             if (!configuration.getOrDefault("matrixSelection", Map.of()).equals(matrix)) {
                 errors.add("Group " + groupId + " changed the matrix selection");
             }
+            boolean rpcVerified = checkRpcSelection(group, manifest, configuration, summary, errors);
+            detail.put("rpcSelectionVerified", rpcVerified);
+            boolean selectionEmpty = rpcVerified && Boolean.TRUE.equals(summary.get("selectionEmpty"));
             boolean started = Boolean.TRUE.equals(summary.get("testTaskStarted"));
             boolean fresh = Boolean.FALSE.equals(summary.get("reusedResults"));
             if (!started || !fresh) {
                 errors.add("Group " + groupId + " did not execute fresh tests");
             }
-            if (!Boolean.TRUE.equals(summary.get("resultsAvailable"))) {
+            if (!Boolean.TRUE.equals(summary.get("resultsAvailable")) && !selectionEmpty) {
                 errors.add("Group " + groupId + " has no current results");
             }
             if (present(summary.get("taskFailure"))) {
@@ -491,10 +523,25 @@ public final class NxnReport {
             }
             List<Path> currentFiles = xmlFiles(directory.resolve("test-results/test"));
             List<Path> archived = xmlFiles(report.resolve("test-results"));
-            if (currentFiles.isEmpty() || !fileHashes(currentFiles).equals(fileHashes(archived))) {
+            boolean missingXml = currentFiles.isEmpty() && !selectionEmpty;
+            if (missingXml || !fileHashes(currentFiles).equals(fileHashes(archived))) {
                 errors.add("Group " + groupId + " raw XML does not match the current report");
             }
             List<Map<String, Object>> current = NxnJUnitReport.readCases(currentFiles);
+            if (selectionEmpty && (!current.isEmpty() || !reported.isEmpty())) {
+                errors.add("Group " + groupId + " claims an empty RPC selection but has testcases");
+            }
+            if (rpcVerified && current.isEmpty() && !selectionEmpty) {
+                errors.add("Group " + groupId + " empty RPC result has no explicit zero selection evidence");
+            }
+            if (rpcVerified) {
+                Set<String> planned = new LinkedHashSet<>(strings(summary.get("plannedCases")));
+                if (!planned.containsAll(caseIdentities(current).keySet())) {
+                    errors.add("Group " + groupId + " executed testcases outside its RPC selection plan");
+                }
+                planned.addAll(caseIdentities(current).keySet());
+                checkRpcCases(group, planned, errors);
+            }
             if (!caseCounts(current).equals(caseCounts(reported))) {
                 errors.add("Group " + groupId + " selected cases do not match its XML");
             }
@@ -514,6 +561,111 @@ public final class NxnReport {
             errors.add("Group " + groupId + " report is invalid: " + failure.getMessage());
         }
         return detail;
+    }
+
+    private static boolean checkRpcSelection(Map<String, Object> group, Map<String, Object> manifest,
+            Map<String, Object> configuration, Map<String, Object> summary, List<String> errors) {
+        boolean selected = present(manifest.get("rpc"));
+        String groupId = string(group.get("id"));
+        if (!selected) {
+            if (Boolean.TRUE.equals(summary.get("selectionEmpty"))) {
+                errors.add("Group " + groupId + " cannot claim an empty selection without RPC filtering");
+            }
+            return false;
+        }
+
+        // 仅使用本轮声明和实际下发配置，缺少或改写 RPC 元信息不能放宽完整性校验。
+        int before = errors.size();
+        for (String field : List.of("rpc", "rpcVersion")) {
+            Object expected = manifest.getOrDefault(field, "");
+            boolean consistent = ObjectUtils.equals(expected, group.get(field));
+            consistent &= ObjectUtils.equals(expected, configuration.get(field));
+            consistent &= ObjectUtils.equals(expected, summary.get(field));
+            if (!consistent) {
+                errors.add("Group " + groupId + " changed the " + field + " selection");
+            }
+        }
+        Map<String, Object> metadata = object(manifest.getOrDefault("rpcCases", Map.of()));
+        Map<String, Object> expectedCases = new LinkedHashMap<>();
+        for (String className : strings(group.get("classes"))) {
+            Object methods = metadata.get(className);
+            if (!(methods instanceof Map<?, ?>) || ((Map<?, ?>) methods).isEmpty()) {
+                errors.add("Group " + groupId + " has no RPC declarations for " + className);
+            }
+            expectedCases.put(className, methods);
+        }
+        boolean consistent = expectedCases.equals(group.get("rpcCases"));
+        consistent &= expectedCases.equals(configuration.get("rpcCases"));
+        consistent &= expectedCases.equals(summary.get("rpcCases"));
+        if (!consistent) {
+            errors.add("Group " + groupId + " changed its RPC declarations");
+        }
+        Map<String, List<String>> catalog = NxnRpcSelection.catalog(expectedCases);
+        String rpc = NxnRpcSelection.protocolName(string(manifest.get("rpc")));
+        List<String> versions = catalog.getOrDefault(rpc, List.of());
+        String version = string(manifest.getOrDefault("rpcVersion", ""));
+        if (!catalog.containsKey(rpc) || !version.isEmpty() && !versions.contains(version)) {
+            errors.add("Group " + groupId + " has no declarations matching its RPC selection");
+        }
+
+        // 参数被筛除属于明确的零选择，不能使用它掩盖执行失败或丢失的叶子计划。
+        boolean hasPlan = summary.get("plannedCases") instanceof List<?>;
+        hasPlan &= summary.get("notExecutedCases") instanceof List<?>;
+        hasPlan &= summary.containsKey("notExecuted");
+        if (!hasPlan) {
+            errors.add("Group " + groupId + " RPC selection has no explicit testcase plan");
+        }
+        if (Boolean.TRUE.equals(summary.get("selectionEmpty"))) {
+            boolean empty = List.of().equals(summary.get("plannedCases"));
+            empty &= List.of().equals(summary.get("notExecutedCases"));
+            empty &= integerEquals(summary.get("notExecuted"), 0);
+            empty &= Boolean.FALSE.equals(summary.get("resultsAvailable"));
+            empty &= !present(summary.get("taskFailure"));
+            if (!empty) {
+                errors.add("Group " + groupId + " has invalid empty RPC selection evidence");
+            }
+        }
+        return errors.size() == before;
+    }
+
+    private static void checkRpcCases(Map<String, Object> group, Set<String> caseIds, List<String> errors) {
+        Map<String, Object> metadata = object(group.get("rpcCases"));
+        String groupId = string(group.get("id"));
+        String rpc = string(group.get("rpc"));
+        String version = string(group.get("rpcVersion"));
+        for (String caseId : caseIds) {
+            // XML 与计划的每个叶子都重新对照声明，二者相互一致不能代替 RPC 范围校验。
+            int separator = caseId.indexOf('#');
+            if (separator < 1 || separator == caseId.length() - 1) {
+                errors.add("Group " + groupId + " has an unknown RPC testcase identity: " + caseId);
+                continue;
+            }
+            String className = caseId.substring(0, separator);
+            String scenario = caseId.substring(separator + 1);
+            int parameterStart = scenario.indexOf('[');
+            String method = parameterStart < 0 ? scenario : scenario.substring(0, parameterStart);
+            if (method.endsWith("()")) {
+                method = method.substring(0, method.length() - 2);
+            }
+            Object methods = metadata.get(className);
+            if (!(methods instanceof Map<?, ?>) || !((Map<?, ?>) methods).containsKey(method)) {
+                errors.add("Group " + groupId + " has an unknown RPC testcase: " + caseId);
+                continue;
+            }
+
+            // 参数类保留完整原始 displayName；普通方法使用空参数匹配同一套声明选择器。
+            List<String> parameters = List.of();
+            if (parameterStart >= 0) {
+                if (!scenario.endsWith("]")) {
+                    errors.add("Group " + groupId + " has an unknown RPC testcase identity: " + caseId);
+                    continue;
+                }
+                parameters = List.of(scenario.substring(parameterStart + 1, scenario.length() - 1));
+            }
+            if (!NxnRpcSelection.selected(metadata, rpc, version, className, method, parameters)) {
+                errors.add("Group " + groupId + " testcase does not match its RPC selection: " + caseId);
+            }
+        }
     }
 
     private static void checkPlannedCases(Map<String, Object> summary, List<Map<String, Object>> cases,
@@ -764,7 +916,8 @@ public final class NxnReport {
         if (!discovered.keySet().containsAll(selected.keySet())) {
             errors.add("Selected classes are absent from discovery");
         }
-        if (!present(manifest.get("userIncludes")) && !selected.equals(discovered)) {
+        boolean filtered = present(manifest.get("userIncludes")) || present(manifest.get("rpc"));
+        if (!filtered && !selected.equals(discovered)) {
             errors.add("An unfiltered run must select every discovered class");
         }
         List<String> assigned = new ArrayList<>();
@@ -796,7 +949,7 @@ public final class NxnReport {
     }
 
     private static void checkSelections(String groupId, List<Map<String, Object>> cases,
-            List<String> filters, List<String> errors) {
+            List<String> filters, boolean requireEverySelection, List<String> errors) {
         for (Map<String, Object> testCase : cases) {
             boolean assigned = false;
             for (String selection : filters) {
@@ -805,6 +958,9 @@ public final class NxnReport {
             if (!assigned) {
                 errors.add("Group " + groupId + " executed an unassigned testcase: " + testCase.get("caseId"));
             }
+        }
+        if (!requireEverySelection) {
+            return;
         }
         for (String selection : filters) {
             boolean executed = false;
@@ -857,7 +1013,9 @@ public final class NxnReport {
         if (baselinePath == null) {
             return null;
         }
-        if (present(manifest.get("userIncludes")) || present(manifest.get("matrixSelection"))) {
+        boolean filtered = present(manifest.get("userIncludes")) || present(manifest.get("matrixSelection"));
+        filtered |= present(manifest.get("rpc"));
+        if (filtered) {
             throw new IllegalArgumentException("Baseline coverage comparison requires an unfiltered run");
         }
         Map<String, Integer> before = caseIdentities(objects(readJson(baselinePath)));

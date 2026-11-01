@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.composition.http;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,17 +23,23 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 同一监听上的 gRPC 家族挂载独立选择报文、上下文和服务可见范围。 */
+@NxnRpc(name = "grpc")
+@NxnRpc(name = "grpc-web")
+@NxnRpc(name = "connect", version = "1")
+@NxnRpc(name = "triple")
 public class GrpcFamilyCompositionTest {
     private static final String SERVICE = "meteor.composition.FamilyService";
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void fourProtocolsKeepConcurrentResponsesOnTheirOwnRoutes() throws Exception {
         // 一个 HTTP 监听配置四种协议，客户端分别选择 HTTP/1 或 HTTP/2。
         MetConfiguration incoming = this.incoming();
@@ -110,7 +117,10 @@ public class GrpcFamilyCompositionTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "grpc")
+    @NxnRpc(name = "connect", version = "1")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectedGrpcContextDoesNotAffectTheConnectRoute() throws Exception {
         // 两个客户端在同一端口分别访问隐藏的 gRPC 上下文和可用的 Connect 上下文。
         MetConfiguration incoming = this.incoming();

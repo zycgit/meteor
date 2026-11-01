@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.go;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
@@ -32,22 +37,21 @@ import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** grpc-go 的显式注册适配：Java 只处理发现控制数据，业务 RPC 由实际调用方直接发送。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "adapter={0},tls={1}", quoteTextArguments = false)
+@MethodSource("registryModes")
+@NxnRpc(name = "grpc")
 public class GrpcGoRegistryAdapterScenarioTest {
     private static final String SERVICE = "meteor.example.OrderDemoService";
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
     private final String tlsMode;
@@ -56,8 +60,6 @@ public class GrpcGoRegistryAdapterScenarioTest {
         this.backend = backend;
         this.tlsMode = tlsMode;
     }
-
-    @Parameterized.Parameters(name = "adapter={0},tls={1}")
     public static Object[][] registryModes() {
         return new Object[][] { //
                 { "jdbc", "plain" }, //
@@ -67,10 +69,11 @@ public class GrpcGoRegistryAdapterScenarioTest {
         };
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerGoClientResolvesMeteorThroughRegistryAdapter() throws Exception {
         // 独占真实注册存储；Meteor 经 bootstrap 启动后才发布统一订单服务。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, true);
@@ -93,17 +96,18 @@ public class GrpcGoRegistryAdapterScenarioTest {
                     // 官方 grpc-go 进程直接保存并查询订单，mTLS 凭证仍由该进程加载。
                     try (GoPeerProcess peer = GoPeerProcess.start("grpc", "client", this.tlsMode, "unicode", target)) {
                         JsonNode outcome = peer.awaitResult();
-                        assertTrue(outcome.toString(), outcome.path("ok").asBoolean());
+                        assertTrue(outcome.path("ok").asBoolean(), outcome.toString());
                     }
                 }
             }
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMeteorDiscoversGoThroughRegistryAdapter() throws Exception {
         // 消费端只配置 gRPC 出站和注册扩展，不指定任何远端业务端点。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, false);
@@ -144,7 +148,7 @@ public class GrpcGoRegistryAdapterScenarioTest {
     private MetConfiguration configuration(RegistryConfiguration registry, boolean provider) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc").setDefaultTimeout(10000);
         configuration.setApplicationName(provider ? "go-grpc-adapter-provider" : "go-grpc-adapter-consumer");
-        configuration.setDataHome(this.data.newFolder("application").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("application")));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 注册扩展的内部管理出口。
         ConnectorSettings http = configuration.connector("http").option("httpVersion", 2);

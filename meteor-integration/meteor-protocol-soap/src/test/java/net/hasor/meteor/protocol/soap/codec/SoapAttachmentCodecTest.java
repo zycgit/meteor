@@ -16,12 +16,12 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.ContentType;
 import net.hasor.meteor.protocol.soap.codec.SoapAttachmentCodec.Message;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import static net.hasor.meteor.protocol.soap.definition.SoapVersion.SOAP_11;
 import static net.hasor.meteor.protocol.soap.definition.SoapVersion.SOAP_12;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapAttachmentCodecTest {
     private static final String ENVELOPE_11      = "http://schemas.xmlsoap.org/soap/envelope/";
@@ -311,7 +311,7 @@ public class SoapAttachmentCodecTest {
             SoapAttachmentCodec.decode(body, contentType, SOAP_11, MAX_BYTES);
         });
         String message = failure.getMessage();
-        assertTrue(message, message.contains("Ambiguous") || message.contains("Invalid"));
+        assertTrue(message.contains("Ambiguous") || message.contains("Invalid"), message);
     }
 
     @Test
@@ -326,7 +326,7 @@ public class SoapAttachmentCodecTest {
             SoapAttachmentCodec.decode(body, contentType, SOAP_11, MAX_BYTES);
         });
         String message = failure.getMessage();
-        assertTrue(message, message.contains("Ambiguous") || message.contains("Invalid"));
+        assertTrue(message.contains("Ambiguous") || message.contains("Invalid"), message);
     }
 
     @Test
@@ -341,7 +341,7 @@ public class SoapAttachmentCodecTest {
             SoapAttachmentCodec.decode(body, contentType, SOAP_11, MAX_BYTES);
         });
         String message = failure.getMessage();
-        assertTrue(message, message.contains("Ambiguous") || message.contains("Invalid"));
+        assertTrue(message.contains("Ambiguous") || message.contains("Invalid"), message);
     }
 
     @Test
@@ -356,7 +356,7 @@ public class SoapAttachmentCodecTest {
             SoapAttachmentCodec.decode(body, contentType, SOAP_11, MAX_BYTES);
         });
         String message = failure.getMessage();
-        assertTrue(message, message.contains("Ambiguous") || message.contains("Invalid"));
+        assertTrue(message.contains("Ambiguous") || message.contains("Invalid"), message);
     }
 
     @Test
@@ -371,7 +371,7 @@ public class SoapAttachmentCodecTest {
             SoapAttachmentCodec.decode(body, contentType, SOAP_11, MAX_BYTES);
         });
         String message = failure.getMessage();
-        assertTrue(message, message.contains("Ambiguous") || message.contains("Invalid"));
+        assertTrue(message.contains("Ambiguous") || message.contains("Invalid"), message);
     }
 
     @Test
@@ -386,7 +386,7 @@ public class SoapAttachmentCodecTest {
             SoapAttachmentCodec.decode(body, contentType, SOAP_11, MAX_BYTES);
         });
         String message = failure.getMessage();
-        assertTrue(message, message.contains("Ambiguous") || message.contains("Invalid"));
+        assertTrue(message.contains("Ambiguous") || message.contains("Invalid"), message);
     }
 
     @Test
@@ -401,7 +401,7 @@ public class SoapAttachmentCodecTest {
             SoapAttachmentCodec.decode(body, contentType, SOAP_11, MAX_BYTES);
         });
         String message = failure.getMessage();
-        assertTrue(message, message.contains("Ambiguous") || message.contains("Invalid"));
+        assertTrue(message.contains("Ambiguous") || message.contains("Invalid"), message);
     }
 
     @Test

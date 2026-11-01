@@ -9,9 +9,9 @@ package net.hasor.meteor.connector.transport;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /** 验证传输通道创建期间的监听器延迟绑定与关闭终态。 */
 public class ChannelListenerRelayTest {

@@ -4,24 +4,30 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Chromium 的同源 Fetch API 直接调用 HTTP RPC，不使用 Node 的 HTTP 客户端代替浏览器。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "browser/fetch/{0}/direct", quoteTextArguments = false)
+@MethodSource("protocols")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "browser/fetch/jsonrpc/direct")
+@NxnRpc(name = "connect", version = "1", cases = "browser/fetch/connect/direct")
+@NxnRpc(name = "soap", version = "1.1", cases = "browser/fetch/soap/direct")
+@NxnRpc(name = "xmlrpc", cases = "browser/fetch/xmlrpc/direct")
 public class BrowserHttpConsumerScenarioTest {
     private final String protocol;
 
     public BrowserHttpConsumerScenarioTest(String protocol) {
         this.protocol = protocol;
     }
-
-    @Parameterized.Parameters(name = "browser/fetch/{0}/direct")
     public static List<Object[]> protocols() {
         // 固定顺序只用于矩阵展示，每一项生成独立的保存查询场景。
         List<Object[]> protocols = new ArrayList<>();
@@ -32,7 +38,8 @@ public class BrowserHttpConsumerScenarioTest {
         return protocols;
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void browserFetchSavesAndFindsTheOrder() throws Exception {
         // Meteor 提供者经 bootstrap 独立启动，只开放当前协议。
         try (OrderPeerProcess provider = OrderPeerProcess.javaMain(this.protocol, "Provider", null)) {

@@ -15,7 +15,7 @@ import net.hasor.meteor.registry.admin.MetDirectoryQuery;
 import net.hasor.meteor.registry.admin.MetEndpointFilter;
 import net.hasor.meteor.registry.admin.MetServiceMember;
 import net.hasor.meteor.registry.nacos.NacosRegistryConfiguration;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** 分别验证成员登记、端点筛选、上下线和退出后的关系撤回。 */
 public class NacosMembershipMain extends AbstractNacosExample {

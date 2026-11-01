@@ -15,11 +15,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "hessian", version = "2")
 public class HessianContextScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unspecifiedServiceContextUsesOnlyTheDefault() throws Exception {
         // 一个端点挂载两个上下文，服务发布配置决定实际暴露范围。
         MetConfiguration incoming = this.incoming();
@@ -64,7 +68,8 @@ public class HessianContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitServiceContextExcludesTheDefault() throws Exception {
         // 一个端点挂载两个上下文，服务发布配置决定实际暴露范围。
         MetConfiguration incoming = this.incoming();
@@ -110,7 +115,8 @@ public class HessianContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitMultipleContextsExposeOneServiceOnOnePort() throws Exception {
         // 一个服务同时选择默认与附加上下文，两个入口共用监听端口。
         MetConfiguration incoming = this.incoming();

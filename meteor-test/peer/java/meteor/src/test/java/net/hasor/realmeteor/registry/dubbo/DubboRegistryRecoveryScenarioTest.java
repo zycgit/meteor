@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.dubbo;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.List;
@@ -22,20 +23,23 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.apache.zookeeper.KeeperException.NoNodeException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.await;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 同一个原生应用级代理经历提供者上下线或新端口重建，恢复时不重建引用或重试业务。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboRegistryRecoveryScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void applicationOnlyProxyRecoversAfterProviderOfflineAndOnline() throws Exception {
         // 冻结内核的 offline 暂停现有监听，online 在同一端口恢复。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -59,7 +63,7 @@ public class DubboRegistryRecoveryScenarioTest {
                         "--group=default", "--version=1.0.0", //
                         "--register-mode=instance", "--scenario=reconnect")) {
                     JsonNode before = consumer.awaitResult();
-                    assertFalse(before.toString(), before.has("error"));
+                    assertFalse(before.has("error"), before.toString());
                     assertEquals("before-reconnect", before.path("value").asText());
 
                     // 真实离线撤销应用实例，之后再恢复同一上下文的监听和注册。
@@ -74,7 +78,7 @@ public class DubboRegistryRecoveryScenarioTest {
                     // 对端等待其官方目录恢复目标，再仅用原来的代理调用一次。
                     consumer.signal(Integer.toString(resumedPort));
                     JsonNode after = consumer.awaitResult();
-                    assertFalse(after.toString(), after.has("error"));
+                    assertFalse(after.has("error"), after.toString());
                     assertEquals("after-reconnect", after.path("value").asText());
                     assertEquals(resumedPort, after.path("port").asInt());
                 }
@@ -82,7 +86,8 @@ public class DubboRegistryRecoveryScenarioTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void applicationOnlyProxyFollowsProviderRecreatedOnNewPort() throws Exception {
         // 相同应用名重建上下文，业务引用继续使用原来的原生代理。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -106,7 +111,7 @@ public class DubboRegistryRecoveryScenarioTest {
                         "--group=default", "--version=1.0.0", //
                         "--register-mode=instance", "--scenario=reconnect")) {
                     JsonNode before = consumer.awaitResult();
-                    assertFalse(before.toString(), before.has("error"));
+                    assertFalse(before.has("error"), before.toString());
                     assertEquals("before-reconnect", before.path("value").asText());
                     original.close();
                     String applicationPath = "/services/" + original.getApplicationName();
@@ -128,7 +133,7 @@ public class DubboRegistryRecoveryScenarioTest {
                         // 官方目录必须观察到新端口，随后同一代理只调用一次业务。
                         consumer.signal(Integer.toString(replacementPort));
                         JsonNode after = consumer.awaitResult();
-                        assertFalse(after.toString(), after.has("error"));
+                        assertFalse(after.has("error"), after.toString());
                         assertEquals("after-reconnect", after.path("value").asText());
                         assertEquals(replacementPort, after.path("port").asInt());
                     }

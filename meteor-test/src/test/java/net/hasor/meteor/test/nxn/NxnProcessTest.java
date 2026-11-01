@@ -22,16 +22,17 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 使用真实 Linux 进程验证执行器边界，不启动 Docker 或 RPC 服务。 */
 public class NxnProcessTest {
@@ -39,20 +40,20 @@ public class NxnProcessTest {
     private Path directory;
     private final List<Map.Entry<Process, Path>> wrappers = new ArrayList<>();
 
-    @Before
+    @BeforeEach
     public void prepare() throws IOException {
         this.directory = Files.createTempDirectory("meteor-native-process-");
-        assertTrue("Native executor must be built in the test container", Files.isExecutable(executable()));
+        assertTrue(Files.isExecutable(executable()), "Native executor must be built in the test container");
     }
 
-    @After
+    @AfterEach
     public void release() throws Exception {
         // 测试失败时仍回收本方法创建的真实执行器和子进程。
         for (Map.Entry<Process, Path> wrapper : this.wrappers) {
             Process process = wrapper.getKey();
             if (process.isAlive()) {
                 control(wrapper.getValue(), true);
-                assertTrue("Owned native wrapper did not exit", process.waitFor(15, TimeUnit.SECONDS));
+                assertTrue(process.waitFor(15, TimeUnit.SECONDS), "Owned native wrapper did not exit");
             }
             process.getOutputStream().close();
             process.getInputStream().close();
@@ -67,7 +68,8 @@ public class NxnProcessTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void stdinEofPreservesBinaryStdoutAndStderr() throws Exception {
         // 二进制内容通过标准输入进入两个独立的输出日志。
         Path launch = launch("binary", "tee /dev/fd/2");
@@ -90,7 +92,8 @@ public class NxnProcessTest {
         assertClean(launch, status(launch));
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nonzeroExitSurvivesIdempotentStop() throws Exception {
         // 真实 SDK 失败保留业务退出码，并完成所属资源清理。
         Path launch = launch("nonzero", "printf 'failed\\n'; exit 19");
@@ -107,7 +110,8 @@ public class NxnProcessTest {
         assertClean(launch, result);
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void gracefulCancelReapsDetachedDescendant() throws Exception {
         // 子进程离开原会话并忽略 TERM。
         Path launch = launch("graceful", detached(false, false));
@@ -123,7 +127,8 @@ public class NxnProcessTest {
         assertClean(launch, result);
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void forcedCancelSkipsTermGrace() throws Exception {
         // 主进程与脱离会话的子孙均忽略普通 TERM。
         Path launch = launch("forced", detached(true, false));
@@ -141,7 +146,8 @@ public class NxnProcessTest {
         assertClean(launch, result);
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentNativeControlsCannotDowngradeForce() throws Exception {
         // 两个独立控制进程同时停止同一个忽略 TERM 的业务进程树。
         Path launch = launch("concurrent-controls", detached(true, false));
@@ -164,7 +170,8 @@ public class NxnProcessTest {
         assertClean(launch, result);
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void successfulMainExitStillReapsDetachedDescendant() throws Exception {
         // 主命令成功退出，但独立会话中的工作进程仍然存活。
         Path launch = launch("normal-orphan", detached(false, true));
@@ -179,7 +186,8 @@ public class NxnProcessTest {
         assertClean(launch, result);
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellationLeavesAnotherInvocationRunning() throws Exception {
         // 两个执行器共享 Linux 命名空间，各自拥有输入和进程树。
         Path first = launch("first", "printf 'first\\n'; sleep 60");
@@ -201,7 +209,8 @@ public class NxnProcessTest {
         assertClean(second, status(second));
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellationBeforeStartupPreventsBusinessLaunch() throws Exception {
         // 取消请求先于执行器启动，不能因启动时序而丢失。
         Path launch = launch("before-start", "touch escaped");
@@ -220,7 +229,8 @@ public class NxnProcessTest {
         assertClean(launch, result);
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void stalePidStartTickIsNeverSignalled() throws Exception {
         // 旧状态指向本测试 JVM，但使用不同的内核启动时刻。
         Path launch = launch("reused-pid", "true");
@@ -237,7 +247,8 @@ public class NxnProcessTest {
         assertTrue(error.contains("identity no longer matches"));
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cleanTerminalPublishedDuringIdentityLookupAcknowledgesStop() throws Exception {
         // 控制器读取 running 后，监督器恰好发布完整终态并退出。
         Path launch = launch("terminal-during-identity", "true");
@@ -245,13 +256,14 @@ public class NxnProcessTest {
 
         // 同一任务已完成清理，应确认停止成功并保留原始退出码。
         String error = new String(controller.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-        assertEquals(error, 0, controller.exitValue());
+        assertEquals(0, controller.exitValue(), error);
         JsonNode result = NxnProcess.readStatus(launch);
         assertEquals(143, result.path("exitCode").asInt());
         assertClean(launch, result);
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void failedTerminalPublishedDuringIdentityLookupStillFailsStop() throws Exception {
         // 身份查询时发布失败终态，即使资源已经释放也不能改记为成功。
         Path launch = launch("failed-during-identity", "true");
@@ -265,7 +277,8 @@ public class NxnProcessTest {
         assertReleased(result);
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void differentPeerTerminalDuringIdentityLookupStillFailsStop() throws Exception {
         // 身份查询时出现另一个任务的终态，不能接纳它的成功结果。
         Path launch = launch("wrong-peer-during-identity", "true");
@@ -278,7 +291,8 @@ public class NxnProcessTest {
         assertEquals("exited", result.path("state").asText());
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingWrapperWithRunningStateStillFailsStop() throws Exception {
         // 监督器身份已经消失，但新快照仍未确认业务退出。
         Path launch = launch("running-without-wrapper", "true");
@@ -290,7 +304,8 @@ public class NxnProcessTest {
         assertEquals("running", result.path("state").asText());
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void uncleanTerminalDuringIdentityLookupStillFailsStop() throws Exception {
         // 身份查询时发布退出状态，但仍有业务进程未清理。
         Path launch = launch("unclean-during-identity", "true");
@@ -304,7 +319,8 @@ public class NxnProcessTest {
         assertEquals(123, result.path("remainingPids").get(0).asInt());
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingCancellationIdCleansOnlyTheOwnedTree() throws Exception {
         // 一个执行器收到损坏的控制文件，另一个独立执行器保持运行。
         Path launch = launch("missing-id", detached(false, false));
@@ -330,7 +346,8 @@ public class NxnProcessTest {
         assertClean(other, status(other));
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mismatchedCancellationIdCleansOnlyTheOwnedTree() throws Exception {
         // 请求误指向另一个任务，但执行器仍须回收自己持有的独立会话子孙。
         Path launch = launch("mismatched-id", detached(false, false));
@@ -357,7 +374,8 @@ public class NxnProcessTest {
         assertClean(other, status(other));
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidCancellationJsonIsRepairedWithRetainedError() throws Exception {
         // Java 修复损坏的 JSON，并请求原生执行器释放所属进程树。
         Path launch = launch("invalid-json", detached(false, false));
@@ -377,7 +395,8 @@ public class NxnProcessTest {
         assertReleased(result);
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void deeplyNestedCancellationJsonCannotInterruptCleanup() throws Exception {
         // JSON 深度越界属于控制错误，不能使运行中的 SDK 泄漏。
         Path launch = launch("nested-json", detached(false, false));
@@ -395,7 +414,8 @@ public class NxnProcessTest {
         assertReleased(result);
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellationReadFailureForcesCleanup() throws Exception {
         // 使用目录模拟读取合法控制内容之前的系统调用失败。
         Path launch = launch("control-read-error", detached(false, false));
@@ -412,7 +432,8 @@ public class NxnProcessTest {
         assertReleased(result);
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void redirectedOutputEvidenceRemainsComplete() throws Exception {
         // 文件重定向同时保留外部输出和执行器独立日志。
         Path launch = launch("redirected", "head -c 1048576 /dev/zero; head -c 1048576 /dev/zero >&2");
@@ -434,7 +455,8 @@ public class NxnProcessTest {
         assertClean(launch, status(launch));
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invocationReceivesPrivateTmpAndJavaHomeOptions() throws Exception {
         // 目录名中的空格经过原生参数和 JVM 选项引用后保持完整。
         Path launch = launch("temporary with spaces",
@@ -458,7 +480,8 @@ public class NxnProcessTest {
         assertClean(launch, status(launch));
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentHomesKeepSdkMetadataSeparate() throws Exception {
         // 两个对端使用相同的元数据文件名，并分别等待输入放行。
         String script = "mkdir -p \"$HOME/.dubbo\"; printf '%s' \"$JOB_MARKER\" > \"$HOME/.dubbo/metadata\"; "
@@ -496,7 +519,8 @@ public class NxnProcessTest {
         assertFalse(Files.exists(Path.of(secondHome)));
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void blockedInheritedOutputKeepsFullEvidenceAndFails() throws Exception {
         // 不读取 exec 输出，使业务输出超过管道容量。
         Path launch = launch("blocked", "head -c 1048576 /dev/zero; head -c 1048576 /dev/zero >&2");
@@ -514,7 +538,8 @@ public class NxnProcessTest {
         assertReleased(result);
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void brokenInheritedPipeDoesNotBlockEvidenceDrain() throws Exception {
         // exec 传输提前断开，业务仍继续生成输出。
         Path launch = launch("broken-pipe", "head -c 1048576 /dev/zero; head -c 1048576 /dev/zero >&2");
@@ -529,7 +554,8 @@ public class NxnProcessTest {
         assertClean(launch, status(launch));
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void failedOutputSpoolReapsItsWriterWithoutAffectingAnotherInvocation() throws Exception {
         // 真实故障设备拒绝日志写入，业务持续生成输出。
         Path launch = launch("failed-spool", "while :; do printf 'continuous-output'; done");
@@ -538,7 +564,7 @@ public class NxnProcessTest {
         Process otherProcess = start(other);
         assertEquals("ready", line(otherProcess.getInputStream()));
         Process process = start(launch);
-        assertTrue("A failed spool must not leave a blocked writer", process.waitFor(10, TimeUnit.SECONDS));
+        assertTrue(process.waitFor(10, TimeUnit.SECONDS), "A failed spool must not leave a blocked writer");
 
         // 输出失败有界收尾并保留诊断，无关执行器仍可正常使用。
         JsonNode result = status(launch);
@@ -553,7 +579,8 @@ public class NxnProcessTest {
         assertClean(other, status(other));
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void execFailureRetainsItsRealExit() throws Exception {
         // 缺少可执行文件明确报告命令错误。
         Path launch = launch("missing-command", "true");
@@ -570,7 +597,8 @@ public class NxnProcessTest {
         assertClean(launch, status(launch));
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void existingTemporaryDirectoryIsNeverDeleted() throws Exception {
         // 执行器启动前，指定临时目录已被其他对象持有。
         Path launch = launch("existing-temporary", "touch escaped");
@@ -587,7 +615,8 @@ public class NxnProcessTest {
         assertFalse(Files.exists(launch.resolveSibling("escaped")));
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeStateIsRequiredInsteadOfStaleJson() throws Exception {
         // 旧报告快照不能成为当前进程状态的依据。
         Path launch = launch("no-native-state", "true");
@@ -597,7 +626,8 @@ public class NxnProcessTest {
         assertNull(NxnProcess.readStatus(launch));
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void truncatedNativeStateIsRejected() throws Exception {
         // 原生状态必须是完整的 NUL 分隔记录，由所有者原子替换。
         Path launch = launch("truncated", "true");
@@ -649,7 +679,7 @@ public class NxnProcessTest {
 
     private static Process control(Path launch, boolean force) throws Exception {
         Process controller = controlBuilder(launch, force).start();
-        assertTrue("Native cancellation exceeded its deadline", controller.waitFor(35, TimeUnit.SECONDS));
+        assertTrue(controller.waitFor(35, TimeUnit.SECONDS), "Native cancellation exceeded its deadline");
         return controller;
     }
 
@@ -659,15 +689,15 @@ public class NxnProcessTest {
 
     private static Process identityRace(Path launch, String scenario) throws Exception {
         Path fixture = executable().resolveSibling("peer-process-race");
-        assertTrue("Native race fixture must be built in the test container", Files.isExecutable(fixture));
+        assertTrue(Files.isExecutable(fixture), "Native race fixture must be built in the test container");
         Process controller = new ProcessBuilder(fixture.toString(), launch.toString(), scenario).start();
         try {
-            assertTrue("Native identity race exceeded its deadline", controller.waitFor(5, TimeUnit.SECONDS));
+            assertTrue(controller.waitFor(5, TimeUnit.SECONDS), "Native identity race exceeded its deadline");
             return controller;
         } finally {
             if (controller.isAlive()) {
                 controller.destroyForcibly();
-                assertTrue("Native race fixture did not exit", controller.waitFor(5, TimeUnit.SECONDS));
+                assertTrue(controller.waitFor(5, TimeUnit.SECONDS), "Native race fixture did not exit");
             }
         }
     }
@@ -694,7 +724,7 @@ public class NxnProcessTest {
         while (!Files.exists(path) && System.nanoTime() < deadline) {
             TimeUnit.MILLISECONDS.sleep(10);
         }
-        assertTrue("Expected native control file", Files.exists(path));
+        assertTrue(Files.exists(path), "Expected native control file");
     }
 
     private static void assertClean(Path launch, JsonNode status) {

@@ -20,10 +20,10 @@ import net.hasor.meteor.connector.transport.TransportConfig;
 import net.hasor.meteor.connector.transport.TransportPlan;
 import net.hasor.meteor.connector.transport.tcp.TcpTransportFactory;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newRuntimeServices;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** RSFS 是 RSF 在 TLS 端点上的地址形式，不对应另一套协议或传输实现。 */
 public class RsfsSchemeTest {

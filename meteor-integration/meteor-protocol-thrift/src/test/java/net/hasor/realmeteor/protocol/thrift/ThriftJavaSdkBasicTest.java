@@ -20,12 +20,15 @@ import org.apache.thrift.transport.THttpClient;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.layered.TFramedTransport;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 本插件基础验证：同一 JUnit 进程内，Meteor 与 Apache SDK 经 TCP、HTTP 双向真实调用。 */
 public class ThriftJavaSdkBasicTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaClientCallsMeteorOverFramedTcp() throws Exception {
         // 通过正式 bootstrap 监听 binary/framed TCP，使用插件本地生成契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("thrift");
@@ -48,7 +51,8 @@ public class ThriftJavaSdkBasicTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaClientCallsMeteorOverHttp() throws Exception {
         // HTTP 自身提供消息边界，不增加 TCP framed 长度前缀。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("thrift-http");
@@ -73,7 +77,8 @@ public class ThriftJavaSdkBasicTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialJavaServerOverFramedTcp() throws Exception {
         // 同进程启动 Apache SDK 监听器，Meteor 只订阅接口，不发布本地实现。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("thrift");
@@ -95,7 +100,8 @@ public class ThriftJavaSdkBasicTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsOfficialJavaServerOverHttp() throws Exception {
         // JDK HTTP 仅承载官方 Processor，Meteor 不持有本地服务实现。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("thrift-http");

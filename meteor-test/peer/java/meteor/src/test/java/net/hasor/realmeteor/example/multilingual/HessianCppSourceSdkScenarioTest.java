@@ -4,19 +4,24 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import net.hasor.example.protocol.hessian.HessianDemoService;
 import net.hasor.example.protocol.hessian.HessianDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 未修改的 hessiancpp 1.1.0 源码 SDK 通过 HTTP 调用 Meteor 的基础场景。 */
+@NxnRpc(name = "hessian", version = "1")
 public class HessianCppSourceSdkScenarioTest {
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sourceCppSdkConsumerCallsMeteorHessianProvider() throws Exception {
         // 从 bootstrap 启动 Hessian 1 端点，普通 Java 接口作为真实服务提供者。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -35,7 +40,7 @@ public class HessianCppSourceSdkScenarioTest {
             List<String> command = List.of(executable, message);
             try (OrderPeerProcess consumer = OrderPeerProcess.start("native", command, target)) {
                 String output = consumer.awaitOutput();
-                assertTrue(output, output.contains("OK hessiancpp: " + message));
+                assertTrue(output.contains("OK hessiancpp: " + message), output);
             }
         }
     }

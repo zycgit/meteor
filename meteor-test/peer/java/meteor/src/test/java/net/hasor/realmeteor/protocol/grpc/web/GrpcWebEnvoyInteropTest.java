@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -31,12 +32,15 @@ import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.rpc.MetCaller;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Meteor 客户端通过真实 Envoy gRPC-Web 过滤器调用独立 gRPC Java 服务端。 */
+@NxnRpc(name = "grpc-web")
 public class GrpcWebEnvoyInteropTest {
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryUnaryCallsOfficialServerThroughEnvoy() throws Exception {
         // 官方服务只处理标准 gRPC；Envoy 独立完成浏览器协议与 HTTP/2 的转换。
         var echo = this.method("echo", MethodDescriptor.MethodType.UNARY);
@@ -72,7 +76,8 @@ public class GrpcWebEnvoyInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textUnaryCallsOfficialServerThroughEnvoy() throws Exception {
         // 官方服务返回包含 Unicode 的消息，用真实 Envoy 验证文本模式的 Base64 传输。
         var echo = this.method("echo", MethodDescriptor.MethodType.UNARY);
@@ -108,7 +113,8 @@ public class GrpcWebEnvoyInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textServerStreamReceivesOfficialMessagesThroughEnvoy() throws Exception {
         // 标准 gRPC 服务端依次输出三条消息，由 Envoy 转换为文本流及结束帧。
         var list = this.method("list", MethodDescriptor.MethodType.SERVER_STREAMING);
@@ -148,7 +154,8 @@ public class GrpcWebEnvoyInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textUnaryPreservesOfficialFailureThroughEnvoy() throws Exception {
         // 独立服务端返回标准 PERMISSION_DENIED，由 Envoy 将状态转为正文末尾帧。
         var fail = this.method("fail", MethodDescriptor.MethodType.UNARY);
@@ -185,7 +192,8 @@ public class GrpcWebEnvoyInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textStreamCancellationReachesOfficialServerThroughEnvoy() throws Exception {
         // 官方服务发送首条消息后保持流打开，独立观察上游 HTTP/2 调用的取消事件。
         CountDownLatch cancelled = new CountDownLatch(1);
@@ -244,7 +252,7 @@ public class GrpcWebEnvoyInteropTest {
                 }
             });
             received.get(5, TimeUnit.SECONDS);
-            assertTrue("Expected upstream gRPC cancellation", cancelled.await(5, TimeUnit.SECONDS));
+            assertTrue(cancelled.await(5, TimeUnit.SECONDS), "Expected upstream gRPC cancellation");
         }
     }
 

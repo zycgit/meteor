@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.connect;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.example.echo.TextEchoService;
 import net.hasor.example.protocol.connect.ConnectDemoService;
@@ -16,12 +17,16 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 JVM 客户端与社区 Java 服务端分别通过真实网络和 Meteor 完成基础互通。 */
+@NxnRpc(name = "connect", version = "1")
 public class ConnectJavaInteropTest {
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsCommunityJavaSdkServer() throws Exception {
         // 社区 SDK 的 Protobuf 4 图仅属于对端，宿主与产品仍使用既有 Protobuf 3。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("connect");
@@ -45,7 +50,8 @@ public class ConnectJavaInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaClientCallsMeteorProtobufService() throws Exception {
         // Meteor 仍发布普通 Java 接口，SDK 与服务端只共享标准 proto 契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("connect");

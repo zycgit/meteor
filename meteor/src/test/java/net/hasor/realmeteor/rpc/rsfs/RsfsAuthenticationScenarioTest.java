@@ -17,12 +17,14 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 身份校验失败必须终止连接，业务不得被明文或未认证请求执行。 */
 public class RsfsAuthenticationScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingClientCertificateIsRejected() throws Exception {
         // 服务端要求客户端证书，而客户端只配置可信 CA。
         MetConfiguration incoming = RsfsConfigurations.server("server", "REQUIRE");
@@ -48,7 +50,8 @@ public class RsfsAuthenticationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void untrustedClientCertificateIsRejected() throws Exception {
         // 客户端携带另一个 CA 签发的证书。
         MetConfiguration incoming = RsfsConfigurations.server("server", "REQUIRE");
@@ -74,7 +77,8 @@ public class RsfsAuthenticationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void untrustedServerCertificateIsRejected() throws Exception {
         // 客户端只信任另一个 CA，不能接受当前服务器。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");
@@ -100,7 +104,8 @@ public class RsfsAuthenticationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serverHostnameMismatchIsRejected() throws Exception {
         // 服务器证书链可信，但 SAN 不包含实际连接目标。
         MetConfiguration incoming = RsfsConfigurations.server("wrong-host-server", "NONE");
@@ -126,7 +131,8 @@ public class RsfsAuthenticationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void secureClientNeverFallsBackToAPlaintextServer() throws Exception {
         // 明文 RSF 与 TLS RSF 使用相同帧格式，但不能跨越传输安全边界。
         MetConfiguration incoming = new MetConfiguration();
@@ -156,7 +162,8 @@ public class RsfsAuthenticationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void secureListenerRejectsAPlaintextRsfClient() throws Exception {
         // 明文 RSF 与 TLS RSF 使用相同帧格式，但不能跨越传输安全边界。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");

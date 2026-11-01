@@ -24,8 +24,8 @@ import net.hasor.meteor.protocol.thrift.annotation.*;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.*;
 import org.apache.thrift.transport.TMemoryInputTransport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ThriftValueCodecTest {
     private final ThriftWireCodec wire = new ThriftWireCodec(1024 * 1024, 1000, 32);

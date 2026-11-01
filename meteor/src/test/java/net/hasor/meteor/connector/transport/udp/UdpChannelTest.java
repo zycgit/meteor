@@ -19,16 +19,19 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.*;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /**
  * 通过真实 UDP 对端验证数据报 SPI，不依赖 RPC 运行时。
  */
 public class UdpChannelTest {
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void datagramsAndSeparateRepliesPreserveBoundaries() throws Exception {
         // 明确创建真实对端与传输资源，连接准备失败也会关闭传输。
         try (DatagramSocket peer = new DatagramSocket()) {
@@ -60,7 +63,8 @@ public class UdpChannelTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void outboundRepliesKeepTheInitiallySelectedProtocol() throws Exception {
         // 主动连接选择 alpha 协议，同时准备一个会匹配回包内容的 beta 协议探针。
         try (DatagramSocket peer = new DatagramSocket()) {
@@ -92,7 +96,8 @@ public class UdpChannelTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void largeDatagramsAndRepliesPreserveBoundaries() throws Exception {
         // 多轮交替大小报文属于同一个边界保持负载。
         byte[] bytes = new byte[50000];
@@ -139,7 +144,8 @@ public class UdpChannelTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyDatagramIsRejected() throws Exception {
         // 创建真实数据报对端并通过 SocketRuntime 安装 UDP SPI。
         try (DatagramSocket peer = new DatagramSocket()) {
@@ -175,7 +181,8 @@ public class UdpChannelTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oversizedDatagramIsRejected() throws Exception {
         // 创建真实数据报对端并通过 SocketRuntime 安装 UDP SPI。
         try (DatagramSocket peer = new DatagramSocket()) {
@@ -211,7 +218,8 @@ public class UdpChannelTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void queuedDatagramCopiesCallerBuffer() throws Exception {
         // 创建真实数据报对端并通过 SocketRuntime 安装 UDP SPI。
         try (DatagramSocket peer = new DatagramSocket()) {
@@ -250,7 +258,8 @@ public class UdpChannelTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancelledQueuedDatagramDoesNotReachPeer() throws Exception {
         // 创建真实数据报对端并通过 SocketRuntime 安装 UDP SPI。
         try (DatagramSocket peer = new DatagramSocket()) {
@@ -300,7 +309,8 @@ public class UdpChannelTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void drainClosesAfterQueuedWritesWithoutPeerReply() throws Exception {
         // 创建真实数据报对端并通过 SocketRuntime 安装 UDP SPI。
         try (DatagramSocket peer = new DatagramSocket()) {

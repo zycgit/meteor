@@ -38,8 +38,8 @@ import net.hasor.meteor.protocol.thrift.codec.ThriftMessage;
 import net.hasor.meteor.protocol.thrift.codec.ThriftWireCodec;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TMessageType;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 可控串行网络验证 TCP 生命周期，真实 SDK 互通由 realmeteor 场景覆盖。 */
 public class ThriftSessionTest {

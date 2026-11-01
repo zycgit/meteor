@@ -15,8 +15,8 @@ import net.hasor.meteor.connector.RouteDefinition;
 import net.hasor.meteor.connector.RouteProbeResult;
 import net.hasor.meteor.connector.RouteTestAccess;
 import net.hasor.neta.bytebuf.ByteBuf;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 验证字节路由聚合多个协议探针时的候选判定。 */
 public class RouteByteUtilsTest {

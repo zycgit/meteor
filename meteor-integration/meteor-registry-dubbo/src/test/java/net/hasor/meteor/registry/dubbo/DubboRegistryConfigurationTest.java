@@ -9,8 +9,8 @@ package net.hasor.meteor.registry.dubbo;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.dubbo.common.URL;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 注册中心参数在创建连接之前完成校验，不依赖本机注册中心。 */
 public class DubboRegistryConfigurationTest {

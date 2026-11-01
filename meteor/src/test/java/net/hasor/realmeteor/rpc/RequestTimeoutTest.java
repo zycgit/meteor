@@ -17,9 +17,9 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import org.junit.function.ThrowingRunnable;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 用户配置经过服务绑定、TCP 请求和等待结果后的超时行为。 */
 public class RequestTimeoutTest {
@@ -46,7 +46,7 @@ public class RequestTimeoutTest {
                 MetFuture invocation = remote.asyncInvoke(service, "echo", parameterTypes, arguments);
                 assertEquals(1000, invocation.getRequest().getTimeout());
                 assertTrue(provider.entered.await(3, TimeUnit.SECONDS));
-                ThrowingRunnable awaitTimeout = () -> invocation.getData(3, TimeUnit.SECONDS);
+                Executable awaitTimeout = () -> invocation.getData(3, TimeUnit.SECONDS);
                 ExecutionException failure = assertThrows(ExecutionException.class, awaitTimeout);
                 assertTrue(failure.getCause() instanceof MetTimeoutException);
             } finally {
@@ -168,7 +168,7 @@ public class RequestTimeoutTest {
                     return remote.syncInvoke(service, "echo", parameterTypes, arguments);
                 });
                 assertTrue(provider.entered.await(3, TimeUnit.SECONDS));
-                ThrowingRunnable awaitTimeout = () -> invocation.get(3, TimeUnit.SECONDS);
+                Executable awaitTimeout = () -> invocation.get(3, TimeUnit.SECONDS);
                 ExecutionException failure = assertThrows(ExecutionException.class, awaitTimeout);
                 Throwable cause = failure.getCause();
                 if (cause instanceof ExecutionException) {
@@ -216,7 +216,7 @@ public class RequestTimeoutTest {
                     }
                 });
                 assertTrue(provider.entered.await(3, TimeUnit.SECONDS));
-                ThrowingRunnable awaitTimeout = () -> completion.get(3, TimeUnit.SECONDS);
+                Executable awaitTimeout = () -> completion.get(3, TimeUnit.SECONDS);
                 ExecutionException failure = assertThrows(ExecutionException.class, awaitTimeout);
                 assertTrue(failure.getCause() instanceof MetTimeoutException);
             } finally {
@@ -248,7 +248,7 @@ public class RequestTimeoutTest {
                 Object[] blockedArguments = { "block" };
                 MetFuture expired = remote.asyncInvoke(service, "echo", parameterTypes, blockedArguments);
                 assertTrue(provider.entered.await(3, TimeUnit.SECONDS));
-                ThrowingRunnable awaitTimeout = () -> expired.getData(3, TimeUnit.SECONDS);
+                Executable awaitTimeout = () -> expired.getData(3, TimeUnit.SECONDS);
                 ExecutionException failure = assertThrows(ExecutionException.class, awaitTimeout);
                 assertTrue(failure.getCause() instanceof MetTimeoutException);
 

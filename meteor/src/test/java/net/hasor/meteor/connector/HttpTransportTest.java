@@ -32,8 +32,10 @@ import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 直接验证连接器、队列和生命周期契约；真实网络的用户调用另见场景测试。 */
 public class HttpTransportTest {
@@ -222,7 +224,8 @@ public class HttpTransportTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void stoppingInboundClosesUnidentifiedSocketsAndRejectsNewOnes() throws Exception {
         // 建立尚未发送任何数据的 HTTP 入站连接，使其停留在协议识别之前。
         ConnectorConfig configuration = config("http", 0);
@@ -501,13 +504,13 @@ public class HttpTransportTest {
             queued.setClientTimeout(50);
             try {
                 Future<MetChannel> queuedWrite = session.sendData(queued);
-                assertTrue("Queued request did not enter encoding", encoding.await(2, TimeUnit.SECONDS));
+                assertTrue(encoding.await(2, TimeUnit.SECONDS), "Queued request did not enter encoding");
                 queued.complete(new TimeoutException("RPC timed out"));
                 queuedWrite.get(2, TimeUnit.SECONDS);
                 fail("Queued send must expire");
             } catch (ExecutionException expected) {
                 Throwable failure = expected.getCause();
-                assertTrue(String.valueOf(failure), failure instanceof TimeoutException);
+                assertTrue(failure instanceof TimeoutException, String.valueOf(failure));
             }
         }
     }
@@ -863,7 +866,8 @@ public class HttpTransportTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void managerCloseReleasesUnansweredSlotsAndDrainsSubmittedHttpResponse() throws Exception {
         // 关闭管理器时同时存在未答复位置和已提交响应。
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();

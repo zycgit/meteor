@@ -4,6 +4,10 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import java.net.URI;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,17 +22,19 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Triple 的 Protobuf/gRPC 兼容面；使用标准 C/C++ gRPC SDK，不代表 Dubbo POJO 或 Hessian 能力。 */
+@NxnRpc(name = "triple")
 public class TripleGrpcNativeInteropTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cGrpcCoreConsumerCallsMeteorTripleProvider() throws Exception {
         // 只启用 Triple provider，普通字符串接口绑定既有标准 StringValue 契约。
         MetConfiguration configuration = this.configuration(true);
@@ -47,12 +53,13 @@ public class TripleGrpcNativeInteropTest {
             List<String> command = List.of("/opt/meteor-peer/native/c/grpc/echo-peer", "consumer", message);
             try (OrderPeerProcess consumer = OrderPeerProcess.start("native", command, target)) {
                 String output = consumer.awaitOutput();
-                assertTrue(output, output.contains("RESULT " + message));
+                assertTrue(output.contains("RESULT " + message), output);
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTripleConsumerCallsCGrpcCoreProvider() throws Exception {
         // 独立 C Core server 复用原有单次 unary 入口，Meteor 明确选用 Triple 出站端点。
         MetConfiguration configuration = this.configuration(false);
@@ -75,7 +82,8 @@ public class TripleGrpcNativeInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cppGrpcSdkConsumerSavesAndFindsOrderOnMeteorTriple() throws Exception {
         // C++ 复用现有官方生成的订单客户端，Meteor 只发布 Triple 的 Protobuf 绑定。
         MetConfiguration configuration = this.configuration(true);
@@ -98,7 +106,8 @@ public class TripleGrpcNativeInteropTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTripleConsumerSavesAndFindsOrderOnCppGrpcSdk() throws Exception {
         // 标准 C++ gRPC server 独立保存订单；Meteor 的订阅和客户端均选择 Triple。
         MetConfiguration configuration = this.configuration(false);
@@ -134,7 +143,7 @@ public class TripleGrpcNativeInteropTest {
         // 根路径下显式启用 Triple 的 gRPC 模式；未安装 Meteor gRPC 协议挂载。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
         configuration.setRequestTimeout(10000);
-        configuration.setDataHome(this.data.newFolder().toPath());
+        configuration.setDataHome(Files.createTempDirectory(this.data, "case-"));
         var connector = configuration.connector("http").option("httpVersion", 2);
         if (listen) {
             connector.bind("0.0.0.0", 0);

@@ -17,10 +17,10 @@ import net.hasor.meteor.registry.shared.storage.domain.DirectoryQuery;
 import net.hasor.meteor.registry.shared.storage.domain.EntServiceCatalogData;
 import net.hasor.meteor.registry.shared.storage.domain.EntServiceRuntimeData;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.registry.nacos.NacosTestData.instance;
 import static net.hasor.meteor.registry.nacos.NacosTestData.service;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class NacosLayoutTest {
     @Test

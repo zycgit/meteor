@@ -24,8 +24,8 @@ import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpUpgradeFixture;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.RequestPayload;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** test-only 协议的 SPI 单元验证；失败写出不能向 Caller 提交本地成功。 */
 public class WebSocketNotificationWriteTest {

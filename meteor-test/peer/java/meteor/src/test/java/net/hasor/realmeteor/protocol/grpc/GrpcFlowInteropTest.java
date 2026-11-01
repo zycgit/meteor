@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -30,11 +31,14 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc")
 public class GrpcFlowInteropTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesServerStream() throws Exception {
         // 配置 Meteor 的 Protobuf 服务端流，官方客户端只使用标准消息格式。
         MetConfiguration configuration = this.configuration(true);
@@ -71,7 +75,8 @@ public class GrpcFlowInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientSendsClientStream() throws Exception {
         // 配置 Meteor 的 Protobuf 客户端流，准备由官方客户端发送消息。
         MetConfiguration configuration = this.configuration(true);
@@ -109,7 +114,8 @@ public class GrpcFlowInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientUsesBidirectionalStream() throws Exception {
         // 配置 Meteor 的 Protobuf 双向流，准备官方客户端互通。
         MetConfiguration configuration = this.configuration(true);
@@ -148,7 +154,8 @@ public class GrpcFlowInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesSourceFailure() throws Exception {
         // 配置会主动失败的消息源，验证官方客户端收到标准错误状态。
         MetConfiguration configuration = this.configuration(true);
@@ -182,7 +189,8 @@ public class GrpcFlowInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReceivesOfficialServerStream() throws Exception {
         // 独立搭建官方 gRPC 对端，服务端流固定返回两条消息。
         var list = this.method("list", MethodDescriptor.MethodType.SERVER_STREAMING);
@@ -225,7 +233,8 @@ public class GrpcFlowInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSendsOfficialClientStream() throws Exception {
         // 独立搭建官方 gRPC 对端，客户端流按收到的消息累加计数。
         var list = this.method("list", MethodDescriptor.MethodType.SERVER_STREAMING);
@@ -266,7 +275,8 @@ public class GrpcFlowInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorUsesOfficialBidirectionalStream() throws Exception {
         // 独立搭建官方 gRPC 对端，双向流将收到的消息逐条回传。
         var list = this.method("list", MethodDescriptor.MethodType.SERVER_STREAMING);

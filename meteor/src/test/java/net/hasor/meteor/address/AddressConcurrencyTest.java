@@ -15,14 +15,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class AddressConcurrencyTest {
-    @Rule
-    public final  TemporaryFolder directory = new TemporaryFolder();
+    @TempDir
+    public Path directory;
     private final InterAddress    first     = new InterAddress("127.0.0.1", 8000, "unit");
     private final InterAddress    second    = new InterAddress("127.0.0.2", 8000, "unit");
 
@@ -48,7 +49,7 @@ public class AddressConcurrencyTest {
                 bytes.write(value);
             }
         };
-        File home = this.directory.newFolder();
+        File home = Files.createTempDirectory(this.directory, "junit").toFile();
         ExecutorService workers = Executors.newFixedThreadPool(2);
         try (DiskCache cache = new DiskCache(new AddressPool(), home, 60000, 3600000)) {
             Future<?> saving = workers.submit(() -> cache.saveToZip(bucket, output));
@@ -84,7 +85,7 @@ public class AddressConcurrencyTest {
         pool.appendAddress("first", this.first);
         CountDownLatch writing = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
-        File home = this.directory.newFolder();
+        File home = Files.createTempDirectory(this.directory, "junit").toFile();
         ExecutorService workers = Executors.newFixedThreadPool(2);
         try (DiskCache cache = new DiskCache(pool, home, 60000, 3600000) {
             @Override
@@ -192,7 +193,7 @@ public class AddressConcurrencyTest {
 
     private static void await(CountDownLatch latch) {
         try {
-            assertTrue("Concurrent operation was not released", latch.await(10, TimeUnit.SECONDS));
+            assertTrue(latch.await(10, TimeUnit.SECONDS), "Concurrent operation was not released");
         } catch (InterruptedException failure) {
             Thread.currentThread().interrupt();
             throw new AssertionError(failure);

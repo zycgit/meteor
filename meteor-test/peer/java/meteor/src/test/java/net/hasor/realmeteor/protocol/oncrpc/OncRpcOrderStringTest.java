@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.matrix.OrderMatrixVectors;
 import net.hasor.example.matrix.OrderProtocol;
 import net.hasor.example.Order;
@@ -14,14 +15,18 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 标准订单 IDL 使用 RFC 4506 ASCII string，扩展字符不能被静默替换为问号。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcOrderStringTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void standardXdrStringRejectsUnicodeOrderDescription() throws Exception {
         // 通过同一套公开订单绑定配置启动真实 ONC RPC 端点。
         OrderProtocol protocol = OrderProtocol.ONCRPC;
@@ -42,7 +47,7 @@ public class OncRpcOrderStringTest {
             for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
                 details.append(cause.getMessage()).append('\n');
             }
-            assertTrue(details.toString(), details.toString().contains("XDR string must contain ASCII characters"));
+            assertTrue(details.toString().contains("XDR string must contain ASCII characters"), details.toString());
         }
     }
 }

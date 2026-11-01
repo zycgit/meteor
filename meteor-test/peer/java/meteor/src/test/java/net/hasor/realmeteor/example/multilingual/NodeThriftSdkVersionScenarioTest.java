@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.List;
 import net.hasor.cobble.StringUtils;
@@ -14,13 +17,15 @@ import net.hasor.meteor.annotation.MetParam;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.node.NodeRpcPeer;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 独立 Node SDK 版本分别验证三种 Thrift 编码及精确 64 位整数的双向兼容。 */
-@RunWith(Parameterized.class)
+@NxnRpc(name = "thrift")
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/node/thrift/{0}@{1}/{2}-{4}-{5}/{3}", quoteTextArguments = false)
+@MethodSource("versions")
 public class NodeThriftSdkVersionScenarioTest {
     private final String profile;
     private final String direction;
@@ -34,8 +39,6 @@ public class NodeThriftSdkVersionScenarioTest {
         this.encoding = encoding;
         this.kind = kind;
     }
-
-    @Parameterized.Parameters(name = "sdk/node/thrift/{0}@{1}/{2}-{4}-{5}/{3}")
     public static List<Object[]> versions() throws Exception {
         // SDK 身份来自实际安装清单；每个方向、编码、类型及整数边界都是独立 testcase。
         List<Object[]> cases = new ArrayList<>();
@@ -58,7 +61,8 @@ public class NodeThriftSdkVersionScenarioTest {
         cases.add(new Object[] { profile[0], profile[1], profile[2], profile[3], encoding, kind });
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void selectedSdkDirectionPreservesTheDeclaredValue() throws Exception {
         // 本实例只进行一次业务调用，版本和线格式不通过全局属性切换。
         if (StringUtils.equals("SDK-to-Meteor", this.direction)) {

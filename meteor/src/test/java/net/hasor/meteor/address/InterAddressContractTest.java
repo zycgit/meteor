@@ -9,8 +9,8 @@ package net.hasor.meteor.address;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class InterAddressContractTest {
     @Test

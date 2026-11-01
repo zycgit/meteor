@@ -19,10 +19,10 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.state.ConnectionState;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.instance;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.service;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 原生订阅的作用范围、取消、会话退出和失败恢复。 */
 public class ZookeeperStorageWatchTest {
@@ -305,7 +305,7 @@ public class ZookeeperStorageWatchTest {
         while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
             TimeUnit.MILLISECONDS.sleep(20);
         }
-        assertTrue("ZooKeeper watch did not converge", condition.getAsBoolean());
+        assertTrue(condition.getAsBoolean(), "ZooKeeper watch did not converge");
     }
 
 }

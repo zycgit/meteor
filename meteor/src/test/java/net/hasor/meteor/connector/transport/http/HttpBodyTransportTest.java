@@ -25,26 +25,30 @@ import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.Parameter;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.provider.MethodSource;
 import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 同一组消息契约分别通过真实 HTTP/1 和 HTTP/2 连接验证。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(name = "HTTP/{0}", autoCloseArguments = false, quoteTextArguments = false)
+@MethodSource("versions")
 public class HttpBodyTransportTest {
-    @Parameterized.Parameters(name = "HTTP/{0}")
     public static Object[] versions() {
         return new Object[] { 1, 2 };
     }
 
-    @Parameterized.Parameter
+    @Parameter(0)
     public int version;
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incrementalEchoPublishesHeadersAndFirstBytesBeforeUploadEof() throws Exception {
         // 正文读取使用独立执行器，让没有到达的 EOF 也有明确等待期限。
         ExecutorService consumer = Executors.newSingleThreadExecutor();
@@ -104,7 +108,8 @@ public class HttpBodyTransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void streamingEchoTransfersBodyLargerThanTheFlowWindow() throws Exception {
         // 生产者与消费端并行，避免窗口背压阻塞测试线程。
         ExecutorService producer = Executors.newSingleThreadExecutor();
@@ -162,7 +167,8 @@ public class HttpBodyTransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void bufferedMessagesRetainRepeatedHeadersAndTrailers() throws Exception {
         // 显式创建并连接两端 HTTP 传输，协议版本只影响无资源配置。
         ConnectorConfig config = this.config(false);
@@ -198,7 +204,8 @@ public class HttpBodyTransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void bufferedRequestCanReceiveAnIncrementalResponse() throws Exception {
         // 正文读取使用独立执行器，让没有到达的 EOF 也有明确等待期限。
         ExecutorService consumer = Executors.newSingleThreadExecutor();
@@ -253,7 +260,8 @@ public class HttpBodyTransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void failedResponseProducerTerminatesThePublishedBody() throws Exception {
         // 正文读取使用独立执行器，让没有到达的 EOF 也有明确等待期限。
         ExecutorService consumer = Executors.newSingleThreadExecutor();
@@ -307,7 +315,8 @@ public class HttpBodyTransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancelledUploadReleasesProducerAndAllowsAnotherExchange() throws Exception {
         // 生产者与消费端并行，避免窗口背压阻塞测试线程。
         ExecutorService producer = Executors.newSingleThreadExecutor();
@@ -370,7 +379,8 @@ public class HttpBodyTransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void selectedProtocolEnablesStreamingResponsesOverBufferedEndpoint() throws Exception {
         // 端点默认聚合，选中的第二个协议单独启用流式响应。
         ConnectorConfig config = this.bodyModeConfig(false, true);
@@ -408,7 +418,8 @@ public class HttpBodyTransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void selectedProtocolDisablesStreamingResponsesOverStreamingEndpoint() throws Exception {
         // 端点默认流式，选中的第二个协议明确要求聚合响应。
         ConnectorConfig config = this.bodyModeConfig(true, false);
@@ -440,7 +451,8 @@ public class HttpBodyTransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void selectedRouteEnablesStreamingRequestsOverBufferedEndpoint() throws Exception {
         // 端点默认聚合，只有请求路径选中的协议开启增量正文。
         ConnectorConfig config = this.bodyModeConfig(false, true);
@@ -489,7 +501,8 @@ public class HttpBodyTransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void selectedRouteDisablesStreamingRequestsOverStreamingEndpoint() throws Exception {
         // 端点默认流式，只有请求路径选中的协议要求先聚合完整正文。
         ConnectorConfig config = this.bodyModeConfig(true, false);

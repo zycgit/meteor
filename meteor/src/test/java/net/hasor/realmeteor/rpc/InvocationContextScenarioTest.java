@@ -15,8 +15,8 @@ import net.hasor.meteor.*;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.rpc.MetRequestLocal;
 import net.hasor.meteor.rpc.MetResponseLocal;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 通过公开启动与调用入口验证当前 RPC 请求和响应的线程上下文。 */
 public class InvocationContextScenarioTest {

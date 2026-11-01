@@ -38,8 +38,8 @@ import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcProtoSchema;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 已绑定 proto 的服务使用原生 Protobuf 或标准 ProtoJSON，不能套入 POJO wrapper。 */
 public class TripleNativeHttpCodecTest {

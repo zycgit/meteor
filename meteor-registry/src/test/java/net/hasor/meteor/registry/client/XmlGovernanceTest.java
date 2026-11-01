@@ -18,8 +18,8 @@ import net.hasor.meteor.registry.shared.RegistryTestUtils;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntRuleConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.RuleKind;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class XmlGovernanceTest {
     public interface Echo {

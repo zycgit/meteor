@@ -26,8 +26,8 @@ import net.hasor.meteor.registry.shared.RegistryTestUtils;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntServiceRuntimeData;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 通过 bootstrap 发布服务、上报声明，再从独立存储会话或管理 API 查询。 */
 public class ServiceDescriptionScenarioTest {

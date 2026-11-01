@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -31,37 +36,37 @@ import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Python 标准库 JSON-RPC 的显式注册适配；不宣称外部对端原生理解 Meteor 注册模型。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "jsonrpc/python/adapter/{0}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class PythonJsonRpcRegistryAdapterScenarioTest {
-    @Parameterized.Parameters(name = "jsonrpc/python/adapter/{0}")
     public static Collection<Object[]> backends() {
         return List.of(new Object[] { "jdbc" }, new Object[] { "zookeeper" }, new Object[] { "nacos" });
     }
 
-    @Rule
-    public final  TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final String          backend;
 
     public PythonJsonRpcRegistryAdapterScenarioTest(String backend) {
         this.backend = backend;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerDiscoversMeteorOrderProvider() throws Exception {
         // 提供者仅配置自己的注册库，启动后才通过公开 API 发布原有订单接口。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "meteor-jsonrpc-provider");
@@ -152,10 +157,11 @@ public class PythonJsonRpcRegistryAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversPythonOrderProvider() throws Exception {
         // Meteor 只持有出站挂载和注册配置，接口订阅没有固定业务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "meteor-jsonrpc-consumer");
@@ -195,7 +201,7 @@ public class PythonJsonRpcRegistryAdapterScenarioTest {
     private MetConfiguration configuration(RegistryConfiguration registry, String application) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("jsonrpc");
         configuration.setApplicationName(application);
-        configuration.setDataHome(this.data.newFolder(application).toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve(application)));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 内部管理出口不监听，不参与业务发现。
         return configuration;

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -15,12 +16,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Timeout;
 
 /** 方法名相同时，线协议参数类型同时决定方法和本次 RPC 的流生命周期。 */
+@NxnRpc(name = "triple")
 public class TripleMixedShapeScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unaryAndServerFlowOverloadsKeepTheirOwnLifecycles() throws Exception {
         // 同一接口同时含 unary 与 Flow 重载，但 wire 参数类型分别为 int 和 String。
         MetConfiguration incoming = this.configuration(true);
@@ -46,7 +50,8 @@ public class TripleMixedShapeScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unaryAndClientFlowOverloadsKeepTheirOwnLifecycles() throws Exception {
         // 同一接口同时含 unary 与 Flow 重载，但 wire 参数类型分别为 int 和 String。
         MetConfiguration incoming = this.configuration(true);
@@ -71,7 +76,8 @@ public class TripleMixedShapeScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyClientFlowStillSelectsTheStreamingOverload() throws Exception {
         // 同一接口同时含 unary 与 Flow 重载，但 wire 参数类型分别为 int 和 String。
         MetConfiguration incoming = this.configuration(true);

@@ -13,11 +13,11 @@ import net.hasor.dbvisitor.jdbc.core.JdbcTemplate;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.configuration;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.createDatabase;
 import static net.hasor.meteor.registry.jdbc.JdbcStorageData.*;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class JdbcGovernanceLifetimeTest {
     @Test

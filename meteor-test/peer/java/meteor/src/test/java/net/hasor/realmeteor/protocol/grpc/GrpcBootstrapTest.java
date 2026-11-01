@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.protocol.grpc.DemoTlsPipeline;
 import net.hasor.example.protocol.grpc.Echo;
 import net.hasor.example.protocol.grpc.EchoImpl;
@@ -15,12 +16,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 通过公开 bootstrap 配置协议组合，业务接口与其他互通场景共用。 */
+@NxnRpc(name = "grpc")
 public class GrpcBootstrapTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneGrpcMountSupportsJsonAndProtobufServices() throws Exception {
         // 两端挂载同一个 gRPC 协议，服务声明分别决定其序列化方式。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc");
@@ -65,7 +70,10 @@ public class GrpcBootstrapTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "grpc")
+    @NxnRpc(name = "hprose")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tlsAlpnRoutesGrpcAndHproseOnOneListener() throws Exception {
         // 同一个 TLS 监听通过 ALPN 选择 HTTP 版本，再按路径选择协议。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc");

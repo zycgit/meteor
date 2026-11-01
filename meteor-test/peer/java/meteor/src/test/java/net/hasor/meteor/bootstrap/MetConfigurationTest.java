@@ -22,8 +22,8 @@ import net.hasor.meteor.SendLimitPolicy;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.serialize.coder.JsonSerializeCoder;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MetConfigurationTest extends BootstrapTestSupport {
 

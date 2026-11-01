@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.example.OrderDemoServiceImpl;
@@ -14,13 +15,17 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Python 官方消费者通过生成的 SDK 调用 Meteor 订单服务。 */
+@NxnRpc(name = "grpc")
 public class PythonConsumerScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerReadsAsciiOrder() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
@@ -45,7 +50,8 @@ public class PythonConsumerScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerReadsUnicodeOrder() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
@@ -70,7 +76,8 @@ public class PythonConsumerScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerReadsBinaryOrder() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
@@ -95,7 +102,8 @@ public class PythonConsumerScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerReadsMinimumInt32() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
@@ -120,7 +128,8 @@ public class PythonConsumerScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerReadsMaximumInt32() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
@@ -145,7 +154,8 @@ public class PythonConsumerScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerReadsMissingOrderFailure() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("clear");
@@ -169,7 +179,8 @@ public class PythonConsumerScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerReadsOrderOverTls() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("tls");
@@ -194,7 +205,8 @@ public class PythonConsumerScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerReadsOrderOverMutualTls() throws Exception {
         // 只配置 Meteor 的公开服务入口，线上契约复用统一订单 proto。
         MetConfiguration configuration = this.configuration("mtls");

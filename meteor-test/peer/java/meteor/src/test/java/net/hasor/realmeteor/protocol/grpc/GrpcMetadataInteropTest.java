@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -27,11 +28,14 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcMetadata;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc")
 public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2RejectsNonGrpcContentTypeBeforeServiceInvocation() throws Exception {
         // 启动真实 gRPC 监听，随后使用 HTTP/2 对端提交错误的 Content-Type。
         MetConfiguration configuration = configuration(true);
@@ -64,7 +68,8 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void trailersAddedAfterResponseConversionReachTheOfficialClient() throws Exception {
         // 在返回流被订阅时才写入 trailers，观察官方客户端最终收到的元数据。
         MetConfiguration configuration = configuration(true);
@@ -98,7 +103,7 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
                     .build();
             try {
                 Result result = call(peer, "list", MethodDescriptor.MethodType.SERVER_STREAMING, 2);
-                assertTrue(result.status.toString(), result.status.isOk());
+                assertTrue(result.status.isOk(), result.status.toString());
                 assertEquals(2, result.values.size());
                 assertEquals(List.of("after-response"), values(result.trailers, TEXT));
 
@@ -113,7 +118,8 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialUnaryPreservesRepeatedAndBinaryMetadata() throws Exception {
         // 官方客户端发起普通调用，验证重复和二进制元数据的双向传递。
         MetConfiguration configuration = configuration(true);
@@ -164,7 +170,8 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialServerStreamPreservesRepeatedAndBinaryMetadata() throws Exception {
         // 官方客户端读取响应流，验证头部与流结束 trailers 均保留重复值。
         MetConfiguration configuration = configuration(true);
@@ -215,7 +222,8 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientStreamPreservesRepeatedAndBinaryMetadata() throws Exception {
         // 官方客户端发送请求流，验证 Meteor 收到并回传完整元数据。
         MetConfiguration configuration = configuration(true);
@@ -266,7 +274,8 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBidirectionalStreamPreservesRepeatedAndBinaryMetadata() throws Exception {
         // 官方客户端进行双向流调用，验证元数据不受流式正文影响。
         MetConfiguration configuration = configuration(true);
@@ -317,7 +326,8 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorUnaryPreservesRepeatedAndBinaryMetadata() throws Exception {
         // 启动官方元数据对端，由 Meteor 普通调用读取其头部和 trailers。
         Server peer = startMetadataPeer();
@@ -367,7 +377,8 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorServerStreamPreservesRepeatedAndBinaryMetadata() throws Exception {
         // 启动官方元数据对端，由 Meteor 读取响应流及结束元数据。
         Server peer = startMetadataPeer();
@@ -417,7 +428,8 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientStreamPreservesRepeatedAndBinaryMetadata() throws Exception {
         // 启动官方元数据对端，由 Meteor 请求流上传数据并读取元数据。
         Server peer = startMetadataPeer();
@@ -470,7 +482,8 @@ public class GrpcMetadataInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBidirectionalStreamPreservesRepeatedAndBinaryMetadata() throws Exception {
         // 启动官方元数据对端，由 Meteor 双向流完成数据与元数据交换。
         Server peer = startMetadataPeer();

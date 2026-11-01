@@ -37,8 +37,8 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.protocol.connect.ConnectMetadata;
 import net.hasor.meteor.protocol.connect.ConnectStatusException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ConnectHttpCodecTest {
     @Test

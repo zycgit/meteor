@@ -22,10 +22,12 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.route.random.RandomFlowControl;
 import net.hasor.meteor.address.route.speed.SpeedFlowControl;
 import net.hasor.meteor.address.route.unit.UnitFlowControl;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.address.route.FlowControlScripts.speed;
 import static net.hasor.meteor.address.route.FlowControlScripts.unit;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 public class FlowControlTest {
     private final InterAddress local  = new InterAddress("127.0.0.1", 8000, "local");
@@ -97,7 +99,7 @@ public class FlowControlTest {
     public void unitRuleAllowsAnEmptyExclusionList() {
         // 空排除名单是合法的单元规则配置。
         UnitFlowControl rule = (UnitFlowControl) new RuleParser().ruleSettings(unit(true, 0.5, ""));
-        assertNotNull("No excluded providers is a valid unit configuration", rule);
+        assertNotNull(rule, "No excluded providers is a valid unit configuration");
         List<InterAddress> candidates = Arrays.asList(this.local, this.remote);
 
         // 没有跨单元例外时，只保留本单元地址。
@@ -217,7 +219,7 @@ public class FlowControlTest {
         UnitFlowControl second = (UnitFlowControl) parser.ruleSettings(unit(false, 0.9, "192.0.2.*"));
         assertFalse(second.enable());
         assertEquals(0.9, second.getThreshold(), 0.0001);
-        assertTrue("Previously parsed rules must remain enabled", first.enable());
+        assertTrue(first.enable(), "Previously parsed rules must remain enabled");
         assertEquals(0.2, first.getThreshold(), 0.0001);
     }
 
@@ -236,7 +238,7 @@ public class FlowControlTest {
 
         // 第二个服务禁用单元规则不能影响第一个服务。
         List<InterAddress> selected = pool.queryLocalUnitAddresses("one");
-        assertEquals("Rules must be isolated per service", Collections.singletonList(this.local), selected);
+        assertEquals(Collections.singletonList(this.local), selected, "Rules must be isolated per service");
     }
 
     @Test
@@ -384,7 +386,7 @@ public class FlowControlTest {
         assertTrue(rule.callCheck("ab", "c", this.local));
 
         // 配额键必须区分二元组，不能让第二个组合被限流。
-        assertTrue("Different service/method pairs need separate quotas", rule.callCheck("a", "bc", this.local));
+        assertTrue(rule.callCheck("a", "bc", this.local), "Different service/method pairs need separate quotas");
     }
 
     @Test
@@ -432,7 +434,8 @@ public class FlowControlTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void actualQosBucketRejectsAfterInitialTokensAreConsumed() {
         // 使用真实令牌桶，窗口内提供六十个初始令牌。
         String xml = speed("service", true, 1, 60, 60000);

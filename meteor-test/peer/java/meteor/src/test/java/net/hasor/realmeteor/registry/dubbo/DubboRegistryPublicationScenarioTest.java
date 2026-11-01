@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.dubbo;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,17 +22,20 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.apache.dubbo.common.URL;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.await;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 服务发布后的元信息变更通过注册扩展的自动核对生效。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboRegistryPublicationScenarioTest {
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void publicationIdentityChangedAfterStartBecomesNativeDefaultReferenceable() throws Exception {
         // 应用先启动并按默认身份发布，不把元信息提前设置来避开运行期变更。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -76,7 +80,7 @@ public class DubboRegistryPublicationScenarioTest {
                 try (DubboProcess consumer = DubboProcess.start( //
                         "--command=client", "--registry=" + registryUrl)) {
                     JsonNode result = consumer.awaitResult();
-                    assertFalse(result.toString(), result.has("error"));
+                    assertFalse(result.has("error"), result.toString());
                     assertEquals("Dubbo 中文 🙂", result.path("value").asText());
                 }
             }

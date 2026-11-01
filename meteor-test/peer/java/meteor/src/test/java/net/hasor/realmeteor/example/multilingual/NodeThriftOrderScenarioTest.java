@@ -4,12 +4,17 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Apache Thrift Node SDK 与 Meteor 的 Binary framed TCP 双向基础互通。 */
+@NxnRpc(name = "thrift")
 public class NodeThriftOrderScenarioTest {
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeConsumerSavesAndFindsTheMeteorOrder() throws Exception {
         // Meteor 的独立应用从 bootstrap 启动，仅发布 Thrift 订单接口。
         try (OrderPeerProcess provider = OrderPeerProcess.javaMain("thrift", "Provider", null)) {
@@ -23,7 +28,8 @@ public class NodeThriftOrderScenarioTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerSavesAndFindsTheNodeOrder() throws Exception {
         // Node 由官方生成 Processor 发布服务，独立监听真实 TCP 临时端口。
         try (OrderPeerProcess provider = OrderPeerProcess.foreignProvider("node", "thrift")) {

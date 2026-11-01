@@ -12,14 +12,14 @@ import java.util.*;
 import java.util.concurrent.*;
 import net.hasor.example.serialize.Payload;
 import net.hasor.meteor.serialize.SerializeCoder;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.api.Assertions.*;
 
-@RunWith(Parameterized.class)
+@ParameterizedClass(name = "{0}", autoCloseArguments = false, quoteTextArguments = false)
+@MethodSource("coders")
 public class SerializeCoderTest {
-    @Parameterized.Parameters(name = "{0}")
     public static Collection<Object[]> coders() {
         List<Object[]> coders = new ArrayList<>();
         coders.add(new Object[] { "Java", new JavaSerializeCoder() });

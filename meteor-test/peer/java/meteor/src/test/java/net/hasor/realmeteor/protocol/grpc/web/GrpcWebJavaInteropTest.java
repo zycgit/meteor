@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.example.echo.TextEchoService;
 import net.hasor.meteor.MetContext;
@@ -13,12 +14,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.protocol.connect.ConnectJavaProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Connect JVM SDK 的 gRPC-Web 模式，由 Java 源码调用同协议提供者。 */
+@NxnRpc(name = "grpc-web")
 public class GrpcWebJavaInteropTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaClientCallsMeteorGrpcWebService() throws Exception {
         // 只挂载 grpc-web，不开放普通 grpc 端点，避免误测另一种线上协议。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc-web");

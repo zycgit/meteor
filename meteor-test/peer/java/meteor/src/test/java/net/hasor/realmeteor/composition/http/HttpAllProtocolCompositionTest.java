@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.composition.http;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URL;
 
 import net.hasor.example.composition.http.HttpCompositionConfiguration;
@@ -21,12 +22,25 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 全插件类路径上，不同协议在一个真实 HTTP 端点共存。 */
+@NxnRpc(name = "hprose")
+@NxnRpc(name = "soap", version = "1.1")
+@NxnRpc(name = "jsonrpc", version = "2.0")
+@NxnRpc(name = "xmlrpc")
+@NxnRpc(name = "hessian", version = "2")
+@NxnRpc(name = "grpc")
+@NxnRpc(name = "grpc-web")
+@NxnRpc(name = "connect", version = "1")
+@NxnRpc(name = "triple")
+@NxnRpc(name = "thrift")
 public class HttpAllProtocolCompositionTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tenProtocolsShareOneHttp2Listener() throws Exception {
         // 一个 HTTP 端点挂载十个真实协议，客户端使用 HTTP/2 明文先验连接。
         MetConfiguration incoming = HttpCompositionConfiguration.incoming();

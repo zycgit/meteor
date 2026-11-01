@@ -3,6 +3,9 @@
  * Licensed under the Apache License, Version 2.0. See LICENSE.txt.
  */
 package net.hasor.realmeteor.protocol.soap.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Base64;
@@ -18,14 +21,16 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 两代 Zeep 消费者和当前 soapfish2 提供者使用各自 SDK 的 XML 映射。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/python/soap/{0}@{1}/soap11/{2}", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "soap", version = "1.1")
 public class PythonSoapSdkVersionCompatibilityTest {
     private final String version;
     private final String direction;
@@ -34,8 +39,6 @@ public class PythonSoapSdkVersionCompatibilityTest {
         this.version = version;
         this.direction = direction;
     }
-
-    @Parameterized.Parameters(name = "sdk/python/soap/{0}@{1}/soap11/{2}")
     public static Object[][] versions() {
         return new Object[][] { // Zeep 只提供消费者；soapfish2 独立提供真实 SOAP 服务。
                 { "zeep", "3.4.0", "SDK-to-Meteor" }, //
@@ -43,7 +46,8 @@ public class PythonSoapSdkVersionCompatibilityTest {
                 { "soapfish2", "0.7.4", "Meteor-to-SDK" } };
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exchangesOrderUsingTheSelectedSdkVersion() throws Exception {
         // 每个发行版只验证它实际提供的一个角色，版本由对端加载的发行包再次核验。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web.go;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.example.Order;
@@ -20,14 +21,18 @@ import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 connect-go 使用 gRPC-Web 直接与 Meteor 双向互通，不经过协议代理。 */
+@NxnRpc(name = "grpc-web")
 public class GrpcWebGoInteropTest {
     private static final String SERVICE = "meteor.example.OrderDemoService";
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goGrpcWebClientSavesAndFindsOrderOnMeteor() throws Exception {
         // Meteor 仅发布 gRPC-Web，复用订单契约，避免把 Connect 请求当作本协议证据。
         MetConfiguration configuration = this.configuration(true);
@@ -42,12 +47,13 @@ public class GrpcWebGoInteropTest {
             // connect-go 显式选择 WithGRPCWeb，保存后再查询同一笔订单。
             try (GoPeerProcess peer = GoPeerProcess.start("grpc-web", "client", "plain", "unicode", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorGrpcWebClientSavesAndFindsOrderOnGo() throws Exception {
         // connect-go 的官方 Handler 自己监听临时端口，Meteor 只启用 gRPC-Web 出站能力。
         MetConfiguration configuration = this.configuration(false);

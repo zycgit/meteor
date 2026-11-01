@@ -33,18 +33,19 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.neta.channel.ProtoBuildContext;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 验证 SPI 发现、配置准备和连接器延迟创建契约。 */
 public class ProtocolSpiTest {
-    @Rule
-    public final TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
 
-    @Before
+    @BeforeEach
     public void reset() {
         CustomTransport.created.set(0);
         CustomTransport.prepared.set(0);
@@ -205,7 +206,8 @@ public class ProtocolSpiTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void outgoingSessionContextHasNoListenerAddressBeforeBinding() throws Exception {
         // 端点只发起连接，不打开本地监听器。
         Class<?>[] transports = { CustomTransport.class };
@@ -227,7 +229,8 @@ public class ProtocolSpiTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incomingSessionContextUsesThePublishedProtocolAddress() throws Exception {
         // 监听使用传输地址，协议对外发布独立的地址前缀。
         Class<?>[] transports = { CustomTransport.class };
@@ -253,7 +256,8 @@ public class ProtocolSpiTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void outgoingSessionContextKeepsTheActiveListenerAddress() throws Exception {
         // 同一端点已经监听，随后仍可主动连接另一个服务端。
         Class<?>[] transports = { CustomTransport.class };
@@ -471,7 +475,8 @@ public class ProtocolSpiTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void restartedEndpointRejectsMessagesFromAnInboundConnectionAlreadyDraining() throws Exception {
         // 让旧入站连接完成 factory.create，并在端点离线后才触发有序的 connected 回调。
         LifecycleProtocol.created.set(0);
@@ -500,7 +505,8 @@ public class ProtocolSpiTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void restartedEndpointDoesNotActivateAnInboundConnectionAlreadyDraining() throws Exception {
         // 让入站连接完成 factory.create，但暂不触发 connected，以固定接入与激活之间的窗口。
         LifecycleProtocol.created.set(0);
@@ -589,7 +595,7 @@ public class ProtocolSpiTest {
         if (providers == null) {
             return;
         }
-        Path descriptor = this.temporary.newFile().toPath();
+        Path descriptor = Files.createTempFile(this.temporary, "junit", null);
         Files.write(descriptor, Arrays.stream(providers).map(Class::getName).toList());
         descriptors.put("META-INF/services/" + service.getName(), descriptor.toUri().toURL());
     }

@@ -25,11 +25,11 @@ import net.hasor.meteor.annotation.MetField;
 import net.hasor.meteor.protocol.soap.definition.SoapVersion;
 import net.hasor.meteor.protocol.soap.definition.SoapXmlUtils;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapXmlOutputUtilsTest {
     private static final String ATTRIBUTES = "urn:test:ordered-attributes";
@@ -54,12 +54,12 @@ public class SoapXmlOutputUtilsTest {
         int negative = wire.indexOf(" zeta=\"");
         int defaultOrder = wire.indexOf(":mu=\"");
         int positive = wire.indexOf(" alpha=\"");
-        assertTrue(wire, negative >= 0);
-        assertTrue(wire, defaultOrder > negative);
-        assertTrue(wire, positive > defaultOrder);
-        assertTrue(wire, wire.contains("&amp;"));
-        assertTrue(wire, wire.contains("&quot;"));
-        assertTrue(wire, wire.contains("&lt;"));
+        assertTrue(negative >= 0, wire);
+        assertTrue(defaultOrder > negative, wire);
+        assertTrue(positive > defaultOrder, wire);
+        assertTrue(wire.contains("&amp;"), wire);
+        assertTrue(wire.contains("&quot;"), wire);
+        assertTrue(wire.contains("&lt;"), wire);
 
         // 重新解析最终 XML，属性的 QName、换行、回车和制表符均保持原值。
         Element restored = (Element) this.parse(message.body()).getElementsByTagName("value").item(0);
@@ -89,9 +89,9 @@ public class SoapXmlOutputUtilsTest {
         int negative = wire.indexOf(" zeta=\"");
         int defaultOrder = wire.indexOf(":mu=\"");
         int positive = wire.indexOf(" alpha=\"");
-        assertTrue(wire, negative >= 0);
-        assertTrue(wire, defaultOrder > negative);
-        assertTrue(wire, positive > defaultOrder);
+        assertTrue(negative >= 0, wire);
+        assertTrue(defaultOrder > negative, wire);
+        assertTrue(positive > defaultOrder, wire);
 
         // 图节点上的属性命名空间和原值也必须仍可正常解析。
         Document restored = this.parse(message.body());
@@ -127,9 +127,9 @@ public class SoapXmlOutputUtilsTest {
         int negative = wire.indexOf(" zeta=\"");
         int defaultOrder = wire.indexOf(":mu=\"");
         int positive = wire.indexOf(" alpha=\"");
-        assertTrue(wire, negative >= 0);
-        assertTrue(wire, defaultOrder > negative);
-        assertTrue(wire, positive > defaultOrder);
+        assertTrue(negative >= 0, wire);
+        assertTrue(defaultOrder > negative, wire);
+        assertTrue(positive > defaultOrder, wire);
 
         // 属性仍正确限定和转义，二进制值确实作为独立附件输出。
         Document restored = this.parse(rootXml);
@@ -160,9 +160,9 @@ public class SoapXmlOutputUtilsTest {
         int negative = wire.indexOf(" zeta=\"");
         int defaultOrder = wire.indexOf(":mu=\"");
         int positive = wire.indexOf(" alpha=\"");
-        assertTrue(wire, negative >= 0);
-        assertTrue(wire, defaultOrder > negative);
-        assertTrue(wire, positive > defaultOrder);
+        assertTrue(negative >= 0, wire);
+        assertTrue(defaultOrder > negative, wire);
+        assertTrue(positive > defaultOrder, wire);
     }
 
     @Test

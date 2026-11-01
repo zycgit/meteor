@@ -34,15 +34,19 @@ import net.hasor.meteor.protocol.soap.SoapFault;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.protocol.soap.support.BoundHeaderHandler;
 import net.hasor.realmeteor.protocol.soap.support.SoapHeadersExtension;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Element;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.2")
 public class WebServicesBoundHeaderFaultTest {
     private static final String NAMESPACE = "urn:meteor:test:bound-header-fault";
     private static final String SOAP_12   = "http://www.w3.org/2003/05/soap-envelope";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void declaredIntegerHeadersCrossHttpInBothDirections() throws Exception {
         // 两端绑定同一 WSDL，并通过正式扩展处理声明为整数的必选 Header。
         MetConfiguration incoming = this.incoming();
@@ -81,7 +85,8 @@ public class WebServicesBoundHeaderFaultTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void declaredHeadersDoNotRequireTheirPresence() throws Exception {
         // WSDL 声明 Header 结构，两端均不安装生成 Header 的处理器。
         MetConfiguration incoming = this.incoming();
@@ -111,7 +116,8 @@ public class WebServicesBoundHeaderFaultTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidDeclaredInputHeaderIsRejectedBeforeBusinessInvocation() throws Exception {
         // 服务绑定 Header Schema，业务计数用于观察校验发生在调用之前。
         MetConfiguration configuration = this.incoming();
@@ -143,13 +149,14 @@ public class WebServicesBoundHeaderFaultTest {
                     .send(request, HttpResponse.BodyHandlers.ofString());
 
             assertEquals(400, response.statusCode());
-            assertTrue(response.body(), response.body().contains("soap:Sender"));
-            assertTrue(response.body(), response.body().contains("invalid-header-number"));
+            assertTrue(response.body().contains("soap:Sender"), response.body());
+            assertTrue(response.body().contains("invalid-header-number"), response.body());
             assertEquals(0, invocations.get());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void declaredHeaderWithUnknownEncodingIsRejectedBeforeBusinessInvocation() throws Exception {
         // 服务绑定 literal Header，业务计数区分协议拒绝与执行后报错。
         MetConfiguration configuration = this.incoming();
@@ -181,12 +188,13 @@ public class WebServicesBoundHeaderFaultTest {
                     .send(request, HttpResponse.BodyHandlers.ofString());
 
             assertEquals(500, response.statusCode());
-            assertTrue(response.body(), response.body().contains("soap:DataEncodingUnknown"));
+            assertTrue(response.body().contains("soap:DataEncodingUnknown"), response.body());
             assertEquals(0, invocations.get());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidDeclaredOutputHeaderIsRejectedByTheClient() throws Exception {
         // 独立 HTTP 对端返回合法正文和违反 receipt 整数类型的响应 Header。
         String envelope = this.envelope("<b:receipt>invalid-header-number</b:receipt>", //
@@ -214,15 +222,16 @@ public class WebServicesBoundHeaderFaultTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 Throwable cause = failure.getCause();
                 assertFalse(cause instanceof SoapFault);
-                assertTrue(cause.toString(), cause.getMessage().contains("SOAP Header binding validation failed"));
-                assertTrue(cause.toString(), cause.getMessage().contains("invalid-header-number"));
+                assertTrue(cause.getMessage().contains("SOAP Header binding validation failed"), cause.toString());
+                assertTrue(cause.getMessage().contains("invalid-header-number"), cause.toString());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void declaredFaultDetailPreservesItsSoapFaultAcrossHttp() throws Exception {
         // 声明的 Problem Fault 使用整数 detail，业务明确抛出完整 SoapFault。
         Element detail = this.element("<Detail xmlns:b='" + NAMESPACE + "'><b:problem>42</b:problem></Detail>");
@@ -263,7 +272,8 @@ public class WebServicesBoundHeaderFaultTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidDeclaredFaultDetailIsRejectedByTheClient() throws Exception {
         // 独立对端返回结构合法的 Fault，但声明的 problem 不符合 xsd:int。
         String fault = this.fault("<b:problem>invalid-fault-number</b:problem>");
@@ -291,15 +301,16 @@ public class WebServicesBoundHeaderFaultTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 Throwable cause = failure.getCause();
                 assertFalse(cause instanceof SoapFault);
-                assertTrue(cause.toString(), cause.getMessage().contains("SOAP Fault binding validation failed"));
-                assertTrue(cause.toString(), cause.getMessage().contains("invalid-fault-number"));
+                assertTrue(cause.getMessage().contains("SOAP Fault binding validation failed"), cause.toString());
+                assertTrue(cause.getMessage().contains("invalid-fault-number"), cause.toString());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidDeclaredHeaderFaultIsRejectedByTheClient() throws Exception {
         // token 的 headerfault 声明适用于响应 Header，不应在收到 Fault 时被忽略。
         String header = "<b:tokenFault>invalid-header-fault-number</b:tokenFault>";
@@ -327,8 +338,8 @@ public class WebServicesBoundHeaderFaultTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 Throwable cause = failure.getCause();
                 assertFalse(cause instanceof SoapFault);
-                assertTrue(cause.toString(), cause.getMessage().contains("SOAP Header binding validation failed"));
-                assertTrue(cause.toString(), cause.getMessage().contains("invalid-header-fault-number"));
+                assertTrue(cause.getMessage().contains("SOAP Header binding validation failed"), cause.toString());
+                assertTrue(cause.getMessage().contains("invalid-header-fault-number"), cause.toString());
             }
         } finally {
             server.stop(0);
@@ -356,7 +367,7 @@ public class WebServicesBoundHeaderFaultTest {
 
     private SoapWsdlResource resource() throws Exception {
         URL wsdl = this.getClass().getResource("/protocol/wsdl/bound-header-fault.wsdl");
-        assertNotNull("Missing bound Header/Fault WSDL", wsdl);
+        assertNotNull(wsdl, "Missing bound Header/Fault WSDL");
         return new SoapWsdlResource(wsdl);
     }
 

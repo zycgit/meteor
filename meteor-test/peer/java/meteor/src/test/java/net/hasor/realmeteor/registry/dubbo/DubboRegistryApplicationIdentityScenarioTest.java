@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.dubbo;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.protocol.dubbo.interop.DubboInteropService;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
@@ -13,16 +14,20 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.dubbo.DubboRegistryClient;
 import net.hasor.realmeteor.protocol.dubbo.DubboProcess;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.assertInterfaceProvidersAbsent;
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.awaitAddresses;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 应用级服务元信息中的原生空身份必须与便利引用保持一致。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboRegistryApplicationIdentityScenarioTest {
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void referenceByClassDiscoversApplicationOnlyProviderWithoutGroupOrVersion() throws Exception {
         // 原生 3.3 仅发布应用实例，分组和版本均未设置。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {

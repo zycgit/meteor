@@ -18,12 +18,16 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.MetResponse;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 普通调用、oneway、取消和关闭遵循独立的生命周期。 */
+@NxnRpc(name = "dubbo")
 public class DubboLifecycleScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void ordinaryCallRemainsPendingUntilBusinessCompletes() throws Exception {
         // 应用自己控制业务完成时机，协议只传输请求和响应。
         DubboTaskServiceImpl implementation = new DubboTaskServiceImpl();
@@ -52,7 +56,8 @@ public class DubboLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void messageCompletesAfterWriteWhileBusinessIsStillRunning() throws Exception {
         // 应用自己控制业务完成时机，协议只传输请求和响应。
         DubboTaskServiceImpl implementation = new DubboTaskServiceImpl();
@@ -82,7 +87,8 @@ public class DubboLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellationDoesNotPoisonTheConnection() throws Exception {
         // 应用自己控制业务完成时机，协议只传输请求和响应。
         DubboTaskServiceImpl implementation = new DubboTaskServiceImpl();
@@ -113,7 +119,8 @@ public class DubboLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void deadlineDoesNotPoisonFollowingCalls() throws Exception {
         // 应用自己控制业务完成时机，协议只传输请求和响应。
         DubboTaskServiceImpl implementation = new DubboTaskServiceImpl();
@@ -145,7 +152,8 @@ public class DubboLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingTheClientTerminatesItsOutstandingCall() throws Exception {
         // 应用自己控制业务完成时机，协议只传输请求和响应。
         DubboTaskServiceImpl implementation = new DubboTaskServiceImpl();
@@ -166,8 +174,8 @@ public class DubboLifecycleScenarioTest {
                 ExecutionException failure = assertThrows(ExecutionException.class, () -> {
                     pending.getData(3, TimeUnit.SECONDS);
                 });
-                assertFalse("Closing should terminate immediately, not wait for RPC timeout", //
-                        failure.getCause() instanceof MetTimeoutException);
+                assertFalse(//
+                        failure.getCause() instanceof MetTimeoutException, "Closing should terminate immediately, not wait for RPC timeout");
             } finally {
                 implementation.getRelease().countDown();
             }

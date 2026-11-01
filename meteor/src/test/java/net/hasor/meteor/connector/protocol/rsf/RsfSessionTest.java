@@ -27,10 +27,10 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.connector.protocol.rsf.RsfFixtures.fixture;
 import static net.hasor.meteor.connector.protocol.rsf.RsfFixtures.serializationContext;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 使用可控时钟和内存通道验证会话状态，不代表用户网络调用。 */
 public class RsfSessionTest {

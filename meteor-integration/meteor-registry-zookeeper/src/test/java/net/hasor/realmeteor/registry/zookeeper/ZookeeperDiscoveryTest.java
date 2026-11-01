@@ -11,13 +11,15 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.zookeeper.ZookeeperRegistryConfiguration;
 import org.apache.curator.test.TestingServer;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 从公开配置启动两个应用，通过 ZooKeeper 自动发现后发起真实 RPC。 */
 public class ZookeeperDiscoveryTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void subscriberDiscoversAndCallsPublishedService() throws Exception {
         // 本地服务端仅替代外部 ZooKeeper，应用接入仍使用正式扩展。
         try (TestingServer zookeeper = new TestingServer()) {
@@ -41,7 +43,7 @@ public class ZookeeperDiscoveryTest {
                 String serviceId = service.getBindID();
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
                 while (client.getUpdater().queryAvailableAddresses(serviceId).isEmpty()) {
-                    assertTrue("ZooKeeper did not publish the provider address", System.nanoTime() < deadline);
+                    assertTrue(System.nanoTime() < deadline, "ZooKeeper did not publish the provider address");
                     TimeUnit.MILLISECONDS.sleep(20);
                 }
 

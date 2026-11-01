@@ -23,9 +23,9 @@ import net.hasor.meteor.registry.admin.MetRuleType;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
 import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
 import org.h2.jdbcx.JdbcDataSource;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.createDatabase;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class JdbcGovernanceTest {
     @Test
@@ -180,7 +180,7 @@ public class JdbcGovernanceTest {
         while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }
-        assertTrue("JDBC governance subscription did not apply the rule", condition.getAsBoolean());
+        assertTrue(condition.getAsBoolean(), "JDBC governance subscription did not apply the rule");
     }
 
 }

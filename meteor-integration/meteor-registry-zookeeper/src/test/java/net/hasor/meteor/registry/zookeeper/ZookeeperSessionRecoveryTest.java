@@ -16,10 +16,10 @@ import org.apache.curator.framework.state.ConnectionState;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.KillSession;
 import org.apache.curator.test.TestingServer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.instance;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.service;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 原生会话过期后的临时登记恢复边界。 */
 public class ZookeeperSessionRecoveryTest {

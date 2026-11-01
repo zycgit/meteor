@@ -31,16 +31,19 @@ import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static java.net.http.HttpRequest.newBuilder;
 import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 在真实连接上验证 HTTP/1 传输 SPI 的正文与关闭契约。 */
 public class Http1LifecycleTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void headResponsePreservesExplicitRepresentationLength() throws Exception {
         // 启动真实 HTTP/1 监听，并发送关闭连接的 HEAD 请求以便观察响应结束位置。
         ConnectorConfig config = config(false);
@@ -69,7 +72,8 @@ public class Http1LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pipelinedResponseCannotOvertakeAnIncrementalBody() throws Exception {
         // 配置普通请求接收，使用原始对端在同一连接发送两个流水线请求。
         ConnectorConfig config = config(false);
@@ -123,7 +127,8 @@ public class Http1LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jdkExpectContinueClientCanUploadWithoutWaitingForEof() throws Exception {
         // 以流式 SPI 回传上传正文，JDK 对端须先收到 100 Continue 才会发送正文。
         ConnectorConfig config = config(true);
@@ -156,7 +161,8 @@ public class Http1LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unsupportedExpectationIsRejectedBeforeApplicationDispatch() throws Exception {
         // 配置流式请求接收，用原始对端发送不支持的 Expect 字段。
         ConnectorConfig config = config(true);
@@ -179,7 +185,8 @@ public class Http1LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void completeResponseBodyReachesEofWhenPeerCloses() throws Exception {
         // 对端声明四字节正文，并等客户端读取后再关闭连接。
         ConnectorConfig config = config(true);
@@ -230,7 +237,8 @@ public class Http1LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void truncatedResponseBodyFailsWhenPeerCloses() throws Exception {
         // 对端声明六字节正文，只发送四字节，等待客户端读取后主动关闭。
         ConnectorConfig config = config(true);
@@ -287,7 +295,8 @@ public class Http1LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void truncatedUploadFailsThePublishedBody() throws Exception {
         // 对端声明二十字节正文，只上传两个字节后关闭输出方向。
         ConnectorConfig config = config(true);
@@ -320,7 +329,8 @@ public class Http1LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void queuedBufferedRequestDoesNotInheritPreviousStreamingResponseMode() throws Exception {
         // 同一客户端通道先排入流式请求，再排入普通请求，端点默认采用聚合正文。
         ConnectorConfig config = config(false);

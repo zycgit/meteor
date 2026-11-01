@@ -18,14 +18,18 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.MetResponse;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方二进制 oneway 只确认本地写出，业务完成由测试独立观察。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboOfficialMessageTest {
     private static final String SERVICE = DubboInteropService.class.getName();
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientSendsOnewayToMeteor() throws Exception {
         // 共享业务实现保留自己的计数，额外完成信号仅用于等待实际业务执行。
         CountDownLatch delivered = new CountDownLatch(1);
@@ -49,7 +53,7 @@ public class DubboOfficialMessageTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=oneway")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertTrue(result.path("value").isNull());
 
                 // 独立等待应用的执行信号，不把 write 完成解释成远端业务回执。
@@ -59,7 +63,8 @@ public class DubboOfficialMessageTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSendsOnewayToOfficialDubbo3Provider() throws Exception {
         // 独立官方 JVM 发布共享业务实现，计数只能通过普通业务查询读取。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -92,7 +97,7 @@ public class DubboOfficialMessageTest {
                 int count;
                 do {
                     long remaining = deadline - System.nanoTime();
-                    assertTrue("Official provider did not execute the notification", remaining > 0);
+                    assertTrue(remaining > 0, "Official provider did not execute the notification");
                     MetFuture observed = caller.asyncInvoke(observer, "notices", new Class<?>[0], new Object[0]);
                     count = (Integer) observed.getData(remaining, TimeUnit.NANOSECONDS);
                     assertFalse(observed.getRequest().isMessage());
@@ -102,7 +107,9 @@ public class DubboOfficialMessageTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientSendsOnewayToMeteor() throws Exception {
         // 共享业务实现保留自己的计数，额外完成信号仅用于等待实际业务执行。
         CountDownLatch delivered = new CountDownLatch(1);
@@ -126,7 +133,7 @@ public class DubboOfficialMessageTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=oneway")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertTrue(result.path("value").isNull());
 
                 // 独立等待应用的执行信号，不把 write 完成解释成远端业务回执。
@@ -136,7 +143,9 @@ public class DubboOfficialMessageTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSendsOnewayToOfficialDubbo2Provider() throws Exception {
         // 独立官方 JVM 发布共享业务实现，计数只能通过普通业务查询读取。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -169,7 +178,7 @@ public class DubboOfficialMessageTest {
                 int count;
                 do {
                     long remaining = deadline - System.nanoTime();
-                    assertTrue("Official provider did not execute the notification", remaining > 0);
+                    assertTrue(remaining > 0, "Official provider did not execute the notification");
                     MetFuture observed = caller.asyncInvoke(observer, "notices", new Class<?>[0], new Object[0]);
                     count = (Integer) observed.getData(remaining, TimeUnit.NANOSECONDS);
                     assertFalse(observed.getRequest().isMessage());

@@ -6,6 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.thrift.python;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -16,15 +18,17 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import org.apache.thrift.TApplicationException;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Meteor 公开客户端调用官方 Python Processor，不共享编码或业务状态。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "python-provider/{0}/framed={1}/security={2}", quoteTextArguments = false)
+@MethodSource("parameters")
+@NxnRpc(name = "thrift")
 public class PythonProviderScenarioTest {
     private final String  encoding;
     private final boolean framed;
@@ -35,13 +39,12 @@ public class PythonProviderScenarioTest {
         this.framed = framed;
         this.security = security;
     }
-
-    @Parameterized.Parameters(name = "python-provider/{0}/framed={1}/security={2}")
     public static Collection<Object[]> parameters() {
         return PythonThriftSettings.parameters();
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReadsSavedOrderFromPython() throws Exception {
         // Python provider 独占自己的监听端口和官方 Processor，Meteor 只建立出站通道。
         MetConfiguration configuration = PythonThriftSettings.configuration( //
@@ -74,7 +77,8 @@ public class PythonProviderScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReadsUnicodeFromPython() throws Exception {
         // Python provider 独占自己的监听端口和官方 Processor，Meteor 只建立出站通道。
         MetConfiguration configuration = PythonThriftSettings.configuration( //
@@ -107,7 +111,8 @@ public class PythonProviderScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReadsBinaryFromPython() throws Exception {
         // Python provider 独占自己的监听端口和官方 Processor，Meteor 只建立出站通道。
         MetConfiguration configuration = PythonThriftSettings.configuration( //
@@ -140,7 +145,8 @@ public class PythonProviderScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReceivesPythonBusinessFailure() throws Exception {
         // Python provider 独占自己的监听端口和官方 Processor，Meteor 只建立出站通道。
         MetConfiguration configuration = PythonThriftSettings.configuration( //

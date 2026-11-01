@@ -8,8 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.storage.domain.*;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 目录字段和协议摘要的纯数据筛选规则。 */
 public class DirectoryFilterTest {

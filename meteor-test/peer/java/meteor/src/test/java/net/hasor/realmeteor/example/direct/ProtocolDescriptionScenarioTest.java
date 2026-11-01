@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -26,13 +27,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.builtin.GrpcHealthService;
 import net.hasor.meteor.protocol.grpc.builtin.GrpcReflectionService;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 协议自带的描述和标准服务，复用订单示例的同一个监听端点。 */
 public class ProtocolDescriptionScenarioTest {
-    @Test(timeout = 30000)
+    @NxnRpc(name = "soap", version = "1.1")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soapDirectoryLinksToTheGeneratedOrderWsdl() throws Exception {
         // 从公开 bootstrap 启动例子，只发布一份订单业务实现。
         MetConfiguration configuration = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -44,18 +48,20 @@ public class ProtocolDescriptionScenarioTest {
             int port = server.getListenAddress("soap").getPort();
             HttpResponse<String> directory = this.get(port, "/soap");
             assertEquals(200, directory.statusCode());
-            assertTrue(directory.body(), directory.body().contains("orders"));
-            assertTrue(directory.body(), directory.body().contains("/soap/orders?wsdl"));
+            assertTrue(directory.body().contains("orders"), directory.body());
+            assertTrue(directory.body().contains("/soap/orders?wsdl"), directory.body());
 
             // 描述来自真实接口，包含订单服务的保存和查询操作。
             HttpResponse<String> wsdl = this.get(port, "/soap/orders?wsdl");
             assertEquals(200, wsdl.statusCode());
-            assertTrue(wsdl.body(), wsdl.body().contains("name=\"save\""));
-            assertTrue(wsdl.body(), wsdl.body().contains("name=\"find\""));
+            assertTrue(wsdl.body().contains("name=\"save\""), wsdl.body());
+            assertTrue(wsdl.body().contains("name=\"find\""), wsdl.body());
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "grpc")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void grpcHealthReportsThePublishedOrderServiceAsServing() throws Exception {
         // 服务端显式安装标准服务，客户端只配置 gRPC 出口。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -75,7 +81,9 @@ public class ProtocolDescriptionScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "grpc")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void grpcReflectionListsThePublishedOrderService() throws Exception {
         // 同一个 gRPC 监听同时提供业务 context 和标准 Reflection 根路径。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -104,7 +112,7 @@ public class ProtocolDescriptionScenarioTest {
                     break;
                 }
             }
-            assertTrue(replies.toString(), found);
+            assertTrue(found, replies.toString());
         }
     }
 

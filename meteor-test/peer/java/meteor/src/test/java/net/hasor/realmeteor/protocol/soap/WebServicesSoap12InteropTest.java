@@ -22,14 +22,19 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.2")
 public class WebServicesSoap12InteropTest {
     private static final String NAMESPACE = "urn:hasor:meteor:soap:EchoService";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void metroClientUsesTheGeneratedSoap12Binding() throws Exception {
         // 用户选择 SOAP 1.2，服务仍按普通 Java 接口发布。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -64,7 +69,8 @@ public class WebServicesSoap12InteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsAnIndependentMetroSoap12Provider() throws Exception {
         // 对端使用 Metro 自己的 SOAP 1.2 binding，不经过 Meteor 协议实现。
         try (SoapPeerProcess server = SoapPeerProcess.metroServer("echo", "1.2", false)) {

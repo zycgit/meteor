@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -21,12 +22,15 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 通过公开启动入口验证 ONC RPC 的 TLS 与 DTLS 传输；不声明 RPC-with-TLS 扩展。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcSecureScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTls12ServerAuthentication() throws Exception {
         // 固定双方的安全协议，验证 TCP TLS 1.2 服务端认证 下的真实 XDR 往返。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.2");
@@ -52,7 +56,8 @@ public class OncRpcSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTls12MutualAuthentication() throws Exception {
         // 固定双方的安全协议，验证 TCP TLS 1.2 双向认证 下的真实 XDR 往返。
         MetConfiguration incoming = this.incomingTcp("server", "REQUIRE", "TLSv1.2");
@@ -78,7 +83,8 @@ public class OncRpcSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTls13ServerAuthentication() throws Exception {
         // 固定双方的安全协议，验证 TCP TLS 1.3 服务端认证 下的真实 XDR 往返。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.3");
@@ -104,7 +110,8 @@ public class OncRpcSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTls13MutualAuthentication() throws Exception {
         // 固定双方的安全协议，验证 TCP TLS 1.3 双向认证 下的真实 XDR 往返。
         MetConfiguration incoming = this.incomingTcp("server", "REQUIRE", "TLSv1.3");
@@ -130,7 +137,8 @@ public class OncRpcSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTlsRejectsMissingClientCertificate() throws Exception {
         // 服务器要求客户端证书，客户端没有提供身份。
         MetConfiguration incoming = this.incomingTcp("server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -153,11 +161,12 @@ public class OncRpcSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTlsRejectsUntrustedClientCertificate() throws Exception {
         // 客户端证书由另一 CA 签发，服务器不接受该身份。
         MetConfiguration incoming = this.incomingTcp("server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -180,11 +189,12 @@ public class OncRpcSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTlsRejectsUntrustedServerCertificate() throws Exception {
         // 客户端的信任集不包含服务端证书的签发 CA。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.3,TLSv1.2");
@@ -207,11 +217,12 @@ public class OncRpcSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTlsRejectsWrongServerHostname() throws Exception {
         // 证书链可信，但证书 SAN 没有实际访问的 127.0.0.1。
         MetConfiguration incoming = this.incomingTcp("wrong-host-server", "NONE", "TLSv1.3,TLSv1.2");
@@ -234,11 +245,12 @@ public class OncRpcSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTlsRejectsIncompatibleTlsVersion() throws Exception {
         // 服务端只允许 TLS 1.2，客户端只允许 TLS 1.3。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.2");
@@ -261,11 +273,12 @@ public class OncRpcSecureScenarioTest {
                     .asyncInvoke(service, "echo", new Class<?>[] { String.class }, new Object[] { "rejected" });
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pending.get(8, TimeUnit.SECONDS));
             assertNotNull(failure.getCause());
-            assertFalse("TLS failure must precede the RPC deadline", failure.getCause() instanceof MetTimeoutException);
+            assertFalse(failure.getCause() instanceof MetTimeoutException, "TLS failure must precede the RPC deadline");
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void plaintextAndSecureTcpMountsRemainIndependent() throws Exception {
         // 两个 TCP 端点分别提供明文与 TLS，不复制协议解析器。
         MetConfiguration incoming = this.incomingTcp("server", "NONE", "TLSv1.3,TLSv1.2");
@@ -295,7 +308,8 @@ public class OncRpcSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpDtls12ServerAuthentication() throws Exception {
         // UDP 传输在 XDR 报文之外提供 DTLS 1.2 服务端认证，保留一个数据报一条消息。
         MetConfiguration incoming = this.incomingUdp("NONE");
@@ -321,7 +335,8 @@ public class OncRpcSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpDtls12MutualAuthentication() throws Exception {
         // UDP 传输在 XDR 报文之外提供 DTLS 1.2 双向认证，保留一个数据报一条消息。
         MetConfiguration incoming = this.incomingUdp("REQUIRE");

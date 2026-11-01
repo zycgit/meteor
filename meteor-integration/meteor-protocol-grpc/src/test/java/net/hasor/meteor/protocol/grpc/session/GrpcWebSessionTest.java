@@ -36,8 +36,8 @@ import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.protocol.grpc.GrpcWebProtocol;
 import net.hasor.meteor.protocol.grpc.codec.GrpcHttpCodec;
 import net.hasor.meteor.protocol.grpc.codec.GrpcWebCodec;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class GrpcWebSessionTest {
     @Test

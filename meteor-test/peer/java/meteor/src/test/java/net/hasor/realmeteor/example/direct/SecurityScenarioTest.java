@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.security.KeyStore;
@@ -26,8 +27,9 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.example.Order;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 安全配置复用普通多协议例子，真实调用验证 TLS 身份认证与 HTTP 版本协商。 */
 public class SecurityScenarioTest {
@@ -36,7 +38,10 @@ public class SecurityScenarioTest {
     private static final String TRUST_STORE  = "classpath:/certs/multiprotocol/trust.p12";
     private static final String PASSWORD     = "meteor-test";
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "rsf", version = "1")
+    @NxnRpc(name = "dubbo")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rsfAndDubboShareAServerAuthenticatedTlsListener() throws Exception {
         // 复用普通端点和协议挂载，只在物理传输上增加服务端证书和客户端信任库。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -59,7 +64,10 @@ public class SecurityScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @NxnRpc(name = "soap", version = "1.1")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https1SelectsHttp11AndServesSharedOrders() throws Exception {
         // HTTPS 监听同时接受两种 HTTP 版本，JSON-RPC 与 SOAP 的客户端选择 HTTP/1.1。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -83,7 +91,10 @@ public class SecurityScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "grpc")
+    @NxnRpc(name = "triple")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void https2SelectsH2AndServesSharedOrders() throws Exception {
         // gRPC 与 Triple 复用普通业务绑定和 Proto，安全配置属于 HTTP 端点。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -107,7 +118,12 @@ public class SecurityScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @NxnRpc(name = "rsf", version = "1")
+    @NxnRpc(name = "dubbo")
+    @NxnRpc(name = "grpc")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientIdentityAuthenticatesBothSocketAndHttpTransports() throws Exception {
         // 服务端统一要求客户端证书，出站配置在 TCP 与 HTTP 上提供同一个客户端身份。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -133,7 +149,9 @@ public class SecurityScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "rsf", version = "1")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingClientIdentityFailsWithoutWaitingForRpcTimeout() throws Exception {
         // 服务端要求双向认证，这个客户端仅配置服务端信任库，故意不提供自己的身份。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);

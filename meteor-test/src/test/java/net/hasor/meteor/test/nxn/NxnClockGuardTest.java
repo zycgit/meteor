@@ -1,6 +1,5 @@
 package net.hasor.meteor.test.nxn;
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -19,18 +18,17 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 只在 Linux 执行容器中验证 Shell 守卫；PATH 仅开放私有夹具命令。 */
 public class NxnClockGuardTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(15);
-    @Rule
-    public final TemporaryFolder temporary = new TemporaryFolder(fixtureRoot());
+    @TempDir
+    public Path temporary;
     private Path directory;
     private Path state;
     private Path events;
@@ -39,10 +37,10 @@ public class NxnClockGuardTest {
     private Path privateBuild;
     private Map<String, String> environment;
 
-    @Before
+    @BeforeEach
     public void prepareCommands() throws Exception {
         // 采用封闭 PATH，任何漏建的 fake 命令都会失败，不能访问宿主 systemctl 或 sudo。
-        this.directory = this.temporary.getRoot().toPath();
+        this.directory = this.temporary;
         Path bin = Files.createDirectory(this.directory.resolve("bin"));
         Path clockTools = Files.createDirectories(this.directory.resolve("private/repo/meteor-test/tools/clock"));
         this.privateBuild = Files.createDirectories(this.directory.resolve("private/repo/meteor-test/build"));
@@ -397,7 +395,7 @@ public class NxnClockGuardTest {
         assertEquals(0, JSON.readTree(clockState.resolve("finished").toFile()).path("exitCode").asInt());
         assertEquals("23\n", Files.readString(clockState.resolve("owner-exit-code.txt")));
         String errors = Files.readString(artifacts.resolve("script-errors.tsv"));
-        assertTrue(errors, errors.contains("exit=23"));
+        assertTrue(errors.contains("exit=23"), errors);
     }
 
     @Test
@@ -413,7 +411,7 @@ public class NxnClockGuardTest {
         assertEquals("0\n", Files.readString(clockState.resolve("owner-exit-code.txt")));
         assertEquals(9, JSON.readTree(clockState.resolve("finished").toFile()).path("exitCode").asInt());
         String errors = Files.readString(artifacts.resolve("script-errors.tsv"));
-        assertTrue(errors, errors.contains("finished exit=9"));
+        assertTrue(errors.contains("finished exit=9"), errors);
     }
 
     @Test
@@ -430,8 +428,8 @@ public class NxnClockGuardTest {
         assertTrue(Files.isRegularFile(clockState.resolve("finished")));
         assertEquals("0\n", Files.readString(clockState.resolve("owner-exit-code.txt")));
         String errors = Files.readString(artifacts.resolve("script-errors.tsv"));
-        assertTrue(errors, errors.contains("missing restored marker"));
-        assertFalse(errors, errors.contains("missing finished marker"));
+        assertTrue(errors.contains("missing restored marker"), errors);
+        assertFalse(errors.contains("missing finished marker"), errors);
     }
 
     @Test
@@ -448,8 +446,8 @@ public class NxnClockGuardTest {
         assertFalse(Files.exists(clockState.resolve("finished")));
         assertEquals("0\n", Files.readString(clockState.resolve("owner-exit-code.txt")));
         String errors = Files.readString(artifacts.resolve("script-errors.tsv"));
-        assertTrue(errors, errors.contains("missing finished marker"));
-        assertFalse(errors, errors.contains("missing restored marker"));
+        assertTrue(errors.contains("missing finished marker"), errors);
+        assertFalse(errors.contains("missing restored marker"), errors);
     }
 
     @Test
@@ -709,11 +707,11 @@ public class NxnClockGuardTest {
             Files.writeString(release, "finish", StandardCharsets.UTF_8);
             assertTrue(process.waitFor(COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
             String console = errors.get(COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            assertNotEquals(console, 0, process.exitValue());
+            assertNotEquals(0, process.exitValue(), console);
             List<Object> records = recorded();
             int exited = records.indexOf("child-exited");
-            assertTrue(records.toString(), exited > records.indexOf("chrony-owner-exited"));
-            assertTrue(records.toString(), records.indexOf("start") > exited);
+            assertTrue(exited > records.indexOf("chrony-owner-exited"), records.toString());
+            assertTrue(records.indexOf("start") > exited, records.toString());
             assertTrue(console.contains("Windows clock owner exited unexpectedly"));
             assertEquals("active", currentState());
         } finally {
@@ -749,7 +747,7 @@ public class NxnClockGuardTest {
             assertFalse(recorded().contains("chrony-restored"));
             Files.writeString(release, "finish", StandardCharsets.UTF_8);
             assertTrue(process.waitFor(COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
-            assertEquals(errors.get(COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS), exitCode, process.exitValue());
+            assertEquals(exitCode, process.exitValue(), errors.get(COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
             if (StringUtils.equals("true", this.environment.get("GUARD_TEST_WSL"))) {
                 assertChronyLifecycle("chrony-paused", "child-exited", "chrony-restored");
             } else {
@@ -803,7 +801,7 @@ public class NxnClockGuardTest {
         CompletableFuture<String> output = read(process.getInputStream());
         CompletableFuture<String> errors = read(process.getErrorStream());
         try {
-            assertTrue("Guard command timed out", process.waitFor(COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+            assertTrue(process.waitFor(COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS), "Guard command timed out");
             return Map.of("exitCode", process.exitValue(),
                     "stdout", output.get(COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
                     "stderr", errors.get(COMMAND_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
@@ -858,9 +856,9 @@ public class NxnClockGuardTest {
         int pauseIndex = records.indexOf(pause);
         int childIndex = records.indexOf(childEvent);
         int restoredIndex = records.indexOf(restoration);
-        assertTrue(records.toString(), pauseIndex >= 0);
-        assertTrue(records.toString(), childIndex > pauseIndex);
-        assertTrue(records.toString(), restoredIndex > childIndex);
+        assertTrue(pauseIndex >= 0, records.toString());
+        assertTrue(childIndex > pauseIndex, records.toString());
+        assertTrue(restoredIndex > childIndex, records.toString());
     }
 
     private String currentState() throws Exception {
@@ -926,14 +924,7 @@ public class NxnClockGuardTest {
         throw new IllegalStateException("Clock-service guard script is missing.");
     }
 
-    private static File fixtureRoot() {
-        try {
-            Path module = guard().getParent().getParent().getParent();
-            return Files.createDirectories(module.resolve("build/meteor-test-clock-guard-fixtures")).toFile();
-        } catch (Exception failure) {
-            throw new IllegalStateException("Cannot prepare repository-local clock guard fixtures.", failure);
-        }
-    }
+
 
     private static String quote(String value) {
         return "'" + value.replace("'", "'\"'\"'") + "'";

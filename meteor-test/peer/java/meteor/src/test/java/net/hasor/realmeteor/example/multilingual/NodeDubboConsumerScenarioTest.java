@@ -4,6 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.example.protocol.dubbo.interop.DubboInteropService;
@@ -11,12 +12,16 @@ import net.hasor.example.protocol.dubbo.interop.DubboInteropServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 经典 Dubbo Node SDK 通过正式直连 API 调用 Meteor，不依赖注册中心。 */
+@NxnRpc(name = "dubbo", version = "2")
 public class NodeDubboConsumerScenarioTest {
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeSdkCallsMeteorStringEchoDirectly() throws Exception {
         // bootstrap 启动当前场景独占的 Dubbo TCP 监听，随后发布普通 Java 接口。
         MetConfiguration configuration = new MetConfiguration().setApplicationName("node-dubbo-basic-provider");

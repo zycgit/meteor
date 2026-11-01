@@ -6,6 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 import net.hasor.cobble.StringUtils;
@@ -21,21 +27,33 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
-import org.junit.*;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
 
 /** 每个协议、连接方式和业务场景单独报告；所有 Meteor 端从 bootstrap 创建并启动。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "self/{0}/{1}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "rsf", version = "1", cases = "self/rsf/*")
+@NxnRpc(name = "grpc", cases = "self/grpc/*")
+@NxnRpc(name = "grpc-web", cases = "self/grpc-web/*")
+@NxnRpc(name = "hprose", cases = "self/hprose/*")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "self/jsonrpc/*")
+@NxnRpc(name = "xmlrpc", cases = "self/xmlrpc/*")
+@NxnRpc(name = "soap", version = "1.1", cases = "self/soap/*")
+@NxnRpc(name = "hessian", version = "2", cases = "self/hessian/*")
+@NxnRpc(name = "connect", version = "1", cases = "self/connect/*")
+@NxnRpc(name = "triple", cases = "self/triple/*")
+@NxnRpc(name = "dubbo", cases = "self/dubbo/*")
+@NxnRpc(name = "thrift", cases = "self/thrift/*")
+@NxnRpc(name = "oncrpc", version = "2", cases = "self/oncrpc/*")
 public class OrderSelfMatrixTest {
-    @ClassRule
-    public static final TemporaryFolder          environmentData = new TemporaryFolder();
+    @TempDir
+    public static Path environmentData;
     private static      OrderRegistryEnvironment environment;
 
-    @Rule
-    public final  TemporaryFolder  data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final OrderProtocol    protocol;
     private final OrderDiscovery   discovery;
     private       String           scope;
@@ -46,8 +64,6 @@ public class OrderSelfMatrixTest {
         this.protocol = protocol;
         this.discovery = discovery;
     }
-
-    @Parameterized.Parameters(name = "self/{0}/{1}")
     public static Collection<Object[]> configurations() {
         // 参数枚举只生成独立用例，不在一个测试方法内循环多个业务场景。
         List<String> availableProtocols = new ArrayList<>();
@@ -71,30 +87,30 @@ public class OrderSelfMatrixTest {
         return configurations;
     }
 
-    @BeforeClass
+    @BeforeAll
     public static void createEnvironment() {
-        environment = new OrderRegistryEnvironment(environmentData.getRoot().toPath());
+        environment = new OrderRegistryEnvironment(environmentData);
     }
 
-    @AfterClass
+    @AfterAll
     public static void closeEnvironment() throws Exception {
         if (environment != null) {
             environment.close();
         }
     }
 
-    @Before
+    @BeforeEach
     public void configureApplications() throws Exception {
         // 每个方法拥有独立服务身份、数据目录和注册空间，防止从上一例缓存发现地址。
         this.scope = UUID.randomUUID().toString();
         this.incoming = this.protocol.providerConfiguration();
         this.incoming.setDefaultGroup(this.scope);
         this.incoming.setApplicationName("matrix-provider");
-        this.incoming.setDataHome(this.data.newFolder("provider").toPath());
+        this.incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         this.outgoing = this.protocol.consumerConfiguration();
         this.outgoing.setDefaultGroup(this.scope);
         this.outgoing.setApplicationName("matrix-consumer");
-        this.outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        this.outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
 
         // 注册模式只配置存储位置；内部管理使用独立 RSF 端点，业务服务仍限定当前协议。
         if (this.discovery != OrderDiscovery.DIRECT) {
@@ -108,12 +124,13 @@ public class OrderSelfMatrixTest {
         }
     }
 
-    @After
+    @AfterEach
     public void releaseDatabase() throws Exception {
         environment.release(this.scope);
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void savedOrderCanBeFoundThroughTheSelectedProtocol() throws Exception {
         // 先启动全部容器，再订阅与发布；两端从公开 API 构建真实网络链路。
         try (MetContext provider = this.incoming.buildContext(); //
@@ -136,7 +153,8 @@ public class OrderSelfMatrixTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void minimumInt32IdIsPreserved() throws Exception {
         // 独立容器与业务实例只服务本次整数下界场景。
         try (MetContext provider = this.incoming.buildContext(); //
@@ -155,7 +173,8 @@ public class OrderSelfMatrixTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void maximumInt32IdIsPreserved() throws Exception {
         // 独立容器与业务实例只服务本次整数上界场景。
         try (MetContext provider = this.incoming.buildContext(); //
@@ -174,7 +193,8 @@ public class OrderSelfMatrixTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void asciiEscapingCharactersArePreserved() throws Exception {
         // 公共向量只使用标准 ASCII，兼容 ONC XDR 的标准字符串约束。
         try (MetContext provider = this.incoming.buildContext(); //
@@ -193,7 +213,8 @@ public class OrderSelfMatrixTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyAttachmentFollowsTheDeclaredEncodingDefault() throws Exception {
         // 空附件经所有编码往返，Protobuf 注解生成入口为引用值保留 presence。
         try (MetContext provider = this.incoming.buildContext(); //
@@ -212,7 +233,8 @@ public class OrderSelfMatrixTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void everyOctetValueIsPreserved() throws Exception {
         // 所有编码消费同一份 0..255 字节向量，没有文本中转或自定义预编码。
         try (MetContext provider = this.incoming.buildContext(); //
@@ -231,7 +253,8 @@ public class OrderSelfMatrixTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingOrderReturnsABusinessFailureInsteadOfTimingOut() throws Exception {
         // 服务已发布且地址可用，查询失败只能来自不存在的订单业务行为。
         try (MetContext provider = this.incoming.buildContext(); //
@@ -247,8 +270,8 @@ public class OrderSelfMatrixTest {
             Exception failure = assertThrows(Exception.class, //
                     () -> this.protocol.find(remote, subscription, 404));
             for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-                assertFalse(failure.toString(), cause instanceof MetTimeoutException);
-                assertFalse(failure.toString(), cause instanceof TimeoutException);
+                assertFalse(cause instanceof MetTimeoutException, failure.toString());
+                assertFalse(cause instanceof TimeoutException, failure.toString());
             }
         }
     }

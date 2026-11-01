@@ -32,16 +32,19 @@ import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static java.net.http.HttpRequest.newBuilder;
 import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 在真实明文连接上验证 HTTP/2 传输 SPI。 */
 public class Http2TransportTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void acceptedSocketPublishesOnlySelectedHttp2Branch() throws Exception {
         // 同一入站 socket 会预初始化 HTTP/1 和 HTTP/2 分支，但只能发布实际选中的 HTTP/2 通道。
         ConnectorConfig config = config(Map.of("httpVersion", "2"));
@@ -75,7 +78,8 @@ public class Http2TransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void h2cPriorKnowledgeMatchesOverlappingExchangesToReversedResponses() throws Exception {
         // 只建立一条物理连接，服务端暂存二十个并行未完成的交换。
         ConnectorConfig config = config(Map.of("httpVersion", "2"));
@@ -124,7 +128,8 @@ public class Http2TransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingOneStreamLeavesAnotherExchangeUsable() throws Exception {
         // 在一条物理连接上准备两个已被服务端接收的请求。
         ConnectorConfig config = config(Map.of("httpVersion", "2"));
@@ -173,7 +178,8 @@ public class Http2TransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void drainingServerRefusesNewStreamsWhileFinishingASubmittedResponse() throws Exception {
         // 服务端保留一个尚未结束的流式响应，客户端按流读取响应正文。
         ConnectorConfig incoming = config(Map.of("httpVersion", "2"));
@@ -228,7 +234,8 @@ public class Http2TransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void responseBodyArrivesBeforeRequestEof() throws Exception {
         // 开启增量正文，服务端在收到头部后立即回传同一个正文流。
         ConnectorConfig config = config(Map.of("httpVersion", "2", "streamBody", "true"));
@@ -272,7 +279,8 @@ public class Http2TransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unconsumedResponseBackpressuresAnUploadLargerThanTheFlowWindow() throws Exception {
         // 正文大于 HTTP/2 窗口和本地缓存，使用独立生产与消费线程观察背压。
         ConnectorConfig config = config(Map.of("httpVersion", "2", "streamBody", "true"));
@@ -325,7 +333,8 @@ public class Http2TransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jdkClientUpgradesToH2cAndKeepsTheFirstRequest() throws Exception {
         // 监听明文 HTTP，由 JDK 客户端发起 HTTP/1.1 到 h2c 的升级。
         ConnectorConfig config = config(Map.of());
@@ -346,7 +355,8 @@ public class Http2TransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void interleavedBodyModesKeepRoutesIsolatedWithinEachStream() throws Exception {
         // 两个普通挂载使用不同正文模式，同时配置 WebSocket 以覆盖嵌套分支上下文。
         ConnectorConfig config = routingConfig();
@@ -411,7 +421,8 @@ public class Http2TransportTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void bufferedRequestKeepsHeaderRouteAfterMappingChanges() throws Exception {
         // 动态路由初始指向聚合挂载，使用可观察的路由查询确认头部已经完成选择。
         ConnectorConfig config = routingConfig();

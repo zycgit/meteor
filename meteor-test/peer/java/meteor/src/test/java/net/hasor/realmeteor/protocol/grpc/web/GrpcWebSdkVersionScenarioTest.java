@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,14 +17,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.node.NodeRpcPeer;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 两代官方 grpc-web 客户端在真实 Chromium 中分别使用二进制和文本模式。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/browser/grpc-web/{0}@{1}/{2}-{4}/{3}", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "grpc-web")
 public class GrpcWebSdkVersionScenarioTest {
     private final String profile;
     private final String format;
@@ -30,8 +35,6 @@ public class GrpcWebSdkVersionScenarioTest {
         this.profile = profile;
         this.format = format;
     }
-
-    @Parameterized.Parameters(name = "sdk/browser/grpc-web/{0}@{1}/{2}-{4}/{3}")
     public static List<Object[]> versions() throws Exception {
         List<Object[]> cases = new ArrayList<>();
         for (Object[] profile : NodeRpcPeer.compatibilityCases("grpc-web")) {
@@ -42,7 +45,8 @@ public class GrpcWebSdkVersionScenarioTest {
         return cases;
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void browserSdkPreservesUnicodeUnaryMessage() throws Exception {
         // 页面先创建独立 origin，真实浏览器保留 CORS 和本地网络检查。
         try (GrpcWebBrowserProcess browser = GrpcWebBrowserProcess.startVersion(this.profile)) {
@@ -64,7 +68,7 @@ public class GrpcWebSdkVersionScenarioTest {
                 int port = provider.getListenAddress("grpc-web").getPort();
                 String target = "http://" + ContainerProcess.runnerHost() + ":" + port + "/web";
                 JsonNode result = browser.invoke(target, this.format);
-                assertFalse("Browser SDK returned an error: " + result, result.has("error"));
+                assertFalse(result.has("error"), "Browser SDK returned an error: " + result);
                 assertEquals("中文🙂 <&>", result.required("value").textValue());
                 assertEquals(7, result.required("count").intValue());
             }

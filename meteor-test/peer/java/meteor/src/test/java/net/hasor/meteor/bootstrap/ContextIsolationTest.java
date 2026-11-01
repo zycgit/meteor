@@ -21,8 +21,8 @@ import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.serialize.SerializeCoder;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ContextIsolationTest extends BootstrapTestSupport {
     @Test

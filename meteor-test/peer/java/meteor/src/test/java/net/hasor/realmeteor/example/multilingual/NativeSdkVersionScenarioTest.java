@@ -4,6 +4,12 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,27 +23,25 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 上游 libtirpc 与发行包基线并存，C 和 C++ 分别通过独立订单进程进行双向互通。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/{0}/oncrpc/libtirpc@1.3.8/upstream-latest", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "oncrpc", version = "2")
 public class NativeSdkVersionScenarioTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String executableDirectory;
 
     public NativeSdkVersionScenarioTest(String language) {
         this.executableDirectory = "/opt/meteor-peer/native/versions/oncrpc/1.3.8/" + language;
     }
-
-    @Parameterized.Parameters(name = "sdk/{0}/oncrpc/libtirpc@1.3.8/upstream-latest")
     public static List<Object[]> versions() {
         // 每种语言使用以新版 libtirpc 独立编译的二进制，系统基线仍由原场景验证。
         List<Object[]> versions = new ArrayList<>();
@@ -46,11 +50,12 @@ public class NativeSdkVersionScenarioTest {
         return versions;
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sdkToMeteorOrderRoundTrip() throws Exception {
         // Meteor 经公开 bootstrap 发布 ONC RPC，使用当前场景的动态 TCP 端口。
         MetConfiguration configuration = new MetConfiguration().setUnitName("local");
-        configuration.setDataHome(this.data.newFolder().toPath());
+        configuration.setDataHome(Files.createTempDirectory(this.data, "case-"));
         OrderProtocol.ONCRPC.mount(configuration.connector("tcp").bind("0.0.0.0", 0));
         try (MetContext provider = configuration.buildContext()) {
             provider.start();
@@ -67,11 +72,12 @@ public class NativeSdkVersionScenarioTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorToSdkOrderRoundTrip() throws Exception {
         // libtirpc 提供者自行监听动态端口；Meteor 仅配置 ONC RPC 出站能力。
         MetConfiguration configuration = OrderProtocol.ONCRPC.consumerConfiguration();
-        configuration.setDataHome(this.data.newFolder().toPath());
+        configuration.setDataHome(Files.createTempDirectory(this.data, "case-"));
         List<String> command = List.of(this.executableDirectory + "/provider");
         try (OrderPeerProcess provider = OrderPeerProcess.start("native", command, null); //
              MetContext consumer = configuration.buildContext()) {

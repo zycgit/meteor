@@ -29,11 +29,15 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolStatus;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesHttpBindingTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidSoapContentTypeIsRejectedBeforeInvocation() throws Exception {
         // 启动公开 SOAP 端点，并记录业务方法是否被调用。
         AtomicInteger invocations = new AtomicInteger();
@@ -66,7 +70,8 @@ public class WebServicesHttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requestUsesMimeCharsetWhenXmlDeclarationIsAbsent() throws Exception {
         // 发布一个记录原始参数的 SOAP 服务。
         AtomicReference<String> received = new AtomicReference<>();
@@ -99,11 +104,12 @@ public class WebServicesHttpBindingTest {
             // 服务端按照 MIME 字符集还原参数，响应仍使用插件声明的 UTF-8。
             assertEquals(200, response.statusCode());
             assertEquals(message, received.get());
-            assertTrue(response.body(), response.body().contains(message));
+            assertTrue(response.body().contains(message), response.body());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void duplicateSoapActionIsRejectedBeforeInvocation() throws Exception {
         // 启动公开 SOAP 端点，并记录业务方法是否被调用。
         AtomicInteger invocations = new AtomicInteger();
@@ -133,12 +139,13 @@ public class WebServicesHttpBindingTest {
 
             // 歧义字段形成 SOAP Client Fault，业务方法没有开始执行。
             assertEquals(500, response.statusCode());
-            assertTrue(response.body(), response.body().contains("soap:Client"));
+            assertTrue(response.body().contains("soap:Client"), response.body());
             assertEquals(0, invocations.get());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingSoapActionIsRejectedBeforeInvocation() throws Exception {
         // 启动公开 SOAP 端点，并记录业务方法是否被调用。
         AtomicInteger invocations = new AtomicInteger();
@@ -166,12 +173,13 @@ public class WebServicesHttpBindingTest {
 
             // 缺失必需的 action 字段形成 Client Fault，业务方法没有执行。
             assertEquals(500, response.statusCode());
-            assertTrue(response.body(), response.body().contains("soap:Client"));
+            assertTrue(response.body().contains("soap:Client"), response.body());
             assertEquals(0, invocations.get());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mismatchedSoapActionIsRejectedBeforeInvocation() throws Exception {
         // 启动公开 SOAP 端点，并记录业务方法是否被调用。
         AtomicInteger invocations = new AtomicInteger();
@@ -200,12 +208,13 @@ public class WebServicesHttpBindingTest {
 
             // 错误 action 形成 Client Fault，业务方法没有执行。
             assertEquals(500, response.statusCode());
-            assertTrue(response.body(), response.body().contains("soap:Client"));
+            assertTrue(response.body().contains("soap:Client"), response.body());
             assertEquals(0, invocations.get());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneWayAcceptsEmptyHttp200() throws Exception {
         // 启动真实 HTTP 对端，接收请求后返回无正文的 200。
         AtomicReference<String> received = new AtomicReference<>();
@@ -236,15 +245,16 @@ public class WebServicesHttpBindingTest {
                 remote.signal("notice");
 
                 // 对端真实收到请求，调用方正常完成。
-                assertTrue("SOAP peer did not receive the notification", invoked.await(5, TimeUnit.SECONDS));
-                assertTrue(received.get(), received.get().contains("notice"));
+                assertTrue(invoked.await(5, TimeUnit.SECONDS), "SOAP peer did not receive the notification");
+                assertTrue(received.get().contains("notice"), received.get());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneWayAcceptsEmptyHttp202() throws Exception {
         // 启动真实 HTTP 对端，接收请求后返回无正文的 202。
         AtomicReference<String> received = new AtomicReference<>();
@@ -275,15 +285,16 @@ public class WebServicesHttpBindingTest {
                 remote.signal("notice");
 
                 // 对端真实收到请求，调用方正常完成。
-                assertTrue("SOAP peer did not receive the notification", invoked.await(5, TimeUnit.SECONDS));
-                assertTrue(received.get(), received.get().contains("notice"));
+                assertTrue(invoked.await(5, TimeUnit.SECONDS), "SOAP peer did not receive the notification");
+                assertTrue(received.get().contains("notice"), received.get());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneWayAcceptsEmptyHttp204() throws Exception {
         // 启动真实 HTTP 对端，接收请求后返回无正文的 204。
         AtomicReference<String> received = new AtomicReference<>();
@@ -314,15 +325,16 @@ public class WebServicesHttpBindingTest {
                 remote.signal("notice");
 
                 // 对端真实收到请求，调用方正常完成。
-                assertTrue("SOAP peer did not receive the notification", invoked.await(5, TimeUnit.SECONDS));
-                assertTrue(received.get(), received.get().contains("notice"));
+                assertTrue(invoked.await(5, TimeUnit.SECONDS), "SOAP peer did not receive the notification");
+                assertTrue(received.get().contains("notice"), received.get());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneWayRejectsNonEmptyHttp202() throws Exception {
         // 启动真实 HTTP 对端，为 one-way 调用返回带正文的 202。
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -352,14 +364,15 @@ public class WebServicesHttpBindingTest {
 
                 Throwable cause = failure.getCause();
                 assertTrue(cause instanceof IllegalArgumentException);
-                assertTrue(cause.getMessage(), cause.getMessage().contains("must return an empty HTTP"));
+                assertTrue(cause.getMessage().contains("must return an empty HTTP"), cause.getMessage());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void responseUsesMimeCharsetWhenXmlDeclarationIsAbsent() throws Exception {
         // 启动真实 HTTP 对端，返回无 XML 声明的 ISO-8859-1 SOAP 响应。
         String result = "caf\u00e9 \u00e9t\u00e9";
@@ -389,7 +402,8 @@ public class WebServicesHttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void responseRejectsUnknownMandatorySoapHeader() throws Exception {
         // 启动真实 HTTP 对端，返回发给当前节点的未知必选 SOAP Header。
         byte[] responseBody = this.echoResponseWithMandatoryHeader();
@@ -419,14 +433,15 @@ public class WebServicesHttpBindingTest {
 
                 Throwable cause = failure.getCause();
                 assertTrue(cause instanceof IllegalArgumentException);
-                assertTrue(cause.getMessage(), cause.getMessage().contains("SOAP header is not understood"));
+                assertTrue(cause.getMessage().contains("SOAP header is not understood"), cause.getMessage());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requestResponseRejectsEmptyHttp204() throws Exception {
         // 外部对端对普通双向调用返回空 204，没有返回生成契约要求的结果。
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -457,14 +472,15 @@ public class WebServicesHttpBindingTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 Throwable cause = failure.getCause();
                 assertTrue(cause instanceof IllegalArgumentException);
-                assertTrue(cause.getMessage(), cause.getMessage().contains("HTTP 204 response has no envelope"));
+                assertTrue(cause.getMessage().contains("HTTP 204 response has no envelope"), cause.getMessage());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requestResponseRejectsBusinessEnvelopeWithHttp202() throws Exception {
         // 外部对端返回合法业务结果，但使用双向调用不接受的 HTTP 202。
         byte[] responseBody = this.echoResponseWithoutDeclaration("unexpected", StandardCharsets.UTF_8);
@@ -494,14 +510,15 @@ public class WebServicesHttpBindingTest {
                 assertTrue(failure.getCause() instanceof MetException);
                 MetException fault = (MetException) failure.getCause();
                 assertEquals(ProtocolStatus.InvokeError, fault.getStatus());
-                assertTrue(fault.getMessage(), fault.getMessage().contains("HTTP status 202"));
+                assertTrue(fault.getMessage().contains("HTTP status 202"), fault.getMessage());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void responseRejectsInvalidSoapContentType() throws Exception {
         // 外部对端返回合法 SOAP 正文，但使用近似的无效媒体类型。
         byte[] responseBody = this.echoResponseWithoutDeclaration("unexpected", StandardCharsets.UTF_8);
@@ -530,14 +547,15 @@ public class WebServicesHttpBindingTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 Throwable cause = failure.getCause();
                 assertTrue(cause instanceof IllegalArgumentException);
-                assertTrue(cause.getMessage(), cause.getMessage().contains("Content-Type must be text/xml"));
+                assertTrue(cause.getMessage().contains("Content-Type must be text/xml"), cause.getMessage());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void repeatedBusinessResponseHeaderMapsItsFirstValue() throws Exception {
         // 启动真实 HTTP 对端，返回同名业务响应头的两个值。
         byte[] responseBody = this.echoResponseWithoutDeclaration("headers", StandardCharsets.UTF_8);
@@ -574,7 +592,8 @@ public class WebServicesHttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reservedResponseHeadersStayInternal() throws Exception {
         // 启动真实 HTTP 对端，在正常 SOAP 响应中携带协议控制头。
         byte[] responseBody = this.echoResponseWithoutDeclaration("headers", StandardCharsets.UTF_8);

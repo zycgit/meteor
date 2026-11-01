@@ -1,29 +1,144 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ ${1:-} == -h || ${1:-} == --help ]]; then
+usage() {
     cat <<'EOF'
-用法：./meteor-test/runnxn.sh [参数]
+用法：
+  ./meteor-test/runnxn.sh all [参数]
+  ./meteor-test/runnxn.sh rpc NAME [VERSION] [参数]
+  ./meteor-test/runnxn.sh test PATTERN [参数]
+  ./meteor-test/runnxn.sh --tests PATTERN [参数]
 
-不传参数运行全部测试，默认 16 组并行。宿主需要 JDK 17 和 Docker（含 Compose）。
+不传参数只显示帮助。测试默认 16 组并行，宿主需要 JDK 17 和 Docker（含 Compose）。
+VERSION 表示 RPC 线协议版本；Dubbo 使用 2 或 3 选择大版本。
 使用 sudo 启动时暂停 Linux timesyncd 和 WSL chronyd，测试及清理结束后恢复原状态。
 
-  --groups N       并发工作组数，1 到 16
+协议：
+  rsf grpc grpc-web hprose soap jsonrpc xmlrpc hessian connect triple dubbo thrift oncrpc
+  grpcweb 等同于 grpc-web，onc-rpc 等同于 oncrpc
+
+参数：
+  --groups N       并发工作组数，1 到 16；也可写成 --jobs N
   --tests PATTERN  只运行匹配的 JUnit 类或方法，可重复
   --skipError BOOL 遇错继续执行，默认 true；false 表示遇错停止，失败仍记入报告
   --rebuild        重建工具链镜像
   --no-build       禁止构建和拉取镜像，仍构建当前源码
+  其他参数原样传给 Gradle；--tests 与协议、版本筛选取交集
   -h, --help       查看帮助
 
 例子：
-  ./meteor-test/runnxn.sh
-  ./meteor-test/runnxn.sh --groups 4
-  ./meteor-test/runnxn.sh --tests 'net.hasor.realmeteor.protocol.grpc.*'
+  ./meteor-test/runnxn.sh all
+  ./meteor-test/runnxn.sh all --jobs 4
+  ./meteor-test/runnxn.sh rpc grpc
+  ./meteor-test/runnxn.sh rpc dubbo 3
+  ./meteor-test/runnxn.sh test 'OrderSelfMatrixTest.savedOrderCanBeFoundThroughTheSelectedProtocol*'
+  ./meteor-test/runnxn.sh rpc soap 1.2 --tests '*Soap*Test'
 
 运行说明：meteor-test/README.md
 EOF
+}
+
+entry_argument_error() {
+    printf '[entry] %s\n' "$1" >&2
+    printf '使用 ./meteor-test/runnxn.sh --help 查看用法。\n' >&2
+    exit 2
+}
+
+# 帮助和参数错误必须在身份查询、状态登记与校时暂停之前完成。
+if [[ "$#" == 0 ]]; then
+    usage
     exit 0
 fi
+entry_arguments=()
+entry_has_scope=false
+case "$1" in
+    help|-h|--help)
+        usage
+        exit 0
+        ;;
+    all)
+        entry_has_scope=true
+        shift
+        ;;
+    rpc)
+        [[ "$#" -ge 2 && -n "$2" && "$2" != -* ]] || entry_argument_error 'rpc requires a protocol name.'
+        entry_rpc=$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')
+        case "$entry_rpc" in
+            grpcweb) entry_rpc=grpc-web ;;
+            onc-rpc) entry_rpc=oncrpc ;;
+            rsf|grpc|grpc-web|hprose|soap|jsonrpc|xmlrpc|hessian|connect|triple|dubbo|thrift|oncrpc) ;;
+            *) entry_argument_error "Unknown RPC protocol: $2" ;;
+        esac
+        entry_arguments+=(--rpc "$entry_rpc")
+        entry_has_scope=true
+        shift 2
+        if [[ "$#" -gt 0 && "$1" != -* ]]; then
+            [[ -n "$1" ]] || entry_argument_error 'RPC version must not be empty.'
+            entry_arguments+=(--rpc-version "$1")
+            shift
+        fi
+        ;;
+    test)
+        [[ "$#" -ge 2 && -n "$2" && "$2" != -* ]] || entry_argument_error 'test requires a test pattern.'
+        entry_arguments+=(--tests "$2")
+        entry_has_scope=true
+        shift 2
+        ;;
+    -*) ;;
+    *) entry_argument_error "Unknown test target: $1" ;;
+esac
+
+# 只转换入口别名和筛选参数，其余 Gradle 选项保留原始参数边界。
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        help|-h|--help)
+            usage
+            exit 0
+            ;;
+        --tests)
+            [[ "$#" -ge 2 && -n "$2" && "$2" != -* ]] || entry_argument_error '--tests requires a test pattern.'
+            entry_arguments+=(--tests "$2")
+            entry_has_scope=true
+            shift 2
+            ;;
+        --tests=*)
+            entry_pattern=${1#*=}
+            [[ -n "$entry_pattern" ]] || entry_argument_error '--tests requires a test pattern.'
+            entry_arguments+=(--tests "$entry_pattern")
+            entry_has_scope=true
+            shift
+            ;;
+        --groups|--jobs)
+            [[ "$#" -ge 2 && "$2" =~ ^([1-9]|1[0-6])$ ]] ||
+                entry_argument_error "$1 requires an integer between 1 and 16."
+            entry_arguments+=(--groups "$2")
+            shift 2
+            ;;
+        --groups=*|--jobs=*)
+            entry_groups=${1#*=}
+            [[ "$entry_groups" =~ ^([1-9]|1[0-6])$ ]] ||
+                entry_argument_error "${1%%=*} requires an integer between 1 and 16."
+            entry_arguments+=(--groups "$entry_groups")
+            shift
+            ;;
+        --skipError|--platform|--maven-seed|--console|--max-workers|--warning-mode|--priority|--include-build|\
+        --project-dir|--gradle-user-home|--settings-file|--build-file|--init-script|--exclude-task|-p|-g|-c|-b|-I|-x)
+            [[ "$#" -ge 2 && -n "$2" && "$2" != -* ]] || entry_argument_error "$1 requires a value."
+            entry_arguments+=("$1" "$2")
+            shift 2
+            ;;
+        --rpc|--rpc=*|--rpc-version|--rpc-version=*)
+            entry_argument_error 'Use rpc NAME [VERSION] to select a protocol.'
+            ;;
+        -*)
+            entry_arguments+=("$1")
+            shift
+            ;;
+        *) entry_argument_error "Unexpected argument: $1" ;;
+    esac
+done
+[[ "$entry_has_scope" == true ]] || entry_argument_error 'Select all, rpc NAME, or a test pattern.'
+set -- "${entry_arguments[@]}"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 

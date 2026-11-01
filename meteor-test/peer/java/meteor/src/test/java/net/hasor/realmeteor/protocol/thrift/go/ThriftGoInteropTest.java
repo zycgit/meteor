@@ -6,6 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.thrift.go;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -23,19 +25,21 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
 import org.apache.thrift.TApplicationException;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** Apache Thrift Go 与 Meteor 双向直连，逐项验证编码、分帧和传输安全组合。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "encoding={0},framed={1},tls={2}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "thrift")
 public class ThriftGoInteropTest {
     private final String  encoding;
     private final boolean framed;
@@ -46,8 +50,6 @@ public class ThriftGoInteropTest {
         this.framed = framed;
         this.tlsMode = tlsMode;
     }
-
-    @Parameterized.Parameters(name = "encoding={0},framed={1},tls={2}")
     public static Collection<Object[]> configurations() {
         // 三种编码、两种分帧与三种安全模式分别生成独立 JUnit 参数实例。
         List<Object[]> configurations = new ArrayList<>();
@@ -61,7 +63,8 @@ public class ThriftGoInteropTest {
         return configurations;
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goClientSavesAndFindsUnicodeOrder() throws Exception {
         // Meteor 从公开 bootstrap 启动，直接发布普通注解接口和共享订单业务。
         MetConfiguration configuration = this.configuration(true);
@@ -74,12 +77,13 @@ public class ThriftGoInteropTest {
             String scenario = "unicode";
             try (GoPeerProcess peer = GoPeerProcess.start(this.variant(), "client", this.tlsMode, scenario, target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goClientSavesAndFindsMaximumIdOrder() throws Exception {
         // Meteor 从公开 bootstrap 启动，直接发布普通注解接口和共享订单业务。
         MetConfiguration configuration = this.configuration(true);
@@ -92,12 +96,13 @@ public class ThriftGoInteropTest {
             String scenario = "boundary";
             try (GoPeerProcess peer = GoPeerProcess.start(this.variant(), "client", this.tlsMode, scenario, target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goClientSavesAndFindsMinimumIdOrder() throws Exception {
         // Meteor 从公开 bootstrap 启动，直接发布普通注解接口和共享订单业务。
         MetConfiguration configuration = this.configuration(true);
@@ -110,12 +115,13 @@ public class ThriftGoInteropTest {
             String scenario = "negative-boundary";
             try (GoPeerProcess peer = GoPeerProcess.start(this.variant(), "client", this.tlsMode, scenario, target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goClientSavesAndFindsEmptyOrder() throws Exception {
         // Meteor 从公开 bootstrap 启动，直接发布普通注解接口和共享订单业务。
         MetConfiguration configuration = this.configuration(true);
@@ -128,12 +134,13 @@ public class ThriftGoInteropTest {
             String scenario = "empty";
             try (GoPeerProcess peer = GoPeerProcess.start(this.variant(), "client", this.tlsMode, scenario, target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goClientReceivesMissingOrderFailure() throws Exception {
         // 提供端没有预置订单，缺失查询必须由业务层产生可辨识的异常。
         MetConfiguration configuration = this.configuration(true);
@@ -145,13 +152,14 @@ public class ThriftGoInteropTest {
             String target = server.getListenAddress("thrift", this.scheme()).getHostPort();
             try (GoPeerProcess peer = GoPeerProcess.start(this.variant(), "client", this.tlsMode, "missing", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
-                assertTrue(result.toString(), result.path("message").asText().contains("Order not found: 404"));
+                assertTrue(result.path("ok").asBoolean(), result.toString());
+                assertTrue(result.path("message").asText().contains("Order not found: 404"), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSavesAndFindsUnicodeOrderOnGoServer() throws Exception {
         // 官方 Go 服务独立监听临时端口；Meteor 仅配置 Thrift 出站能力。
         MetConfiguration configuration = this.configuration(false);
@@ -180,7 +188,8 @@ public class ThriftGoInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSavesAndFindsMaximumIdOrderOnGoServer() throws Exception {
         // 官方 Go 服务独立监听临时端口；Meteor 仅配置 Thrift 出站能力。
         MetConfiguration configuration = this.configuration(false);
@@ -209,7 +218,8 @@ public class ThriftGoInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSavesAndFindsMinimumIdOrderOnGoServer() throws Exception {
         // 官方 Go 服务独立监听临时端口；Meteor 仅配置 Thrift 出站能力。
         MetConfiguration configuration = this.configuration(false);
@@ -238,7 +248,8 @@ public class ThriftGoInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSavesAndFindsEmptyOrderOnGoServer() throws Exception {
         // 官方 Go 服务独立监听临时端口；Meteor 仅配置 Thrift 出站能力。
         MetConfiguration configuration = this.configuration(false);
@@ -267,7 +278,8 @@ public class ThriftGoInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReceivesMissingOrderFailureFromGoServer() throws Exception {
         // Go 服务保持空订单存储，Meteor 通过 bootstrap 订阅普通注解接口。
         MetConfiguration configuration = this.configuration(false);

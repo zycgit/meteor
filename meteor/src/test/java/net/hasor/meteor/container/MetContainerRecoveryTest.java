@@ -20,8 +20,8 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.container.ContainerFixtures.Echo;
 import net.hasor.meteor.container.ContainerFixtures.EchoImpl;
 import net.hasor.meteor.container.ContainerFixtures.PassFilter;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MetContainerRecoveryTest {
     private final AddressPool  addresses = new AddressPool("unit", 1000);

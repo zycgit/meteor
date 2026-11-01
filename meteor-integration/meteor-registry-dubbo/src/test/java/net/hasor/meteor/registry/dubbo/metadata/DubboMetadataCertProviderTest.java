@@ -9,6 +9,7 @@ package net.hasor.meteor.registry.dubbo.metadata;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.dubbo.common.URL;
@@ -19,16 +20,15 @@ import org.apache.dubbo.metadata.MetadataService;
 import org.apache.dubbo.metadata.MetadataServiceV2;
 import org.apache.dubbo.rpc.model.ApplicationModel;
 import org.apache.dubbo.rpc.model.FrameworkModel;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.function.ThrowingRunnable;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 验证元数据证书 SPI 的配置隔离与资源读取，不替代真实 TLS 握手测试。 */
 public class DubboMetadataCertProviderTest {
-    @Rule
-    public final TemporaryFolder files = new TemporaryFolder();
+    @TempDir
+    Path files;
 
     @Test
     public void foreignApplicationDoesNotReceiveMetadataCertificates() {
@@ -172,7 +172,7 @@ public class DubboMetadataCertProviderTest {
             DubboMetadataCertProvider provider = new DubboMetadataCertProvider();
 
             // 配置故障在建立 TLS 上下文前可辨识。
-            ThrowingRunnable loadCertificate = () -> provider.getConsumerConnectionConfig(address);
+            Executable loadCertificate = () -> provider.getConsumerConnectionConfig(address);
             IllegalStateException failure = assertThrows(IllegalStateException.class, loadCertificate);
             assertTrue(failure.getMessage().contains("Cannot load Dubbo metadata TLS material"));
             assertTrue(failure.getMessage().contains("/missing/metadata-trust.pem"));
@@ -237,8 +237,8 @@ public class DubboMetadataCertProviderTest {
     }
 
     private File material(String name, String content) throws Exception {
-        File file = this.files.newFile(name);
-        Files.writeString(file.toPath(), content, StandardCharsets.UTF_8);
-        return file;
+        Path file = this.files.resolve(name);
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+        return file.toFile();
     }
 }

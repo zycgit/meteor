@@ -12,12 +12,15 @@ import net.hasor.example.protocol.grpc.Message;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 插件自身的 Java 提供者和消费者，通过公开入口完成真实 gRPC-Web 调用。 */
 public class GrpcWebBasicScenarioTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void bootstrapPublishesAndConsumesJsonService() throws Exception {
         // HTTP/1 上仅挂载 grpc-web，客户端不开放监听端口。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc-web");

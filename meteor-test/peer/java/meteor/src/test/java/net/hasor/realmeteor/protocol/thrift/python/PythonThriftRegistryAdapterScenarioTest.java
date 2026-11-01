@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.thrift.python;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.InputStream;
 import java.net.URI;
@@ -22,32 +26,31 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Python 官方 Thrift SDK 的显式注册适配场景，编码使用统一订单 IDL 的 Binary/Framed 配置。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "thrift/python/adapter/{0}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "thrift")
 public class PythonThriftRegistryAdapterScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
-
-    @Parameterized.Parameters(name = "thrift/python/adapter/{0}")
     public static Collection<Object[]> backends() {
         return List.of(new Object[] { "jdbc" }, new Object[] { "zookeeper" }, new Object[] { "nacos" });
     }
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
@@ -55,10 +58,11 @@ public class PythonThriftRegistryAdapterScenarioTest {
         this.backend = backend;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerDiscoversMeteorOrderProvider() throws Exception {
         // 公开 bootstrap 先启动容器，再发布普通注解接口，业务存储继续复用统一订单实现。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "meteor-thrift-provider", true);
@@ -83,10 +87,11 @@ public class PythonThriftRegistryAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversPythonOrderProvider() throws Exception {
         // Meteor 只配置出站通道及注册库，不能从固定地址取得 Python 提供者。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "meteor-thrift-consumer", false);
@@ -129,7 +134,7 @@ public class PythonThriftRegistryAdapterScenarioTest {
             throws Exception {
         MetConfiguration configuration = PythonThriftSettings.configuration("binary", true, "plain", listen);
         configuration.setApplicationName(application);
-        configuration.setDataHome(this.data.newFolder(application).toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve(application)));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 内部管理出口不开放监听，不参与 Thrift 服务发布。
         return configuration;

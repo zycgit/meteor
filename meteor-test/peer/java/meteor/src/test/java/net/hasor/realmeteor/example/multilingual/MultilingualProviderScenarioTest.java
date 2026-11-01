@@ -4,14 +4,26 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 每个外语提供者与单协议 Java 消费者 Main 直接互通。 */
-@RunWith(Parameterized.class)
+@NxnRpc(name = "grpc", cases = "example/*/grpc/direct/provider")
+@NxnRpc(name = "thrift", cases = "example/*/thrift/direct/provider")
+@NxnRpc(name = "soap", version = "1.1", cases = "example/*/soap/direct/provider")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "example/*/jsonrpc/direct/provider")
+@NxnRpc(name = "xmlrpc", cases = "example/*/xmlrpc/direct/provider")
+@NxnRpc(name = "hprose", cases = "example/*/hprose/direct/provider")
+@NxnRpc(name = "connect", version = "1", cases = "example/*/connect/direct/provider")
+@NxnRpc(name = "oncrpc", version = "2", cases = "example/*/oncrpc/direct/provider")
+@ParameterizedClass(autoCloseArguments = false, name = "example/{0}/{1}/direct/provider", quoteTextArguments = false)
+@MethodSource("scenarios")
 public class MultilingualProviderScenarioTest {
     private final String language;
     private final String protocol;
@@ -20,13 +32,12 @@ public class MultilingualProviderScenarioTest {
         this.language = language;
         this.protocol = protocol;
     }
-
-    @Parameterized.Parameters(name = "example/{0}/{1}/direct/provider")
     public static List<Object[]> scenarios() {
         return OrderPeerProcess.languagesAndProtocols();
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaConsumerSavesAndFindsTheLanguageOrder() throws Exception {
         // 外语对端自行建立真实 SDK 服务器和业务存储。
         try (OrderPeerProcess provider = OrderPeerProcess.foreignProvider(this.language, this.protocol)) {

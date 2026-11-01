@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.direct.ProtocolDescriptionExample;
 import net.hasor.example.Order;
@@ -14,12 +15,16 @@ import net.hasor.example.OrderDemoServiceImpl;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 同一订单示例分别使用自动契约与已有文件，不复制业务 DTO 或实现。 */
+@NxnRpc(name = "grpc")
 public class OrderContractMappingScenarioTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void fileConsumerCallsTheAnnotationOrderProvider() throws Exception {
         // 提供者由公共注解生成契约，消费者通过示例入口绑定已有 proto。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -42,7 +47,8 @@ public class OrderContractMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void annotationConsumerCallsTheFileOrderProvider() throws Exception {
         // 提供者以已有文件决定线上契约，消费者只依赖普通 Java 接口与公共注解。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);

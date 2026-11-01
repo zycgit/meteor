@@ -7,11 +7,11 @@
  */
 package net.hasor.meteor.protocol.soap.definition;
 import javax.xml.parsers.DocumentBuilderFactory;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class SoapXmlUtilsTest {
     @Test

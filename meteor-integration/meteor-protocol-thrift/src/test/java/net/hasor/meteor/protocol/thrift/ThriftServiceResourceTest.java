@@ -11,8 +11,8 @@ import java.util.Map;
 import net.hasor.example.protocol.thrift.generated.ExtendedInteropService;
 import net.hasor.example.protocol.thrift.generated.InteropService;
 import org.apache.thrift.ProcessFunction;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ThriftServiceResourceTest {
     @Test

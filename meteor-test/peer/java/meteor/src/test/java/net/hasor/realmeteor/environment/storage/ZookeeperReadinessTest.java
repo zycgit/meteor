@@ -19,41 +19,47 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 启动探测区分监听、进程存活和 ZooKeeper 真正开始服务。 */
 public class ZookeeperReadinessTest {
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void runningStandaloneServerIsReady() throws Exception {
         // 应用状态来自 srvr 的完整 Mode 行。
         String response = "Zookeeper version: 3.9.6\nMode: standalone\nNode count: 5\n";
         assertTrue(probeResponse(response));
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void listeningServerStillInitializingIsNotReady() throws Exception {
         // 端口可连接时，服务器仍可能处于数据库初始化阶段。
         String response = "This ZooKeeper instance is not currently serving requests\n";
         assertFalse(probeResponse(response));
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void processLivenessDoesNotCountAsApplicationReadiness() throws Exception {
         // ruok 的存活回复不能放行观察会话。
         assertFalse(probeResponse("imok\n"));
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void similarModeTextDoesNotCountAsApplicationReadiness() throws Exception {
         // 只接受完整状态行，不能因为文本包含 standalone 就误判。
         assertFalse(probeResponse("Mode: not-standalone\n"));
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void silentServerHasBoundedProbeTimeout() throws Exception {
         // 对端接受连接并读取探测，但通过信号保持响应未完成。
         ExecutorService responder = Executors.newSingleThreadExecutor();

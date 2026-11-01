@@ -12,11 +12,16 @@ import net.hasor.example.protocol.soap.EncodedGraphNode;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesEncodedDataTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rpcSoap11EncodedGraphRoundTrip() throws Exception {
         // 两端经 bootstrap 挂载 rpc/encoded SOAP 1.1，仅服务端开启监听。
         MetConfiguration incoming = new MetConfiguration();
@@ -53,7 +58,9 @@ public class WebServicesEncodedDataTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rpcSoap12EncodedGraphRoundTrip() throws Exception {
         // 两端经 bootstrap 挂载 rpc/encoded SOAP 1.2，仅服务端开启监听。
         MetConfiguration incoming = new MetConfiguration();
@@ -90,7 +97,8 @@ public class WebServicesEncodedDataTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void documentSoap11EncodedGraphRoundTrip() throws Exception {
         // 两端经 bootstrap 挂载 document/encoded SOAP 1.1，仅服务端开启监听。
         MetConfiguration incoming = new MetConfiguration();
@@ -127,7 +135,9 @@ public class WebServicesEncodedDataTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void documentSoap12EncodedGraphRoundTrip() throws Exception {
         // 两端经 bootstrap 挂载 document/encoded SOAP 1.2，仅服务端开启监听。
         MetConfiguration incoming = new MetConfiguration();
@@ -164,7 +174,8 @@ public class WebServicesEncodedDataTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rpcSoap11EncodedMatrixRoundTrip() throws Exception {
         // 两端经 bootstrap 挂载 rpc/encoded SOAP 1.1，仅服务端开启监听。
         MetConfiguration incoming = new MetConfiguration();
@@ -194,7 +205,9 @@ public class WebServicesEncodedDataTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rpcSoap12EncodedMatrixRoundTrip() throws Exception {
         // 两端经 bootstrap 挂载 rpc/encoded SOAP 1.2，仅服务端开启监听。
         MetConfiguration incoming = new MetConfiguration();

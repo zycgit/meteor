@@ -18,12 +18,16 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Dubbo 二进制帧通过公开启动入口组合 TCP、TLS 身份校验与独立端口。 */
+@NxnRpc(name = "dubbo")
 public class DubboTlsScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serverAuthenticationUsesTls12() throws Exception {
         // 双方仅启用 TLS 1.2，客户端信任服务器证书而不提供客户端身份。
         MetConfiguration incoming = this.server("server", "NONE", "TLSv1.2");
@@ -45,7 +49,8 @@ public class DubboTlsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serverAuthenticationUsesTls13() throws Exception {
         // 双方仅启用 TLS 1.3，避免测试被其他版本协商结果替代。
         MetConfiguration incoming = this.server("server", "NONE", "TLSv1.3");
@@ -66,7 +71,8 @@ public class DubboTlsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualAuthenticationUsesClientCertificate() throws Exception {
         // 服务器要求客户端证书，两端分别使用 serverAuth 和 clientAuth 测试身份。
         MetConfiguration incoming = this.server("server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -87,7 +93,8 @@ public class DubboTlsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingClientCertificateIsRejected() throws Exception {
         // 服务器要求客户端证书，客户端仅配置可信 CA。
         MetConfiguration incoming = this.server("server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -112,7 +119,8 @@ public class DubboTlsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void untrustedClientCertificateIsRejected() throws Exception {
         // 客户端携带另一 CA 签发的证书，服务器不能接受该身份。
         MetConfiguration incoming = this.server("server", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -137,7 +145,8 @@ public class DubboTlsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void untrustedServerCertificateIsRejected() throws Exception {
         // 客户端只信任另一个 CA，不能接受当前服务器的证书链。
         MetConfiguration incoming = this.server("server", "NONE", "TLSv1.3,TLSv1.2");
@@ -162,7 +171,8 @@ public class DubboTlsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serverHostnameMismatchIsRejected() throws Exception {
         // 证书链可信，但 SAN 中没有实际访问的 127.0.0.1。
         MetConfiguration incoming = this.server("wrong-host-server", "NONE", "TLSv1.3,TLSv1.2");
@@ -187,7 +197,8 @@ public class DubboTlsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void plaintextAndSecureEndpointsCanCoexist() throws Exception {
         // 同一进程使用两个 TCP 监听器，安全属性和地址别名各自独立。
         MetConfiguration incoming = this.server("server", "NONE", "TLSv1.3,TLSv1.2");
@@ -214,7 +225,8 @@ public class DubboTlsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void secureClientNeverFallsBackToPlaintext() throws Exception {
         // 服务器只有明文 Dubbo，客户端却要求 TLS。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("dubbo").setDefaultTimeout(10000);
@@ -241,7 +253,8 @@ public class DubboTlsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void secureListenerRejectsPlaintextClient() throws Exception {
         // 服务器只有 TLS Dubbo，客户端只准备明文连接。
         MetConfiguration incoming = this.server("server", "NONE", "TLSv1.3,TLSv1.2");

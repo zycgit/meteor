@@ -22,8 +22,8 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.transport.*;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 用可控的传输激活与协议握手验证端点连接结果的所有权。 */
 public class ConnectorEndpointConnectionTest {

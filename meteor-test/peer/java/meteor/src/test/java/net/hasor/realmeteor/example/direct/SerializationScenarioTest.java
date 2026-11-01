@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.Order;
@@ -14,10 +15,11 @@ import net.hasor.example.OrderDemoServiceImpl;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 同一个订单契约经 RSF 通道选择 Java、JSON、Hessian 或 Hprose 编码。 */
+@NxnRpc(name = "rsf", version = "1")
 public class SerializationScenarioTest {
     @Test
     public void javaPreservesPojoUnicodeAndBinaryFields() throws Exception {

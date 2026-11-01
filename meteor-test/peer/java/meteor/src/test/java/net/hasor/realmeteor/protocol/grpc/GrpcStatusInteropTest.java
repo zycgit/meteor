@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
@@ -28,12 +29,15 @@ import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.protocol.grpc.GrpcMetadata;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.example.protocol.grpc.MetadataServiceImpl.details;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc")
 public class GrpcStatusInteropTest extends GrpcMetadataPeer {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void filterRefusalBeforeStreamOutputReachesTheOfficialClient() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -69,7 +73,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesCancelledWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -110,7 +115,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 1，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 1);
-                assertEquals(failed.status.toString(), 1, failed.status.getCode().value());
+                assertEquals(1, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(1), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -124,7 +129,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesUnknownWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -165,7 +171,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 2，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 2);
-                assertEquals(failed.status.toString(), 2, failed.status.getCode().value());
+                assertEquals(2, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(2), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -179,7 +185,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesInvalidArgumentWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -220,7 +227,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 3，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 3);
-                assertEquals(failed.status.toString(), 3, failed.status.getCode().value());
+                assertEquals(3, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(3), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -234,7 +241,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesDeadlineExceededWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -275,7 +283,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 4，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 4);
-                assertEquals(failed.status.toString(), 4, failed.status.getCode().value());
+                assertEquals(4, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(4), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -289,7 +297,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesNotFoundWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -330,7 +339,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 5，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 5);
-                assertEquals(failed.status.toString(), 5, failed.status.getCode().value());
+                assertEquals(5, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(5), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -344,7 +353,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesAlreadyExistsWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -385,7 +395,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 6，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 6);
-                assertEquals(failed.status.toString(), 6, failed.status.getCode().value());
+                assertEquals(6, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(6), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -399,7 +409,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesPermissionDeniedWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -440,7 +451,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 7，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 7);
-                assertEquals(failed.status.toString(), 7, failed.status.getCode().value());
+                assertEquals(7, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(7), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -454,7 +465,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesResourceExhaustedWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -495,7 +507,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 8，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 8);
-                assertEquals(failed.status.toString(), 8, failed.status.getCode().value());
+                assertEquals(8, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(8), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -509,7 +521,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesFailedPreconditionWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -550,7 +563,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 9，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 9);
-                assertEquals(failed.status.toString(), 9, failed.status.getCode().value());
+                assertEquals(9, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(9), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -564,7 +577,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesAbortedWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -605,7 +619,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 10，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 10);
-                assertEquals(failed.status.toString(), 10, failed.status.getCode().value());
+                assertEquals(10, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(10), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -619,7 +633,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesOutOfRangeWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -660,7 +675,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 11，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 11);
-                assertEquals(failed.status.toString(), 11, failed.status.getCode().value());
+                assertEquals(11, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(11), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -674,7 +689,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesUnimplementedWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -715,7 +731,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 12，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 12);
-                assertEquals(failed.status.toString(), 12, failed.status.getCode().value());
+                assertEquals(12, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(12), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -729,7 +745,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesInternalWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -770,7 +787,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 13，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 13);
-                assertEquals(failed.status.toString(), 13, failed.status.getCode().value());
+                assertEquals(13, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(13), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -784,7 +801,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesUnavailableWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -825,7 +843,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 14，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 14);
-                assertEquals(failed.status.toString(), 14, failed.status.getCode().value());
+                assertEquals(14, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(14), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -839,7 +857,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesDataLossWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -880,7 +899,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 15，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 15);
-                assertEquals(failed.status.toString(), 15, failed.status.getCode().value());
+                assertEquals(15, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(15), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -894,7 +913,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesUnauthenticatedWithDetails() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -935,7 +955,7 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
             try {
                 // 触发错误码 16，检查状态、错误详情及初始和末尾元数据。
                 Result failed = call(peer, "fail", MethodDescriptor.MethodType.UNARY, 16);
-                assertEquals(failed.status.toString(), 16, failed.status.getCode().value());
+                assertEquals(16, failed.status.getCode().value(), failed.status.toString());
                 assertEquals("failure 中文 + %", failed.status.getDescription());
                 assertArrayEquals(details(16), failed.trailers.get(DETAILS));
                 Metadata.Key<String> key = Metadata.Key.of("x-error", Metadata.ASCII_STRING_MARSHALLER);
@@ -949,7 +969,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesTrailersAfterPartialStreamFailure() throws Exception {
         // 启动支持响应流的 Meteor 服务，供官方客户端读取状态与元数据。
         MetConfiguration configuration = configuration(true);
@@ -1001,7 +1022,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesCancelledWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1046,7 +1068,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesUnknownWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1091,7 +1114,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesInvalidArgumentWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1136,7 +1160,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesDeadlineExceededWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1181,7 +1206,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesNotFoundWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1226,7 +1252,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesAlreadyExistsWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1271,7 +1298,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesPermissionDeniedWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1316,7 +1344,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesResourceExhaustedWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1361,7 +1390,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesFailedPreconditionWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1406,7 +1436,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesAbortedWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1451,7 +1482,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesOutOfRangeWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1496,7 +1528,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesUnimplementedWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1541,7 +1574,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesInternalWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1586,7 +1620,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesUnavailableWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1631,7 +1666,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesDataLossWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1676,7 +1712,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesUnauthenticatedWithDetails() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();
@@ -1721,7 +1758,8 @@ public class GrpcStatusInteropTest extends GrpcMetadataPeer {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReceivesTrailersAfterPartialStreamFailure() throws Exception {
         // 启动会按请求返回指定错误码的官方服务端，再创建 Meteor 客户端。
         Server peer = startMetadataPeer();

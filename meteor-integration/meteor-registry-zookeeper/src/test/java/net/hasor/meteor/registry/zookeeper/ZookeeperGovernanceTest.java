@@ -12,8 +12,8 @@ import net.hasor.meteor.registry.shared.storage.domain.EntRuleConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
 import net.hasor.meteor.registry.shared.storage.domain.RuleKind;
 import org.apache.curator.test.TestingServer;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 治理正文的 CAS、作用范围和读取隔离。 */
 public class ZookeeperGovernanceTest {

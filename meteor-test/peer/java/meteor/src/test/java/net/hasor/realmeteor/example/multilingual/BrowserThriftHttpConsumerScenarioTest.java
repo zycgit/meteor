@@ -11,12 +11,17 @@ import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Apache Thrift 的官方 npm XHR 客户端在真实 Chromium 中消费 TJSON/HTTP 服务。 */
+@NxnRpc(name = "thrift")
 public class BrowserThriftHttpConsumerScenarioTest {
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialThriftXhrReceivesTheSavedOrder() throws Exception {
         // 公开 bootstrap 只启用 Thrift HTTP/1，普通接口及 DTO 使用已有公共字段编号映射。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("thrift-http");

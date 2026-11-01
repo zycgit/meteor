@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Flow;
@@ -18,14 +19,17 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcMetadata;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Timeout;
 
 /** 安全传输中的压缩消息保留重复、二进制头部和调用结束 trailers。 */
+@NxnRpc(name = "grpc")
 public class GrpcSecureMetadataTest {
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonTlsGzipUnaryPreservesMetadata() throws Exception {
         // 双方启用 TLS、h2 ALPN 和 gRPC gzip，并准备重复与二进制元数据。
         MetConfiguration incoming = this.configuration(true);
@@ -88,7 +92,8 @@ public class GrpcSecureMetadataTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonTlsGzipBidirectionalStreamPreservesMetadata() throws Exception {
         // 双方启用 TLS、h2 ALPN 和 gRPC gzip，并准备重复与二进制元数据。
         MetConfiguration incoming = this.configuration(true);
@@ -159,7 +164,8 @@ public class GrpcSecureMetadataTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufTlsGzipUnaryPreservesMetadata() throws Exception {
         // 双方启用 TLS、h2 ALPN 和 gRPC gzip，并准备重复与二进制元数据。
         MetConfiguration incoming = this.configuration(true);
@@ -225,7 +231,8 @@ public class GrpcSecureMetadataTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufTlsGzipBidirectionalStreamPreservesMetadata() throws Exception {
         // 双方启用 TLS、h2 ALPN 和 gRPC gzip，并准备重复与二进制元数据。
         MetConfiguration incoming = this.configuration(true);

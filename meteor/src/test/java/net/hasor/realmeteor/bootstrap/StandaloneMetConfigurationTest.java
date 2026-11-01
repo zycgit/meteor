@@ -20,8 +20,8 @@ import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import net.hasor.meteor.serialize.coder.JsonSerializeCoder;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 仅内核运行时即可通过公开配置构建上下文及调用内置协议。 */
 public class StandaloneMetConfigurationTest {

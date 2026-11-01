@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -21,13 +22,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** TLS 上的编码与流模式均通过独立方法显示在测试报告中。 */
+@NxnRpc(name = "grpc")
 public class GrpcSecureFlowTest {
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonTlsServerStream() throws Exception {
         // 准备 Json 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -60,7 +64,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonTlsClientStream() throws Exception {
         // 准备 Json 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -93,7 +98,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonTlsBidirectionalStream() throws Exception {
         // 准备 Json 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -129,7 +135,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufTlsServerStream() throws Exception {
         // 准备 Protobuf 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -165,7 +172,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufTlsClientStream() throws Exception {
         // 准备 Protobuf 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -201,7 +209,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufTlsBidirectionalStream() throws Exception {
         // 准备 Protobuf 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -240,7 +249,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaTlsServerStream() throws Exception {
         // 准备 Java 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -273,7 +283,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaTlsClientStream() throws Exception {
         // 准备 Java 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -306,7 +317,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaTlsBidirectionalStream() throws Exception {
         // 准备 Java 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -342,7 +354,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianTlsServerStream() throws Exception {
         // 准备 Hessian 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -375,7 +388,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianTlsClientStream() throws Exception {
         // 准备 Hessian 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -408,7 +422,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianTlsBidirectionalStream() throws Exception {
         // 准备 Hessian 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -444,7 +459,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hproseTlsServerStream() throws Exception {
         // 准备 Hprose 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -477,7 +493,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hproseTlsClientStream() throws Exception {
         // 准备 Hprose 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -510,7 +527,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hproseTlsBidirectionalStream() throws Exception {
         // 准备 Hprose 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -546,7 +564,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufMutualTlsBidirectionalStream() throws Exception {
         // 准备 Protobuf 编码、h2 ALPN 与双向认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, true);
@@ -585,7 +604,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonTlsCancellation() throws Exception {
         // 准备 Json 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -625,7 +645,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufTlsCancellation() throws Exception {
         // 准备 Protobuf 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -668,7 +689,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonTlsSourceFailure() throws Exception {
         // 准备 Json 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);
@@ -704,7 +726,8 @@ public class GrpcSecureFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufTlsSourceFailure() throws Exception {
         // 准备 Protobuf 编码、h2 ALPN 与服务端认证 TLS 流式连接。
         MetConfiguration incoming = this.configuration(true, false);

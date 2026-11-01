@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
@@ -15,22 +18,22 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** gRPC Core 的公开 C API 与 Meteor 直接进行单次 unary，不使用 C++ 包装或代理。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/c/grpc/gRPC-Core@{0}/{1}", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "grpc")
 public class CGrpcSdkScenarioTest {
     private final String executable;
 
     public CGrpcSdkScenarioTest(String version, String profile, String executable) {
         this.executable = executable;
     }
-
-    @Parameterized.Parameters(name = "sdk/c/grpc/gRPC-Core@{0}/{1}")
     public static List<Object[]> versions() {
         // 发行包基线与上游最新分别使用自己的二进制，不能共用已解析的运行库。
         List<Object[]> versions = new ArrayList<>();
@@ -40,7 +43,8 @@ public class CGrpcSdkScenarioTest {
         return versions;
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sdkToMeteorGrpcEcho() throws Exception {
         // 普通 Java 接口经 bootstrap 发布，共用测试契约中的标准 StringValue 方法。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -61,12 +65,13 @@ public class CGrpcSdkScenarioTest {
             List<String> command = List.of(this.executable, "consumer", message);
             try (OrderPeerProcess consumer = OrderPeerProcess.start("native", command, target)) {
                 String output = consumer.awaitOutput();
-                assertTrue(output, output.contains("RESULT " + message));
+                assertTrue(output.contains("RESULT " + message), output);
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorToSdkGrpcEcho() throws Exception {
         // Core C server 独占动态端口；Meteor 只创建出站 HTTP/2 通道。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);

@@ -6,18 +6,23 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.thrift.python;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.Collection;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Python Client 调用 Meteor，通过共享订单业务验证每个 TCP 配置。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "python-consumer/{0}/framed={1}/security={2}", quoteTextArguments = false)
+@MethodSource("parameters")
+@NxnRpc(name = "thrift")
 public class PythonConsumerScenarioTest {
     private final String  encoding;
     private final boolean framed;
@@ -28,13 +33,12 @@ public class PythonConsumerScenarioTest {
         this.framed = framed;
         this.security = security;
     }
-
-    @Parameterized.Parameters(name = "python-consumer/{0}/framed={1}/security={2}")
     public static Collection<Object[]> parameters() {
         return PythonThriftSettings.parameters();
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerReadsSavedOrder() throws Exception {
         // 公开 bootstrap 选择编码、分帧及认证配置，业务对象复用统一订单实现。
         MetConfiguration configuration = PythonThriftSettings.configuration( //
@@ -55,7 +59,8 @@ public class PythonConsumerScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerPreservesUnicode() throws Exception {
         // 公开 bootstrap 选择编码、分帧及认证配置，业务对象复用统一订单实现。
         MetConfiguration configuration = PythonThriftSettings.configuration( //
@@ -76,7 +81,8 @@ public class PythonConsumerScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerPreservesBinary() throws Exception {
         // 公开 bootstrap 选择编码、分帧及认证配置，业务对象复用统一订单实现。
         MetConfiguration configuration = PythonThriftSettings.configuration( //
@@ -97,7 +103,8 @@ public class PythonConsumerScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerReceivesBusinessFailure() throws Exception {
         // 公开 bootstrap 选择编码、分帧及认证配置，业务对象复用统一订单实现。
         MetConfiguration configuration = PythonThriftSettings.configuration( //

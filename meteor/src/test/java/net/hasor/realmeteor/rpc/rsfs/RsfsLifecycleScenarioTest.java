@@ -20,13 +20,15 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.domain.ProtocolStatus;
-import org.junit.Test;
-import org.junit.function.ThrowingRunnable;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** RSF 调用生命周期在 TLS 传输中保持原有协议语义。 */
 public class RsfsLifecycleScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void messageAcknowledgementDoesNotWaitForBusinessCompletion() throws Exception {
         // 使用双向 TLS，业务保持阻塞以区分入队确认和执行完成。
         MetConfiguration incoming = RsfsConfigurations.server("server", "REQUIRE");
@@ -55,7 +57,8 @@ public class RsfsLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void businessFailureKeepsItsProtocolStatus() throws Exception {
         // 在 JSON 编码和双向 TLS 下发布会抛出业务异常的接口。
         MetConfiguration incoming = RsfsConfigurations.server("server", "REQUIRE");
@@ -83,7 +86,8 @@ public class RsfsLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingOneCallLeavesTheTlsConnectionUsable() throws Exception {
         // 两个业务线程允许阻塞调用仍在运行时，另一个接口验证取消后的连接可用性。
         MetConfiguration incoming = RsfsConfigurations.server("server", "REQUIRE");
@@ -117,7 +121,8 @@ public class RsfsLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serverDisconnectFailsThePendingCall() throws Exception {
         // 通过单向 TLS 建立请求，并等待它进入服务方法。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");
@@ -137,7 +142,7 @@ public class RsfsLifecycleScenarioTest {
             try {
                 assertTrue(provider.entered().await(5, TimeUnit.SECONDS));
                 server.close();
-                ThrowingRunnable pending = () -> call.get(5, TimeUnit.SECONDS);
+                Executable pending = () -> call.get(5, TimeUnit.SECONDS);
                 ExecutionException failure = assertThrows(ExecutionException.class, pending);
                 assertNotNull(failure.getCause());
                 assertFalse(failure.getCause() instanceof MetTimeoutException);

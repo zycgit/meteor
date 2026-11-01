@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.connect;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,12 +22,15 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.connect.ConnectMetadata;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "connect", version = "1")
 public class ConnectMetadataScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void compressedJsonUnaryPreservesRepeatedAndBinaryMetadata() throws Exception {
         // 双方启用 gzip，应用元数据与协议保留字段分别处理。
         MetConfiguration incoming = this.configuration(true, false);
@@ -81,7 +85,8 @@ public class ConnectMetadataScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tlsCompressedProtobufBidirectionalStreamPreservesFinalMetadata() throws Exception {
         // 双方启用 gzip，应用元数据与协议保留字段分别处理。
         MetConfiguration incoming = this.configuration(true, true);

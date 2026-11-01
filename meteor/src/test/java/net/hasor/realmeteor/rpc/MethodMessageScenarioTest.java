@@ -13,8 +13,8 @@ import net.hasor.meteor.*;
 import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.ProtocolStatus;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 同一接口的方法通过 TCP RSF 分别使用消息调用和普通调用。 */
 public class MethodMessageScenarioTest {

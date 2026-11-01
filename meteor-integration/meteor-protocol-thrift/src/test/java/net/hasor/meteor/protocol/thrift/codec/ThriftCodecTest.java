@@ -38,10 +38,10 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TMessageType;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TMemoryInputTransport;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ThriftCodecTest {
     private final ThriftWireCodec                wire = new ThriftWireCodec(1024 * 1024, 1000, 32);
@@ -51,7 +51,7 @@ public class ThriftCodecTest {
     private       ThriftCodec                    codec;
     private       RouteMountIndex                routes;
 
-    @Before
+    @BeforeEach
     public void preparePublishedServiceMetadata() throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("thrift").setDefaultGroup("wire");
         configuration.connector("tcp").protocol("thrift");
@@ -64,7 +64,7 @@ public class ThriftCodecTest {
         this.codec = new ThriftCodec(this.protocol, this.routes, this.context);
     }
 
-    @After
+    @AfterEach
     public void closeContext() throws Exception {
         if (this.context != null) {
             this.context.close();
@@ -365,7 +365,7 @@ public class ThriftCodecTest {
         // 编码前拒绝错误配置，并提示通过 encoding 选择 Thrift 线协议编码。
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
                 () -> this.codec.encodeRequest(request, 1));
-        assertTrue(failure.getMessage(), failure.getMessage().contains("encoding"));
+        assertTrue(failure.getMessage().contains("encoding"), failure.getMessage());
     }
 
     @Test

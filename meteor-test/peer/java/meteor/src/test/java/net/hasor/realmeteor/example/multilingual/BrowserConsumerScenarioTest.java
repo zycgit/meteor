@@ -6,11 +6,16 @@
 package net.hasor.realmeteor.example.multilingual;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Chromium 打开真实页面，通过容器网络调用独立的 Meteor 提供者。 */
+@NxnRpc(name = "grpc-web")
 public class BrowserConsumerScenarioTest {
-    @Test(timeout = 150000)
+    @Test
+    @Timeout(value = 150000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void browserPageSavesAndFindsTheGrpcWebOrder() throws Exception {
         // 页面与 RPC 服务分别在常驻容器内使用独立进程和系统分配的端口。
         String pageServer = "/opt/meteor-peer/node/grpcweb/order-page/serve.mjs";

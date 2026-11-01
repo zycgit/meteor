@@ -31,10 +31,12 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetTimeoutException;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
+@NxnRpc(name = "rsf", version = "1")
 public class ContextRpcTest extends BootstrapTestSupport {
 
     @Test
@@ -207,7 +209,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
                     socket.getOutputStream().flush();
                     socket.setSoTimeout(300);
                     String failureMessage = "Expired request reached the socket";
-                    assertThrows(failureMessage, SocketTimeoutException.class, input::read);
+                    assertThrows(SocketTimeoutException.class, input::read, failureMessage);
                 }
             }
         }
@@ -229,7 +231,7 @@ public class ContextRpcTest extends BootstrapTestSupport {
             CountDownLatch finished = new CountDownLatch(1);
             Signal handler = value -> {
                 entered.countDown();
-                assertTrue("Handler was not released", release.await(10, TimeUnit.SECONDS));
+                assertTrue(release.await(10, TimeUnit.SECONDS), "Handler was not released");
                 finished.countDown();
             };
             server.publisher().rsfService(Signal.class).toInstance(handler).asMessage().register();
@@ -622,6 +624,8 @@ public class ContextRpcTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void rsfWithHprosePreservesUnicode() throws Exception {
         // 准备 RSF 两端，通过 Hprose 序列化验证中文和补充平面字符。
@@ -659,6 +663,8 @@ public class ContextRpcTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void rsfWithHprosePreservesEmptyString() throws Exception {
         // 准备 RSF 两端，通过 Hprose 序列化验证空字符串。
@@ -696,6 +702,8 @@ public class ContextRpcTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void rsfWithHprosePreservesNull() throws Exception {
         // 准备 RSF 两端，通过 Hprose 序列化验证 null。
@@ -733,6 +741,8 @@ public class ContextRpcTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void rsfWithHprosePreservesPrimitiveParameters() throws Exception {
         // 准备 RSF 两端，通过 Hprose 序列化验证基本类型参数。
@@ -770,6 +780,8 @@ public class ContextRpcTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void rsfWithHprosePreservesArray() throws Exception {
         // 准备 RSF 两端，通过 Hprose 序列化验证数组内容。

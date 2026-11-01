@@ -33,27 +33,33 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.runner.Description;
-import org.junit.runner.notification.Failure;
-import org.junit.runner.notification.RunListener;
-import org.junit.runner.notification.RunNotifier;
+import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.support.descriptor.ClassSource;
+import org.junit.platform.engine.support.descriptor.MethodSource;
+import org.junit.platform.launcher.TestExecutionListener;
+import org.junit.platform.launcher.TestIdentifier;
+import org.junit.platform.launcher.TestPlan;
+import net.hasor.cobble.StringUtils;
+import net.hasor.meteor.test.nxn.NxnRpcSelection;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 /** 保存本 JVM 实际执行的 JUnit 实例、原始输出和与现有聚合兼容的 XML/JSON。 */
-final class JUnitJobReport extends RunListener implements AutoCloseable {
+final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final Path output;
     private final Path report;
     private final Map<String, Object> configuration;
-    private final RunNotifier notifier;
-    private final Set<Description> plannedCases = new LinkedHashSet<>();
+    private TestPlan plan;
+    private boolean failureStopped;
+    private final Set<String> startedIdentities = new LinkedHashSet<>();
+    private final Set<TestIdentifier> plannedCases = new LinkedHashSet<>();
     private final Map<String, Document> suites = new LinkedHashMap<>();
-    private final Map<Description, Element> cases = new LinkedHashMap<>();
-    private final Map<Description, Long> starts = new LinkedHashMap<>();
-    private final Set<Description> startedCases = new LinkedHashSet<>();
-    private final Set<Description> failedCases = new LinkedHashSet<>();
-    private final Set<Description> skippedCases = new LinkedHashSet<>();
+    private final Map<TestIdentifier, Element> cases = new LinkedHashMap<>();
+    private final Map<TestIdentifier, Long> starts = new LinkedHashMap<>();
+    private final Set<TestIdentifier> startedCases = new LinkedHashSet<>();
+    private final Set<TestIdentifier> failedCases = new LinkedHashSet<>();
+    private final Set<TestIdentifier> skippedCases = new LinkedHashSet<>();
     private final Map<String, Long> suiteStarts = new LinkedHashMap<>();
     private final Map<String, Long> suiteEnds = new LinkedHashMap<>();
     private final Map<String, OutputStream> captured = new LinkedHashMap<>();
@@ -68,10 +74,12 @@ final class JUnitJobReport extends RunListener implements AutoCloseable {
     private int total;
     private boolean testTaskStarted;
 
-    JUnitJobReport(Path output, Map<String, Object> selection, RunNotifier notifier) throws Exception {
+    JUnitJobReport(Path output, Map<String, Object> selection) throws Exception {
         this.output = output.toAbsolutePath();
         this.configuration = new LinkedHashMap<>(selection);
-        this.notifier = notifier;
+        this.configuration.putIfAbsent("rpc", "");
+        this.configuration.putIfAbsent("rpcVersion", "");
+        this.configuration.putIfAbsent("rpcCases", Map.of());
         String runId = selection.get("orchestrationRunId") + "-" + selection.get("groupId");
         this.report = this.output.resolve("interoperability");
         Files.createDirectories(this.report.getParent());
@@ -91,7 +99,7 @@ final class JUnitJobReport extends RunListener implements AutoCloseable {
         Map<String, String> environment = containerEnvironment();
         boolean configured = environment.keySet().stream().anyMatch(name -> name.startsWith("METEOR_TEST_SERVICE_"));
         this.configuration.put("containerRuntime", Map.of("configured", configured, "environment", environment));
-        this.configuration.put("executionModel", "junit4-independent-jvm");
+        this.configuration.put("executionModel", "jupiter-independent-jvm");
         this.configuration.put("xmlOutputScope", "JUnit execution; the process supervisor retains JVM shutdown output");
         this.configuration.put("processId", ProcessHandle.current().pid());
         this.configuration.put("executionPlatform", Map.of("os", System.getProperty("os.name"),
@@ -157,113 +165,238 @@ final class JUnitJobReport extends RunListener implements AutoCloseable {
     }
 
     @Override
-    public synchronized void testRunStarted(Description description) {
+    public synchronized void testPlanExecutionStarted(TestPlan plan) {
+        this.plan = plan;
         this.testTaskStarted = true;
-        this.total = description.testCount();
-        this.collectPlannedCases(description);
-        this.printProgress("preparing", null);
+        for (TestIdentifier root : plan.getRoots()) {
+            this.collectPlannedCases(root);
+        }
+        this.printProgress("preparing", null, null);
     }
 
-    private void collectPlannedCases(Description description) {
-        if (description.getChildren().isEmpty()) {
-            this.plannedCases.add(description);
-            return;
+    @Override
+    public synchronized void dynamicTestRegistered(TestIdentifier identifier) {
+        this.collectPlannedCases(identifier);
+    }
+
+    private void collectPlannedCases(TestIdentifier identifier) {
+        if (identifier.isTest() && this.selected(identifier)) {
+            this.plannedCases.add(identifier);
         }
-        for (Description child : description.getChildren()) {
+        for (TestIdentifier child : this.plan.getChildren(identifier)) {
             this.collectPlannedCases(child);
         }
+        this.total = this.plannedCases.size();
     }
 
     @Override
-    public synchronized void testSuiteStarted(Description description) {
-        String name = description.getClassName();
-        if (this.configuration.get("classNames") instanceof List<?> names && names.contains(name)) {
-            this.currentClass = name;
-            this.suiteStarts.putIfAbsent(name, System.nanoTime());
-            this.printProgress("preparing", null);
+    public synchronized void executionStarted(TestIdentifier identifier) {
+        String className = this.className(identifier);
+        if (!identifier.isTest()) {
+            if (className != null) {
+                this.currentClass = className;
+                this.suiteStarts.putIfAbsent(className, System.nanoTime());
+                this.printProgress("preparing", null, null);
+            }
+            return;
+        }
+        if (!this.selected(identifier)) {
+            return;
+        }
+        try {
+            // UniqueId 保留引擎身份；显示名称重复时仍拒绝一个矩阵场景被悄悄合并。
+            String caseId = this.caseId(identifier);
+            if (!this.startedCases.add(identifier) || !this.startedIdentities.add(caseId)) {
+                this.executionFailed(new IllegalStateException("Duplicate JUnit testcase identity: " + caseId));
+            }
+            this.plannedCases.add(identifier);
+            this.total = this.plannedCases.size();
+            this.currentClass = className;
+            this.addCase(identifier);
+            this.starts.put(identifier, System.nanoTime());
+            this.originalOut.println("[JUnit] " + caseId);
+            this.printProgress("testing", null, null);
+        } catch (Exception failure) {
+            this.executionFailed(failure);
         }
     }
 
     @Override
-    public synchronized void testSuiteFinished(Description description) {
-        String name = description.getClassName();
-        if (this.suiteStarts.containsKey(name)) {
-            this.suiteEnds.put(name, System.nanoTime());
-            this.printProgress("cleanup", null);
+    public synchronized void executionFinished(TestIdentifier identifier, TestExecutionResult result) {
+        try {
+            if (result.getStatus() == TestExecutionResult.Status.FAILED) {
+                Throwable failure = result.getThrowable().orElseThrow();
+                if (this.className(identifier) == null) {
+                    this.executionFailed(failure);
+                } else {
+                    this.plannedCases.add(identifier);
+                    this.total = this.plannedCases.size();
+                    this.addFailure(identifier, failure);
+                }
+            } else if (identifier.isTest() && result.getStatus() == TestExecutionResult.Status.ABORTED) {
+                String reason = result.getThrowable().map(Throwable::getMessage).orElse("Aborted by JUnit");
+                this.addSkipped(identifier, reason);
+                this.skippedCases.add(identifier);
+            }
+            Long start = this.starts.remove(identifier);
+            Element testcase = this.cases.get(identifier);
+            if (testcase != null && start != null) {
+                testcase.setAttribute("time", seconds(System.nanoTime() - start));
+            }
+            String className = this.className(identifier);
+            if (className != null) {
+                this.suiteEnds.put(className, System.nanoTime());
+            }
+            this.printProgress(this.starts.isEmpty() ? "cleanup" : "testing", null, null);
+        } catch (Exception failure) {
+            this.executionFailed(failure);
         }
     }
 
     @Override
-    public synchronized void testStarted(Description description) throws Exception {
-        if (!this.startedCases.add(description)) {
-            this.executionFailed(new IllegalStateException("Duplicate JUnit testcase identity: " + description));
+    public synchronized void executionSkipped(TestIdentifier identifier, String reason) {
+        // 工作组筛选和快速失败留下真实的未执行计划，不伪造 JUnit 跳过或 XML。
+        if (reason.startsWith(JUnitJobCondition.INTERNAL_REASON)) {
+            return;
         }
-        this.currentClass = description.getClassName();
-        this.addCase(description);
-        this.starts.put(description, System.nanoTime());
-        this.originalOut.println("[JUnit] " + description.getClassName() + "#" + description.getMethodName());
-        this.printProgress("testing", null);
+        try {
+            if (identifier.isTest()) {
+                if (this.selected(identifier)) {
+                    this.addSkipped(identifier, reason);
+                    this.skippedCases.add(identifier);
+                }
+            } else {
+                for (TestIdentifier child : this.plan.getChildren(identifier)) {
+                    this.executionSkipped(child, reason);
+                }
+            }
+            this.printProgress(this.starts.isEmpty() ? "cleanup" : "testing", null, null);
+        } catch (Exception failure) {
+            this.executionFailed(failure);
+        }
     }
 
-    @Override
-    public synchronized void testFinished(Description description) {
-        Long start = this.starts.remove(description);
-        Element testcase = this.cases.get(description);
-        if (testcase != null && start != null) {
-            testcase.setAttribute("time", seconds(System.nanoTime() - start));
-            this.suiteEnds.put(testcase.getAttribute("classname"), System.nanoTime());
-        }
-        this.printProgress(this.starts.isEmpty() ? "cleanup" : "testing", null);
-    }
-
-    @Override
-    public synchronized void testFailure(Failure failure) throws Exception {
-        Element testcase = this.addCase(failure.getDescription());
+    synchronized void addFailure(TestIdentifier identifier, Throwable failure) throws Exception {
+        Element testcase = this.addCase(identifier);
         Element failed = testcase.getOwnerDocument().createElement("failure");
         failed.setAttribute("message", xmlText(failure.getMessage()));
-        failed.setAttribute("type", failure.getException().getClass().getName());
-        failed.setTextContent(xmlText(failure.getTrace()));
+        failed.setAttribute("type", failure.getClass().getName());
+        failed.setTextContent(xmlText(trace(failure)));
         testcase.appendChild(failed);
-        this.failedCases.add(failure.getDescription());
-        this.printProgress(this.starts.isEmpty() ? "cleanup" : "testing", failure);
+        this.failedCases.add(identifier);
+        this.printProgress(this.starts.isEmpty() ? "cleanup" : "testing", identifier, failure);
+        failure.printStackTrace(this.originalErr);
+        this.failureStopped = Boolean.FALSE.equals(this.configuration.get("skipError"));
+    }
 
-        // 自定义 JUnit 监听器自行输出完整异常，外层运行日志才能立即显示失败堆栈。
-        failure.getException().printStackTrace(this.originalErr);
-        if (Boolean.FALSE.equals(this.configuration.get("skipError"))) {
-            this.notifier.pleaseStop();
+    boolean failureStopped() {
+        return this.failureStopped;
+    }
+
+    boolean hasSelectedCases() {
+        return !this.plannedCases.isEmpty();
+    }
+
+    boolean selected(String className, String method) {
+        int parameter = method.indexOf('[');
+        List<String> names = new ArrayList<>();
+        if (parameter >= 0 && method.endsWith("]")) {
+            names.add(method.substring(parameter + 1, method.length() - 1));
         }
+        return this.selected(className, method, names);
     }
 
-    @Override
-    public synchronized void testAssumptionFailure(Failure failure) {
-        try {
-            this.addSkipped(failure.getDescription(), failure.getMessage());
-            this.skippedCases.add(failure.getDescription());
-            this.printProgress(this.starts.isEmpty() ? "cleanup" : "testing", null);
-        } catch (Exception reportFailure) {
-            this.executionFailed(reportFailure);
+    boolean selected(String className, String method, List<String> parameterNames) {
+        List<String> filters = new ArrayList<>();
+        if (this.configuration.get("includes") instanceof List<?> values) {
+            values.forEach(value -> filters.add((String) value));
         }
+        if (filters.isEmpty() && this.configuration.get("classNames") instanceof List<?> names) {
+            names.forEach(value -> filters.add((String) value));
+        }
+        if (!JUnitJobMain.matchesSelection(filters, className, method)) {
+            return false;
+        }
+        int parameter = method.indexOf('[');
+        String declaration = parameter < 0 ? method : method.substring(0, parameter);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rpcCases = (Map<String, Object>) this.configuration.get("rpcCases");
+        String rpc = (String) this.configuration.get("rpc");
+        String version = (String) this.configuration.get("rpcVersion");
+        return NxnRpcSelection.selected(rpcCases, rpc, version, className, declaration, parameterNames);
     }
 
-    @Override
-    public synchronized void testIgnored(Description description) throws Exception {
-        this.addSkipped(description, "Ignored by JUnit");
-        this.skippedCases.add(description);
-        this.printProgress(this.starts.isEmpty() ? "cleanup" : "testing", null);
+    private boolean selected(TestIdentifier identifier) {
+        String className = this.className(identifier);
+        if (className == null) {
+            return false;
+        }
+        String method = this.methodName(identifier);
+        List<String> parameterNames = this.parameterNames(identifier);
+        return this.selected(className, method, parameterNames);
     }
 
-    private synchronized void printProgress(String phase, Failure failure) {
+    private List<String> parameterNames(TestIdentifier identifier) {
+        List<String> names = new ArrayList<>();
+        TestIdentifier parent = this.plan.getParent(identifier).orElse(null);
+        while (parent != null) {
+            String segment = parent.getUniqueIdObject().getLastSegment().getType();
+            if (StringUtils.equals("class-template-invocation", segment)) {
+                names.add(parent.getDisplayName());
+            }
+            parent = this.plan.getParent(parent).orElse(null);
+        }
+        String segment = identifier.getUniqueIdObject().getLastSegment().getType();
+        if (StringUtils.equals("test-template-invocation", segment)) {
+            names.add(identifier.getDisplayName());
+        }
+        return names;
+    }
+
+    private String className(TestIdentifier identifier) {
+        if (identifier.getSource().orElse(null) instanceof MethodSource source) {
+            return source.getClassName();
+        }
+        if (identifier.getSource().orElse(null) instanceof ClassSource source) {
+            return source.getClassName();
+        }
+        return this.plan == null ? null : this.plan.getParent(identifier).map(this::className).orElse(null);
+    }
+
+    private String methodName(TestIdentifier identifier) {
+        if (!(identifier.getSource().orElse(null) instanceof MethodSource source)) {
+            return "initializationError";
+        }
+        String name = source.getMethodName();
+        // 参数类的显示名称来自父调用节点，普通方法名不附加 Jupiter 的空括号。
+        TestIdentifier parent = this.plan.getParent(identifier).orElse(null);
+        while (parent != null) {
+            String segment = parent.getUniqueIdObject().getLastSegment().getType();
+            if (StringUtils.equals("class-template-invocation", segment)) {
+                name += "[" + parent.getDisplayName() + "]";
+            }
+            parent = this.plan.getParent(parent).orElse(null);
+        }
+        if (StringUtils.equals("test-template-invocation", identifier.getUniqueIdObject().getLastSegment().getType())) {
+            name += "[" + identifier.getDisplayName() + "]";
+        }
+        return name;
+    }
+
+    private String caseId(TestIdentifier identifier) {
+        return this.className(identifier) + "#" + this.methodName(identifier);
+    }
+
+    private synchronized void printProgress(String phase, TestIdentifier failedIdentifier, Throwable failure) {
         if (this.progressWriter == null) {
             return;
         }
         try {
-            // 沿用实际 JUnit 身份，逐事件追加并刷新，编排器独立读取本组的进度文件。
             long now = System.nanoTime();
             String current = this.currentClass;
             long testElapsed = 0;
-            for (Map.Entry<Description, Long> entry : this.starts.entrySet()) {
-                Description description = entry.getKey();
-                current = description.getClassName() + "#" + description.getMethodName();
+            for (Map.Entry<TestIdentifier, Long> entry : this.starts.entrySet()) {
+                current = this.caseId(entry.getKey());
                 testElapsed = (now - entry.getValue()) / 1_000_000;
             }
             Map<String, Object> progress = new LinkedHashMap<>();
@@ -278,40 +411,33 @@ final class JUnitJobReport extends RunListener implements AutoCloseable {
             progress.put("elapsedMillis", (now - this.startedNanos) / 1_000_000);
             progress.put("testElapsedMillis", testElapsed);
             if (failure != null) {
-                Throwable cause = failure.getException();
-                Description description = failure.getDescription();
-                String method = description.getMethodName();
-                if (method == null) {
-                    method = "initializationError";
-                }
-                progress.put("failure", cause.getClass().getName() + ": " + failure.getMessage());
-                progress.put("case", description.getClassName() + "#" + method);
+                progress.put("failure", failure.getClass().getName() + ": " + failure.getMessage());
+                progress.put("case", this.caseId(failedIdentifier));
             }
             this.progressWriter.write(JSON.writeValueAsString(progress));
             this.progressWriter.newLine();
             this.progressWriter.flush();
         } catch (Exception problem) {
-            // 进度展示不参与结果判定，不能改变原有 XML、退出码和资源清理流程。
             this.originalErr.println("Cannot append JUnit progress");
             problem.printStackTrace(this.originalErr);
         }
     }
 
-    private void addSkipped(Description description, String message) throws Exception {
-        Element testcase = this.addCase(description);
+    private void addSkipped(TestIdentifier identifier, String message) throws Exception {
+        Element testcase = this.addCase(identifier);
         Element ignored = testcase.getOwnerDocument().createElement("skipped");
         ignored.setAttribute("message", xmlText(message));
         testcase.appendChild(ignored);
     }
 
-    private Element addCase(Description description) throws Exception {
-        Element existing = this.cases.get(description);
+    private Element addCase(TestIdentifier identifier) throws Exception {
+        Element existing = this.cases.get(identifier);
         if (existing != null) {
             return existing;
         }
-        String className = description.getClassName();
+        String className = this.className(identifier);
         if (className == null) {
-            throw new IOException("JUnit reported a testcase without a class: " + description);
+            throw new IOException("JUnit reported a testcase without a class: " + identifier);
         }
         Document document = this.suites.get(className);
         if (document == null) {
@@ -325,13 +451,13 @@ final class JUnitJobReport extends RunListener implements AutoCloseable {
             this.suites.put(className, document);
         }
         this.suiteStarts.putIfAbsent(className, System.nanoTime());
-        String method = description.getMethodName();
         Element testcase = document.createElement("testcase");
-        testcase.setAttribute("name", method == null ? "initializationError" : method);
+        testcase.setAttribute("name", this.methodName(identifier));
         testcase.setAttribute("classname", className);
+        testcase.setAttribute("uniqueId", identifier.getUniqueId());
         testcase.setAttribute("time", "0");
         document.getDocumentElement().appendChild(testcase);
-        this.cases.put(description, testcase);
+        this.cases.put(identifier, testcase);
         return testcase;
     }
 
@@ -353,13 +479,13 @@ final class JUnitJobReport extends RunListener implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        this.printProgress("reporting", null);
+        this.printProgress("reporting", null, null);
 
         try {
             this.writeReports();
         } finally {
             // 报告成功或失败都先追加清理阶段，再释放自己创建的进度文件。
-            this.printProgress("cleanup", null);
+            this.printProgress("cleanup", null, null);
             if (this.progressWriter != null) {
                 try {
                     this.progressWriter.close();
@@ -455,10 +581,12 @@ final class JUnitJobReport extends RunListener implements AutoCloseable {
     private void writeSummary(List<Map<String, Object>> selected) throws IOException {
         Map<String, Object> cleanup = this.registryCleanup();
         Map<String, Object> summary = new LinkedHashMap<>();
-        for (String key : List.of("runId", "orchestrationRunId", "groupId", "includes")) {
+        List<String> identity = List.of("runId", "orchestrationRunId", "groupId", "includes",
+                "rpc", "rpcVersion", "rpcCases");
+        for (String key : identity) {
             summary.put(key, this.configuration.get(key));
         }
-        summary.put("executionModel", "junit4-independent-jvm");
+        summary.put("executionModel", "jupiter-independent-jvm");
         summary.put("timings", Map.of("testWallSeconds", (System.nanoTime() - this.startedNanos) / 1e9,
                 "compilationTaskSeconds", 0, "tasks", List.of()));
         summary.put("tests", selected.size());
@@ -472,12 +600,8 @@ final class JUnitJobReport extends RunListener implements AutoCloseable {
         }
         List<String> planned = new ArrayList<>();
         List<String> notExecuted = new ArrayList<>();
-        for (Description description : this.plannedCases) {
-            String method = description.getMethodName();
-            if (method == null) {
-                method = "initializationError";
-            }
-            String caseId = description.getClassName() + "#" + method;
+        for (TestIdentifier identifier : this.plannedCases) {
+            String caseId = this.caseId(identifier);
             planned.add(caseId);
             if (!executed.contains(caseId)) {
                 notExecuted.add(caseId);
@@ -489,6 +613,9 @@ final class JUnitJobReport extends RunListener implements AutoCloseable {
         summary.put("skipError", this.configuration.getOrDefault("skipError", true));
         summary.put("testTaskStarted", this.testTaskStarted);
         summary.put("resultsAvailable", !selected.isEmpty());
+        String rpc = (String) this.configuration.get("rpc");
+        boolean selectionEmpty = !rpc.isBlank() && this.plannedCases.isEmpty() && this.executionFailure == null;
+        summary.put("selectionEmpty", selectionEmpty);
         summary.put("reusedResults", false);
         summary.put("excludedPreviousResultFiles", 0);
         summary.put("taskFailure", this.executionFailure == null ? null : trace(this.executionFailure));

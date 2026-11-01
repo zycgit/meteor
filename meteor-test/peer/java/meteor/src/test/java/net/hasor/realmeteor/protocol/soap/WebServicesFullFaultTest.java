@@ -18,14 +18,18 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.SoapFault;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Element;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.2")
 public class WebServicesFullFaultTest {
     private static final String SOAP_12 = "http://www.w3.org/2003/05/soap-envelope";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12FaultPreservesAllStandardFieldsAcrossHttp() throws Exception {
         // 服务声明完整 SOAP 1.2 Fault，Detail 的 QName 引用继承自祖先命名空间。
         Element holder = this.element("""
@@ -84,7 +88,9 @@ public class WebServicesFullFaultTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.1")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11FaultPreservesActorDetailAndQualifiedExtensions() throws Exception {
         // SOAP 1.1 应用 Fault 支持 faultactor 和额外命名空间限定子元素。
         SoapFault declared = SoapFault.create(new QName("urn:example:fault", "Client.Validation"), "invalid request") //
@@ -127,7 +133,8 @@ public class WebServicesFullFaultTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void duplicateReasonLanguageRemainsReadable() throws Exception {
         // SOAP 1.2 对不同语言仅作 SHOULD 建议，同语言的多段说明仍是合法 Fault。
         SoapFault declared = SoapFault.create(new QName(SOAP_12, "Receiver"), "first explanation") //

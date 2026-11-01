@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -23,25 +28,24 @@ import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方浏览器消费者通过显式存储适配发现 Meteor，Java 不代发业务请求。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "grpc-web/javascript-browser/adapter/{0}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "grpc-web")
 public class GrpcWebRegistryAdapterScenarioTest {
-    @Parameterized.Parameters(name = "grpc-web/javascript-browser/adapter/{0}")
     public static Collection<Object[]> backends() {
         return List.of(new Object[] { "jdbc" }, new Object[] { "zookeeper" }, new Object[] { "nacos" });
     }
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
@@ -49,10 +53,11 @@ public class GrpcWebRegistryAdapterScenarioTest {
         this.backend = backend;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBrowserDiscoversBinaryUnaryEndpoint() throws Exception {
         // 浏览器先创建真实独立 origin，Meteor 通过 bootstrap 挂载协议并允许该来源。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (GrpcWebBrowserProcess browser = GrpcWebBrowserProcess.start(); //
              RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             String origin = browser.awaitOrigin();
@@ -84,10 +89,11 @@ public class GrpcWebRegistryAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBrowserDiscoversTextUnaryEndpoint() throws Exception {
         // 文本模式使用独立浏览器与独立注册库，继续复用原有官方 grpc-web 客户端脚本。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (GrpcWebBrowserProcess browser = GrpcWebBrowserProcess.start(); //
              RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             String origin = browser.awaitOrigin();
@@ -122,7 +128,7 @@ public class GrpcWebRegistryAdapterScenarioTest {
     private MetConfiguration configuration(RegistryConfiguration registry, String origin) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(5000);
         configuration.setApplicationName("meteor-grpc-web-provider");
-        configuration.setDataHome(this.data.newFolder("provider").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 注册扩展的内部管理出口，不监听。
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //

@@ -15,8 +15,8 @@ import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import net.hasor.cobble.reflect.resolvable.ResolvableType;
 import net.hasor.meteor.annotation.*;
 import net.hasor.meteor.domain.ServiceDomain;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ServiceMetaParserTest {
     interface Base<T> {

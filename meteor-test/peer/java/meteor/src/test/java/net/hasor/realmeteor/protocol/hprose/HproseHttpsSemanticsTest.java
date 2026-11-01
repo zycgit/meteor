@@ -19,13 +19,17 @@ import net.hasor.example.protocol.hprose.Sample;
 import net.hasor.example.protocol.hprose.SampleImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.protocol.hprose.support.HproseTlsSupport;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "hprose")
 public class HproseHttpsSemanticsTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsHttp2ReturnsFunctionDiscovery() throws Exception {
         // HTTPS 仅协商 h2，服务仍由 bootstrap 启动后通过普通发布接口注册。
         MetConfiguration incoming = new MetConfiguration().setQueueMinPoolSize(4);
@@ -66,7 +70,8 @@ public class HproseHttpsSemanticsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsHttp2ReturnsByRefArguments() throws Exception {
         // HTTPS 仅协商 h2，服务仍由 bootstrap 启动后通过普通发布接口注册。
         MetConfiguration incoming = new MetConfiguration().setQueueMinPoolSize(4);
@@ -107,7 +112,8 @@ public class HproseHttpsSemanticsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsHttp2BatchKeepsOrderAndIsolatesBusinessFailure() throws Exception {
         // HTTPS 仅协商 h2，服务仍由 bootstrap 启动后通过普通发布接口注册。
         MetConfiguration incoming = new MetConfiguration().setQueueMinPoolSize(4);
@@ -157,7 +163,7 @@ public class HproseHttpsSemanticsTest {
             reader.reset();
             reader.checkTag('E');
             String error = reader.readString();
-            assertTrue(error, error.contains("business failure"));
+            assertTrue(error.contains("business failure"), error);
             reader.reset();
             reader.checkTag('R');
             assertEquals("third", reader.readString());

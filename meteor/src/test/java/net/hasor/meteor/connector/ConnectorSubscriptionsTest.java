@@ -22,12 +22,14 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 通过公开管理器、传输 SPI 和协议 SPI 验证消息订阅边界。 */
 public class ConnectorSubscriptionsTest {
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void inboundPayloadIsDeliveredInRegistrationOrder() throws Exception {
         // 启动真实 TCP 端点，并按顺序注册两个统一消息订阅者。
         ConnectorConfig config = this.config();
@@ -62,7 +64,8 @@ public class ConnectorSubscriptionsTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void subscriberFailureDoesNotPreventFollowingDelivery() throws Exception {
         // 第一个订阅者故障，第二个订阅者观察同一条真实入站消息。
         ConnectorConfig config = this.config();
@@ -86,7 +89,8 @@ public class ConnectorSubscriptionsTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void subscriberCanCloseManagerAfterSubmittingReply() throws Exception {
         // 启动单协议线程端点；订阅回调与应答写入使用同一个有序执行器。
         ConnectorConfig config = this.config();

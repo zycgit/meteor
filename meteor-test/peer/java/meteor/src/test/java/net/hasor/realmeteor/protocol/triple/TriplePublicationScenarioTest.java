@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -31,12 +32,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 协议不支持的声明只跳过 Triple 挂载，本地服务仍保留。 */
+@NxnRpc(name = "triple")
 public class TriplePublicationScenarioTest {
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void notificationRemainsCallableThroughTheLocalClient() throws Exception {
         // 先正常启动 Triple 端点，再尝试发布无响应消息方法。
         MetConfiguration configuration = this.configuration("grpc");
@@ -59,7 +63,8 @@ public class TriplePublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufWithoutSchemaRemainsLocalAndIsUnavailableOverTriple() throws Exception {
         // Protobuf 显式依赖绑定的 proto 资源，普通 Java wrapper 则不需要。
         MetConfiguration configuration = this.configuration("grpc");
@@ -98,7 +103,8 @@ public class TriplePublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void flowOverPlainHttpRemainsCallableThroughTheLocalClient() throws Exception {
         // 普通 HTTP JSON 属于 unary 子协议，流式模式应选择 gRPC framing。
         MetConfiguration configuration = this.configuration("json");
@@ -123,7 +129,8 @@ public class TriplePublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void indistinguishableWireSignaturesRemainCallableThroughTheLocalClient() throws Exception {
         // Java 的 String 与 Flow<String> 参数不同，但 wrapper 中都只声明 String 消息。
         MetConfiguration configuration = this.configuration("grpc");

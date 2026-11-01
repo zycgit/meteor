@@ -15,10 +15,10 @@ import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -28,7 +28,7 @@ public class RpcbindClientTest {
     private RpcbindV3Service  version3;
     private RpcbindV4Service  version4;
 
-    @Before
+    @BeforeEach
     @SuppressWarnings("unchecked")
     public void prepareBorrowedContext() {
         this.context = mock(MetContext.class);

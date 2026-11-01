@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.environment.storage;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -19,26 +22,26 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.h2.jdbcx.JdbcDataSource;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 测试编排复用真实服务，场景句柄只释放自己的数据范围。 */
 public class RegistryServiceReuseTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nacosHandlesShareServiceAndKeepOtherGroupAfterOneCloses() throws Exception {
         // 两个句柄共享真实 Nacos，相同配置名分别写入各自分组。
-        try (NacosTestServer first = new NacosTestServer(this.data.newFolder("nacos-first").toPath()); //
-                NacosTestServer second = new NacosTestServer(this.data.newFolder("nacos-second").toPath())) {
+        try (NacosTestServer first = new NacosTestServer(Files.createDirectory(this.data.resolve("nacos-first"))); //
+                NacosTestServer second = new NacosTestServer(Files.createDirectory(this.data.resolve("nacos-second")))) {
             first.start();
             second.start();
             assertEquals(first.address(), second.address());
@@ -65,7 +68,8 @@ public class RegistryServiceReuseTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void zookeeperHandlesShareServiceAndKeepOtherRootAfterOneCloses() throws Exception {
         // 相同 ZooKeeper 地址使用不同 chroot，同名节点互不覆盖。
         try (ZookeeperTestServer first = ZookeeperTestServer.shared(); //
@@ -102,11 +106,12 @@ public class RegistryServiceReuseTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jdbcHandlesShareServiceAndKeepOtherDatabaseAfterOneCloses() throws Exception {
         // 相同数据库名按句柄划分前缀，真实 H2 TCP 服务地址保持一致。
-        try (JdbcTestServer first = new JdbcTestServer(this.data.newFolder("jdbc-first").toPath()); //
-                JdbcTestServer second = new JdbcTestServer(this.data.newFolder("jdbc-second").toPath())) {
+        try (JdbcTestServer first = new JdbcTestServer(Files.createDirectory(this.data.resolve("jdbc-first"))); //
+                JdbcTestServer second = new JdbcTestServer(Files.createDirectory(this.data.resolve("jdbc-second")))) {
             JdbcDataSource firstSource = first.createDatabase("reuse_probe");
             JdbcDataSource secondSource = second.createDatabase("reuse_probe");
             String firstUrl = firstSource.getURL();
@@ -143,7 +148,8 @@ public class RegistryServiceReuseTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeZookeeperLeaseRemovesBusinessDataAndKeepsBorrowedServiceAvailable() throws Exception {
         // 原生 SDK 场景通过租约独占固定服务，业务数据属于当前租约。
         try (ZookeeperTestServer first = ZookeeperTestServer.dedicated(); //

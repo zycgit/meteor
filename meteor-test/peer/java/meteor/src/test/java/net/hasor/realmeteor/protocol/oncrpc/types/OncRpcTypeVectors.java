@@ -12,7 +12,7 @@ import java.util.List;
 import net.hasor.example.protocol.oncrpc.OncRpcChoice;
 import net.hasor.example.protocol.oncrpc.OncRpcOptional;
 import net.hasor.example.protocol.oncrpc.OncRpcSample;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 与 libtirpc 的独立 C 向量对应；每个向量只核对当前类型字段。 */
 final class OncRpcTypeVectors {

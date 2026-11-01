@@ -13,8 +13,10 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.meteor.address.route.speed.SpeedFlowControl;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 public class AddressPoolTest {
     private final InterAddress localAddress  = new InterAddress("127.0.0.1", 8000, "local");
@@ -226,7 +228,8 @@ public class AddressPoolTest {
         assertEquals(this.localAddress, selected);
     }
 
-    @Test(timeout = 5000)
+    @Test
+    @Timeout(value = 5000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void selectionRetriesQuotaCheckUntilAccepted() {
         // 前两次配额检查拒绝同一请求，第三次放行。
         AddressPool pool = new AddressPool();
@@ -262,7 +265,8 @@ public class AddressPoolTest {
         }
     }
 
-    @Test(timeout = 5000)
+    @Test
+    @Timeout(value = 5000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void waitingForQuotaObservesProviderWithdrawal() {
         // 配额检查拒绝请求时，模拟注册中心撤销该提供者。
         AddressPool pool = new AddressPool();

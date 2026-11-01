@@ -4,6 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.example.protocol.hessian.HessianInteropDemo;
@@ -11,12 +12,16 @@ import net.hasor.example.protocol.hessian.HessianInteropDemoImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Node Hessian HTTP RPC SDK 通过正式代理调用 Meteor，仅验证基础 String 请求与响应。 */
+@NxnRpc(name = "hessian", version = "2")
 public class NodeHessianConsumerScenarioTest {
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeSdkCallsMeteorStringEcho() throws Exception {
         // bootstrap 启动本场景的 HTTP 监听，再发布普通 Java 接口和 Hessian 服务路径。
         MetConfiguration configuration = new MetConfiguration().setApplicationName("node-hessian-basic-provider");

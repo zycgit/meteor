@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.protocol.grpc.Message;
 import net.hasor.example.protocol.grpc.web.GrpcWebService;
 import net.hasor.example.protocol.grpc.web.GrpcWebServiceImpl;
@@ -13,11 +14,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc-web")
 public class GrpcWebContextTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serviceWithoutContextIsVisibleOnlyAtTheDefault() throws Exception {
         // 一个端口配置两个挂载点，服务的发布配置决定实际可见范围。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc-web");
@@ -54,7 +59,8 @@ public class GrpcWebContextTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitContextReplacesTheDefault() throws Exception {
         // 一个端口配置两个挂载点，服务的发布配置决定实际可见范围。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc-web");
@@ -92,7 +98,8 @@ public class GrpcWebContextTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void multipleContextsShareTheSamePublishedService() throws Exception {
         // 一个端口配置两个挂载点，服务的发布配置决定实际可见范围。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc-web");

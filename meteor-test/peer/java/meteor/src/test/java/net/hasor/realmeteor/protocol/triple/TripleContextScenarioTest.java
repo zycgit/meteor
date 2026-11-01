@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -17,15 +18,19 @@ import net.hasor.example.protocol.triple.TripleDemoService;
 import net.hasor.example.protocol.triple.TripleDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 服务的发布范围决定 Triple 在同一监听端口上的上下文可见性。 */
+@NxnRpc(name = "triple")
 public class TripleContextScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unspecifiedServiceContextUsesTheDefaultMount() throws Exception {
         // 同一端点提供默认和附加挂载，服务未指定上下文。
         MetConfiguration configuration = this.configuration("/rpc", "/private");
@@ -44,7 +49,8 @@ public class TripleContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unspecifiedServiceContextIsHiddenFromAdditionalMounts() throws Exception {
         // 附加挂载存在，但未被服务选择，不应默认暴露业务对象。
         MetConfiguration configuration = this.configuration("/rpc", "/private");
@@ -62,7 +68,8 @@ public class TripleContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitServiceContextExposesTheSelectedAdditionalMount() throws Exception {
         // 服务通过发布 API 选择附加上下文，不改变端口和协议配置。
         MetConfiguration configuration = this.configuration("/rpc", "/private");
@@ -80,7 +87,8 @@ public class TripleContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitServiceContextReplacesTheDefaultSelection() throws Exception {
         // 显式选择附加上下文后，默认上下文不再获得该服务的可见性。
         MetConfiguration configuration = this.configuration("/rpc", "/private");
@@ -99,7 +107,8 @@ public class TripleContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitMultipleContextsShareOneServiceAndOnePort() throws Exception {
         // 一个服务显式选择两个上下文，两个入口共用同一个 HTTP 监听。
         MetConfiguration configuration = this.configuration("/rpc", "/private");
@@ -121,7 +130,8 @@ public class TripleContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nestedMountUsesTheLongestMatchingContext() throws Exception {
         // 默认上下文是父路径，业务服务仅发布到更长的嵌套挂载。
         MetConfiguration configuration = this.configuration("/rpc", "/rpc/private");

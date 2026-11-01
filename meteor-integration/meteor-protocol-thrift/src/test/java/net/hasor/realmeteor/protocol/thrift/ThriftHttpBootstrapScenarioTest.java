@@ -15,14 +15,17 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 插件公开启动入口的基础发布与调用验证。 */
 public class ThriftHttpBootstrapScenarioTest {
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryProxyCallsOverHttp1() throws Exception {
         // 不设置 encoding，验证默认 binary 编码，客户端选择 HTTP/1。
         MetConfiguration incoming = this.serverConfiguration();
@@ -44,7 +47,8 @@ public class ThriftHttpBootstrapScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectedThriftPublicationStillAllowsLocalInvocation() throws Exception {
         // 同一个 Java 实现选择 JSON 后不支持原生 Thrift，但本地调用不需要其线契约。
         MetConfiguration configuration = this.serverConfiguration();
@@ -63,7 +67,8 @@ public class ThriftHttpBootstrapScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectedThriftPublicationStillAllowsRsfNetworkInvocation() throws Exception {
         // RSF 与 Thrift HTTP 共用业务容器，当前接口选用的 JSON 仅适用于 RSF。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("rsf");

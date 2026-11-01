@@ -23,12 +23,15 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.neta.channel.NetChannel;
 import net.hasor.neta.channel.SoConfig;
 import net.hasor.neta.channel.transport.tcp.TcpSoConfig;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** HTTP upgrade authorization ordering at the Neta handshake boundary. */
 public class HttpUpgradeAuthorizationTest {
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1AuthorizationCompletesAfterTheReceivePipelineReleasesItsChannelLock() throws Exception {
         // Hold the simulated Neta receive pipeline after its authorizer returns.
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -74,7 +77,8 @@ public class HttpUpgradeAuthorizationTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1AuthorizationWaitsForAnEarlierResponseToFinish() throws Exception {
         // Register an ordinary HTTP request before asking the same connection to upgrade.
         ExecutorService executor = Executors.newSingleThreadExecutor();

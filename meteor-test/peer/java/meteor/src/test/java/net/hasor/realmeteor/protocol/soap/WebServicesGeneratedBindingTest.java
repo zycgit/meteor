@@ -20,14 +20,19 @@ import net.hasor.example.protocol.soap.EchoServiceImpl;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesGeneratedBindingTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11DocumentLiteralBareSupportsGeneratedRoundTrip() throws Exception {
         // 两端明确选择 SOAP 1.1 的 document/literal/bare 生成契约。
         MetConfiguration incoming = this.incomingConfiguration("1.1", "document", "literal", "bare");
@@ -80,7 +85,9 @@ public class WebServicesGeneratedBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12DocumentLiteralBareSupportsGeneratedRoundTrip() throws Exception {
         // 两端明确选择 SOAP 1.2 的 document/literal/bare 生成契约。
         MetConfiguration incoming = this.incomingConfiguration("1.2", "document", "literal", "bare");
@@ -133,7 +140,8 @@ public class WebServicesGeneratedBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11RpcLiteralSupportsGeneratedRoundTrip() throws Exception {
         // 两端明确选择 SOAP 1.1 的 rpc/literal/wrapped 生成契约。
         MetConfiguration incoming = this.incomingConfiguration("1.1", "rpc", "literal", "wrapped");
@@ -190,7 +198,9 @@ public class WebServicesGeneratedBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12RpcLiteralSupportsGeneratedRoundTrip() throws Exception {
         // 两端明确选择 SOAP 1.2 的 rpc/literal/wrapped 生成契约。
         MetConfiguration incoming = this.incomingConfiguration("1.2", "rpc", "literal", "wrapped");
@@ -247,7 +257,8 @@ public class WebServicesGeneratedBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11RpcEncodedSupportsGeneratedRoundTrip() throws Exception {
         // 两端明确选择 SOAP 1.1 的 rpc/encoded/wrapped 生成契约。
         MetConfiguration incoming = this.incomingConfiguration("1.1", "rpc", "encoded", "wrapped");
@@ -307,7 +318,9 @@ public class WebServicesGeneratedBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12RpcEncodedSupportsGeneratedRoundTrip() throws Exception {
         // 两端明确选择 SOAP 1.2 的 rpc/encoded/wrapped 生成契约。
         MetConfiguration incoming = this.incomingConfiguration("1.2", "rpc", "encoded", "wrapped");

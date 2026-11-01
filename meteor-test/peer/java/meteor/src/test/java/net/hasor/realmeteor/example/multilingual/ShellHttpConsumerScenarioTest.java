@@ -4,6 +4,8 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -12,17 +14,22 @@ import java.util.Map;
 import javax.xml.parsers.DocumentBuilderFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** curl 发送标准文本协议正文，Java 只断言真实响应，不代理 HTTP 调用。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "curl/{0}/direct", quoteTextArguments = false)
+@MethodSource("protocols")
+@NxnRpc(name = "soap", version = "1.1", cases = "curl/soap/direct")
+@NxnRpc(name = "xmlrpc", cases = "curl/xmlrpc/direct")
+@NxnRpc(name = "connect", version = "1", cases = "curl/connect/direct")
 public class ShellHttpConsumerScenarioTest {
     private static final String NAMESPACE = "urn:hasor:meteor:soap:orders";
     private final String protocol;
@@ -30,8 +37,6 @@ public class ShellHttpConsumerScenarioTest {
     public ShellHttpConsumerScenarioTest(String protocol) {
         this.protocol = protocol;
     }
-
-    @Parameterized.Parameters(name = "curl/{0}/direct")
     public static List<Object[]> protocols() {
         // 固定顺序便于矩阵阅读，每个协议生成自己的独立用例。
         List<Object[]> protocols = new ArrayList<>();
@@ -41,7 +46,8 @@ public class ShellHttpConsumerScenarioTest {
         return protocols;
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void curlSavesAndFindsTheOrder() throws Exception {
         // 提供者只通过公开 bootstrap 入口发布当前协议，使用独立进程和动态端口。
         try (OrderPeerProcess provider = OrderPeerProcess.javaMain(this.protocol, "Provider", null)) {
@@ -115,7 +121,7 @@ public class ShellHttpConsumerScenarioTest {
         factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         Document document = factory.newDocumentBuilder().parse(new InputSource(new StringReader(response)));
         if (StringUtils.equals("soap", this.protocol)) {
-            assertEquals(response, 0, document.getElementsByTagNameNS("*", "Fault").getLength());
+            assertEquals(0, document.getElementsByTagNameNS("*", "Fault").getLength(), response);
             assertEquals("1001", document.getElementsByTagNameNS("*", "id").item(0).getTextContent());
             String description = document.getElementsByTagNameNS("*", "description").item(0).getTextContent();
             String attachment = document.getElementsByTagNameNS("*", "attachment").item(0).getTextContent();
@@ -123,7 +129,7 @@ public class ShellHttpConsumerScenarioTest {
             assertEquals("TWV0ZW9y", attachment);
             return;
         }
-        assertEquals(response, 0, document.getElementsByTagName("fault").getLength());
+        assertEquals(0, document.getElementsByTagName("fault").getLength(), response);
         NodeList members = document.getElementsByTagName("member");
         Map<String, String> fields = new LinkedHashMap<>();
         for (int index = 0; index < members.getLength(); index++) {

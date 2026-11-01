@@ -4,6 +4,8 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.compatibility.go;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,15 +20,20 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 固定真实 Go SDK 发布版本，分别验证 Unicode 回声和业务异常的双向线格式。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/go/{0}/{1}@{2}/{3}/{4}", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "hprose", cases = "sdk/go/hprose/*")
+@NxnRpc(name = "thrift", cases = "sdk/go/thrift/*")
+@NxnRpc(name = "dubbo", version = "2", cases = "sdk/go/dubbo/Apache-Dubbo-Go@1.5.9/*")
+@NxnRpc(name = "dubbo", version = "3", cases = "sdk/go/dubbo/Apache-Dubbo-Go@3.3.2/*")
 public class GoScalarSdkVersionCompatibilityTest {
     private final String protocol;
     private final String direction;
@@ -38,8 +45,6 @@ public class GoScalarSdkVersionCompatibilityTest {
         this.direction = direction;
         this.executable = executable;
     }
-
-    @Parameterized.Parameters(name = "sdk/go/{0}/{1}@{2}/{3}/{4}")
     public static Collection<Object[]> versions() {
         // 顺序按协议与 SDK 大版本排列；每个方向形成独立 JUnit 实例。
         List<Object[]> versions = new ArrayList<>();
@@ -61,7 +66,8 @@ public class GoScalarSdkVersionCompatibilityTest {
         rows.add(new Object[] { protocol, sdk, version, profile, "Meteor-to-SDK", executable });
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unicodeScalarRoundTrip() throws Exception {
         // SDK 版本由独立二进制决定，方向由测试参数公开显示。
         boolean sdkConsumer = StringUtils.equals("SDK-to-Meteor", this.direction);
@@ -76,7 +82,7 @@ public class GoScalarSdkVersionCompatibilityTest {
             try (GoPeerProcess peer = this.peer(role, "unicode", target)) {
                 if (sdkConsumer) {
                     JsonNode outcome = peer.awaitResult();
-                    assertTrue(outcome.toString(), outcome.path("ok").asBoolean());
+                    assertTrue(outcome.path("ok").asBoolean(), outcome.toString());
                 } else {
                     URI endpoint = URI.create(peer.awaitReady());
                     String authority = endpoint.getAuthority();
@@ -90,7 +96,8 @@ public class GoScalarSdkVersionCompatibilityTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void applicationFailureRemainsReadable() throws Exception {
         // 业务错误使用固定标识，不能用连接失败或超时冒充异常兼容。
         boolean sdkConsumer = StringUtils.equals("SDK-to-Meteor", this.direction);
@@ -103,7 +110,7 @@ public class GoScalarSdkVersionCompatibilityTest {
             try (GoPeerProcess peer = this.peer(role, "error", target)) {
                 if (sdkConsumer) {
                     JsonNode outcome = peer.awaitResult();
-                    assertTrue(outcome.toString(), outcome.path("ok").asBoolean());
+                    assertTrue(outcome.path("ok").asBoolean(), outcome.toString());
                 } else {
                     URI endpoint = URI.create(peer.awaitReady());
                     String authority = endpoint.getAuthority();
@@ -118,7 +125,7 @@ public class GoScalarSdkVersionCompatibilityTest {
                     } else if (StringUtils.equals("dubbo", this.protocol)) {
                         marker = "compat-error";
                     }
-                    assertTrue(failure.toString(), failure.getCause().getMessage().contains(marker));
+                    assertTrue(failure.getCause().getMessage().contains(marker), failure.toString());
                 }
             }
         }

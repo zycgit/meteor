@@ -33,5 +33,5 @@ docker exec meteor-test-node node /workspace/meteor/meteor-test/tools/diagnostic
 
 | 工具 | 作用 | 用法 |
 | --- | --- | --- |
-| [with-clock-paused.sh](clock/with-clock-paused.sh) | 暂停 Linux 校时，测试结束或中断后恢复 | 在仓库根目录运行 `sudo ./meteor-test/runnxn.sh`，自动调用 |
+| [with-clock-paused.sh](clock/with-clock-paused.sh) | 暂停 Linux 校时，测试结束或中断后恢复 | 在仓库根目录运行 `sudo ./meteor-test/runnxn.sh all`，自动调用 |
 | [wsl-clock-owner.ps1](clock/wsl-clock-owner.ps1) | 暂停 WSL 的 chronyd 校时并恢复 | 由 `with-clock-paused.sh` 自动调用 |

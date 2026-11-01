@@ -6,6 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.thrift.python;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -18,15 +20,18 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Python Thrift 不同版本通过同一订单契约与 Meteor 双向互通。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/python/thrift/Apache-Thrift@{0}/{1}-framed/{2}", quoteTextArguments = false)
+@MethodSource("parameters")
+@NxnRpc(name = "thrift")
 public class PythonThriftSdkVersionCompatibilityTest {
     private final String version;
     private final String encoding;
@@ -37,8 +42,6 @@ public class PythonThriftSdkVersionCompatibilityTest {
         this.encoding = encoding;
         this.direction = direction;
     }
-
-    @Parameterized.Parameters(name = "sdk/python/thrift/Apache-Thrift@{0}/{1}-framed/{2}")
     public static Collection<Object[]> parameters() {
         // 选择三个发行阶段；每个版本、编码和调用方向分别生成独立测试结果。
         List<Object[]> parameters = new ArrayList<>();
@@ -51,7 +54,8 @@ public class PythonThriftSdkVersionCompatibilityTest {
         return parameters;
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exchangesOrderWithSdkVersion() throws Exception {
         // 每个参数实例只执行一个调用方向，提供者和消费者保留各自独立生命周期。
         boolean sdkConsumer = StringUtils.equals(this.direction, "SDK-to-Meteor");

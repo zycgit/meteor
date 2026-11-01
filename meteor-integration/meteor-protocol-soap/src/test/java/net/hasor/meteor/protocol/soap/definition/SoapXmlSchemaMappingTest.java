@@ -30,12 +30,12 @@ import net.hasor.meteor.annotation.*;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapXmlSchemaMappingTest {
     private static final String SERVICE_NAMESPACE = "urn:hasor:meteor:soap:MappedService";

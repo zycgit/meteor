@@ -18,12 +18,14 @@ import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.example.rpc.websocket.WebSocketConfigurations;
 import net.hasor.example.rpc.websocket.WebSocketSample;
 import net.hasor.example.rpc.websocket.WebSocketSampleService;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** WSS 复用 HTTP 连接器的正式 TLS 配置与严格信任校验。 */
 public class WebSocketTlsBootstrapTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void trustedServerCertificateAllowsTextRpcOverWss() throws Exception {
         // 单向 TLS 只配置服务端身份；客户端只有独立测试 CA 信任库。
         MetConfiguration incoming = new MetConfiguration();
@@ -52,7 +54,8 @@ public class WebSocketTlsBootstrapTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requiredClientCertificateAllowsBinaryRpcOverWss() throws Exception {
         // REQUIRE 验证双方独立身份，客户端与服务器分别使用 clientAuth/serverAuth 证书。
         MetConfiguration incoming = new MetConfiguration();
@@ -82,7 +85,8 @@ public class WebSocketTlsBootstrapTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2ExtendedConnectUsesTlsWithAlpn() throws Exception {
         // ALPN 选择 h2，随后通过 RFC 8441 extended CONNECT 建立文本通道。
         MetConfiguration incoming = new MetConfiguration();
@@ -111,7 +115,8 @@ public class WebSocketTlsBootstrapTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2ExtendedConnectRequiresMutualTls() throws Exception {
         // 同一 TLS 连接协商 h2 并验证客户端证书，再建立二进制 WS stream。
         MetConfiguration incoming = new MetConfiguration();
@@ -141,7 +146,8 @@ public class WebSocketTlsBootstrapTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requiredClientCertificateRejectsAnAnonymousWssCaller() throws Exception {
         // 服务端要求身份，客户端只配置 CA，不提供任何客户端证书。
         MetConfiguration incoming = new MetConfiguration();
@@ -175,7 +181,8 @@ public class WebSocketTlsBootstrapTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requiredClientCertificateRejectsTheOtherTestCa() throws Exception {
         // 客户端证书来自另一套 CA；不允许用信任全部证书规避该失败。
         MetConfiguration incoming = new MetConfiguration();

@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct.stream;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -20,26 +23,26 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 同一组公开 Java 接口分别用 JSON、Protobuf 演示四种调用形态。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "{0}", quoteTextArguments = false)
+@MethodSource("formats")
+@NxnRpc(name = "grpc")
 public class StreamScenarioTest {
     private final String format;
 
     public StreamScenarioTest(String format) {
         this.format = format;
     }
-
-    @Parameterized.Parameters(name = "{0}")
     public static Collection<Object[]> formats() {
         return List.of(new Object[] { "Json" }, new Object[] { "Protobuf" });
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unaryUsesTheSamePojoContractWithTheSelectedEncoding() throws Exception {
         // 配置复用点对点示例；服务在双方容器启动之后发布和订阅。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -59,7 +62,8 @@ public class StreamScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void responseStreamRequestsOneItemAtATime() throws Exception {
         // 普通请求发起一条响应流，不为每条响应创建新的 RPC。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -107,7 +111,8 @@ public class StreamScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requestStreamReturnsTheAccumulatedResult() throws Exception {
         // 客户端使用 Publisher 提交多条消息，服务端消费完后返回一个结果。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -130,7 +135,8 @@ public class StreamScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void bidirectionalStreamPreservesTheInputSequence() throws Exception {
         // 同一条 RPC 内请求和响应都持续传递消息，仍通过点对点 bootstrap 组装。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);

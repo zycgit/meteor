@@ -14,8 +14,8 @@ import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.*;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetServiceType;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MetContextEventTest {
     public interface Echo {

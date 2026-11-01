@@ -20,7 +20,7 @@ import net.hasor.example.contract.types.JavaTypeProfile;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.protocol.soap.SoapFault;
 import net.hasor.meteor.protocol.xmlrpc.XmlRpcException;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 审阅过的有限拒绝类别；资源只有纯数据，没有任意异常、脚本或正则执行入口。 */
 final class JavaTypeMatrixExpectations {
@@ -176,7 +176,7 @@ final class JavaTypeMatrixExpectations {
 
     private static void contains(Throwable failure, String... fragments) {
         for (String fragment : fragments) {
-            assertTrue(failure.getMessage(), failure.getMessage().contains(fragment));
+            assertTrue(failure.getMessage().contains(fragment), failure.getMessage());
         }
     }
 

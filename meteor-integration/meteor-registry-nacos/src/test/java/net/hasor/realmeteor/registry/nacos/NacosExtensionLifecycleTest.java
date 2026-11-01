@@ -19,9 +19,9 @@ import net.hasor.meteor.registry.admin.MetServiceAdmin;
 import net.hasor.meteor.registry.admin.MetServiceMember;
 import net.hasor.meteor.registry.nacos.MockNacosSdk;
 import net.hasor.meteor.registry.nacos.NacosRegistryConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 通过公开入口验证发现与治理生命周期；SDK 对端模拟，业务 RPC 使用真实 TCP。
@@ -160,6 +160,6 @@ public class NacosExtensionLifecycleTest {
         while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }
-        assertTrue("Nacos extension did not converge", condition.getAsBoolean());
+        assertTrue(condition.getAsBoolean(), "Nacos extension did not converge");
     }
 }

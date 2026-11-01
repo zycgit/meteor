@@ -13,13 +13,14 @@ import net.hasor.cobble.reflect.resolvable.ResolvableType;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrCodec;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrInput;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrOutput;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.provider.MethodSource;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Java 窄整数和 UTF-16 code unit 使用标准 XDR int，并在 Java 类型边界处校验。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(name = "{0}", quoteTextArguments = false, autoCloseArguments = false)
+@MethodSource("types")
 public class XdrNarrowScalarTest {
     private final Class<?> raw;
     private final Object   lower;
@@ -35,7 +36,6 @@ public class XdrNarrowScalarTest {
         this.maximum = maximum;
     }
 
-    @Parameterized.Parameters(name = "{0}")
     public static List<Object[]> types() {
         // 每种基本类型紧跟其包装类型，Java 边界与标准 int32 线上边界分别传入。
         List<Object[]> types = new ArrayList<>();

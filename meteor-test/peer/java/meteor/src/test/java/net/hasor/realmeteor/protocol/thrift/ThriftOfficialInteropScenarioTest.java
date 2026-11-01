@@ -29,13 +29,17 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import org.apache.thrift.TApplicationException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Client、Processor 在隔离 JVM 中经真实网络与 Meteor 双向互通。 */
+@NxnRpc(name = "thrift")
 public class ThriftOfficialInteropScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryRawTcpCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", false, false);
@@ -57,7 +61,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryRawTcpCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", false, false);
@@ -84,7 +89,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedTcpCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -106,7 +112,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedTcpCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -133,7 +140,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryHttpCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 http 传输。
         MetConfiguration configuration = this.incomingHttp("binary", false);
@@ -155,7 +163,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryHttpCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 http。
         MetConfiguration configuration = this.outgoingHttp("binary", false);
@@ -182,7 +191,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialCompactRawTcpCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 compact 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("compact", false, false);
@@ -204,7 +214,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCompactRawTcpCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 compact 与 tcp。
         MetConfiguration configuration = this.outgoing("compact", false, false);
@@ -231,7 +242,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialCompactFramedTcpCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 compact 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("compact", true, false);
@@ -253,7 +265,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCompactFramedTcpCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 compact 与 tcp。
         MetConfiguration configuration = this.outgoing("compact", true, false);
@@ -280,7 +293,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialCompactHttpCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 compact 编码与 http 传输。
         MetConfiguration configuration = this.incomingHttp("compact", false);
@@ -302,7 +316,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCompactHttpCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 compact 与 http。
         MetConfiguration configuration = this.outgoingHttp("compact", false);
@@ -329,7 +344,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJsonRawTcpCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 json 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("json", false, false);
@@ -351,7 +367,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorJsonRawTcpCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 json 与 tcp。
         MetConfiguration configuration = this.outgoing("json", false, false);
@@ -378,7 +395,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJsonFramedTcpCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 json 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("json", true, false);
@@ -400,7 +418,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorJsonFramedTcpCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 json 与 tcp。
         MetConfiguration configuration = this.outgoing("json", true, false);
@@ -427,7 +446,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJsonHttpCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 json 编码与 http 传输。
         MetConfiguration configuration = this.incomingHttp("json", false);
@@ -449,7 +469,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorJsonHttpCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 json 与 http。
         MetConfiguration configuration = this.outgoingHttp("json", false);
@@ -476,7 +497,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorArgumentFieldIds() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -498,7 +520,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialArgumentFieldIds() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -524,7 +547,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorTypedDto() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -546,7 +570,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialTypedDto() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -573,7 +598,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorUnsetOptionalFields() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -595,7 +621,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialUnsetOptionalFields() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -625,7 +652,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorIdlDefaults() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -647,7 +675,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialIdlDefaults() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -675,7 +704,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorList() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -697,7 +727,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialList() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -724,7 +755,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorMap() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -746,7 +778,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialMap() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -775,7 +808,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorSet() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -797,7 +831,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialSet() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -824,7 +859,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorBinary() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -846,7 +882,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialBinary() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -873,7 +910,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorEnum() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -895,7 +933,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialEnum() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -921,7 +960,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorUnion() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -943,7 +983,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialUnion() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -970,7 +1011,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorUuid() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -992,7 +1034,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialUuid() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -1019,7 +1062,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorVoid() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -1041,7 +1085,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialVoid() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -1067,7 +1112,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorOneway() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -1089,7 +1135,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialOneway() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -1123,7 +1170,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorDeclaredException() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -1145,7 +1193,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialDeclaredException() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -1173,7 +1222,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorUnexpectedException() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -1195,7 +1245,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialUnexpectedException() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -1223,7 +1274,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedCallsMeteorExtendedServiceMethod() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -1245,7 +1297,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryFramedCallsOfficialExtendedServiceMethod() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, false);
@@ -1271,7 +1324,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryMultiplexedCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, true);
@@ -1293,7 +1347,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryMultiplexedCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 binary 与 tcp。
         MetConfiguration configuration = this.outgoing("binary", true, true);
@@ -1320,7 +1375,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialCompactMultiplexedCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 compact 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("compact", true, true);
@@ -1342,7 +1398,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCompactMultiplexedCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 compact 与 tcp。
         MetConfiguration configuration = this.outgoing("compact", true, true);
@@ -1369,7 +1426,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJsonMultiplexedCallsMeteor() throws Exception {
         // Meteor 公开监听器承载本场景的 json 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("json", true, true);
@@ -1391,7 +1449,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorJsonMultiplexedCallsOfficial() throws Exception {
         // 官方服务端独立持有 Processor；Meteor 只配置出站 json 与 tcp。
         MetConfiguration configuration = this.outgoing("json", true, true);
@@ -1418,7 +1477,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedUnknownMethodIsRejected() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, false);
@@ -1440,7 +1500,8 @@ public class ThriftOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryFramedUnknownMultiplexedServiceIsRejected() throws Exception {
         // Meteor 公开监听器承载本场景的 binary 编码与 tcp 传输。
         MetConfiguration configuration = this.incoming("binary", true, true);

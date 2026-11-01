@@ -13,12 +13,15 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.example.connector.protocol.RawSocketTestProtocol;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.domain.payload.RequestPayload;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 以真实 TCP 对端验证管理器对物理写入、入站接纳和连接关闭的编排。 */
 public class SocketLifecycleTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void managerCloseDrainsCancelledPhysicalWrite() throws Exception {
         // 用大报文制造尚未完成的物理写入，对端先只读取一个字节。
         ConnectorConfig config = SocketTestSupport.tcpConfig();
@@ -61,7 +64,8 @@ public class SocketLifecycleTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void stopInboundClosesAcceptedConnectionAndHidesListener() throws Exception {
         // 启动监听并通过真实 TCP 建立一条已接纳连接。
         ConnectorConfig serverConfig = SocketTestSupport.tcpConfig();
@@ -80,7 +84,8 @@ public class SocketLifecycleTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void startInboundResumesConfiguredListener() throws Exception {
         // 停止后重新启动入站，端点继续使用原公开地址接纳新连接。
         ConnectorConfig config = SocketTestSupport.tcpConfig();

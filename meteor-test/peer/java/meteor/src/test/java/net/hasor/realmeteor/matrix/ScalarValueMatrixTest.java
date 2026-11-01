@@ -6,25 +6,47 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.IOException;
 import java.util.*;
 import net.hasor.cobble.StringUtils;
 import net.hasor.example.contract.scalar.*;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 每份标量向量独占一个 JUnit 实例，报告明确指出协议与具体边界值。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "scalar/self/{0}/direct/{1}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "rsf", version = "1", cases = "scalar/self/rsf-json/*")
+@NxnRpc(name = "dubbo", cases = "scalar/self/dubbo-hessian2/*")
+@NxnRpc(name = "hprose", cases = "scalar/self/hprose/*")
+@NxnRpc(name = "hessian", version = "2", cases = "scalar/self/hessian-2/*")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "scalar/self/jsonrpc-json/*")
+@NxnRpc(name = "xmlrpc", cases = "scalar/self/xmlrpc-struct/*")
+@NxnRpc(name = "soap", version = "1.1", cases = "scalar/self/soap-literal/*")
+@NxnRpc(name = "grpc", cases = "scalar/self/grpc-custom-json/*")
+@NxnRpc(name = "grpc", cases = "scalar/self/grpc-protobuf/*")
+@NxnRpc(name = "grpc-web", cases = "scalar/self/grpc-web-custom-json/*")
+@NxnRpc(name = "grpc-web", cases = "scalar/self/grpc-web-protobuf/*")
+@NxnRpc(name = "connect", version = "1", cases = "scalar/self/connect-json/*")
+@NxnRpc(name = "connect", version = "1", cases = "scalar/self/connect-protobuf/*")
+@NxnRpc(name = "triple", cases = "scalar/self/triple-java-hessian2/*")
+@NxnRpc(name = "triple", cases = "scalar/self/triple-protobuf/*")
+@NxnRpc(name = "thrift", cases = "scalar/self/thrift-binary-framed/*")
+@NxnRpc(name = "oncrpc", version = "2", cases = "scalar/self/oncrpc-xdr/*")
 public class ScalarValueMatrixTest {
-    @Rule
-    public final  TemporaryFolder    data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final ScalarValueProfile profile;
     private final String             vector;
 
@@ -32,8 +54,6 @@ public class ScalarValueMatrixTest {
         this.profile = profile;
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "scalar/self/{0}/direct/{1}")
     public static Collection<Object[]> configurations() throws IOException {
         // XML-RPC 的整数线类型只有 int32，不将超范围 long 假装成字符串原生互通。
         List<Object[]> result = new ArrayList<>();
@@ -61,14 +81,15 @@ public class ScalarValueMatrixTest {
         return result;
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void selectedScalarValueRetainsItsExactJavaValue() throws Exception {
         // 每个边界值使用独立缓存与服务分组，两端都从公开 bootstrap 构建。
         String scope = "scalar-" + UUID.randomUUID();
         var incoming = this.profile.providerConfiguration().setDefaultGroup(scope);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         var outgoing = this.profile.consumerConfiguration().setDefaultGroup(scope);
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             provider.start();

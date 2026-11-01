@@ -9,15 +9,18 @@ package net.hasor.meteor.serialize.coder;
 import net.hasor.meteor.serialize.*;
 import java.io.*;
 import net.hasor.cobble.StringUtils;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import org.junit.jupiter.api.Assertions;
 
 public class JavaSerializeCoderTest {
-    @Test(expected = NotSerializableException.class)
+    @Test
     public void nonSerializableValueFails() throws Exception {
-        // 不可序列化的对象在编码阶段直接失败。
-        new JavaSerializeCoder().encode(new Object());
+        Assertions.assertThrows(NotSerializableException.class, () -> {
+            // 不可序列化的对象在编码阶段直接失败。
+            new JavaSerializeCoder().encode(new Object());
+        });
     }
 
     @Test

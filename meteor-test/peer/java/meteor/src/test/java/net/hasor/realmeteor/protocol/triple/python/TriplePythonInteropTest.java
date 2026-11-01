@@ -4,6 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.protocol.triple.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.protocol.triple.interop.TripleInteropProtoService;
 import net.hasor.example.protocol.triple.interop.TripleInteropProtoServiceImpl;
 import net.hasor.meteor.MetContext;
@@ -12,14 +13,18 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.python.PythonSdkPeerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Apache Dubbo Python beta SDK 的双向 Triple unary；不继承 Java SDK 的 POJO 范围。 */
+@NxnRpc(name = "triple")
 public class TriplePythonInteropTest {
     private static final String SERVICE = "net.hasor.peer.protocol.triple.DubboProtoService";
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonDubboSdkCallsMeteorTripleProtobuf() throws Exception {
         // Meteor 仅发布 Triple 的标准 Protobuf 路径，SDK 自行完成真实 HTTP/2 调用。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
@@ -41,7 +46,8 @@ public class TriplePythonInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTripleCallsPythonDubboSdkProtobuf() throws Exception {
         // 官方 Python SDK 用 ServiceConfig 发布真实 Triple 服务，场景只管理其专属进程。
         try (PythonSdkPeerProcess provider = PythonSdkPeerProcess.start("triple", "provider")) {

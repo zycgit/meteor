@@ -25,16 +25,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import net.hasor.meteor.address.route.FlowControlScripts;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class DiskCacheTest {
     private static final long CACHE_INTERVAL_MS = TimeUnit.HOURS.toMillis(1);
 
-    @Rule
-    public final  TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
     private final InterAddress    a         = new InterAddress("127.0.0.1", 8000, "zone");
     private final InterAddress    b         = new InterAddress("127.0.0.2", 8000, "zone");
 
@@ -44,7 +44,7 @@ public class DiskCacheTest {
         AddressPool pool = new AddressPool();
         pool.appendStaticAddress("s", this.a);
         pool.appendAddress("s", this.b);
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
             assertTrue(cache.saveToZip(pool.getBucket("s"), bytes));
@@ -66,7 +66,7 @@ public class DiskCacheTest {
         // 先保存包含静态地址的服务桶。
         AddressPool pool = new AddressPool();
         pool.appendStaticAddress("s", this.a);
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
             assertTrue(cache.saveToZip(pool.getBucket("s"), bytes));
@@ -86,7 +86,7 @@ public class DiskCacheTest {
         // 先保存包含动态地址的服务桶。
         AddressPool pool = new AddressPool();
         pool.appendAddress("s", this.b);
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
             assertTrue(cache.saveToZip(pool.getBucket("s"), bytes));
@@ -109,7 +109,7 @@ public class DiskCacheTest {
         pool.appendAddress("s", Arrays.asList(this.a, this.b));
         String config = "<controlSet>" + FlowControlScripts.unit(true, 0.5, "192.0.2.*") + "</controlSet>";
         pool.updateFlowControl("s", config);
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
             assertTrue(cache.saveToZip(pool.getBucket("s"), bytes));
@@ -132,7 +132,7 @@ public class DiskCacheTest {
         pool.appendAddress("s", this.a);
         String source = "<route><!-- 中文 --><return value='addresses'/></route>";
         assertTrue(pool.getBucket("s").updateRoute(RouteTypeEnum.ServiceLevel, source));
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
             assertTrue(cache.saveToZip(pool.getBucket("s"), bytes));
@@ -154,7 +154,7 @@ public class DiskCacheTest {
         pool.appendAddress("s", this.a);
         String source = "<route><!-- 中文 --><return value='addresses'/></route>";
         assertTrue(pool.getBucket("s").updateRoute(RouteTypeEnum.MethodLevel, source));
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
             assertTrue(cache.saveToZip(pool.getBucket("s"), bytes));
@@ -176,7 +176,7 @@ public class DiskCacheTest {
         pool.appendAddress("s", this.a);
         String source = "<route><!-- 中文 --><return value='addresses'/></route>";
         assertTrue(pool.getBucket("s").updateRoute(RouteTypeEnum.ArgsLevel, source));
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
             assertTrue(cache.saveToZip(pool.getBucket("s"), bytes));
@@ -198,7 +198,7 @@ public class DiskCacheTest {
         byte[] snapshot = zipEntry("service-level.xml", source);
         AddressBucket bucket = new AddressBucket("s", "zone");
         AddressPool pool = new AddressPool();
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayInputStream input = new ByteArrayInputStream(snapshot)) {
             // 读取固定名称的条目，恢复对应级别的脚本。
@@ -215,7 +215,7 @@ public class DiskCacheTest {
         AddressBucket bucket = new AddressBucket("s", "zone");
         assertTrue(bucket.updateRoute(RouteTypeEnum.ServiceLevel, source));
         AddressPool pool = new AddressPool();
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayInputStream input = new ByteArrayInputStream(snapshot)) {
             // 恢复方法级脚本，同时保留原有的服务级脚本。
@@ -234,7 +234,7 @@ public class DiskCacheTest {
         assertTrue(bucket.updateRoute(RouteTypeEnum.ServiceLevel, source));
         assertTrue(bucket.updateRoute(RouteTypeEnum.MethodLevel, source));
         AddressPool pool = new AddressPool();
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayInputStream input = new ByteArrayInputStream(snapshot)) {
             // 恢复参数级脚本，同时保留原有的服务级和方法级脚本。
@@ -248,7 +248,7 @@ public class DiskCacheTest {
     @Test
     public void fullSnapshotRestoresMultipleExistingServices() throws Exception {
         // 同一快照保存两个已注册服务，分别使用静态和动态地址。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         AddressPool source = new AddressPool();
         source.appendStaticAddress("s.one", this.a);
         source.appendAddress("s.two", this.b);
@@ -274,7 +274,7 @@ public class DiskCacheTest {
     @Test
     public void restoreDoesNotResurrectUnregisteredService() throws Exception {
         // 磁盘快照包含一个旧服务。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         AddressPool source = new AddressPool();
         source.appendAddress("s", this.a);
         try (DiskCache cache = new DiskCache(source, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS)) {
@@ -292,7 +292,7 @@ public class DiskCacheTest {
     @Test
     public void missingIndexDoesNotDestroyLiveAddresses() throws Exception {
         // 当前地址池已可路由，磁盘目录中尚未生成索引。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         AddressPool pool = new AddressPool();
         pool.appendAddress("s", this.a);
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS)) {
@@ -305,7 +305,7 @@ public class DiskCacheTest {
     @Test
     public void emptyIndexDoesNotDestroyLiveAddresses() throws Exception {
         // 准备空索引及当前有效地址。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         File snapshot = new File(home, "snapshot");
         assertTrue(snapshot.mkdirs());
         File index = new File(snapshot, "address.index");
@@ -322,7 +322,7 @@ public class DiskCacheTest {
     @Test
     public void missingArchiveDoesNotDestroyLiveAddresses() throws Exception {
         // 索引指向不存在的归档。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         File snapshot = new File(home, "snapshot");
         assertTrue(snapshot.mkdirs());
         File index = new File(snapshot, "address.index");
@@ -339,7 +339,7 @@ public class DiskCacheTest {
     @Test
     public void brokenArchiveDoesNotDestroyLiveAddresses() throws Exception {
         // 索引指向无法读取 ZIP 条目的损坏归档。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         File snapshot = new File(home, "snapshot");
         assertTrue(snapshot.mkdirs());
         File archive = new File(snapshot, "broken.zip");
@@ -362,7 +362,7 @@ public class DiskCacheTest {
         String lines = "# comment\nD|" + this.a + "\nD|rsf://127.0.0.9:8000/\nD|" + this.b + "\n";
         byte[] snapshot = zipEntry("address.sal", lines);
         AddressPool pool = new AddressPool();
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS); //
              ByteArrayInputStream input = new ByteArrayInputStream(snapshot)) {
             // 单行解析失败后仍保留归档内其余有效地址。
@@ -376,7 +376,7 @@ public class DiskCacheTest {
     @Test
     public void cleanupBeforeFirstSnapshotDoesNotCreateDirectory() throws Exception {
         // 缓存从未保存快照，数据目录中还没有快照子目录。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         File snapshot = new File(home, "snapshot");
         AddressPool pool = new AddressPool();
         assertFalse(snapshot.exists());
@@ -390,7 +390,7 @@ public class DiskCacheTest {
     @Test
     public void oldSnapshotsAreRemovedAndRecentOnesRetained() throws Exception {
         // 准备超过七天的归档及当前归档，验证清理的保留边界。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         File snapshot = new File(home, "snapshot");
         assertTrue(snapshot.mkdirs());
         SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd-HHmmss");
@@ -404,7 +404,7 @@ public class DiskCacheTest {
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS)) {
             // 同一次清理只移除过期文件，近期文件仍可恢复。
             cache.clearCacheData();
-            assertFalse("Retention must match names written by storeConfig", old.exists());
+            assertFalse(old.exists(), "Retention must match names written by storeConfig");
             assertTrue(recent.exists());
         }
     }
@@ -414,7 +414,7 @@ public class DiskCacheTest {
         // 通过短刷新周期观察真实定时器回调，不访问私有调度状态。
         BlockingQueue<Boolean> refreshes = new LinkedBlockingQueue<>();
         AddressPool pool = new AddressPool();
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, 100, CACHE_INTERVAL_MS) {
             @Override
             protected void clearCacheData() {
@@ -422,8 +422,8 @@ public class DiskCacheTest {
             }
         }) {
             // 连续两次回调证明任务完成后再次安排了刷新。
-            assertNotNull("Maintenance must start", refreshes.poll(2, TimeUnit.SECONDS));
-            assertNotNull("Maintenance must run again", refreshes.poll(2, TimeUnit.SECONDS));
+            assertNotNull(refreshes.poll(2, TimeUnit.SECONDS), "Maintenance must start");
+            assertNotNull(refreshes.poll(2, TimeUnit.SECONDS), "Maintenance must run again");
         }
     }
 
@@ -432,19 +432,19 @@ public class DiskCacheTest {
         // 先确认刷新任务已经启动。
         BlockingQueue<Boolean> refreshes = new LinkedBlockingQueue<>();
         AddressPool pool = new AddressPool();
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, 100, CACHE_INTERVAL_MS) {
             @Override
             protected void clearCacheData() {
                 refreshes.add(true);
             }
         }) {
-            assertNotNull("Maintenance must start", refreshes.poll(2, TimeUnit.SECONDS));
+            assertNotNull(refreshes.poll(2, TimeUnit.SECONDS), "Maintenance must start");
 
             // 关闭后丢弃既有事件，观察多个刷新周期都没有新的回调。
             cache.close();
             refreshes.clear();
-            assertNull("Closed cache must stop maintenance", refreshes.poll(500, TimeUnit.MILLISECONDS));
+            assertNull(refreshes.poll(500, TimeUnit.MILLISECONDS), "Closed cache must stop maintenance");
         }
     }
 
@@ -453,27 +453,27 @@ public class DiskCacheTest {
         // 启动实际刷新任务，为重复关闭准备已运行的资源。
         BlockingQueue<Boolean> refreshes = new LinkedBlockingQueue<>();
         AddressPool pool = new AddressPool();
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, 100, CACHE_INTERVAL_MS) {
             @Override
             protected void clearCacheData() {
                 refreshes.add(true);
             }
         }) {
-            assertNotNull("Maintenance must start", refreshes.poll(2, TimeUnit.SECONDS));
+            assertNotNull(refreshes.poll(2, TimeUnit.SECONDS), "Maintenance must start");
 
             // 重复关闭保持幂等，定时维护仍然停止。
             cache.close();
             cache.close();
             refreshes.clear();
-            assertNull("Repeated close must leave maintenance stopped", refreshes.poll(500, TimeUnit.MILLISECONDS));
+            assertNull(refreshes.poll(500, TimeUnit.MILLISECONDS), "Repeated close must leave maintenance stopped");
         }
     }
 
     @Test
     public void consecutiveSavesUseDifferentArchives() throws Exception {
         // 在同一目录连续保存，模拟同一时间窗口内的重复快照。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         AddressPool pool = new AddressPool();
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS)) {
             cache.storeConfig();
@@ -492,7 +492,7 @@ public class DiskCacheTest {
     @Test
     public void failedArchiveWritePreservesLastWorkingIndex() throws Exception {
         // 先发布一个完整快照并记录其索引。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         AddressPool pool = new AddressPool();
         pool.appendAddress("s", this.a);
         try (DiskCache cache = new DiskCache(pool, home, CACHE_INTERVAL_MS, CACHE_INTERVAL_MS)) {
@@ -526,7 +526,7 @@ public class DiskCacheTest {
     @Test
     public void retentionPreservesIndexedRecoveryPoint() throws Exception {
         // 索引仍指向超过保留期的旧归档。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         File snapshot = new File(home, "snapshot");
         assertTrue(snapshot.mkdirs());
         File indexed = new File(snapshot, "addr-pool-20000101-000000.zip");
@@ -544,7 +544,7 @@ public class DiskCacheTest {
     @Test
     public void retentionRemovesExpiredArchiveWithUniqueSuffix() throws Exception {
         // 同时准备索引保护的恢复点与带唯一后缀的另一份过期归档。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         File snapshot = new File(home, "snapshot");
         assertTrue(snapshot.mkdirs());
         File indexed = new File(snapshot, "addr-pool-20000101-000000.zip");
@@ -567,7 +567,7 @@ public class DiskCacheTest {
         // 清理回调记录进入事件后抛错，观察真实维护循环的失败恢复。
         BlockingQueue<Boolean> refreshes = new LinkedBlockingQueue<>();
         AddressPool pool = new AddressPool();
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, 100, CACHE_INTERVAL_MS) {
             @Override
             protected void clearCacheData() {
@@ -576,8 +576,8 @@ public class DiskCacheTest {
             }
         }) {
             // 第二次进入清理回调证明第一次失败没有终止周期刷新。
-            assertNotNull("Failing maintenance must start", refreshes.poll(2, TimeUnit.SECONDS));
-            assertNotNull("Failed maintenance must run again", refreshes.poll(2, TimeUnit.SECONDS));
+            assertNotNull(refreshes.poll(2, TimeUnit.SECONDS), "Failing maintenance must start");
+            assertNotNull(refreshes.poll(2, TimeUnit.SECONDS), "Failed maintenance must run again");
         }
     }
 
@@ -586,7 +586,7 @@ public class DiskCacheTest {
         // 在实际清理回调中制造失败。
         BlockingQueue<Boolean> refreshes = new LinkedBlockingQueue<>();
         AddressPool pool = new AddressPool();
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "junit").toFile();
         try (DiskCache cache = new DiskCache(pool, home, 100, CACHE_INTERVAL_MS) {
             @Override
             protected void clearCacheData() {
@@ -594,12 +594,12 @@ public class DiskCacheTest {
                 throw new IllegalStateException("Injected cleanup failure");
             }
         }) {
-            assertNotNull("Failing maintenance must start", refreshes.poll(2, TimeUnit.SECONDS));
+            assertNotNull(refreshes.poll(2, TimeUnit.SECONDS), "Failing maintenance must start");
 
             // 失败后关闭缓存，后续刷新周期也不能重新启动维护。
             cache.close();
             refreshes.clear();
-            assertNull("Closed cache must not restart failed maintenance", refreshes.poll(500, TimeUnit.MILLISECONDS));
+            assertNull(refreshes.poll(500, TimeUnit.MILLISECONDS), "Closed cache must not restart failed maintenance");
         }
     }
 

@@ -13,7 +13,7 @@ import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.nacos.NacosRegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 真实 Nacos 的业务存储示例；每次 main 只运行一个场景，保留持久档案供检查。 */
 public class NacosStorageMain extends AbstractNacosExample {

@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.xmlrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -23,21 +26,21 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 标准 XML-RPC 不支持宽整数；每个向量分别确认两端的明确范围拒绝。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/python/xmlrpc/direct/{0}/{1}/rejection", quoteTextArguments = false)
+@MethodSource("vectors")
+@NxnRpc(name = "xmlrpc")
 public class XmlRpcPythonTypeRejectionTest {
     private final String vector;
 
     public XmlRpcPythonTypeRejectionTest(String type, String vector) {
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/python/xmlrpc/direct/{0}/{1}/rejection")
     public static Collection<Object[]> vectors() throws Exception {
         // 依据实际业务值选择标准 signed int32 无法表示的整数和 Map 成员。
         List<Object[]> parameters = new ArrayList<>();
@@ -50,7 +53,8 @@ public class XmlRpcPythonTypeRejectionTest {
         return parameters;
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerRejectsIntegerOutsideWireRange() throws Exception {
         // 发布真实 Meteor 业务服务；范围错误必须发生在 Python 标准库编码阶段。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -71,12 +75,13 @@ public class XmlRpcPythonTypeRejectionTest {
             // 对端只接受确切 OverflowError 和标准错误文本，业务方法不得被执行。
             try (XmlRpcTypePeerProcess peer = XmlRpcTypePeerProcess.rejectedConsumer(target, this.vector)) {
                 peer.requireRangeRejection();
-                assertEquals("Python must reject before sending the request", 0, invocations.get());
+                assertEquals(0, invocations.get(), "Python must reject before sending the request");
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerRejectsIntegerOutsideWireRange() throws Exception {
         // 启动真实 Python 监听；Meteor 按公开 bootstrap 和服务订阅入口发起调用。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -97,7 +102,7 @@ public class XmlRpcPythonTypeRejectionTest {
             ExecutionException failure = assertThrows(ExecutionException.class, () -> {
                 remote.syncInvoke(service, "echo", types, arguments);
             });
-            assertTrue("Expected XML-RPC range IOException", failure.getCause() instanceof IOException);
+            assertTrue(failure.getCause() instanceof IOException, "Expected XML-RPC range IOException");
             assertEquals("XML-RPC integer exceeds signed 32-bit range", failure.getCause().getMessage());
             peer.requireNoInvocation();
         }

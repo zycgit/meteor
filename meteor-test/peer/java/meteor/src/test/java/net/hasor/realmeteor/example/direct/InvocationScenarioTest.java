@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -24,13 +25,16 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 同一订单接口的客户端调用形式；每个场景直接写出公开 API。 */
+@NxnRpc(name = "rsf", version = "1")
 public class InvocationScenarioTest {
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invokeThroughTheTypedProxy() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
@@ -54,7 +58,8 @@ public class InvocationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invokeByTheServiceIdentity() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
@@ -74,7 +79,8 @@ public class InvocationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void queryThroughARestrictedInterfaceView() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
@@ -94,7 +100,8 @@ public class InvocationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invokeByMethodNameAndDeclaredParameterTypes() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
@@ -116,7 +123,8 @@ public class InvocationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentFuturesKeepEachOrderResultSeparate() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
@@ -144,7 +152,8 @@ public class InvocationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void observeTheResultThroughACallback() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
@@ -178,7 +187,8 @@ public class InvocationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void messageReceiptDoesNotWaitForOrderProcessingToFinish() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         incoming.setQueueMinPoolSize(2);

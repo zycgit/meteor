@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.composition.state;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -19,23 +22,25 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 注解协议或 ONC RPC 替换已有订单后，RSF 读取同一业务存储中的最新字段。 */
-@RunWith(Parameterized.class)
+@NxnRpc(name = "rsf", version = "1")
+@NxnRpc(name = "thrift", cases = "replace-through=thrift")
+@NxnRpc(name = "oncrpc", version = "2", cases = "replace-through=oncrpc")
+@ParameterizedClass(autoCloseArguments = false, name = "replace-through={0}", quoteTextArguments = false)
+@MethodSource("protocols")
 public class OrderReplacementTest {
     private final OrderProtocol writer;
 
     public OrderReplacementTest(OrderProtocol writer) {
         this.writer = writer;
     }
-
-    @Parameterized.Parameters(name = "replace-through={0}")
     public static Collection<Object[]> protocols() {
         List<Object[]> protocols = new ArrayList<>();
         protocols.add(new Object[] { OrderProtocol.THRIFT });
@@ -43,7 +48,8 @@ public class OrderReplacementTest {
         return protocols;
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void replacementIsVisibleThroughOrdinaryRpc() throws Exception {
         // 只启用普通 RSF 和当前写入协议，两个协议共用一个业务对象。
         MetConfiguration incoming = OrderCompositionConfiguration.provider(OrderProtocol.RSF, this.writer, false);

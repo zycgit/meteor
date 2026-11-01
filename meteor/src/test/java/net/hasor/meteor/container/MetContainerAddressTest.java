@@ -22,8 +22,8 @@ import net.hasor.meteor.address.AddressBucket;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.container.ContainerFixtures.Echo;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MetContainerAddressTest {
     private final AddressPool  addresses = new AddressPool("unit", 1000);

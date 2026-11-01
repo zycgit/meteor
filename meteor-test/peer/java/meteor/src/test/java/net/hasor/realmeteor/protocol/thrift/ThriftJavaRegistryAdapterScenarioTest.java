@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.thrift;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -24,23 +28,23 @@ import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Apache Java SDK 的显式注册适配；固定使用标准 Binary 编码和 Framed TCP。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "thrift/java/adapter/{0}/binary-framed/plain", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "thrift")
 public class ThriftJavaRegistryAdapterScenarioTest {
-    @Parameterized.Parameters(name = "thrift/java/adapter/{0}/binary-framed/plain")
     public static Collection<Object[]> backends() {
         List<Object[]> result = new ArrayList<>();
         result.add(new Object[] { "jdbc" });
@@ -49,8 +53,8 @@ public class ThriftJavaRegistryAdapterScenarioTest {
         return result;
     }
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
@@ -58,10 +62,11 @@ public class ThriftJavaRegistryAdapterScenarioTest {
         this.backend = backend;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaConsumerResolvesMeteorProviderThroughStorageAdapter() throws Exception {
         // 复用既有官方生成的 IDL 合同，业务实现仍由 Meteor 的公开发布入口持有。
-        Path directory = this.data.newFolder("registry").toPath();
+        Path directory = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
             registry.setPublishHost(ContainerProcess.runnerHost());
@@ -94,10 +99,11 @@ public class ThriftJavaRegistryAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversOfficialJavaProviderThroughStorageAdapter() throws Exception {
         // Meteor 仅声明出站通道；订阅中不指定业务目标，也不开放监听。
-        Path directory = this.data.newFolder("registry").toPath();
+        Path directory = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
             registry.setPublishHost(ContainerProcess.runnerHost());

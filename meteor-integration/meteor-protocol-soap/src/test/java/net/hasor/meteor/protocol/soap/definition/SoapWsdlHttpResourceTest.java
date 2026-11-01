@@ -20,10 +20,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapWsdlHttpResourceTest {
     private final Map<String, byte[]> documents = new ConcurrentHashMap<>();
@@ -31,14 +31,14 @@ public class SoapWsdlHttpResourceTest {
     private final List<String>        requests  = new CopyOnWriteArrayList<>();
     private       HttpServer          server;
 
-    @Before
+    @BeforeEach
     public void startServer() throws IOException {
         this.server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         this.server.createContext("/", this::serve);
         this.server.start();
     }
 
-    @After
+    @AfterEach
     public void stopServer() {
         this.server.stop(0);
     }
@@ -299,7 +299,7 @@ public class SoapWsdlHttpResourceTest {
 
     private String fixture(String name) throws IOException {
         try (InputStream input = this.getClass().getResourceAsStream("/wsdl/" + name)) {
-            assertNotNull("Missing WSDL fixture: " + name, input);
+            assertNotNull(input, "Missing WSDL fixture: " + name);
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
     }

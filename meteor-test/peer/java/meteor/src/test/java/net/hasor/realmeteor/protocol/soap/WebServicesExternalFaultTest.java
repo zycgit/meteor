@@ -21,11 +21,15 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolStatus;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesExternalFaultTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void externalFaultCannotClaimSuccessfulMeteorStatus() throws Exception {
         // 外部 SOAP Fault 伪造成功状态，标准 faultstring 仍描述失败。
         String detail = """
@@ -60,14 +64,15 @@ public class WebServicesExternalFaultTest {
                 assertTrue(failure.getCause() instanceof MetException);
                 MetException fault = (MetException) failure.getCause();
                 assertEquals(ProtocolStatus.InvokeError, fault.getStatus());
-                assertTrue(fault.getMessage(), fault.getMessage().contains("external failure"));
+                assertTrue(fault.getMessage().contains("external failure"), fault.getMessage());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void externalFaultCannotClaimAcceptedMeteorStatus() throws Exception {
         // 外部 SOAP Fault 伪造仅表示已接收请求的状态。
         String detail = """
@@ -102,14 +107,15 @@ public class WebServicesExternalFaultTest {
                 assertTrue(failure.getCause() instanceof MetException);
                 MetException fault = (MetException) failure.getCause();
                 assertEquals(ProtocolStatus.InvokeError, fault.getStatus());
-                assertTrue(fault.getMessage(), fault.getMessage().contains("external failure"));
+                assertTrue(fault.getMessage().contains("external failure"), fault.getMessage());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void externalFaultIgnoresUnqualifiedDetailFields() throws Exception {
         // 外部 SOAP Fault 只提供无命名空间的 status 和 message 字段。
         String detail = """
@@ -145,15 +151,16 @@ public class WebServicesExternalFaultTest {
                 assertTrue(failure.getCause() instanceof MetException);
                 MetException fault = (MetException) failure.getCause();
                 assertEquals(ProtocolStatus.InvokeError, fault.getStatus());
-                assertTrue(fault.getMessage(), fault.getMessage().contains("external failure"));
-                assertFalse(fault.getMessage(), fault.getMessage().contains("spoofed success"));
+                assertTrue(fault.getMessage().contains("external failure"), fault.getMessage());
+                assertFalse(fault.getMessage().contains("spoofed success"), fault.getMessage());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void externalFaultFallsBackWhenMeteorStatusIsMalformed() throws Exception {
         // 外部 SOAP Fault 在正确命名空间内提供不可解析的状态值。
         String detail = """
@@ -188,14 +195,15 @@ public class WebServicesExternalFaultTest {
                 assertTrue(failure.getCause() instanceof MetException);
                 MetException fault = (MetException) failure.getCause();
                 assertEquals(ProtocolStatus.InvokeError, fault.getStatus());
-                assertTrue(fault.getMessage(), fault.getMessage().contains("external failure"));
+                assertTrue(fault.getMessage().contains("external failure"), fault.getMessage());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void externalFaultRestoresNamespacedMeteorFailureDetails() throws Exception {
         // 外部 SOAP Fault 使用 Meteor 命名空间返回合法失败状态和详细消息。
         String detail = """
@@ -231,7 +239,7 @@ public class WebServicesExternalFaultTest {
                 assertTrue(failure.getCause() instanceof MetException);
                 MetException fault = (MetException) failure.getCause();
                 assertEquals(ProtocolStatus.Forbidden, fault.getStatus());
-                assertTrue(fault.getMessage(), fault.getMessage().contains("service forbidden"));
+                assertTrue(fault.getMessage().contains("service forbidden"), fault.getMessage());
             }
         } finally {
             server.stop(0);

@@ -25,12 +25,15 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 插件从公开 bootstrap 完成一次基本网络调用。 */
 public class DubboBootstrapTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void zeroWireTimeoutUsesTheFiniteServerDefault() throws Exception {
         // 通过正式入口启动服务，在真实入站过滤器中观察执行层最终采用的期限。
         try (MetContext server = this.configuration(true).buildContext()) {
@@ -81,7 +84,8 @@ public class DubboBootstrapTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unicodeValueSurvivesTheDefaultHessian2RoundTrip() throws Exception {
         // 只在服务端开放监听，两个容器均通过公开 bootstrap 创建。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -101,7 +105,8 @@ public class DubboBootstrapTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectedDubboEncodingKeepsTheLocalServiceCallable() throws Exception {
         // 容器只有 Dubbo 出站能力，服务明确选择不被该协议接受的编码。
         try (MetContext context = this.configuration(false).buildContext()) {
@@ -118,7 +123,8 @@ public class DubboBootstrapTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectedDubboEncodingKeepsTheRsfPublicationCallable() throws Exception {
         // 同一 TCP 端点挂载 RSF 和 Dubbo，两端仅以 JSON 调用普通服务。
         MetConfiguration serverConfig = new MetConfiguration().setDefaultProtocol("rsf");
@@ -146,7 +152,8 @@ public class DubboBootstrapTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectedDubboEncodingDoesNotExposeTheServiceOverTheNetwork() throws Exception {
         // 提供者明确选择 JSON；消费者使用 Dubbo 支持的 Hessian2 发起请求。
         try (MetContext server = this.configuration(true).buildContext(); //

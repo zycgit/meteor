@@ -10,10 +10,10 @@ import java.io.IOException;
 import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.connector.protocol.rsf.RsfFixtures.fixture;
 import static net.hasor.meteor.connector.protocol.rsf.RsfFixtures.serializationContext;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** RSF/1 历史报文与序列化边界的单元覆盖。 */
 public class RsfCodecTest {

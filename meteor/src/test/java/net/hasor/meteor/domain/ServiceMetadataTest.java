@@ -12,8 +12,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ServiceMetadataTest {
     @MetMessage

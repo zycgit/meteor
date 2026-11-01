@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.discovery;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import java.util.concurrent.TimeUnit;
 import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.example.OrderDemoService;
@@ -16,22 +19,20 @@ import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.admin.MetDirectoryQuery;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 显式同步的完整、单服务范围分别展示，不混入自动发现验证。 */
 public class RegistrySyncScenarioTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     @Test
     public void pushAllLocalSubscriptions() throws Exception {
         // 两个服务 ID 复用同一订单接口，展示全量推送的范围。
         MemoryRegistryConfiguration registry = registry();
         MetConfiguration configuration = RegistryDiscoveryExample.consumer(registry, "rsf");
-        configuration.setDataHome(this.data.newFolder().toPath());
+        configuration.setDataHome(Files.createTempDirectory(this.data, "case-"));
         try (MetContext context = configuration.buildContext()) {
             context.start();
             MetBindInfo<OrderDemoService> first = context.publisher().rsfService(OrderDemoService.class) //
@@ -56,7 +57,7 @@ public class RegistrySyncScenarioTest {
         // 先建立两个本地登记，单服务推送不能将另一个登记覆盖掉。
         MemoryRegistryConfiguration registry = registry();
         MetConfiguration configuration = RegistryDiscoveryExample.consumer(registry, "rsf");
-        configuration.setDataHome(this.data.newFolder().toPath());
+        configuration.setDataHome(Files.createTempDirectory(this.data, "case-"));
         try (MetContext context = configuration.buildContext()) {
             context.start();
             MetBindInfo<OrderDemoService> first = context.publisher().rsfService(OrderDemoService.class) //
@@ -82,7 +83,7 @@ public class RegistrySyncScenarioTest {
         // 管理配置保存后，完整拉取覆盖本地声明的两个服务。
         MemoryRegistryConfiguration registry = registry();
         MetConfiguration configuration = RegistryDiscoveryExample.consumer(registry, "rsf");
-        configuration.setDataHome(this.data.newFolder().toPath());
+        configuration.setDataHome(Files.createTempDirectory(this.data, "case-"));
         try (MetContext context = configuration.buildContext()) {
             context.start();
             MetBindInfo<OrderDemoService> first = context.publisher().rsfService(OrderDemoService.class) //
@@ -107,7 +108,7 @@ public class RegistrySyncScenarioTest {
         // 单服务拉取按服务 ID 定位，不删除同一上下文中的另一份契约。
         MemoryRegistryConfiguration registry = registry();
         MetConfiguration configuration = RegistryDiscoveryExample.consumer(registry, "rsf");
-        configuration.setDataHome(this.data.newFolder().toPath());
+        configuration.setDataHome(Files.createTempDirectory(this.data, "case-"));
         try (MetContext context = configuration.buildContext()) {
             context.start();
             MetBindInfo<OrderDemoService> first = context.publisher().rsfService(OrderDemoService.class) //

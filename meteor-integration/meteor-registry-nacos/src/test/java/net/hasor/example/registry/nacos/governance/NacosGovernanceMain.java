@@ -19,7 +19,7 @@ import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.admin.MetRuleType;
 import net.hasor.meteor.registry.nacos.NacosRegistryConfiguration;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 每个方法独立验证一种存储治理操作经 Nacos 订阅作用于应用的结果。 */
 public class NacosGovernanceMain extends AbstractNacosExample {

@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.List;
 import net.hasor.example.echo.TextEchoService;
@@ -12,22 +15,22 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** libjson-rpc-cpp SDK 的基础双向文本互通，不扩展传输与类型矩阵。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/cpp/jsonrpc/libjson-rpc-cpp@{0}/{1}", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class JsonRpcCppInteropTest {
     private final String executable;
 
     public JsonRpcCppInteropTest(String version, String profile, String executable) {
         this.executable = executable;
     }
-
-    @Parameterized.Parameters(name = "sdk/cpp/jsonrpc/libjson-rpc-cpp@{0}/{1}")
     public static List<Object[]> versions() {
         // 两个主版本加载不同前缀的运行库，测试保留相同业务契约。
         List<Object[]> versions = new ArrayList<>();
@@ -37,7 +40,8 @@ public class JsonRpcCppInteropTest {
         return versions;
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sdkToMeteorJsonRpcEcho() throws Exception {
         // 通过 bootstrap 启动 Meteor，发布普通 Java 接口到一个 JSON-RPC HTTP 挂载点。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -55,12 +59,13 @@ public class JsonRpcCppInteropTest {
             List<String> command = List.of(this.executable, "consumer", message);
             try (OrderPeerProcess consumer = OrderPeerProcess.start("native", command, target)) {
                 String output = consumer.awaitOutput();
-                assertTrue(output, output.contains("OK libjson-rpc-cpp: " + message));
+                assertTrue(output.contains("OK libjson-rpc-cpp: " + message), output);
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorToSdkJsonRpcEcho() throws Exception {
         // libjson-rpc-cpp 自行发布 HTTP 服务，Meteor 只配置出站连接器。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,12 +23,16 @@ import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolStatus;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 发布身份、实现来源、本地优先和远端方法准入都复用订单契约。 */
+@NxnRpc(name = "rsf", version = "1")
 public class PublicationScenarioTest {
-    @Test(timeout = 30000)
+    @NxnRpc(name = "thrift")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void thriftUsesTheSharedOrderBindingAndTcpListener() throws Exception {
         // 提供者挂载全部协议，消费者只配置 Thrift；双方启动后直接发布和订阅普通接口。
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
@@ -54,7 +59,8 @@ public class PublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void queryAServiceByIdentityAliasAndMetadata() throws Exception {
         MetConfiguration configuration = DirectRpcExample.client("rsf");
         try (MetContext context = configuration.buildContext()) {
@@ -81,7 +87,8 @@ public class PublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void declareTheServiceIdentityWithAnInterfaceAnnotation() throws Exception {
         MetConfiguration configuration = DirectRpcExample.client("rsf");
         try (MetContext context = configuration.buildContext()) {
@@ -101,7 +108,8 @@ public class PublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void versionsKeepClassAndSupplierProvidersSeparate() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
@@ -144,7 +152,8 @@ public class PublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void localProviderTakesPrecedenceEvenForAFixedRemoteAddress() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
@@ -172,7 +181,8 @@ public class PublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void ignoredQueryRemainsUnavailableToARemoteCaller() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");

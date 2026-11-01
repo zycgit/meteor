@@ -8,14 +8,19 @@ import net.hasor.example.protocol.hessian.HessianInteropDemo;
 import net.hasor.example.protocol.hessian.HessianInteropDemoImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.python.PythonSdkPeerProcess;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** python-hessian 的公开能力是 HTTP 客户端，本类只记录 Python 到 Meteor 方向。 */
+@NxnRpc(name = "hessian", version = "2")
 public class HessianPythonInteropTest {
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonSdkCallsMeteor() throws Exception {
         // 从 bootstrap 发布 Hessian 2 服务，不使用 Java SDK 代理转发 Python 的调用。
         MetConfiguration configuration = new MetConfiguration();

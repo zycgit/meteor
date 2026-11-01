@@ -40,8 +40,8 @@ import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.protocol.soap.SoapProtocol;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionResource;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 会话生命周期单元测试：真实编解码器配合可控的有序传输，不启动网络监听。 */
 public class SoapSessionTest {

@@ -22,11 +22,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class MetXmlMappingScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11KeepsSameLocalNameInDifferentNamespaces() throws Exception {
         // 两端先启动，再发布与订阅仅使用 Meteor XML 注解的普通 Java 接口。
         MetConfiguration incoming = this.configuration(true, "1.1");
@@ -60,7 +64,9 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12KeepsSameLocalNameInDifferentNamespaces() throws Exception {
         // 两端先启动，再发布与订阅仅使用 Meteor XML 注解的普通 Java 接口。
         MetConfiguration incoming = this.configuration(true, "1.2");
@@ -94,7 +100,8 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void transientPropertyDoesNotCrossTheSoapBoundary() throws Exception {
         // 两端先启动，再发布与订阅仅使用 Meteor XML 注解的普通 Java 接口。
         MetConfiguration incoming = this.configuration(true, "1.1");
@@ -126,7 +133,8 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void enumUsesTheDeclaredXmlLexicalValue() throws Exception {
         // 两端先启动，再发布与订阅仅使用 Meteor XML 注解的普通 Java 接口。
         MetConfiguration incoming = this.configuration(true, "1.1");
@@ -157,7 +165,8 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrappedNullCollectionRemainsNull() throws Exception {
         // 启动双端容器，普通 DTO 决定集合在 XML 中的包装方式。
         MetConfiguration incoming = this.configuration(true, "1.1");
@@ -189,7 +198,8 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrappedEmptyCollectionRemainsEmpty() throws Exception {
         // 启动双端容器，普通 DTO 决定集合在 XML 中的包装方式。
         MetConfiguration incoming = this.configuration(true, "1.1");
@@ -222,7 +232,8 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrappedSingleNilElementDoesNotBecomeANullContainer() throws Exception {
         // 启动双端容器，普通 DTO 决定集合在 XML 中的包装方式。
         MetConfiguration incoming = this.configuration(true, "1.1");
@@ -256,7 +267,8 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unwrappedArrayPreservesMultipleElementsAndNil() throws Exception {
         // 启动双端容器，普通 DTO 决定集合在 XML 中的包装方式。
         MetConfiguration incoming = this.configuration(true, "1.1");
@@ -288,7 +300,8 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unwrappedEnumListUsesItsXmlLexicalValues() throws Exception {
         // 启动双端容器，普通 DTO 决定集合在 XML 中的包装方式。
         MetConfiguration incoming = this.configuration(true, "1.1");
@@ -320,7 +333,8 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void simpleContentPreservesTextAndAttributes() throws Exception {
         // simpleContent 的正文与属性都由 Meteor 注解声明，无需 JAXB。
         MetConfiguration incoming = this.configuration(true, "1.1");
@@ -353,7 +367,8 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void externalWsdlBindsTheAnnotatedJavaDtoWithoutGeneratedClasses() throws Exception {
         // 同一 Java 接口通过显式资源对接外部 WSDL，而不使用生成类或 JAXB。
         MetConfiguration incoming = this.configuration(true, "1.1");
@@ -388,7 +403,8 @@ public class MetXmlMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidMappingIsRejectedBeforeItsDescriptionIsPublished() throws Exception {
         // 一个 DTO 同时要求 simpleContent 与子元素，服务发布必须拒绝这种冲突。
         MetConfiguration configuration = this.configuration(true, "1.1");

@@ -24,13 +24,18 @@ import net.hasor.example.protocol.soap.SignalServiceImpl;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesDirectoryTest {
     private static final Pattern LINKS = Pattern.compile("href\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directoryListsPublishedServicesAndTheirUsableWsdlLinks() throws Exception {
         // 用户在 SOAP 协议配置中同时启用目录并指定完整 HTTP 路径。
         MetConfiguration configuration = this.directoryConfiguration();
@@ -49,20 +54,20 @@ public class WebServicesDirectoryTest {
             HttpResponse<byte[]> response = http.send(this.get(directory), HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(200, response.statusCode());
             String contentType = response.headers().firstValue("content-type").orElse("");
-            assertTrue(contentType, StringUtils.startsWithIgnoreCase(contentType, "text/html"));
-            assertTrue(contentType, StringUtils.containsIgnoreCase(contentType, "charset=utf-8"));
+            assertTrue(StringUtils.startsWithIgnoreCase(contentType, "text/html"), contentType);
+            assertTrue(StringUtils.containsIgnoreCase(contentType, "charset=utf-8"), contentType);
             String html = new String(response.body(), StandardCharsets.UTF_8);
-            assertTrue(html, html.contains("EchoService"));
-            assertTrue(html, html.contains("SignalService"));
+            assertTrue(html.contains("EchoService"), html);
+            assertTrue(html.contains("SignalService"), html);
             Set<URI> links = this.links(directory, html);
             URI echoEndpoint = this.endpoint(context, "/services/EchoService");
             URI signalEndpoint = this.endpoint(context, "/services/SignalService");
             URI echoWsdl = URI.create(echoEndpoint + "?wsdl");
             URI signalWsdl = URI.create(signalEndpoint + "?wsdl");
-            assertTrue(html, html.contains(echoEndpoint.getPath()));
-            assertTrue(html, html.contains(signalEndpoint.getPath()));
-            assertTrue(html, links.contains(echoWsdl));
-            assertTrue(html, links.contains(signalWsdl));
+            assertTrue(html.contains(echoEndpoint.getPath()), html);
+            assertTrue(html.contains(signalEndpoint.getPath()), html);
+            assertTrue(links.contains(echoWsdl), html);
+            assertTrue(links.contains(signalWsdl), html);
 
             // 跟随目录中公开的两个契约地址，确认链接确实指向当前服务。
             HttpResponse<byte[]> echo = http.send(this.get(echoWsdl), HttpResponse.BodyHandlers.ofByteArray());
@@ -72,7 +77,8 @@ public class WebServicesDirectoryTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directoryIsDisabledByDefault() throws Exception {
         // 保持 SOAP 协议的默认配置，发布服务不会隐式开启目录。
         MetConfiguration configuration = this.configuration();
@@ -91,7 +97,8 @@ public class WebServicesDirectoryTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directoryPathAloneDoesNotEnableDirectory() throws Exception {
         // 仅声明地址，未打开目录开关。
         MetConfiguration configuration = this.configuration();
@@ -109,7 +116,8 @@ public class WebServicesDirectoryTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directoryEnabledWithoutPathDoesNotPublishDirectory() throws Exception {
         // 仅打开开关，未指定目录地址，不会自动占用协议根路径。
         MetConfiguration configuration = this.configuration();
@@ -127,7 +135,8 @@ public class WebServicesDirectoryTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitFalseKeepsConfiguredDirectoryPrivate() throws Exception {
         // 保留目录路径但显式关闭开关。
         MetConfiguration configuration = this.configuration();
@@ -145,7 +154,8 @@ public class WebServicesDirectoryTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void configuredChildPathIsTheOnlyDirectoryAddress() throws Exception {
         // 目录使用 context 下的独立子路径。
         MetConfiguration configuration = this.configuration();
@@ -165,14 +175,15 @@ public class WebServicesDirectoryTest {
             assertEquals(200, response.statusCode());
             String html = new String(response.body(), StandardCharsets.UTF_8);
             Set<URI> links = this.links(directory, html);
-            assertTrue(html, links.contains(this.endpoint(context, "/services/EchoService?wsdl")));
+            assertTrue(links.contains(this.endpoint(context, "/services/EchoService?wsdl")), html);
             URI root = this.endpoint(context, "/services");
             HttpResponse<byte[]> absent = http.send(this.get(root), HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(404, absent.statusCode());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directoryUsesConfiguredPublicBaseForServiceAddresses() throws Exception {
         // 反向代理部署通过 publicBaseUrl 声明外部可访问的地址前缀。
         MetConfiguration configuration = this.configuration();
@@ -194,12 +205,13 @@ public class WebServicesDirectoryTest {
             String html = new String(response.body(), StandardCharsets.UTF_8);
             Set<URI> links = this.links(directory, html);
             String publicEndpoint = "https://soap.example.test/gateway/services/EchoService";
-            assertTrue(html, html.contains(publicEndpoint));
-            assertTrue(html, links.contains(URI.create(publicEndpoint + "?wsdl")));
+            assertTrue(html.contains(publicEndpoint), html);
+            assertTrue(links.contains(URI.create(publicEndpoint + "?wsdl")), html);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directoryListsSelectedContextsAndExactServicePaths() throws Exception {
         // 一个 SOAP 协议挂载多个 context，目录聚合这个配置中的全部实际服务地址。
         MetConfiguration configuration = this.configuration();
@@ -226,12 +238,12 @@ public class WebServicesDirectoryTest {
             Set<URI> links = this.links(directory, html);
             URI privateWsdl = this.endpoint(context, "/private/EchoService?wsdl");
             URI exactWsdl = this.endpoint(context, "/api/signal?wsdl");
-            assertTrue(html, links.contains(this.endpoint(context, "/services/EchoService?wsdl")));
-            assertTrue(html, links.contains(privateWsdl));
-            assertTrue(html, html.contains("/api/signal"));
-            assertTrue(html, links.contains(exactWsdl));
-            assertFalse(html, html.contains("/services/SignalService"));
-            assertFalse(html, html.contains("/api/signal/SignalService"));
+            assertTrue(links.contains(this.endpoint(context, "/services/EchoService?wsdl")), html);
+            assertTrue(links.contains(privateWsdl), html);
+            assertTrue(html.contains("/api/signal"), html);
+            assertTrue(links.contains(exactWsdl), html);
+            assertFalse(html.contains("/services/SignalService"), html);
+            assertFalse(html.contains("/api/signal/SignalService"), html);
 
             // 额外 context 和精确路径的契约都能通过网络读取。
             HttpRequest privateRequest = this.get(privateWsdl);
@@ -243,7 +255,8 @@ public class WebServicesDirectoryTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nestedContextHidesTheDefaultServiceEndpointFromDirectory() throws Exception {
         // 更具体的子 context 占用 Echo 默认地址；另一个默认服务仍然可见。
         MetConfiguration configuration = this.configuration();
@@ -266,8 +279,8 @@ public class WebServicesDirectoryTest {
             assertEquals(200, response.statusCode());
             String html = new String(response.body(), StandardCharsets.UTF_8);
             Set<URI> links = this.links(directory, html);
-            assertFalse(html, html.contains("EchoService"));
-            assertTrue(html, links.contains(this.endpoint(context, "/services/SignalService?wsdl")));
+            assertFalse(html.contains("EchoService"), html);
+            assertTrue(links.contains(this.endpoint(context, "/services/SignalService?wsdl")), html);
 
             // 真实 HTTP 路由命中子 context 后，默认 Echo 的契约确实不可访问。
             HttpRequest hiddenRequest = this.get(this.endpoint(context, "/services/EchoService?wsdl"));
@@ -276,7 +289,8 @@ public class WebServicesDirectoryTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exactServicePathReplacesTheCoveredProviderInDirectory() throws Exception {
         // Signal 的精确路径覆盖 Echo 的默认调用地址，服务别名仍各自独立。
         MetConfiguration configuration = this.directoryConfiguration();
@@ -298,8 +312,8 @@ public class WebServicesDirectoryTest {
             String html = new String(response.body(), StandardCharsets.UTF_8);
             Set<URI> links = this.links(directory, html);
             URI actualWsdl = this.endpoint(context, "/services/EchoService?wsdl");
-            assertTrue(html, html.contains(">SignalService<"));
-            assertFalse(html, html.contains(">EchoService<"));
+            assertTrue(html.contains(">SignalService<"), html);
+            assertFalse(html.contains(">EchoService<"), html);
             assertEquals(Set.of(actualWsdl), links);
 
             // 跟随该地址得到 Signal 的真实契约，说明列表与精确路由的提供者一致。
@@ -307,12 +321,13 @@ public class WebServicesDirectoryTest {
             HttpResponse<byte[]> definition = http.send(actualRequest, HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(200, definition.statusCode());
             String wsdl = new String(definition.body(), StandardCharsets.UTF_8);
-            assertTrue(wsdl, wsdl.contains("urn:hasor:meteor:soap:SignalService"));
-            assertFalse(wsdl, wsdl.contains("urn:hasor:meteor:soap:EchoService"));
+            assertTrue(wsdl.contains("urn:hasor:meteor:soap:SignalService"), wsdl);
+            assertFalse(wsdl.contains("urn:hasor:meteor:soap:EchoService"), wsdl);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitContextSelectionDoesNotInventDefaultContextLinks() throws Exception {
         // 服务仅选择 private context，目录仍挂载在默认 services context。
         MetConfiguration configuration = this.configuration();
@@ -333,12 +348,13 @@ public class WebServicesDirectoryTest {
             assertEquals(200, response.statusCode());
             String html = new String(response.body(), StandardCharsets.UTF_8);
             Set<URI> links = this.links(directory, html);
-            assertTrue(html, links.contains(this.endpoint(context, "/private/EchoService?wsdl")));
-            assertFalse(html, html.contains("/services/EchoService"));
+            assertTrue(links.contains(this.endpoint(context, "/private/EchoService?wsdl")), html);
+            assertFalse(html.contains("/services/EchoService"), html);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerDeclarationsAreExcludedFromDirectory() throws Exception {
         // 同一个容器既发布 SOAP 服务，也订阅另一个 SOAP 契约。
         MetConfiguration configuration = this.directoryConfiguration();
@@ -356,12 +372,13 @@ public class WebServicesDirectoryTest {
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(200, response.statusCode());
             String html = new String(response.body(), StandardCharsets.UTF_8);
-            assertTrue(html, html.contains("EchoService"));
-            assertFalse(html, html.contains("ConsumerSignal"));
+            assertTrue(html.contains("EchoService"), html);
+            assertFalse(html.contains("ConsumerSignal"), html);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void shadowProvidersAreExcludedFromDirectory() throws Exception {
         // 隐藏服务与正常提供者同时声明在 SOAP 协议上。
         MetConfiguration configuration = this.directoryConfiguration();
@@ -380,12 +397,13 @@ public class WebServicesDirectoryTest {
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(200, response.statusCode());
             String html = new String(response.body(), StandardCharsets.UTF_8);
-            assertTrue(html, html.contains("EchoService"));
-            assertFalse(html, html.contains("ShadowSignal"));
+            assertTrue(html.contains("EchoService"), html);
+            assertFalse(html.contains("ShadowSignal"), html);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providersBoundOnlyToAnotherProtocolAreExcludedFromDirectory() throws Exception {
         // 容器同时提供 SOAP 和 RSF，另一个协议的服务也有 SOAP 别名。
         MetConfiguration configuration = this.directoryConfiguration();
@@ -405,12 +423,13 @@ public class WebServicesDirectoryTest {
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(200, response.statusCode());
             String html = new String(response.body(), StandardCharsets.UTF_8);
-            assertTrue(html, html.contains("EchoService"));
-            assertFalse(html, html.contains("RsfSignal"));
+            assertTrue(html.contains("EchoService"), html);
+            assertFalse(html.contains("RsfSignal"), html);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void servicesRegisteredAfterTheFirstDirectoryRequestAppearImmediately() throws Exception {
         // 先启动空的 SOAP 容器并读取目录，形成动态发布前的观察结果。
         MetConfiguration configuration = this.directoryConfiguration();
@@ -430,11 +449,12 @@ public class WebServicesDirectoryTest {
             assertEquals(200, after.statusCode());
             String html = new String(after.body(), StandardCharsets.UTF_8);
             Set<URI> links = this.links(directory, html);
-            assertTrue(html, links.contains(this.endpoint(context, "/services/EchoService?wsdl")));
+            assertTrue(links.contains(this.endpoint(context, "/services/EchoService?wsdl")), html);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void headReturnsDirectoryHeadersWithoutTheHtmlBody() throws Exception {
         // 发布服务，使目录正文长度可以与 HEAD 声明值进行比较。
         MetConfiguration configuration = this.directoryConfiguration();
@@ -460,7 +480,8 @@ public class WebServicesDirectoryTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void postToDirectoryIsRejectedWithAllowedReadMethods() throws Exception {
         // 目录地址只提供读取服务列表的能力。
         MetConfiguration configuration = this.directoryConfiguration();
@@ -477,7 +498,8 @@ public class WebServicesDirectoryTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directoryReturnsFaultWhenAServiceOccupiesItsPath() throws Exception {
         // 目录地址与使用默认 context 和别名组合得到的服务地址相同。
         MetConfiguration configuration = this.configuration();
@@ -502,13 +524,14 @@ public class WebServicesDirectoryTest {
             HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(500, response.statusCode());
             String fault = new String(response.body(), StandardCharsets.UTF_8);
-            assertTrue(fault, fault.contains("<soap:Fault"));
+            assertTrue(fault.contains("<soap:Fault"), fault);
             String message = "SOAP service endpoint conflicts with directoryPath: /services/EchoService";
-            assertTrue(fault, fault.contains(message));
+            assertTrue(fault.contains(message), fault);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directoryDetectsAnExactServicePathPublishedAfterItsFirstRequest() throws Exception {
         // 服务显式精确路径与目录地址重叠，别名本身没有重叠。
         MetConfiguration configuration = this.configuration();
@@ -538,9 +561,9 @@ public class WebServicesDirectoryTest {
             HttpResponse<byte[]> response = http.send(request, HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(500, response.statusCode());
             String fault = new String(response.body(), StandardCharsets.UTF_8);
-            assertTrue(fault, fault.contains("<soap:Fault"));
+            assertTrue(fault.contains("<soap:Fault"), fault);
             String message = "SOAP service endpoint conflicts with directoryPath: /services/index";
-            assertTrue(fault, fault.contains(message));
+            assertTrue(fault.contains(message), fault);
         }
     }
 

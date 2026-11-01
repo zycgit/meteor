@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -19,14 +20,17 @@ import net.hasor.example.protocol.jsonrpc.JsonRpcDemoService;
 import net.hasor.example.protocol.jsonrpc.JsonRpcDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class JsonRpcWireScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final        HttpClient   http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void positionalParametersCallTheJavaInterface() throws Exception {
         // 位置参数对应 Java 方法声明顺序。
         MetConfiguration configuration = this.configuration();
@@ -51,7 +55,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void namedParametersUseJavaParameterNames() throws Exception {
         // 命名参数按照 Java 参数名绑定，与 JSON 属性顺序无关。
         MetConfiguration configuration = this.configuration();
@@ -76,7 +81,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void omittedParametersInvokeAZeroArgumentMethod() throws Exception {
         // 无参数的方法可以省略 params。
         MetConfiguration configuration = this.configuration();
@@ -99,7 +105,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nullBusinessResultIsPresentInResponse() throws Exception {
         // 业务返回 null 时仍保留 result 属性。
         MetConfiguration configuration = this.configuration();
@@ -124,7 +131,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void stringRequestIdIsReturnedUnchanged() throws Exception {
         // 字符串 ID 原样返回，不强制转换为内部请求序号。
         MetConfiguration configuration = this.configuration();
@@ -147,7 +155,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void largeNumericRequestIdRetainsItsPrecision() throws Exception {
         // 超过 long 范围的数字 ID 在响应中保留精度。
         MetConfiguration configuration = this.configuration();
@@ -170,7 +179,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitNullIdStillProducesAResponse() throws Exception {
         // 显式 null ID 是请求，区别于未包含 id 的通知。
         MetConfiguration configuration = this.configuration();
@@ -195,7 +205,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void malformedJsonReturnsParseError() throws Exception {
         // 无法解析的 JSON 返回 Parse error。
         MetConfiguration configuration = this.configuration();
@@ -219,7 +230,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrongVersionReturnsInvalidRequest() throws Exception {
         // 版本号不符合 JSON-RPC 2.0 时返回 Invalid Request。
         MetConfiguration configuration = this.configuration();
@@ -242,7 +254,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void booleanIdReturnsInvalidRequest() throws Exception {
         // 布尔 ID 不能作为请求标识。
         MetConfiguration configuration = this.configuration();
@@ -265,7 +278,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void scalarDocumentReturnsInvalidRequest() throws Exception {
         // JSON 标量不是请求对象或请求批次。
         MetConfiguration configuration = this.configuration();
@@ -288,7 +302,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unknownMethodReturnsMethodNotFound() throws Exception {
         // 未发布的方法返回 Method not found。
         MetConfiguration configuration = this.configuration();
@@ -312,7 +327,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrongArgumentCountReturnsInvalidParams() throws Exception {
         // 参数数量不匹配时返回 Invalid params。
         MetConfiguration configuration = this.configuration();
@@ -335,7 +351,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void businessFailureReturnsAnErrorWithTheOriginalId() throws Exception {
         // 未声明协议错误码的业务异常转换成标准 Internal error。
         MetConfiguration configuration = this.configuration();
@@ -361,7 +378,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrongArgumentTypeReturnsInvalidParams() throws Exception {
         // 无法转换为 Java 参数类型时返回 Invalid params。
         MetConfiguration configuration = this.configuration();
@@ -384,7 +402,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unknownNamedParameterReturnsInvalidParams() throws Exception {
         // 未知命名参数不能被静默丢弃。
         MetConfiguration configuration = this.configuration();
@@ -409,7 +428,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyBatchReturnsOneInvalidRequestObject() throws Exception {
         // 空批次返回单个 Invalid Request 对象。
         MetConfiguration configuration = this.configuration();
@@ -433,7 +453,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void singleEntryBatchReturnsAnArray() throws Exception {
         // 仅包含一条普通请求的批次仍返回数组。
         MetConfiguration configuration = this.configuration();
@@ -458,7 +479,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidBatchEntryProducesAnErrorEntry() throws Exception {
         // 批次中的非法元素独立返回错误，不阻断其它请求。
         MetConfiguration configuration = this.configuration();
@@ -485,7 +507,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void notificationReturnsNoJsonResponse() throws Exception {
         // 发布业务接口，通知通过 Dispatcher 执行但不生成 JSON-RPC 响应。
         MetConfiguration configuration = this.configuration();
@@ -509,7 +532,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unknownNotificationReturnsNoErrorResponse() throws Exception {
         // 发布业务接口，通知通过 Dispatcher 执行但不生成 JSON-RPC 响应。
         MetConfiguration configuration = this.configuration();
@@ -532,7 +556,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void failedNotificationReturnsNoErrorResponse() throws Exception {
         // 发布业务接口，通知通过 Dispatcher 执行但不生成 JSON-RPC 响应。
         MetConfiguration configuration = this.configuration();
@@ -555,7 +580,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mixedBatchReturnsOnlyOrdinaryCallResults() throws Exception {
         // 同一批次包含通知与普通调用，服务实现记录实际收到的通知。
         MetConfiguration configuration = this.configuration();
@@ -601,7 +627,8 @@ public class JsonRpcWireScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void notificationOnlyBatchReturnsNoJsonArray() throws Exception {
         // 全通知批次只提交调用，不生成空数组或占位结果。
         MetConfiguration configuration = this.configuration();

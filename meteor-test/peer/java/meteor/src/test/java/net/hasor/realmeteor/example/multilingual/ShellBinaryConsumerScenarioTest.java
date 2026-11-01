@@ -4,6 +4,8 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
@@ -21,21 +23,26 @@ import hprose.io.HproseWriter;
 import net.hasor.cobble.StringUtils;
 import net.hasor.example.Order;
 import net.hasor.example.OrderContract;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** curl 负责真实 HTTP 发送；固定 unary 的二进制正文由既有官方契约与 SDK 读写。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "curl/{0}/direct", quoteTextArguments = false)
+@MethodSource("protocols")
+@NxnRpc(name = "grpc", cases = "curl/grpc/direct")
+@NxnRpc(name = "grpc-web", cases = "curl/grpc-web/direct")
+@NxnRpc(name = "hprose", cases = "curl/hprose/direct")
+@NxnRpc(name = "hessian", version = "2", cases = "curl/hessian/direct")
+@NxnRpc(name = "triple", cases = "curl/triple/direct")
 public class ShellBinaryConsumerScenarioTest {
     private final String protocol;
 
     public ShellBinaryConsumerScenarioTest(String protocol) {
         this.protocol = protocol;
     }
-
-    @Parameterized.Parameters(name = "curl/{0}/direct")
     public static List<Object[]> protocols() {
         // 顺序对应 HTTP/2、gRPC-Web 和传统 HTTP 二进制的基础消费矩阵。
         List<Object[]> protocols = new ArrayList<>();
@@ -47,7 +54,8 @@ public class ShellBinaryConsumerScenarioTest {
         return protocols;
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void curlReceivesTheSavedOrderFromMeteor() throws Throwable {
         // 各容器共享测试工作区；正文文件不放在容器私有的 /tmp，也不共用其它场景目录。
         Path workspace = OrderPeerProcess.sources().getParent().resolve("build/curl-wire");
@@ -75,7 +83,7 @@ public class ShellBinaryConsumerScenarioTest {
                 if (this.http2()) {
                     version = "HTTP/2 200";
                 }
-                assertTrue(fields, fields.startsWith(version));
+                assertTrue(fields.startsWith(version), fields);
                 this.assertSavedOrder(Files.readAllBytes(response), fields);
             }
         } finally {
@@ -206,17 +214,17 @@ public class ShellBinaryConsumerScenarioTest {
             assertEquals(List.of("0"), this.headerValues(trailers, "grpc-status"));
         } else {
             assertEquals(List.of("application/grpc+proto"), this.headerValues(headers, "content-type"));
-            assertEquals("gRPC status is missing from curl headers:\n" + headers, //
-                    List.of("0"), this.headerValues(headers, "grpc-status"));
+            assertEquals(//
+                    List.of("0"), this.headerValues(headers, "grpc-status"), "gRPC status is missing from curl headers:\n" + headers);
         }
-        assertEquals("Unexpected extra unary response bytes", 0, frames.remaining());
+        assertEquals(0, frames.remaining(), "Unexpected extra unary response bytes");
     }
 
     private byte[] frame(ByteBuffer input, int expectedFlag) {
-        assertTrue("Truncated unary frame header", input.remaining() >= 5);
+        assertTrue(input.remaining() >= 5, "Truncated unary frame header");
         assertEquals(expectedFlag, input.get() & 0xff);
         int length = input.getInt();
-        assertTrue("Invalid unary frame length", length >= 0 && length <= input.remaining());
+        assertTrue(length >= 0 && length <= input.remaining(), "Invalid unary frame length");
         byte[] payload = new byte[length];
         input.get(payload);
         return payload;

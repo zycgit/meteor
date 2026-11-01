@@ -13,10 +13,11 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.instance;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.service;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 配置校验和连接生命周期；每个无效选项独立报告。 */
 public class ZookeeperRegistryConfigurationTest {
@@ -246,7 +247,8 @@ public class ZookeeperRegistryConfigurationTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unavailableServerFailsWithinConfiguredTimeoutAndCanRecover() throws Exception {
         // 关闭实际服务端，超时必须通过正式存储入口反馈。
         try (TestingServer server = new TestingServer()) {

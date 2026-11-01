@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.description;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
@@ -31,17 +34,18 @@ import net.hasor.meteor.registry.admin.description.MetProtocolDescription;
 import net.hasor.meteor.registry.admin.description.MetServiceDescription;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 资源声明在首次发布前覆盖或清空，最终网络绑定与注册描述必须来自同一份定义。 */
+@NxnRpc(name = "grpc")
 public class ProtocolResourcePublicationScenarioTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void overwrittenProtoDeclarationDrivesBothTheWireAndRegisteredDescription() throws Exception {
         // 同一个普通 Java 接口先绑定原契约，再在首次发布前改用不同的字段编号。
         GrpcProtoResource original = this.originalResource();
@@ -76,7 +80,8 @@ public class ProtocolResourcePublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clearedProtoDeclarationUsesTheGeneratedOrderContractInRpcAndRegistration() throws Exception {
         // 原资源描述 Echo；清空后订单服务必须重新按公共注解生成自己的契约。
         MetConfiguration incoming = this.providerConfiguration(1);
@@ -118,7 +123,8 @@ public class ProtocolResourcePublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void failedSiblingPublicationKeepsBothLiveEndpointsAndTheirRegisteredSnapshot() throws Exception {
         // 同一个健康服务发布到两个独立 HTTP 端点，预先建立两条真实连接。
         MetConfiguration incoming = this.providerConfiguration(2);
@@ -173,7 +179,7 @@ public class ProtocolResourcePublicationScenarioTest {
         registry.setManagementToken("resource-publication-tests");
         registry.setRefreshMillis(60000);
         MetConfiguration configuration = new MetConfiguration().addExtension(registry);
-        configuration.setDataHome(this.data.newFolder("provider").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         for (int index = 0; index < endpointCount; index++) {
             configuration.connector("http").bind("127.0.0.1", 0).protocol("grpc").contextPath("/rpc");
         }
@@ -183,7 +189,7 @@ public class ProtocolResourcePublicationScenarioTest {
 
     private MetConfiguration consumerConfiguration() throws Exception {
         MetConfiguration configuration = new MetConfiguration();
-        configuration.setDataHome(this.data.newFolder("consumer").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         configuration.connector("http").option("httpVersion", 2).protocol("grpc").contextPath("/rpc");
         return configuration;
     }
@@ -193,7 +199,7 @@ public class ProtocolResourcePublicationScenarioTest {
     }
 
     private GrpcProtoResource replacementResource() throws Exception {
-        var contract = this.data.newFile("replacement.proto").toPath();
+        var contract = Files.createFile(this.data.resolve("replacement.proto"));
         String source = """
                 syntax = "proto3";
                 package example;

@@ -20,12 +20,17 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.soap.support.AttachmentHttpProxy;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.2")
 public class WebServicesSoapGetTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientUsesTheAnnotatedGetOperation() throws Exception {
         // 客户端与服务端声明相同的只读接口，SOAP 1.2 自动选用 GET 绑定。
         MetConfiguration serverConfig = this.configuration("1.2");
@@ -62,7 +67,8 @@ public class WebServicesSoapGetTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void annotatedReadOnlyMethodReturnsSoap12Representation() throws Exception {
         // 显式声明只读查询，通过 SOAP 1.2 GET 获取 SOAP 响应。
         MetConfiguration configuration = this.configuration("1.2");
@@ -81,14 +87,16 @@ public class WebServicesSoapGetTest {
             assertEquals(200, response.statusCode());
             assertEquals(1, implementation.getInvocations());
             String contentType = response.headers().firstValue("content-type").orElse("");
-            assertTrue(contentType, contentType.startsWith("application/soap+xml"));
-            assertTrue(response.body(), response.body().contains("http://www.w3.org/2003/05/soap-envelope"));
-            assertTrue(response.body(), response.body().contains("ready"));
+            assertTrue(contentType.startsWith("application/soap+xml"), contentType);
+            assertTrue(response.body().contains("http://www.w3.org/2003/05/soap-envelope")
+, response.body());
+            assertTrue(response.body().contains("ready"), response.body());
             assertEquals("no-store", response.headers().firstValue("cache-control").orElse(""));
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unannotatedMethodIsNotExposedAsGet() throws Exception {
         // 普通无参方法没有 SoapGet 标记，GET 不能执行业务。
         MetConfiguration configuration = this.configuration("1.2");
@@ -109,7 +117,8 @@ public class WebServicesSoapGetTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unknownGetOperationReturnsNotFound() throws Exception {
         // 不存在的查询操作返回明确的资源不存在状态。
         MetConfiguration configuration = this.configuration("1.2");
@@ -130,7 +139,8 @@ public class WebServicesSoapGetTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void headDoesNotExecuteTheReadOnlyOperation() throws Exception {
         // HEAD 不通过查询入口触发 Java 方法执行。
         MetConfiguration configuration = this.configuration("1.2");
@@ -151,7 +161,9 @@ public class WebServicesSoapGetTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.1")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11DoesNotExposeTheSoap12GetBinding() throws Exception {
         // 同一 Java 接口挂载 SOAP 1.1 时保持其 POST 调用方式。
         MetConfiguration configuration = this.configuration("1.1");
@@ -172,7 +184,8 @@ public class WebServicesSoapGetTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void getWithRequestBodyIsRejectedBeforeInvocation() throws Exception {
         // SOAP response 消息交换模式的 GET 不携带请求 SOAP 正文。
         MetConfiguration configuration = this.configuration("1.2");

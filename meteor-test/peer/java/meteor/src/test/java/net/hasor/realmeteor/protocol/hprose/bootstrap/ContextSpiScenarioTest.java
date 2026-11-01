@@ -13,10 +13,12 @@ import net.hasor.example.protocol.hprose.SerializerExamples.SpiCoder;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
+@NxnRpc(name = "rsf", version = "1")
 public class ContextSpiScenarioTest extends BootstrapTestSupport {
     @Test
     public void spiCodersAreDiscoveredPerContextAndUsedForRemoteCalls() throws Exception {

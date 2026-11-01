@@ -18,8 +18,8 @@ import com.google.protobuf.WireFormat;
 import net.hasor.example.protocol.triple.TripleDemoService;
 import net.hasor.example.protocol.triple.TripleMessage;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TripleValueCodecTest {
     private final TripleValueCodec codec = new TripleValueCodec(4096, this.getClass().getClassLoader());

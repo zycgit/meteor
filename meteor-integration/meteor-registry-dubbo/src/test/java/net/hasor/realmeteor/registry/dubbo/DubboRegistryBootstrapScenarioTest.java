@@ -17,14 +17,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.dubbo.DubboRegistryClient;
 import net.hasor.meteor.registry.dubbo.DubboRegistryConfiguration;
 import org.apache.curator.test.TestingServer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 注册中心扩展的基础公开入口验证；官方对端与恢复矩阵由 meteor-test 承担。 */
 public class DubboRegistryBootstrapScenarioTest {
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerDiscoversServicePublishedAfterBothApplicationsStarted() throws Exception {
         // 两端只配置注册中心，消费方没有监听端口或业务直连地址。
         try (TestingServer zookeeper = new TestingServer()) {

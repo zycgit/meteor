@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -21,12 +22,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** ONC RPC 的 Future、并发、取消、期限及关闭均从公开调用入口验证。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcLifecycleScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpPendingCallWaitsForBusinessCompletion() throws Exception {
         // 用业务闩锁明确控制返回时刻，观察等待超时和 RPC 完成的区别。
         MetConfiguration incoming = this.incoming("tcp");
@@ -59,7 +64,8 @@ public class OncRpcLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpConcurrentCallsKeepTheirOwnXidResults() throws Exception {
         // 多个调用共享同一客户端连接，同时提交后再读取响应。
         MetConfiguration incoming = this.incoming("tcp");
@@ -88,7 +94,8 @@ public class OncRpcLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpCancelledReplyCannotCompleteFollowingCall() throws Exception {
         // 两条业务各有独立闩锁，让旧响应与仍在途的新请求精确相遇。
         MetConfiguration incoming = this.incoming("tcp");
@@ -129,7 +136,8 @@ public class OncRpcLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpTimedOutReplyCannotCompleteFollowingCall() throws Exception {
         // RPC 期限先于原业务完成，后续请求使用同一真实客户端连接。
         MetConfiguration incoming = this.incoming("tcp");
@@ -171,7 +179,8 @@ public class OncRpcLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpClientCloseTerminatesPendingCallBeforeDeadline() throws Exception {
         // 请求期限长于关闭观察窗口，业务一直等待显式释放。
         MetConfiguration incoming = this.incoming("tcp");
@@ -211,7 +220,8 @@ public class OncRpcLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpPendingCallWaitsForBusinessCompletion() throws Exception {
         // 用业务闩锁明确控制返回时刻，观察等待超时和 RPC 完成的区别。
         MetConfiguration incoming = this.incoming("udp");
@@ -244,7 +254,8 @@ public class OncRpcLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpConcurrentCallsKeepTheirOwnXidResults() throws Exception {
         // 多个调用共享同一客户端连接，同时提交后再读取响应。
         MetConfiguration incoming = this.incoming("udp");
@@ -273,7 +284,8 @@ public class OncRpcLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpCancelledReplyCannotCompleteFollowingCall() throws Exception {
         // 两条业务各有独立闩锁，让旧响应与仍在途的新请求精确相遇。
         MetConfiguration incoming = this.incoming("udp");
@@ -314,7 +326,8 @@ public class OncRpcLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpTimedOutReplyCannotCompleteFollowingCall() throws Exception {
         // RPC 期限先于原业务完成，后续请求使用同一真实客户端连接。
         MetConfiguration incoming = this.incoming("udp");
@@ -356,7 +369,8 @@ public class OncRpcLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpClientCloseTerminatesPendingCallBeforeDeadline() throws Exception {
         // 请求期限长于关闭观察窗口，业务一直等待显式释放。
         MetConfiguration incoming = this.incoming("udp");

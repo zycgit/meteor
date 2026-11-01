@@ -9,8 +9,8 @@ package net.hasor.meteor.protocol.soap.definition;
 import java.io.IOException;
 import java.net.URL;
 import javax.xml.namespace.QName;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapHeaderContractTest {
     @Test
@@ -97,7 +97,7 @@ public class SoapHeaderContractTest {
 
     private URL resource(String name) {
         URL resource = this.getClass().getResource("/wsdl/styles/" + name);
-        assertNotNull("Missing WSDL fixture " + name, resource);
+        assertNotNull(resource, "Missing WSDL fixture " + name);
         return resource;
     }
 }

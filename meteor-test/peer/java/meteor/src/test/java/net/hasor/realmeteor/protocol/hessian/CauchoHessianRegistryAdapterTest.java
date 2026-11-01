@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.hessian;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -20,23 +24,24 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Caucho 官方 JVM 经显式存储适配发现服务；SDK 本身不实现 Meteor 注册协议。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "backend={0}, Hessian={1}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "hessian", version = "1", cases = "backend=*, Hessian=1")
+@NxnRpc(name = "hessian", version = "2", cases = "backend=*, Hessian=2")
 public class CauchoHessianRegistryAdapterTest {
-    @Parameterized.Parameters(name = "backend={0}, Hessian={1}")
     public static Collection<Object[]> configurations() {
         List<Object[]> result = new ArrayList<>();
         // 每项是独立的注册后端与线协议版本，不在单个方法内轮流执行场景。
@@ -49,8 +54,8 @@ public class CauchoHessianRegistryAdapterTest {
         return result;
     }
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
     private final int    version;
@@ -60,10 +65,11 @@ public class CauchoHessianRegistryAdapterTest {
         this.version = version;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialConsumerResolvesMeteorProviderThroughStorageAdapter() throws Exception {
         // 使用原互通合同，Caucho proxy 与 Meteor 对同一公开 Java 签名独立编解码。
-        Path directory = this.data.newFolder("registry").toPath();
+        Path directory = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
             registry.setPublishHost(ContainerProcess.runnerHost());
@@ -96,10 +102,11 @@ public class CauchoHessianRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversOfficialProviderThroughStorageAdapter() throws Exception {
         // 消费者只配置出站协议和注册库，没有固定业务地址，也不开业务监听。
-        Path directory = this.data.newFolder("registry").toPath();
+        Path directory = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
             registry.setPublishHost(ContainerProcess.runnerHost());

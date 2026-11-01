@@ -18,12 +18,14 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.example.connector.protocol.HttpEchoService;
 import net.hasor.example.connector.protocol.HttpWirePeer;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 从正式启动和发布入口验证 HTTP 分块传输与外部对端互通。 */
 public class HttpTransportScenarioTest {
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void fragmentedChunkedRequestInvokesPublishedServiceAndReusesConnection() throws Exception {
         // HTTP 监听器由公开配置构建，文本测试协议负责映射普通回显业务。
         MetConfiguration configuration = new MetConfiguration();
@@ -57,7 +59,8 @@ public class HttpTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void remoteInvocationDecodesChunkedResponseFromExternalServer() throws Exception {
         // 客户端通过正式入口注册服务引用，对端使用独立原始 HTTP 服务器。
         MetConfiguration configuration = new MetConfiguration();

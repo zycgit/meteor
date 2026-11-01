@@ -19,13 +19,17 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "hprose")
 public class HproseHttpsInteropTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeCallsMeteorOverMutualTls() throws Exception {
         // HTTPS 监听要求客户端身份，官方 Node.js 客户端加载受信任的客户端证书。
         MetConfiguration incoming = new MetConfiguration().setQueueMinPoolSize(4);
@@ -53,11 +57,11 @@ public class HproseHttpsInteropTest {
             String target = "https://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("https-client", target, "unicode", this.tlsDirectory());
             try {
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 任何断言失败都不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -65,7 +69,8 @@ public class HproseHttpsInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeHttpsBatchPreservesOrderAndErrorIsolation() throws Exception {
         // HTTPS 监听要求客户端身份，官方 Node.js 客户端加载受信任的客户端证书。
         MetConfiguration incoming = new MetConfiguration().setQueueMinPoolSize(4);
@@ -93,11 +98,11 @@ public class HproseHttpsInteropTest {
             String target = "https://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("https-client", target, "batch", this.tlsDirectory());
             try {
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 任何断言失败都不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -105,7 +110,8 @@ public class HproseHttpsInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeHttpsByRefReturnsMutatedArguments() throws Exception {
         // HTTPS 监听要求客户端身份，官方 Node.js 客户端加载受信任的客户端证书。
         MetConfiguration incoming = new MetConfiguration().setQueueMinPoolSize(4);
@@ -133,11 +139,11 @@ public class HproseHttpsInteropTest {
             String target = "https://" + ContainerProcess.runnerHost() + ":" + port + "/rpc";
             Process peer = this.peer("https-client", target, "byref", this.tlsDirectory());
             try {
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 任何断言失败都不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -145,7 +151,8 @@ public class HproseHttpsInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialNodeOverMutualTls() throws Exception {
         // 官方 Node.js 服务端使用独立身份并要求客户端证书，启动后报告随机端口。
         Process peer = this.peer("https-server", this.tlsDirectory());

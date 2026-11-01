@@ -14,9 +14,9 @@ import net.hasor.example.bootstrap.SelectiveServiceExample.RemoteView;
 import net.hasor.example.bootstrap.SelectiveServiceExample.Service;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolStatus;
-import org.junit.Test;
-import org.junit.function.ThrowingRunnable;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MetIgnoreTest {
     @Test
@@ -248,13 +248,13 @@ public class MetIgnoreTest {
         }
     }
 
-    private static void assertForbidden(ThrowingRunnable action) {
+    private static void assertForbidden(Executable action) {
         // RPC 代理可能包裹异常，沿原因链检查调用者感知的禁止状态。
         Throwable failure = assertThrows(Throwable.class, action);
         while (!(failure instanceof MetException) && failure.getCause() != null) {
             failure = failure.getCause();
         }
-        assertTrue(failure.toString(), failure instanceof MetException);
+        assertTrue(failure instanceof MetException, failure.toString());
         assertEquals(ProtocolStatus.Forbidden, ((MetException) failure).getStatus());
     }
 }

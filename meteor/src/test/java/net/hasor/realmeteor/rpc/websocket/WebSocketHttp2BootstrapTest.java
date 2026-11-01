@@ -16,12 +16,14 @@ import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.example.rpc.websocket.WebSocketConfigurations;
 import net.hasor.example.rpc.websocket.WebSocketSample;
 import net.hasor.example.rpc.websocket.WebSocketSampleService;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** RFC 8441 扩展 CONNECT 的真实 RPC 与单个 HTTP/2 stream 生命周期。 */
 public class WebSocketHttp2BootstrapTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void extendedConnectCarriesRealJsonRpc() throws Exception {
         // HTTP/2 明文先验连接使用 RFC 8441 CONNECT，而不是 HTTP/1 Upgrade。
         MetConfiguration incoming = new MetConfiguration();
@@ -47,7 +49,8 @@ public class WebSocketHttp2BootstrapTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingOneWebSocketStreamLeavesTheOtherStreamUsable() throws Exception {
         // 一个 ProtocolSession 在同一个 HTTP 通道上打开两个 WS stream，轮流承载请求。
         MetConfiguration incoming = new MetConfiguration();

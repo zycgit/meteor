@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.hprose.registry;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -23,26 +27,26 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Node 官方 Hprose SDK 的显式注册适配，不把辅助进程的存储发现标记为 SDK 原生发现。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "registry-adapter/{0}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "hprose")
 public class HproseRegistryAdapterTest {
-    @Parameterized.Parameters(name = "registry-adapter/{0}")
     public static Collection<Object[]> backends() {
         // 每个注册库独立形成 JUnit 实例，不在一个测试方法内循环不同连接方式。
         List<Object[]> result = new ArrayList<>();
@@ -52,8 +56,8 @@ public class HproseRegistryAdapterTest {
         return result;
     }
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
@@ -61,10 +65,11 @@ public class HproseRegistryAdapterTest {
         this.backend = backend;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeConsumerResolvesMeteorProviderAndPreservesOrderObject() throws Exception {
         // 注册库与 Meteor 通过正式入口创建；启动后才发布统一订单服务。
-        Path registryHome = this.data.newFolder("registry").toPath();
+        Path registryHome = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, registryHome)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "hprose-provider");
@@ -77,7 +82,7 @@ public class HproseRegistryAdapterTest {
                         .name("orders").protocol("hprose").aliasName("Hprose", "orders").register();
 
                 // Node 启动没有 URL；resolver 订阅服务后提供完整端点，Java 不代发业务请求。
-                Path logs = this.data.newFolder("node-consumer").toPath();
+                Path logs = Files.createDirectory(this.data.resolve("node-consumer"));
                 try (StorageAccess storage = registry.openStorage(); //
                      RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(), "hprose"); //
                      NodeHproseOrderPeer consumer = NodeHproseOrderPeer.consumer(logs)) {
@@ -93,10 +98,11 @@ public class HproseRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversNodeProviderAndPreservesOrderObject() throws Exception {
         // 消费者只配置注册库及出站协议，不获得外部进程预先分配的业务地址。
-        Path registryHome = this.data.newFolder("registry").toPath();
+        Path registryHome = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, registryHome)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "hprose-consumer");
@@ -111,7 +117,7 @@ public class HproseRegistryAdapterTest {
                 assertTrue(consumer.getUpdater().queryAvailableAddresses(service.getBindID()).isEmpty());
 
                 // Node 随机端口真实就绪后再登记，显式标记 node/hprose/http 而非原生注册能力。
-                Path logs = this.data.newFolder("node-provider").toPath();
+                Path logs = Files.createDirectory(this.data.resolve("node-provider"));
                 try (NodeHproseOrderPeer provider = NodeHproseOrderPeer.provider(logs); //
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     InterAddress address = provider.address(consumer.getSettings().getUnitName());
@@ -135,10 +141,11 @@ public class HproseRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeConsumerResolvesMeteorProviderAndPreservesUnicode() throws Exception {
         // 注册库与 Meteor 通过正式入口创建；启动后才发布统一订单服务。
-        Path registryHome = this.data.newFolder("registry").toPath();
+        Path registryHome = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, registryHome)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "hprose-provider");
@@ -151,7 +158,7 @@ public class HproseRegistryAdapterTest {
                         .name("orders").protocol("hprose").aliasName("Hprose", "orders").register();
 
                 // Node 启动没有 URL；resolver 订阅服务后提供完整端点，Java 不代发业务请求。
-                Path logs = this.data.newFolder("node-consumer").toPath();
+                Path logs = Files.createDirectory(this.data.resolve("node-consumer"));
                 try (StorageAccess storage = registry.openStorage(); //
                      RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(), "hprose"); //
                      NodeHproseOrderPeer consumer = NodeHproseOrderPeer.consumer(logs)) {
@@ -167,10 +174,11 @@ public class HproseRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversNodeProviderAndPreservesUnicode() throws Exception {
         // 消费者只配置注册库及出站协议，不获得外部进程预先分配的业务地址。
-        Path registryHome = this.data.newFolder("registry").toPath();
+        Path registryHome = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, registryHome)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "hprose-consumer");
@@ -185,7 +193,7 @@ public class HproseRegistryAdapterTest {
                 assertTrue(consumer.getUpdater().queryAvailableAddresses(service.getBindID()).isEmpty());
 
                 // Node 随机端口真实就绪后再登记，显式标记 node/hprose/http 而非原生注册能力。
-                Path logs = this.data.newFolder("node-provider").toPath();
+                Path logs = Files.createDirectory(this.data.resolve("node-provider"));
                 try (NodeHproseOrderPeer provider = NodeHproseOrderPeer.provider(logs); //
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     InterAddress address = provider.address(consumer.getSettings().getUnitName());
@@ -209,10 +217,11 @@ public class HproseRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeConsumerResolvesMeteorProviderAndPreservesEveryOctet() throws Exception {
         // 注册库与 Meteor 通过正式入口创建；启动后才发布统一订单服务。
-        Path registryHome = this.data.newFolder("registry").toPath();
+        Path registryHome = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, registryHome)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "hprose-provider");
@@ -225,7 +234,7 @@ public class HproseRegistryAdapterTest {
                         .name("orders").protocol("hprose").aliasName("Hprose", "orders").register();
 
                 // Node 启动没有 URL；resolver 订阅服务后提供完整端点，Java 不代发业务请求。
-                Path logs = this.data.newFolder("node-consumer").toPath();
+                Path logs = Files.createDirectory(this.data.resolve("node-consumer"));
                 try (StorageAccess storage = registry.openStorage(); //
                      RegistryAddressResolver resolver = new RegistryAddressResolver(storage, service.getBindID(), "hprose"); //
                      NodeHproseOrderPeer consumer = NodeHproseOrderPeer.consumer(logs)) {
@@ -241,10 +250,11 @@ public class HproseRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversNodeProviderAndPreservesEveryOctet() throws Exception {
         // 消费者只配置注册库及出站协议，不获得外部进程预先分配的业务地址。
-        Path registryHome = this.data.newFolder("registry").toPath();
+        Path registryHome = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, registryHome)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "hprose-consumer");
@@ -259,7 +269,7 @@ public class HproseRegistryAdapterTest {
                 assertTrue(consumer.getUpdater().queryAvailableAddresses(service.getBindID()).isEmpty());
 
                 // Node 随机端口真实就绪后再登记，显式标记 node/hprose/http 而非原生注册能力。
-                Path logs = this.data.newFolder("node-provider").toPath();
+                Path logs = Files.createDirectory(this.data.resolve("node-provider"));
                 try (NodeHproseOrderPeer provider = NodeHproseOrderPeer.provider(logs); //
                      ForeignServiceRegistrar registrar = new ForeignServiceRegistrar(registry)) {
                     InterAddress address = provider.address(consumer.getSettings().getUnitName());
@@ -286,7 +296,7 @@ public class HproseRegistryAdapterTest {
     private MetConfiguration configuration(RegistryConfiguration registry, String applicationName) throws Exception {
         MetConfiguration configuration = new MetConfiguration();
         configuration.setApplicationName(applicationName);
-        configuration.setDataHome(this.data.newFolder(applicationName).toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve(applicationName)));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 内部管理出口不开放监听或暴露给 Node。
         return configuration;
@@ -294,21 +304,21 @@ public class HproseRegistryAdapterTest {
 
     private static void assertNodeOrder(Order expected, JsonNode actual) {
         // 控制 JSON 明确列出对象字段；二进制数组来自 Node 对 Hprose 原生 Buffer 的观察。
-        assertTrue("Order must be an object", actual.isObject());
-        assertEquals("Order field count", 3, actual.size());
-        assertTrue("Order id must be an integer", actual.path("id").isIntegralNumber());
+        assertTrue(actual.isObject(), "Order must be an object");
+        assertEquals(3, actual.size(), "Order field count");
+        assertTrue(actual.path("id").isIntegralNumber(), "Order id must be an integer");
         assertEquals(expected.getId(), actual.path("id").intValue());
-        assertTrue("Order description must be text", actual.path("description").isTextual());
+        assertTrue(actual.path("description").isTextual(), "Order description must be text");
         assertEquals(expected.getDescription(), actual.path("description").textValue());
 
         JsonNode octets = actual.path("attachment");
-        assertTrue("Order attachment must contain octets", octets.isArray());
+        assertTrue(octets.isArray(), "Order attachment must contain octets");
         byte[] actualBytes = new byte[octets.size()];
         for (int index = 0; index < actualBytes.length; index++) {
             JsonNode value = octets.get(index);
-            assertTrue("Attachment octet must be an integer", value.isIntegralNumber());
+            assertTrue(value.isIntegralNumber(), "Attachment octet must be an integer");
             int unsigned = value.intValue();
-            assertTrue("Attachment octet must fit uint8", unsigned >= 0 && unsigned <= 255);
+            assertTrue(unsigned >= 0 && unsigned <= 255, "Attachment octet must fit uint8");
             actualBytes[index] = (byte) unsigned;
         }
         assertArrayEquals(expected.getAttachment(), actualBytes);

@@ -18,11 +18,15 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import net.hasor.example.protocol.soap.EchoService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesSoap11EnvelopeTest {
     private static final String NAMESPACE    = "http://schemas.xmlsoap.org/soap/envelope/";
     private static final String ACTION       = "urn:hasor:meteor:soap:EchoService/echo";
@@ -31,7 +35,8 @@ public class WebServicesSoap11EnvelopeTest {
             <m:echo xmlns:m="urn:hasor:meteor:soap:EchoService"><arg0>hello</arg0></m:echo>
             """;
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrongEnvelopeNamespaceReturnsVersionMismatch() throws Exception {
         // 从公开入口启动默认 SOAP 1.1 服务并观察业务调用。
         AtomicInteger invocations = new AtomicInteger();
@@ -70,7 +75,8 @@ public class WebServicesSoap11EnvelopeTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mandatoryHeaderFaultDoesNotContainBodyDetail() throws Exception {
         // 从公开入口启动默认 SOAP 1.1 服务并观察业务调用。
         AtomicInteger invocations = new AtomicInteger();
@@ -109,7 +115,8 @@ public class WebServicesSoap11EnvelopeTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textBooleanIsInvalidForSoap11MustUnderstand() throws Exception {
         // 从公开入口启动默认 SOAP 1.1 服务并观察业务调用。
         AtomicInteger invocations = new AtomicInteger();
@@ -148,7 +155,8 @@ public class WebServicesSoap11EnvelopeTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void duplicateBodyIsRejectedBeforeInvocation() throws Exception {
         // 从公开入口启动默认 SOAP 1.1 服务并观察业务调用。
         AtomicInteger invocations = new AtomicInteger();
@@ -187,7 +195,8 @@ public class WebServicesSoap11EnvelopeTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void processingInstructionIsRejectedBeforeInvocation() throws Exception {
         // 从公开入口启动默认 SOAP 1.1 服务并观察业务调用。
         AtomicInteger invocations = new AtomicInteger();
@@ -226,7 +235,8 @@ public class WebServicesSoap11EnvelopeTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void qualifiedEnvelopeExtensionAfterBodyRemainsValid() throws Exception {
         // SOAP 1.1 支持 Body 之后的命名空间扩展，发布可观察的业务服务。
         AtomicInteger invocations = new AtomicInteger();
@@ -256,7 +266,7 @@ public class WebServicesSoap11EnvelopeTest {
             // 合法扩展没有妨碍正常 SOAP 1.1 调用。
             assertEquals(200, response.statusCode());
             assertEquals(1, invocations.get());
-            assertTrue(response.body(), response.body().contains("hello"));
+            assertTrue(response.body().contains("hello"), response.body());
         }
     }
 

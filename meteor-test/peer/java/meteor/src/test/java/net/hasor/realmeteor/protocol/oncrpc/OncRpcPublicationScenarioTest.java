@@ -6,6 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.io.TempDir;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -33,20 +35,22 @@ import net.hasor.meteor.protocol.oncrpc.codec.OncRpcException;
 import net.hasor.meteor.protocol.oncrpc.binding.OncRpcIdlResource;
 import net.hasor.meteor.protocol.oncrpc.binding.OncRpcServiceResource;
 import net.hasor.meteor.protocol.oncrpc.codec.OncRpcMessage;
-import org.junit.Test;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 正式发布入口上的契约校验、程序路由和共享监听。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcPublicationScenarioTest {
-    @Rule
-    public final TemporaryFolder contracts = new TemporaryFolder();
+    @TempDir
+    public Path contracts;
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void publicOrderFieldIdsMatchTheExistingXdrMemberSequence() throws Exception {
         // 消费者的文件固定成员顺序，提供者直接复用公共 Order 的字段号生成 XDR 映射。
-        Path contract = this.contracts.newFile("order-fields.x").toPath();
+        Path contract = Files.createFile(this.contracts.resolve("order-fields.x"));
         Files.writeString(contract, """
                 struct Order {
                     int id;
@@ -84,7 +88,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void resourceProgramVersionIsIndependentOfTheMeteorServiceVersion() throws Exception {
         // 程序版本由协议资源选择，业务服务版本仍保留原有字符串语义。
         MetConfiguration incoming = this.incoming();
@@ -110,7 +115,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unannotatedServiceKeepsLocalCallsAvailable() throws Exception {
         // 未声明 ONC 程序的接口仍可注册本地服务。
         MetConfiguration configuration = this.incoming();
@@ -127,7 +133,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void customStructWithoutXdrCodecKeepsLocalCallsAvailable() throws Exception {
         // 自定义结构没有显式 XDR 编码器时，不生成 ONC 程序契约。
         MetConfiguration configuration = this.incoming();
@@ -147,7 +154,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidProtocolResourceRejectsRegistration() throws Exception {
         // 当前协议显式绑定错误类型时，配置错误在发布阶段暴露。
         MetConfiguration configuration = this.incoming();
@@ -162,7 +170,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void foreignSerializerKeepsLocalServiceCallableAndRejectsNetworkCalls() throws Exception {
         // 提供者声明 JSON，消费者使用相同的 ONC 程序注解及默认 XDR 编码。
         MetConfiguration incoming = this.incoming();
@@ -194,7 +203,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void messageAnnotationKeepsLocalCallsAvailable() throws Exception {
         // ONC RPC 不支持消息注解声明的一次性通知。
         MetConfiguration configuration = this.incoming();
@@ -214,7 +224,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void messageBindingKeepsLocalCallsAvailable() throws Exception {
         // 服务级消息模式无法映射为 ONC 请求响应。
         MetConfiguration configuration = this.incoming();
@@ -238,7 +249,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void flowReturnKeepsLocalCallsAvailable() throws Exception {
         // ONC RPC 的单次结果不支持 Flow 返回值。
         MetConfiguration configuration = this.incoming();
@@ -258,7 +270,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void inputStreamReturnKeepsLocalCallsAvailable() throws Exception {
         // ONC RPC 不把 InputStream 当作普通 XDR 对象传输。
         MetConfiguration configuration = this.incoming();
@@ -278,7 +291,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void scalarContractIsInferredFromPublicAnnotations() throws Exception {
         // 标量接口直接使用程序与过程注解，不要求用户创建绑定资源。
         MetConfiguration incoming = this.incoming();
@@ -296,7 +310,8 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentProgramsShareOneProtocolEndpoint() throws Exception {
         // 同一 ONC RPC 协议挂载可以按程序编号区分不同 Java 服务。
         MetConfiguration incoming = this.incoming();
@@ -318,7 +333,10 @@ public class OncRpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @NxnRpc(name = "oncrpc", version = "2")
+    @NxnRpc(name = "rsf", version = "1")
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oncRpcAndRsfShareOneTcpListener() throws Exception {
         // 一个底层连接器同时挂载 RSF 与 ONC RPC，监听端口只创建一次。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("oncrpc");

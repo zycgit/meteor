@@ -18,9 +18,11 @@ import net.hasor.example.protocol.soap.EchoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesDefinitionTest {
     @Test
     public void wsdlIsPublishedAtTheServiceEndpoint() throws Exception {
@@ -47,9 +49,9 @@ public class WebServicesDefinitionTest {
             // WSDL 返回 XML，并把服务地址和 XSD 引用改写到当前端口。
             assertEquals(200, response.statusCode());
             String contentType = response.headers().firstValue("content-type").orElse("");
-            assertTrue(contentType, StringUtils.startsWithIgnoreCase(contentType, "text/xml"));
-            assertTrue(response.body(), response.body().contains("location=\"" + endpoint + "\""));
-            assertTrue(response.body(), response.body().contains(endpoint + "?xsd=echo-types.xsd"));
+            assertTrue(StringUtils.startsWithIgnoreCase(contentType, "text/xml"), contentType);
+            assertTrue(response.body().contains("location=\"" + endpoint + "\""), response.body());
+            assertTrue(response.body().contains(endpoint + "?xsd=echo-types.xsd"), response.body());
         }
     }
 
@@ -78,9 +80,9 @@ public class WebServicesDefinitionTest {
             // XSD 保留目标命名空间与公开的 echo 包装元素。
             assertEquals(200, response.statusCode());
             String contentType = response.headers().firstValue("content-type").orElse("");
-            assertTrue(contentType, StringUtils.startsWithIgnoreCase(contentType, "application/xml"));
-            assertTrue(response.body(), response.body().contains("urn:meteor:test:echo:types"));
-            assertTrue(response.body(), response.body().contains("name=\"echo\""));
+            assertTrue(StringUtils.startsWithIgnoreCase(contentType, "application/xml"), contentType);
+            assertTrue(response.body().contains("urn:meteor:test:echo:types"), response.body());
+            assertTrue(response.body().contains("name=\"echo\""), response.body());
         }
     }
 
@@ -110,7 +112,7 @@ public class WebServicesDefinitionTest {
             assertEquals(200, response.statusCode());
             assertEquals(0, response.body().length);
             String contentType = response.headers().firstValue("content-type").orElse("");
-            assertTrue(contentType, StringUtils.startsWithIgnoreCase(contentType, "text/xml"));
+            assertTrue(StringUtils.startsWithIgnoreCase(contentType, "text/xml"), contentType);
         }
     }
 
@@ -153,7 +155,7 @@ public class WebServicesDefinitionTest {
 
     private SoapWsdlResource echoResource() throws Exception {
         URL wsdl = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
-        assertNotNull("Missing echo WSDL", wsdl);
+        assertNotNull(wsdl, "Missing echo WSDL");
         return new SoapWsdlResource(wsdl);
     }
 

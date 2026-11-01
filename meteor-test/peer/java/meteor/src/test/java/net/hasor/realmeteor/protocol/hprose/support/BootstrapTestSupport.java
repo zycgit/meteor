@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.hprose.support;
+import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -22,15 +23,13 @@ import java.util.concurrent.TimeUnit;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.serialize.SerializeCoder;
-import org.junit.After;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.fail;
+import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /** 集成用例共用的配置、服务契约和线程泄漏检查；资源由各场景自行关闭。 */
 public abstract class BootstrapTestSupport {
-    @Rule
-    public        TemporaryFolder temporary       = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
     private final Set<Thread>     originalThreads = Thread.getAllStackTraces().keySet();
 
     protected final int port() throws IOException {
@@ -53,7 +52,7 @@ public abstract class BootstrapTestSupport {
 
     protected final URLClassLoader spiLoader(String provider) throws IOException {
         // 为当前场景写入独立 SPI 描述文件，不修改插件正式注册资源。
-        Path root = this.temporary.newFolder().toPath();
+        Path root = Files.createTempDirectory(this.temporary, "case-");
         Path descriptor = root.resolve("META-INF/services/" + SerializeCoder.class.getName());
         Files.createDirectories(descriptor.getParent());
         Files.writeString(descriptor, provider, StandardCharsets.UTF_8);
@@ -64,7 +63,7 @@ public abstract class BootstrapTestSupport {
         return new URLClassLoader(resources, parent);
     }
 
-    @After
+    @AfterEach
     public final void checkThreadsAfterTest() throws Exception {
         // 有界等待本场景新建的框架线程退出，不把已有线程计为泄漏。
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);

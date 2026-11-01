@@ -22,13 +22,17 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "hprose")
 public class HproseInteropTest {
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientUnicode() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -50,11 +54,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "unicode");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -62,7 +66,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientInteger() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -84,11 +89,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "integer");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -96,7 +101,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientNull() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -118,11 +124,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "null");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -130,7 +136,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientBytes() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -152,11 +159,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "bytes");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -164,7 +171,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientDate() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -186,11 +194,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "date");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -198,7 +206,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientMap() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -220,11 +229,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "map");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -232,7 +241,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientBean() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -254,11 +264,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "bean");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -266,7 +276,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientVoid() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -288,11 +299,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "void");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -300,7 +311,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientByref() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -322,11 +334,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "byref");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -334,7 +346,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientBatch() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -356,11 +369,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "batch");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -368,7 +381,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientDiscovery() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -390,11 +404,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "discovery");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -402,7 +416,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialNodeClientCors() throws Exception {
         // 在 /rpc 挂载 Hprose，供独立 Node.js 客户端调用。
         MetConfiguration configuration = new MetConfiguration().setQueueMinPoolSize(4);
@@ -424,11 +439,11 @@ public class HproseInteropTest {
             Process peer = this.peer("client", target, "cors");
             try {
                 // 子进程完成本场景断言后，以退出码和 OK 标记报告结果。
-                assertTrue("Node peer timed out", peer.waitFor(20, TimeUnit.SECONDS));
+                assertTrue(peer.waitFor(20, TimeUnit.SECONDS), "Node peer timed out");
                 byte[] outputBytes = peer.getInputStream().readAllBytes();
                 String output = new String(outputBytes, StandardCharsets.UTF_8);
-                assertEquals(output, 0, peer.exitValue());
-                assertTrue(output, output.contains("OK"));
+                assertEquals(0, peer.exitValue(), output);
+                assertTrue(output.contains("OK"), output);
             } finally {
                 // 超时或断言失败也不能遗留外部客户端进程。
                 peer.destroyForcibly();
@@ -436,7 +451,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialNodeUnicode() throws Exception {
         // 独立 Node.js 服务端输出实际监听端口，Meteor 不自行模拟对端。
         Process peer = this.peer("server");
@@ -469,7 +485,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialNodeInteger() throws Exception {
         // 独立 Node.js 服务端输出实际监听端口，Meteor 不自行模拟对端。
         Process peer = this.peer("server");
@@ -502,7 +519,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialNodeBytes() throws Exception {
         // 独立 Node.js 服务端输出实际监听端口，Meteor 不自行模拟对端。
         Process peer = this.peer("server");
@@ -537,7 +555,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialNodeDate() throws Exception {
         // 独立 Node.js 服务端输出实际监听端口，Meteor 不自行模拟对端。
         Process peer = this.peer("server");
@@ -571,7 +590,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialNodeMap() throws Exception {
         // 独立 Node.js 服务端输出实际监听端口，Meteor 不自行模拟对端。
         Process peer = this.peer("server");
@@ -606,7 +626,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialNodeBean() throws Exception {
         // 独立 Node.js 服务端输出实际监听端口，Meteor 不自行模拟对端。
         Process peer = this.peer("server");
@@ -644,7 +665,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialNodeGenericList() throws Exception {
         // 独立 Node.js 服务端输出实际监听端口，Meteor 不自行模拟对端。
         Process peer = this.peer("server");
@@ -683,7 +705,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialNodeVoid() throws Exception {
         // 独立 Node.js 服务端输出实际监听端口，Meteor 不自行模拟对端。
         Process peer = this.peer("server");
@@ -716,7 +739,8 @@ public class HproseInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialNodeErrorRecovery() throws Exception {
         // 独立 Node.js 服务端输出实际监听端口，Meteor 不自行模拟对端。
         Process peer = this.peer("server");

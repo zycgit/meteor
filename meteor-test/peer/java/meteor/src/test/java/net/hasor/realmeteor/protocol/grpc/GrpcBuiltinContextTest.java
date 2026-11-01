@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -28,15 +29,18 @@ import net.hasor.example.protocol.grpc.ReflectionQueryService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.builtin.GrpcBuiltinServicesFactory;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import org.junit.jupiter.api.Timeout;
 
 /** 标准服务使用固定的精确方法地址，不继承业务服务的默认目录。 */
+@NxnRpc(name = "grpc")
 public class GrpcBuiltinContextTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionListsOnlyTheCurrentEndpointsProtoBindings() throws Exception {
         // 一个服务同时接入 JSON 和 Protobuf 两个端点，只有后者具备 proto 描述。
         MetConfiguration configuration = this.configuration();
@@ -80,7 +84,8 @@ public class GrpcBuiltinContextTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionDescriptorLookupDoesNotUseAnotherEndpointsDefinition() throws Exception {
         // 首个端点使用 Protobuf，后一个端点只给该业务接口提供 JSON 编码。
         MetConfiguration configuration = this.configuration();
@@ -113,7 +118,8 @@ public class GrpcBuiltinContextTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void healthUsesItsStandardExactPath() throws Exception {
         // 业务默认目录为 /rpc，扩展独立声明标准 Health 方法地址。
         MetConfiguration configuration = this.configuration();
@@ -133,7 +139,8 @@ public class GrpcBuiltinContextTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void healthIsNotExposedUnderTheBusinessContext() throws Exception {
         // /rpc 是业务默认目录，不能额外暴露标准 Health 服务。
         MetConfiguration configuration = this.configuration();
@@ -156,7 +163,8 @@ public class GrpcBuiltinContextTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1UsesItsStandardExactPath() throws Exception {
         // 业务默认目录为 /rpc，Reflection v1 使用标准精确方法地址。
         MetConfiguration configuration = this.configuration();
@@ -186,7 +194,8 @@ public class GrpcBuiltinContextTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1IsNotExposedUnderTheBusinessContext() throws Exception {
         // Reflection v1 不继承业务默认目录 /rpc。
         MetConfiguration configuration = this.configuration();
@@ -212,7 +221,8 @@ public class GrpcBuiltinContextTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1AlphaUsesItsStandardExactPath() throws Exception {
         // v1alpha 与 v1 分别发布，各自声明标准精确方法地址。
         MetConfiguration configuration = this.configuration();
@@ -244,7 +254,8 @@ public class GrpcBuiltinContextTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reflectionV1AlphaIsNotExposedUnderTheBusinessContext() throws Exception {
         // v1alpha 同样不继承业务默认目录 /rpc。
         MetConfiguration configuration = this.configuration();

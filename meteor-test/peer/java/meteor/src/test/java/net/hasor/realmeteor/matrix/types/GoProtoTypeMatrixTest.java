@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix.types;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
@@ -24,13 +27,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.TypePeerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Go 原生宽度和 Protobuf/Connect 两种正式 SDK 的逐类型双向互通。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/Go/{0}/direct/{1}/{2}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "grpc", cases = "types/Go/grpc/*")
+@NxnRpc(name = "connect", version = "1", cases = "types/Go/connect/*")
 public class GoProtoTypeMatrixTest {
     private static final String SERVICE = "meteor.types.TypeEchoService";
     private final        String protocol;
@@ -42,8 +48,6 @@ public class GoProtoTypeMatrixTest {
         this.type = type;
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/Go/{0}/direct/{1}/{2}")
     public static Collection<Object[]> configurations() throws IOException {
         // 协议顺序固定为 gRPC、Connect；每一份边界向量独占一条 JUnit 结果。
         List<String> protocols = new ArrayList<>();
@@ -58,7 +62,8 @@ public class GoProtoTypeMatrixTest {
         return cases;
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerAcceptsOneNativeGoTypeVector() throws Exception {
         // Meteor 经公开 bootstrap 启动后发布普通 Java 接口；文件声明真实的线上字段类型。
         MetConfiguration configuration = this.configuration(true);
@@ -76,12 +81,13 @@ public class GoProtoTypeMatrixTest {
             // 独立 Go 容器恢复 int64、uint64 和浮点原值，官方 SDK 完成真实 RPC。
             try (TypePeerProcess peer = TypePeerProcess.start(this.protocol, "client", this.vector, target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(this.type + ": " + result, result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), this.type + ": " + result);
             }
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerReceivesOneNativeGoTypeVector() throws Exception {
         // Go SDK 服务选择临时端口；Meteor 只配置出站能力，不能走本地服务调用。
         MetConfiguration configuration = this.configuration(false);

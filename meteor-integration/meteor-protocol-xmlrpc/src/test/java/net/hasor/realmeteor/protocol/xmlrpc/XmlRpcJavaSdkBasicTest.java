@@ -16,12 +16,15 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.peer.protocol.xmlrpc.XmlRpcJavaSdkServer;
 import org.apache.xmlrpc.client.XmlRpcClient;
 import org.apache.xmlrpc.client.XmlRpcClientConfigImpl;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 当前插件与原生 Java SDK 的同 JVM 双向基础网络调用。 */
 public class XmlRpcJavaSdkBasicTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaSdkCallsPublishedService() throws Exception {
         // 当前 JUnit 进程通过正式入口启动 Meteor，并发布本插件的普通业务接口。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("xmlrpc");
@@ -49,7 +52,8 @@ public class XmlRpcJavaSdkBasicTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerCallsOfficialJavaSdkServer() throws Exception {
         // SDK 服务与 Meteor 消费者均由测试持有，关闭顺序与创建顺序相反。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("xmlrpc");

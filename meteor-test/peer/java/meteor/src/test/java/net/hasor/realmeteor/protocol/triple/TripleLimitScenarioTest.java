@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import net.hasor.example.protocol.triple.TripleDemoService;
@@ -17,12 +18,15 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 消息大小限制同时约束压缩前与解压后数据。 */
+@NxnRpc(name = "triple")
 public class TripleLimitScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oversizedCompressedRequestIsRejectedBeforeBusinessExecution() throws Exception {
         // 服务端对解压后的消息设置上限，客户端仍允许构造较大的合法请求。
         MetConfiguration incoming = this.configuration(true, 512);
@@ -58,7 +62,8 @@ public class TripleLimitScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oversizedResponseFailsTheCurrentCall() throws Exception {
         // 服务端业务可返回大对象，但发送仍受显式消息上限约束。
         MetConfiguration incoming = this.configuration(true, 512);

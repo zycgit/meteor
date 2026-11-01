@@ -21,15 +21,15 @@ import net.hasor.meteor.registry.shared.storage.domain.EntApplicationCatalogData
 import net.hasor.meteor.registry.shared.storage.domain.EntInstanceRuntimeData;
 import net.hasor.meteor.registry.shared.storage.domain.EntServiceRuntimeData;
 import net.hasor.meteor.registry.shared.storage.domain.RefProtocolMountData;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 集群、实例和服务成员目录使用有界分页，并保留各自的查询范围与组合筛选。 */
 public class AdminQueryOverloadTest {
     private final MemoryRegistryConfiguration registry = new MemoryRegistryConfiguration();
 
-    @Before
+    @BeforeEach
     public void configure() {
         this.registry.setManagementToken("secret");
     }

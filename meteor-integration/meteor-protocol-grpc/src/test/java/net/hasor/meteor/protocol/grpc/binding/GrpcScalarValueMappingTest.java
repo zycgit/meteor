@@ -18,15 +18,14 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 显式契约中的 decimal string 和 epoch int64 保留 Java 叶子类型。 */
 public class GrpcScalarValueMappingTest {
-    @Rule
-    public final TemporaryFolder directory = new TemporaryFolder();
+    @TempDir
+    public Path directory;
 
     @Test
     public void decimalStringPreservesEveryDigitAndItsScale() throws Exception {
@@ -254,7 +253,7 @@ public class GrpcScalarValueMappingTest {
                 }
                 service Values { rpc echo (ScalarData) returns (ScalarData); }
                 """.formatted(instantType);
-        Path source = this.directory.newFolder().toPath().resolve("scalar.proto");
+        Path source = Files.createTempDirectory(this.directory, "proto-").resolve("scalar.proto");
         Files.writeString(source, proto);
         GrpcProtoResource resource = new GrpcProtoResource(source.toUri().toURL());
         ServiceDomain<T> service = new ServiceDomain<>(type);

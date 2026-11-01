@@ -9,7 +9,7 @@ package net.hasor.realmeteor.example.discovery;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** 有界观察公开治理结果；不发送探测调用或主动同步。 */
 final class RegistryScenarioUtils {
@@ -28,6 +28,6 @@ final class RegistryScenarioUtils {
             }
             LockSupport.parkNanos(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(10)));
         }
-        assertTrue(description, condition.getAsBoolean());
+        assertTrue(condition.getAsBoolean(), description);
     }
 }

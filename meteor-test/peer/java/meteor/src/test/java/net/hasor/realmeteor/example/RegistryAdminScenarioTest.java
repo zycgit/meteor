@@ -6,6 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.io.TempDir;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,25 +26,26 @@ import net.hasor.meteor.registry.zookeeper.ZookeeperRegistryConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.storage.NacosTestServer;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 分别运行 Nacos、ZooKeeper 管理入口，查询独立提供者已经上报的目录。 */
+@NxnRpc(name = "rsf", version = "1")
 public class RegistryAdminScenarioTest {
-    @Rule
-    public final TemporaryFolder files = new TemporaryFolder();
+    @TempDir
+    public Path files;
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nacosAdminMainListsPublishedOrderProvider() throws Exception {
         // 复用 worker 的 Nacos 服务，提供者和管理端共用当前句柄的独立分组。
-        Path serverHome = this.files.newFolder("nacos").toPath();
+        Path serverHome = Files.createDirectory(this.files.resolve("nacos"));
         try (NacosTestServer registry = new NacosTestServer(serverHome)) {
             registry.start();
             String address = registry.address();
             String group = registry.group();
-            Path providerLog = this.files.newFile("nacos-provider.log").toPath();
+            Path providerLog = Files.createFile(this.files.resolve("nacos-provider.log"));
             Process provider = this.launch("rsf.NacosRegistryProviderMain", providerLog, address, group);
             try {
                 this.awaitReady(provider, providerLog);
@@ -60,12 +63,12 @@ public class RegistryAdminScenarioTest {
                     String instanceId = instances.get(0).getInstanceId();
 
                     // 管理 Main 使用自己的连接查询目录，输出当前提供者和订单服务。
-                    Path adminLog = this.files.newFile("nacos-admin.log").toPath();
+                    Path adminLog = Files.createFile(this.files.resolve("nacos-admin.log"));
                     Process administration = this.launch("NacosRegistryAdminMain", adminLog, address, group);
                     String output = this.completed(administration, adminLog);
-                    assertTrue(output, output.contains("Registry provider: nacos"));
-                    assertTrue(output, output.contains("Instance: " + instanceId));
-                    assertTrue(output, output.contains("Service: " + serviceId));
+                    assertTrue(output.contains("Registry provider: nacos"), output);
+                    assertTrue(output.contains("Instance: " + instanceId), output);
+                    assertTrue(output.contains("Service: " + serviceId), output);
                 }
             } finally {
                 this.stop(provider);
@@ -73,12 +76,13 @@ public class RegistryAdminScenarioTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void zookeeperAdminMainListsPublishedOrderProvider() throws Exception {
         // 复用 worker 的 ZooKeeper 服务，各个进程共用当前场景的独立 chroot。
         try (ZookeeperTestServer registry = ZookeeperTestServer.shared()) {
             String address = registry.getConnectString();
-            Path providerLog = this.files.newFile("zookeeper-provider.log").toPath();
+            Path providerLog = Files.createFile(this.files.resolve("zookeeper-provider.log"));
             Process provider = this.launch("rsf.ZookeeperRegistryProviderMain", providerLog, address, null);
             try {
                 this.awaitReady(provider, providerLog);
@@ -95,12 +99,12 @@ public class RegistryAdminScenarioTest {
                     String instanceId = instances.get(0).getInstanceId();
 
                     // ZooKeeper 管理 Main 独立建立会话，查询实例和服务目录后正常退出。
-                    Path adminLog = this.files.newFile("zookeeper-admin.log").toPath();
+                    Path adminLog = Files.createFile(this.files.resolve("zookeeper-admin.log"));
                     Process administration = this.launch("ZookeeperRegistryAdminMain", adminLog, address, null);
                     String output = this.completed(administration, adminLog);
-                    assertTrue(output, output.contains("Registry provider: zookeeper"));
-                    assertTrue(output, output.contains("Instance: " + instanceId));
-                    assertTrue(output, output.contains("Service: " + serviceId));
+                    assertTrue(output.contains("Registry provider: zookeeper"), output);
+                    assertTrue(output.contains("Instance: " + instanceId), output);
+                    assertTrue(output.contains("Service: " + serviceId), output);
                 }
             } finally {
                 this.stop(provider);
@@ -168,7 +172,7 @@ public class RegistryAdminScenarioTest {
                     return;
                 }
             }
-            assertTrue(output, process.isAlive());
+            assertTrue(process.isAlive(), output);
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
         }
         throw new AssertionError("Provider did not become ready: " + Files.readString(log));
@@ -176,9 +180,9 @@ public class RegistryAdminScenarioTest {
 
     private String completed(Process process, Path log) throws Exception {
         try {
-            assertTrue("Administration did not exit: " + log, process.waitFor(30, TimeUnit.SECONDS));
+            assertTrue(process.waitFor(30, TimeUnit.SECONDS), "Administration did not exit: " + log);
             String output = Files.readString(log, StandardCharsets.UTF_8);
-            assertEquals(output, 0, process.exitValue());
+            assertEquals(0, process.exitValue(), output);
             return output;
         } finally {
             this.stop(process);
@@ -189,7 +193,7 @@ public class RegistryAdminScenarioTest {
         process.destroy();
         if (!process.waitFor(10, TimeUnit.SECONDS)) {
             process.destroyForcibly();
-            assertTrue("Process did not exit", process.waitFor(5, TimeUnit.SECONDS));
+            assertTrue(process.waitFor(5, TimeUnit.SECONDS), "Process did not exit");
         }
     }
 }

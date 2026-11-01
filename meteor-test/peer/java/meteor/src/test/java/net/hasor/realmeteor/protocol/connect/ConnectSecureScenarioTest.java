@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.connect;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URL;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -36,14 +37,17 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Connect 的 HTTP 版本、TLS 身份与协商结果通过公开启动和发布入口验证。 */
+@NxnRpc(name = "connect", version = "1")
 public class ConnectSecureScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonUnaryUsesPlainHttp1() throws Exception {
         // JSON 单次调用使用 HTTP/1，客户端不监听端口。
         MetConfiguration incoming = this.incoming();
@@ -70,7 +74,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonUnaryUsesHttp2PriorKnowledge() throws Exception {
         // JSON 单次调用使用 HTTP/2 prior knowledge。
         MetConfiguration incoming = this.incoming();
@@ -97,7 +102,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonUnaryUsesHttpsHttp1ServerAuthentication() throws Exception {
         // HTTP/1 HTTPS 的客户端严格验证服务端证书。
         MetConfiguration incoming = this.secureIncoming(1, "NONE");
@@ -124,7 +130,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonUnaryUsesHttpsHttp1MutualAuthentication() throws Exception {
         // HTTP/1 HTTPS 在发送 JSON 调用前校验双方证书。
         MetConfiguration incoming = this.secureIncoming(1, "REQUIRE");
@@ -151,7 +158,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonUnaryUsesHttpsHttp2ServerAuthentication() throws Exception {
         // HTTP/2 HTTPS 在 h2 ALPN 协商后传递 JSON 调用。
         MetConfiguration incoming = this.secureIncoming(2, "NONE");
@@ -178,7 +186,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonUnaryUsesHttpsHttp2MutualAuthentication() throws Exception {
         // HTTP/2 HTTPS 的 h2 协商与双向证书认证共同承载 JSON 调用。
         MetConfiguration incoming = this.secureIncoming(2, "REQUIRE");
@@ -205,7 +214,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufUnaryUsesHttpsHttp1ServerAuthentication() throws Exception {
         // Protobuf 使用 HTTP/1 HTTPS，与 TLS 相互独立。
         MetConfiguration incoming = this.secureIncoming(1, "NONE");
@@ -236,7 +246,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufUnaryUsesHttpsHttp1MutualAuthentication() throws Exception {
         // Protobuf 使用 HTTP/1 HTTPS 并校验客户端证书。
         MetConfiguration incoming = this.secureIncoming(1, "REQUIRE");
@@ -267,7 +278,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufUnaryUsesHttpsHttp2ServerAuthentication() throws Exception {
         // Protobuf 使用 h2 ALPN 与服务端证书认证。
         MetConfiguration incoming = this.secureIncoming(2, "NONE");
@@ -298,7 +310,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufUnaryUsesHttpsHttp2MutualAuthentication() throws Exception {
         // Protobuf 在 HTTP/2 双向 TLS 后保持原有消息字段。
         MetConfiguration incoming = this.secureIncoming(2, "REQUIRE");
@@ -329,7 +342,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentClientUpgradesConnectCallToH2c() throws Exception {
         // 明文监听在同一端口接收 HTTP/1 Upgrade，独立客户端随后使用 HTTP/2。
         MetConfiguration configuration = this.incoming();
@@ -353,7 +367,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentHttpsClientNegotiatesHttp2WithAlpn() throws Exception {
         // 服务端仅宣告 h2，独立 JDK 客户端必须通过 ALPN 选定 HTTP/2。
         MetConfiguration configuration = this.secureIncoming(2, "NONE");
@@ -379,7 +394,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2MutualTlsRejectsMissingClientCertificate() throws Exception {
         // Connect 挂载在要求客户端身份的 h2 HTTPS 端点上。
         MetConfiguration configuration = this.secureIncoming(2, "REQUIRE");
@@ -406,15 +422,16 @@ public class ConnectSecureScenarioTest {
                     rejected = socket.getInputStream().read() < 0;
                 } catch (IOException failure) {
                     boolean timedOut = failure instanceof SocketTimeoutException;
-                    assertFalse("TLS rejection must not time out: " + failure, timedOut);
+                    assertFalse(timedOut, "TLS rejection must not time out: " + failure);
                     rejected = true;
                 }
-                assertTrue("Anonymous client must not receive HTTP/2 application data", rejected);
+                assertTrue(rejected, "Anonymous client must not receive HTTP/2 application data");
             }
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsRejectsUntrustedClientCertificate() throws Exception {
         // 客户端携带身份，但其签发者不属于服务端信任集。
         MetConfiguration configuration = this.secureIncoming(1, "REQUIRE");
@@ -435,7 +452,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientRejectsUntrustedServerCertificate() throws Exception {
         // 客户端只信任另一 CA，Connect 请求不能绕过服务端证书校验。
         MetConfiguration configuration = this.secureIncoming(1, "NONE");
@@ -456,7 +474,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientRejectsWrongServerHostname() throws Exception {
         // 证书由受信 CA 签发，但它不属于当前访问地址，HTTPS 必须拒绝该身份。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("connect");
@@ -481,7 +500,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incompatibleAlpnFailsBeforeRpcTimeout() throws Exception {
         // 服务端只支持 HTTP/1.1，客户端只接受 h2，协议协商应及时失败。
         MetConfiguration incoming = this.secureIncoming(1, "NONE");
@@ -507,7 +527,8 @@ public class ConnectSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1RejectsBidirectionalStreaming() throws Exception {
         // 连接允许 HTTP/1，但双向 RPC 需要 HTTP/2 的独立收发方向。
         MetConfiguration configuration = this.incoming();

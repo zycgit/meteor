@@ -25,15 +25,20 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.soap.support.AttachmentHttpProxy;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesAttachmentsTest {
     private static final String XOP_NAMESPACE = "http://www.w3.org/2004/08/xop/include";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11MtomDirectBytesRoundTripUsesMultipart() throws Exception {
         // 两端选择 SOAP 1.1 MTOM，阈值为零，短二进制也必须使用附件。
         MetConfiguration incoming = this.incomingConfiguration("1.1", "mtom");
@@ -96,7 +101,8 @@ public class WebServicesAttachmentsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11MtomBinaryDtoRoundTripUsesMultipart() throws Exception {
         // 两端选择 SOAP 1.1 MTOM，阈值为零，短二进制也必须使用附件。
         MetConfiguration incoming = this.incomingConfiguration("1.1", "mtom");
@@ -171,7 +177,9 @@ public class WebServicesAttachmentsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12MtomDirectBytesRoundTripUsesMultipart() throws Exception {
         // 两端选择 SOAP 1.2 MTOM，阈值为零，短二进制也必须使用附件。
         MetConfiguration incoming = this.incomingConfiguration("1.2", "mtom");
@@ -234,7 +242,9 @@ public class WebServicesAttachmentsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12MtomBinaryDtoRoundTripUsesMultipart() throws Exception {
         // 两端选择 SOAP 1.2 MTOM，阈值为零，短二进制也必须使用附件。
         MetConfiguration incoming = this.incomingConfiguration("1.2", "mtom");
@@ -309,7 +319,8 @@ public class WebServicesAttachmentsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11SwaDirectBytesRoundTripUsesMultipart() throws Exception {
         // 两端选择 SOAP 1.1 SWA，阈值为零，短二进制也必须使用附件。
         MetConfiguration incoming = this.incomingConfiguration("1.1", "swa");
@@ -376,7 +387,8 @@ public class WebServicesAttachmentsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11SwaBinaryDtoRoundTripUsesMultipart() throws Exception {
         // 两端选择 SOAP 1.1 SWA，阈值为零，短二进制也必须使用附件。
         MetConfiguration incoming = this.incomingConfiguration("1.1", "swa");
@@ -455,7 +467,9 @@ public class WebServicesAttachmentsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12SwaDirectBytesRoundTripUsesMultipart() throws Exception {
         // 两端选择 SOAP 1.2 SWA，阈值为零，短二进制也必须使用附件。
         MetConfiguration incoming = this.incomingConfiguration("1.2", "swa");
@@ -522,7 +536,9 @@ public class WebServicesAttachmentsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12SwaBinaryDtoRoundTripUsesMultipart() throws Exception {
         // 两端选择 SOAP 1.2 SWA，阈值为零，短二进制也必须使用附件。
         MetConfiguration incoming = this.incomingConfiguration("1.2", "swa");

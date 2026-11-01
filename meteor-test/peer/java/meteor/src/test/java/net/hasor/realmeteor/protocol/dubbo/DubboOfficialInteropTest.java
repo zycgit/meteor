@@ -25,14 +25,18 @@ import net.hasor.meteor.MetResponse;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 原生 Dubbo 2/3 独立进程与 Meteor 正式入口的双向二进制协议互通。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboOfficialInteropTest {
     private static final String SERVICE = DubboInteropService.class.getName();
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientCallsMeteorEcho() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -47,13 +51,14 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=echo")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Dubbo 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo3Echo() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -75,7 +80,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientCallsMeteorMultipleArguments() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -90,13 +96,14 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=combine")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("hello:3", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo3MultipleArguments() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -118,7 +125,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientCallsMeteorStringOverload() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -133,13 +141,14 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=string-overload")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("string:hello", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo3StringOverload() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -161,7 +170,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientCallsMeteorPrimitiveOverload() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -176,13 +186,14 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=int-overload")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("int:7", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo3PrimitiveOverload() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -204,7 +215,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientCallsMeteorPerson() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -219,14 +231,15 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=person")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Ada", result.path("value").path("name").asText());
                 assertEquals(42, result.path("value").path("age").asInt());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo3Person() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -250,7 +263,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientCallsMeteorVoid() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -265,13 +279,14 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=void")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertTrue(result.path("value").isNull());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo3Void() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -293,7 +308,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientCallsMeteorNull() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -308,13 +324,14 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=null")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertTrue(result.path("value").isNull());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo3Null() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -336,7 +353,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientCallsMeteorBinary() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -351,13 +369,14 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=binary")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertArrayEquals(new byte[] { 0, 1, 2, -1 }, result.path("value").binaryValue());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo3Binary() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -379,7 +398,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientReceivesMeteorBusinessFailure() throws Exception {
         // 服务发布保持普通 Java 异常语义，异常由协议编码回送。
         MetConfiguration configuration = this.configuration(true);
@@ -395,12 +415,13 @@ public class DubboOfficialInteropTest {
                     "--group=interop", "--version=1.0.0", "--scenario=fault")) {
                 JsonNode result = peer.awaitResult();
                 String error = result.path("error").asText();
-                assertTrue(result.toString(), error.contains("dubbo failure boom"));
+                assertTrue(error.contains("dubbo failure boom"), result.toString());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReceivesOfficialDubbo3BusinessFailure() throws Exception {
         // 原生提供者抛出普通业务异常。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -422,13 +443,14 @@ public class DubboOfficialInteropTest {
                 ExecutionException failure = assertThrows(ExecutionException.class, //
                         () -> pending.get(5, TimeUnit.SECONDS));
                 IllegalArgumentException business = this.findCause(failure, IllegalArgumentException.class);
-                assertNotNull(failure.toString(), business);
+                assertNotNull(business, failure.toString());
                 assertEquals("dubbo failure boom", business.getMessage());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientMultiplexesConcurrentMeteorCalls() throws Exception {
         // 同一个已发布服务承接并发请求，各调用按请求 ID 对应结果。
         MetConfiguration configuration = this.configuration(true);
@@ -443,7 +465,7 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=concurrent")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 JsonNode values = result.path("value");
                 assertEquals(16, values.size());
                 for (int index = 0; index < values.size(); index++) {
@@ -453,7 +475,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorMultiplexesConcurrentOfficialDubbo3Calls() throws Exception {
         // 独立官方提供者接收同一连接上的并发请求。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -485,7 +508,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientKeepsConnectionAfterTimedOutMeteorCall() throws Exception {
         // 慢调用由官方 Caller 的期限结束，服务端仍会产生迟到结果。
         MetConfiguration configuration = this.configuration(true);
@@ -502,13 +526,14 @@ public class DubboOfficialInteropTest {
                     "--group=interop", "--version=1.0.0", "--scenario=timeout-isolation")) {
                 JsonNode result = peer.awaitResult();
                 String error = result.path("error").asText().toLowerCase(Locale.ROOT);
-                assertTrue(result.toString(), error.contains("timeout"));
+                assertTrue(error.contains("timeout"), result.toString());
                 assertEquals("after-timeout", result.path("recovered").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorKeepsConnectionAfterTimedOutOfficialDubbo3Call() throws Exception {
         // 慢调用发生超时后，同一个官方服务仍可继续处理后续请求。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -529,7 +554,7 @@ public class DubboOfficialInteropTest {
                 MetFuture pending = remote.asyncInvoke(service, "slow", parameterTypes, arguments);
                 ExecutionException failure = assertThrows(ExecutionException.class, //
                         () -> pending.get(5, TimeUnit.SECONDS));
-                assertTrue(failure.toString(), this.isRpcTimeout(failure));
+                assertTrue(this.isRpcTimeout(failure), failure.toString());
 
                 // 相同客户端发送新请求，迟到响应不能串入此调用。
                 assertEquals("after-timeout", remote.getRemote(service).echo("after-timeout"));
@@ -537,7 +562,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientReceivesMeteorAttachments() throws Exception {
         // 服务过滤器通过公开选项接收请求附件并写出响应附件。
         MetConfiguration configuration = this.configuration(true);
@@ -557,13 +583,14 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=metadata")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("metadata", result.path("metadata").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReceivesOfficialDubbo3Attachments() throws Exception {
         // 官方服务通过原生 RpcContext 回送请求附件。
         try (DubboProcess peer = DubboProcess.start("--command=server", "--port=0", //
@@ -589,7 +616,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientCallsMeteorEcho() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -604,13 +633,15 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=echo")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Dubbo 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo2Echo() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -632,7 +663,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientCallsMeteorMultipleArguments() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -647,13 +680,15 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=combine")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("hello:3", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo2MultipleArguments() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -675,7 +710,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientCallsMeteorStringOverload() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -690,13 +727,15 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=string-overload")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("string:hello", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo2StringOverload() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -718,7 +757,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientCallsMeteorPrimitiveOverload() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -733,13 +774,15 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=int-overload")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("int:7", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo2PrimitiveOverload() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -761,7 +804,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientCallsMeteorPerson() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -776,14 +821,16 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=person")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Ada", result.path("value").path("name").asText());
                 assertEquals(42, result.path("value").path("age").asInt());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo2Person() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -807,7 +854,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientCallsMeteorVoid() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -822,13 +871,15 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=void")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertTrue(result.path("value").isNull());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo2Void() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -850,7 +901,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientCallsMeteorNull() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -865,13 +918,15 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=null")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertTrue(result.path("value").isNull());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo2Null() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -893,7 +948,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientCallsMeteorBinary() throws Exception {
         // 通过正式 bootstrap 启动 TCP，随后发布普通 Java 服务。
         MetConfiguration configuration = this.configuration(true);
@@ -908,13 +965,15 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=binary")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertArrayEquals(new byte[] { 0, 1, 2, -1 }, result.path("value").binaryValue());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo2Binary() throws Exception {
         // 原生 SDK 在独立 JVM 中发布真实 Dubbo 二进制服务。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -936,7 +995,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientReceivesMeteorBusinessFailure() throws Exception {
         // 服务发布保持普通 Java 异常语义，异常由协议编码回送。
         MetConfiguration configuration = this.configuration(true);
@@ -952,12 +1013,14 @@ public class DubboOfficialInteropTest {
                     "--group=interop", "--version=1.0.0", "--scenario=fault")) {
                 JsonNode result = peer.awaitResult();
                 String error = result.path("error").asText();
-                assertTrue(result.toString(), error.contains("dubbo failure boom"));
+                assertTrue(error.contains("dubbo failure boom"), result.toString());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReceivesOfficialDubbo2BusinessFailure() throws Exception {
         // 原生提供者抛出普通业务异常。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -979,13 +1042,15 @@ public class DubboOfficialInteropTest {
                 ExecutionException failure = assertThrows(ExecutionException.class, //
                         () -> pending.get(5, TimeUnit.SECONDS));
                 IllegalArgumentException business = this.findCause(failure, IllegalArgumentException.class);
-                assertNotNull(failure.toString(), business);
+                assertNotNull(business, failure.toString());
                 assertEquals("dubbo failure boom", business.getMessage());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientMultiplexesConcurrentMeteorCalls() throws Exception {
         // 同一个已发布服务承接并发请求，各调用按请求 ID 对应结果。
         MetConfiguration configuration = this.configuration(true);
@@ -1000,7 +1065,7 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=concurrent")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 JsonNode values = result.path("value");
                 assertEquals(16, values.size());
                 for (int index = 0; index < values.size(); index++) {
@@ -1010,7 +1075,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorMultiplexesConcurrentOfficialDubbo2Calls() throws Exception {
         // 独立官方提供者接收同一连接上的并发请求。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -1042,7 +1109,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientKeepsConnectionAfterTimedOutMeteorCall() throws Exception {
         // 慢调用由官方 Caller 的期限结束，服务端仍会产生迟到结果。
         MetConfiguration configuration = this.configuration(true);
@@ -1059,13 +1128,15 @@ public class DubboOfficialInteropTest {
                     "--group=interop", "--version=1.0.0", "--scenario=timeout-isolation")) {
                 JsonNode result = peer.awaitResult();
                 String error = result.path("error").asText().toLowerCase(Locale.ROOT);
-                assertTrue(result.toString(), error.contains("timeout"));
+                assertTrue(error.contains("timeout"), result.toString());
                 assertEquals("after-timeout", result.path("recovered").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorKeepsConnectionAfterTimedOutOfficialDubbo2Call() throws Exception {
         // 慢调用发生超时后，同一个官方服务仍可继续处理后续请求。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -1086,7 +1157,7 @@ public class DubboOfficialInteropTest {
                 MetFuture pending = remote.asyncInvoke(service, "slow", parameterTypes, arguments);
                 ExecutionException failure = assertThrows(ExecutionException.class, //
                         () -> pending.get(5, TimeUnit.SECONDS));
-                assertTrue(failure.toString(), this.isRpcTimeout(failure));
+                assertTrue(this.isRpcTimeout(failure), failure.toString());
 
                 // 相同客户端发送新请求，迟到响应不能串入此调用。
                 assertEquals("after-timeout", remote.getRemote(service).echo("after-timeout"));
@@ -1094,7 +1165,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientReceivesMeteorAttachments() throws Exception {
         // 服务过滤器通过公开选项接收请求附件并写出响应附件。
         MetConfiguration configuration = this.configuration(true);
@@ -1114,13 +1187,15 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=metadata")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("metadata", result.path("metadata").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReceivesOfficialDubbo2Attachments() throws Exception {
         // 官方服务通过原生 RpcContext 回送请求附件。
         try (DubboProcess peer = DubboProcess.startLegacy("--command=server", "--port=0", //
@@ -1146,7 +1221,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientCallsMeteorOverTls() throws Exception {
         // TLS 由传输配置启用，服务仍使用同一个 Dubbo 协议实现。
         MetConfiguration configuration = this.secureConfiguration(true, "NONE");
@@ -1165,13 +1241,14 @@ public class DubboOfficialInteropTest {
                     "--trust-certificate=" + this.pem("ca.pem") };
             try (DubboProcess peer = DubboProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Dubbo 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo3OverTls() throws Exception {
         // 官方服务端通过 PEM 配置发布加密的原生 Dubbo 服务。
         String[] arguments = { "--command=server", "--port=0", "--group=interop", //
@@ -1196,7 +1273,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3ClientCallsMeteorOverMutualTls() throws Exception {
         // TLS 由传输配置启用，服务仍使用同一个 Dubbo 协议实现。
         MetConfiguration configuration = this.secureConfiguration(true, "REQUIRE");
@@ -1215,13 +1293,14 @@ public class DubboOfficialInteropTest {
                     "--trust-certificate=" + this.pem("ca.pem") };
             try (DubboProcess peer = DubboProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Dubbo 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo3OverMutualTls() throws Exception {
         // 官方服务端通过 PEM 配置发布加密的原生 Dubbo 服务。
         String[] arguments = { "--command=server", "--port=0", "--group=interop", //
@@ -1247,7 +1326,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientCallsMeteorOverTls() throws Exception {
         // TLS 由传输配置启用，服务仍使用同一个 Dubbo 协议实现。
         MetConfiguration configuration = this.secureConfiguration(true, "NONE");
@@ -1266,13 +1347,15 @@ public class DubboOfficialInteropTest {
                     "--trust-certificate=" + this.pem("ca.pem") };
             try (DubboProcess peer = DubboProcess.startLegacy(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Dubbo 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo2OverTls() throws Exception {
         // 官方服务端通过 PEM 配置发布加密的原生 Dubbo 服务。
         String[] arguments = { "--command=server", "--port=0", "--group=interop", //
@@ -1297,7 +1380,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2ClientCallsMeteorOverMutualTls() throws Exception {
         // TLS 由传输配置启用，服务仍使用同一个 Dubbo 协议实现。
         MetConfiguration configuration = this.secureConfiguration(true, "REQUIRE");
@@ -1316,13 +1401,15 @@ public class DubboOfficialInteropTest {
                     "--trust-certificate=" + this.pem("ca.pem") };
             try (DubboProcess peer = DubboProcess.startLegacy(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Dubbo 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialDubbo2OverMutualTls() throws Exception {
         // 官方服务端通过 PEM 配置发布加密的原生 Dubbo 服务。
         String[] arguments = { "--command=server", "--port=0", "--group=interop", //
@@ -1348,7 +1435,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3GenericClientCallsMeteorMultipleArguments() throws Exception {
         // Meteor 仍发布普通 Java 类型接口，不为泛化调用另设业务服务。
         MetConfiguration configuration = this.configuration(true);
@@ -1363,13 +1451,14 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=generic")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("hello:3", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3GenericClientCallsMeteorPerson() throws Exception {
         // Meteor 仍发布普通 Java 类型接口，不为泛化调用另设业务服务。
         MetConfiguration configuration = this.configuration(true);
@@ -1384,7 +1473,7 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=generic-person")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 JsonNode person = result.path("value");
                 assertEquals("Ada", person.path("name").asText());
                 assertEquals(42, person.path("age").asInt());
@@ -1392,7 +1481,9 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2GenericClientCallsMeteorMultipleArguments() throws Exception {
         // Meteor 仍发布普通 Java 类型接口，不为泛化调用另设业务服务。
         MetConfiguration configuration = this.configuration(true);
@@ -1407,13 +1498,15 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=generic")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("hello:3", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo2GenericClientCallsMeteorPerson() throws Exception {
         // Meteor 仍发布普通 Java 类型接口，不为泛化调用另设业务服务。
         MetConfiguration configuration = this.configuration(true);
@@ -1428,7 +1521,7 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.startLegacy("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=generic-person")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 JsonNode person = result.path("value");
                 assertEquals("Ada", person.path("name").asText());
                 assertEquals(42, person.path("age").asInt());
@@ -1436,7 +1529,8 @@ public class DubboOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialDubbo3GenericClientCallsMeteorPeople() throws Exception {
         // 服务端正常发布 List<DTO> 方法，保持真实 Java 泛型声明。
         MetConfiguration configuration = this.configuration(true);
@@ -1451,7 +1545,7 @@ public class DubboOfficialInteropTest {
             try (DubboProcess peer = DubboProcess.start("--command=client", "--port=" + port, //
                     "--group=interop", "--version=1.0.0", "--scenario=generic-people")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 JsonNode people = result.path("value");
                 assertTrue(people.isArray());
                 assertEquals(1, people.size());

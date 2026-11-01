@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.*;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.example.protocol.triple.TripleFlowService;
@@ -18,11 +19,15 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "triple")
 public class TripleLifecycleScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unaryDeadlineCompletesTheCallerFuture() throws Exception {
         // 两端从 bootstrap 创建，用较短的调用期限验证等待及时结束。
         TripleFlowServiceImpl implementation = new TripleFlowServiceImpl();
@@ -50,11 +55,12 @@ public class TripleLifecycleScenarioTest {
             boolean localTimeout = cause instanceof MetTimeoutException;
             GrpcStatusException status = GrpcStatusException.find(cause);
             boolean remoteTimeout = status != null && status.getCode() == 4;
-            assertTrue("Expected a deadline failure, got " + cause, localTimeout || remoteTimeout);
+            assertTrue(localTimeout || remoteTimeout, "Expected a deadline failure, got " + cause);
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingTheResponseStreamReleasesItsRemoteSource() throws Exception {
         // 两端从 bootstrap 创建，客户端调用期限独立于服务端业务。
         TripleFlowServiceImpl implementation = new TripleFlowServiceImpl();
@@ -86,7 +92,8 @@ public class TripleLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void streamDeadlineReleasesTheRemoteSourceWithoutDemand() throws Exception {
         // 两端从 bootstrap 创建，客户端调用期限独立于服务端业务。
         TripleFlowServiceImpl implementation = new TripleFlowServiceImpl();
@@ -112,7 +119,8 @@ public class TripleLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingTheClientFailsItsPendingResponseStream() throws Exception {
         // 两端从 bootstrap 创建，客户端调用期限独立于服务端业务。
         TripleFlowServiceImpl implementation = new TripleFlowServiceImpl();
@@ -139,7 +147,8 @@ public class TripleLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sourceFailureIsDeliveredAsStreamFailure() throws Exception {
         // 两端从 bootstrap 创建，客户端调用期限独立于服务端业务。
         TripleFlowServiceImpl implementation = new TripleFlowServiceImpl();
@@ -167,7 +176,8 @@ public class TripleLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void responseDemandControlsDeliveryAcrossHttp2Windows() throws Exception {
         // 两端从 bootstrap 创建，客户端调用期限独立于服务端业务。
         TripleFlowServiceImpl implementation = new TripleFlowServiceImpl();
@@ -210,7 +220,8 @@ public class TripleLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidDemandDoesNotPoisonFollowingCalls() throws Exception {
         // 两端从 bootstrap 创建，客户端调用期限独立于服务端业务。
         TripleFlowServiceImpl implementation = new TripleFlowServiceImpl();

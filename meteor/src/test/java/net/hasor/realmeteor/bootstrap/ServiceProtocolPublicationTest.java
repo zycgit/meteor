@@ -11,8 +11,8 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetPublisher;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 仅通过发布、查询及实际调用入口验证协议拒绝与登记异常的隔离。 */
 public class ServiceProtocolPublicationTest {

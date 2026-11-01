@@ -18,10 +18,10 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.instance;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.service;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 登记身份、会话所有权、临时成员与持久目录的边界。 */
 public class ZookeeperRegistrationTest {

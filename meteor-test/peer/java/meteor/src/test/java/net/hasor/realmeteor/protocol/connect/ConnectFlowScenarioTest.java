@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.connect;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,11 +24,14 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.connect.ConnectStatusException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "connect", version = "1")
 public class ConnectFlowScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonServerStreamKeepsMessageOrder() throws Exception {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
@@ -55,7 +59,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonClientStreamReturnsItsSummary() throws Exception {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
@@ -81,7 +86,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonBidirectionalStreamKeepsEachRequest() throws Exception {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
@@ -112,7 +118,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufServerStreamKeepsMessageOrder() throws Exception {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
@@ -144,7 +151,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufClientStreamReturnsItsSummary() throws Exception {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
@@ -174,7 +182,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufBidirectionalStreamKeepsEachRequest() throws Exception {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
@@ -209,7 +218,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyServerStreamCompletesWithoutMessages() throws Exception {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
@@ -234,7 +244,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyClientStreamReturnsZero() throws Exception {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 2);
@@ -259,7 +270,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1ServerStreamUsesIncrementalResponseBody() throws Exception {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 1);
@@ -287,7 +299,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1ClientStreamUsesIncrementalRequestBody() throws Exception {
         // 两端通过正式配置开启增量正文，消息直接映射为 Java 流元素。
         MetConfiguration incoming = this.configuration(true, 1);
@@ -313,7 +326,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void earlyClientStreamResponseCancelsInputAndPreservesFollowingCalls() throws Exception {
         // 服务端不消费完整输入就返回，客户端源保持开放以观察反向取消。
         CountDownLatch cancelled = new CountDownLatch(1);
@@ -365,7 +379,8 @@ public class ConnectFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void earlyClientStreamFailureCancelsInputAndPreservesFollowingCalls() throws Exception {
         // 服务端尚未消费完输入就失败，错误终态仍必须释放客户端的请求源。
         CountDownLatch cancelled = new CountDownLatch(1);

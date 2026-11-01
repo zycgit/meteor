@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.discovery;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import net.hasor.cobble.ObjectUtils;
 import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.discovery.RegistryDiscoveryExample;
@@ -24,24 +28,23 @@ import net.hasor.meteor.registry.admin.MetRuleType;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
 import net.hasor.meteor.registry.admin.MetServiceInfo;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 注册目录与运行期治理复用订单发布入口，修改均通过管理 API 下发。 */
+@NxnRpc(name = "rsf", version = "1")
 public class RegistryGovernanceScenarioTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     @Test
     public void directoryDescribesOneOrderServiceAcrossAllProtocolMounts() throws Exception {
         // 共享内存注册库，独立缓存目录避免读取其他示例的地址。
         MemoryRegistryConfiguration registry = registry();
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             provider.start();
@@ -83,9 +86,9 @@ public class RegistryGovernanceScenarioTest {
         // 周期核对为 60 秒，本例观察管理变更触发的自动订阅。
         MemoryRegistryConfiguration registry = registry();
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             provider.start();
@@ -115,9 +118,9 @@ public class RegistryGovernanceScenarioTest {
         // 普通订单接口既是发布契约，也是消费者的远程代理契约。
         MemoryRegistryConfiguration registry = registry();
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             provider.start();
@@ -149,9 +152,9 @@ public class RegistryGovernanceScenarioTest {
         // 管理服务启停只影响此订单服务，不停止应用或重建消费者。
         MemoryRegistryConfiguration registry = registry();
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             provider.start();
@@ -188,9 +191,9 @@ public class RegistryGovernanceScenarioTest {
         // 持久实例档案与在线提供者关系分别查询。
         MemoryRegistryConfiguration registry = registry();
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             provider.start();

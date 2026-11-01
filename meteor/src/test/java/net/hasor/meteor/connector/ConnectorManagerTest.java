@@ -11,9 +11,9 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** 连接管理器中未被端点与订阅场景重复覆盖的生命周期行为。 */
 public class ConnectorManagerTest {

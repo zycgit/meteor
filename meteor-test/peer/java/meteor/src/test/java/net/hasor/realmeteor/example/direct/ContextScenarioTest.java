@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -20,13 +21,17 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.example.Order;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 使用可运行例子的相同配置和发布 API，展示服务如何选择已经配置的上下文。 */
+@NxnRpc(name = "soap", version = "1.1")
 public class ContextScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void omittedContextPublishesOnlyAtTheDefaultPath() throws Exception {
         // 服务端预配置三个 context，消费者选择默认的 /soap。
         MetConfiguration incoming = ContextMountExample.server("127.0.0.1", 0, 0);
@@ -48,12 +53,15 @@ public class ContextScenarioTest {
             int port = server.getListenAddress("soap").getPort();
             HttpResponse<String> definition = this.definition(port, "/soap");
             assertEquals(200, definition.statusCode());
-            assertTrue(definition.body(), definition.body().contains("/soap/orders"));
+            assertTrue(definition.body().contains("/soap/orders"), definition.body());
             assertEquals(404, this.definition(port, "/private").statusCode());
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "soap", version = "1.1")
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitContextReplacesTheDefaultForThisService() throws Exception {
         // 发布时选择 /private，消费者的 SOAP 出口也选择同一路径。
         MetConfiguration incoming = ContextMountExample.server("127.0.0.1", 0, 0);
@@ -75,12 +83,13 @@ public class ContextScenarioTest {
             int port = server.getListenAddress("soap").getPort();
             HttpResponse<String> definition = this.definition(port, "/private");
             assertEquals(200, definition.statusCode());
-            assertTrue(definition.body(), definition.body().contains("/private/orders"));
+            assertTrue(definition.body().contains("/private/orders"), definition.body());
             assertEquals(404, this.definition(port, "/soap").statusCode());
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void twoSelectedContextsExposeTheSameServiceInstance() throws Exception {
         // 同一监听提供两个已选择的挂载，每个消费者只配置自己访问的 SOAP context。
         MetConfiguration incoming = ContextMountExample.server("127.0.0.1", 0, 0);
@@ -110,8 +119,8 @@ public class ContextScenarioTest {
             HttpResponse<String> partnerDefinition = this.definition(port, "/partner");
             assertEquals(200, privateDefinition.statusCode());
             assertEquals(200, partnerDefinition.statusCode());
-            assertTrue(privateDefinition.body(), privateDefinition.body().contains("/private/orders"));
-            assertTrue(partnerDefinition.body(), partnerDefinition.body().contains("/partner/orders"));
+            assertTrue(privateDefinition.body().contains("/private/orders"), privateDefinition.body());
+            assertTrue(partnerDefinition.body().contains("/partner/orders"), partnerDefinition.body());
             assertEquals(404, this.definition(port, "/soap").statusCode());
         }
     }

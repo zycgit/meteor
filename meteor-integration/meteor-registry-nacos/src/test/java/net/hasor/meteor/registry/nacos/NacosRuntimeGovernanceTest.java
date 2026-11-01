@@ -13,10 +13,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.registry.nacos.NacosTestData.instance;
 import static net.hasor.meteor.registry.nacos.NacosTestData.service;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class NacosRuntimeGovernanceTest {
     @Test

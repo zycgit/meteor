@@ -21,12 +21,16 @@ import net.hasor.meteor.MetResponse;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.soap.support.SoapHeadersExtension;
 import net.hasor.realmeteor.protocol.soap.support.TraceHeaderHandler;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.2")
 public class WebServicesHeaderHandlerTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12HandlerProcessesMandatoryHeadersInBothDirections() throws Exception {
         // 两端显式安装 Header 处理器，并承担自定义 trace role。
         MetConfiguration incoming = this.incoming("1.2");
@@ -63,7 +67,9 @@ public class WebServicesHeaderHandlerTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.1")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11HandlerProcessesActorHeadersInBothDirections() throws Exception {
         // SOAP 1.1 同样通过正式扩展提供处理器，使用 actor 和数字布尔值。
         MetConfiguration incoming = this.incoming("1.1");
@@ -100,7 +106,8 @@ public class WebServicesHeaderHandlerTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void handlerCannotSilentlyAcceptAnUnknownMandatoryHeader() throws Exception {
         // 已安装处理器只理解 Trace，不能因存在处理器就跳过其他必选头。
         MetConfiguration configuration = this.incoming("1.2");
@@ -136,7 +143,7 @@ public class WebServicesHeaderHandlerTest {
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
 
             assertEquals(500, response.statusCode());
-            assertTrue(response.body(), response.body().contains("soap:MustUnderstand"));
+            assertTrue(response.body().contains("soap:MustUnderstand"), response.body());
             assertEquals(0, invocations.get());
         }
     }

@@ -39,8 +39,8 @@ import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.triple.codec.TripleHttpCodec;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TripleSessionTest {
     public interface Echo {
@@ -1261,7 +1261,7 @@ public class TripleSessionTest {
 
         private void runNextTask() throws InterruptedException {
             Runnable task = this.tasks.poll(2, TimeUnit.SECONDS);
-            assertNotNull("Expected queued protocol task", task);
+            assertNotNull(task, "Expected queued protocol task");
             task.run();
         }
 

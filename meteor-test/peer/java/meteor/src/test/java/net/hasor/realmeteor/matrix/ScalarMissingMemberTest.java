@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -19,28 +23,30 @@ import net.hasor.example.contract.scalar.ScalarValueProfile;
 import net.hasor.example.contract.scalar.ScalarValueServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 标准 JSON-RPC 报文的字段缺失探针，直接观察业务入口收到的默认值。 */
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class ScalarMissingMemberTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingNullableNoteReachesBusinessAsNull() throws Exception {
         // 独立启动提供者，并在共享业务实现处理前观察实际解码的 DTO。
         MetConfiguration configuration = ScalarValueProfile.JSONRPC.providerConfiguration();
-        configuration.setDataHome(this.data.newFolder("provider").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         AtomicReference<ScalarValue> observed = new AtomicReference<>();
         ScalarValueServiceImpl implementation = new ScalarValueServiceImpl() {
             @Override
@@ -91,11 +97,12 @@ public class ScalarMissingMemberTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingPrimitiveFlagReachesBusinessAsFalse() throws Exception {
         // 独立启动提供者，并在共享业务实现处理前观察实际解码的 DTO。
         MetConfiguration configuration = ScalarValueProfile.JSONRPC.providerConfiguration();
-        configuration.setDataHome(this.data.newFolder("provider").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         AtomicReference<ScalarValue> observed = new AtomicReference<>();
         ScalarValueServiceImpl implementation = new ScalarValueServiceImpl() {
             @Override

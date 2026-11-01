@@ -7,11 +7,16 @@ package net.hasor.realmeteor.example.multilingual;
 import java.nio.file.Path;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** curl 入门脚本只需要一个 JSON-RPC 提供者，不启动其它业务协议。 */
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class ShellConsumerScenarioTest {
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void curlScriptSavesAndFindsTheJsonRpcOrder() throws Exception {
         // 提供者只挂载 JSON-RPC，向独立 curl 进程报告实际网络地址。
         try (OrderPeerProcess provider = OrderPeerProcess.javaMain("jsonrpc", "Provider", null)) {

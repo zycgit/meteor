@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,21 +16,21 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Apache Thrift C GLib 与 Meteor 的基本双向调用；只验证一个 String echo。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/c/thrift/Apache-Thrift@{0}/{1}", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "thrift")
 public class CThriftSdkScenarioTest {
     private final String executable;
 
     public CThriftSdkScenarioTest(String version, String profile, String executable) {
         this.executable = executable;
     }
-
-    @Parameterized.Parameters(name = "sdk/c/thrift/Apache-Thrift@{0}/{1}")
     public static List<Object[]> versions() {
         // 每份 IDL 绑定与生成器、运行库属于同一发布版本。
         List<Object[]> versions = new ArrayList<>();
@@ -37,7 +40,8 @@ public class CThriftSdkScenarioTest {
         return versions;
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sdkToMeteorThriftEcho() throws Exception {
         // 普通 Java 接口从 bootstrap 发布，参数公共注解编号1对应测试自有 IDL。
         MetConfiguration configuration = new MetConfiguration();
@@ -53,12 +57,13 @@ public class CThriftSdkScenarioTest {
             List<String> command = List.of(this.executable, "consumer");
             try (OrderPeerProcess consumer = OrderPeerProcess.start("native", command, target)) {
                 String output = consumer.awaitOutput();
-                assertTrue(output, output.contains("RESULT C GLib Thrift 中文"));
+                assertTrue(output.contains("RESULT C GLib Thrift 中文"), output);
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorToSdkThriftEcho() throws Exception {
         // 官方 C GLib SimpleServer 独立监听；本场景只发起一次请求，不要求并发服务能力。
         List<String> command = List.of(this.executable, "provider");

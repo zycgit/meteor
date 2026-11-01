@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -19,12 +20,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Meteor 消费者通过公开代理调用独立 Python 官方 gRPC 服务。 */
+@NxnRpc(name = "grpc")
 public class PythonProviderScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumesPythonAsciiOrder() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
@@ -58,7 +62,8 @@ public class PythonProviderScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumesPythonUnicodeOrder() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
@@ -92,7 +97,8 @@ public class PythonProviderScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumesPythonBinaryOrder() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
@@ -126,7 +132,8 @@ public class PythonProviderScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumesPythonMinimumInt32() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
@@ -160,7 +167,8 @@ public class PythonProviderScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumesPythonMaximumInt32() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
@@ -194,7 +202,8 @@ public class PythonProviderScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumesPythonMissingOrderFailure() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("clear");
@@ -226,7 +235,8 @@ public class PythonProviderScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumesPythonOrderOverTls() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("tls");
@@ -260,7 +270,8 @@ public class PythonProviderScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumesPythonOrderOverMutualTls() throws Exception {
         // 配置客户端通道及公共订单契约，Python 单独创建官方 SDK server。
         MetConfiguration configuration = this.configuration("mtls");

@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -29,19 +34,19 @@ import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 原生 rpcgen 合约通过显式存储适配发现，C 进程仍直接执行业务 RPC。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "adapter/c/{0}/{1}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcRegistryAdapterScenarioTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
     private final String transport;
@@ -52,8 +57,6 @@ public class OncRpcRegistryAdapterScenarioTest {
         this.transport = transport;
         this.protocol = StringUtils.equalsIgnoreCase("udp", transport) ? "oncrpc-udp" : "oncrpc";
     }
-
-    @Parameterized.Parameters(name = "adapter/c/{0}/{1}")
     public static Collection<Object[]> configurations() {
         List<Object[]> result = new ArrayList<>();
         for (String backend : List.of("jdbc", "zookeeper", "nacos")) {
@@ -64,10 +67,11 @@ public class OncRpcRegistryAdapterScenarioTest {
         return result;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeConsumerResolvesMeteorProviderThroughStorageAdapter() throws Exception {
         // 原生对端沿用 rpcgen 标准互通合约；注册信息来自正式 Meteor 发布链路。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "native-consumer-target");
@@ -97,10 +101,11 @@ public class OncRpcRegistryAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversRegisteredNativeProvider() throws Exception {
         // 消费者仅配置出站协议和注册库，先订阅尚未出现的服务。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "native-provider-consumer");
@@ -134,7 +139,7 @@ public class OncRpcRegistryAdapterScenarioTest {
     private MetConfiguration configuration(RegistryConfiguration registry, String application) throws Exception {
         MetConfiguration configuration = new MetConfiguration();
         configuration.setApplicationName(application);
-        configuration.setDataHome(this.data.newFolder(application).toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve(application)));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 内部管理出口不对外监听。
         return configuration;

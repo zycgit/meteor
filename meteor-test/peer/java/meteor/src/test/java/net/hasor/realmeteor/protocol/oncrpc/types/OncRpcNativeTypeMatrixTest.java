@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc.types;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -24,13 +27,15 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.protocol.oncrpc.OncRpcNativeProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** rpcgen/libtirpc 以独立 C 容器验证每个 XDR 类型边界，TCP 和 UDP 分别展开。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "{0}/{1}", quoteTextArguments = false)
+@MethodSource("parameters")
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcNativeTypeMatrixTest {
     private final String transport;
     private final String vector;
@@ -39,8 +44,6 @@ public class OncRpcNativeTypeMatrixTest {
         this.transport = transport;
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "{0}/{1}")
     public static Collection<Object[]> parameters() {
         // 类型顺序固定，每条向量和传输组合均产生独立的 provider、consumer 实例。
         List<Object[]> parameters = new ArrayList<>();
@@ -51,7 +54,8 @@ public class OncRpcNativeTypeMatrixTest {
         return parameters;
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorProviderAcceptsNativeType() throws Exception {
         // 从公开入口启动提供者；UDP 的具体监听端口由操作系统临时分配。
         String protocol = this.protocol();
@@ -83,7 +87,8 @@ public class OncRpcNativeTypeMatrixTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerReadsNativeType() throws Exception {
         // 独立 libtirpc 提供者保持既有 mirror 过程，Meteor 仅创建出站连接器。
         String protocol = this.protocol();

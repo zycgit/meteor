@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.concurrent.Flow;
 import net.hasor.meteor.domain.meta.MethodMeta;
 import net.hasor.meteor.domain.meta.ServiceMetaParser;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TripleMethodShapeTest {
     @Test

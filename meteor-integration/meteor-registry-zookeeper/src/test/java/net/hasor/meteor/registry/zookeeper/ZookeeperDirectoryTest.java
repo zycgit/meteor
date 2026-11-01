@@ -9,10 +9,10 @@ import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
 import org.apache.curator.test.TestingServer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.instance;
 import static net.hasor.meteor.registry.zookeeper.ZookeeperRecords.service;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 应用、实例、服务成员目录的筛选范围与分页。 */
 public class ZookeeperDirectoryTest {

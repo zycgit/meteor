@@ -16,11 +16,11 @@ import net.hasor.dbvisitor.jdbc.core.JdbcTemplate;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.configuration;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.createDatabase;
 import static net.hasor.meteor.registry.jdbc.JdbcStorageData.*;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** H2 验证真实建表、事务、租约与 SQL 异常；不表示其他数据库已经实测。 */
 public class JdbcDatabaseIntegrationTest {
@@ -137,12 +137,12 @@ public class JdbcDatabaseIntegrationTest {
 
                 try {
                     // 持锁事务先把租约置为到期，再确认心跳已经发起锁请求。
-                    assertTrue("Heartbeat did not wait for the instance row", waiting.await(5, TimeUnit.SECONDS));
+                    assertTrue(waiting.await(5, TimeUnit.SECONDS), "Heartbeat did not wait for the instance row");
                     connection.commit();
 
                     // 下一轮开始说明前一轮已经执行完毕，旧时间不能把到期实例重新续活。
                     boolean completed = nextHeartbeat.await(5, TimeUnit.SECONDS);
-                    assertTrue("Heartbeat did not complete its first attempt", completed);
+                    assertTrue(completed, "Heartbeat did not complete its first attempt");
                     List<Long> currentExpiry = jdbc.queryForList("SELECT expires_at FROM meteor_instances", Long.class);
                     assertEquals(List.of(0L), currentExpiry);
                     assertNull(writer.getInstance("one").getRuntime());
@@ -410,7 +410,7 @@ public class JdbcDatabaseIntegrationTest {
         while (!condition.call() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }
-        assertTrue("Instance heartbeat did not renew its lease", condition.call());
+        assertTrue(condition.call(), "Instance heartbeat did not renew its lease");
     }
 
 }

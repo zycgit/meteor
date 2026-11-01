@@ -22,8 +22,8 @@ import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.example.protocol.grpc.Message;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import static net.hasor.example.protocol.grpc.MetadataServiceImpl.details;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 abstract class GrpcMetadataPeer {
     private static final   ObjectMapper         MAPPER  = new ObjectMapper().disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);

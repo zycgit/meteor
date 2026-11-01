@@ -11,14 +11,31 @@
 宿主需要 **JDK 17、Docker 和 Compose**，语言工具链和测试依赖在容器内准备。以下命令在 Meteor 仓库根目录执行：
 
 ```bash
-./meteor-test/runnxn.sh                       # 全部测试，默认 16 组
-./meteor-test/runnxn.sh --groups 4            # 降低并发，1 表示串行
-./meteor-test/runnxn.sh --tests 'net.hasor.realmeteor.protocol.grpc.*'
+./meteor-test/runnxn.sh                       # 查看用法，不运行测试
+./meteor-test/runnxn.sh all                   # 全部测试，默认 16 组
+./meteor-test/runnxn.sh all --jobs 4          # 降低并发，1 表示串行
+./meteor-test/runnxn.sh rpc grpc              # gRPC，包含各语言和组合场景
+./meteor-test/runnxn.sh rpc soap 1.2          # SOAP 1.2
+./meteor-test/runnxn.sh rpc dubbo 2           # Dubbo 2 大版本
+./meteor-test/runnxn.sh test '*GrpcInteropTest'
+./meteor-test/runnxn.sh rpc soap 1.2 --tests '*Soap12InteropTest.*'
 ```
 
-Windows 使用 `.\gradlew.bat :meteor-test:dockerTest`，测试参数相同。`--tests` 支持类名、`类名.方法名` 和 `*`，可重复传入。
+`test`、`--tests` 支持类名、`类名.方法名`、`类名.方法名[参数显示名]` 及 `*`，`--tests` 可重复。协议、版本与用例筛选取交集；无匹配用例时报告失败。
 
-Linux / WSL 遇到时钟回拨时，使用 `sudo ./meteor-test/runnxn.sh` 暂停 timesyncd 和 WSL chronyd；结束或中断后恢复原状态，终端显示暂停、失败和恢复结果。
+Windows 通过同一 Gradle 任务运行：
+
+```powershell
+.\gradlew.bat :meteor-test:dockerTest
+.\gradlew.bat :meteor-test:dockerTest --rpc soap --rpc-version 1.2
+.\gradlew.bat :meteor-test:dockerTest --tests '*GrpcInteropTest'
+```
+
+版本指 RPC 线协议版本，Dubbo 按 `2`、`3` 大版本划分。SOAP 使用 `1.1`、`1.2`，Hessian 使用 `1`、`2`；gRPC 等没有独立版本号的协议省略版本，SDK 发行版本不作为此参数。可选值从测试声明收集。
+
+Linux / WSL 遇到时钟回拨时，使用 `sudo ./meteor-test/runnxn.sh all` 暂停 timesyncd 和 WSL chronyd；结束或中断后恢复原状态，终端显示暂停、失败和恢复结果。
+
+测试类或方法通过 `@NxnRpc(name = "soap", version = "1.2")` 声明归属。多协议或多版本使用重复注解，参数化场景以 `cases` 匹配原始参数显示名；方法声明覆盖类声明。声明由容器内构建自动汇总，新增用例不需维护脚本中的类名清单。
 
 ## 目录
 
@@ -33,7 +50,7 @@ Linux / WSL 遇到时钟回拨时，使用 `sudo ./meteor-test/runnxn.sh` 暂停
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `--groups N` | `16` | 并发工作组数，范围 `1` 到 `16` |
+| `--jobs N`、`--groups N` | `16` | 并发工作组数，范围 `1` 到 `16` |
 | `--tests PATTERN` | 全部 | 按类或方法筛选，可重复 |
 | `--skipError true\|false` | `true` | 遇错继续其余可执行测试；最终仍报告失败。`false` 停止后续测试并等待收尾 |
 | `--no-build` | 关闭 | 禁止构建或拉取镜像，仍编译当前源码 |
@@ -50,7 +67,7 @@ Linux / WSL 遇到时钟回拨时，使用 `sudo ./meteor-test/runnxn.sh` 暂停
 
 日志实时输出，每 15 秒汇总完成组数、用例数、失败和跳过数。结果写入 [report.md](report.md)，其中的产物路径相对于 `meteor-test/`。完整日志与 XML 位于仓库 `meteor-test/build/docker-runs/`，每次运行先清除旧结果。
 
-控制文件位于 `meteor-test/build/meteor-test-control/`，校时状态和日志位于 `meteor-test/build/meteor-test-clock/`，本轮校时记录同时归档到 `meteor-test/build/docker-runs/clock-state/`。宿主 Gradle 缓存和日志使用仓库共享的 `.gradle/user-home/`；单测及子进程的临时文件、用户缓存位于所属模块 `build/`。
+控制文件位于 `meteor-test/build/meteor-test-control/`，校时状态和日志位于 `meteor-test/build/meteor-test-clock/`，本轮校时记录同时归档到 `meteor-test/build/docker-runs/clock-state/`。宿主 Gradle 缓存使用默认用户目录，可通过 `GRADLE_USER_HOME` 指定；单测及子进程的临时文件、用户缓存位于所属模块 `build/`。
 
 ```bash
 ./meteor-test/build_report.sh                # 重建当前报告，不重新测试

@@ -18,10 +18,10 @@ import net.hasor.meteor.registry.admin.MetInstanceInfo;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
 import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
 import org.h2.jdbcx.JdbcDataSource;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.createDatabase;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class JdbcRegistryIntegrationTest {
     @Test
@@ -53,7 +53,7 @@ public class JdbcRegistryIntegrationTest {
             String serviceId = published.getBindID();
             long discoveryDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (client.getUpdater().queryAvailableAddresses(serviceId).isEmpty()) {
-                assertTrue("JDBC did not publish the provider address", System.nanoTime() < discoveryDeadline);
+                assertTrue(System.nanoTime() < discoveryDeadline, "JDBC did not publish the provider address");
                 TimeUnit.MILLISECONDS.sleep(20);
             }
 
@@ -95,7 +95,7 @@ public class JdbcRegistryIntegrationTest {
             MetDirectoryQuery query = new MetDirectoryQuery();
             long registrationDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
             while (service.providers(null, query).getItems().size() == 0) {
-                assertTrue("JDBC did not register the provider", System.nanoTime() < registrationDeadline);
+                assertTrue(System.nanoTime() < registrationDeadline, "JDBC did not register the provider");
                 TimeUnit.MILLISECONDS.sleep(20);
             }
 

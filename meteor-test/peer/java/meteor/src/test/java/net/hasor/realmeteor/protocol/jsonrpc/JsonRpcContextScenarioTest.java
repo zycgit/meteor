@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -18,15 +19,19 @@ import net.hasor.example.protocol.jsonrpc.JsonRpcDemoService;
 import net.hasor.example.protocol.jsonrpc.JsonRpcDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class JsonRpcContextScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final        HttpClient   http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unspecifiedServiceContextUsesOnlyTheDefault() throws Exception {
         // 一个监听端口声明默认与附加挂载，服务按发布配置选择暴露位置。
         MetConfiguration configuration = this.configuration();
@@ -62,7 +67,8 @@ public class JsonRpcContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitServiceContextExcludesTheDefault() throws Exception {
         // 一个监听端口声明默认与附加挂载，服务按发布配置选择暴露位置。
         MetConfiguration configuration = this.configuration();
@@ -99,7 +105,8 @@ public class JsonRpcContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitMultipleContextsExposeTheServiceOnOnePort() throws Exception {
         // 同一 Java 服务显式选择默认和附加挂载。
         MetConfiguration configuration = this.configuration();
@@ -126,7 +133,8 @@ public class JsonRpcContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mountedServiceOptionAllowsUnqualifiedMethodNames() throws Exception {
         // 单服务端点通过协议选项绑定别名，外部客户端只发送方法名。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("jsonrpc");

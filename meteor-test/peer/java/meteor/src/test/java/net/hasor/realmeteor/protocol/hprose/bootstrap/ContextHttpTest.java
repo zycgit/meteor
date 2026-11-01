@@ -27,10 +27,12 @@ import net.hasor.meteor.MetPublisher.ConfigurationBuilder;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetTimeoutException;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
+@NxnRpc(name = "hprose")
 public class ContextHttpTest extends BootstrapTestSupport {
 
     @Test
@@ -276,7 +278,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
             while (cause.getCause() != null) {
                 cause = cause.getCause();
             }
-            assertTrue(cause.toString(), cause instanceof MetException);
+            assertTrue(cause instanceof MetException, cause.toString());
         }
     }
 
@@ -312,7 +314,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
                         public String slow(int millis) throws InterruptedException {
                             entered.add(true);
                             boolean released = release.await(10, TimeUnit.SECONDS);
-                            assertTrue("Handler was not released", released);
+                            assertTrue(released, "Handler was not released");
                             return "late";
                         }
                     }) //
@@ -376,7 +378,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
                         public String slow(int millis) throws InterruptedException {
                             entered.add(true);
                             boolean released = release.await(10, TimeUnit.SECONDS);
-                            assertTrue("Handler was not released", released);
+                            assertTrue(released, "Handler was not released");
                             return "late";
                         }
                     }) //
@@ -441,7 +443,7 @@ public class ContextHttpTest extends BootstrapTestSupport {
                         public String slow(int millis) throws InterruptedException {
                             entered.countDown();
                             boolean released = release.await(10, TimeUnit.SECONDS);
-                            assertTrue("Handler was not released", released);
+                            assertTrue(released, "Handler was not released");
                             return "late";
                         }
                     }) //

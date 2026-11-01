@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.invocation;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.nio.file.Path;
 import java.util.concurrent.Flow;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -20,18 +25,17 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Flow 调用通过三种真实注册存储自动发现，同一普通接口分别使用 JSON 和 Protobuf。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "flow/{0}/{1}", quoteTextArguments = false)
+@MethodSource("combinations")
+@NxnRpc(name = "grpc")
 public class RegistryFlowInvocationScenarioTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
     private final String format;
@@ -40,8 +44,6 @@ public class RegistryFlowInvocationScenarioTest {
         this.backend = backend;
         this.format = format;
     }
-
-    @Parameterized.Parameters(name = "flow/{0}/{1}")
     public static Object[][] combinations() {
         return new Object[][] { // 每一行是独立的注册发现与协议编码组合。
                 { "jdbc", "Json" }, //
@@ -53,10 +55,11 @@ public class RegistryFlowInvocationScenarioTest {
         };
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void discoveredResponseStreamDeliversOnlyRequestedItemsInOrder() throws Exception {
         // 两个应用只配置协议与同一个注册库，消费端不绑定端口或指定远端地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "flow-provider", true);
@@ -99,27 +102,27 @@ public class RegistryFlowInvocationScenarioTest {
                 Flow.Subscription demand = subscribed.get(5, TimeUnit.SECONDS);
                 try {
                     CatalogItem unsolicited = received.poll(100, TimeUnit.MILLISECONDS);
-                    assertNull("No item may be delivered without demand", unsolicited);
+                    assertNull(unsolicited, "No item may be delivered without demand");
 
                     // 首次只请求一条；交付后继续等待下一次需求声明。
                     demand.request(1);
                     CatalogItem first = received.poll(5, TimeUnit.SECONDS);
-                    assertNotNull("First requested item was not delivered", first);
+                    assertNotNull(first, "First requested item was not delivered");
                     assertEquals("registered-catalog", first.getName());
                     assertEquals(0, first.getCount());
                     CatalogItem extra = received.poll(100, TimeUnit.MILLISECONDS);
-                    assertNull("One request must not deliver two items", extra);
+                    assertNull(extra, "One request must not deliver two items");
 
                     // 再请求剩余两条，完成信号与有序数据共同证明本次响应流正常结束。
                     demand.request(2);
                     for (int index = 1; index < 3; index++) {
                         CatalogItem item = received.poll(5, TimeUnit.SECONDS);
-                        assertNotNull("Requested item was not delivered", item);
+                        assertNotNull(item, "Requested item was not delivered");
                         assertEquals("registered-catalog", item.getName());
                         assertEquals(index, item.getCount());
                     }
                     completed.get(5, TimeUnit.SECONDS);
-                    assertTrue("Completed stream retained unexpected items", received.isEmpty());
+                    assertTrue(received.isEmpty(), "Completed stream retained unexpected items");
                 } finally {
                     demand.cancel();
                 }
@@ -127,10 +130,11 @@ public class RegistryFlowInvocationScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingDiscoveredResponseStreamKeepsSubsequentUnaryCallUsable() throws Exception {
         // 独占的注册环境中发布相同业务接口，先让正式地址选择快照完成自动发现。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "cancel-provider", true);
@@ -172,7 +176,7 @@ public class RegistryFlowInvocationScenarioTest {
                 try {
                     demand.request(1);
                     CatalogItem first = received.poll(5, TimeUnit.SECONDS);
-                    assertNotNull("First item was not delivered before cancellation", first);
+                    assertNotNull(first, "First item was not delivered before cancellation");
                     assertEquals(0, first.getCount());
                 } finally {
                     demand.cancel();
@@ -183,7 +187,7 @@ public class RegistryFlowInvocationScenarioTest {
                 assertEquals("after-cancellation", actual.getName());
                 assertEquals(7, actual.getCount());
                 CatalogItem afterCancellation = received.poll(100, TimeUnit.MILLISECONDS);
-                assertNull("Cancelled subscriber received another item", afterCancellation);
+                assertNull(afterCancellation, "Cancelled subscriber received another item");
             }
         }
     }
@@ -191,7 +195,7 @@ public class RegistryFlowInvocationScenarioTest {
     private MetConfiguration configuration(RegistryConfiguration registry, String application, boolean provider) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc").setDefaultTimeout(10000);
         configuration.setApplicationName(application);
-        configuration.setDataHome(this.data.newFolder(application).toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve(application)));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf");
 

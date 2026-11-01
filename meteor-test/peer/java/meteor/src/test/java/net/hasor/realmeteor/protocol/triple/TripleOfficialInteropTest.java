@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -27,15 +28,18 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Dubbo 独立 JVM 与公开 Meteor bootstrap 的双向网络互通。 */
+@NxnRpc(name = "triple")
 public class TripleOfficialInteropTest {
     private static final String WRAPPED = "net.hasor.peer.protocol.triple.DubboWrappedService";
     private static final String PROTO   = "net.hasor.peer.protocol.triple.DubboProtoService";
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedEcho() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -50,13 +54,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=echo" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Triple 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialWrappedEcho() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -78,7 +83,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedMultipleArguments() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -93,13 +99,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=combine" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("hello:3", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialWrappedMultipleArguments() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -121,7 +128,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedStringOverload() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -136,13 +144,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=string-overload" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("string:hello", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialWrappedStringOverload() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -164,7 +173,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedPrimitiveOverload() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -179,13 +189,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=int-overload" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("int:7", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialWrappedPrimitiveOverload() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -207,7 +218,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedNoArguments() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -222,13 +234,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=no-args" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("empty", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialWrappedNoArguments() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -250,7 +263,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedBinary() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -265,13 +279,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=binary" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("AAEC/w==", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialWrappedBinary() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -294,7 +309,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedPojo() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -309,14 +325,15 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=person" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Ada", result.path("value").path("name").asText());
                 assertEquals(42, result.path("value").path("age").asInt());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialWrappedPojo() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -340,7 +357,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedNull() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -355,13 +373,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=null" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
-                assertTrue(result.toString(), result.path("value").isNull());
+                assertFalse(result.has("error"), result.toString());
+                assertTrue(result.path("value").isNull(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialWrappedNull() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -383,7 +402,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedVoid() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -398,13 +418,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=void" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
-                assertTrue(result.toString(), result.path("value").isNull());
+                assertFalse(result.has("error"), result.toString());
+                assertTrue(result.path("value").isNull(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialWrappedVoid() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -426,7 +447,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedFault() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -441,12 +463,13 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=fault" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("error").asText().contains("boom"));
+                assertTrue(result.path("error").asText().contains("boom"), result.toString());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialWrappedFault() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -469,7 +492,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorWrappedGzip() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, true);
@@ -484,13 +508,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=wrapped", "--scenario=echo", "--gzip=true" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Triple 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialLegacyWrappedGzip() throws Exception {
         // 官方 3.2.20 原版服务端支持压缩首帧；3.3.6 的 Java 接口入口有对应解码缺陷。
         try (DubboTripleProcess peer = DubboTripleProcess.startLegacy("server", "--port=0")) {
@@ -512,7 +537,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorProtobufEcho() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -528,13 +554,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=proto", "--scenario=echo" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Triple 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialProtobufEcho() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -557,7 +584,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorProtobufServerStream() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -573,13 +601,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=proto", "--scenario=server-stream" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals(List.of("0", "1", "2"), this.values(result.path("value")));
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialProtobufServerStream() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -604,7 +633,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorProtobufClientStream() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -620,13 +650,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=proto", "--scenario=client-stream" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("alpha,beta,gamma", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialProtobufClientStream() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -650,7 +681,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorProtobufBidirectionalStream() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -666,13 +698,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=proto", "--scenario=bidi" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals(List.of("alpha", "beta", "gamma"), this.values(result.path("value")));
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialProtobufBidirectionalStream() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -699,7 +732,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorProtobufFault() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, false);
@@ -715,12 +749,13 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=proto", "--scenario=fault" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("error").asText().contains("boom"));
+                assertTrue(result.path("error").asText().contains("boom"), result.toString());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialProtobufFault() throws Exception {
         // 独立官方进程通过真实 ServiceConfig 发布 Triple 服务。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -744,7 +779,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientCallsMeteorProtobufGzip() throws Exception {
         // 启动 HTTP/2 端点后，发布普通 Java 接口及相应编码。
         MetConfiguration configuration = this.configuration(true, true);
@@ -760,13 +796,14 @@ public class TripleOfficialInteropTest {
             String[] arguments = { "client", "--port=" + port, "--mode=proto", "--scenario=echo", "--gzip=true" };
             try (DubboTripleProcess peer = DubboTripleProcess.start(arguments)) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Triple 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialLegacyProtobufGzip() throws Exception {
         // 官方 3.2.20 原版服务端支持压缩首帧；3.3.6 的 Java 接口入口有对应解码缺陷。
         try (DubboTripleProcess peer = DubboTripleProcess.startLegacy("server", "--port=0")) {
@@ -789,7 +826,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesMeteorWrappedMetadata() throws Exception {
         // 双方通过公开请求和响应元信息传播同一文本字段。
         MetConfiguration configuration = this.configuration(true, false);
@@ -810,13 +848,14 @@ public class TripleOfficialInteropTest {
             try (DubboTripleProcess peer = DubboTripleProcess.start("client", "--port=" + port, //
                     "--mode=wrapped", "--scenario=metadata")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("metadata", result.path("metadata").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReceivesOfficialWrappedMetadata() throws Exception {
         // 官方服务从 RpcContext 接收并回送元信息，Meteor 侧从响应读取。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -845,7 +884,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientTimesOutMeteorWrappedCall() throws Exception {
         // 服务端业务有界延迟，调用期限由官方客户端独立执行。
         MetConfiguration configuration = this.configuration(true, false);
@@ -861,12 +901,13 @@ public class TripleOfficialInteropTest {
                     "--mode=wrapped", "--scenario=timeout")) {
                 JsonNode result = peer.awaitResult();
                 String error = result.path("error").asText().toLowerCase(Locale.ROOT);
-                assertTrue(result.toString(), error.contains("timeout"));
+                assertTrue(error.contains("timeout"), result.toString());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTimesOutOfficialWrappedCall() throws Exception {
         // 官方提供者继续处理业务，Meteor 在自己的调用期限到达时失败。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -885,12 +926,13 @@ public class TripleOfficialInteropTest {
                 Object[] arguments = { "wait" };
                 var pending = client.getRsfClient(address).asyncInvoke(service, "slow", types, arguments);
                 Throwable failure = assertThrows(Throwable.class, () -> pending.get(5, TimeUnit.SECONDS));
-                assertTrue(this.messages(failure), this.isDeadlineFailure(failure));
+                assertTrue(this.isDeadlineFailure(failure), this.messages(failure));
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientReceivesMeteorProtobufMetadata() throws Exception {
         // 双方通过公开请求和响应元信息传播同一文本字段。
         MetConfiguration configuration = this.configuration(true, false);
@@ -912,13 +954,14 @@ public class TripleOfficialInteropTest {
             try (DubboTripleProcess peer = DubboTripleProcess.start("client", "--port=" + port, //
                     "--mode=proto", "--scenario=metadata")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("metadata", result.path("metadata").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReceivesOfficialProtobufMetadata() throws Exception {
         // 官方服务从 RpcContext 接收并回送元信息，Meteor 侧从响应读取。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -948,7 +991,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientTimesOutMeteorProtobufCall() throws Exception {
         // 服务端业务有界延迟，调用期限由官方客户端独立执行。
         MetConfiguration configuration = this.configuration(true, false);
@@ -965,12 +1009,13 @@ public class TripleOfficialInteropTest {
                     "--mode=proto", "--scenario=timeout")) {
                 JsonNode result = peer.awaitResult();
                 String error = result.path("error").asText().toLowerCase(Locale.ROOT);
-                assertTrue(result.toString(), error.contains("timeout"));
+                assertTrue(error.contains("timeout"), result.toString());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTimesOutOfficialProtobufCall() throws Exception {
         // 官方提供者继续处理业务，Meteor 在自己的调用期限到达时失败。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -990,12 +1035,13 @@ public class TripleOfficialInteropTest {
                 Object[] arguments = { "wait" };
                 var pending = client.getRsfClient(address).asyncInvoke(service, "slow", types, arguments);
                 Throwable failure = assertThrows(Throwable.class, () -> pending.get(5, TimeUnit.SECONDS));
-                assertTrue(this.messages(failure), this.isDeadlineFailure(failure));
+                assertTrue(this.isDeadlineFailure(failure), this.messages(failure));
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialPlainJsonHttp1() throws Exception {
         // 普通 HTTP JSON 与官方 Dubbo 的 HTTP RPC 入口互通，无需 Protobuf 定义。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -1017,7 +1063,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsOfficialPlainJsonHttp2() throws Exception {
         // 普通 HTTP JSON 与官方 Dubbo 的 HTTP RPC 入口互通，无需 Protobuf 定义。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -1039,7 +1086,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialCancellationKeepsMeteorConnectionUsable() throws Exception {
         // 发布双向流服务，官方客户端负责取消其中一条正在收发的 RPC。
         MetConfiguration configuration = this.configuration(true, false);
@@ -1054,14 +1102,15 @@ public class TripleOfficialInteropTest {
             try (DubboTripleProcess peer = DubboTripleProcess.start("client", "--port=" + port, //
                     "--mode=proto", "--scenario=cancel")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertTrue(result.path("cancelled").asBoolean());
                 assertEquals("alive", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCancellationKeepsOfficialConnectionUsable() throws Exception {
         // 官方服务保持双向流开启，Meteor 在收到首条消息后主动取消。
         try (DubboTripleProcess peer = DubboTripleProcess.start("server", "--port=0")) {
@@ -1089,7 +1138,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialConcurrentCallsKeepTheirMeteorResults() throws Exception {
         // 官方客户端在同一端点上并发提交独立 RPC。
         MetConfiguration configuration = this.configuration(true, false);
@@ -1103,7 +1153,7 @@ public class TripleOfficialInteropTest {
             try (DubboTripleProcess peer = DubboTripleProcess.start("client", "--port=" + port, //
                     "--mode=wrapped", "--scenario=concurrent")) {
                 JsonNode result = peer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 List<String> expected = new ArrayList<>();
                 for (int index = 0; index < 20; index++) {
                     expected.add("call-" + index);
@@ -1113,7 +1163,8 @@ public class TripleOfficialInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConcurrentCallsKeepTheirOfficialResults() throws Exception {
         // 业务线程池由本场景创建并关闭，不让官方对端持有 Meteor 资源。
         var calls = Executors.newFixedThreadPool(5);

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -45,14 +46,17 @@ import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Triple 在 HTTP 各版本、安全认证与协商中的实际发布和调用。 */
+@NxnRpc(name = "triple")
 public class TripleTransportScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpJsonUsesHttpsHttp1ServerAuthentication() throws Exception {
         // 普通 HTTP JSON 在 HTTP/1 HTTPS 上验证服务端身份。
         MetConfiguration incoming = this.secureIncoming(1, "json", "NONE");
@@ -79,7 +83,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpJsonUsesHttpsHttp1MutualAuthentication() throws Exception {
         // 普通 HTTP JSON 在 HTTP/1 HTTPS 上验证双方身份。
         MetConfiguration incoming = this.secureIncoming(1, "json", "REQUIRE");
@@ -106,7 +111,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpJsonUsesHttpsHttp2ServerAuthentication() throws Exception {
         // 普通 HTTP JSON 通过 h2 ALPN 与服务端证书认证。
         MetConfiguration incoming = this.secureIncoming(2, "json", "NONE");
@@ -133,7 +139,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpJsonUsesHttpsHttp2MutualAuthentication() throws Exception {
         // 普通 HTTP JSON 通过 h2 ALPN 与双向证书认证。
         MetConfiguration incoming = this.secureIncoming(2, "json", "REQUIRE");
@@ -160,7 +167,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrappedHessian2UsesHttpsServerAuthentication() throws Exception {
         // Hessian2 wrapper 在 TLS 认证后仍保留 Java 参数类型。
         MetConfiguration incoming = this.secureIncoming(2, null, "NONE");
@@ -187,7 +195,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrappedHessian2UsesHttpsMutualAuthentication() throws Exception {
         // Hessian2 wrapper 通过 HTTP/2 双向 TLS 传递 DTO。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
@@ -214,7 +223,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeProtobufUsesHttpsServerAuthentication() throws Exception {
         // 原生 Protobuf 在 h2 ALPN 后使用服务端证书认证。
         MetConfiguration incoming = this.secureIncoming(2, null, "NONE");
@@ -244,7 +254,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeProtobufUsesHttpsMutualAuthentication() throws Exception {
         // 原生 Protobuf 通过双向 TLS 保持标准 gRPC 封装。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
@@ -274,7 +285,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeJsonUsesHttpsServerAuthentication() throws Exception {
         // 绑定 proto 的原生 gRPC JSON 在单向 TLS 上传输。
         MetConfiguration incoming = this.secureIncoming(2, null, "NONE");
@@ -304,7 +316,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeJsonUsesHttpsMutualAuthentication() throws Exception {
         // 绑定 proto 的原生 gRPC JSON 在双向 TLS 上传输。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
@@ -334,7 +347,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpProtobufUsesHttpsHttp1ServerAuthentication() throws Exception {
         // 裸 Protobuf 在 HTTP/1 HTTPS 上认证服务端。
         MetConfiguration incoming = this.secureIncoming(1, "proto", "NONE");
@@ -364,7 +378,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpProtobufUsesHttpsHttp1MutualAuthentication() throws Exception {
         // 裸 Protobuf 在 HTTP/1 HTTPS 上认证双方。
         MetConfiguration incoming = this.secureIncoming(1, "proto", "REQUIRE");
@@ -394,7 +409,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpProtobufUsesHttpsHttp2ServerAuthentication() throws Exception {
         // 裸 Protobuf 的普通 HTTP 调用使用 h2 与服务端身份认证。
         MetConfiguration incoming = this.secureIncoming(2, "proto", "NONE");
@@ -424,7 +440,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpProtobufUsesHttpsHttp2MutualAuthentication() throws Exception {
         // 裸 Protobuf 的普通 HTTP 调用同样可使用 h2 双向 TLS。
         MetConfiguration incoming = this.secureIncoming(2, "proto", "REQUIRE");
@@ -454,7 +471,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeProtobufResponseStreamUsesMutualTls() throws Exception {
         // 原生 Protobuf 响应流在双向 TLS 上逐条完成并结束。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
@@ -486,7 +504,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrappedHessian2ResponseStreamUsesMutualTls() throws Exception {
         // Hessian2 wrapper 响应流在双向 TLS 上保持消息边界。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
@@ -515,7 +534,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeProtobufRequestStreamUsesMutualTls() throws Exception {
         // 原生 Protobuf 的请求流通过双向 TLS 后由服务端汇总。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
@@ -547,7 +567,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeProtobufBidirectionalStreamUsesMutualTls() throws Exception {
         // 原生 Protobuf 的双向流在 TLS 上独立完成两个收发方向。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
@@ -581,7 +602,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrappedHessian2BidirectionalStreamUsesMutualTls() throws Exception {
         // Hessian2 wrapper 的双向流在 TLS 上保持逐条 DTO 类型。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
@@ -612,7 +634,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeJsonResponseStreamUsesMutualTls() throws Exception {
         // 原生 gRPC JSON 响应流在双向 TLS 上传递多条消息。
         MetConfiguration incoming = this.secureIncoming(2, null, "REQUIRE");
@@ -644,7 +667,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentClientUpgradesHttpJsonCallToH2c() throws Exception {
         // 同一明文端口先接收 HTTP/1 Upgrade，再执行 HTTP/2 的普通 JSON RPC。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
@@ -669,7 +693,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentHttpsClientNegotiatesHttp2WithAlpn() throws Exception {
         // 服务端只宣告 h2，独立客户端验证信任链后协商 HTTP/2。
         MetConfiguration configuration = this.secureIncoming(2, "json", "NONE");
@@ -693,7 +718,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentHttpsClientNegotiatesHttp1WithAlpn() throws Exception {
         // HTTP/1.1 的 TLS 端点明确通过 ALPN 宣告其应用协议。
         MetConfiguration configuration = this.secureIncoming(1, "json", "NONE");
@@ -717,7 +743,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsRejectsMissingClientCertificate() throws Exception {
         // Triple 端点要求调用方身份，匿名连接不能进入 HTTP/2 业务层。
         MetConfiguration configuration = this.secureIncoming(2, null, "REQUIRE");
@@ -743,15 +770,16 @@ public class TripleTransportScenarioTest {
                     rejected = socket.getInputStream().read() < 0;
                 } catch (IOException failure) {
                     boolean timedOut = failure instanceof SocketTimeoutException;
-                    assertFalse("TLS rejection must not time out: " + failure, timedOut);
+                    assertFalse(timedOut, "TLS rejection must not time out: " + failure);
                     rejected = true;
                 }
-                assertTrue("Anonymous client must not receive HTTP/2 application data", rejected);
+                assertTrue(rejected, "Anonymous client must not receive HTTP/2 application data");
             }
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsRejectsUntrustedClientCertificate() throws Exception {
         // 客户端虽有证书，但签发者不属于服务端信任集。
         MetConfiguration configuration = this.secureIncoming(1, "json", "REQUIRE");
@@ -772,7 +800,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientRejectsUntrustedServerCertificate() throws Exception {
         // 客户端只信任另一 CA，不能向当前 HTTPS 端点发送 Triple 正文。
         MetConfiguration configuration = this.secureIncoming(1, "json", "NONE");
@@ -793,7 +822,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientRejectsWrongServerHostname() throws Exception {
         // 受信证书的名称不属于访问地址，HTTPS 主机名校验应拒绝该连接。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
@@ -818,7 +848,8 @@ public class TripleTransportScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incompatibleAlpnFailsBeforeRpcTimeout() throws Exception {
         // 服务端只接受 HTTP/1.1，Triple 客户端只接受 h2。
         MetConfiguration incoming = this.secureIncoming(1, "json", "NONE");

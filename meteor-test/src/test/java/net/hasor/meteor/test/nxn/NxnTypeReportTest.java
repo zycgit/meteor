@@ -14,17 +14,16 @@ import java.util.Map;
 import java.util.Set;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.function.ThrowingRunnable;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 类型矩阵只接受同一轮原始证据，并区分测试通过与类型支持。 */
 public class NxnTypeReportTest {
     private static final ObjectMapper JSON = new ObjectMapper();
-    @Rule
-    public final TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
 
     @Test
     public void javaBasicDisplayPreservesBoxedType() {
@@ -651,7 +650,7 @@ public class NxnTypeReportTest {
                 "--expectations", expectations.toString(), "--output", output.toString());
 
         // 标准输出提供机器可读摘要，报告和明细写入各自文件。
-        assertEquals(errors.toString(StandardCharsets.UTF_8), 0, status);
+        assertEquals(0, status, errors.toString(StandardCharsets.UTF_8));
         Map<?, ?> summary = JSON.readValue(standard.toByteArray(), Map.class);
         assertFalse(summary.containsKey("runId"));
         assertEquals(1, summary.get("typeCases"));
@@ -662,7 +661,7 @@ public class NxnTypeReportTest {
     @Test
     public void expectationsRequireNamedReviewer() throws Exception {
         // 没有审查者的声明不能被当成已审查支持依据。
-        Path path = this.temporary.newFile("unreviewed.json").toPath();
+        Path path = Files.createFile(this.temporary.resolve("unreviewed.json"));
         Map<String, Object> input = reviewedExpectations();
         input.put("review", values("basis", "test"));
         writeJson(path, input);
@@ -672,7 +671,7 @@ public class NxnTypeReportTest {
     @Test
     public void expectationsRejectDuplicateRuleIdentity() throws Exception {
         // 规则 ID 在一份审查文件中必须唯一。
-        Path path = this.temporary.newFile("duplicate-review.json").toPath();
+        Path path = Files.createFile(this.temporary.resolve("duplicate-review.json"));
         Map<String, Object> input = reviewedExpectations();
         input.put("rules", List.of(rule(), rule()));
         writeJson(path, input);
@@ -682,7 +681,7 @@ public class NxnTypeReportTest {
     @Test
     public void expectationsRejectUnsupportedWithoutRejection() throws Exception {
         // 不支持的结论必须明确以精确拒绝作为审查依据。
-        Path path = this.temporary.newFile("unsupported-review.json").toPath();
+        Path path = Files.createFile(this.temporary.resolve("unsupported-review.json"));
         Map<String, Object> input = reviewedExpectations();
         input.put("rules", List.of(rule("unsupported", "roundtrip")));
         writeJson(path, input);
@@ -726,7 +725,7 @@ public class NxnTypeReportTest {
     }
 
     private Path createRun() throws Exception {
-        Path directory = this.temporary.newFolder().toPath().resolve("interoperability");
+        Path directory = Files.createTempDirectory(this.temporary, "case-").resolve("interoperability");
         Files.createDirectories(directory);
         writeRun(directory, List.of(executedCase()));
         return directory;
@@ -841,8 +840,8 @@ public class NxnTypeReportTest {
         return (text.length() - text.replace(target, "").length()) / target.length();
     }
 
-    private static void assertInvalid(String message, ThrowingRunnable action) {
+    private static void assertInvalid(String message, Executable action) {
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class, action);
-        assertTrue(error.getMessage(), error.getMessage().contains(message));
+        assertTrue(error.getMessage().contains(message), error.getMessage());
     }
 }

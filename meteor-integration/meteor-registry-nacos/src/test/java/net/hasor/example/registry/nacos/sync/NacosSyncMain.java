@@ -21,7 +21,7 @@ import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntInstanceRuntimeData;
 import net.hasor.meteor.registry.shared.storage.domain.RefServiceRelationData;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 全量推送、全量拉取、单服务推拉和失败反馈分别验证。 */
 public class NacosSyncMain extends AbstractNacosExample {

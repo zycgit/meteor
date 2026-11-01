@@ -18,14 +18,19 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.soap.support.AttachmentHttpProxy;
-import org.junit.Test;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertTrue;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesMtomInteropTest {
     private static final String XOP_NAMESPACE = "http://www.w3.org/2004/08/xop/include";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientExchangesMtomWithMetroSoap11Endpoint() throws Exception {
         // 真实 Metro Endpoint 启用 SOAP 1.1 MTOM，所有非空二进制都允许优化为附件。
         try (SoapPeerProcess server = SoapPeerProcess.metroServer("mtom", "1.1", false)) {
@@ -71,8 +76,8 @@ public class WebServicesMtomInteropTest {
                     assertTrue(StringUtils.equalsIgnoreCase("application/xop+xml", responseType.getParameter("type")));
                     String requestWire = new String(observed.getRequestBody(), StandardCharsets.ISO_8859_1);
                     String responseWire = new String(observed.getResponseBody(), StandardCharsets.ISO_8859_1);
-                    assertTrue("Meteor request must contain XOP", requestWire.contains(XOP_NAMESPACE));
-                    assertTrue("Metro response must contain XOP", responseWire.contains(XOP_NAMESPACE));
+                    assertTrue(requestWire.contains(XOP_NAMESPACE), "Meteor request must contain XOP");
+                    assertTrue(responseWire.contains(XOP_NAMESPACE), "Metro response must contain XOP");
                 }
             } finally {
                 proxyServer.stop(0);
@@ -80,7 +85,9 @@ public class WebServicesMtomInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientExchangesMtomWithMetroSoap12Endpoint() throws Exception {
         // 真实 Metro Endpoint 启用 SOAP 1.2 MTOM，所有非空二进制都允许优化为附件。
         try (SoapPeerProcess server = SoapPeerProcess.metroServer("mtom", "1.2", false)) {
@@ -126,8 +133,8 @@ public class WebServicesMtomInteropTest {
                     assertTrue(StringUtils.equalsIgnoreCase("application/xop+xml", responseType.getParameter("type")));
                     String requestWire = new String(observed.getRequestBody(), StandardCharsets.ISO_8859_1);
                     String responseWire = new String(observed.getResponseBody(), StandardCharsets.ISO_8859_1);
-                    assertTrue("Meteor request must contain XOP", requestWire.contains(XOP_NAMESPACE));
-                    assertTrue("Metro response must contain XOP", responseWire.contains(XOP_NAMESPACE));
+                    assertTrue(requestWire.contains(XOP_NAMESPACE), "Meteor request must contain XOP");
+                    assertTrue(responseWire.contains(XOP_NAMESPACE), "Metro response must contain XOP");
                 }
             } finally {
                 proxyServer.stop(0);

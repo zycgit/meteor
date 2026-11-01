@@ -19,10 +19,13 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
+@NxnRpc(name = "hprose")
+@NxnRpc(name = "rsf", version = "1")
 public class ProtocolExposureTest extends BootstrapTestSupport {
 
     @Test
@@ -208,6 +211,7 @@ public class ProtocolExposureTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void endpointSerializerCanBeOverriddenByAnExplicitServiceSerializer() throws Exception {
         // 将客户端协议默认序列化器设置为 JSON，供服务显式设置覆盖。

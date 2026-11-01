@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.hasor.example.protocol.jsonrpc.JsonRpcDemoService;
@@ -16,14 +17,18 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 独立 jsonrpc4j Java 客户端调用 Meteor 发布的 JSON-RPC 2.0 服务。 */
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class JsonRpc4jProviderTest {
     private static final String PEER_CLASS = "net.hasor.peer.protocol.jsonrpc.JsonRpc4jPeer";
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaSdkCallsPublishedServiceWithPositionalArguments() throws Exception {
         // Meteor 作为提供者，通过公开入口挂载 JSON-RPC 并发布普通业务接口。
         MetConfiguration configuration = this.configuration();
@@ -49,7 +54,8 @@ public class JsonRpc4jProviderTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaSdkCallsPublishedServiceWithNamedArguments() throws Exception {
         // 使用相同正式发布入口，参数名由真实 Java 接口保留。
         MetConfiguration configuration = this.configuration();
@@ -77,7 +83,8 @@ public class JsonRpc4jProviderTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaSdkReadsPublishedServiceMethodNotFound() throws Exception {
         // 发布真实服务，仅请求其中不存在的方法，不用模拟 HTTP 响应代替提供者。
         MetConfiguration configuration = this.configuration();

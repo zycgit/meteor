@@ -19,7 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 管理测试自有 Java 对端的独占进程、有界等待和保留日志。 */
 final class SdkPeerProcess implements AutoCloseable {
@@ -97,9 +97,9 @@ final class SdkPeerProcess implements AutoCloseable {
         URL[] urls = entries.toArray(URL[]::new);
         try (URLClassLoader loader = new URLClassLoader(urls, ClassLoader.getPlatformClassLoader())) {
             URL meteorContext = loader.getResource("net/hasor/meteor/MetContext.class");
-            assertNull("SDK runtime contains Meteor: " + protocol, meteorContext);
+            assertNull(meteorContext, "SDK runtime contains Meteor: " + protocol);
             String bootstrap = "net/hasor/meteor/bootstrap/MetConfiguration.class";
-            assertNull("SDK runtime contains Meteor bootstrap: " + protocol, loader.getResource(bootstrap));
+            assertNull(loader.getResource(bootstrap), "SDK runtime contains Meteor bootstrap: " + protocol);
         }
         String main = "net.hasor.peer.sdk." + protocol + ".Sdk" + role + "Main";
         return launch("java", logPrefix, main, classpath, target, List.of(registryParameters));
@@ -157,7 +157,7 @@ final class SdkPeerProcess implements AutoCloseable {
                     return line.substring(prefix.length()).trim();
                 }
             }
-            assertTrue("Provider exited before ready; log: " + this.log + "\n" + output, this.process.isAlive());
+            assertTrue(this.process.isAlive(), "Provider exited before ready; log: " + this.log + "\n" + output);
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
         }
         throw new AssertionError("Provider startup timed out; log: " + this.log + "\n" + this.output());
@@ -167,10 +167,10 @@ final class SdkPeerProcess implements AutoCloseable {
         // 消费者完成保存、查询并退出，最后一条 JSON 就是查询到的业务结果。
         boolean finished = this.process.waitFor(60, TimeUnit.SECONDS);
         String output = this.output();
-        assertTrue("Consumer timed out; log: " + this.log + "\n" + output, finished);
-        assertEquals("Consumer failed; log: " + this.log + "\n" + output, 0, this.process.exitValue());
+        assertTrue(finished, "Consumer timed out; log: " + this.log + "\n" + output);
+        assertEquals(0, this.process.exitValue(), "Consumer failed; log: " + this.log + "\n" + output);
         List<String> results = output.lines().filter(line -> line.startsWith("{")).toList();
-        assertFalse("Missing order JSON; log: " + this.log + "\n" + output, results.isEmpty());
+        assertFalse(results.isEmpty(), "Missing order JSON; log: " + this.log + "\n" + output);
         return new ObjectMapper().readTree(results.get(results.size() - 1));
     }
 
@@ -185,7 +185,7 @@ final class SdkPeerProcess implements AutoCloseable {
             this.process.destroy();
             if (!this.process.waitFor(10, TimeUnit.SECONDS)) {
                 this.process.destroyForcibly();
-                assertTrue("Java peer did not terminate; log: " + this.log, this.process.waitFor(5, TimeUnit.SECONDS));
+                assertTrue(this.process.waitFor(5, TimeUnit.SECONDS), "Java peer did not terminate; log: " + this.log);
             }
         }
     }

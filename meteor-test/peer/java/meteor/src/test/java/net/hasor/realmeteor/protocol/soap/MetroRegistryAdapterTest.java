@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.soap;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
@@ -34,20 +39,20 @@ import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Metro 官方 JVM 复用标准 SOAP 合同，注册发现由显式存储适配器完成。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "backend={0}, SOAP={1}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "soap", version = "1.1", cases = "*SOAP=1.1*")
+@NxnRpc(name = "soap", version = "1.2", cases = "*SOAP=1.2*")
 public class MetroRegistryAdapterTest {
-    @Parameterized.Parameters(name = "backend={0}, SOAP={1}")
     public static Collection<Object[]> configurations() {
         List<Object[]> result = new ArrayList<>();
         result.add(new Object[] { "jdbc", "1.1" });
@@ -59,8 +64,8 @@ public class MetroRegistryAdapterTest {
         return result;
     }
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
     private final String version;
@@ -70,10 +75,11 @@ public class MetroRegistryAdapterTest {
         this.version = version;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialConsumerResolvesMeteorWsdlThroughStorageAdapter() throws Exception {
         // 1.1 复用既有 document/literal WSDL；1.2 复用已有自动生成的 EchoService 合同。
-        Path directory = this.data.newFolder("registry").toPath();
+        Path directory = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
             registry.setPublishHost(ContainerProcess.runnerHost());
@@ -118,10 +124,11 @@ public class MetroRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversOfficialProviderThroughStorageAdapter() throws Exception {
         // 仅配置出站 SOAP，业务调用的目标完全来自注册库自动订阅。
-        Path directory = this.data.newFolder("registry").toPath();
+        Path directory = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, directory)) {
             RegistryConfiguration registry = environment.configuration();
             registry.setPublishHost(ContainerProcess.runnerHost());
@@ -166,7 +173,7 @@ public class MetroRegistryAdapterTest {
 
     private SoapWsdlResource wsdlResource() throws Exception {
         URL wsdl = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
-        assertNotNull("Missing standard SOAP interoperability WSDL", wsdl);
+        assertNotNull(wsdl, "Missing standard SOAP interoperability WSDL");
         return new SoapWsdlResource(wsdl);
     }
 

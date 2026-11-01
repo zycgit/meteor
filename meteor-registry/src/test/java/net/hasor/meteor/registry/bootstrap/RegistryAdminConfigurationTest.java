@@ -24,8 +24,8 @@ import net.hasor.meteor.registry.shared.StorageProbe;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntServiceCatalogData;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class RegistryAdminConfigurationTest {
     @Test
@@ -162,7 +162,7 @@ public class RegistryAdminConfigurationTest {
                 admin.getInstanceAdmin(context.getInstanceID()).block();
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
                 while (!admin.getInstanceAdmin(context.getInstanceID()).instance().isBlock()) {
-                    assertTrue("Client did not apply storage change", System.nanoTime() < deadline);
+                    assertTrue(System.nanoTime() < deadline, "Client did not apply storage change");
                     Thread.sleep(10);
                 }
             }

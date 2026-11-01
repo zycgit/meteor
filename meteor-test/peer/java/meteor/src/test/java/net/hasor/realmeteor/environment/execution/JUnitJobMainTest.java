@@ -19,32 +19,38 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assume;
-import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.Description;
-import org.junit.runner.RunWith;
-import org.junit.runner.notification.Failure;
-import org.junit.runner.notification.RunNotifier;
-import org.junit.runners.MethodSorters;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.platform.engine.TestDescriptor;
+import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.UniqueId;
+import org.junit.platform.engine.support.descriptor.AbstractTestDescriptor;
+import org.junit.platform.launcher.TestIdentifier;
+import org.junit.platform.launcher.TestPlan;
+import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.launcher.core.LauncherFactory;
+import org.junit.platform.engine.discovery.DiscoverySelectors;
+import org.junit.jupiter.api.io.TempDir;
 import org.w3c.dom.Document;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.platform.engine.support.descriptor.MethodSource.from;
 
 /** 独立 JUnit 入口的选择、原始报告和失败路径，不启动协议或 Docker。 */
 public class JUnitJobMainTest {
     private static final ObjectMapper JSON = new ObjectMapper();
-    @Rule
-    public final TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
     private final String previousWorkDirectory = System.getProperty("meteor.test.container.workDirectory");
 
-    @After
+    @AfterEach
     public void restoreFixtureDirectory() {
         // 测试只能恢复自己修改的属性，不能影响随后执行的真实注册场景。
         if (this.previousWorkDirectory == null) {
@@ -56,7 +62,7 @@ public class JUnitJobMainTest {
 
     @Test
     public void plainMethodKeepsTheOriginalCaseIdentity() throws Exception {
-        // 选择标准 JUnit4 方法并写入当前工作组的独占报告目录。
+        // 选择标准 Jupiter 方法并写入当前工作组的独占报告目录。
         Path output = this.output();
         assertEquals(0, JUnitJobMain.execute(output, selection(PassingCase.class, List.of())));
 
@@ -86,7 +92,7 @@ public class JUnitJobMainTest {
         Path output = this.output();
         assertEquals(2, JUnitJobMain.execute(output, selection(DuplicateParameterCase.class, List.of())));
 
-        // 即便Description相等，也不能给外层聚合一个悄悄少测的成功报告。
+        // 即便显示名称相等，也不能给外层聚合一个悄悄少测的成功报告。
         JsonNode summary = this.read(output, "summary.json");
         assertTrue(summary.path("taskFailure").asText().contains("Duplicate JUnit testcase identity"));
     }
@@ -118,6 +124,73 @@ public class JUnitJobMainTest {
     }
 
     @Test
+    public void rpcVersionSelectsOnlyTheDeclaredParameterizedVector() throws Exception {
+        // 参数显示名明确对应 SOAP 1.1 与 1.2，不从文本中的 SDK 版本推测协议。
+        Path output = this.output();
+        Map<String, Object> configuration = rpcSelection("1.2", List.of());
+        assertEquals(0, JUnitJobMain.execute(output, configuration));
+
+        // 只运行对应版本，未选向量不计跳过或未执行。
+        JsonNode cases = this.read(output, "selected-cases.json");
+        assertEquals(1, cases.size());
+        assertEquals("selected[types/乙/[value]]", cases.get(0).path("scenario").asText());
+        JsonNode summary = this.read(output, "summary.json");
+        assertEquals(0, summary.path("skipped").asInt());
+        assertEquals(0, summary.path("notExecuted").asInt());
+    }
+
+    @Test
+    public void rpcSelectionIntersectsTheExactCaseFilter() throws Exception {
+        // 协议选择覆盖两个版本，具体用例只选择其中一个参数实例。
+        Path output = this.output();
+        String filter = ParameterCase.class.getName() + ".selected[types/甲/[value]]";
+        Map<String, Object> configuration = rpcSelection("", List.of(filter));
+        assertEquals(0, JUnitJobMain.execute(output, configuration));
+
+        // 两种筛选取交集，不能将未指定的方法或参数重新加入执行范围。
+        JsonNode cases = this.read(output, "selected-cases.json");
+        assertEquals(1, cases.size());
+        assertEquals("selected[types/甲/[value]]", cases.get(0).path("scenario").asText());
+    }
+
+    @Test
+    public void rpcParameterMismatchHasExplicitEmptySelectionEvidence() throws Exception {
+        // 声明与实际参数没有交集时，本组保留可核验的空选择证据。
+        Path output = this.output();
+        Map<String, Object> configuration = rpcSelection("1.2", List.of());
+        Map<String, Object> declaration = Map.of("name", "soap", "version", "1.2", "cases", "absent-vector");
+        Map<String, Object> methods = Map.of("selected", List.of(declaration));
+        configuration.put("rpcCases", Map.of(ParameterCase.class.getName(), methods));
+        assertEquals(0, JUnitJobMain.execute(output, configuration));
+
+        // 外层汇总可区分明确无匹配与丢失结果，整轮零项由汇总器拒绝。
+        JsonNode summary = this.read(output, "summary.json");
+        assertTrue(summary.path("selectionEmpty").asBoolean());
+        assertFalse(summary.path("resultsAvailable").asBoolean());
+        assertEquals(0, summary.path("tests").asInt());
+        assertTrue(this.read(output, "selected-cases.json").isEmpty());
+    }
+
+    @Test
+    public void rpcSelectionIncludesADeclaredPlainMethod() throws Exception {
+        // 普通方法没有参数显示名，星号声明仍应选择该方法。
+        Path output = this.output();
+        Map<String, Object> configuration = selection(PassingCase.class, List.of());
+        configuration.put("rpc", "soap");
+        configuration.put("rpcVersion", "1.2");
+        Map<String, Object> declaration = Map.of("name", "soap", "version", "1.2", "cases", "*");
+        Map<String, Object> methods = Map.of("passes", List.of(declaration));
+        configuration.put("rpcCases", Map.of(PassingCase.class.getName(), methods));
+        assertEquals(0, JUnitJobMain.execute(output, configuration));
+
+        // 普通方法保持原始身份，声明版本出现在本组报告中。
+        JsonNode summary = this.read(output, "summary.json");
+        assertEquals(1, summary.path("passed").asInt());
+        assertEquals("1.2", summary.path("rpcVersion").asText());
+        assertFalse(summary.path("selectionEmpty").asBoolean());
+    }
+
+    @Test
     public void failurePreservesTypeMessageAndFullStack() throws Exception {
         // 报告失败场景自身，不能仅记录JUnit进程是否成功返回。
         Path output = this.output();
@@ -126,7 +199,8 @@ public class JUnitJobMainTest {
         // XML保留可解析的特殊字符和原始异常堆栈。
         Document xml = this.xml(output, FailingCase.class);
         var failure = xml.getElementsByTagName("failure").item(0);
-        assertEquals("java.lang.AssertionError", failure.getAttributes().getNamedItem("type").getNodeValue());
+        String failureType = failure.getAttributes().getNamedItem("type").getNodeValue();
+        assertEquals("org.opentest4j.AssertionFailedError", failureType);
         assertTrue(failure.getTextContent().contains("expected <甲> & actual"));
         assertTrue(failure.getTextContent().contains("FailingCase.fails"));
         assertEquals(1, this.read(output, "summary.json").path("failed").asInt());
@@ -289,7 +363,7 @@ public class JUnitJobMainTest {
 
                 // 控制台保留异常类型、原始消息和调用栈，正式报告仍记录同一个失败。
                 String trace = bytes.toString(StandardCharsets.UTF_8);
-                assertTrue(trace.contains("java.lang.AssertionError: expected <甲> & actual"));
+                assertTrue(trace.contains("org.opentest4j.AssertionFailedError: expected <甲> & actual"));
                 assertTrue(trace.contains("at " + FailingCase.class.getName() + ".fails("));
                 assertEquals(1, this.read(output, "summary.json").path("failed").asInt());
 
@@ -318,13 +392,13 @@ public class JUnitJobMainTest {
 
     @Test
     public void ignoredClassUsesTheSameIdentityInThePlanAndXml() throws Exception {
-        // 类级忽略只有不带方法名的 Description，计划身份仍须与实际 XML 一致。
+        // 类级禁用沿用 Jupiter 已发现的方法身份，计划与实际 XML 保持一致。
         Path output = this.output();
         assertEquals(0, JUnitJobMain.execute(output, selection(IgnoredClass.class, List.of())));
 
-        // 已收到类级忽略事件，不能再次列入未执行项，也不能生成 Class#null 身份。
+        // 类级禁用按方法记录，不能再次列入未执行项，也不能生成 Class#null 身份。
         JsonNode summary = this.read(output, "summary.json");
-        String caseId = IgnoredClass.class.getName() + "#initializationError";
+        String caseId = IgnoredClass.class.getName() + "#cannotRun";
         assertEquals(caseId, summary.path("plannedCases").get(0).asText());
         assertEquals(caseId, this.read(output, "selected-cases.json").get(0).path("caseId").asText());
         assertEquals(0, summary.path("notExecuted").asInt());
@@ -332,7 +406,7 @@ public class JUnitJobMainTest {
         Document xml = this.xml(output, IgnoredClass.class);
         var testcase = xml.getElementsByTagName("testcase").item(0);
         String xmlName = testcase.getAttributes().getNamedItem("name").getNodeValue();
-        assertEquals("initializationError", xmlName);
+        assertEquals("cannotRun", xmlName);
     }
 
     @Test
@@ -369,7 +443,7 @@ public class JUnitJobMainTest {
         // 当前代报告明确没有可用结果，且记录失败原因。
         JsonNode summary = this.read(output, "summary.json");
         assertFalse(summary.path("resultsAvailable").asBoolean());
-        assertTrue(summary.path("taskFailure").asText().contains("NoTestsRemainException"));
+        assertTrue(summary.path("taskFailure").asText().contains("JUnit selection contains no testcase"));
     }
 
     @Test
@@ -478,18 +552,17 @@ public class JUnitJobMainTest {
     public void progressIsFlushedBeforeTheReportCloses() throws Exception {
         // 运行中的编排器需要立即看到事件，不能等 JUnit 结束后才读取缓冲。
         Path output = this.output();
-        Description description = Description.createTestDescription(PassingCase.class, "passes");
-        try (JUnitJobReport report = new JUnitJobReport(output, selection(PassingCase.class, List.of()),
-                new RunNotifier())) {
-            report.testRunStarted(description);
+        TestIdentifier description = identifier(PassingCase.class, "passes");
+        try (JUnitJobReport report = new JUnitJobReport(output, selection(PassingCase.class, List.of()))) {
+            report.testPlanExecutionStarted(plan());
             assertEquals("preparing", this.progress(output).get(0).path("phase").asText());
 
             // 后续事件继续追加到同一个文件，早先事件保持原样。
             String initial = Files.readString(output.resolve("progress.jsonl"));
-            report.testStarted(description);
+            report.executionStarted(description);
             assertEquals(2, this.progress(output).size());
             assertTrue(Files.readString(output.resolve("progress.jsonl")).startsWith(initial));
-            report.testFinished(description);
+            report.executionFinished(description, TestExecutionResult.successful());
         }
     }
 
@@ -521,13 +594,12 @@ public class JUnitJobMainTest {
     public void progressKeepsUnicodeAndNewlinesInsideOneJsonLine() throws Exception {
         // 测试名与异常消息中的中文和换行沿用真实身份，由 JSON 完成转义。
         Path output = this.output();
-        Description description = Description.createTestDescription(PassingCase.class, "调用\n乙");
-        try (JUnitJobReport report = new JUnitJobReport(output, selection(PassingCase.class, List.of()),
-                new RunNotifier())) {
-            report.testRunStarted(description);
-            report.testStarted(description);
-            report.testFailure(new Failure(description, new IllegalStateException("失败甲\n乙")));
-            report.testFinished(description);
+        TestIdentifier description = identifier(PassingCase.class, "调用\n乙");
+        try (JUnitJobReport report = new JUnitJobReport(output, selection(PassingCase.class, List.of()))) {
+            report.testPlanExecutionStarted(plan());
+            report.executionStarted(description);
+            report.addFailure(description, new IllegalStateException("失败甲\n乙"));
+            report.executionFinished(description, TestExecutionResult.successful());
         }
 
         // 每条进度独立可解析，消费者能恢复完整名称和异常而不必拼接多行。
@@ -574,14 +646,13 @@ public class JUnitJobMainTest {
     public void repeatedFailureEventsCountOneFailedCaseInProgress() throws Exception {
         // 一个 testcase 可以报告多条失败，进度按 testcase 身份计数。
         Path output = this.output();
-        Description description = Description.createTestDescription(PassingCase.class, "multipleFailures");
-        try (JUnitJobReport report = new JUnitJobReport(output, selection(PassingCase.class, List.of()),
-                new RunNotifier())) {
-            report.testRunStarted(description);
-            report.testStarted(description);
-            report.testFailure(new Failure(description, new AssertionError("first")));
-            report.testFailure(new Failure(description, new AssertionError("second")));
-            report.testFinished(description);
+        TestIdentifier description = identifier(PassingCase.class, "multipleFailures");
+        try (JUnitJobReport report = new JUnitJobReport(output, selection(PassingCase.class, List.of()))) {
+            report.testPlanExecutionStarted(plan());
+            report.executionStarted(description);
+            report.addFailure(description, new AssertionError("first"));
+            report.addFailure(description, new AssertionError("second"));
+            report.executionFinished(description, TestExecutionResult.successful());
         }
 
         // 保留两条异常事件，但失败总数始终只增加一次。
@@ -594,14 +665,13 @@ public class JUnitJobMainTest {
     public void repeatedAssumptionEventsCountOneSkippedCaseInProgress() throws Exception {
         // 跳过事件也按 testcase 去重，不能重复增加矩阵完成数。
         Path output = this.output();
-        Description description = Description.createTestDescription(PassingCase.class, "missingPrerequisite");
-        try (JUnitJobReport report = new JUnitJobReport(output, selection(PassingCase.class, List.of()),
-                new RunNotifier())) {
-            report.testRunStarted(description);
-            report.testStarted(description);
-            report.testAssumptionFailure(new Failure(description, new IllegalStateException("first")));
-            report.testAssumptionFailure(new Failure(description, new IllegalStateException("second")));
-            report.testFinished(description);
+        TestIdentifier description = identifier(PassingCase.class, "missingPrerequisite");
+        try (JUnitJobReport report = new JUnitJobReport(output, selection(PassingCase.class, List.of()))) {
+            report.testPlanExecutionStarted(plan());
+            report.executionStarted(description);
+            report.executionFinished(description, TestExecutionResult.aborted(new IllegalStateException("first")));
+            report.executionFinished(description, TestExecutionResult.aborted(new IllegalStateException("second")));
+            report.executionFinished(description, TestExecutionResult.successful());
         }
 
         // 进度与最终报告都保留一个已完成的跳过项。
@@ -695,6 +765,26 @@ public class JUnitJobMainTest {
         assertTrue(Files.readString(output.resolve("process.log")).contains("fixture released in shutdown hook"));
     }
 
+    private static TestPlan plan() {
+        var request = LauncherDiscoveryRequestBuilder.request() //
+                .selectors(DiscoverySelectors.selectClass(PassingCase.class)) //
+                .build();
+        return LauncherFactory.create().discover(request);
+    }
+
+    private static TestIdentifier identifier(Class<?> type, String method) {
+        // 独立监听器夹具保留真实的 Platform 节点结构，不依赖旧 Runner 的 Description。
+        var source = from(type.getName(), method);
+        var id = UniqueId.forEngine("junit-jupiter").append("class", type.getName()).append("method", method);
+        TestDescriptor descriptor = new AbstractTestDescriptor(id, method, source) {
+            @Override
+            public Type getType() {
+                return Type.TEST;
+            }
+        };
+        return TestIdentifier.from(descriptor);
+    }
+
     private Process launch(Path output, String group, Class<?> type, String... options) throws Exception {
         Path classes = output.resolve("classes.txt");
         Path filters = output.resolve("filters.txt");
@@ -739,7 +829,7 @@ public class JUnitJobMainTest {
     }
 
     private Path output() throws Exception {
-        Path directory = this.temporary.newFolder().toPath();
+        Path directory = Files.createTempDirectory(this.temporary, "case-");
         System.setProperty("meteor.test.container.workDirectory", directory.resolve("container-scenarios").toString());
         return directory;
     }
@@ -762,6 +852,17 @@ public class JUnitJobMainTest {
         return selection;
     }
 
+    private static Map<String, Object> rpcSelection(String version, List<String> filters) {
+        Map<String, Object> configuration = selection(ParameterCase.class, filters);
+        configuration.put("rpc", "soap");
+        configuration.put("rpcVersion", version);
+        List<Map<String, Object>> declarations = new ArrayList<>();
+        declarations.add(Map.of("name", "soap", "version", "1.1", "cases", "types/甲/[value]"));
+        declarations.add(Map.of("name", "soap", "version", "1.2", "cases", "types/乙/[value]"));
+        configuration.put("rpcCases", Map.of(ParameterCase.class.getName(), Map.of("selected", declarations)));
+        return configuration;
+    }
+
     private static void restoreProperty(String name, String value) {
         if (value == null) {
             System.clearProperty(name);
@@ -777,12 +878,12 @@ public class JUnitJobMainTest {
         }
     }
 
-    @RunWith(Parameterized.class)
+    @ParameterizedClass(name = "types/{0}/[value]", quoteTextArguments = false, autoCloseArguments = false)
+    @MethodSource("vectors")
     public static class ParameterCase {
         public ParameterCase(String name) {
         }
 
-        @Parameterized.Parameters(name = "types/{0}/[value]")
         public static List<Object[]> vectors() {
             List<Object[]> values = new ArrayList<>();
             values.add(new Object[] { "甲" });
@@ -806,21 +907,21 @@ public class JUnitJobMainTest {
         }
     }
 
-    @FixMethodOrder(MethodSorters.NAME_ASCENDING)
+    @TestMethodOrder(MethodOrderer.MethodName.class)
     public static class FailFastCase {
         private static final List<String> events = new ArrayList<>();
 
-        @BeforeClass
+        @BeforeAll
         public static void reset() {
             events.clear();
         }
 
-        @After
+        @AfterEach
         public void after() {
             events.add("after");
         }
 
-        @AfterClass
+        @AfterAll
         public static void afterClass() {
             events.add("afterClass");
         }
@@ -837,13 +938,13 @@ public class JUnitJobMainTest {
         }
     }
 
-    @RunWith(Parameterized.class)
-    @FixMethodOrder(MethodSorters.NAME_ASCENDING)
+    @ParameterizedClass(name = "{0}", quoteTextArguments = false, autoCloseArguments = false)
+    @MethodSource("vectors")
+    @TestMethodOrder(MethodOrderer.MethodName.class)
     public static class FailFastParameterCase {
         public FailFastParameterCase(String name) {
         }
 
-        @Parameterized.Parameters(name = "{0}")
         public static List<Object[]> vectors() {
             // 向量顺序用于验证首个失败后保留其余参数实例的完整身份。
             List<Object[]> values = new ArrayList<>();
@@ -862,12 +963,12 @@ public class JUnitJobMainTest {
         }
     }
 
-    @RunWith(Parameterized.class)
+    @ParameterizedClass(name = "{0}", quoteTextArguments = false, autoCloseArguments = false)
+    @MethodSource("vectors")
     public static class DuplicateParameterCase {
         public DuplicateParameterCase(String name) {
         }
 
-        @Parameterized.Parameters(name = "{0}")
         public static List<Object[]> vectors() {
             List<Object[]> values = new ArrayList<>();
             values.add(new Object[] { "same-name" });
@@ -881,14 +982,14 @@ public class JUnitJobMainTest {
     }
 
     public static class IgnoredCase {
-        @Ignore("explicit ignored fixture")
+        @Disabled("explicit ignored fixture")
         @Test
         public void ignored() {
             fail("Ignored method was executed");
         }
     }
 
-    @Ignore("explicit ignored class fixture")
+    @Disabled("explicit ignored class fixture")
     public static class IgnoredClass {
         @Test
         public void cannotRun() {
@@ -899,12 +1000,12 @@ public class JUnitJobMainTest {
     public static class AssumptionCase {
         @Test
         public void missingPrerequisite() {
-            Assume.assumeTrue("explicit assumption fixture", false);
+            Assumptions.assumeTrue(false, "explicit assumption fixture");
         }
     }
 
     public static class BeforeClassFailure {
-        @BeforeClass
+        @BeforeAll
         public static void setup() {
             throw new IllegalStateException("before class fixture");
         }

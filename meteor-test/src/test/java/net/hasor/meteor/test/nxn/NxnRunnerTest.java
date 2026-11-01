@@ -24,14 +24,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 public class NxnRunnerTest {
-    @Rule
-    public final TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
 
     @Test
     public void groupExecutionBorrowsOnlyExistingContainer() throws Exception {
@@ -109,7 +109,7 @@ public class NxnRunnerTest {
     @Test
     public void jsonSnapshotCannotReplaceMissingNativeExitEvidence() throws Exception {
         // 物化 JSON 只是报告快照，缺少执行器终态时不得用于验收。
-        Path directory = this.temporary.newFolder("json-only").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("json-only"));
         Map<String, Object> group = group(directory);
         NxnPlan.writeJson(directory.resolve("process/status.json"), status("run-g1-junit"));
         NxnPlan.Options options = fakeOptions(directory, "exit 0\n");
@@ -146,10 +146,11 @@ public class NxnRunnerTest {
         assertNotEquals(0, ((Number) group.get("exitCode")).intValue());
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void failedGroupDoesNotStopOtherGroupsByDefault() throws Exception {
         // 两组均已开始；先让第二组返回真实失败，第一组继续持有自己的程序。
-        Path directory = this.temporary.newFolder("continue-failed-group").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("continue-failed-group"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -179,10 +180,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void groupEvidenceExceptionDoesNotCancelOtherGroupsByDefault() throws Exception {
         // 第一组已执行完毕后，故意阻止它覆盖 group.json，触发 Future 的异常终态。
-        Path directory = this.temporary.newFolder("continue-group-exception").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("continue-group-exception"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -212,10 +214,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void disabledSkipErrorStopsOtherGroupsWithoutReportingUserCancellation() throws Exception {
         // 调度线程正在等待第一组时，第二组先失败，快速停止仍应立即生效。
-        Path directory = this.temporary.newFolder("stop-after-failed-group").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("stop-after-failed-group"));
         prepareRun(directory);
         Process runner = startRunner(directory, "--skipError", "false");
         try {
@@ -244,7 +247,7 @@ public class NxnRunnerTest {
     @Test
     public void failedGroupCanStopAnUnstartedGroupWithoutMarkingItInterrupted() throws Exception {
         // 快速失败信号在启动之前到达，仍执行本组的远端进程检查。
-        Path directory = this.temporary.newFolder("failure-before-startup").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("failure-before-startup"));
         Map<String, Object> group = group(directory);
         NxnPlan.Options options = fakeOptions(directory, "exit 0\n");
         options.skipError = false;
@@ -261,7 +264,7 @@ public class NxnRunnerTest {
     @Test
     public void interruptedStartupStillChecksRemoteProcesses() throws Exception {
         // 本地工作组启动前取消，仍然检查它已经登记的远端对端。
-        Path directory = this.temporary.newFolder("interrupted").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("interrupted"));
         Map<String, Object> group = group(directory);
         peerFixture(directory, status("peer-1"));
         NxnPlan.Options options = fakeOptions(directory, "exit 4\n");
@@ -276,7 +279,7 @@ public class NxnRunnerTest {
     @Test
     public void failedActiveCancellationStillChecksRemotePeers() throws Exception {
         // 模拟正在运行的 Docker exec，控制链路失败但本场景远端证据仍可审核。
-        Path directory = this.temporary.newFolder("active-interruption").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("active-interruption"));
         Map<String, Object> group = group(directory);
         peerFixture(directory, status("peer-1"));
         Path started = directory.resolve("attach.pid");
@@ -315,7 +318,7 @@ public class NxnRunnerTest {
     @Test
     public void groupWithoutRemotePeersHasExplicitCleanGate() throws Exception {
         // 即使没有远端程序，也保存明确的清理结果。
-        Path directory = this.temporary.newFolder("empty").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("empty"));
         NxnPlan.Options options = fakeOptions(directory, "exit 9\n");
         Map<String, Object> result = NxnRunner.cleanupRemotePeers(cleanupGroup(directory), options);
         assertEquals(0, ((Number) result.get("checked")).intValue());
@@ -328,7 +331,7 @@ public class NxnRunnerTest {
     @Test
     public void alreadyCleanPeerDoesNotExecuteDockerControl() throws Exception {
         // 对端已正常释放时不再发出取消命令。
-        Path directory = this.temporary.newFolder("clean").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("clean"));
         peerFixture(directory, status("peer-1"));
         NxnPlan.Options options = fakeOptions(directory, "exit 9\n");
         Map<String, Object> result = NxnRunner.cleanupRemotePeers(cleanupGroup(directory), options);
@@ -341,7 +344,7 @@ public class NxnRunnerTest {
     @Test
     public void expectedNegativePeerExitIsNotCleanupFailure() throws Exception {
         // 反例程序可以非零退出，只要进程树和临时目录已经释放。
-        Path directory = this.temporary.newFolder("negative").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("negative"));
         Map<String, Object> status = status("peer-1");
         status.put("exitCode", 7);
         peerFixture(directory, status);
@@ -353,7 +356,7 @@ public class NxnRunnerTest {
     @Test
     public void runningPeerStopsInItsActualLanguageContainer() throws Exception {
         // 对端元数据决定控制命令使用哪个语言容器。
-        Path directory = this.temporary.newFolder("language").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("language"));
         Path peer = peerFixture(directory, runningStatus());
         NxnPlan.Options options = stoppingOptions(directory, peer, false);
         NxnRunner.cleanupRemotePeers(cleanupGroup(directory), options);
@@ -367,7 +370,7 @@ public class NxnRunnerTest {
     @Test
     public void reclaimedLeakRemainsFailedLifecycle() throws Exception {
         // 已泄漏的对端即便补救释放，也必须保留本轮失败。
-        Path directory = this.temporary.newFolder("reclaimed").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("reclaimed"));
         Path peer = peerFixture(directory, runningStatus());
         NxnPlan.Options options = stoppingOptions(directory, peer, false);
         Map<String, Object> result = NxnRunner.cleanupRemotePeers(cleanupGroup(directory), options);
@@ -378,7 +381,7 @@ public class NxnRunnerTest {
     @Test
     public void uncleanGracefulStopEscalatesToForce() throws Exception {
         // 普通取消未释放进程时，继续发出强制回收。
-        Path directory = this.temporary.newFolder("force").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("force"));
         Path peer = peerFixture(directory, runningStatus());
         NxnPlan.Options options = stoppingOptions(directory, peer, true);
         NxnRunner.cleanupRemotePeers(cleanupGroup(directory), options);
@@ -393,7 +396,7 @@ public class NxnRunnerTest {
     @Test
     public void missingStatusStillReclaimsOwnedRemotePeer() throws Exception {
         // 已登记且身份完整的对端，即便没有终态仍要回收。
-        Path directory = this.temporary.newFolder("missing-status").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("missing-status"));
         Path peer = peerFixture(directory, null);
         NxnPlan.Options options = stoppingOptions(directory, peer, false);
         NxnRunner.cleanupRemotePeers(cleanupGroup(directory), options);
@@ -407,7 +410,7 @@ public class NxnRunnerTest {
     @Test
     public void foreignGroupRecordCannotStopAnotherGroupsPeer() throws Exception {
         // 启动记录和所属组不一致时禁止发出控制命令。
-        Path directory = this.temporary.newFolder("foreign").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("foreign"));
         Path peer = peerFixture(directory, runningStatus());
         Path launchFile = peer.resolve("launch.json");
         Map<String, Object> launch = NxnPlan.readObject(launchFile);
@@ -424,7 +427,7 @@ public class NxnRunnerTest {
     @Test
     public void corruptOriginalStatusRemainsFailureAfterReclaim() throws Exception {
         // 原始损坏状态必须保留诊断，不能被后来成功回收覆盖。
-        Path directory = this.temporary.newFolder("corrupt-status").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("corrupt-status"));
         Path peer = peerFixture(directory, null);
         Files.writeString(peer.resolve("status.native"), "{");
         NxnPlan.Options options = stoppingOptions(directory, peer, false);
@@ -439,7 +442,7 @@ public class NxnRunnerTest {
     @Test
     public void remoteWrapperCleanupErrorFailsGate() throws Exception {
         // 执行器报告的清理错误独立于进程是否已退出。
-        Path directory = this.temporary.newFolder("wrapper-error").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("wrapper-error"));
         Map<String, Object> status = status("peer-1");
         status.put("state", "failed");
         status.put("cleanupFailure", "pipe did not close");
@@ -452,7 +455,7 @@ public class NxnRunnerTest {
     @Test
     public void truncatedMetadataUsesDurableStartEventToReclaimPeer() throws Exception {
         // JVM 中断时的半条快照可以从已落盘启动事件恢复身份。
-        Path directory = this.temporary.newFolder("truncated").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("truncated"));
         Path peer = peerFixture(directory, runningStatus());
         Path metadata = peer.getParent().resolve("peer-1.json");
         String event = Files.readString(metadata).replace("\n", "");
@@ -469,7 +472,7 @@ public class NxnRunnerTest {
     @Test
     public void runCancellationStopsAllWorkersBeforePublishingFinishedState() throws Exception {
         // 独立 JVM 运行两组阻塞任务，外层只通过同轮次取消文件控制它。
-        Path directory = this.temporary.newFolder("run-cancel").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("run-cancel"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -491,10 +494,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void silentActiveGroupHasPeriodicCaseAndCompletionProgress() throws Exception {
         // 两组独立工作，一组已结束，另一组长时间停留在同一个 Unicode 用例中。
-        Path directory = this.temporary.newFolder("periodic-progress").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("periodic-progress"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -520,8 +524,8 @@ public class NxnRunnerTest {
             String detail = "g1: testing suite.类型Test#调用[中文]; cases 3/4; current 1m";
             awaitText(console, detail, 20);
             String output = Files.readString(console);
-            assertTrue(output, output.contains("Progress: groups 1/2 finished"));
-            assertTrue(output, output.contains("cases 5 completed; failed 0; skipped 0"));
+            assertTrue(output.contains("Progress: groups 1/2 finished"), output);
+            assertTrue(output.contains("cases 5 completed; failed 0; skipped 0"), output);
             assertFalse(output.contains("  g2:"));
             assertFalse(output.contains("[g1][stdout] [JUnit progress]"));
         } finally {
@@ -529,10 +533,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void partialFailureLineIsPublishedOnceAfterTheNewlineArrives() throws Exception {
         // 原生执行器尚未写完一行时，不能提前解析或丢失该失败事件。
-        Path directory = this.temporary.newFolder("partial-progress").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("partial-progress"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -564,10 +569,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void malformedProgressIsReportedOnceWithoutChangingCancellation() throws Exception {
         // 损坏的展示事件不能变成业务失败或取消握手错误。
-        Path directory = this.temporary.newFolder("invalid-progress").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("invalid-progress"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -591,10 +597,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void progressFromAnotherRunCannotPublishFailureOrCounts() throws Exception {
         // 本轮与其它运行的事件写在同一日志时，只接受本轮标识和分组。
-        Path directory = this.temporary.newFolder("foreign-progress").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("foreign-progress"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -622,10 +629,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void ordinaryCarriageReturnOutputDoesNotBlockLaterProgress() throws Exception {
         // 业务进度条使用单独的回车时，后续完整 JUnit 事件仍必须被读取。
-        Path directory = this.temporary.newFolder("carriage-return-progress").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("carriage-return-progress"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -648,10 +656,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void runningGroupsForwardBothStandardStreamsWithTheirIdentity() throws Exception {
         // 两组仍在运行时分别产生正常输出、JUnit 用例名称和多行异常堆栈。
-        Path directory = this.temporary.newFolder("live-standard-streams").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("live-standard-streams"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -678,10 +687,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void progressLookingBusinessOutputIsNeverConsumedAsTelemetry() throws Exception {
         // 原来的内部前缀现在也是普通业务输出，不再具有隐藏或修改进度的含义。
-        Path directory = this.temporary.newFolder("business-progress-prefix").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("business-progress-prefix"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -699,10 +709,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void registeredPeersForwardBothStandardStreamsWhileGroupIsRunning() throws Exception {
         // 使用真实登记事件找到独立 SDK 进程，不扫描整个进程归档目录。
-        Path directory = this.temporary.newFolder("live-peer-streams").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("live-peer-streams"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -724,10 +735,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void finishedPeerDrainsUnterminatedTailOnceBeforeGroupFinishes() throws Exception {
         // 登记事件可以在一次轮询前同时包含启动与结束，结束时仍须排空无换行尾部。
-        Path directory = this.temporary.newFolder("finished-peer-tail").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("finished-peer-tail"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -758,10 +770,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void anotherRunsPeerEventCannotExposeItsOutput() throws Exception {
         // 其它运行的进程登记不能借用当前分组的日志出口。
-        Path directory = this.temporary.newFolder("foreign-peer-streams").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("foreign-peer-streams"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -786,7 +799,7 @@ public class NxnRunnerTest {
     @Test
     public void failedRemoteControlPrintsOriginalCommandDiagnostic() throws Exception {
         // 远端取消失败时，包装器输出不能随着临时控制日志一起被删除。
-        Path directory = this.temporary.newFolder("remote-control-diagnostic").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("remote-control-diagnostic"));
         peerFixture(directory, runningStatus());
         NxnPlan.Options options = fakeOptions(directory, "printf '%s' 'native cancellation rejected' >&2\nexit 7\n");
         ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -806,10 +819,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void groupDriverFailurePrintsFullStackAndAttachedCommandOutput() throws Exception {
         // 模拟 attached exec 留下诊断后返回不属于本轮 JVM 的退出证据。
-        Path directory = this.temporary.newFolder("driver-failure-output").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("driver-failure-output"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -829,10 +843,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void splitUtf8OutputImmediatelyForwardsCompleteCharacters() throws Exception {
         // 一个 UTF-8 字符尚未写完时，先保留原字节和读取位置。
-        Path directory = this.temporary.newFolder("split-live-unicode").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("split-live-unicode"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -854,10 +869,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void splitCarriageReturnAndLineFeedDoNotInsertAnEmptyPrefix() throws Exception {
         // Windows 换行的回车与换行可能分别落在两次读取中。
-        Path directory = this.temporary.newFolder("split-crlf-output").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("split-crlf-output"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -875,10 +891,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingGroupFlushesAnIncompleteUtf8TailOnce() throws Exception {
         // 进程退出前仅写出最后一个 UTF-8 字符的部分字节。
-        Path directory = this.temporary.newFolder("incomplete-final-unicode").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("incomplete-final-unicode"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -903,10 +920,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void successfulGroupStillPublishesDockerCliDiagnostics() throws Exception {
         // Docker CLI 的诊断不一定伴随 JVM 失败，也不一定以换行结束。
-        Path directory = this.temporary.newFolder("successful-cli-diagnostic").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("successful-cli-diagnostic"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -928,10 +946,11 @@ public class NxnRunnerTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unterminatedOutputIsPrintedOnceAcrossGroupCompletion() throws Exception {
         // 两个标准流都没有换行，仍须在工作组运行中显示完整内容。
-        Path directory = this.temporary.newFolder("final-live-tail").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("final-live-tail"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -960,7 +979,7 @@ public class NxnRunnerTest {
     @Test
     public void cancellationForAnotherRunDoesNotStopCurrentWorkers() throws Exception {
         // 两个工作组已经开始后，写入其它运行的合法取消请求。
-        Path directory = this.temporary.newFolder("foreign-cancel").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("foreign-cancel"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -987,7 +1006,7 @@ public class NxnRunnerTest {
     @Test
     public void malformedRunCancellationFailsAndReleasesWorkers() throws Exception {
         // 运行中的取消文件被截断时，不能继续等待到测试自然结束。
-        Path directory = this.temporary.newFolder("malformed-cancel").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("malformed-cancel"));
         prepareRun(directory);
         Process runner = startRunner(directory);
         try {
@@ -1010,7 +1029,7 @@ public class NxnRunnerTest {
     @Test
     public void missingRuntimeStillPublishesFinishedState() throws Exception {
         // 在分组创建之前使输入读取失败。
-        Path directory = this.temporary.newFolder("missing-runtime").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("missing-runtime"));
         prepareRun(directory);
         Files.delete(directory.resolve("runtime.json"));
         Process runner = startRunner(directory);
@@ -1030,7 +1049,7 @@ public class NxnRunnerTest {
     @Test
     public void reportFailureStillPublishesFinishedStateAfterWorkersStop() throws Exception {
         // 工作组正常退出后，使用同名文件阻止建立汇总 XML 目录。
-        Path directory = this.temporary.newFolder("report-failure").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("report-failure"));
         prepareRun(directory);
         Files.writeString(directory.resolve("complete-immediately"), "");
         Files.createDirectories(directory.resolve("build"));
@@ -1056,7 +1075,7 @@ public class NxnRunnerTest {
     @Test
     public void previousAggregateIsReplacedBeforeCurrentResultsAreReported() throws Exception {
         // 旧汇总留在固定目录，本轮只能基于当前工作组重新生成报告。
-        Path directory = this.temporary.newFolder("replace-report").toPath();
+        Path directory = Files.createDirectory(this.temporary.resolve("replace-report"));
         prepareRun(directory);
         Files.writeString(directory.resolve("complete-immediately"), "");
         Path report = Files.createDirectories(directory.resolve("build/interoperability"));
@@ -1081,7 +1100,7 @@ public class NxnRunnerTest {
     }
 
     private Map<String, Object> execute(Map<String, Object> status, int attachExit) throws Exception {
-        Path directory = this.temporary.newFolder().toPath();
+        Path directory = Files.createTempDirectory(this.temporary, "case-");
         Map<String, Object> group = group(directory);
         if (status != null) {
             writeNativeStatus(directory.resolve("process/status.native"), status);
@@ -1263,7 +1282,7 @@ public class NxnRunnerTest {
 
     private static Map<String, Object> finishedState(Path directory) throws Exception {
         Path stateFile = directory.resolve("build/groups.runner-state.json");
-        assertTrue("Runner state is missing", Files.exists(stateFile));
+        assertTrue(Files.exists(stateFile), "Runner state is missing");
         Map<String, Object> state = NxnPlan.readObject(stateFile);
         assertEquals(1, ((Number) state.get("schemaVersion")).intValue());
         assertEquals("run", state.get("runId"));

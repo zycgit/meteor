@@ -14,8 +14,8 @@ import java.lang.reflect.Method;
 import java.util.concurrent.Flow;
 import net.hasor.example.protocol.grpc.Message;
 import net.hasor.example.protocol.grpc.Messages;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class GrpcMethodShapeTest {
     interface Invalid {

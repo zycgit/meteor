@@ -399,7 +399,7 @@ main() {
         return 2
     fi
     if [[ "$EUID" != 0 ]]; then
-        printf '[clock] Clock control requires root; use sudo ./meteor-test/runnxn.sh.\n' >&2
+        printf '[clock] Clock control requires root; use sudo ./meteor-test/runnxn.sh all.\n' >&2
         return 1
     fi
     # 从暂停到中断清理结束，当前发行版只允许一轮 sudo 测试持有控制权。

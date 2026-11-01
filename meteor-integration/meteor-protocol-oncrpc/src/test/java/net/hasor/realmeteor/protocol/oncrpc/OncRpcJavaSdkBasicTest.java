@@ -20,12 +20,15 @@ import org.acplt.oncrpc.OncRpcClient;
 import org.acplt.oncrpc.OncRpcTcpClient;
 import org.acplt.oncrpc.OncRpcUdpClient;
 import org.acplt.oncrpc.XdrString;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 本插件基础验证：同一 JUnit 进程内，Meteor 与 RemoteTea SDK 经 TCP、UDP 双向真实调用。 */
 public class OncRpcJavaSdkBasicTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void remoteTeaJavaClientCallsMeteorOverTcp() throws Exception {
         // 使用插件本地接口和 IDL 编码资源，标准 XDR string 保持 ASCII。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -52,7 +55,8 @@ public class OncRpcJavaSdkBasicTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void remoteTeaJavaClientCallsMeteorOverUdp() throws Exception {
         // 沿用本插件 UDP 场景的随机端口准备方式，不要求系统 rpcbind。
         int port;
@@ -83,7 +87,8 @@ public class OncRpcJavaSdkBasicTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsRemoteTeaJavaServerOverTcp() throws Exception {
         // SDK 直接监听随机 TCP 端口，Meteor 只配置消费者，不发布本地实现。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -103,7 +108,8 @@ public class OncRpcJavaSdkBasicTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsRemoteTeaJavaServerOverUdp() throws Exception {
         // 同进程 SDK UDP transport 完成监听和 RPC/XDR，Meteor 不持有服务实现。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc-udp");

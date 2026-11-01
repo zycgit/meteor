@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc.rpcbind;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.time.Instant;
 import java.util.Arrays;
 import net.hasor.cobble.StringUtils;
@@ -16,12 +17,16 @@ import net.hasor.meteor.protocol.oncrpc.rpcbind.PortMapperMapping;
 import net.hasor.meteor.protocol.oncrpc.rpcbind.RpcbindClient;
 import net.hasor.meteor.protocol.oncrpc.rpcbind.RpcbindMapping;
 import net.hasor.realmeteor.protocol.oncrpc.OncRpcNativeProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 正式控制客户端经 bootstrap、Caller 和独立 libtirpc rpcbind 对端完成互通。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class RpcbindScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version2TcpDiscoversNativePort() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -39,7 +44,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version2TcpDiscoversUdpMapping() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -57,7 +63,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version2UdpDiscoversNativePort() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc-udp");
@@ -75,7 +82,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version2MissingProgramReturnsZero() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -93,7 +101,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version2DumpRetainsBothNativeTransportMappings() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -114,7 +123,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version2ExplicitSetPublishesOnlyRequestedMapping() throws Exception {
         // rpcbind 变更要求本机目标；独立 C 容器进程共享 runner 网络，不计为独立网络互通。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -134,7 +144,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version2ExplicitUnsetRemovesBothTransports() throws Exception {
         // rpcbind 变更要求本机目标；独立 C 容器进程共享 runner 网络，不计为独立网络互通。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -158,7 +169,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version3TcpDiscoversNativeUniversalAddress() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -176,7 +188,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version3UdpDiscoversNativeUniversalAddress() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc-udp");
@@ -194,7 +207,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version3GetAddressAllowsStandardVersionFallback() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -212,7 +226,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version3MissingProgramReturnsNull() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -230,7 +245,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version3DumpRetainsNativeUniversalAddressAndOwner() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -254,7 +270,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version3ExplicitSetPublishesUniversalAddress() throws Exception {
         // rpcbind 变更要求本机目标；独立 C 容器进程共享 runner 网络，不计为独立网络互通。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -274,7 +291,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version3ExplicitUnsetPreservesOtherTransport() throws Exception {
         // rpcbind 变更要求本机目标；独立 C 容器进程共享 runner 网络，不计为独立网络互通。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -305,7 +323,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version3GetTimeUsesUnsignedEpochSeconds() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -324,7 +343,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version4GetAddressRetainsFallback() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -342,7 +362,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version4TcpExactVersionDiscoversNativeAddress() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -360,7 +381,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version4UdpExactVersionDiscoversNativeAddress() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc-udp");
@@ -378,7 +400,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void version4MissingExactVersionDoesNotFallback() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -396,7 +419,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void lookupRejectsNetidDifferentFromRpcTransport() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -414,7 +438,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void secondControlClientReusesExistingSubscriptions() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -435,7 +460,8 @@ public class RpcbindScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void discoveredUniversalAddressBecomesOrdinaryMeteorTarget() throws Exception {
         // 用户先配置并启动 Meteor；rpcbind 对端是独立 libtirpc 进程。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");

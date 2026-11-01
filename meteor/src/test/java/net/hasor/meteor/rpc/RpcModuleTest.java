@@ -33,8 +33,8 @@ import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** RPC 门面、代理与宿主装配的单元契约，受控通道不代表真实网络。 */
 public class RpcModuleTest {

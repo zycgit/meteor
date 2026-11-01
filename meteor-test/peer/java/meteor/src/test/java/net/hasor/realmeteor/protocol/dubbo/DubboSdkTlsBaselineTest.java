@@ -8,12 +8,17 @@
 package net.hasor.realmeteor.protocol.dubbo;
 import java.nio.file.Path;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 原厂 SDK 双 JVM 自体调用，确认固定组合的 TLS 能力可用。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboSdkTlsBaselineTest {
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialSdkCallsOfficialProviderOverTls() throws Exception {
         // 原厂提供者使用服务端证书，双方都不加载 Meteor 的协议与传输实现。
         try (DubboProcess provider = DubboProcess.start("--command=server", "--port=0", //
@@ -30,13 +35,14 @@ public class DubboSdkTlsBaselineTest {
                     "--private-key=" + this.pem("client-key.pem"), //
                     "--trust-certificate=" + this.pem("ca.pem"))) {
                 JsonNode result = consumer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Dubbo 中文 🙂", result.path("value").asText());
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialSdkCallsOfficialProviderOverMutualTls() throws Exception {
         // 原厂提供者同时信任客户端 CA，要求消费者提交有效客户端身份。
         try (DubboProcess provider = DubboProcess.start("--command=server", "--port=0", //
@@ -54,7 +60,7 @@ public class DubboSdkTlsBaselineTest {
                     "--private-key=" + this.pem("client-key.pem"), //
                     "--trust-certificate=" + this.pem("ca.pem"))) {
                 JsonNode result = consumer.awaitResult();
-                assertFalse(result.toString(), result.has("error"));
+                assertFalse(result.has("error"), result.toString());
                 assertEquals("Dubbo 中文 🙂", result.path("value").asText());
             }
         }

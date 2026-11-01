@@ -6,18 +6,23 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.xmlrpc.go;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.example.protocol.golang.GoEchoService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** kolo/xmlrpc 只提供客户端 API，本类仅记录 Go 消费 Meteor 的基础证据。 */
+@NxnRpc(name = "xmlrpc")
 public class XmlRpcGoInteropTest {
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goXmlRpcClientCallsMeteorProvider() throws Exception {
         // Meteor 通过公开启动和发布 API 提供 XML-RPC 文本方法。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("xmlrpc");
@@ -33,7 +38,7 @@ public class XmlRpcGoInteropTest {
             // kolo/xmlrpc 原生客户端调用一次 Unicode 回声并核对远端生成的后缀。
             try (GoPeerProcess peer = GoPeerProcess.start("xmlrpc", "client", "plain", "unicode", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
                 assertEquals("Go → Meteor 中文🙂|meteor", result.path("message").asText());
             }
         }

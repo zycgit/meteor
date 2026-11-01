@@ -33,15 +33,17 @@ import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 使用独立 Netty HTTP/2 对端，在真实连接上验证传输 SPI 的 GOAWAY 边界。 */
 public class Http2GoawayInteropTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientGoawayDoesNotDiscardRequestsAlreadyAcceptedByMeteor() throws Exception {
         // Meteor 接收请求，独立 Netty 客户端负责发送 GOAWAY 与观察响应。
         ConnectorConfig config = config(Map.of(), true);
@@ -124,7 +126,8 @@ public class Http2GoawayInteropTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void gracefulGoawayDrainsOnlyStreamsWithinTheAcceptedBoundary() throws Exception {
         // 在同一连接发送三条请求；独立对端将在 GOAWAY 中只接受前两条。
         ConnectorConfig config = config(Map.of("httpVersion", "2"), false);
@@ -166,7 +169,8 @@ public class Http2GoawayInteropTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void gracefulGoawayRejectsCallsSubmittedAfterItIsReceived() throws Exception {
         // 准备两条请求，第二条被 GOAWAY 拒绝后可确认客户端已处理该帧。
         ConnectorConfig config = config(Map.of("httpVersion", "2"), false);
@@ -205,7 +209,8 @@ public class Http2GoawayInteropTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void repeatedGoawayCanReduceTheAcceptedBoundary() throws Exception {
         // 三条请求共用一条连接，第一次 GOAWAY 只排除第三条。
         ConnectorConfig config = config(Map.of("httpVersion", "2"), false);
@@ -243,7 +248,8 @@ public class Http2GoawayInteropTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void errorGoawayFailsEveryPendingExchange() throws Exception {
         // 建立两个尚未返回响应的请求，GOAWAY 的边界包含它们。
         ConnectorConfig config = config(Map.of("httpVersion", "2"), false);

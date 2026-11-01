@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.connect.registry;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -32,32 +37,29 @@ import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** Connect 官方 Node SDK 的显式注册适配，不宣称对端原生理解 Meteor 注册数据。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "adapter-discovery={0}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "connect", version = "1")
 public class ConnectNodeRegistryInteropTest {
     private static final ObjectMapper JSON         = new ObjectMapper();
     private static final String       SERVICE_NAME = "meteor.example.OrderDemoService";
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
     public ConnectNodeRegistryInteropTest(String backend) {
         this.backend = backend;
     }
-
-    @Parameterized.Parameters(name = "adapter-discovery={0}")
     public static Collection<Object[]> backends() {
         List<Object[]> result = new ArrayList<>();
         result.add(new Object[] { "jdbc" });
@@ -66,10 +68,11 @@ public class ConnectNodeRegistryInteropTest {
         return result;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeConsumerResolvesMeteorProviderThroughStorageSubscription() throws Exception {
         // 服务先经 bootstrap 启动和发布，再让真实存储订阅解析其 Connect context。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "connect-node-provider");
@@ -99,10 +102,11 @@ public class ConnectNodeRegistryInteropTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeConsumerPreservesUnicodeThroughRegistryDiscovery() throws Exception {
         // 服务先经 bootstrap 启动和发布，再让真实存储订阅解析其 Connect context。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "connect-node-provider");
@@ -131,10 +135,11 @@ public class ConnectNodeRegistryInteropTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeConsumerPreservesBinaryThroughRegistryDiscovery() throws Exception {
         // 服务先经 bootstrap 启动和发布，再让真实存储订阅解析其 Connect context。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "connect-node-provider");
@@ -164,10 +169,11 @@ public class ConnectNodeRegistryInteropTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversRegisteredNodeProvider() throws Exception {
         // 消费者只配置注册库和协议出口，订阅没有固定业务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "connect-node-consumer");
@@ -201,10 +207,11 @@ public class ConnectNodeRegistryInteropTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerPreservesUnicodeThroughRegistryDiscovery() throws Exception {
         // 消费者只配置注册库和协议出口，订阅没有固定业务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "connect-node-consumer");
@@ -237,10 +244,11 @@ public class ConnectNodeRegistryInteropTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerPreservesBinaryThroughRegistryDiscovery() throws Exception {
         // 消费者只配置注册库和协议出口，订阅没有固定业务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "connect-node-consumer");
@@ -273,10 +281,11 @@ public class ConnectNodeRegistryInteropTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void withdrawingNodeRegistrationRemovesSubscribedAddress() throws Exception {
         // 外部进程在撤回时保持存活，排除连接失败或进程退出带来的假阳性。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "connect-node-withdrawal");
@@ -310,7 +319,7 @@ public class ConnectNodeRegistryInteropTest {
         MetConfiguration configuration = new MetConfiguration();
         configuration.setUnitName("local");
         configuration.setApplicationName(applicationName);
-        configuration.setDataHome(this.data.newFolder(applicationName).toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve(applicationName)));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 内部管理 RPC 只配置出口，不开放监听。
         return configuration;

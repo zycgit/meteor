@@ -20,8 +20,8 @@ import net.hasor.meteor.container.ContainerFixtures.PrivateEcho;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.domain.ProtocolStatus;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MetContainerProviderTest {
     private final AddressPool  addresses = new AddressPool("unit", 1000);

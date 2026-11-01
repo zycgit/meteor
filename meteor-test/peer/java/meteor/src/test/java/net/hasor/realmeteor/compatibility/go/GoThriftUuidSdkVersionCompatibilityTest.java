@@ -4,6 +4,8 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.compatibility.go;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.util.UUID;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -12,15 +14,18 @@ import net.hasor.example.echo.UuidEchoService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Thrift 0.18 新增 UUID 线类型，只在具备该能力的 SDK 发布线上验证。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/go/thrift/Apache-Thrift@{0}/uuid-binary-framed/{1}", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "thrift")
 public class GoThriftUuidSdkVersionCompatibilityTest {
     private final String version;
     private final String direction;
@@ -29,8 +34,6 @@ public class GoThriftUuidSdkVersionCompatibilityTest {
         this.version = version;
         this.direction = direction;
     }
-
-    @Parameterized.Parameters(name = "sdk/go/thrift/Apache-Thrift@{0}/uuid-binary-framed/{1}")
     public static Object[][] versions() {
         return new Object[][] {
                 { "0.18.1", "SDK-to-Meteor" },
@@ -40,7 +43,8 @@ public class GoThriftUuidSdkVersionCompatibilityTest {
         };
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUuidWireTypeRoundTrip() throws Exception {
         // 沿用测试自有的普通 Java 注解接口，UUID 不转换成字符串或二进制别名。
         boolean sdkConsumer = StringUtils.equals("SDK-to-Meteor", this.direction);
@@ -65,7 +69,7 @@ public class GoThriftUuidSdkVersionCompatibilityTest {
                     "plain", "uuid", target)) {
                 if (sdkConsumer) {
                     JsonNode outcome = peer.awaitResult();
-                    assertTrue(outcome.toString(), outcome.path("ok").asBoolean());
+                    assertTrue(outcome.path("ok").asBoolean(), outcome.toString());
                 } else {
                     URI endpoint = URI.create(peer.awaitReady());
                     InterAddress address = new InterAddress("thrift://" + endpoint.getAuthority() + "/default");

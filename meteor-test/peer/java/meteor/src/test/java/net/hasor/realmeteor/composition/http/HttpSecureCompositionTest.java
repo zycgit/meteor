@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.composition.http;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URL;
 
 import java.net.InetSocketAddress;
@@ -30,12 +31,19 @@ import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 安全传输由一个 HTTP 端点统一负责，各个协议仍使用相同挂载和业务入口。 */
 public class HttpSecureCompositionTest {
-    @Test(timeout = 30000)
+    @NxnRpc(name = "hprose")
+    @NxnRpc(name = "soap", version = "1.1")
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @NxnRpc(name = "xmlrpc")
+    @NxnRpc(name = "hessian", version = "2")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void fiveProtocolsShareOneHttps1Listener() throws Exception {
         // HTTPS 只在传输配置上启用，不新增协议实现，也不分配额外监听端口。
         MetConfiguration incoming = HttpCompositionConfiguration.incoming();
@@ -107,7 +115,12 @@ public class HttpSecureCompositionTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "soap", version = "1.1")
+    @NxnRpc(name = "grpc")
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @NxnRpc(name = "thrift")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soapGrpcJsonRpcAndThriftShareAnAuthenticatedHttp2Listener() throws Exception {
         // 跨越 XML、JSON、Protobuf 和 Thrift，四个协议统一使用双向 TLS 与 h2 ALPN。
         MetConfiguration incoming = HttpCompositionConfiguration.incoming();
@@ -171,7 +184,10 @@ public class HttpSecureCompositionTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @NxnRpc(name = "soap", version = "1.1")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void aMissingClientIdentityCannotReachAnyMountedBusinessService() throws Exception {
         // 监听统一要求客户端证书，不能由某一个协议路径绕过身份校验。
         MetConfiguration incoming = HttpCompositionConfiguration.incoming();

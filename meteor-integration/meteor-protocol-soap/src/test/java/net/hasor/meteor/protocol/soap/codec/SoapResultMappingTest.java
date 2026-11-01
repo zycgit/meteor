@@ -22,8 +22,8 @@ import net.hasor.meteor.protocol.soap.definition.SoapBody;
 import net.hasor.meteor.protocol.soap.definition.SoapDefinitionAccess;
 import net.hasor.meteor.protocol.soap.definition.SoapPart;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapResultMappingTest {
     private static final Type STRING_LIST_MAP  = new TypeReference<Map<String, List<String>>>() {

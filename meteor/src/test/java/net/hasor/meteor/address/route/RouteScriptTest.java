@@ -14,8 +14,8 @@ import java.util.concurrent.TimeUnit;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.dsl.RouteContext;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class RouteScriptTest {
     private static final String       ALL      = "<route><return value='addresses'/></route>";

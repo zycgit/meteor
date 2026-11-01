@@ -6,16 +6,15 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.soap.definition;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Element;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapSchemaValidationTest {
     @Test
@@ -137,7 +136,7 @@ public class SoapSchemaValidationTest {
 
     private SoapWsdlResource resource(String name) throws Exception {
         URL resource = this.getClass().getResource(name);
-        assertNotNull("Missing test resource " + name, resource);
+        assertNotNull(resource, "Missing test resource " + name);
         return new SoapWsdlResource(resource);
     }
 

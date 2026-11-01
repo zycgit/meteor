@@ -10,11 +10,14 @@ import net.hasor.example.protocol.soap.NamedEcho;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 public class SoapCommonNamesScenarioTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12UsesCommonNamesAndDispatchesTheOriginalJavaMethod() throws Exception {
         // 协议挂载声明 SOAP 1.2，业务接口通过公共注解生成两端的契约。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("soap");

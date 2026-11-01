@@ -18,8 +18,8 @@ import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class GrpcAnySiblingImportTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();

@@ -6,6 +6,8 @@
  * https://www.hasor.net
  */
 package net.hasor.realmeteor.environment.execution;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,13 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import net.hasor.cobble.StringUtils;
-import org.junit.runner.Description;
-import org.junit.runner.Request;
-import org.junit.runner.Result;
-import org.junit.runner.Runner;
-import org.junit.runner.manipulation.Filter;
-import org.junit.runner.notification.RunNotifier;
-import org.junit.runner.notification.StoppedByUserException;
+import org.junit.platform.engine.discovery.DiscoverySelectors;
+import org.junit.platform.launcher.TestPlan;
+import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.launcher.core.LauncherFactory;
 
 /** 从一次编译产物运行一个独立 JUnit JVM，工作组只拥有自己的输出和报告。 */
 public final class JUnitJobMain {
@@ -65,85 +64,47 @@ public final class JUnitJobMain {
         boolean skipError = configured == null || (Boolean) configured;
         selection.put("skipError", skipError);
 
-        // 参数实例由原有 JUnit runner 创建；筛选只移除未分配的叶子，保留完整参数名称。
-        RunNotifier notifier = new RunNotifier();
-        JUnitJobReport report = new JUnitJobReport(output, selection, notifier);
+        // Jupiter 在执行期展开参数向量；监听器使用 UniqueId 跟踪原始节点与完整场景名称。
+        JUnitJobReport report = new JUnitJobReport(output, selection);
+        JUnitJobReport previous = JUnitJobCondition.current();
         try (report) {
             report.captureOutput();
+            JUnitJobCondition.current(report);
             try {
-                Class<?>[] types = new Class<?>[classes.size()];
-                ClassLoader loader = Thread.currentThread().getContextClassLoader();
-                for (int index = 0; index < classes.size(); index++) {
-                    types[index] = Class.forName(classes.get(index), false, loader);
-                }
-                Runner runner = Request.classes(types).getRunner();
-                Filter selectionFilter = filter(filters);
-                selectionFilter.apply(runner);
-                if (runner.testCount() == 0) {
+                var request = LauncherDiscoveryRequestBuilder.request() //
+                        .selectors(classes.stream().map(DiscoverySelectors::selectClass).toList()) //
+                        .configurationParameter("junit.jupiter.execution.parallel.enabled", "false") //
+                        .configurationParameter("junit.jupiter.extensions.autodetection.enabled", "true") //
+                        .build();
+                var launcher = LauncherFactory.create();
+                TestPlan plan = launcher.discover(request);
+                launcher.execute(plan, report);
+                String rpc = String.valueOf(selection.getOrDefault("rpc", ""));
+                if (!report.hasSelectedCases() && rpc.isBlank()) {
                     throw new IllegalArgumentException("JUnit selection contains no testcase");
-                }
-                // 停止请求只阻止下一个 testcase，当前方法及类的 finally 清理仍由原 runner 完成。
-                Result result = new Result();
-                notifier.addFirstListener(result.createListener());
-                notifier.addListener(report);
-                try {
-                    notifier.fireTestRunStarted(runner.getDescription());
-                    runner.run(notifier);
-                } catch (StoppedByUserException stopped) {
-                    if (skipError || result.getFailureCount() == 0) {
-                        throw stopped;
-                    }
-                } finally {
-                    notifier.fireTestRunFinished(result);
                 }
             } catch (Throwable failure) {
                 report.executionFailed(failure);
+            } finally {
+                JUnitJobCondition.current(previous);
             }
         }
         return report.exitCode();
     }
 
-    static Filter filter(List<String> filters) {
-        List<Pattern> patterns = new ArrayList<>();
+    static boolean matchesSelection(List<String> filters, String className, String method) {
+        String simpleName = className.substring(className.lastIndexOf('.') + 1);
         for (String value : filters) {
             String expression = Pattern.quote(value).replace("*", "\\E.*\\Q");
-            patterns.add(Pattern.compile("^" + expression + "$"));
+            Pattern pattern = Pattern.compile("^" + expression + "$");
+            if (pattern.matcher(className).matches() || pattern.matcher(simpleName).matches()) {
+                return true;
+            }
+            if (matchesMethod(pattern, className, simpleName, method)) {
+                return true;
+            }
         }
-        return new Filter() {
-            @Override
-            public boolean shouldRun(Description description) {
-                if (!description.getChildren().isEmpty()) {
-                    for (Description child : description.getChildren()) {
-                        if (this.shouldRun(child)) {
-                            return true;
-                        }
-                    }
-                    return false;
-                }
-                String className = description.getClassName();
-                String method = description.getMethodName();
-                if (className == null) {
-                    return false;
-                }
-                String simpleName = className.substring(className.lastIndexOf('.') + 1);
-                for (Pattern pattern : patterns) {
-                    boolean wholeClass = pattern.matcher(className).matches() || pattern.matcher(simpleName).matches();
-                    if (wholeClass) {
-                        return true;
-                    }
-                    if (method != null && matchesMethod(pattern, className, simpleName, method)) {
-                        return true;
-                    }
-                }
-                // 参数构造或 runner 初始化失败必须报告，不能被方法筛选悄悄隐藏。
-                return StringUtils.equals("initializationError", method);
-            }
-
-            @Override
-            public String describe() {
-                return "Assigned JUnit classes and methods: " + filters;
-            }
-        };
+        return false;
     }
 
     private static boolean matchesMethod(Pattern pattern, String className, String simpleName, String method) {
@@ -164,6 +125,9 @@ public final class JUnitJobMain {
         Path classesFile = null;
         Path filtersFile = null;
         Path output = null;
+        Path rpcCasesFile = null;
+        String rpc = "";
+        String rpcVersion = "";
         boolean skipError = true;
         List<String> extraFilters = new ArrayList<>();
         for (int index = 0; index < arguments.length; index++) {
@@ -177,6 +141,9 @@ public final class JUnitJobMain {
                 case "--classes-file" -> classesFile = Path.of(value);
                 case "--filters-file" -> filtersFile = Path.of(value);
                 case "--tests" -> extraFilters.add(value);
+                case "--rpc" -> rpc = value;
+                case "--rpc-version" -> rpcVersion = value;
+                case "--rpc-cases-file" -> rpcCasesFile = Path.of(value);
                 case "--skipError" -> {
                     boolean enabled = StringUtils.equals("true", value);
                     boolean disabled = StringUtils.equals("false", value);
@@ -198,6 +165,19 @@ public final class JUnitJobMain {
         selection.put("orchestrationRunId", identity("meteor.test.run.id", "METEOR_TEST_RUN_ID"));
         selection.put("groupId", identity("meteor.test.group.id", "METEOR_TEST_GROUP_ID"));
         selection.put("skipError", skipError);
+        selection.put("rpc", rpc);
+        selection.put("rpcVersion", rpcVersion);
+        Map<String, Object> rpcCases = new LinkedHashMap<>();
+        if (!rpc.isBlank()) {
+            if (rpcCasesFile == null) {
+                throw new IllegalArgumentException("--rpc requires --rpc-cases-file");
+            }
+            rpcCases = new ObjectMapper().readValue(rpcCasesFile.toFile(),
+                    new TypeReference<LinkedHashMap<String, Object>>() { });
+        } else if (!rpcVersion.isBlank() || rpcCasesFile != null) {
+            throw new IllegalArgumentException("RPC version and declarations require --rpc");
+        }
+        selection.put("rpcCases", rpcCases);
         selection.put("classNames", lines(classesFile));
         List<String> filters = filtersFile == null ? new ArrayList<>() : lines(filtersFile);
         filters.addAll(extraFilters);

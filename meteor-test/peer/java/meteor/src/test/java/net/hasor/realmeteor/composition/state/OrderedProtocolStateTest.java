@@ -6,6 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.composition.state;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,21 +30,46 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.matrix.OrderDiscovery;
 import net.hasor.realmeteor.matrix.OrderRegistryEnvironment;
-import org.junit.*;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
 
 /** 每个有序协议组合独立保存、回读同一订单；消费者只在直连模式接收业务地址。 */
-@RunWith(Parameterized.class)
+@NxnRpc(name = "rsf", version = "1", cases = "write=rsf, read=*, discovery=*")
+@NxnRpc(name = "rsf", version = "1", cases = "write=*, read=rsf, discovery=*")
+@NxnRpc(name = "grpc", cases = "write=grpc, read=*, discovery=*")
+@NxnRpc(name = "grpc", cases = "write=*, read=grpc, discovery=*")
+@NxnRpc(name = "grpc-web", cases = "write=grpc-web, read=*, discovery=*")
+@NxnRpc(name = "grpc-web", cases = "write=*, read=grpc-web, discovery=*")
+@NxnRpc(name = "hprose", cases = "write=hprose, read=*, discovery=*")
+@NxnRpc(name = "hprose", cases = "write=*, read=hprose, discovery=*")
+@NxnRpc(name = "soap", version = "1.1", cases = "write=soap, read=*, discovery=*")
+@NxnRpc(name = "soap", version = "1.1", cases = "write=*, read=soap, discovery=*")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "write=jsonrpc, read=*, discovery=*")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "write=*, read=jsonrpc, discovery=*")
+@NxnRpc(name = "xmlrpc", cases = "write=xmlrpc, read=*, discovery=*")
+@NxnRpc(name = "xmlrpc", cases = "write=*, read=xmlrpc, discovery=*")
+@NxnRpc(name = "hessian", version = "2", cases = "write=hessian, read=*, discovery=*")
+@NxnRpc(name = "hessian", version = "2", cases = "write=*, read=hessian, discovery=*")
+@NxnRpc(name = "connect", version = "1", cases = "write=connect, read=*, discovery=*")
+@NxnRpc(name = "connect", version = "1", cases = "write=*, read=connect, discovery=*")
+@NxnRpc(name = "triple", cases = "write=triple, read=*, discovery=*")
+@NxnRpc(name = "triple", cases = "write=*, read=triple, discovery=*")
+@NxnRpc(name = "dubbo", cases = "write=dubbo, read=*, discovery=*")
+@NxnRpc(name = "dubbo", cases = "write=*, read=dubbo, discovery=*")
+@NxnRpc(name = "thrift", cases = "write=thrift, read=*, discovery=*")
+@NxnRpc(name = "thrift", cases = "write=*, read=thrift, discovery=*")
+@NxnRpc(name = "oncrpc", version = "2", cases = "write=oncrpc, read=*, discovery=*")
+@NxnRpc(name = "oncrpc", version = "2", cases = "write=*, read=oncrpc, discovery=*")
+@ParameterizedClass(autoCloseArguments = false, name = "write={0}, read={1}, discovery={2}", quoteTextArguments = false)
+@MethodSource("cases")
 public class OrderedProtocolStateTest {
-    @ClassRule
-    public static final TemporaryFolder          serverData = new TemporaryFolder();
+    @TempDir
+    public static Path serverData;
     private static      OrderRegistryEnvironment registries;
-    @Rule
-    public final        TemporaryFolder          data       = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final       OrderProtocol            write;
     private final       OrderProtocol            read;
     private final       OrderDiscovery           discovery;
@@ -48,8 +79,6 @@ public class OrderedProtocolStateTest {
         this.read = read;
         this.discovery = discovery;
     }
-
-    @Parameterized.Parameters(name = "write={0}, read={1}, discovery={2}")
     public static Collection<Object[]> cases() {
         List<OrderProtocol> writes = selectedProtocols("meteor.matrix.writeProtocols");
         List<OrderProtocol> reads = selectedProtocols("meteor.matrix.readProtocols");
@@ -74,20 +103,21 @@ public class OrderedProtocolStateTest {
         return cases;
     }
 
-    @BeforeClass
+    @BeforeAll
     public static void createRegistryEnvironment() throws Exception {
         // 外部服务由整个测试类持有，各用例仍拥有独立命名空间、数据库和应用上下文。
-        registries = new OrderRegistryEnvironment(serverData.newFolder("registries").toPath());
+        registries = new OrderRegistryEnvironment(Files.createDirectory(serverData.resolve("registries")));
     }
 
-    @AfterClass
+    @AfterAll
     public static void closeRegistryEnvironment() throws Exception {
         if (registries != null) {
             registries.close();
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void orderSavedThroughOneProtocolIsVisibleThroughAnother() throws Exception {
         // 当前参数只开启两个业务协议；HTTP 共享一个监听端口，IDL 桥共用订单存储。
         boolean discovered = this.discovery != OrderDiscovery.DIRECT;
@@ -98,9 +128,9 @@ public class OrderedProtocolStateTest {
         incoming.setDefaultGroup(scope).setApplicationName("composition-provider");
         writing.setDefaultGroup(scope).setApplicationName("composition-writer");
         reading.setDefaultGroup(scope).setApplicationName("composition-reader");
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
-        writing.setDataHome(this.data.newFolder("writer").toPath());
-        reading.setDataHome(this.data.newFolder("reader").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
+        writing.setDataHome(Files.createDirectory(this.data.resolve("writer")));
+        reading.setDataHome(Files.createDirectory(this.data.resolve("reader")));
 
         try {
             // 各应用仅持有自己的注册扩展，注册发现模式不配置提供者的业务地址。

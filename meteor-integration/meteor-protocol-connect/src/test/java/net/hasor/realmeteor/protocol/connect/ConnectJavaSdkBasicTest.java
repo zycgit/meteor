@@ -11,12 +11,15 @@ import net.hasor.example.protocol.connect.ConnectDemoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.peer.protocol.connect.ConnectSdkClient;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 同进程基础可用性：官方 JVM SDK 客户端通过真实 HTTP 调用 Meteor。 */
 public class ConnectJavaSdkBasicTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaSdkCallsPublishedJsonService() throws Exception {
         // 只挂载当前被测协议，不能以其它协议成功代替本协议可用。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("connect");

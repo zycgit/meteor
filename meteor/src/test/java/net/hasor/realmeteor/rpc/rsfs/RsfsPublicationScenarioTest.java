@@ -14,12 +14,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 服务使用 RSF 协议名发布，地址前缀区分明文和 TLS 端点。 */
 public class RsfsPublicationScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void discoveredSecureAddressUsesTheRsfsConnector() throws Exception {
         // 只配置安全端点，默认协议为 RSF，实际发布地址为 rsfs。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");
@@ -42,7 +45,8 @@ public class RsfsPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void publicationRejectsAddressSchemeAsProtocolName() throws Exception {
         // 同一 RSF 协议同时挂载明文端点和 rsfs 安全端点。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");
@@ -58,7 +62,8 @@ public class RsfsPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void namedRsfServiceIsExposedThroughEveryRsfMount() throws Exception {
         // 同一 RSF 协议挂载到明文和 TLS 监听器，服务按协议名选择全部挂载。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");

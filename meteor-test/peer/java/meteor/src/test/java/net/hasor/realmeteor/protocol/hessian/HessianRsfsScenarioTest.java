@@ -17,12 +17,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Timeout;
 
 /** Hessian 序列化器通过 RSF 二进制协议在 TLS 连接中完成调用。 */
+@NxnRpc(name = "rsf", version = "1")
 public class HessianRsfsScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianWithServerAuthentication() throws Exception {
         // 配置仅校验服务端证书的 TLS 连接，客户端不提供证书。
         MetConfiguration incoming = server("NONE");
@@ -44,7 +48,8 @@ public class HessianRsfsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianWithMutualTls() throws Exception {
         // 配置双方都提交证书的 TLS 连接，服务端必须验证客户端证书。
         MetConfiguration incoming = server("REQUIRE");
@@ -66,7 +71,8 @@ public class HessianRsfsScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentHessianCallsKeepTheirOwnResults() throws Exception {
         // 多个请求通过双向 TLS 连接，统一使用 Hessian 编码。
         MetConfiguration incoming = server("REQUIRE");

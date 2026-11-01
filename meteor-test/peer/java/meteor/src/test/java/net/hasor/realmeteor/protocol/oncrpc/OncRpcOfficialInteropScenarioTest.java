@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.DatagramSocket;
@@ -22,12 +23,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.meteor.protocol.oncrpc.codec.OncRpcException;
 import net.hasor.meteor.protocol.oncrpc.codec.OncRpcMessage;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** rpcgen 生成的 C 客户端与 libtirpc 服务端经真实 TCP、UDP 与 Meteor 双向互通。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcOfficialInteropScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpEchoCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -45,7 +50,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpArgumentOrderCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -63,7 +69,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpAllXdrTypesCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -81,7 +88,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpVoidResultCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -99,7 +107,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpVariableOpaqueCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -117,7 +126,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpNullProcedureCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -135,7 +145,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpUnknownProgramCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -153,7 +164,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpUnknownVersionCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -171,7 +183,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpUnknownProcedureCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -189,7 +202,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpMalformedArgumentsCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -207,7 +221,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpApplicationFailureCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -225,7 +240,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpUnsupportedCredentialCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("tcp", "oncrpc");
@@ -243,7 +259,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpSystemCredentialAccepted() throws Exception {
         // 当前监听挂载要求 AUTH_SYS，普通 RPC 方法仍按原有 Caller 链路执行。
         MetConfiguration configuration = this.requireSystem("tcp", "oncrpc");
@@ -262,7 +279,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeTcpMissingSystemCredentialRejected() throws Exception {
         // 当前监听挂载要求 AUTH_SYS，普通 RPC 方法仍按原有 Caller 链路执行。
         MetConfiguration configuration = this.requireSystem("tcp", "oncrpc");
@@ -281,7 +299,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTcpEchoCallsNative() throws Exception {
         // 原生服务端使用 rpcgen dispatcher；Meteor 只组装出站通道。
         MetConfiguration configuration = this.outgoing("tcp", "oncrpc");
@@ -302,7 +321,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTcpArgumentOrderCallsNative() throws Exception {
         // 原生服务端使用 rpcgen dispatcher；Meteor 只组装出站通道。
         MetConfiguration configuration = this.outgoing("tcp", "oncrpc");
@@ -322,7 +342,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTcpVoidResultCallsNative() throws Exception {
         // 原生服务端使用 rpcgen dispatcher；Meteor 只组装出站通道。
         MetConfiguration configuration = this.outgoing("tcp", "oncrpc");
@@ -342,7 +363,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTcpVariableOpaqueCallsNative() throws Exception {
         // 原生服务端使用 rpcgen dispatcher；Meteor 只组装出站通道。
         MetConfiguration configuration = this.outgoing("tcp", "oncrpc");
@@ -363,7 +385,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTcpAllXdrTypesCallsNative() throws Exception {
         // 原生服务端使用 rpcgen dispatcher；Meteor 只组装出站通道。
         MetConfiguration configuration = this.outgoing("tcp", "oncrpc");
@@ -402,7 +425,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTcpReadsNativeSystemError() throws Exception {
         // 原生过程明确返回 svcerr_systemerr，Meteor 通过正常公开客户端读取错误。
         MetConfiguration configuration = this.outgoing("tcp", "oncrpc");
@@ -426,7 +450,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTcpSendsSystemIdentityToNative() throws Exception {
         // AUTH_SYS 只是声明身份；当前场景核对实际发给 libtirpc 的 UID、GID 和附加组。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -450,7 +475,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpEchoCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -468,7 +494,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpArgumentOrderCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -486,7 +513,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpAllXdrTypesCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -504,7 +532,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpVoidResultCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -522,7 +551,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpVariableOpaqueCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -540,7 +570,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpNullProcedureCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -558,7 +589,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpUnknownProgramCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -576,7 +608,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpUnknownVersionCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -594,7 +627,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpUnknownProcedureCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -612,7 +646,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpMalformedArgumentsCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -630,7 +665,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpApplicationFailureCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -648,7 +684,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpUnsupportedCredentialCallsMeteor() throws Exception {
         // 监听器和服务均通过正式 bootstrap API 创建，发布发生在启动之后。
         MetConfiguration configuration = this.incoming("udp", "oncrpc-udp");
@@ -666,7 +703,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpSystemCredentialAccepted() throws Exception {
         // 当前监听挂载要求 AUTH_SYS，普通 RPC 方法仍按原有 Caller 链路执行。
         MetConfiguration configuration = this.requireSystem("udp", "oncrpc-udp");
@@ -685,7 +723,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpMissingSystemCredentialRejected() throws Exception {
         // 当前监听挂载要求 AUTH_SYS，普通 RPC 方法仍按原有 Caller 链路执行。
         MetConfiguration configuration = this.requireSystem("udp", "oncrpc-udp");
@@ -704,7 +743,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorUdpEchoCallsNative() throws Exception {
         // 原生服务端使用 rpcgen dispatcher；Meteor 只组装出站通道。
         MetConfiguration configuration = this.outgoing("udp", "oncrpc-udp");
@@ -725,7 +765,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorUdpArgumentOrderCallsNative() throws Exception {
         // 原生服务端使用 rpcgen dispatcher；Meteor 只组装出站通道。
         MetConfiguration configuration = this.outgoing("udp", "oncrpc-udp");
@@ -745,7 +786,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorUdpVoidResultCallsNative() throws Exception {
         // 原生服务端使用 rpcgen dispatcher；Meteor 只组装出站通道。
         MetConfiguration configuration = this.outgoing("udp", "oncrpc-udp");
@@ -765,7 +807,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorUdpVariableOpaqueCallsNative() throws Exception {
         // 原生服务端使用 rpcgen dispatcher；Meteor 只组装出站通道。
         MetConfiguration configuration = this.outgoing("udp", "oncrpc-udp");
@@ -786,7 +829,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorUdpAllXdrTypesCallsNative() throws Exception {
         // 原生服务端使用 rpcgen dispatcher；Meteor 只组装出站通道。
         MetConfiguration configuration = this.outgoing("udp", "oncrpc-udp");
@@ -825,7 +869,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorUdpReadsNativeSystemError() throws Exception {
         // 原生过程明确返回 svcerr_systemerr，Meteor 通过正常公开客户端读取错误。
         MetConfiguration configuration = this.outgoing("udp", "oncrpc-udp");
@@ -849,7 +894,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorUdpSendsSystemIdentityToNative() throws Exception {
         // AUTH_SYS 只是声明身份；当前场景核对实际发给 libtirpc 的 UID、GID 和附加组。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc-udp");
@@ -873,7 +919,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeUdpLargeOpaqueCallsMeteorOverIpv6() throws Exception {
         // Docker 双栈网桥传输单个 50,000 字节 IPv6 数据报，两端处于独立容器。
         int port;
@@ -899,7 +946,8 @@ public class OncRpcOfficialInteropScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorUdpLargeOpaqueCallsNativeOverIpv6() throws Exception {
         // 原生 UDP 监听器绑定 IPv6，Meteor 通过正式出站协议配置调用。
         MetConfiguration configuration = this.outgoing("udp", "oncrpc-udp");

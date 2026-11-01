@@ -13,12 +13,17 @@ import net.hasor.example.protocol.dubbo.interop.DubboInteropServiceImpl;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 经典 Dubbo 不支持的业务声明只拒绝协议端点，本地服务保持可用。 */
+@NxnRpc(name = "dubbo")
 public class DubboPublicationScenarioTest {
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nonHessianSerializationKeepsLocalServiceCallable() throws Exception {
         // Dubbo Hessian2 的 wire ID 固定，JSON 声明不向该端点发布。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("dubbo");
@@ -38,7 +43,8 @@ public class DubboPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void flowSignatureKeepsLocalServiceCallable() throws Exception {
         // 经典 Dubbo 帧不能承载 Flow 签名，端点监听仍可正常建立。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("dubbo");

@@ -25,8 +25,8 @@ import org.apache.dubbo.rpc.RpcException;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.data.ACL;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 检查独占 SDK 会话与两种原生目录的合并边界，不经过业务 RPC。 */
 public class DubboRegistrySessionTest {

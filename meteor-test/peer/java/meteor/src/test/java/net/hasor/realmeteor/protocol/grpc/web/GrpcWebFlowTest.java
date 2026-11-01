@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -26,11 +27,14 @@ import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc-web")
 public class GrpcWebFlowTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryJsonServerStreamOverHttp1() throws Exception {
         // 单个 HTTP/1 请求逐条接收 Json 响应，结束状态位于 gRPC-Web 正文尾帧。
         MetConfiguration incoming = this.incoming();
@@ -59,7 +63,8 @@ public class GrpcWebFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textProtobufServerStreamOverHttp1() throws Exception {
         // 单个 HTTP/1 请求逐条接收 Protobuf 响应，结束状态位于 gRPC-Web 正文尾帧。
         MetConfiguration incoming = this.incoming();
@@ -91,7 +96,8 @@ public class GrpcWebFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryProtobufServerStreamOverHttp2() throws Exception {
         // 单个 HTTP/2 请求逐条接收 Protobuf 响应，结束状态位于 gRPC-Web 正文尾帧。
         MetConfiguration incoming = this.incoming();
@@ -123,7 +129,8 @@ public class GrpcWebFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textJsonServerStreamOverHttp2() throws Exception {
         // 单个 HTTP/2 请求逐条接收 Json 响应，结束状态位于 gRPC-Web 正文尾帧。
         MetConfiguration incoming = this.incoming();
@@ -152,7 +159,8 @@ public class GrpcWebFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyTextStreamCompletesWithOnlyTheTrailerFrame() throws Exception {
         // 空响应流只有状态尾帧，Base64 解码后不应构造一条空业务消息。
         MetConfiguration incoming = this.incoming();
@@ -174,7 +182,8 @@ public class GrpcWebFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textStreamReportsAnErrorAfterAValidMessage() throws Exception {
         // 业务已返回一条消息后失败，协议必须保留数据和最终非零状态。
         MetConfiguration incoming = this.incoming();
@@ -204,7 +213,8 @@ public class GrpcWebFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void demandControlsDeliveryAcrossHttp1BodyChunks() throws Exception {
         // HTTP/1 增量正文也必须服从 Flow 的订阅需求，不能一次性全部交付。
         MetConfiguration incoming = this.incoming();
@@ -268,7 +278,8 @@ public class GrpcWebFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1CancellationStopsLocallyAndTheDeadlineReleasesTheRemotePublisher() throws Exception {
         // 冻结的 HTTP/1 通道把 FIN 视为输入半关闭，远端响应流由显式期限最终回收。
         MetConfiguration incoming = this.incoming();
@@ -316,7 +327,8 @@ public class GrpcWebFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void deadlineReleasesTheRemotePublisherWithoutAResponse() throws Exception {
         // 使用不产出数据的业务 Publisher，观察请求生命周期的远端释放。
         MetConfiguration incoming = this.incoming();
@@ -363,8 +375,8 @@ public class GrpcWebFlowTest {
             if (status != null) {
                 assertEquals(4, status.getCode());
             } else {
-                assertTrue("Expected deadline failure, received: " + failure, //
-                        failure.getCause() instanceof MetTimeoutException);
+                assertTrue(//
+                        failure.getCause() instanceof MetTimeoutException, "Expected deadline failure, received: " + failure);
             }
             assertTrue(cancelled.await(5, TimeUnit.SECONDS));
         }

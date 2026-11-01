@@ -9,8 +9,8 @@ package net.hasor.meteor.protocol.oncrpc.codec;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.HexFormat;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class OncRpcWireCodecTest {
     @Test

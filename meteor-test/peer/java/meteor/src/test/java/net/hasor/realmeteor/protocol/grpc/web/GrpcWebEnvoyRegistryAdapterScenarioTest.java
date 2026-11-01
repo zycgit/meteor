@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
@@ -29,25 +34,23 @@ import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** Meteor 自动发现真实 Envoy gRPC-Web 端点，由产品自身过滤器转发至官方 gRPC 服务。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "grpc-web/java-envoy/adapter/{0}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "grpc-web")
 public class GrpcWebEnvoyRegistryAdapterScenarioTest {
-    @Parameterized.Parameters(name = "grpc-web/java-envoy/adapter/{0}")
     public static Collection<Object[]> backends() {
         return List.of(new Object[] { "jdbc" }, new Object[] { "zookeeper" }, new Object[] { "nacos" });
     }
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
@@ -55,10 +58,11 @@ public class GrpcWebEnvoyRegistryAdapterScenarioTest {
         this.backend = backend;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorDiscoversBinaryEnvoyEndpointForOfficialGrpcServer() throws Exception {
         // 独立官方 SDK 服务只处理标准 gRPC，固定线契约与既有 Envoy 直连用例相同。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             var echo = GrpcWebOfficialContract.method("echo", MethodDescriptor.MethodType.UNARY);
             var handler = ServerCalls.<Message, Message>asyncUnaryCall((request, response) -> {
@@ -110,7 +114,7 @@ public class GrpcWebEnvoyRegistryAdapterScenarioTest {
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
         configuration.setDefaultProtocol("grpc-web");
         configuration.setApplicationName("meteor-grpc-web-consumer");
-        configuration.setDataHome(this.data.newFolder("consumer").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 注册扩展内部管理出口，不监听。
         configuration.connector("http").protocol("grpc-web").addressScheme("http") //

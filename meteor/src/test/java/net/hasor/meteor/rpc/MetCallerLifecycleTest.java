@@ -32,8 +32,8 @@ import net.hasor.meteor.domain.payload.Payload;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MetCallerLifecycleTest {
     public interface Echo {
@@ -80,7 +80,7 @@ public class MetCallerLifecycleTest {
             // 清除故障后，未完成的请求创建不应占用发送名额。
             host.requestOptionFailure = null;
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -241,7 +241,7 @@ public class MetCallerLifecycleTest {
             assertEquals(ProtocolStatus.Forbidden, failure.getStatus());
             assertTrue(failure.getMessage().contains("message was not accepted"));
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -264,7 +264,7 @@ public class MetCallerLifecycleTest {
             assertEquals(ProtocolStatus.OK, failure.getStatus());
             assertTrue(failure.getMessage().contains("message was not accepted"));
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -287,7 +287,7 @@ public class MetCallerLifecycleTest {
             assertEquals(ProtocolStatus.OK, result.getStatus());
             assertEquals("server-trace", result.getOption("trace"));
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -336,7 +336,7 @@ public class MetCallerLifecycleTest {
             host.respond(current, ProtocolStatus.OK);
             assertEquals("done", current.getData());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -360,7 +360,7 @@ public class MetCallerLifecycleTest {
             assertTrue(result.isSuccess());
             assertEquals(request.getRequestID(), result.getMessageID());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -383,7 +383,7 @@ public class MetCallerLifecycleTest {
             host.manager.deliver(host.channel, requestId, response);
             assertEquals("reply", call.getData());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -404,7 +404,7 @@ public class MetCallerLifecycleTest {
             host.manager.deliver(host.channel, response.getRequestID(), response);
             assertEquals("reply", call.getData());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -423,7 +423,7 @@ public class MetCallerLifecycleTest {
             host.manager.deliver(host.channel, requestId, new ThrowPayload(cause));
             assertSame(cause, assertFailure(failed, IllegalStateException.class));
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -473,7 +473,7 @@ public class MetCallerLifecycleTest {
             assertEquals(1, host.sent.size());
             admitted.cancel();
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         } finally {
@@ -537,7 +537,7 @@ public class MetCallerLifecycleTest {
             assertEquals("done", future.getData());
             assertEquals(1, completions.get());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -558,7 +558,7 @@ public class MetCallerLifecycleTest {
             host.respond(future, ProtocolStatus.OK);
             assertEquals("done", future.getData());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -581,7 +581,7 @@ public class MetCallerLifecycleTest {
             assertEquals(1, completions.get());
             assertEquals("done", future.getData());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -598,7 +598,7 @@ public class MetCallerLifecycleTest {
             host.respond(message, ProtocolStatus.Accept);
             assertTrue(message.isDone());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -614,7 +614,7 @@ public class MetCallerLifecycleTest {
             host.respond(rejected, ProtocolStatus.Forbidden);
             assertFailure(rejected, MetException.class);
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -632,7 +632,7 @@ public class MetCallerLifecycleTest {
             timer.run();
             assertFailure(future, MetTimeoutException.class);
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -650,7 +650,7 @@ public class MetCallerLifecycleTest {
             host.respond(future, ProtocolStatus.OK);
             assertSame(timeout, assertFailure(future, MetTimeoutException.class));
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -676,7 +676,7 @@ public class MetCallerLifecycleTest {
             assertEquals(1, cancellations.get());
             assertEquals(1, terminal.get());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -700,7 +700,7 @@ public class MetCallerLifecycleTest {
             assertTrue(future.isCancelled());
             assertTrue(terminal.get());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -724,7 +724,7 @@ public class MetCallerLifecycleTest {
             assertTrue(terminal.get());
             assertEquals("done", future.getData());
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -750,7 +750,7 @@ public class MetCallerLifecycleTest {
             // 重入调用独占唯一名额，取消后该名额重新可用。
             retry.cancel();
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -799,7 +799,7 @@ public class MetCallerLifecycleTest {
             assertEquals("done", first.getData());
             next.cancel();
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         } finally {
@@ -854,7 +854,7 @@ public class MetCallerLifecycleTest {
                 }
                 assertTrue(future.isDone());
                 MetFuture available = host.invoke();
-                assertFalse("Slot must be reusable", available.isDone());
+                assertFalse(available.isDone(), "Slot must be reusable");
                 assertRejected(host.invoke());
                 assertTrue(available.cancel());
             }
@@ -874,7 +874,7 @@ public class MetCallerLifecycleTest {
 
             // 地址错误不占用后续请求的名额。
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -891,7 +891,7 @@ public class MetCallerLifecycleTest {
 
             // 映射失败归还已预留的名额。
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -908,7 +908,7 @@ public class MetCallerLifecycleTest {
             // 调度器恢复后，失败调用的名额可再次使用。
             host.rejectTimer = false;
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -925,7 +925,7 @@ public class MetCallerLifecycleTest {
             // 超时发生在发送前，且只归还一个名额。
             host.immediateTimeout = false;
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -941,7 +941,7 @@ public class MetCallerLifecycleTest {
             // 同步发送失败不占用恢复后的请求名额。
             host.failSend = false;
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -959,7 +959,7 @@ public class MetCallerLifecycleTest {
             callback.failed(new IllegalArgumentException("duplicate"));
             assertFailure(future, IllegalArgumentException.class);
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -976,7 +976,7 @@ public class MetCallerLifecycleTest {
             assertTrue(sending.cancel());
             assertFailure(request, CancellationException.class);
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -995,7 +995,7 @@ public class MetCallerLifecycleTest {
             // 清除失败过滤器后，已发送请求占用的名额应已归还。
             host.filter = null;
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -1020,7 +1020,7 @@ public class MetCallerLifecycleTest {
             // 挂起调用取消后，才归还其拥有的名额。
             pending.cancel();
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -1046,7 +1046,7 @@ public class MetCallerLifecycleTest {
             assertRejected(host.invoke());
             admitted.cancel();
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         } finally {
@@ -1072,7 +1072,7 @@ public class MetCallerLifecycleTest {
             host.policy = SendLimitPolicy.Reject;
             first.cancel();
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         }
@@ -1107,7 +1107,7 @@ public class MetCallerLifecycleTest {
             host.policy = SendLimitPolicy.Reject;
             first.cancel();
             MetFuture available = host.invoke();
-            assertFalse("Slot must be reusable", available.isDone());
+            assertFalse(available.isDone(), "Slot must be reusable");
             assertRejected(host.invoke());
             assertTrue(available.cancel());
         } finally {
@@ -1216,7 +1216,7 @@ public class MetCallerLifecycleTest {
             throw new AssertionError("Expected " + type.getSimpleName());
         } catch (ExecutionException expected) {
             Throwable cause = expected.getCause();
-            assertTrue("Unexpected failure: " + cause, type.isInstance(cause));
+            assertTrue(type.isInstance(cause), "Unexpected failure: " + cause);
             return cause;
         }
     }

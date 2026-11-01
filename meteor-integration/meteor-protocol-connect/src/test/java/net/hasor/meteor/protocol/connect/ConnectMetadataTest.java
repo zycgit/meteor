@@ -9,8 +9,8 @@ package net.hasor.meteor.protocol.connect;
 import java.util.List;
 import java.util.Map;
 import net.hasor.meteor.domain.OptionInfo;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ConnectMetadataTest {
     @Test

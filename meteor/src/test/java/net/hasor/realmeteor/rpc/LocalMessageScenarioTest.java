@@ -17,8 +17,8 @@ import net.hasor.meteor.MetResponse;
 import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.ProtocolStatus;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 通过公开调用入口验证消息服务仍可优先本地直调。 */
 public class LocalMessageScenarioTest {

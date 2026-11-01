@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.dubbo;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.protocol.dubbo.interop.DubboInteropService;
 import net.hasor.example.registry.dubbo.RegistryEchoService;
 import net.hasor.meteor.MetBindInfo;
@@ -14,16 +15,21 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.dubbo.DubboRegistryClient;
 import net.hasor.realmeteor.protocol.dubbo.DubboProcess;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.awaitAddresses;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 公开发布、引用和生命周期入口驱动的自动注册发现。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboRegistryDiscoveryScenarioTest {
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingConsumerDoesNotRemoveAnotherApplicationsProvider() throws Exception {
         // 同一注册中心服务多个上下文，每个扩展只拥有本应用的注册会话。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -63,7 +69,9 @@ public class DubboRegistryDiscoveryScenarioTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void existingSubscriptionDiscoversNewDubbo27Provider() throws Exception {
         // 先建立没有提供者的订阅，不能通过主动 refresh 代替后续注册通知。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -91,7 +99,8 @@ public class DubboRegistryDiscoveryScenarioTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void existingSubscriptionDiscoversNewDubbo33Provider() throws Exception {
         // 引用入口允许先于提供者启动，初始无地址不改变其服务身份。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -119,7 +128,9 @@ public class DubboRegistryDiscoveryScenarioTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @NxnRpc(name = "dubbo", version = "2")
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo27ProviderShutdownWithdrawsDiscoveredAddress() throws Exception {
         // 先完成原生服务发现与真实调用，排除测试初始本就没有地址的假阳性。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -148,7 +159,8 @@ public class DubboRegistryDiscoveryScenarioTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubbo33ProviderShutdownWithdrawsDiscoveredAddress() throws Exception {
         // 原生 3.3 提供者先被正常引用，其退出才是本场景唯一的状态变化。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -177,7 +189,9 @@ public class DubboRegistryDiscoveryScenarioTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @NxnRpc(name = "dubbo")
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorProviderShutdownWithdrawsDiscoveredAddress() throws Exception {
         // 两个独立应用共享注册中心，消费方不持有提供者实现。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {

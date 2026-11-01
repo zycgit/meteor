@@ -10,15 +10,20 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.python.PythonSdkPeerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Python SDK 与 Meteor 的最小双向 HTTP 互通，不扩展类型及注册发现矩阵。 */
+@NxnRpc(name = "hprose")
 public class HprosePythonInteropTest {
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonSdkCallsMeteor() throws Exception {
         // 通过 bootstrap 启动 Meteor HTTP 监听并发布普通接口。
         MetConfiguration configuration = new MetConfiguration();
@@ -38,7 +43,8 @@ public class HprosePythonInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonSdk() throws Exception {
         // Python SDK 自行注册业务方法和建立监听，Meteor 只借用就绪端点。
         try (PythonSdkPeerProcess provider = PythonSdkPeerProcess.start("hprose", "provider")) {

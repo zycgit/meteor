@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /** Compile the selected test work into independent, isolated JUnit JVM groups. */
@@ -68,16 +67,7 @@ final class NxnPlan {
     }
 
     static boolean matches(String value, String pattern) {
-        // Parameter brackets are literal; '*' is the only wildcard supported by JUnit selection.
-        StringBuilder expression = new StringBuilder("^");
-        String[] literals = pattern.split("\\*", -1);
-        for (int index = 0; index < literals.length; index++) {
-            if (index > 0) {
-                expression.append(".*");
-            }
-            expression.append(Pattern.quote(literals[index]));
-        }
-        return value.matches(expression.append('$').toString());
+        return NxnRpcSelection.matches(value, pattern);
     }
 
     static Map<String, List<String>> selectClasses(List<String> includes, List<String> classes) {
@@ -277,6 +267,14 @@ final class NxnPlan {
         command.add((String) group.get("filtersFile"));
         command.add("--skipError");
         command.add(String.valueOf(group.getOrDefault("skipError", Boolean.TRUE)));
+        if (group.containsKey("rpc")) {
+            command.add("--rpc");
+            command.add((String) group.get("rpc"));
+            command.add("--rpc-version");
+            command.add((String) group.get("rpcVersion"));
+            command.add("--rpc-cases-file");
+            command.add((String) group.get("rpcCasesFile"));
+        }
         return command;
     }
 
@@ -316,6 +314,8 @@ final class NxnPlan {
                 case "--process-wrapper": options.processWrapper = value; break;
                 case "--run-id": options.runId = value; break;
                 case "--tests": options.tests.add(value); break;
+                case "--rpc": options.rpc = NxnRpcSelection.protocolName(value); break;
+                case "--rpc-version": options.rpcVersion = value.trim(); break;
                 case "--skipError":
                     boolean skip = StringUtils.equals("true", value);
                     if (!skip && !StringUtils.equals("false", value)) {
@@ -327,6 +327,9 @@ final class NxnPlan {
             }
         }
         options.groups = parseGroupRequest(requestedGroups);
+        if (options.rpc.isEmpty() && !options.rpcVersion.isEmpty()) {
+            throw new IllegalArgumentException("--rpc-version requires --rpc");
+        }
         if (options.runId == null || !options.runId.matches("[A-Za-z0-9][A-Za-z0-9_.-]*")) {
             throw new IllegalArgumentException("--run-id must be a nonempty filesystem-safe identifier");
         }
@@ -343,7 +346,14 @@ final class NxnPlan {
         }
         List<String> classes = new ArrayList<>(strings(runtime.get("classNames")));
         classes.sort(String::compareTo);
-        Map<String, List<String>> selected = selectClasses(options.tests, classes);
+        Map<String, List<String>> requested = selectClasses(options.tests, classes);
+        Map<String, Object> rpcCases = object(runtime.get("rpcCases"));
+        Map<String, List<String>> selected;
+        if (!options.rpc.isEmpty()) {
+            selected = NxnRpcSelection.select(requested, rpcCases, options.rpc, options.rpcVersion);
+        } else {
+            selected = requested;
+        }
         Object rawClasspath = runtime.get("classpath");
         if (!(rawClasspath instanceof List) || strings(rawClasspath).isEmpty()) {
             throw new IllegalArgumentException("Runtime classpath must be a nonempty array of paths");
@@ -375,6 +385,19 @@ final class NxnPlan {
             group.put("launchFile", directory.resolve("process/launch.json").toString());
             group.put("container", options.container);
             group.put("skipError", options.skipError);
+            if (!options.rpc.isEmpty()) {
+                // 分组持有自己的声明副本；运行时不扫描其它组或读取历史结果。
+                Map<String, Object> groupRpcCases = new LinkedHashMap<>();
+                for (String className : strings(group.get("classes"))) {
+                    groupRpcCases.put(className, rpcCases.get(className));
+                }
+                group.put("rpc", options.rpc);
+                group.put("rpcVersion", options.rpcVersion);
+                group.put("rpcCases", groupRpcCases);
+                Path rpcCasesFile = directory.resolve("rpc-cases.json");
+                group.put("rpcCasesFile", rpcCasesFile.toString());
+                writeJson(rpcCasesFile, groupRpcCases);
+            }
             Files.write(directory.resolve("classes.txt"), strings(group.get("classes")), StandardCharsets.UTF_8);
             Files.write(directory.resolve("filters.txt"), strings(group.get("includes")), StandardCharsets.UTF_8);
             Files.createDirectory(directory.resolve("process-evidence"));
@@ -400,6 +423,10 @@ final class NxnPlan {
         manifest.put("runtimeFile", options.runtime.toAbsolutePath().normalize().toString());
         manifest.put("userIncludes", options.tests);
         manifest.put("matrixSelection", options.matrix);
+        manifest.put("rpc", options.rpc);
+        manifest.put("rpcVersion", options.rpcVersion);
+        manifest.put("rpcCases", rpcCases);
+        manifest.put("rpcCatalog", NxnRpcSelection.catalog(rpcCases));
         Map<String, List<String>> methodPartitions = new LinkedHashMap<>();
         METHOD_PARTITIONS.forEach((name, methods) -> {
             if (selected.containsKey(name) && selected.get(name).isEmpty()) {
@@ -466,6 +493,8 @@ final class NxnPlan {
         String workspace = "/workspace/meteor/meteor-test";
         String processWrapper = "/opt/meteor-test/peer-process";
         String dockerExecutable = "docker";
+        String rpc = "";
+        String rpcVersion = "";
         String runId = System.getenv("METEOR_TEST_RUN_ID");
         List<String> tests = new ArrayList<>();
         Map<String, String> matrix = new LinkedHashMap<>();

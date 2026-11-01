@@ -24,13 +24,17 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.protocol.soap.support.SoapTlsSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesHttpsFeaturesTest {
     private static final Pattern SCHEMA_LOCATION = Pattern.compile("schemaLocation=\"([^\"]+)\"");
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void transportTlsDefinesHttpsWsdlEndpoint() throws Exception {
         // HTTPS h2 监听由端点 TLS 决定真实传输地址，不配置遗留 httpScheme。
         MetConfiguration configuration = this.server("1.1", "h2", false, "inline");
@@ -51,13 +55,14 @@ public class WebServicesHttpsFeaturesTest {
             assertEquals(200, response.statusCode());
             assertEquals(HttpClient.Version.HTTP_2, response.version());
             String contentType = response.headers().firstValue("content-type").orElse("");
-            assertTrue(contentType, StringUtils.startsWithIgnoreCase(contentType, "text/xml"));
-            assertTrue(response.body(), response.body().contains("location=\"" + endpoint + "\""));
-            assertTrue(response.body(), response.body().contains(endpoint + "?xsd=echo-types.xsd"));
+            assertTrue(StringUtils.startsWithIgnoreCase(contentType, "text/xml"), contentType);
+            assertTrue(response.body().contains("location=\"" + endpoint + "\""), response.body());
+            assertTrue(response.body().contains(endpoint + "?xsd=echo-types.xsd"), response.body());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void importedXsdIsFetchedOverRealHttpsHttp1() throws Exception {
         // HTTPS HTTP/1.1 监听发布 WSDL 绑定的外部 XSD。
         MetConfiguration configuration = this.server("1.1", "http/1.1", false, "inline");
@@ -84,13 +89,15 @@ public class WebServicesHttpsFeaturesTest {
             assertEquals(200, response.statusCode());
             assertEquals(HttpClient.Version.HTTP_1_1, response.version());
             String contentType = response.headers().firstValue("content-type").orElse("");
-            assertTrue(contentType, StringUtils.startsWithIgnoreCase(contentType, "application/xml"));
-            assertTrue(response.body(), response.body().contains("urn:meteor:test:echo:types"));
-            assertTrue(response.body(), response.body().contains("name=\"echo\""));
+            assertTrue(StringUtils.startsWithIgnoreCase(contentType, "application/xml"), contentType);
+            assertTrue(response.body().contains("urn:meteor:test:echo:types"), response.body());
+            assertTrue(response.body().contains("name=\"echo\""), response.body());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directoryIsFetchedOverRealHttpsHttp2() throws Exception {
         // 目录和业务协议挂在同一个 HTTPS h2 端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -115,12 +122,14 @@ public class WebServicesHttpsFeaturesTest {
                     HttpResponse.BodyHandlers.ofString());
             assertEquals(200, response.statusCode());
             assertEquals(HttpClient.Version.HTTP_2, response.version());
-            assertTrue(response.body(), response.body().contains("EchoService"));
-            assertTrue(response.body(), response.body().contains("/services/EchoService?wsdl"));
+            assertTrue(response.body().contains("EchoService"), response.body());
+            assertTrue(response.body().contains("/services/EchoService?wsdl"), response.body());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12FaultTravelsOverMutualTlsHttp2() throws Exception {
         // 双向 TLS h2 服务发布一个确定失败的 SOAP 1.2 方法。
         MetConfiguration configuration = this.server("1.2", "h2", true, "inline");
@@ -142,12 +151,14 @@ public class WebServicesHttpsFeaturesTest {
             HttpResponse<String> response = this.send(client, request, HttpResponse.BodyHandlers.ofString());
             assertEquals(500, response.statusCode());
             assertEquals(HttpClient.Version.HTTP_2, response.version());
-            assertTrue(response.body(), response.body().contains("Fault"));
-            assertTrue(response.body(), response.body().contains("secure failure"));
+            assertTrue(response.body().contains("Fault"), response.body());
+            assertTrue(response.body().contains("secure failure"), response.body());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneWayReturnsBeforeBusinessOverMutualTlsHttp2() throws Exception {
         // SOAP 1.2 one-way 服务进入业务后保持阻塞，HTTP 层使用双向 TLS h2。
         BlockingSignalServiceImpl service = new BlockingSignalServiceImpl();
@@ -169,17 +180,19 @@ public class WebServicesHttpsFeaturesTest {
                 assertEquals(202, response.statusCode());
                 assertEquals(HttpClient.Version.HTTP_2, response.version());
                 assertEquals(0, response.body().length);
-                assertTrue("Business method was not entered", service.awaitEntered(5, TimeUnit.SECONDS));
-                assertFalse("Business method finished before acknowledgement", service.isFinished());
+                assertTrue(service.awaitEntered(5, TimeUnit.SECONDS), "Business method was not entered");
+                assertFalse(service.isFinished(), "Business method finished before acknowledgement");
             } finally {
                 service.release();
             }
-            assertTrue("Business method did not finish", service.awaitFinished(5, TimeUnit.SECONDS));
+            assertTrue(service.awaitFinished(5, TimeUnit.SECONDS), "Business method did not finish");
             assertEquals("secure-notice", service.getMessage());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mtomRoundTripUsesMutualTlsHttp2() throws Exception {
         // 两端通过公开 Bootstrap 选择 SOAP 1.2 MTOM、HTTP/2 和双向 TLS。
         MetConfiguration incoming = this.server("1.2", "h2", true, "mtom");
@@ -203,7 +216,8 @@ public class WebServicesHttpsFeaturesTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void swaRoundTripUsesHttpsHttp1() throws Exception {
         // 两端通过公开 Bootstrap 选择 SOAP 1.1 SwA、HTTP/1.1 和单向 TLS。
         MetConfiguration incoming = this.server("1.1", "http/1.1", false, "swa");
@@ -262,13 +276,13 @@ public class WebServicesHttpsFeaturesTest {
 
     private SoapWsdlResource echoResource() throws Exception {
         URL wsdl = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
-        assertNotNull("Missing echo WSDL", wsdl);
+        assertNotNull(wsdl, "Missing echo WSDL");
         return new SoapWsdlResource(wsdl);
     }
 
     private String schemaLocation(String wsdl) {
         Matcher matcher = SCHEMA_LOCATION.matcher(wsdl);
-        assertTrue("Missing WSDL schemaLocation", matcher.find());
+        assertTrue(matcher.find(), "Missing WSDL schemaLocation");
         return matcher.group(1);
     }
 

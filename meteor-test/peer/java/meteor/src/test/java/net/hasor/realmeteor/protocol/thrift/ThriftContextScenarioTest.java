@@ -22,6 +22,7 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -30,15 +31,19 @@ import org.apache.thrift.protocol.TMessageType;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TMemoryBuffer;
 import org.apache.thrift.transport.TMemoryInputTransport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 从公开发布入口和官方 Thrift 消息验证 HTTP 服务的路径可见性。 */
+@NxnRpc(name = "thrift")
 public class ThriftContextScenarioTest {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)) //
             .version(HttpClient.Version.HTTP_1_1).build();
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unspecifiedServiceContextUsesTheDefaultMount() throws Exception {
         // 服务没有选择上下文时，只通过协议的默认挂载调用。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -69,7 +74,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unspecifiedServiceContextIsHiddenFromAdditionalMounts() throws Exception {
         // 协议已挂载附加目录，但服务没有选择该目录。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -101,7 +107,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitServiceContextExposesTheAdditionalMount() throws Exception {
         // 服务通过公开发布 API 选择附加目录。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -132,7 +139,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitServiceContextReplacesTheDefaultSelection() throws Exception {
         // 显式选择附加目录后，服务不再自动暴露到默认目录。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -164,7 +172,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nestedMountUsesTheLongestMatchingContext() throws Exception {
         // 父目录与嵌套目录同时挂载，服务只选择嵌套目录。
         MetConfiguration configuration = this.configuration("/thrift", "/thrift/private");
@@ -195,7 +204,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void longestMountDoesNotFallBackToAVisibleParentService() throws Exception {
         // 服务只选择父目录，请求进入较长目录后不能回退调用父目录服务。
         MetConfiguration configuration = this.configuration("/thrift", "/thrift/private");
@@ -227,7 +237,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void prefixDoesNotMatchAnotherPathSegment() throws Exception {
         // 路径前缀匹配遵守目录边界，相邻的字符串前缀不代表挂载目录。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -256,7 +267,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exactServicePathIsCallableWithoutTheDefaultPrefix() throws Exception {
         // 精确发布路径直接作为完整端点，不追加默认上下文。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -287,7 +299,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exactServicePathIsHiddenFromTheDefaultMount() throws Exception {
         // 服务选择精确路径后，默认挂载不能再调用该服务。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -319,7 +332,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exactServicePathDoesNotMatchChildPaths() throws Exception {
         // 精确端点不接受该路径的子目录。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -348,7 +362,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exactServicePathRetainsItsTrailingSlash() throws Exception {
         // 精确端点保留用户声明的尾部斜杠。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -379,7 +394,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exactServicePathDoesNotDropItsTrailingSlash() throws Exception {
         // 去掉尾部斜杠的地址不能命中另一个精确端点。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -408,7 +424,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitMultipleContextsShareOneServiceAndOnePort() throws Exception {
         // 一个业务服务显式选择默认与附加上下文，两个入口共用 HTTP 监听。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -440,7 +457,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exactServicePathTakesPriorityOverTheContainingDirectory() throws Exception {
         // 相同 IDL 的两个独立服务分别选择父目录与完整精确路径。
         MetConfiguration configuration = this.configuration("/thrift", "/private");
@@ -480,7 +498,8 @@ public class ThriftContextScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void typedSubscriptionUsesTheExplicitExactPath() throws Exception {
         // 发布与订阅分别选择相同完整路径，客户端不应发送协议的默认目录。
         MetConfiguration incoming = this.configuration("/thrift", "/private");

@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.adapter;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -45,18 +50,17 @@ import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Java gRPC SDK 的显式存储适配发现；沿用既有同 JVM Netty 对端，业务经真实 HTTP/2 传输。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "grpc/java/adapter/{0}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "grpc")
 public class GrpcJavaRegistryAdapterScenarioTest {
     private static final String         SERVICE  = "meteor.example.OrderDemoService";
     private static final ObjectMapper   JSON     = new ObjectMapper();
@@ -64,24 +68,23 @@ public class GrpcJavaRegistryAdapterScenarioTest {
     private static final Descriptor     ORDER    = CONTRACT.findMessageTypeByName("Order");
     private static final Descriptor     QUERY    = CONTRACT.findMessageTypeByName("OrderQuery");
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
     public GrpcJavaRegistryAdapterScenarioTest(String backend) {
         this.backend = backend;
     }
-
-    @Parameterized.Parameters(name = "grpc/java/adapter/{0}")
     public static Object[][] backends() {
         return new Object[][] { { "jdbc" }, { "zookeeper" }, { "nacos" } };
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaConsumerResolvesMeteorProviderThroughStorageAdapter() throws Exception {
         // Meteor 只通过 bootstrap 发布普通订单接口，注册扩展上报实际端点。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "java-grpc-provider", true);
@@ -122,10 +125,11 @@ public class GrpcJavaRegistryAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversOfficialJavaProviderThroughStorageAdapter() throws Exception {
         // 消费者只配置出站 HTTP/2 和注册库，订阅时没有指定目标地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "java-grpc-consumer", false);
@@ -166,7 +170,7 @@ public class GrpcJavaRegistryAdapterScenarioTest {
     private MetConfiguration configuration(RegistryConfiguration registry, String application, boolean provider) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc").setDefaultTimeout(10000);
         configuration.setApplicationName(application);
-        configuration.setDataHome(this.data.newFolder(application).toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve(application)));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 内部管理出口不开放监听。
         var http = configuration.connector("http").option("httpVersion", 2);

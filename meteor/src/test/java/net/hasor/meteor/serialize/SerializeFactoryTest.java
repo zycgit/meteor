@@ -18,14 +18,14 @@ import java.util.Locale;
 import java.util.ServiceConfigurationError;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Assertions;
 
 public class SerializeFactoryTest {
-    @Rule
-    public TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
 
     @Test
     public void javaBuiltinWorksWithoutContainer() throws Exception {
@@ -336,16 +336,20 @@ public class SerializeFactoryTest {
         assertNull(coder.loader);
     }
 
-    @Test(expected = NullPointerException.class)
+    @Test
     public void rejectsNullCoder() {
-        // 空工厂同样拒绝没有实现的注册项。
-        new SerializeFactory(this.getClass().getClassLoader()).registerSerializeCoder("missing", null);
+        Assertions.assertThrows(NullPointerException.class, () -> {
+            // 空工厂同样拒绝没有实现的注册项。
+            new SerializeFactory(this.getClass().getClassLoader()).registerSerializeCoder("missing", null);
+        });
     }
 
-    @Test(expected = NullPointerException.class)
+    @Test
     public void rejectsNullClassLoader() {
-        // 工厂必须绑定一个业务加载器。
-        new SerializeFactory(null);
+        Assertions.assertThrows(NullPointerException.class, () -> {
+            // 工厂必须绑定一个业务加载器。
+            new SerializeFactory(null);
+        });
     }
 
     @Test
@@ -365,7 +369,7 @@ public class SerializeFactoryTest {
 
     private URLClassLoader spiLoader(String... providers) throws IOException {
         // 只准备真实 SPI 描述符，发现和初始化仍由待测工厂执行。
-        Path root = this.temporary.newFolder().toPath();
+        Path root = Files.createTempDirectory(this.temporary, "junit");
         Path resource = root.resolve("META-INF/services/" + SerializeCoder.class.getName());
         Files.createDirectories(resource.getParent());
         Files.write(resource, String.join("\n", providers).getBytes(StandardCharsets.UTF_8));

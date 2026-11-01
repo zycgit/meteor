@@ -15,8 +15,8 @@ import net.hasor.meteor.registry.shared.rpc.ServiceEndpointData;
 import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
 import net.hasor.meteor.registry.shared.rpc.ValidationData;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class AdminModelTest {
     @Test

@@ -15,17 +15,22 @@ import java.util.Properties;
 import java.util.UUID;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Test;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 提供者、消费者、注册存储各自拥有网络命名空间；JUnit 只编排，不代发业务调用。 */
+@NxnRpc(name = "rsf", version = "1")
 public class MeteorContainerNetworkScenarioTest {
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentMeteorContainersExchangeOrdersThroughDirectRsf() throws Exception {
         // 仅配置直连能力，应用容器分别通过公开 bootstrap 启动自身的提供者与消费者。
         Path home = workspace("direct");
@@ -46,7 +51,8 @@ public class MeteorContainerNetworkScenarioTest {
         }
     }
 
-    @Test(timeout = 240000)
+    @Test
+    @Timeout(value = 240000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentMeteorContainersDiscoverOrdersThroughJdbc() throws Exception {
         // JDBC 为第三个独立存储容器，两端只接收数据库设置，不传业务目标地址。
         Path home = workspace("jdbc");
@@ -65,7 +71,8 @@ public class MeteorContainerNetworkScenarioTest {
         }
     }
 
-    @Test(timeout = 240000)
+    @Test
+    @Timeout(value = 240000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentMeteorContainersDiscoverOrdersThroughZookeeper() throws Exception {
         // ZooKeeper 独占当前测试根路径，两个应用使用同一组公开存储配置接入。
         Path home = workspace("zookeeper");
@@ -84,7 +91,8 @@ public class MeteorContainerNetworkScenarioTest {
         }
     }
 
-    @Test(timeout = 300000)
+    @Test
+    @Timeout(value = 300000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentMeteorContainersDiscoverOrdersThroughNacos() throws Exception {
         // Nacos 独占当前测试分组，发布和订阅由两个应用容器分别维护自己的会话。
         Path home = workspace("nacos");

@@ -16,13 +16,16 @@ import net.hasor.example.protocol.oncrpc.OncRpcDemoServiceImpl;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 插件公开启动入口的基础发布与调用验证。 */
 public class OncRpcBootstrapScenarioTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpEchoUsesPublishedJavaInterface() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("tcp");
@@ -44,7 +47,8 @@ public class OncRpcBootstrapScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpEchoUsesPublishedJavaInterface() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("udp");
@@ -66,7 +70,8 @@ public class OncRpcBootstrapScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectedOncRpcContractKeepsLocalCallsAvailable() throws Exception {
         // 普通 Java 接口没有 ONC RPC 契约，但仍可通过本地优先调用。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("rsf");
@@ -87,7 +92,8 @@ public class OncRpcBootstrapScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectedOncRpcContractKeepsRsfNetworkCallsAvailable() throws Exception {
         // 服务端同时装配 ONC RPC 和 RSF，只有 RSF 对外监听。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("rsf");

@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import net.hasor.cobble.StringUtils;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 只管理当前 Python SDK 进程；编解码及监听由独立 SDK 提供。 */
 public final class PythonSdkPeerProcess implements AutoCloseable {
@@ -51,7 +51,7 @@ public final class PythonSdkPeerProcess implements AutoCloseable {
                     return Integer.parseInt(line.substring(6));
                 }
             }
-            assertTrue("Python SDK exited before listening:\n" + output, this.process.isAlive());
+            assertTrue(this.process.isAlive(), "Python SDK exited before listening:\n" + output);
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
         }
         throw new AssertionError("Python SDK startup timed out:\n" + this.output());
@@ -61,10 +61,10 @@ public final class PythonSdkPeerProcess implements AutoCloseable {
         // 退出码和完成标记共同证明当前 SDK 已完成本次真实调用及断言。
         boolean finished = this.process.waitFor(20, TimeUnit.SECONDS);
         String output = this.output();
-        assertTrue("Python SDK timed out:\n" + output, finished);
-        assertEquals("Python SDK failed:\n" + output, 0, this.process.exitValue());
+        assertTrue(finished, "Python SDK timed out:\n" + output);
+        assertEquals(0, this.process.exitValue(), "Python SDK failed:\n" + output);
         boolean success = output.lines().anyMatch(line -> StringUtils.equals("OK", line));
-        assertTrue("Python SDK produced no success marker:\n" + output, success);
+        assertTrue(success, "Python SDK produced no success marker:\n" + output);
     }
 
     private String output() throws Exception {
@@ -79,8 +79,8 @@ public final class PythonSdkPeerProcess implements AutoCloseable {
                 this.process.getOutputStream().close();
             }
             boolean finished = this.process.waitFor(5, TimeUnit.SECONDS);
-            assertTrue("Python SDK did not stop:\n" + this.output(), finished);
-            assertEquals("Python SDK failed:\n" + this.output(), 0, this.process.exitValue());
+            assertTrue(finished, "Python SDK did not stop:\n" + this.output());
+            assertEquals(0, this.process.exitValue(), "Python SDK failed:\n" + this.output());
         } finally {
             if (this.process.isAlive()) {
                 this.process.destroyForcibly();

@@ -4,6 +4,8 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.compatibility.go;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,15 +23,18 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** grpc-go 和 Connect-Go 的发布版本增量验证，复用同一份订单契约与实际网络入口。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/go/{0}/{1}@{2}/{3}/{4}", quoteTextArguments = false)
+@MethodSource("versions")
+@NxnRpc(name = "grpc", cases = "sdk/go/grpc/*")
+@NxnRpc(name = "connect", version = "1", cases = "sdk/go/connect/*")
 public class GoProtoSdkVersionCompatibilityTest {
     private static final String SERVICE = "meteor.example.OrderDemoService";
     private final String protocol;
@@ -42,8 +47,6 @@ public class GoProtoSdkVersionCompatibilityTest {
         this.direction = direction;
         this.executable = executable;
     }
-
-    @Parameterized.Parameters(name = "sdk/go/{0}/{1}@{2}/{3}/{4}")
     public static Collection<Object[]> versions() {
         // 基线与新增最新版本使用不同二进制；每个方向单独报告。
         List<Object[]> versions = new ArrayList<>();
@@ -62,7 +65,8 @@ public class GoProtoSdkVersionCompatibilityTest {
         rows.add(new Object[] { protocol, sdk, version, profile, "Meteor-to-SDK", executable });
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unicodeOrderPreservesBinaryPayload() throws Exception {
         // SDK 对端与 Meteor 共用契约，Java 侧通过 bootstrap 发布和订阅。
         boolean sdkConsumer = StringUtils.equals("SDK-to-Meteor", this.direction);
@@ -75,7 +79,7 @@ public class GoProtoSdkVersionCompatibilityTest {
             try (GoPeerProcess peer = this.peer(role, "unicode", target)) {
                 if (sdkConsumer) {
                     JsonNode outcome = peer.awaitResult();
-                    assertTrue(outcome.toString(), outcome.path("ok").asBoolean());
+                    assertTrue(outcome.path("ok").asBoolean(), outcome.toString());
                 } else {
                     OrderDemoService remote = context.getRsfClient(this.address(peer)).getRemote(service);
                     Order request = new Order();
@@ -93,7 +97,8 @@ public class GoProtoSdkVersionCompatibilityTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingOrderPreservesApplicationFailure() throws Exception {
         // 没有订单的服务只产生业务查询异常；对端不能将断连或超时判成通过。
         boolean sdkConsumer = StringUtils.equals("SDK-to-Meteor", this.direction);
@@ -106,8 +111,8 @@ public class GoProtoSdkVersionCompatibilityTest {
             try (GoPeerProcess peer = this.peer(role, "missing", target)) {
                 if (sdkConsumer) {
                     JsonNode outcome = peer.awaitResult();
-                    assertTrue(outcome.toString(), outcome.path("ok").asBoolean());
-                    assertTrue(outcome.toString(), outcome.path("message").asText().contains("Order not found: 404"));
+                    assertTrue(outcome.path("ok").asBoolean(), outcome.toString());
+                    assertTrue(outcome.path("message").asText().contains("Order not found: 404"), outcome.toString());
                 } else {
                     OrderQuery query = new OrderQuery();
                     query.setId(404);
@@ -115,7 +120,7 @@ public class GoProtoSdkVersionCompatibilityTest {
                             new Class<?>[] { OrderQuery.class }, new Object[] { query });
                     ExecutionException failure = assertThrows(ExecutionException.class, //
                             () -> pending.getData(10, TimeUnit.SECONDS));
-                    assertTrue(failure.toString(), failure.getCause().getMessage().contains("Order not found: 404"));
+                    assertTrue(failure.getCause().getMessage().contains("Order not found: 404"), failure.toString());
                 }
             }
         }

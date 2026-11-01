@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.matrix.types;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,14 +23,16 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 每个实例只验证一种编码、方向和类型向量；官方 JSON SDK 的负零限制单独记录。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/node/connect-{1}/direct/{4}/{3}/meteor-{0}", quoteTextArguments = false)
+@MethodSource("scenarios")
+@NxnRpc(name = "connect", version = "1")
 public class NodeConnectTypeScenarioTest {
     private static final ObjectMapper JSON    = new ObjectMapper();
     private static final String       SERVICE = "meteor.types.TypeEchoService";
@@ -42,8 +47,6 @@ public class NodeConnectTypeScenarioTest {
         this.format = format;
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/node/connect-{1}/direct/{4}/{3}/meteor-{0}")
     public static List<Object[]> scenarios() throws Exception {
         // 参数顺序固定为 Meteor 角色、RPC 编码、当前类型向量，逐项形成独立 JUnit 实例。
         List<Object[]> scenarios = new ArrayList<>();
@@ -57,7 +60,8 @@ public class NodeConnectTypeScenarioTest {
         return scenarios;
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void preservesDeclaredTypeAcrossOfficialNodeSdk() throws Exception {
         if (StringUtils.equals(this.direction, "provider")) {
             this.meteorProvides();

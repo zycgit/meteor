@@ -7,10 +7,9 @@ import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class NxnPlanTest {
     private static final String PYTHON_TEST = "net.hasor.realmeteor.protocol.thrift.python.PythonThriftTypeInteropTest";
@@ -18,8 +17,8 @@ public class NxnPlanTest {
     private static final String NATIVE_PACKAGE = "net.hasor.realmeteor.registry.dubbo.";
     private static final String NATIVE_EXAMPLE = "net.hasor.realmeteor.example.sdk.NativeRegistryScenarioTest";
     private static final String NATIVE_FIXTURE = "net.hasor.realmeteor.environment.storage.RegistryServiceReuseTest";
-    @Rule
-    public final TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
 
     @Test
     public void defaultsToSixteenConcurrentGroups() {
@@ -334,7 +333,7 @@ public class NxnPlanTest {
     @Test
     public void preparationRecordsAndPassesTheFailurePolicy() throws Exception {
         // 在创建真实分组和启动清单之前选择快速失败。
-        Path directory = this.temporary.getRoot().toPath();
+        Path directory = this.temporary;
         NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), directory.resolve("missing.json"));
         options.skipError = false;
         Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of("test.One"));
@@ -375,7 +374,7 @@ public class NxnPlanTest {
     @Test
     public void preparePreservesOriginalCaseOwnershipInManifest() throws Exception {
         // 使用独立输出位置，缺失权重时保留每个原有类选择。
-        Path directory = this.temporary.getRoot().toPath();
+        Path directory = this.temporary;
         Path output = directory.resolve("groups");
         NxnPlan.Options options = optionsForOutput(output, directory.resolve("missing.json"));
         Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
@@ -389,7 +388,7 @@ public class NxnPlanTest {
     @Test
     public void prepareRejectsPreviousRunOutput() throws Exception {
         // 旧 XML 不能被新一轮执行拾取。
-        Path directory = this.temporary.getRoot().toPath();
+        Path directory = this.temporary;
         Files.writeString(directory.resolve("old.xml"), "old");
         NxnPlan.Options options = optionsForOutput(directory, directory.resolve("missing.json"));
         Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of("test.One"));
@@ -403,7 +402,7 @@ public class NxnPlanTest {
     @Test
     public void prepareLeavesWrapperTemporaryDirectoryUncreated() throws Exception {
         // 临时目录的创建与清理由进程执行器拥有。
-        Path directory = this.temporary.getRoot().toPath();
+        Path directory = this.temporary;
         NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), directory.resolve("missing.json"));
         Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of("test.One"));
         Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
@@ -417,7 +416,7 @@ public class NxnPlanTest {
     @Test
     public void prepareUsesExistingHistoricalWeightFile() throws Exception {
         // 权重文件保持旧的 classes 与 methods 双层结构。
-        Path directory = this.temporary.getRoot().toPath();
+        Path directory = this.temporary;
         Path weights = directory.resolve("weights.json");
         Files.writeString(weights, "{\"classes\":{\"test.One\":8,\"test.Two\":2}}");
         NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), weights);
@@ -434,12 +433,132 @@ public class NxnPlanTest {
     @Test
     public void prepareRejectsEmptyRuntimeClasspath() throws Exception {
         // 未导出运行依赖时不能启动一个必然失败的空类路径 JVM。
-        Path directory = this.temporary.getRoot().toPath();
+        Path directory = this.temporary;
         NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), directory.resolve("missing.json"));
         Map<String, Object> runtime = Map.of("classpath", List.of(), "classNames", List.of("test.One"));
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
                 () -> NxnPlan.prepare(options, runtime));
         assertTrue(failure.getMessage().contains("classpath"));
+    }
+
+    @Test
+    public void rpcArgumentsNormalizeTheProtocolName() {
+        // 脚本使用的常见连字符写法归并到同一协议入口。
+        String[] arguments = { "--run-id", "run", "--rpc", " GRPC-Web ", "--rpc-version", " 1 " };
+
+        // 版本保留原始协议语义，只清理参数两侧的空白。
+        NxnPlan.Options options = NxnPlan.parseArguments(arguments);
+        assertEquals("grpc-web", options.rpc);
+        assertEquals("1", options.rpcVersion);
+    }
+
+    @Test
+    public void rpcVersionRequiresAProtocolName() {
+        // 版本无法独立决定要执行哪种 RPC。
+        String[] arguments = { "--run-id", "run", "--rpc-version", "2" };
+
+        // 缺失协议在创建分组之前报错。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> NxnPlan.parseArguments(arguments));
+        assertTrue(failure.getMessage().contains("--rpc-version requires --rpc"));
+    }
+
+    @Test
+    public void fullPreparationPreservesClassesWithoutRpcDeclarations() throws Exception {
+        // 全量执行继续接受没有 rpcCases 字段的旧运行清单。
+        Path directory = this.temporary;
+        NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), directory.resolve("missing.json"));
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
+                "classNames", List.of("test.Unannotated", "test.Other"));
+
+        // 不因新增 RPC 筛选能力丢失原有框架或环境测试。
+        Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
+        assertEquals(List.of("test.Other", "test.Unannotated"), manifest.get("selectedClasses"));
+        assertEquals(Map.of(), manifest.get("rpcCatalog"));
+    }
+
+    @Test
+    public void rpcPreparationPassesTheSameDeclarationsToTheJUnitGroup() throws Exception {
+        // 本轮只执行 SOAP 1.2，方法声明随组独立保存。
+        Path directory = this.temporary;
+        NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), directory.resolve("missing.json"));
+        options.rpc = "soap";
+        options.rpcVersion = "1.2";
+        String className = "test.MixedTest";
+        Map<String, Object> declaration = Map.of("name", "soap", "version", "1.2", "cases", "soap12/*");
+        Map<String, Object> rpcCases = Map.of(className, Map.of("callsPeer", List.of(declaration)));
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
+                "classNames", List.of(className), "rpcCases", rpcCases);
+
+        // 清单和实际 JVM 参数使用同一协议、版本及声明文件。
+        Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
+        Map<String, Object> group = objects(manifest.get("groups")).get(0);
+        Path casesFile = Path.of((String) group.get("rpcCasesFile"));
+        assertEquals(rpcCases, NxnPlan.readObject(casesFile));
+        assertEquals(List.of(className + ".callsPeer"), group.get("filters"));
+        Map<String, Object> launch = NxnPlan.readObject(Path.of((String) group.get("launchFile")));
+        List<String> command = strings(launch.get("command"));
+        assertEquals("soap", command.get(command.indexOf("--rpc") + 1));
+        assertEquals("1.2", command.get(command.indexOf("--rpc-version") + 1));
+        assertEquals(casesFile.toString(), command.get(command.indexOf("--rpc-cases-file") + 1));
+    }
+
+    @Test
+    public void rpcPreparationIntersectsTheExplicitTestcaseSelection() throws Exception {
+        // 两个类均使用 gRPC，但用户只指定其中一个测试方法。
+        Path directory = this.temporary;
+        NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), directory.resolve("missing.json"));
+        options.rpc = "grpc";
+        options.tests.add("OneTest.call");
+        Map<String, Object> declaration = Map.of("name", "grpc", "version", "", "cases", "*");
+        Map<String, Object> methods = Map.of("call", List.of(declaration));
+        Map<String, Object> rpcCases = Map.of("test.OneTest", methods, "test.TwoTest", methods);
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
+                "classNames", List.of("test.OneTest", "test.TwoTest"), "rpcCases", rpcCases);
+
+        // 协议筛选不能覆盖用户已经缩小的 testcase 范围。
+        Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
+        assertEquals(List.of("test.OneTest"), manifest.get("selectedClasses"));
+        assertEquals(List.of("test.OneTest.call"), manifest.get("selectedSelections"));
+    }
+
+    @Test
+    public void rpcPreparationRecordsAvailableProtocolVersions() throws Exception {
+        // 目录中的 Dubbo 版本来自显式大版本声明。
+        Path directory = this.temporary;
+        NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), directory.resolve("missing.json"));
+        options.rpc = "dubbo";
+        options.rpcVersion = "3";
+        Map<String, Object> legacy = Map.of("name", "dubbo", "version", "2", "cases", "2.7.23/*");
+        Map<String, Object> current = Map.of("name", "dubbo", "version", "3", "cases", "3.3.6/*");
+        Map<String, Object> methods = Map.of("legacy", List.of(legacy), "current", List.of(current));
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
+                "classNames", List.of("test.DubboTest"), "rpcCases", Map.of("test.DubboTest", methods));
+
+        // 清单说明可选版本，同时只准备目标大版本的方法。
+        Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
+        assertEquals(Map.of("dubbo", List.of("2", "3")), manifest.get("rpcCatalog"));
+        assertEquals(List.of("test.DubboTest.current"), manifest.get("selectedSelections"));
+    }
+
+    @Test
+    public void rpcPreparationRejectsAnEmptyIntersection() throws Exception {
+        // 用户选择 SOAP 方法，同时要求执行 gRPC。
+        Path directory = this.temporary;
+        NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), directory.resolve("missing.json"));
+        options.rpc = "grpc";
+        options.tests.add("MixedTest.soapCall");
+        Map<String, Object> grpc = Map.of("name", "grpc", "version", "", "cases", "*");
+        Map<String, Object> soap = Map.of("name", "soap", "version", "1.2", "cases", "*");
+        Map<String, Object> methods = Map.of("grpcCall", List.of(grpc), "soapCall", List.of(soap));
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
+                "classNames", List.of("test.MixedTest"), "rpcCases", Map.of("test.MixedTest", methods));
+
+        // 无交集时不能生成一个看似成功的空执行计划。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> NxnPlan.prepare(options, runtime));
+        assertTrue(failure.getMessage().contains("No @NxnRpc testcase"));
+        assertFalse(Files.exists(options.output));
     }
 
     private static NxnPlan.Options optionsForOutput(Path output, Path weights) {

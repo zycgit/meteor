@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.protocol.soap.nativepeer;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -15,13 +18,15 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 以相同的 SOAP 1.1 document/literal Echo 契约确认 C/C++ 的最小双向范围。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/{0}/soap/gSOAP@{1}/{2}", quoteTextArguments = false)
+@MethodSource("languages")
+@NxnRpc(name = "soap", version = "1.1")
 public class SoapNativeInteropTest {
     private final String language;
     private final String executable;
@@ -30,8 +35,6 @@ public class SoapNativeInteropTest {
         this.language = language;
         this.executable = executable;
     }
-
-    @Parameterized.Parameters(name = "sdk/{0}/soap/gSOAP@{1}/{2}")
     public static Collection<Object[]> languages() {
         // 同份 WSDL 分别由系统基线与最新工具生成，运行库保持同版。
         Collection<Object[]> languages = new ArrayList<>();
@@ -43,7 +46,8 @@ public class SoapNativeInteropTest {
         return languages;
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sdkToMeteorSoapEcho() throws Exception {
         // 通过公开 bootstrap 启动 Meteor，并使用测试契约发布 Echo 服务。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -67,7 +71,8 @@ public class SoapNativeInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorToSdkSoapEcho() throws Exception {
         // gSOAP 原生服务独立监听端口，Meteor 仅配置出站协议，不持有本地实现。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);

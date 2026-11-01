@@ -12,7 +12,7 @@ import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** 供管理、客户端和启动场景复用的测试服务与等待工具。 */
 public final class RegistryTestUtils {
@@ -70,6 +70,6 @@ public final class RegistryTestUtils {
         while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }
-        assertTrue("Registry client did not converge", condition.getAsBoolean());
+        assertTrue(condition.getAsBoolean(), "Registry client did not converge");
     }
 }

@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -21,12 +24,14 @@ import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.python.PythonTypePeerProcess;
 import net.hasor.realmeteor.matrix.types.TypeValueAssertions;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Python gRPC SDK 与 Meteor 的逐类型双向互通，整数保留真实 64 位表示。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/python/grpc-protobuf/direct/{0}/{1}", quoteTextArguments = false)
+@MethodSource("vectors")
+@NxnRpc(name = "grpc")
 public class PythonGrpcTypeInteropTest {
     private static final String SERVICE = "meteor.types.TypeEchoService";
     private final        String vector;
@@ -34,8 +39,6 @@ public class PythonGrpcTypeInteropTest {
     public PythonGrpcTypeInteropTest(String type, String vector) {
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/python/grpc-protobuf/direct/{0}/{1}")
     public static Collection<Object[]> vectors() throws Exception {
         // 每个类型向量形成独立 JUnit 实例，提供者和消费者由两个测试方法分别执行。
         List<Object[]> parameters = new ArrayList<>();
@@ -45,7 +48,8 @@ public class PythonGrpcTypeInteropTest {
         return parameters;
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorProviderPreservesPythonNativeType() throws Exception {
         // Meteor 从 bootstrap 启动，只发布共享普通接口，并绑定 SDK 使用的相同 Protobuf 契约。
         MetConfiguration configuration = this.configuration(true);
@@ -64,7 +68,8 @@ public class PythonGrpcTypeInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerPreservesPythonNativeType() throws Exception {
         // 官方 Python server 独占网络和生成契约；Meteor 只配置出站协议后从公开入口订阅。
         MetConfiguration configuration = this.configuration(false);

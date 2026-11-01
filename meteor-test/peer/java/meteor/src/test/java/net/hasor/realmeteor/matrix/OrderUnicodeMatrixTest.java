@@ -6,6 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -21,21 +27,32 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
-import org.junit.*;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
 
 /** 第一层 Unicode 订单矩阵；ONC RPC 标准 XDR string 的 ASCII 范围由独立拒绝场景验证。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "unicode/{0}/{1}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "rsf", version = "1", cases = "unicode/rsf/*")
+@NxnRpc(name = "grpc", cases = "unicode/grpc/*")
+@NxnRpc(name = "grpc-web", cases = "unicode/grpc-web/*")
+@NxnRpc(name = "hprose", cases = "unicode/hprose/*")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "unicode/jsonrpc/*")
+@NxnRpc(name = "xmlrpc", cases = "unicode/xmlrpc/*")
+@NxnRpc(name = "soap", version = "1.1", cases = "unicode/soap/*")
+@NxnRpc(name = "hessian", version = "2", cases = "unicode/hessian/*")
+@NxnRpc(name = "connect", version = "1", cases = "unicode/connect/*")
+@NxnRpc(name = "triple", cases = "unicode/triple/*")
+@NxnRpc(name = "dubbo", cases = "unicode/dubbo/*")
+@NxnRpc(name = "thrift", cases = "unicode/thrift/*")
 public class OrderUnicodeMatrixTest {
-    @ClassRule
-    public static final TemporaryFolder          environmentData = new TemporaryFolder();
+    @TempDir
+    public static Path environmentData;
     private static      OrderRegistryEnvironment environment;
 
-    @Rule
-    public final  TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final OrderProtocol   protocol;
     private final OrderDiscovery  discovery;
 
@@ -43,8 +60,6 @@ public class OrderUnicodeMatrixTest {
         this.protocol = protocol;
         this.discovery = discovery;
     }
-
-    @Parameterized.Parameters(name = "unicode/{0}/{1}")
     public static Collection<Object[]> configurations() {
         // 复用同一份协议与发现选择规则；标准 XDR string 不属于 Unicode 正向配置。
         List<Object[]> configurations = new ArrayList<>();
@@ -61,28 +76,29 @@ public class OrderUnicodeMatrixTest {
         return configurations;
     }
 
-    @BeforeClass
+    @BeforeAll
     public static void createEnvironment() {
-        environment = new OrderRegistryEnvironment(environmentData.getRoot().toPath());
+        environment = new OrderRegistryEnvironment(environmentData);
     }
 
-    @AfterClass
+    @AfterAll
     public static void closeEnvironment() throws Exception {
         if (environment != null) {
             environment.close();
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unicodeDescriptionSurvivesSaveAndFind() throws Exception {
         // 每个参数独占缓存、服务分组和注册空间，两端仅安装当前业务协议。
         String scope = "unicode-" + UUID.randomUUID();
         MetConfiguration incoming = this.protocol.providerConfiguration();
         incoming.setDefaultGroup(scope).setApplicationName("unicode-provider");
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = this.protocol.consumerConfiguration();
         outgoing.setDefaultGroup(scope).setApplicationName("unicode-consumer");
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
 
         try {
             // 注册模式只声明存储位置，RSF 端点只承载内部管理服务。

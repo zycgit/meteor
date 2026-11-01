@@ -19,13 +19,15 @@ import net.hasor.meteor.registry.admin.MetServiceAdmin;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.zookeeper.ZookeeperRegistryConfiguration;
 import org.apache.curator.test.TestingServer;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 公开发布与管理入口触发原生订阅，不通过主动拉取替代治理通知。 */
 public class ZookeeperGovernanceTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void disablingInstanceServiceRuleAutomaticallyRemovesAppliedRoute() throws Exception {
         // 延长周期核对间隔，确保本场景由 ZooKeeper watch 驱动。
         try (TestingServer zookeeper = new TestingServer()) {
@@ -57,7 +59,8 @@ public class ZookeeperGovernanceTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void enablingInstanceServiceRuleAutomaticallyRestoresStoredRoute() throws Exception {
         // 配置使用真实 ZooKeeper 服务，业务上下文经 bootstrap 启动。
         try (TestingServer zookeeper = new TestingServer()) {
@@ -101,7 +104,7 @@ public class ZookeeperGovernanceTest {
     private static void awaitRegistration(StorageAccess storage, String instanceId, String serviceId) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (storage.getInstanceService(instanceId, serviceId) == null) {
-            assertTrue("Service registration timed out", System.nanoTime() < deadline);
+            assertTrue(System.nanoTime() < deadline, "Service registration timed out");
             TimeUnit.MILLISECONDS.sleep(20);
         }
     }
@@ -109,7 +112,7 @@ public class ZookeeperGovernanceTest {
     private static void await(BooleanSupplier condition) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (!condition.getAsBoolean()) {
-            assertTrue("Governance subscription timed out", System.nanoTime() < deadline);
+            assertTrue(System.nanoTime() < deadline, "Governance subscription timed out");
             TimeUnit.MILLISECONDS.sleep(20);
         }
     }

@@ -8,8 +8,8 @@
 package net.hasor.meteor.registry.dubbo.logging;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.dubbo.common.logger.Level;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class DubboCobbleLoggerTest {
     private final RecordingCobbleLogger  output = new RecordingCobbleLogger();

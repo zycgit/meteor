@@ -13,11 +13,16 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesMultiPartTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void multipleBodyOutputPartsBecomeOneJavaMap() throws Exception {
         // 导入两个独立输出元素的外部 WSDL，Java 使用一个 Map 结果承接各 part。
         URL wsdl = this.getClass().getResource("/protocol/wsdl/multipart-output.wsdl");

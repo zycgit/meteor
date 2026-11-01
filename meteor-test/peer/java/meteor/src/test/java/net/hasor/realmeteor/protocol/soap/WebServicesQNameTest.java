@@ -20,9 +20,11 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesQNameTest {
     @Test
     public void meteorClientUsesEffectiveFieldQNames() throws Exception {
@@ -85,7 +87,7 @@ public class WebServicesQNameTest {
 
             // QName 不匹配在业务调用前失败，不允许降级为仅按 localName 取值。
             assertEquals(500, response.statusCode());
-            assertTrue(response.body(), response.body().contains("SOAP Body does not match its XML Schema"));
+            assertTrue(response.body().contains("SOAP Body does not match its XML Schema"), response.body());
             assertEquals(0, service.getInvocationCount());
         }
     }
@@ -107,7 +109,7 @@ public class WebServicesQNameTest {
 
     private SoapWsdlResource resource() throws Exception {
         URL wsdl = this.getClass().getResource("/protocol/wsdl/field-namespaces.wsdl");
-        assertNotNull("Missing field namespace WSDL", wsdl);
+        assertNotNull(wsdl, "Missing field namespace WSDL");
         return new SoapWsdlResource(wsdl);
     }
 

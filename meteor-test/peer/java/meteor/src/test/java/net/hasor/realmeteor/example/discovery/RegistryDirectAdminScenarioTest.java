@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.discovery;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.example.Order;
@@ -20,24 +24,23 @@ import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.TargetAdmin;
 import net.hasor.meteor.registry.admin.MetInstanceAdmin;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 无注册存储时，通过目标实例的管理 RPC 查询和调整运行期治理。 */
+@NxnRpc(name = "rsf", version = "1")
 public class RegistryDirectAdminScenarioTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     @Test
     public void updateTargetOrderMetadataWithoutRegistryStorage() throws Exception {
         // 离线扩展只安装目标管理能力，不连接注册中心存储。
         RegistryConfiguration registry = new RegistryConfiguration().setOnline(false);
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             provider.start();
@@ -64,9 +67,9 @@ public class RegistryDirectAdminScenarioTest {
         // 提供者和消费者都安装离线扩展，管理通道与业务通道共用 RSF 监听。
         RegistryConfiguration registry = new RegistryConfiguration().setOnline(false);
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             provider.start();

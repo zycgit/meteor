@@ -20,17 +20,21 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesInteropTest {
     private static final String ECHO_NAMESPACE         = "urn:meteor:test:echo";
     private static final String ECHO_TYPES_NAMESPACE   = "urn:meteor:test:echo:types";
     private static final String SIGNAL_NAMESPACE       = "urn:meteor:test:signal";
     private static final String SIGNAL_TYPES_NAMESPACE = "urn:meteor:test:signal:types";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void metroDispatchInvokesRequestResponseFromPublishedWsdl() throws Exception {
         // 通过公开 Bootstrap API 配置并启动 SOAP 服务。
         MetConfiguration configuration = this.configuration();
@@ -61,7 +65,8 @@ public class WebServicesInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void metroDispatchInvokesOneWayFromPublishedWsdl() throws Exception {
         // 通过公开 Bootstrap API 发布可观察的 WSDL one-way 服务。
         SignalServiceImpl signal = new SignalServiceImpl();
@@ -86,12 +91,13 @@ public class WebServicesInteropTest {
             SoapPeerProcess.invokeMetroOneWay(dispatch, request);
 
             // HTTP 确认返回后，服务端仍能收到并执行该通知。
-            assertTrue("SOAP one-way service was not invoked", signal.awaitInvocation(5, TimeUnit.SECONDS));
+            assertTrue(signal.awaitInvocation(5, TimeUnit.SECONDS), "SOAP one-way service was not invoked");
             assertEquals("notice Metro", signal.getMessage());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientInvokesMetroProvider() throws Exception {
         // 使用 JDK HTTP Server 承载标准 Metro Provider，服务端不依赖 Meteor 实现。
         try (SoapPeerProcess server = SoapPeerProcess.metroServer("echo", "1.1", false)) {
@@ -136,7 +142,7 @@ public class WebServicesInteropTest {
 
     private URL resource(String path) {
         URL resource = this.getClass().getResource(path);
-        assertNotNull("Missing test resource " + path, resource);
+        assertNotNull(resource, "Missing test resource " + path);
         return resource;
     }
 

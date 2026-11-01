@@ -43,17 +43,21 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.*;
 import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 import org.w3c.dom.ls.DOMImplementationLS;
 import org.w3c.dom.ls.LSInput;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class MetXmlContractScenarioTest {
     private static final String SERVICE_NAMESPACE = MetXmlOrderService.NAMESPACE;
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dynamicMapNamesAndSharedAttributeWrapperRoundTripThroughThePublishedSchema() throws Exception {
         // 正式发布普通接口，动态 Map 名称与静态属性共用实际父元素和 settings 包装。
         MetConfiguration configuration = this.configuration("1.1");
@@ -163,7 +167,8 @@ public class MetXmlContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void singleObjectWrapperRoundTripsThroughThePublishedSchema() throws Exception {
         // 正式发布普通 Java 接口，单个 User 通过 wrap 增加 users 外层元素。
         MetConfiguration configuration = this.configuration("1.1");
@@ -225,7 +230,8 @@ public class MetXmlContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void metroTypedClientConsumesTheSoap11GeneratedWsdl() throws Exception {
         // Meteor 只发布普通 Java 接口和自己的 XML 注解，不发布 JAXB 生成类型。
         MetConfiguration configuration = this.configuration("1.1");
@@ -265,7 +271,9 @@ public class MetXmlContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void metroTypedClientConsumesTheSoap12GeneratedWsdl() throws Exception {
         // Meteor 只发布普通 Java 接口和自己的 XML 注解，不发布 JAXB 生成类型。
         MetConfiguration configuration = this.configuration("1.2");
@@ -305,7 +313,8 @@ public class MetXmlContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void generatedSchemasValidateTheAnnotatedWireNamesAndOrder() throws Exception {
         // 注解定义类型、字段及属性各自的命名空间，WSDL 公开完整的多 schema 契约。
         MetConfiguration configuration = this.configuration("1.1");
@@ -321,7 +330,7 @@ public class MetXmlContractScenarioTest {
             assertEquals(200, wsdlResponse.statusCode());
             Document wsdl = this.parse(wsdlResponse.body());
             NodeList schemas = wsdl.getElementsByTagNameNS(XMLConstants.W3C_XML_SCHEMA_NS_URI, "schema");
-            assertTrue("Each mapped namespace must have its own schema", schemas.getLength() >= 5);
+            assertTrue(schemas.getLength() >= 5, "Each mapped namespace must have its own schema");
             Schema schema = this.schema(schemas, wsdlRequest.uri());
 
             // 请求使用参数注解指定的 order 名称，并在实际调用前通过标准 JAXP 校验。
@@ -353,7 +362,8 @@ public class MetXmlContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void publishedXsdImportsResolveThroughTheServiceEndpoint() throws Exception {
         // 类型和属性使用多个命名空间，独立 XSD 页面必须公开可访问的 import 地址。
         MetConfiguration configuration = this.configuration("1.1");
@@ -376,7 +386,8 @@ public class MetXmlContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingRequiredAttributeIsRejectedBeforeTheJavaServiceRuns() throws Exception {
         // 属性声明为 required，业务计数可观察 schema 校验是否发生在执行之前。
         AtomicInteger invoked = new AtomicInteger();
@@ -397,12 +408,13 @@ public class MetXmlContractScenarioTest {
             HttpResponse<byte[]> response = this.send(this.invocation(context, envelope));
             assertEquals(500, response.statusCode());
             String fault = new String(response.body(), StandardCharsets.UTF_8);
-            assertTrue(fault, fault.contains("SOAP Body does not match its XML Schema"));
+            assertTrue(fault.contains("SOAP Body does not match its XML Schema"), fault);
             assertEquals(0, invoked.get());
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrongDtoFieldNamespaceIsRejectedBeforeTheJavaServiceRuns() throws Exception {
         // DTO 中两个 name 字段属于不同命名空间，不能仅按 localName 互相替代。
         AtomicInteger invoked = new AtomicInteger();
@@ -423,12 +435,13 @@ public class MetXmlContractScenarioTest {
             HttpResponse<byte[]> response = this.send(this.invocation(context, envelope));
             assertEquals(500, response.statusCode());
             String fault = new String(response.body(), StandardCharsets.UTF_8);
-            assertTrue(fault, fault.contains("SOAP Body does not match its XML Schema"));
+            assertTrue(fault.contains("SOAP Body does not match its XML Schema"), fault);
             assertEquals(0, invoked.get());
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCanImportThePublishedMultiNamespaceContract() throws Exception {
         // 先启动两个容器，再发布带自定义命名空间及 xml:lang 的普通 Java 服务。
         MetConfiguration incoming = this.configuration("1.1");
@@ -552,7 +565,7 @@ public class MetXmlContractScenarioTest {
                 URI address = new URL(wsdlAddress.toURL(), location).toURI();
                 HttpRequest request = HttpRequest.newBuilder(address).GET().build();
                 HttpResponse<byte[]> response = this.send(request);
-                assertEquals("Imported XSD must be published", 200, response.statusCode());
+                assertEquals(200, response.statusCode(), "Imported XSD must be published");
                 documents.put(namespace, new String(response.body(), StandardCharsets.UTF_8));
                 identifiers.put(namespace, address.toString());
             }

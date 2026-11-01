@@ -20,13 +20,18 @@ import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import org.apache.thrift.TException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方独立 JVM 与 Meteor 的 TLS、双向证书和 HTTPS 互通。 */
+@NxnRpc(name = "thrift")
 public class ThriftOfficialSecureScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryClientCallsMeteorWithTlsServerAuthentication() throws Exception {
         // 官方客户端只持有受信 CA，服务端证书由 Meteor 的 TCP 传输提供。
         MetConfiguration configuration = this.tlsServer("binary", "NONE", "TLSv1.3,TLSv1.2");
@@ -48,7 +53,8 @@ public class ThriftOfficialSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryClientCallsOfficialServerWithTlsServerAuthentication() throws Exception {
         // 官方独立服务端持有私钥，Meteor 客户端仅加载用于服务端认证的 CA。
         MetConfiguration configuration = this.tlsClient("binary", null, "trust");
@@ -72,7 +78,8 @@ public class ThriftOfficialSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialCompactClientCallsMeteorWithMutualTls() throws Exception {
         // Meteor 同时校验客户端证书；官方 Compact Client 加载独立客户端身份。
         MetConfiguration configuration = this.tlsServer("compact", "REQUIRE", "TLSv1.3,TLSv1.2");
@@ -95,7 +102,8 @@ public class ThriftOfficialSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCompactClientCallsOfficialServerWithMutualTls() throws Exception {
         // 官方服务端要求受信客户端身份，Meteor 加载自己的客户端证书。
         MetConfiguration configuration = this.tlsClient("compact", "client", "trust");
@@ -121,7 +129,8 @@ public class ThriftOfficialSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJsonClientCallsMeteorOverHttps() throws Exception {
         // JSON Thrift 正文保持官方格式，HTTP/1 传输负责 TLS 和消息边界。
         MetConfiguration configuration = this.httpsServer("json", "NONE", "server");
@@ -143,7 +152,8 @@ public class ThriftOfficialSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorJsonClientCallsOfficialServerOverHttps() throws Exception {
         // 官方 JSON Processor 运行在独立 JDK HTTPS 服务端，Meteor 只配出站连接。
         MetConfiguration configuration = this.httpsClient("json", null, "trust");
@@ -167,7 +177,8 @@ public class ThriftOfficialSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBinaryClientCallsMeteorOverMutualHttps() throws Exception {
         // HTTPS 监听要求客户端证书，服务仍由公开发布的普通业务接口实现。
         MetConfiguration configuration = this.httpsServer("binary", "REQUIRE", "server");
@@ -190,7 +201,8 @@ public class ThriftOfficialSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorBinaryClientCallsOfficialServerOverMutualHttps() throws Exception {
         // 官方 HTTPS 对端要求双向认证，Meteor 同时验证服务端身份并提供自己的身份。
         MetConfiguration configuration = this.httpsClient("binary", "client", "trust");
@@ -216,7 +228,8 @@ public class ThriftOfficialSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorMutualTlsRejectsOfficialClientWithoutCertificate() throws Exception {
         // TLS 1.2 使客户端在握手阶段直接收到缺失证书的拒绝。
         MetConfiguration configuration = this.tlsServer("binary", "REQUIRE", "TLSv1.2");
@@ -235,14 +248,15 @@ public class ThriftOfficialSecureScenarioTest {
                     "--trust-store=" + trust, "--password=meteor-test")) {
                 peer.requireFailure("SSLSocketImpl.startHandshake");
                 String output = Files.readString(peer.logPath());
-                assertTrue(output, output.contains("SSLHandshake"));
-                assertFalse(output, output.contains("SocketTimeoutException"));
-                assertFalse(output, output.contains("RESULT "));
+                assertTrue(output.contains("SSLHandshake"), output);
+                assertFalse(output.contains("SocketTimeoutException"), output);
+                assertFalse(output.contains("RESULT "), output);
             }
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorMutualTlsRejectsOfficialClientWithUntrustedCertificate() throws Exception {
         // 客户端确实持有证书，但它不属于 Meteor 服务端配置的 CA 信任集。
         MetConfiguration configuration = this.tlsServer("binary", "REQUIRE", "TLSv1.2");
@@ -262,14 +276,15 @@ public class ThriftOfficialSecureScenarioTest {
                     "--key-store=" + identity, "--trust-store=" + trust, "--password=meteor-test")) {
                 peer.requireFailure("SSLSocketImpl.startHandshake");
                 String output = Files.readString(peer.logPath());
-                assertTrue(output, output.contains("SSLHandshake"));
-                assertFalse(output, output.contains("SocketTimeoutException"));
-                assertFalse(output, output.contains("RESULT "));
+                assertTrue(output.contains("SSLHandshake"), output);
+                assertFalse(output.contains("SocketTimeoutException"), output);
+                assertFalse(output.contains("RESULT "), output);
             }
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialTlsClientRejectsUntrustedMeteorServerCertificate() throws Exception {
         // 官方客户端只信任另一 CA，不能接受当前 Meteor 服务端的证书。
         MetConfiguration configuration = this.tlsServer("binary", "NONE", "TLSv1.3,TLSv1.2");
@@ -288,14 +303,15 @@ public class ThriftOfficialSecureScenarioTest {
                     "--trust-store=" + trust, "--password=meteor-test")) {
                 peer.requireFailure("SSLHandshakeException");
                 String output = Files.readString(peer.logPath());
-                assertTrue(output, output.contains("PKIX"));
-                assertFalse(output, output.contains("SocketTimeoutException"));
-                assertFalse(output, output.contains("RESULT "));
+                assertTrue(output.contains("PKIX"), output);
+                assertFalse(output.contains("SocketTimeoutException"), output);
+                assertFalse(output.contains("RESULT "), output);
             }
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialHttpsClientRejectsMeteorServerWithWrongHostname() throws Exception {
         // 证书的 CA 受信，但证书名称不匹配实际连接的 Runner 容器域名。
         MetConfiguration configuration = this.httpsServer("binary", "NONE", "wrong-host-server");
@@ -314,14 +330,15 @@ public class ThriftOfficialSecureScenarioTest {
                     "--trust-store=" + trust, "--password=meteor-test")) {
                 peer.requireFailure("SSLHandshakeException");
                 String output = Files.readString(peer.logPath());
-                assertTrue(output, output.contains("subject alternative"));
-                assertFalse(output, output.contains("SocketTimeoutException"));
-                assertFalse(output, output.contains("RESULT "));
+                assertTrue(output.contains("subject alternative"), output);
+                assertFalse(output.contains("SocketTimeoutException"), output);
+                assertFalse(output.contains("RESULT "), output);
             }
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTlsClientRejectsUntrustedOfficialServerCertificate() throws Exception {
         // 官方服务端已明确监听，Meteor 客户端只信任另一 CA。
         MetConfiguration configuration = this.tlsClient("binary", null, "untrusted-trust");
@@ -346,11 +363,12 @@ public class ThriftOfficialSecureScenarioTest {
             while (certificateFailure.getCause() != null && !(certificateFailure instanceof SSLHandshakeException)) {
                 certificateFailure = certificateFailure.getCause();
             }
-            assertTrue(failure.toString(), certificateFailure instanceof SSLHandshakeException);
+            assertTrue(certificateFailure instanceof SSLHandshakeException, failure.toString());
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorHttpsClientRejectsOfficialServerWithWrongHostname() throws Exception {
         // 官方服务端使用受信 CA 签发但名称错误的证书，Meteor 必须检查访问主机身份。
         MetConfiguration configuration = this.httpsClient("binary", null, "trust");
@@ -375,7 +393,7 @@ public class ThriftOfficialSecureScenarioTest {
             while (certificateFailure.getCause() != null && !(certificateFailure instanceof SSLHandshakeException)) {
                 certificateFailure = certificateFailure.getCause();
             }
-            assertTrue(failure.toString(), certificateFailure instanceof SSLHandshakeException);
+            assertTrue(certificateFailure instanceof SSLHandshakeException, failure.toString());
         }
     }
 

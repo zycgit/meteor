@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -21,24 +25,25 @@ import net.hasor.example.contract.scalar.ScalarValueServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import org.junit.jupiter.api.Timeout;
 
 /** 原始 ProtoJSON HTTP 请求必须保留尚未绑定到 double 的整数词法负零。 */
+@NxnRpc(name = "triple")
 public class ScalarTripleRawJsonTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void integerNegativeZeroInAnHttpArgumentReachesBusinessAsNegativeDoubleZero() throws Exception {
         // 通过正式 bootstrap 发布带显式 schema 的原生 Triple JSON 服务。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
         configuration.setUnitName("scalar_raw_json");
-        configuration.setDataHome(this.data.newFolder("provider").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         configuration.connector("http").bind("127.0.0.1", 0).protocol("triple") //
                 .contextPath("/scalar").option("httpMode", "json");
         GrpcProtoResource schema = new GrpcProtoResource(ScalarValueProfile.class //

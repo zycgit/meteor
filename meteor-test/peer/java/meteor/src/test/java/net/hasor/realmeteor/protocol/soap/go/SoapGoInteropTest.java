@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.soap.go;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URL;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.example.protocol.soap.EchoService;
@@ -14,12 +15,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 稳定版 gowsdl 生成的 Go 客户端调用 Meteor 的 SOAP 1.1 document/literal 服务。 */
+@NxnRpc(name = "soap", version = "1.1")
 public class SoapGoInteropTest {
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void gowsdlClientCallsMeteorProvider() throws Exception {
         // Meteor 绑定已有 Echo WSDL；Go 客户端由同一份契约及其导入的 XSD 生成。
         URL contract = this.getClass().getResource("/protocol/wsdl/echo.wsdl");
@@ -38,7 +43,7 @@ public class SoapGoInteropTest {
             // 官方生成客户端执行一次真实网络调用并核对提供者生成的业务后缀。
             try (GoPeerProcess peer = GoPeerProcess.start("soap", "client", "plain", "unicode", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
                 assertEquals("Go → Meteor 中文🙂|meteor", result.path("message").asText());
             }
         }

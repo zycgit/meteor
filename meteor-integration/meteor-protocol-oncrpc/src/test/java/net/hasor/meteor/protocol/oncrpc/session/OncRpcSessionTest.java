@@ -34,8 +34,8 @@ import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.protocol.oncrpc.binding.OncRpcServiceResource;
 import net.hasor.meteor.protocol.oncrpc.codec.*;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 有序网络和可控调度器验证会话状态；正式网络互通放在 realmeteor 场景。 */
 public class OncRpcSessionTest {
@@ -1315,7 +1315,7 @@ public class OncRpcSessionTest {
 
         private void fireNext() {
             List<Scheduled> active = this.active();
-            assertFalse("Expected an active retry task", active.isEmpty());
+            assertFalse(active.isEmpty(), "Expected an active retry task");
             Scheduled task = active.get(0);
             task.fired = true;
             task.action.run();
@@ -1325,7 +1325,7 @@ public class OncRpcSessionTest {
             for (int index = 0; index < maximum && !this.active().isEmpty(); index++) {
                 this.fireNext();
             }
-            assertTrue("Retry loop did not terminate within its bound", this.active().isEmpty());
+            assertTrue(this.active().isEmpty(), "Retry loop did not terminate within its bound");
         }
     }
 

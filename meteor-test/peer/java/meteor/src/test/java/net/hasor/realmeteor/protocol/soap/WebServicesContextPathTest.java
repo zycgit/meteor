@@ -17,10 +17,12 @@ import net.hasor.example.protocol.soap.EchoServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.soap.support.SoapResponseUtils;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesContextPathTest {
     @Test
     public void selectedContextDefinitionIsIsolatedOnTheSharedListener() throws Exception {
@@ -42,7 +44,7 @@ public class WebServicesContextPathTest {
             HttpClient http = this.httpClient();
             HttpResponse<String> allowed = http.send(this.get(privateWsdl), HttpResponse.BodyHandlers.ofString());
             assertEquals(200, allowed.statusCode());
-            assertTrue(allowed.body(), allowed.body().contains("/private/EchoService"));
+            assertTrue(allowed.body().contains("/private/EchoService"), allowed.body());
 
             // 服务只在选择的 context 可见，默认 context 不会泄漏定义页。
             URI publicWsdl = URI.create("http://127.0.0.1:" + port + "/public/EchoService?wsdl");
@@ -70,7 +72,7 @@ public class WebServicesContextPathTest {
             HttpClient http = this.httpClient();
             HttpResponse<String> allowed = http.send(this.get(publicWsdl), HttpResponse.BodyHandlers.ofString());
             assertEquals(200, allowed.statusCode());
-            assertTrue(allowed.body(), allowed.body().contains("/public/EchoService"));
+            assertTrue(allowed.body().contains("/public/EchoService"), allowed.body());
 
             // 额外挂载不会自动获得默认服务的定义。
             URI privateWsdl = URI.create("http://127.0.0.1:" + port + "/private/EchoService?wsdl");

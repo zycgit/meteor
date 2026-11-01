@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.hprose.bootstrap;
+import java.nio.file.Files;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -18,10 +19,12 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
+@NxnRpc(name = "rsf", version = "1")
 public class ContextLifecycleTest extends BootstrapTestSupport {
 
     @Test
@@ -43,7 +46,7 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
                         @Override
                         public String slow(int millis) throws InterruptedException {
                             entered.countDown();
-                            assertTrue("Handler was not released", release.await(10, TimeUnit.SECONDS));
+                            assertTrue(release.await(10, TimeUnit.SECONDS), "Handler was not released");
                             return "done";
                         }
                     }) //
@@ -60,10 +63,10 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
 
                 // 关闭调用方后，等待中的 Future 应立即结束并报告关闭原因。
                 client.close();
-                assertTrue("Close must finish pending calls before returning", call.isDone());
+                assertTrue(call.isDone(), "Close must finish pending calls before returning");
                 Throwable failure = assertFailure(call);
                 boolean closedFailure = failure instanceof IOException || failure instanceof IllegalStateException;
-                assertTrue("Unexpected close failure: " + failure, closedFailure);
+                assertTrue(closedFailure, "Unexpected close failure: " + failure);
             } finally {
                 // 解除服务端阻塞，让剩余资源按正常生命周期退出。
                 release.countDown();
@@ -265,6 +268,8 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void invalidSpiIsRejectedBeforeAnyListenerIsOpened() throws Exception {
         // 缺失 SPI 在构建阶段报错，不得占用监听端口。
@@ -272,7 +277,7 @@ public class ContextLifecycleTest extends BootstrapTestSupport {
         int firstPort = config.getConnectors().get(0).getPort();
         config.connector("missing-factory").protocol("hprose");
         config.setLocalDiskCache(true);
-        config.setDataHome(this.temporary.newFolder().toPath());
+        config.setDataHome(Files.createTempDirectory(this.temporary, "case-"));
 
         // SPI 校验在监听之前发生，错误信息需包含缺失的工厂名称。
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> config.buildContext());

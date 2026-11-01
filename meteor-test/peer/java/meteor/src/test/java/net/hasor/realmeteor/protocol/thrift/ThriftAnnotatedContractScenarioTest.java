@@ -16,12 +16,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftIdlResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 注解方法、声明异常与单向消息分别经官方对端验证。 */
+@NxnRpc(name = "thrift")
 public class ThriftAnnotatedContractScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerMapsMethodAliasForTheOfficialClient() throws Exception {
         // 普通 Java 服务经发布入口编译注解，官方 Client 只执行 extended 场景。
         MetConfiguration configuration = this.configuration(true, false);
@@ -42,7 +46,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMapsMethodAliasFromTheOfficialServer() throws Exception {
         // 官方服务端保留原生生成 Processor，Meteor 只订阅普通注解接口。
         MetConfiguration configuration = this.configuration(false, false);
@@ -64,7 +69,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerMapsArgumentNumbersForTheOfficialClient() throws Exception {
         // 普通 Java 服务经发布入口编译注解，官方 Client 只执行 add 场景。
         MetConfiguration configuration = this.configuration(true, false);
@@ -85,7 +91,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMapsArgumentNumbersFromTheOfficialServer() throws Exception {
         // 官方服务端保留原生生成 Processor，Meteor 只订阅普通注解接口。
         MetConfiguration configuration = this.configuration(false, false);
@@ -107,7 +114,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerMapsDeclaredExceptionForTheOfficialClient() throws Exception {
         // 普通 Java 服务经发布入口编译注解，官方 Client 只执行 declared 场景。
         MetConfiguration configuration = this.configuration(true, false);
@@ -128,7 +136,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMapsDeclaredExceptionFromTheOfficialServer() throws Exception {
         // 官方服务端保留原生生成 Processor，Meteor 只订阅普通注解接口。
         MetConfiguration configuration = this.configuration(false, false);
@@ -152,7 +161,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerMapsOptionalPresenceForTheOfficialClient() throws Exception {
         // 普通 Java 服务经发布入口编译注解，官方 Client 只执行 optional 场景。
         MetConfiguration configuration = this.configuration(true, false);
@@ -173,7 +183,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMapsOptionalPresenceFromTheOfficialServer() throws Exception {
         // 官方服务端保留原生生成 Processor，Meteor 只订阅普通注解接口。
         MetConfiguration configuration = this.configuration(false, false);
@@ -199,7 +210,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerMapsDefaultValuesForTheOfficialClient() throws Exception {
         // 普通 Java 服务经发布入口编译注解，官方 Client 只执行 defaults 场景。
         MetConfiguration configuration = this.configuration(true, false);
@@ -220,7 +232,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMapsDefaultValuesFromTheOfficialServer() throws Exception {
         // 官方服务端保留原生生成 Processor，Meteor 只订阅普通注解接口。
         MetConfiguration configuration = this.configuration(false, false);
@@ -244,7 +257,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerMapsUnionBranchForTheOfficialClient() throws Exception {
         // 普通 Java 服务经发布入口编译注解，官方 Client 只执行 union 场景。
         MetConfiguration configuration = this.configuration(true, false);
@@ -265,7 +279,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMapsUnionBranchFromTheOfficialServer() throws Exception {
         // 官方服务端保留原生生成 Processor，Meteor 只订阅普通注解接口。
         MetConfiguration configuration = this.configuration(false, false);
@@ -292,7 +307,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerMapsOrdinaryVoidForTheOfficialClient() throws Exception {
         // 普通 Java 服务经发布入口编译注解，官方 Client 只执行 void 场景。
         MetConfiguration configuration = this.configuration(true, false);
@@ -313,7 +329,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMapsOrdinaryVoidFromTheOfficialServer() throws Exception {
         // 官方服务端保留原生生成 Processor，Meteor 只订阅普通注解接口。
         MetConfiguration configuration = this.configuration(false, false);
@@ -335,7 +352,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerMapsOnewayForTheOfficialClient() throws Exception {
         // 普通 Java 服务经发布入口编译注解，官方 Client 只执行 oneway 场景。
         MetConfiguration configuration = this.configuration(true, false);
@@ -356,7 +374,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMapsOnewayFromTheOfficialServer() throws Exception {
         // 官方服务端保留原生生成 Processor，Meteor 只订阅普通注解接口。
         MetConfiguration configuration = this.configuration(false, false);
@@ -385,7 +404,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerMapsTheHttpMethodAliasForTheOfficialClient() throws Exception {
         // HTTP 使用相同的方法定义，Java renamed 对应官方 extended。
         MetConfiguration configuration = this.configuration(true, true);
@@ -405,7 +425,8 @@ public class ThriftAnnotatedContractScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerCorrelatesTheHttpReplyUsingTheWireMethodName() throws Exception {
         // 响应方法名属于线协议，不能用 Java 别名进行关联。
         MetConfiguration configuration = this.configuration(false, true);

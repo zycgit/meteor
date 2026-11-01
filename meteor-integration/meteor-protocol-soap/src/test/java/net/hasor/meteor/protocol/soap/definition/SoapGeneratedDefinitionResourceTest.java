@@ -42,10 +42,10 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapGeneratedDefinitionResourceTest {
     private static final URI ENDPOINT = URI.create("http://localhost:2181/services/GeneratedService");
@@ -559,7 +559,7 @@ public class SoapGeneratedDefinitionResourceTest {
         // 运行定义与公开 WSDL 均保留标准缺省的必填要求。
         assertTrue(resource.definition().operation("combine").actionRequired());
         String wsdl = new String(resource.renderWsdl(ENDPOINT), StandardCharsets.UTF_8);
-        assertTrue(wsdl, wsdl.contains("soapActionRequired=\"true\""));
+        assertTrue(wsdl.contains("soapActionRequired=\"true\""), wsdl);
     }
 
     @Test
@@ -574,7 +574,7 @@ public class SoapGeneratedDefinitionResourceTest {
         // WSDL 与运行定义采用相同要求，不修改必填契约的解码规则。
         assertFalse(resource.definition().operation("combine").actionRequired());
         String wsdl = new String(resource.renderWsdl(ENDPOINT), StandardCharsets.UTF_8);
-        assertTrue(wsdl, wsdl.contains("soapActionRequired=\"false\""));
+        assertTrue(wsdl.contains("soapActionRequired=\"false\""), wsdl);
     }
 
     @Test
@@ -589,7 +589,7 @@ public class SoapGeneratedDefinitionResourceTest {
         // SOAPAction 要求保持原样，WSDL 不添加 SOAP 1.2 的属性。
         assertTrue(resource.definition().operation("combine").actionRequired());
         String wsdl = new String(resource.renderWsdl(ENDPOINT), StandardCharsets.UTF_8);
-        assertFalse(wsdl, wsdl.contains("soapActionRequired="));
+        assertFalse(wsdl.contains("soapActionRequired="), wsdl);
     }
 
     @Test

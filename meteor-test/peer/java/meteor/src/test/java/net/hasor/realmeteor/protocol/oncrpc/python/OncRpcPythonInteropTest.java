@@ -4,6 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.protocol.oncrpc.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.protocol.oncrpc.OncRpcDemoCodecs;
 import net.hasor.example.protocol.oncrpc.OncRpcDemoService;
 import net.hasor.example.protocol.oncrpc.OncRpcDemoServiceImpl;
@@ -13,13 +14,17 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.python.PythonSdkPeerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 开发中的 sunrpc 1.1.0 经 TCP 双向调用；只验证 ASCII string 普通过程。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcPythonInteropTest {
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonSunrpcCallsMeteor() throws Exception {
         // 从公开 bootstrap 创建 ONC RPC 监听，复用现有业务过程和协议编号。
         MetConfiguration configuration = new MetConfiguration();
@@ -39,7 +44,8 @@ public class OncRpcPythonInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonSunrpc() throws Exception {
         // Python SDK 发布程序 0x31234567、版本 1、过程 1，不使用模拟报文服务端。
         try (PythonSdkPeerProcess provider = PythonSdkPeerProcess.start("oncrpc", "provider")) {

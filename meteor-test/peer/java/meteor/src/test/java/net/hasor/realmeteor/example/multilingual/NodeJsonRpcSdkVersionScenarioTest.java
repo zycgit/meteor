@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.List;
 import net.hasor.cobble.StringUtils;
 import net.hasor.example.protocol.jsonrpc.JsonRpcInteropService;
@@ -14,13 +17,15 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.node.NodeRpcPeer;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 各主要 Jayson 版本分别使用自己的 HTTP 客户端和服务端进行真实双向调用。 */
-@RunWith(Parameterized.class)
+@NxnRpc(name = "jsonrpc", version = "2.0")
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/node/jsonrpc/{0}@{1}/{2}/{3}", quoteTextArguments = false)
+@MethodSource("versions")
 public class NodeJsonRpcSdkVersionScenarioTest {
     private final String profile;
     private final String direction;
@@ -29,13 +34,12 @@ public class NodeJsonRpcSdkVersionScenarioTest {
         this.profile = profile;
         this.direction = direction;
     }
-
-    @Parameterized.Parameters(name = "sdk/node/jsonrpc/{0}@{1}/{2}/{3}")
     public static List<Object[]> versions() throws Exception {
         return NodeRpcPeer.compatibilityCases("jsonrpc");
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void selectedSdkDirectionPreservesUnicodeArguments() throws Exception {
         // 每个参数化实例只执行清单声明的一个方向，不修改其它场景的 SDK 选择。
         if (StringUtils.equals("SDK-to-Meteor", this.direction)) {

@@ -27,12 +27,16 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 真实 Thrift 请求的完成、终止及迟到响应隔离。 */
+@NxnRpc(name = "thrift")
 public class ThriftLifecycleScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void framedTcpCallRemainsPendingUntilBusinessCompletes() throws Exception {
         // Framed TCP 业务由闩锁控制完成时刻，客户端期限留足业务执行时间。
         MetConfiguration incoming = this.tcpServerConfiguration(true);
@@ -67,7 +71,8 @@ public class ThriftLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentRawTcpCallsKeepTheirOwnResults() throws Exception {
         // Raw TCP 不依赖长度帧，多个调用共享真实连接并各自携带 Thrift sequence ID。
         MetConfiguration incoming = this.tcpServerConfiguration(false);
@@ -97,7 +102,8 @@ public class ThriftLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentHttp2CallsKeepTheirOwnResults() throws Exception {
         // HTTP/2 在一个监听上承载多个 Thrift 请求，每条 stream 保持独立的交换状态。
         MetConfiguration incoming = this.httpServerConfiguration();
@@ -127,7 +133,8 @@ public class ThriftLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancelledFramedTcpReplyDoesNotCompleteAnotherPendingCall() throws Exception {
         // 同一 TCP 连接上保留两条独立业务，第二条在第一条取消后才进入。
         MetConfiguration incoming = this.tcpServerConfiguration(true);
@@ -174,7 +181,8 @@ public class ThriftLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void timedOutRawTcpReplyDoesNotCompleteAnotherPendingCall() throws Exception {
         // 原始 TCP 请求由独立闩锁保持在途，调用方设置真实 RPC 期限。
         MetConfiguration incoming = this.tcpServerConfiguration(false);
@@ -219,7 +227,8 @@ public class ThriftLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void timedOutHttp1CallDoesNotPoisonFollowingCalls() throws Exception {
         // HTTP/1 的在途交换保持阻塞，使客户端期限先于业务返回。
         MetConfiguration incoming = this.httpServerConfiguration();
@@ -257,7 +266,8 @@ public class ThriftLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingOneHttp2CallDoesNotCancelOtherCalls() throws Exception {
         // 一条 HTTP/2 stream 等待业务，另一条 stream 保持正常响应能力。
         MetConfiguration incoming = this.httpServerConfiguration();
@@ -296,7 +306,8 @@ public class ThriftLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingHttp2ClientFailsPendingCallBeforeItsDeadline() throws Exception {
         // 请求期限长于关闭观察窗口，避免将期限到达误认为关闭通知。
         MetConfiguration incoming = this.httpServerConfiguration();
@@ -340,7 +351,8 @@ public class ThriftLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingFramedTcpServerFailsPendingCallBeforeItsDeadline() throws Exception {
         // 服务端关闭发生在真实请求进入业务之后，客户端期限仍远未耗尽。
         MetConfiguration incoming = this.tcpServerConfiguration(true);

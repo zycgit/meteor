@@ -4,6 +4,10 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.registry.description;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -27,20 +31,32 @@ import net.hasor.meteor.registry.admin.description.MetServiceDescription;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 复用订单示例，验证跨协议组合后的注册描述；协议单测不依赖注册中心。 */
+@NxnRpc(name = "rsf", version = "1")
+@NxnRpc(name = "dubbo")
+@NxnRpc(name = "thrift")
+@NxnRpc(name = "hprose")
+@NxnRpc(name = "soap", version = "1.1")
+@NxnRpc(name = "jsonrpc", version = "2.0")
+@NxnRpc(name = "xmlrpc")
+@NxnRpc(name = "hessian", version = "2")
+@NxnRpc(name = "grpc")
+@NxnRpc(name = "grpc-web")
+@NxnRpc(name = "connect", version = "1")
+@NxnRpc(name = "triple")
 public class MultiProtocolDescriptionScenarioTest {
-    @Rule
-    public TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nacosStoresTheFullMultiProtocolOrderDescription() throws Exception {
         // 使用宿主已有的独立 Nacos 进程，验证真实 Naming 正文可以保存完整协议描述。
-        var home = this.data.newFolder("nacos-descriptions").toPath();
+        var home = Files.createDirectory(this.data.resolve("nacos-descriptions"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open("nacos", home)) {
             var registry = environment.configuration();
             registry.setManagementToken("description-tests");
@@ -90,13 +106,15 @@ public class MultiProtocolDescriptionScenarioTest {
             assertEquals(DirectRpcExample.PROTOCOLS.size(), protocols.size());
             for (String protocol : DirectRpcExample.PROTOCOLS) {
                 Map<String, MetProtocolDescription> endpoints = protocols.get(protocol);
-                assertEquals(protocol, 1, endpoints.size());
+                assertEquals(1, endpoints.size(), protocol);
                 MetProtocolDescription contract = endpoints.values().iterator().next();
-                assertEquals(protocol, 2, contract.getMethods().size());
+                assertEquals(2, contract.getMethods().size(), protocol);
             }
         }
     }
 
+    @NxnRpc(name = "rsf", version = "1")
+    @NxnRpc(name = "jsonrpc", version = "2.0")
     @Test
     public void sameServiceIdKeepsEachInstancesJavaAndProtocolDescriptions() throws Exception {
         // 两个实例共用登记身份和 RSF、JSON-RPC 挂载，各自发布不同的 Java 接口。
@@ -159,6 +177,7 @@ public class MultiProtocolDescriptionScenarioTest {
         }
     }
 
+    @NxnRpc(name = "grpc")
     @Test
     public void twoGrpcEndpointsKeepDifferentJsonAndProtobufDefinitions() throws Exception {
         // 同名协议两个端点独立选择编码与挂载目录。
@@ -197,6 +216,7 @@ public class MultiProtocolDescriptionScenarioTest {
         }
     }
 
+    @NxnRpc(name = "grpc")
     @Test
     public void rejectedProtobufEndpointDoesNotAppearInRegistrationDescription() throws Exception {
         // 普通未编号 DTO 可以使用 JSON，但不能隐式生成 Protobuf 字段号。

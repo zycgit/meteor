@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.hprose.bootstrap;
+import java.nio.file.Files;
 import java.io.File;
 import java.util.Collections;
 import java.util.List;
@@ -20,16 +21,18 @@ import net.hasor.meteor.address.DiskCache;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.CacheAddressPool;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@NxnRpc(name = "rsf", version = "1")
 public class AddressMaintenanceScenarioTest extends BootstrapTestSupport {
     @Test
     public void maintenanceRevivesAnInvalidDynamicAddress() throws Exception {
         // 准备带短刷新周期的运行环境和一条临时失效地址。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "case-").toFile();
         MetConfiguration configuration = this.configuration();
         configuration.setDataHome(home.toPath());
         configuration.setRefreshCacheTime(20);
@@ -66,7 +69,7 @@ public class AddressMaintenanceScenarioTest extends BootstrapTestSupport {
                     .register();
             server.start();
 
-            File home = this.temporary.newFolder();
+            File home = Files.createTempDirectory(this.temporary, "case-").toFile();
             List<InterAddress> addresses = Collections.singletonList(server.getListenAddress("rsf"));
             MetConfiguration seedConfiguration = this.configuration();
             try (MetContext seed = seedConfiguration.buildContext()) {
@@ -95,7 +98,7 @@ public class AddressMaintenanceScenarioTest extends BootstrapTestSupport {
     @Test
     public void disabledDiskCacheIgnoresExistingSnapshot() throws Exception {
         // 创建与服务标识对应的有效地址快照。
-        File home = this.temporary.newFolder();
+        File home = Files.createTempDirectory(this.temporary, "case-").toFile();
         MetConfiguration configuration = this.configuration();
         configuration.setDataHome(home.toPath());
         String serviceId;

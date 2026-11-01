@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.composition.socket;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -21,12 +22,18 @@ import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.oncrpc.binding.OncRpcServiceResource;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 在相同物理监听上验证协议探测与传输认证组合；协议只负责各自的业务报文。 */
+@NxnRpc(name = "rsf", version = "1")
+@NxnRpc(name = "dubbo")
+@NxnRpc(name = "thrift")
+@NxnRpc(name = "oncrpc", version = "2")
 public class SocketSecurityCompositionScenarioTest {
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void fourProtocolsShareServerAuthenticatedTlsListener() throws Exception {
         // 一个 TLS 监听预装四个协议，客户端只校验服务器身份。
         MetConfiguration incoming = this.serverConfiguration("NONE", false);
@@ -75,7 +82,8 @@ public class SocketSecurityCompositionScenarioTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void fourProtocolsShareMutuallyAuthenticatedTlsListener() throws Exception {
         // 四个协议共用同一个必须验证客户端证书的 TLS 监听。
         MetConfiguration incoming = this.serverConfiguration("REQUIRE", false);
@@ -124,7 +132,8 @@ public class SocketSecurityCompositionScenarioTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void plainAndTlsListenersServeAllFourProtocolsInSameRuntime() throws Exception {
         // 相同运行实例显式配置明文与 TLS 两个端点，每个端点均挂载四个协议。
         MetConfiguration incoming = this.serverConfiguration("NONE", true);
@@ -186,7 +195,8 @@ public class SocketSecurityCompositionScenarioTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingMutualTlsIdentityDoesNotDisablePlainProtocolListener() throws Exception {
         // 明文端点继续对外服务，另一个端点要求客户端证书。
         MetConfiguration incoming = this.serverConfiguration("REQUIRE", true);

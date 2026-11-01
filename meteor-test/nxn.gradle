@@ -31,6 +31,8 @@ abstract class MeteorDockerTask extends DefaultTask {
     @Internal boolean prepareOnly = false
     @Internal boolean skipError = true
     @Internal List<String> selectors = []
+    @Internal String rpc
+    @Internal String rpcVersion
 
     private File repository
     private File artifacts
@@ -57,6 +59,19 @@ abstract class MeteorDockerTask extends DefaultTask {
 
     @Option(option = 'groups', description = 'Concurrent scenarios, from 1 to 16; defaults to 16.')
     void chooseGroups(String value) { groups = value }
+
+    @Option(option = 'jobs', description = 'Alias of --groups; defaults to 16 concurrent scenarios.')
+    void chooseJobs(String value) { groups = value }
+
+    @Option(option = 'rpc', description = 'Run cases declaring this RPC protocol, including composed scenarios.')
+    void chooseRpc(String value) {
+        rpc = value.trim().toLowerCase(Locale.ROOT)
+        if (rpc == 'grpcweb') { rpc = 'grpc-web' }
+        if (rpc == 'onc-rpc') { rpc = 'oncrpc' }
+    }
+
+    @Option(option = 'rpc-version', description = 'RPC wire version; Dubbo uses its 2 or 3 major-version family.')
+    void chooseRpcVersion(String value) { rpcVersion = value.trim() }
 
     @Option(option = 'skipError', description = 'Continue remaining testcases after errors: true (default) or false.')
     void chooseSkipError(String value) {
@@ -348,6 +363,15 @@ abstract class MeteorDockerTask extends DefaultTask {
         if (selectors.any { !it?.trim() }) {
             throw new GradleException('Test selectors must not be empty.')
         }
+        if (rpc != null && !(rpc ==~ /[a-z][a-z0-9-]*/)) {
+            throw new GradleException('RPC protocol must be a nonempty protocol name.')
+        }
+        if (rpcVersion != null && !rpc) {
+            throw new GradleException('--rpc-version requires --rpc.')
+        }
+        if (rpcVersion != null && !(rpcVersion ==~ /[a-zA-Z0-9][a-zA-Z0-9_.+\-]*/)) {
+            throw new GradleException('RPC version must be nonempty and cannot contain wildcards.')
+        }
         def seed = resolveMavenSeed()
 
         // 宿主只验证 Docker；Java、SDK 和其它语言均在常驻容器中编译。
@@ -411,7 +435,7 @@ abstract class MeteorDockerTask extends DefaultTask {
             '-f', new File(repository, 'meteor-test/docker/compose.yml').absolutePath]
         keepWorkspace |= prepareOnly
         write('compose.env', environment.collect { key, value -> "${key}=${value}" }.join('\n') + '\n')
-        write('test-selectors.txt', selectors.collectMany { ['--tests', it] }.join('\n') + '\n')
+        write('test-selectors.txt', selectionArguments().join('\n') + '\n')
         logger.lifecycle("Docker test reports: ${artifacts}")
 
         // 正常命令由 Gradle 管理取消；退出后的归档和清理使用独立、有界进程。
@@ -447,7 +471,7 @@ abstract class MeteorDockerTask extends DefaultTask {
                     '--output', '/workspace/meteor/meteor-test/build/groups', '--groups', groups,
                     '--container', environment.METEOR_TEST_PROJECT + '-java-meteor', '--run-id', runId,
                     '--skipError', skipError.toString()]
-                execution.addAll(selectors.collectMany { ['--tests', it] })
+                execution.addAll(selectionArguments())
                 exitCode = docker(compose + execution, 'execution.log', true).exitCode
             }
         } catch (Throwable problem) {
@@ -479,6 +503,18 @@ abstract class MeteorDockerTask extends DefaultTask {
         if (exitCode != 0) {
             throw new GradleException("Docker test failed with exit code ${exitCode}; see ${artifacts}")
         }
+    }
+
+    private List<String> selectionArguments() {
+        def arguments = []
+        if (rpc) {
+            arguments.addAll(['--rpc', rpc])
+        }
+        if (rpcVersion) {
+            arguments.addAll(['--rpc-version', rpcVersion])
+        }
+        arguments.addAll(selectors.collectMany { ['--tests', it] })
+        arguments
     }
 
     private void recoverPreviousEnvironment(List<Map> existing) {
@@ -844,6 +880,10 @@ abstract class MeteorDockerTask extends DefaultTask {
             def passed = totals.tests - totals.failed - totals.skipped
             def status = exitCode == 0 && complete ? '通过' : '失败'
             def selection = selectors ? selectors.collect { "`${it}`" }.join('、') : '全部'
+            if (rpc) {
+                def protocol = "RPC `${rpc}`" + (rpcVersion ? "，协议版本 `${rpcVersion}`" : '')
+                selection = protocol + (selectors ? "；用例 ${selection}" : '')
+            }
             def lines = ['# Meteor RPC 测试报告', '',
                 "结果：${status}。skipError=${skipError}。", '',
                 "筛选：${selection}。", '',

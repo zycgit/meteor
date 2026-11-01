@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.http.go;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.cobble.StringUtils;
@@ -17,26 +20,28 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Hprose Go 和 Gorilla JSON-RPC2 SDK 的最小双向 HTTP 互通证据。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "compat/go/{0}/direct", quoteTextArguments = false)
+@MethodSource("protocols")
+@NxnRpc(name = "hprose", cases = "compat/go/hprose/direct")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "compat/go/jsonrpc/direct")
 public class GoHttpSdkInteropTest {
     private final String protocol;
 
     public GoHttpSdkInteropTest(String protocol) {
         this.protocol = protocol;
     }
-
-    @Parameterized.Parameters(name = "compat/go/{0}/direct")
     public static Object[][] protocols() {
         return new Object[][] { { "hprose" }, { "jsonrpc" } };
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goSdkConsumerCallsMeteorProvider() throws Exception {
         // 当前端点只挂载本协议；Meteor 返回可辨认的后缀，证明请求实际到达提供者。
         MetConfiguration configuration = this.configuration(true);
@@ -49,13 +54,14 @@ public class GoHttpSdkInteropTest {
             // 独立 Go SDK 负责编解码与 HTTP 调用，校验一次 Unicode 回声。
             try (GoPeerProcess peer = GoPeerProcess.start(this.protocol, "client", "plain", "unicode", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
                 assertEquals("Go → Meteor 中文🙂|meteor", result.path("message").asText());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerCallsGoSdkProvider() throws Exception {
         // Go SDK 自己开放临时监听；Meteor 仅声明当前协议的出站能力。
         MetConfiguration configuration = this.configuration(false);

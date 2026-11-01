@@ -24,13 +24,15 @@ import net.hasor.neta.bytebuf.ByteBuf;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.channel.data.ProtoRcvQueue;
 import net.hasor.neta.channel.data.ProtoSndQueue;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** A small test-only multiplexed protocol; no Payload, MetChannel or RPC runtime. */
 public class TcpExtensionTest {
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void flowControlIsPerStream() throws Exception {
         // 仅准备 TCP 传输配置，不安装 RPC 或应用协议插件。
         ConnectorConfig config = this.config(Map.of());
@@ -56,14 +58,15 @@ public class TcpExtensionTest {
             Future<Integer> second = session.submit(3, 33);
             session.request(3, 1);
             assertEquals(Integer.valueOf(33), second.get(2, TimeUnit.SECONDS));
-            assertFalse("A stream without demand must stay pending", first.isDone());
+            assertFalse(first.isDone(), "A stream without demand must stay pending");
             assertTrue(session.connection.isOpen());
             session.request(1, 1);
             assertEquals(Integer.valueOf(11), first.get(2, TimeUnit.SECONDS));
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellationIsPerStream() throws Exception {
         // 仅准备 TCP 传输配置，不安装 RPC 或应用协议插件。
         ConnectorConfig config = this.config(Map.of());
@@ -96,7 +99,8 @@ public class TcpExtensionTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void drainAndCloseIsIdempotent() throws Exception {
         // 仅准备 TCP 传输配置，不安装 RPC 或应用协议插件。
         ConnectorConfig config = this.config(Map.of());
@@ -127,7 +131,8 @@ public class TcpExtensionTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void transportStagesPreservePerStreamFlowControl() throws Exception {
         // 在两端传输流水线中安装异或编码，应用仍使用原始帧。
         XorPipeline.clients.set(0);
@@ -158,7 +163,7 @@ public class TcpExtensionTest {
             Future<Integer> second = session.submit(3, 33);
             session.request(3, 1);
             assertEquals(Integer.valueOf(33), second.get(2, TimeUnit.SECONDS));
-            assertFalse("A stream without demand must stay pending", first.isDone());
+            assertFalse(first.isDone(), "A stream without demand must stay pending");
             assertTrue(session.connection.isOpen());
             session.request(1, 1);
             assertEquals(Integer.valueOf(11), first.get(2, TimeUnit.SECONDS));
@@ -171,7 +176,8 @@ public class TcpExtensionTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void transportStagesPreserveCancellationIsolation() throws Exception {
         // 在两端传输流水线中安装异或编码，应用仍使用原始帧。
         XorPipeline.clients.set(0);
@@ -215,7 +221,8 @@ public class TcpExtensionTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void transportStagesPreserveIdempotentDrainAndClose() throws Exception {
         // 在两端传输流水线中安装异或编码，应用仍使用原始帧。
         XorPipeline.clients.set(0);

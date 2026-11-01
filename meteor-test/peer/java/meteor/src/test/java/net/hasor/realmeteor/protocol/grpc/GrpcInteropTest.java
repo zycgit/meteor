@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -43,12 +44,15 @@ import net.hasor.meteor.connector.transport.TransportPipeline;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.neta.channel.ProtoBuildContext;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
+@NxnRpc(name = "grpc")
 public class GrpcInteropTest {
     private static final ObjectMapper MAPPER = new ObjectMapper().disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
 
+    @NxnRpc(name = "grpc")
+    @NxnRpc(name = "hprose")
     @Test
     public void protobufAndHproseShareOneHttpPort() throws Exception {
         // 在同一个 HTTP 监听端口挂载 gRPC 和 Hprose，服务资源只绑定 proto。
@@ -120,7 +124,7 @@ public class GrpcInteropTest {
                 var error = assertThrows(StatusRuntimeException.class, () -> this.call(peer, fail, request));
                 assertEquals(Status.Code.INTERNAL, error.getStatus().getCode());
                 String description = error.getStatus().getDescription();
-                assertTrue(error.getMessage(), description.contains("business failure"));
+                assertTrue(description.contains("business failure"), error.getMessage());
 
                 // 同一通道再次发起正常调用，之前的失败不能污染响应。
                 MethodDescriptor<Message, Message> echo = this.method("grpc/example.Echo/echo", false);

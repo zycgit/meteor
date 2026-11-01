@@ -17,8 +17,8 @@ import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ContextSettingsSnapshotTest {
     private static final MetOptionParser<Integer> INTEGER = new MetOptionParser<>() {

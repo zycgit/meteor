@@ -30,16 +30,15 @@ import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.payload.Payload;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /** 共享字节监听需要协议探测；纯出站端点直接选定协议，HTTP 按路径准备挂载。 */
 public class PlanCompilerTest {
-    @Rule
-    public final TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
 
     @Test
     public void oneTcpProtocolDoesNotRequireTransportProbing() throws Exception {
@@ -155,7 +154,7 @@ public class PlanCompilerTest {
         for (Class<?> provider : providers) {
             names.add(provider.getName());
         }
-        Path descriptor = this.temporary.newFile().toPath();
+        Path descriptor = Files.createTempFile(this.temporary, "junit", null);
         Files.write(descriptor, names);
         URL resource = descriptor.toUri().toURL();
         String serviceResource = "META-INF/services/" + ProtocolProvider.class.getName();

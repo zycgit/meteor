@@ -16,10 +16,12 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.protocol.hprose.support.BootstrapTestSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
+@NxnRpc(name = "rsf", version = "1")
 public class ContextConfigurationTest extends BootstrapTestSupport {
 
     @Test
@@ -74,6 +76,7 @@ public class ContextConfigurationTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
     @Test
     public void httpClientInvokesWithoutOpeningAListener() throws Exception {
         // 服务端监听、客户端仅配置出口，二者使用相同协议路径。
@@ -96,6 +99,7 @@ public class ContextConfigurationTest extends BootstrapTestSupport {
         }
     }
 
+    @NxnRpc(name = "hprose")
     @Test
     public void hproseMessageCompletesAfterRemoteAdmission() throws Exception {
         // 通过公开配置入口准备 Hprose 服务端和仅出站客户端。
@@ -114,7 +118,7 @@ public class ContextConfigurationTest extends BootstrapTestSupport {
             CountDownLatch finished = new CountDownLatch(1);
             Signal handler = value -> {
                 entered.countDown();
-                assertTrue("Handler was not released", release.await(10, TimeUnit.SECONDS));
+                assertTrue(release.await(10, TimeUnit.SECONDS), "Handler was not released");
                 finished.countDown();
             };
             server.publisher().rsfService(Signal.class, handler).register();

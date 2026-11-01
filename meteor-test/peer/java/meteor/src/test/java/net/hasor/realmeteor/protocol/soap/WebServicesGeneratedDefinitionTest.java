@@ -34,12 +34,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesGeneratedDefinitionTest {
     private static final String NAMESPACE_PREFIX = "urn:hasor:meteor:soap:";
     private static final String WSDL_NAMESPACE   = "http://schemas.xmlsoap.org/wsdl/";
@@ -47,7 +50,8 @@ public class WebServicesGeneratedDefinitionTest {
     private static final String XSD_NAMESPACE    = XMLConstants.W3C_XML_SCHEMA_NS_URI;
     private static final String XSI_NAMESPACE    = XMLConstants.W3C_XML_SCHEMA_INSTANCE_NS_URI;
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wsdlIsGeneratedFromThePublishedJavaInterface() throws Exception {
         // 普通 Java 接口只声明 SOAP 别名，无需创建或绑定 WSDL 资源。
         MetConfiguration configuration = this.configuration();
@@ -66,7 +70,7 @@ public class WebServicesGeneratedDefinitionTest {
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(200, response.statusCode());
             String contentType = response.headers().firstValue("content-type").orElse("");
-            assertTrue(contentType, StringUtils.startsWithIgnoreCase(contentType, "text/xml"));
+            assertTrue(StringUtils.startsWithIgnoreCase(contentType, "text/xml"), contentType);
 
             // 契约暴露 Java 方法和内嵌类型定义，调用地址指向当前监听端点。
             Document wsdl = this.document(response.body());
@@ -89,7 +93,8 @@ public class WebServicesGeneratedDefinitionTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void generatedXsdIsPublishedAtTheServiceEndpoint() throws Exception {
         // 从公开入口发布无手写资源的 SOAP 服务。
         MetConfiguration configuration = this.configuration();
@@ -107,7 +112,7 @@ public class WebServicesGeneratedDefinitionTest {
             HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(200, response.statusCode());
             String contentType = response.headers().firstValue("content-type").orElse("");
-            assertTrue(contentType, StringUtils.startsWithIgnoreCase(contentType, "application/xml"));
+            assertTrue(StringUtils.startsWithIgnoreCase(contentType, "application/xml"), contentType);
 
             // 标准 XSD 实现能编译该定义，输入和输出包装对应 Java 方法。
             assertNotNull(this.schema(response.body()));
@@ -125,14 +130,15 @@ public class WebServicesGeneratedDefinitionTest {
                 requestParameter |= StringUtils.equals("arg0", element.getAttribute("name"));
                 responseResult |= StringUtils.equals("return", element.getAttribute("name"));
             }
-            assertTrue("Generated schema must declare the request wrapper", requestWrapper);
-            assertTrue("Generated schema must declare the response wrapper", responseWrapper);
-            assertTrue("Generated schema must declare the Java parameter", requestParameter);
-            assertTrue("Generated schema must declare the Java return value", responseResult);
+            assertTrue(requestWrapper, "Generated schema must declare the request wrapper");
+            assertTrue(responseWrapper, "Generated schema must declare the response wrapper");
+            assertTrue(requestParameter, "Generated schema must declare the Java parameter");
+            assertTrue(responseResult, "Generated schema must declare the Java return value");
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void metroClientCallsTheServiceUsingGeneratedWsdl() throws Exception {
         // Meteor 服务只发布 Java 接口，让 SOAP 扩展提供标准契约。
         MetConfiguration configuration = this.configuration();
@@ -164,7 +170,8 @@ public class WebServicesGeneratedDefinitionTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pojoCollectionAndNullFieldsConformToTheGeneratedXsd() throws Exception {
         // 发布无 XML 注解的 POJO 接口，记录经过 SOAP 解码后的业务对象。
         ProfileServiceImpl service = new ProfileServiceImpl();
@@ -221,7 +228,8 @@ public class WebServicesGeneratedDefinitionTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyCollectionParameterAndResultRemainEmptyOverSoap() throws Exception {
         // 两端仅声明同一个 List 参数和返回值的 Java 契约。
         AtomicReference<List<String>> received = new AtomicReference<>();
@@ -260,7 +268,8 @@ public class WebServicesGeneratedDefinitionTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void messageAnnotationGeneratesCallableOneWayWsdl() throws Exception {
         // Java 方法上的 MetMessage 注解决定生成的契约为 one-way。
         SignalServiceImpl signal = new SignalServiceImpl();
@@ -290,12 +299,13 @@ public class WebServicesGeneratedDefinitionTest {
             operation.addChildElement(new QName("arg0")).addTextNode("generated notice");
             request.saveChanges();
             SoapPeerProcess.invokeMetroOneWay(dispatch, request);
-            assertTrue("Generated one-way service was not invoked", signal.awaitInvocation(5, TimeUnit.SECONDS));
+            assertTrue(signal.awaitInvocation(5, TimeUnit.SECONDS), "Generated one-way service was not invoked");
             assertEquals("generated notice", signal.getMessage());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void generatedDefinitionsUseTheExactServiceMount() throws Exception {
         // 显式 exact 挂载取代默认前缀，定义页使用同一业务端点。
         MetConfiguration configuration = this.configuration();

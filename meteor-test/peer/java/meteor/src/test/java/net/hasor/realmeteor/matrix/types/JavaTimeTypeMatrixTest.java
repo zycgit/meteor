@@ -6,6 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix.types;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 import java.time.OffsetDateTime;
@@ -19,19 +25,36 @@ import net.hasor.example.contract.types.JavaTypeContracts;
 import net.hasor.example.contract.types.JavaTypeProfile;
 import net.hasor.example.contract.types.JavaTypeVectors;
 import net.hasor.meteor.MetContext;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** java.time 与旧 Date 分开验证；只比较 Instant 不足以证明时区类型保真。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "java-time/self/{0}/direct/type={1}/vector={2}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "rsf", version = "1", cases = "java-time/self/rsf-json/*")
+@NxnRpc(name = "rsf", version = "1", cases = "java-time/self/rsf-java/*")
+@NxnRpc(name = "dubbo", cases = "java-time/self/dubbo-hessian2/*")
+@NxnRpc(name = "hprose", cases = "java-time/self/hprose/*")
+@NxnRpc(name = "hessian", version = "2", cases = "java-time/self/hessian-2/*")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "java-time/self/jsonrpc-json/*")
+@NxnRpc(name = "xmlrpc", cases = "java-time/self/xmlrpc-struct/*")
+@NxnRpc(name = "soap", version = "1.1", cases = "java-time/self/soap-literal/*")
+@NxnRpc(name = "grpc", cases = "java-time/self/grpc-custom-json/*")
+@NxnRpc(name = "grpc", cases = "java-time/self/grpc-protobuf/*")
+@NxnRpc(name = "grpc-web", cases = "java-time/self/grpc-web-custom-json/*")
+@NxnRpc(name = "grpc-web", cases = "java-time/self/grpc-web-protobuf/*")
+@NxnRpc(name = "connect", version = "1", cases = "java-time/self/connect-json/*")
+@NxnRpc(name = "connect", version = "1", cases = "java-time/self/connect-protobuf/*")
+@NxnRpc(name = "triple", cases = "java-time/self/triple-java-hessian2/*")
+@NxnRpc(name = "triple", cases = "java-time/self/triple-protobuf/*")
+@NxnRpc(name = "thrift", cases = "java-time/self/thrift-binary-framed/*")
+@NxnRpc(name = "oncrpc", version = "2", cases = "java-time/self/oncrpc-xdr/*")
 public class JavaTimeTypeMatrixTest {
-    @Rule
-    public final  TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final JavaTypeProfile profile;
     private final String          type;
     private final String          vector;
@@ -43,8 +66,6 @@ public class JavaTimeTypeMatrixTest {
         this.vector = vector;
         this.expected = expected;
     }
-
-    @Parameterized.Parameters(name = "java-time/self/{0}/direct/type={1}/vector={2}")
     public static Collection<Object[]> configurations() {
         // 每种时间类型独立建服务，避免某一类型的发布拒绝掩盖其它类型。
         List<Object[]> result = new ArrayList<>();
@@ -62,14 +83,15 @@ public class JavaTimeTypeMatrixTest {
         return result;
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaTimeFieldFollowsItsDeclaredProtocolMapping() throws Exception {
         // 本轮使用固定业务时刻，主机时钟与测试等待超时不参与序列化向量。
         String group = "java-time-" + UUID.randomUUID();
         var incoming = this.profile.providerConfiguration().setDefaultGroup(group);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         var outgoing = this.profile.consumerConfiguration().setDefaultGroup(group);
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         Class<?> contract = JavaTypeContracts.contract(this.type);
         var expectation = JavaTypeMatrixExpectations.forCase(this.profile, this.type, this.vector);
         try (MetContext provider = incoming.buildContext(); //
@@ -102,12 +124,12 @@ public class JavaTimeTypeMatrixTest {
                 return;
             }
             Object response = echo.invoke(remote, request);
-            assertEquals(this.vector, request.getClass(), response.getClass());
+            assertEquals(request.getClass(), response.getClass(), this.vector);
             Object actual = JavaTypeContracts.value(response);
 
             // 整体 equals 保留所有分量，带 offset/region 类型再明确检查其时间语义。
             Object expected = expectation.expectedValue(this.expected);
-            assertEquals(this.vector, expected, actual);
+            assertEquals(expected, actual, this.vector);
             if (expected instanceof ZonedDateTime expectedTime) {
                 ZonedDateTime actualTime = (ZonedDateTime) actual;
                 assertEquals(expectedTime.getZone(), actualTime.getZone());

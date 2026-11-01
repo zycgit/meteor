@@ -24,13 +24,15 @@ import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.example.rpc.websocket.WebSocketConfigurations;
 import net.hasor.example.rpc.websocket.WebSocketSample;
 import net.hasor.example.rpc.websocket.WebSocketSampleService;
-import org.junit.Test;
-import org.junit.function.ThrowingRunnable;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 取消、断开和握手错误均从公开调用方观察，不把业务超时算作连接失败。 */
 public class WebSocketLifecycleTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingClientReleasesAnUpgradeWaitingForHttp2Settings() throws Exception {
         // 独立 TCP 对端接收 HTTP/2 前言，但故意不回复任何 SETTINGS。
         MetConfiguration outgoing = new MetConfiguration();
@@ -55,14 +57,15 @@ public class WebSocketLifecycleTest {
                 assertFalse(call.isDone());
                 client.close();
                 assertTrue(call.isDone());
-                ThrowingRunnable result = () -> call.get(3, TimeUnit.SECONDS);
+                Executable result = () -> call.get(3, TimeUnit.SECONDS);
                 ExecutionException failure = assertThrows(ExecutionException.class, result);
                 assertFalse(failure.getCause() instanceof MetTimeoutException);
             }
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingOneRpcLeavesTheWebSocketUsable() throws Exception {
         // 一个业务方法受闩锁控制，其他方法继续使用同一个升级通道。
         MetConfiguration incoming = new MetConfiguration();
@@ -99,7 +102,8 @@ public class WebSocketLifecycleTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingTheServerFailsAnInFlightWebSocketRpc() throws Exception {
         // 让服务保持执行中，观察正式上下文关闭带来的连接终止。
         MetConfiguration incoming = new MetConfiguration();
@@ -124,7 +128,7 @@ public class WebSocketLifecycleTest {
                 MetFuture blocked = remote.asyncInvoke(service, "block", new Class<?>[0], new Object[0]);
                 assertTrue(implementation.entered().await(5, TimeUnit.SECONDS));
                 server.close();
-                ThrowingRunnable result = () -> blocked.get(5, TimeUnit.SECONDS);
+                Executable result = () -> blocked.get(5, TimeUnit.SECONDS);
                 ExecutionException failure = assertThrows(ExecutionException.class, result);
                 assertNotNull(failure.getCause());
                 assertFalse(failure.getCause() instanceof MetTimeoutException);
@@ -134,7 +138,8 @@ public class WebSocketLifecycleTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void rejectedHttpUpgradeFailsThePublicCallerWithoutDispatch() throws Exception {
         // 独立 HTTP 对端拒绝升级；Meteor 一侧仍从正式订阅和 Caller 发起请求。
         MetConfiguration outgoing = new MetConfiguration();
@@ -155,11 +160,11 @@ public class WebSocketLifecycleTest {
             try (Socket peer = listener.accept()) {
                 peer.setSoTimeout(5000);
                 String request = this.readHeaders(peer);
-                assertTrue(request, request.startsWith("GET /ws HTTP/1.1"));
+                assertTrue(request.startsWith("GET /ws HTTP/1.1"), request);
                 String response = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
                 peer.getOutputStream().write(response.getBytes(StandardCharsets.US_ASCII));
                 peer.getOutputStream().flush();
-                ThrowingRunnable result = () -> call.get(5, TimeUnit.SECONDS);
+                Executable result = () -> call.get(5, TimeUnit.SECONDS);
                 ExecutionException failure = assertThrows(ExecutionException.class, result);
                 assertNotNull(failure.getCause());
                 assertFalse(failure.getCause() instanceof MetTimeoutException);

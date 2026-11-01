@@ -24,17 +24,17 @@ import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.protocol.jsonrpc.JsonRpcException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class JsonRpcResponseTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private              MetContext   context;
     private              JsonRpcCodec codec;
 
-    @Before
+    @BeforeEach
     public void prepareConsumerMetadata() throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         configuration.connector("http").protocol("jsonrpc").contextPath("/rpc");
@@ -45,7 +45,7 @@ public class JsonRpcResponseTest {
         this.codec = new JsonRpcCodec(protocol, new RouteMountIndex("http-0", protocol), this.context);
     }
 
-    @After
+    @AfterEach
     public void closeContext() throws Exception {
         this.context.close();
     }

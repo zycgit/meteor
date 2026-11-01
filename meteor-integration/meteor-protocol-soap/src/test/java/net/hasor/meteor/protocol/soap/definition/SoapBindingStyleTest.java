@@ -10,8 +10,8 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.List;
 import javax.xml.namespace.QName;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapBindingStyleTest {
     private static final String XSD_NAMESPACE = "http://www.w3.org/2001/XMLSchema";
@@ -493,7 +493,7 @@ public class SoapBindingStyleTest {
 
     private URL resource(String name) {
         URL resource = this.getClass().getResource("/wsdl/styles/" + name);
-        assertNotNull("Missing WSDL style resource: " + name, resource);
+        assertNotNull(resource, "Missing WSDL style resource: " + name);
         return resource;
     }
 }

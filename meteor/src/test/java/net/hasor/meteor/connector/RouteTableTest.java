@@ -9,8 +9,8 @@ package net.hasor.meteor.connector;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 验证初始化时构建的路由表保持稳定，并按协议名称或请求路径选择协议。 */
 public class RouteTableTest {

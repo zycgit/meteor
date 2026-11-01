@@ -11,11 +11,14 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 public class SoapCommonMetaContractScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void fileConsumerCallsTheAnnotationProvider() throws Exception {
         // WSDL 使用 Echo/message/answer，Java 接口保留自己的方法与参数名称。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -33,7 +36,8 @@ public class SoapCommonMetaContractScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void annotationConsumerCallsTheFileProvider() throws Exception {
         // 提供者绑定 WSDL，消费者通过相同的公共注解生成契约。
         try (MetContext server = this.configuration(true).buildContext(); //

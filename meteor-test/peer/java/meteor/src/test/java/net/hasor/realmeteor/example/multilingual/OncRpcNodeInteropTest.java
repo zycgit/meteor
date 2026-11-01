@@ -4,6 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,12 +16,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 固定源码版本的 Triton ONC RPC SDK 与 Meteor 通过 TCP 双向调用标准 ASCII string。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcNodeInteropTest {
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeSdkConsumerCallsMeteorProvider() throws Exception {
         // Meteor 经公开 bootstrap 监听 TCP，绑定测试自有的标准 ONC RPC 程序与过程编号。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -43,7 +48,8 @@ public class OncRpcNodeInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerCallsNodeSdkProvider() throws Exception {
         // Node 使用 SDK 的 RpcServer 独立发布过程，动态端口与其它测试隔离。
         String script = "/opt/meteor-peer/node/oncrpc/peer.js";

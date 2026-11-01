@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -19,12 +20,15 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 无 proto 的 Java 接口通过 Triple wrapper 直接调用。 */
+@NxnRpc(name = "triple")
 public class TriplePojoScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void multipleArgumentsKeepTheirDeclaredPositions() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -46,7 +50,8 @@ public class TriplePojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void stringOverloadUsesTheStringSignature() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -68,7 +73,8 @@ public class TriplePojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void integerOverloadUsesThePrimitiveSignature() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -90,7 +96,8 @@ public class TriplePojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void collectionValuesRetainTheirBusinessElementTypes() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -116,7 +123,8 @@ public class TriplePojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void voidMethodStillCompletesAnOrdinaryRpc() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -140,7 +148,8 @@ public class TriplePojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nullBusinessResultIsPreserved() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -162,7 +171,8 @@ public class TriplePojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void businessFailureReachesTheCallingFuture() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -191,7 +201,7 @@ public class TriplePojoScenarioTest {
             while (businessFailure != null && !(businessFailure instanceof IllegalArgumentException)) {
                 businessFailure = businessFailure.getCause();
             }
-            assertNotNull("The original business exception must remain observable", businessFailure);
+            assertNotNull(businessFailure, "The original business exception must remain observable");
             assertEquals(IllegalArgumentException.class, businessFailure.getClass());
             assertEquals("triple failure 中文", businessFailure.getMessage());
             assertNull(GrpcStatusException.find(failure));
@@ -203,7 +213,8 @@ public class TriplePojoScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentHttp2CallsRemainIsolated() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);

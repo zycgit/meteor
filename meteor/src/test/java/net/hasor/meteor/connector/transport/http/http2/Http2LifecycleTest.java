@@ -26,14 +26,16 @@ import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.codec.http.HttpObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.connector.transport.TransportTestServices.closeSocketRuntime;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newSocketRuntime;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 明确控制发送完成和输入 EOF 的顺序，验证完整正文的消费归属及失败传播。 */
 public class Http2LifecycleTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void completeNetworkBodyAndTrailersSurviveEofBeforeConsumption() throws Exception {
         try (Fixture test = new Fixture()) {
             // 原请求已写完，完整响应正文和尾部在应用开始消费前到达。
@@ -57,7 +59,8 @@ public class Http2LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void truncatedBodyFailsOnTransportEof() throws Exception {
         try (Fixture test = new Fixture()) {
             // 只有部分正文到达，尚未收到 HTTP/2 END_STREAM 及尾部。
@@ -75,7 +78,8 @@ public class Http2LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requestWriteFailureBeforeEofKeepsOriginalCause() throws Exception {
         try (Fixture test = new Fixture()) {
             // 响应已完整到达，但原请求的物理写入在连接关闭前失败。
@@ -94,7 +98,8 @@ public class Http2LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void lateRequestWriteFailureAfterEofStillFailsUnconsumedBody() throws Exception {
         try (Fixture test = new Fixture()) {
             // 响应正文已结束并收到 EOF，原请求的物理发送回调仍未完成。
@@ -114,7 +119,8 @@ public class Http2LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sendCancellationAfterEofStillFailsUnconsumedBody() throws Exception {
         try (Fixture test = new Fixture()) {
             // EOF 已到达，调用方仍持有尚未完成的发送 Future。
@@ -133,7 +139,8 @@ public class Http2LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exchangeCancellationBeforeEofIsNotRevived() throws Exception {
         try (Fixture test = new Fixture()) {
             // 响应已完整到达，在物理连接关闭前主动取消交换。
@@ -151,7 +158,8 @@ public class Http2LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void inputFailureAfterBodyFinishDoesNotReviveFailedBody() throws Exception {
         try (Fixture test = new Fixture()) {
             // 已收到 END_STREAM 的正文发生完整性错误，先将错误传递给交换。
@@ -169,7 +177,8 @@ public class Http2LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitTransportFailureDoesNotPreserveFinishedResponse() throws Exception {
         try (Fixture test = new Fixture()) {
             // 正文已完整到达，随后传输层报告明确的协议错误。
@@ -186,7 +195,8 @@ public class Http2LifecycleTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingResponseFailsOnEof() throws Exception {
         try (Fixture test = new Fixture()) {
             // 请求已写完，但连接关闭前没有收到任何响应头。
@@ -282,7 +292,7 @@ public class Http2LifecycleTest {
             for (int phase = 0; phase < 2; phase++) {
                 CountDownLatch barrier = new CountDownLatch(1);
                 this.channel.execute(barrier::countDown);
-                assertTrue("Ordered executor did not reach barrier", barrier.await(3, TimeUnit.SECONDS));
+                assertTrue(barrier.await(3, TimeUnit.SECONDS), "Ordered executor did not reach barrier");
             }
         }
 

@@ -24,12 +24,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 用真实 Gradle 执行生产启动脚本，仅以独立 JDK 程序替换 Docker CLI 边界。 */
 public class NxnLauncherTest {
@@ -48,7 +48,7 @@ public class NxnLauncherTest {
     private List<List<String>> commands;
     private Process activeProcess;
 
-    @BeforeClass
+    @BeforeAll
     public static void prepareGradle() throws Exception {
         // 生产宿主入口只依赖 JDK 和 Docker；本夹具在 Linux 容器中验证真实进程组取消。
         if (!Files.isDirectory(Path.of("/proc/self"))) {
@@ -58,7 +58,7 @@ public class NxnLauncherTest {
         gradleCache = Files.createTempDirectory("meteor-gradle-launcher-cache-");
     }
 
-    @AfterClass
+    @AfterAll
     public static void releaseGradle() throws Exception {
         if (gradleCache == null) {
             return;
@@ -75,7 +75,7 @@ public class NxnLauncherTest {
         deleteTree(gradleCache);
     }
 
-    @Before
+    @BeforeEach
     public void prepareFixture() throws Exception {
         // 最小工程不声明 Java 任务；生产脚本负责创建和执行完整宿主任务图。
         this.temporary = Files.createTempDirectory("meteor-gradle-launcher-");
@@ -93,7 +93,7 @@ public class NxnLauncherTest {
         Path fixtureClass = fixtureClasses.resolve(resource);
         Files.createDirectories(fixtureClass.getParent());
         try (InputStream input = FakeDockerMain.class.getClassLoader().getResourceAsStream(resource)) {
-            assertNotNull(resource, input);
+            assertNotNull(input, resource);
             Files.copy(input, fixtureClass, StandardCopyOption.REPLACE_EXISTING);
         }
         Path java = Path.of(System.getProperty("java.home"), "bin/java").toRealPath();
@@ -119,7 +119,7 @@ public class NxnLauncherTest {
         this.commands = new ArrayList<>();
     }
 
-    @After
+    @AfterEach
     public void releaseFixture() throws Exception {
         // 失败断言也必须回收本 testcase 拥有的启动进程与私有目录。
         if (this.activeProcess != null && this.activeProcess.isAlive()) {
@@ -265,7 +265,7 @@ public class NxnLauncherTest {
             // 新入口先请求 RESTART，等待旧轮取消、归档和清理，不终止共享 Gradle daemon。
             int currentExit = runLauncher("--no-build");
             String ownerDiagnostic = "Owner: " + ownerRecord + "; observed start: " + observedStart + "\n";
-            assertEquals(ownerDiagnostic + diagnostics(), 0, currentExit);
+            assertEquals(0, currentExit, ownerDiagnostic + diagnostics());
             assertTrue(previous.waitFor(30, TimeUnit.SECONDS));
             assertNotEquals(0, previous.exitValue());
             assertEquals("RESTART", Files.readString(control.resolve("cancel.request")).trim());
@@ -276,7 +276,7 @@ public class NxnLauncherTest {
             int previousCopy = this.commands.indexOf(archiveCopies().get(0));
             int previousDown = this.commands.indexOf(composeCommands("down").get(0));
             int currentCreate = this.commands.lastIndexOf(composeCommands("create").get(1));
-            assertTrue(this.commands.toString(), previousCopy < previousDown && previousDown < currentCreate);
+            assertTrue(previousCopy < previousDown && previousDown < currentCreate, this.commands.toString());
             String currentRun = lastEnvironment().path("METEOR_TEST_RUN_ID").asText();
             assertNotEquals(previousRun, currentRun);
             assertEquals("0", Files.readString(outputDirectory().resolve("exit-code.txt")).trim());
@@ -307,7 +307,7 @@ public class NxnLauncherTest {
         int previousDown = this.commands.indexOf(composeCommands("down").get(0));
         int previousVolume = this.commands.indexOf(commandsStarting("volume", "rm").get(0));
         int currentCreate = this.commands.indexOf(composeCommands("create").get(0));
-        assertTrue(this.commands.toString(), previousDown < previousVolume && previousVolume < currentCreate);
+        assertTrue(previousDown < previousVolume && previousVolume < currentCreate, this.commands.toString());
         assertEquals("meteor-test-workspace", commandsStarting("volume", "rm").get(0).get(2));
         assertEquals("0", Files.readString(archive.resolve("exit-code.txt")).trim());
         assertFalse(Files.exists(archive.resolve("previous-run-only.txt")));
@@ -339,7 +339,7 @@ public class NxnLauncherTest {
             assertEquals(2, composeCommands("create").size());
             int previousDown = this.commands.indexOf(composeCommands("down").get(0));
             int currentCreate = this.commands.lastIndexOf(composeCommands("create").get(1));
-            assertTrue(this.commands.toString(), previousDown < currentCreate);
+            assertTrue(previousDown < currentCreate, this.commands.toString());
         } finally {
             // 断言失败时只回收当前 testcase 自己创建的旧入口。
             if (previous.isAlive()) {
@@ -611,6 +611,69 @@ public class NxnLauncherTest {
         List<String> execution = composeCommands("exec").get(0);
         List<String> expected = List.of("--tests", "test.Example.some case", "--tests", "test.Other*");
         assertEquals(expected, execution.subList(execution.size() - 4, execution.size()));
+    }
+
+    @Test
+    public void rpcSelectionReachesContainerRunner() throws Exception {
+        // 协议与具体方法一同传入容器，保留每个筛选参数的边界。
+        assertSuccess(runLauncher("--no-build", "--rpc", "soap", "--tests", "ExampleTest.operation"));
+        List<String> execution = composeCommands("exec").get(0);
+
+        // 规划器收到独立的协议选择与方法选择，归档保留同一份请求。
+        assertEquals("soap", valueAfter(execution, "--rpc"));
+        assertEquals("ExampleTest.operation", valueAfter(execution, "--tests"));
+        String selection = Files.readString(outputDirectory().resolve("test-selectors.txt"));
+        assertTrue(selection.contains("--rpc\nsoap\n--tests\nExampleTest.operation\n"));
+    }
+
+    @Test
+    public void rpcVersionReachesContainerRunner() throws Exception {
+        // SOAP 线协议版本独立于外部 SDK 的发行版本。
+        assertSuccess(runLauncher("--no-build", "--rpc", "soap", "--rpc-version", "1.2"));
+        List<String> execution = composeCommands("exec").get(0);
+
+        // 版本和协议均按原请求交给实际规划器处理。
+        assertEquals("soap", valueAfter(execution, "--rpc"));
+        assertEquals("1.2", valueAfter(execution, "--rpc-version"));
+    }
+
+    @Test
+    public void rpcAliasUsesTheCanonicalProtocolName() throws Exception {
+        // Windows 直接使用 Gradle 入口时也支持相同的协议别名。
+        assertSuccess(runLauncher("--no-build", "--rpc", "grpcweb"));
+
+        // 归档和运行参数均使用统一名称，避免形成第二套协议分类。
+        assertEquals("grpc-web", valueAfter(composeCommands("exec").get(0), "--rpc"));
+        assertTrue(Files.readString(outputDirectory().resolve("test-selectors.txt")).contains("--rpc\ngrpc-web\n"));
+    }
+
+    @Test
+    public void rpcVersionWithoutProtocolIsRejectedBeforeDocker() throws Exception {
+        // 版本没有协议归属时不能启动一轮含糊的测试。
+        assertFailure(runLauncher("--rpc-version", "2"));
+
+        // 错误必须在创建 Docker 环境前可见。
+        assertTrue(this.commands.isEmpty());
+        assertTrue(diagnostics().contains("--rpc-version requires --rpc"));
+    }
+
+    @Test
+    public void blankRpcIsRejectedBeforeDocker() throws Exception {
+        // 空白协议名不能退化为执行全部测试。
+        assertFailure(runLauncher("--rpc", " "));
+
+        // 输入错误不会创建资源，也不会复用上一轮的成功报告。
+        assertTrue(this.commands.isEmpty());
+        assertTrue(diagnostics().contains("RPC protocol must be a nonempty protocol name"));
+    }
+
+    @Test
+    public void jobsAliasSelectsTheSameGroupBudget() throws Exception {
+        // 与 dbVisitor 入口保持 --jobs 用法，仍由现有隔离工作组调度。
+        assertSuccess(runLauncher("--no-build", "--jobs", "4"));
+
+        // 别名只选择并发预算，不创建另一套执行框架。
+        assertEquals("4", valueAfter(composeCommands("exec").get(0), "--groups"));
     }
 
     @Test
@@ -1136,7 +1199,7 @@ public class NxnLauncherTest {
 
         // 中断后继续等待原启动进程，收尾输出仍送到同一份控制台日志。
         Files.writeString(control.resolve("cancel.request"), "INT\n");
-        assertTrue(diagnostics(), this.activeProcess.waitFor(60, TimeUnit.SECONDS));
+        assertTrue(this.activeProcess.waitFor(60, TimeUnit.SECONDS), diagnostics());
         readCalls();
         assertFailure(this.activeProcess.exitValue(), 130);
         assertArchiveBeforeStop();
@@ -1145,7 +1208,7 @@ public class NxnLauncherTest {
         assertTrue(diagnostics().contains("Docker test artifacts:"));
         assertFollowerStopped();
         long blocked = Long.parseLong(Files.readString(marker).trim());
-        assertFalse(diagnostics(), ProcessHandle.of(blocked).map(ProcessHandle::isAlive).orElse(false));
+        assertFalse(ProcessHandle.of(blocked).map(ProcessHandle::isAlive).orElse(false), diagnostics());
     }
 
     @Test
@@ -1161,7 +1224,7 @@ public class NxnLauncherTest {
 
         // 控制请求不杀共享 daemon；runner 确认取消、归档、清理和日志输出依次完成。
         Files.writeString(control.resolve("cancel.request"), "INT\n");
-        assertTrue(diagnostics(), this.activeProcess.waitFor(60, TimeUnit.SECONDS));
+        assertTrue(this.activeProcess.waitFor(60, TimeUnit.SECONDS), diagnostics());
         readCalls();
         assertFailure(this.activeProcess.exitValue(), 130);
         assertArchiveBeforeStop();
@@ -1177,7 +1240,7 @@ public class NxnLauncherTest {
         assertTrue(diagnostics().contains("Docker test artifacts:"));
         assertFollowerStopped();
         long blocked = Long.parseLong(Files.readString(marker).trim());
-        assertFalse(diagnostics(), ProcessHandle.of(blocked).map(ProcessHandle::isAlive).orElse(false));
+        assertFalse(ProcessHandle.of(blocked).map(ProcessHandle::isAlive).orElse(false), diagnostics());
     }
 
     @Test
@@ -1193,7 +1256,7 @@ public class NxnLauncherTest {
 
         // runner 先收到取消，再自然退出，最后一段 stdout 和 stderr 均不能丢失。
         Files.writeString(control.resolve("cancel.request"), "INT\n");
-        assertTrue(diagnostics(), this.activeProcess.waitFor(60, TimeUnit.SECONDS));
+        assertTrue(this.activeProcess.waitFor(60, TimeUnit.SECONDS), diagnostics());
         readCalls();
         assertFailure(this.activeProcess.exitValue(), 130);
         assertEquals("true", Files.readString(Path.of(this.log + ".cancel-attach-alive")));
@@ -1212,7 +1275,7 @@ public class NxnLauncherTest {
         assertTrue(handshake.path("state").path("interrupted").asBoolean());
         int publication = this.commands.indexOf(runnerControls("mv").get(0));
         int archive = this.commands.indexOf(archiveCopies().get(0));
-        assertTrue(this.commands.toString(), publication < archive);
+        assertTrue(publication < archive, this.commands.toString());
         assertArchiveBeforeStop();
         assertVolumeRemovals(true);
         assertFollowerStopped();
@@ -1232,7 +1295,7 @@ public class NxnLauncherTest {
         // 取消改变整轮结论，已开始的清理继续执行，不能将原来的零退出码报告为通过。
         Files.writeString(control.resolve("cancel.request"), "INT\n");
         Files.writeString(Path.of(marker + ".release"), "continue");
-        assertTrue(diagnostics(), this.activeProcess.waitFor(60, TimeUnit.SECONDS));
+        assertTrue(this.activeProcess.waitFor(60, TimeUnit.SECONDS), diagnostics());
         readCalls();
         assertFailure(this.activeProcess.exitValue(), 130);
         JsonNode launcher = JSON.readTree(Files.readString(outputDirectory().resolve("launcher.json")));
@@ -1314,7 +1377,7 @@ public class NxnLauncherTest {
         awaitFile(marker, Duration.ofSeconds(60));
         awaitConsole("prepare | workspace preparation stdout", Duration.ofSeconds(10));
         awaitConsole("java-meteor | Java build stderr", Duration.ofSeconds(10));
-        assertTrue(diagnostics(), this.activeProcess.isAlive());
+        assertTrue(this.activeProcess.isAlive(), diagnostics());
 
         // 继续启动后，运行日志仍完整归档，不能仅在收尾阶段补打印。
         Files.writeString(Path.of(marker + ".release"), "continue");
@@ -1629,7 +1692,7 @@ public class NxnLauncherTest {
         ProcessBuilder builder = processBuilder(command(task, false, arguments), overrides);
         this.activeProcess = builder.start();
         boolean completed = this.activeProcess.waitFor(90, TimeUnit.SECONDS);
-        assertTrue("Gradle timed out: " + diagnostics(), completed);
+        assertTrue(completed, "Gradle timed out: " + diagnostics());
         readCalls();
         return this.activeProcess.exitValue();
     }
@@ -1682,7 +1745,7 @@ public class NxnLauncherTest {
             signalGroup(this.activeProcess.pid(), "TERM");
         }
         assertTrue(this.activeProcess.waitFor(45, TimeUnit.SECONDS));
-        assertNotEquals(diagnostics(), 0, this.activeProcess.exitValue());
+        assertNotEquals(0, this.activeProcess.exitValue(), diagnostics());
         Path exit = outputDirectory().resolve("exit-code.txt");
         awaitFile(exit, Duration.ofSeconds(30));
         readCalls();
@@ -1691,7 +1754,7 @@ public class NxnLauncherTest {
         assertEquals("143", Files.readString(exit).trim());
         assertTrue(Files.isRegularFile(outputDirectory().resolve("meteor-test/build/archived.txt")));
         long blocked = Long.parseLong(Files.readString(marker).trim());
-        assertFalse(diagnostics(), ProcessHandle.of(blocked).map(ProcessHandle::isAlive).orElse(false));
+        assertFalse(ProcessHandle.of(blocked).map(ProcessHandle::isAlive).orElse(false), diagnostics());
         assertFollowerStopped();
     }
 
@@ -1700,10 +1763,9 @@ public class NxnLauncherTest {
             List<String> arguments = strings(call.path("arguments"));
             return arguments.contains("logs") && arguments.contains("--follow");
         }).toList();
-        assertEquals(diagnostics(), 1, followers.size());
+        assertEquals(1, followers.size(), diagnostics());
         long pid = followers.get(0).path("pid").asLong();
-        assertFalse("Service log follower is still running: " + pid + "\n" + diagnostics(),
-                ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false));
+        assertFalse(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false), "Service log follower is still running: " + pid + "\n" + diagnostics());
     }
 
     private void awaitConsole(String text, Duration timeout) throws Exception {
@@ -1711,7 +1773,7 @@ public class NxnLauncherTest {
         while (!diagnostics().contains(text) && System.nanoTime() < deadline) {
             Thread.sleep(50);
         }
-        assertTrue("Missing console output: " + text + "\n" + diagnostics(), diagnostics().contains(text));
+        assertTrue(diagnostics().contains(text), "Missing console output: " + text + "\n" + diagnostics());
     }
 
     private void awaitFile(Path file, Duration timeout) throws Exception {
@@ -1719,7 +1781,7 @@ public class NxnLauncherTest {
         while (!Files.exists(file) && System.nanoTime() < deadline) {
             Thread.sleep(50);
         }
-        assertTrue("Missing " + file + "\n" + diagnostics(), Files.exists(file));
+        assertTrue(Files.exists(file), "Missing " + file + "\n" + diagnostics());
     }
 
     private void readCalls() throws Exception {
@@ -1774,7 +1836,7 @@ public class NxnLauncherTest {
     private void assertArchiveBeforeStop() {
         int copy = this.commands.indexOf(archiveCopies().get(0));
         int stop = this.commands.indexOf(composeCommands("down").get(0));
-        assertTrue(this.commands.toString(), copy < stop);
+        assertTrue(copy < stop, this.commands.toString());
     }
 
     private void assertRunnerCancelledBeforeArchive() throws Exception {
@@ -1789,8 +1851,8 @@ public class NxnLauncherTest {
                 terminalCheck = index;
             }
         }
-        assertTrue(this.commands.toString(), cancelCopy < cancelPublish && cancelPublish < terminalCheck);
-        assertTrue(this.commands.toString(), terminalCheck < archive && archive < stop);
+        assertTrue(cancelCopy < cancelPublish && cancelPublish < terminalCheck, this.commands.toString());
+        assertTrue(terminalCheck < archive && archive < stop, this.commands.toString());
 
         // 最终握手证明 runner 已完成全部清理，轮询次数不代表生命周期完成。
         Path handshake = outputDirectory().resolve("runner-handshake.json");
@@ -1846,11 +1908,11 @@ public class NxnLauncherTest {
     }
 
     private void assertSuccess(int exit) throws Exception {
-        assertEquals(diagnostics(), 0, exit);
+        assertEquals(0, exit, diagnostics());
     }
 
     private void assertFailure(int exit) throws Exception {
-        assertNotEquals(diagnostics(), 0, exit);
+        assertNotEquals(0, exit, diagnostics());
     }
 
     private void assertFailure(int exit, int original) throws Exception {

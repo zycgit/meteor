@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.dubbo;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.TimeUnit;
 import net.hasor.example.protocol.dubbo.interop.DubboInteropService;
 import net.hasor.meteor.MetBindInfo;
@@ -17,18 +18,21 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.application;
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.assertInterfaceProvidersAbsent;
 import static net.hasor.realmeteor.registry.dubbo.DubboRegistryScenarioSupport.awaitAddresses;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 服务到应用的映射在引用建立后才出现，应用发现必须由真实 ZooKeeper 通知驱动。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboRegistryLateMappingScenarioTest {
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void existingReferenceDiscoversApplicationPublishedAfterMappingSubscription() throws Exception {
         // 全新的注册中心还没有目标服务的应用映射，先启动消费上下文和引用。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {
@@ -63,7 +67,8 @@ public class DubboRegistryLateMappingScenarioTest {
         }
     }
 
-    @Test(timeout = 90000)
+    @Test
+    @Timeout(value = 90000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingLateMappingConsumerLeavesProviderAvailableToAnotherApplication() throws Exception {
         // 首个消费者先完成空映射订阅，随后到达的映射必须经过 ZooKeeper 事件线程。
         try (ZookeeperTestServer zookeeper = ZookeeperTestServer.dedicated()) {

@@ -6,6 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.thrift.python;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -21,15 +23,18 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.python.PythonTypePeerProcess;
 import net.hasor.realmeteor.matrix.types.TypeValueAssertions;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Python Thrift 三种编码逐类型双向互通；float32 扩为 double，u64 显式映射为十进制字符串。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/python/thrift-{0}/direct/{1}/{2}", quoteTextArguments = false)
+@MethodSource("vectors")
+@NxnRpc(name = "thrift")
 public class PythonThriftTypeInteropTest {
     private static final String SERVICE = "TypeEchoService";
     private final        String encoding;
@@ -39,8 +44,6 @@ public class PythonThriftTypeInteropTest {
         this.encoding = encoding;
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/python/thrift-{0}/direct/{1}/{2}")
     public static Collection<Object[]> vectors() throws Exception {
         // 编码与类型向量分别生成参数实例，不在单个 testcase 中循环执行不同类型场景。
         List<Object[]> parameters = new ArrayList<>();
@@ -52,7 +55,8 @@ public class PythonThriftTypeInteropTest {
         return parameters;
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorProviderPreservesPythonNativeType() throws Exception {
         // Meteor 从公开 bootstrap 启动；固定 IDL 桥接 float32/u64，业务仍复用普通类型实现。
         MetConfiguration configuration = this.configuration(true);
@@ -72,7 +76,8 @@ public class PythonThriftTypeInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerPreservesPythonNativeType() throws Exception {
         // Python Processor 在独立容器提供服务，Meteor 只启用相同编码的出站连接。
         MetConfiguration configuration = this.configuration(false);

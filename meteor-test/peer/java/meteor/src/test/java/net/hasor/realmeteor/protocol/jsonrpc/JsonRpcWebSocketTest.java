@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
@@ -26,14 +27,17 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** WebSocket 与 WSS 复用 HTTP 挂载，实际业务仍经过公开 Caller 和 Dispatcher。 */
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class JsonRpcWebSocketTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1UpgradeCarriesPublishedService() throws Exception {
         // 在 HTTP/1 端点上声明升级挂载，两端使用相同 context 与公开地址别名。
         MetConfiguration incoming = new MetConfiguration();
@@ -61,7 +65,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2ExtendedConnectCarriesPublishedService() throws Exception {
         // 在 HTTP/2 端点上声明升级挂载，两端使用相同 context 与公开地址别名。
         MetConfiguration incoming = new MetConfiguration();
@@ -89,7 +94,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wssHttp1AuthenticatesServer() throws Exception {
         // 在 HTTP/1 端点上声明升级挂载，两端使用相同 context 与公开地址别名。
         MetConfiguration incoming = new MetConfiguration();
@@ -119,7 +125,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wssHttp2NegotiatesAlpn() throws Exception {
         // 在 HTTP/2 端点上声明升级挂载，两端使用相同 context 与公开地址别名。
         MetConfiguration incoming = new MetConfiguration();
@@ -149,7 +156,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wssHttp1AuthenticatesBothPeers() throws Exception {
         // 在 HTTP/1 端点上声明升级挂载，两端使用相同 context 与公开地址别名。
         MetConfiguration incoming = new MetConfiguration();
@@ -179,7 +187,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wssHttp2AuthenticatesBothPeers() throws Exception {
         // 在 HTTP/2 端点上声明升级挂载，两端使用相同 context 与公开地址别名。
         MetConfiguration incoming = new MetConfiguration();
@@ -209,7 +218,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1WebSocketAndOrdinaryHttpShareOnePort() throws Exception {
         // 一个 JSON-RPC 挂载同时声明普通 HTTP 和 WebSocket 所使用的目录。
         MetConfiguration incoming = new MetConfiguration();
@@ -245,7 +255,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2WebSocketAndOrdinaryHttpShareOnePort() throws Exception {
         // 一个 JSON-RPC 挂载同时声明普通 HTTP 和 WebSocket 所使用的目录。
         MetConfiguration incoming = new MetConfiguration();
@@ -281,7 +292,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentJdkWebSocketAuthenticatesTlsServer() throws Exception {
         // 独立 WebSocket 客户端只发送标准 JSON-RPC 文本，不依赖 Meteor 客户端实现。
         MetConfiguration configuration = new MetConfiguration();
@@ -313,7 +325,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void notificationCallerCompletesWhileTheBusinessIsStillRunning() throws Exception {
         // 业务方法受闩锁控制；消息模式只能等待写出，不能等待业务执行完成。
         MetConfiguration incoming = new MetConfiguration();
@@ -348,7 +361,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentCallsKeepTheirResponseIdsIsolated() throws Exception {
         // 多个请求复用一个 WS 会话，结果必须按照 ID 对应到自己的 Future。
         MetConfiguration incoming = new MetConfiguration();
@@ -380,7 +394,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingOneCallLeavesTheWebSocketUsable() throws Exception {
         // 为阻塞调用和后续调用分别保留工作线程，避免业务队列串行掩盖连接隔离。
         MetConfiguration incoming = new MetConfiguration().setQueueMinPoolSize(2);
@@ -415,7 +430,8 @@ public class JsonRpcWebSocketTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingTheServerFailsPendingCallsWithoutWaitingForTimeout() throws Exception {
         // 关闭时一个网络调用仍在业务闩锁内，调用方应直接感知连接终止。
         MetConfiguration incoming = new MetConfiguration();

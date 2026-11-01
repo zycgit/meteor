@@ -7,11 +7,16 @@ package net.hasor.realmeteor.example.multilingual;
 import java.nio.file.Path;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Hprose HTML5 SDK 在真实浏览器中调用 Meteor 的基础订单场景。 */
+@NxnRpc(name = "hprose")
 public class BrowserHproseConsumerScenarioTest {
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void html5ConsumerSavesAndFindsTheMeteorOrder() throws Exception {
         // 独立 Meteor 应用通过 bootstrap 启动并发布 Hprose 订单服务。
         try (OrderPeerProcess provider = OrderPeerProcess.javaMain("hprose", "Provider", null)) {

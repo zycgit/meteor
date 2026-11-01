@@ -19,13 +19,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import net.hasor.example.protocol.soap.EchoService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 并发新连接上的即时 Fault 必须全部送达，不能依赖业务执行延迟完成网络初始化。 */
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesFaultDeliveryTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void freshConnectionsReceiveSoap11VersionFaults() throws Exception {
         // 从公开入口启动 SOAP 1.1 服务，观察非法报文是否误入业务调用。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -60,7 +64,7 @@ public class WebServicesFaultDeliveryTest {
                     HttpResponse<String> response = pending.get(5, TimeUnit.SECONDS);
                     assertEquals(HttpClient.Version.HTTP_1_1, response.version());
                     assertEquals(500, response.statusCode());
-                    assertTrue(response.body(), response.body().contains("soap:VersionMismatch"));
+                    assertTrue(response.body().contains("soap:VersionMismatch"), response.body());
                 }
                 assertEquals(0, invocations.get());
             } finally {
@@ -71,7 +75,9 @@ public class WebServicesFaultDeliveryTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void freshConnectionsReceiveSoap12StructureFaults() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，非法结构必须在业务调用前被拒绝。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -110,7 +116,7 @@ public class WebServicesFaultDeliveryTest {
                     HttpResponse<String> response = pending.get(5, TimeUnit.SECONDS);
                     assertEquals(HttpClient.Version.HTTP_1_1, response.version());
                     assertEquals(400, response.statusCode());
-                    assertTrue(response.body(), response.body().contains("soap:Sender"));
+                    assertTrue(response.body().contains("soap:Sender"), response.body());
                 }
                 assertEquals(0, invocations.get());
             } finally {

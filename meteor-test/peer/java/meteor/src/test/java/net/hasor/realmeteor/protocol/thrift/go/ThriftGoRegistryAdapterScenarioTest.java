@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.thrift.go;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.util.UUID;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,6 +26,7 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
@@ -28,35 +34,32 @@ import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
 import net.hasor.realmeteor.matrix.OrderDiscovery;
 import net.hasor.realmeteor.matrix.OrderRegistryEnvironment;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Thrift Go 显式注册适配，仅验证 Binary/Framed/Plain；Go SDK 不原生读取 Meteor 注册数据。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "thrift/go/adapter/{0}/binary-framed/plain", quoteTextArguments = false)
+@MethodSource("discoveries")
+@NxnRpc(name = "thrift")
 public class ThriftGoRegistryAdapterScenarioTest {
-    @ClassRule
-    public static final TemporaryFolder          environmentData = new TemporaryFolder();
+    @TempDir
+    public static Path environmentData;
     private static      OrderRegistryEnvironment environment;
 
-    @Rule
-    public final  TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final OrderDiscovery  discovery;
 
     public ThriftGoRegistryAdapterScenarioTest(OrderDiscovery discovery) {
         this.discovery = discovery;
     }
-
-    @Parameterized.Parameters(name = "thrift/go/adapter/{0}/binary-framed/plain")
     public static Object[][] discoveries() {
         return new Object[][] { // 每个注册后端分别报告两个调用方向，不包含直连或其他安全配置。
                 { OrderDiscovery.JDBC }, //
@@ -65,19 +68,20 @@ public class ThriftGoRegistryAdapterScenarioTest {
         };
     }
 
-    @BeforeClass
+    @BeforeAll
     public static void createEnvironment() {
-        environment = new OrderRegistryEnvironment(environmentData.getRoot().toPath());
+        environment = new OrderRegistryEnvironment(environmentData);
     }
 
-    @AfterClass
+    @AfterAll
     public static void closeEnvironment() throws Exception {
         if (environment != null) {
             environment.close();
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goConsumerResolvesMeteorProviderThroughRegistryAdapter() throws Exception {
         // 每个方法独占注册空间和缓存；外部存储进程由测试类共享并统一关闭。
         String scope = UUID.randomUUID().toString();
@@ -100,7 +104,7 @@ public class ThriftGoRegistryAdapterScenarioTest {
                         JsonNode result = peer.awaitResult();
 
                         // 官方 Go SDK 自己保存并查询 Unicode 订单，Java 适配器只处理发现信息。
-                        assertTrue(result.toString(), result.path("ok").asBoolean());
+                        assertTrue(result.path("ok").asBoolean(), result.toString());
                     }
                 }
             }
@@ -109,7 +113,8 @@ public class ThriftGoRegistryAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversGoProviderThroughRegistryAdapter() throws Exception {
         // Meteor 只配置 Thrift 与内部管理出站能力，初始订阅没有固定业务地址。
         String scope = UUID.randomUUID().toString();
@@ -166,7 +171,7 @@ public class ThriftGoRegistryAdapterScenarioTest {
         configuration.setDefaultGroup(scope);
         String application = provider ? "thrift-go-provider-adapter" : "thrift-go-consumer-adapter";
         configuration.setApplicationName(application);
-        configuration.setDataHome(this.data.newFolder(application).toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve(application)));
         configuration.addExtension(registry);
         var thrift = configuration.getConnectors().get(0).getProtocols().get(0);
         thrift.option("encoding", "binary").option("framed", true).addressScheme("thrift");

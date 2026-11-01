@@ -15,9 +15,11 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 从公开启动与发布入口验证协议拒绝不会撤销其他发布或本地实现。 */
 public class GrpcPublicationScenarioTest {
@@ -100,7 +102,8 @@ public class GrpcPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sameProtocolCallsEachEndpointWithItsOwnContext() throws Exception {
         // 提供者在两个端口挂载同名协议，各自选择不同地址前缀和默认 context。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc");

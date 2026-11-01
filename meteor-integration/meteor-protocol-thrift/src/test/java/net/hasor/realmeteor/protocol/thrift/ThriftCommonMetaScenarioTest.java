@@ -12,11 +12,14 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.thrift.ThriftIdlResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 public class ThriftCommonMetaScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void fileConsumerCallsTheAnnotationProvider() throws Exception {
         // 提供者只发布普通注解接口，消费者绑定既有 IDL。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -39,7 +42,8 @@ public class ThriftCommonMetaScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void annotationConsumerCallsTheFileProvider() throws Exception {
         // 提供者使用文件定义，消费者只依赖同一份 Java 接口与公共注解。
         try (MetContext server = this.configuration(true).buildContext(); //

@@ -5,15 +5,20 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.sdk;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.UUID;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 通过两个独立测试 Java 入口验证 SDK 原生 ZooKeeper 注册发现，不向消费者传递业务地址。 */
+@NxnRpc(name = "dubbo", version = "3")
 public class NativeRegistryScenarioTest {
-    @Test(timeout = 240000)
+    @Test
+    @Timeout(value = 240000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dubboSdkConsumerDiscoversMeteorProvider() throws Exception {
         // 原生 Dubbo 不保留 URL chroot，双方使用当前场景独有的服务分组。
         String group = "order-" + UUID.randomUUID();
@@ -36,7 +41,8 @@ public class NativeRegistryScenarioTest {
         }
     }
 
-    @Test(timeout = 240000)
+    @Test
+    @Timeout(value = 240000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversDubboSdkProvider() throws Exception {
         // SDK 和 Meteor 使用同一独立分组，注册发现不预置业务地址。
         String group = "order-" + UUID.randomUUID();

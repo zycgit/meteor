@@ -22,15 +22,15 @@ import net.hasor.meteor.registry.shared.RegistryTestUtils.Echo;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntServiceRuntimeData;
 import net.hasor.meteor.registry.shared.storage.domain.RefProtocolMountData;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 经正式发布与注册入口核对服务选择的上下文，不验证测试 HTTP 协议的业务 RPC。 */
 public class ServiceContextPublicationTest {
     private final MemoryRegistryConfiguration registry = new MemoryRegistryConfiguration();
 
-    @Before
+    @BeforeEach
     public void configure() {
         this.registry.setManagementToken("secret");
         this.registry.setRefreshMillis(600000);

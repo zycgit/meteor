@@ -25,14 +25,14 @@ import net.hasor.meteor.registry.shared.rpc.ServiceMemberData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntApplicationCatalogData;
 import net.hasor.meteor.registry.shared.storage.domain.EntConfigurationData;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class AdminQueryTest {
     private final MemoryRegistryConfiguration configuration = new MemoryRegistryConfiguration();
 
-    @Before
+    @BeforeEach
     public void configure() {
         this.configuration.setManagementToken("secret");
     }
@@ -268,7 +268,7 @@ public class AdminQueryTest {
             DecoratedRegistryConfiguration observed = new DecoratedRegistryConfiguration(this.configuration, delegate -> {
                 InvocationHandler scopeCheck = (proxy, method, arguments) -> {
                     String operation = method.getName();
-                    assertFalse("No instance enrichment reads", StringUtils.equals(operation, "getInstance"));
+                    assertFalse(StringUtils.equals(operation, "getInstance"), "No instance enrichment reads");
                     if (StringUtils.equals(operation, "instances")) {
                         assertEquals("orders", arguments[0]);
                     }

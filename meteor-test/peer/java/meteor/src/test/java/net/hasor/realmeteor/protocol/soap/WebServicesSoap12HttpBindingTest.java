@@ -21,11 +21,14 @@ import net.hasor.example.protocol.soap.EchoService;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.2")
 public class WebServicesSoap12HttpBindingTest {
     private static final String NAMESPACE    = "http://www.w3.org/2003/05/soap-envelope";
     private static final String ACTION       = "urn:hasor:meteor:soap:EchoService/echo";
@@ -34,7 +37,8 @@ public class WebServicesSoap12HttpBindingTest {
             <m:echo xmlns:m="urn:hasor:meteor:soap:EchoService"><arg0>hello</arg0></m:echo>
             """;
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mediaActionSelectsSoap12Operation() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -61,12 +65,13 @@ public class WebServicesSoap12HttpBindingTest {
             // 验证线上状态和业务隔离，Fault 使用 SOAP 1.2 的结构。
             assertEquals(200, response.statusCode());
             assertEquals(1, invocations.get());
-            assertTrue(response.body(), response.body().contains("hello"));
+            assertTrue(response.body().contains("hello"), response.body());
             assertTrue(response.headers().firstValue("Content-Type").orElseThrow().startsWith("application/soap+xml"));
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mismatchedActionFailsBeforeInvocation() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -104,7 +109,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingRequiredActionFailsBeforeInvocation() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -142,7 +148,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void duplicateActionParameterIsRejected() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -172,7 +179,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11MediaTypeIsRejectedBySoap12Endpoint() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -202,7 +210,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrongEnvelopeVersionReturnsVersionMismatch() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -242,7 +251,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mandatoryUltimateReceiverHeaderReturnsMustUnderstand() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -284,7 +294,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mandatoryNextRoleHeaderReturnsMustUnderstand() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -328,7 +339,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitUltimateReceiverRoleReturnsMustUnderstand() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -372,7 +384,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void noneRoleIsNotProcessedByUltimateReceiver() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -401,12 +414,13 @@ public class WebServicesSoap12HttpBindingTest {
             // 验证线上状态和业务隔离，Fault 使用 SOAP 1.2 的结构。
             assertEquals(200, response.statusCode());
             assertEquals(1, invocations.get());
-            assertTrue(response.body(), response.body().contains("hello"));
+            assertTrue(response.body().contains("hello"), response.body());
             assertTrue(response.headers().firstValue("Content-Type").orElseThrow().startsWith("application/soap+xml"));
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void foreignRoleIsNotProcessedByUltimateReceiver() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -434,12 +448,13 @@ public class WebServicesSoap12HttpBindingTest {
             // 验证线上状态和业务隔离，Fault 使用 SOAP 1.2 的结构。
             assertEquals(200, response.statusCode());
             assertEquals(1, invocations.get());
-            assertTrue(response.body(), response.body().contains("hello"));
+            assertTrue(response.body().contains("hello"), response.body());
             assertTrue(response.headers().firstValue("Content-Type").orElseThrow().startsWith("application/soap+xml"));
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void uppercaseMustUnderstandIsNotAnXmlBoolean() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -477,7 +492,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidRelayIsRejected() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -515,7 +531,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unqualifiedHeaderBlockIsRejected() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -553,7 +570,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void duplicateBodyIsRejected() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -591,7 +609,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void duplicateHeaderIsRejected() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -630,7 +649,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void headerAfterBodyIsRejected() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -669,7 +689,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void multipleOperationsViolateDocumentLiteralContract() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -707,7 +728,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void processingInstructionIsRejected() throws Exception {
         // 从公开入口启动 SOAP 1.2 服务，记录是否进入业务方法。
         AtomicInteger invocations = new AtomicInteger();
@@ -745,7 +767,8 @@ public class WebServicesSoap12HttpBindingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSoap12ClientCallsMeteorServer() throws Exception {
         // 客户端和服务端都通过正式协议配置明确选择 SOAP 1.2。
         MetConfiguration incoming = this.configuration();

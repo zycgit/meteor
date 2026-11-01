@@ -6,6 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.matrix;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -13,18 +19,34 @@ import java.util.List;
 import java.util.UUID;
 import net.hasor.example.contract.scalar.*;
 import net.hasor.meteor.MetContext;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Date 始终按 UTC 绝对时刻断言，秒级 XML-RPC 只承担整秒向量。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "moment/self/{0}/direct/{1}", quoteTextArguments = false)
+@MethodSource("configurations")
+@NxnRpc(name = "rsf", version = "1", cases = "moment/self/rsf-json/*")
+@NxnRpc(name = "dubbo", cases = "moment/self/dubbo-hessian2/*")
+@NxnRpc(name = "hprose", cases = "moment/self/hprose/*")
+@NxnRpc(name = "hessian", version = "2", cases = "moment/self/hessian-2/*")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "moment/self/jsonrpc-json/*")
+@NxnRpc(name = "xmlrpc", cases = "moment/self/xmlrpc-struct/*")
+@NxnRpc(name = "soap", version = "1.1", cases = "moment/self/soap-literal/*")
+@NxnRpc(name = "grpc", cases = "moment/self/grpc-custom-json/*")
+@NxnRpc(name = "grpc", cases = "moment/self/grpc-protobuf/*")
+@NxnRpc(name = "grpc-web", cases = "moment/self/grpc-web-custom-json/*")
+@NxnRpc(name = "grpc-web", cases = "moment/self/grpc-web-protobuf/*")
+@NxnRpc(name = "connect", version = "1", cases = "moment/self/connect-json/*")
+@NxnRpc(name = "connect", version = "1", cases = "moment/self/connect-protobuf/*")
+@NxnRpc(name = "triple", cases = "moment/self/triple-java-hessian2/*")
+@NxnRpc(name = "triple", cases = "moment/self/triple-protobuf/*")
+@NxnRpc(name = "thrift", cases = "moment/self/thrift-binary-framed/*")
+@NxnRpc(name = "oncrpc", version = "2", cases = "moment/self/oncrpc-xdr/*")
 public class ScalarMomentMatrixTest {
-    @Rule
-    public final  TemporaryFolder    data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final ScalarValueProfile profile;
     private final String             vector;
 
@@ -32,8 +54,6 @@ public class ScalarMomentMatrixTest {
         this.profile = profile;
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "moment/self/{0}/direct/{1}")
     public static Collection<Object[]> configurations() throws IOException {
         // 同一毫秒值用于全部可表达该精度的编码，不为 XML-RPC 静默截断共享向量。
         List<Object[]> result = new ArrayList<>();
@@ -57,14 +77,15 @@ public class ScalarMomentMatrixTest {
         return result;
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void utcInstantRetainsItsDeclaredPrecision() throws Exception {
         // 仅准备配置与独立数据目录，日期不会在启动前被格式化为业务字符串。
         String scope = "moment-" + UUID.randomUUID();
         var incoming = this.profile.providerConfiguration().setDefaultGroup(scope);
-        incoming.setDataHome(this.data.newFolder("provider").toPath());
+        incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         var outgoing = this.profile.consumerConfiguration().setDefaultGroup(scope);
-        outgoing.setDataHome(this.data.newFolder("consumer").toPath());
+        outgoing.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
         try (MetContext provider = incoming.buildContext(); //
              MetContext consumer = outgoing.buildContext()) {
             provider.start();

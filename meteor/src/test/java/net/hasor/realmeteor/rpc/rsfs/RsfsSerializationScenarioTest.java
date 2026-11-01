@@ -11,12 +11,15 @@ import net.hasor.example.rpc.rsfs.RsfsEcho;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 通过公开发布和代理调用，逐一验证已注册编码在 TLS 上的往返。 */
 public class RsfsSerializationScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaWithServerAuthentication() throws Exception {
         // 为 Java 调用配置仅验证服务端证书，两端使用独立上下文。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");
@@ -37,7 +40,8 @@ public class RsfsSerializationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaWithMutualTls() throws Exception {
         // 为 Java 调用配置双向认证，两端使用独立上下文。
         MetConfiguration incoming = RsfsConfigurations.server("server", "REQUIRE");
@@ -58,7 +62,8 @@ public class RsfsSerializationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonWithServerAuthentication() throws Exception {
         // 为 Json 调用配置仅验证服务端证书，两端使用独立上下文。
         MetConfiguration incoming = RsfsConfigurations.server("server", "NONE");
@@ -79,7 +84,8 @@ public class RsfsSerializationScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonWithMutualTls() throws Exception {
         // 为 Json 调用配置双向认证，两端使用独立上下文。
         MetConfiguration incoming = RsfsConfigurations.server("server", "REQUIRE");

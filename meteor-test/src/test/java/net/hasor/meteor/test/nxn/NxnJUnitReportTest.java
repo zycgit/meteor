@@ -11,15 +11,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** 原始 JUnit 报告的失败原因保留，不依赖真实对端或测试调度器。 */
 public class NxnJUnitReportTest {
-    @Rule
-    public final TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
 
     @Test
     public void failureWithoutBodyPreservesTheMessageAttribute() throws Exception {
@@ -63,7 +62,7 @@ public class NxnJUnitReportTest {
     }
 
     private Path result(String outcome) throws Exception {
-        Path xml = this.temporary.getRoot().toPath().resolve("TEST-rpc.Calls.xml");
+        Path xml = this.temporary.resolve("TEST-rpc.Calls.xml");
         String content = "<testsuite name=\"rpc.Calls\" tests=\"1\">" //
                 + "<testcase classname=\"rpc.Calls\" name=\"invoke\">" //
                 + outcome + "</testcase></testsuite>";

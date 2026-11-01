@@ -22,11 +22,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.soap.support.SoapResponseUtils;
 import net.hasor.realmeteor.protocol.soap.support.SoapTlsSupport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesTlsTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11UsesHttpsHttp1() throws Exception {
         // 启动 SOAP 1.1 单向 TLS 服务并发布普通 Java 接口。
         MetConfiguration configuration = this.server("1.1", HttpClient.Version.HTTP_1_1, false);
@@ -48,7 +53,8 @@ public class WebServicesTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11UsesHttpsHttp2Alpn() throws Exception {
         // 启动 SOAP 1.1 单向 TLS 服务并启用 h2 ALPN。
         MetConfiguration configuration = this.server("1.1", HttpClient.Version.HTTP_2, false);
@@ -70,7 +76,9 @@ public class WebServicesTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12UsesHttpsHttp1() throws Exception {
         // 启动 SOAP 1.2 单向 TLS 服务并发布普通 Java 接口。
         MetConfiguration configuration = this.server("1.2", HttpClient.Version.HTTP_1_1, false);
@@ -92,7 +100,9 @@ public class WebServicesTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12UsesHttpsHttp2Alpn() throws Exception {
         // 启动 SOAP 1.2 单向 TLS 服务并启用 h2 ALPN。
         MetConfiguration configuration = this.server("1.2", HttpClient.Version.HTTP_2, false);
@@ -114,7 +124,8 @@ public class WebServicesTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11UsesMutualTlsHttp1() throws Exception {
         // 启动要求客户端证书的 SOAP 1.1 HTTP/1.1 服务。
         MetConfiguration configuration = this.server("1.1", HttpClient.Version.HTTP_1_1, true);
@@ -136,7 +147,8 @@ public class WebServicesTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11UsesMutualTlsHttp2Alpn() throws Exception {
         // 启动要求客户端证书的 SOAP 1.1 HTTP/2 服务。
         MetConfiguration configuration = this.server("1.1", HttpClient.Version.HTTP_2, true);
@@ -158,7 +170,9 @@ public class WebServicesTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12UsesMutualTlsHttp1() throws Exception {
         // 启动要求客户端证书的 SOAP 1.2 HTTP/1.1 服务。
         MetConfiguration configuration = this.server("1.2", HttpClient.Version.HTTP_1_1, true);
@@ -180,7 +194,9 @@ public class WebServicesTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12UsesMutualTlsHttp2Alpn() throws Exception {
         // 启动要求客户端证书的 SOAP 1.2 HTTP/2 服务。
         MetConfiguration configuration = this.server("1.2", HttpClient.Version.HTTP_2, true);
@@ -202,7 +218,8 @@ public class WebServicesTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsRejectsMissingClientCertificate() throws Exception {
         // 服务端要求客户端身份，业务实现记录是否越过了 TLS 边界。
         AtomicInteger calls = new AtomicInteger();
@@ -217,12 +234,14 @@ public class WebServicesTlsTest {
             IOException failure = assertThrows(IOException.class, () -> {
                 client.send(request, HttpResponse.BodyHandlers.ofString());
             });
-            assertFalse("Certificate rejection must not time out", failure instanceof HttpTimeoutException);
+            assertFalse(failure instanceof HttpTimeoutException, "Certificate rejection must not time out");
             assertEquals(0, calls.get());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsRejectsUntrustedClientCertificate() throws Exception {
         // SOAP 1.2 HTTP/2 服务端只信任验收 CA 签发的客户端身份。
         AtomicInteger calls = new AtomicInteger();
@@ -237,12 +256,13 @@ public class WebServicesTlsTest {
             IOException failure = assertThrows(IOException.class, () -> {
                 client.send(request, HttpResponse.BodyHandlers.ofString());
             });
-            assertFalse("Certificate rejection must not time out", failure instanceof HttpTimeoutException);
+            assertFalse(failure instanceof HttpTimeoutException, "Certificate rejection must not time out");
             assertEquals(0, calls.get());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsRejectsWrongHostCertificate() throws Exception {
         // 服务端证书由受信任 CA 签发，但 SAN 不包含 localhost。
         AtomicInteger calls = new AtomicInteger();
@@ -262,12 +282,14 @@ public class WebServicesTlsTest {
             IOException failure = assertThrows(IOException.class, () -> {
                 client.send(request, HttpResponse.BodyHandlers.ofString());
             });
-            assertFalse("Hostname rejection must not time out", failure instanceof HttpTimeoutException);
+            assertFalse(failure instanceof HttpTimeoutException, "Hostname rejection must not time out");
             assertEquals(0, calls.get());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsRejectsUntrustedServerCertificate() throws Exception {
         // SOAP 1.2 HTTP/2 服务使用正常服务端身份，客户端改用另一套信任库。
         AtomicInteger calls = new AtomicInteger();
@@ -282,7 +304,7 @@ public class WebServicesTlsTest {
             IOException failure = assertThrows(IOException.class, () -> {
                 client.send(request, HttpResponse.BodyHandlers.ofString());
             });
-            assertFalse("Trust rejection must not time out", failure instanceof HttpTimeoutException);
+            assertFalse(failure instanceof HttpTimeoutException, "Trust rejection must not time out");
             assertEquals(0, calls.get());
         }
     }

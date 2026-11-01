@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.composition.http;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -26,12 +27,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 协议共用监听后，错误、取消和服务选择仍保持隔离。 */
 public class HttpProtocolIsolationTest {
-    @Test(timeout = 20000)
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @NxnRpc(name = "soap", version = "1.1")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void anAliasDoesNotExposeTheServiceThroughAnExcludedProtocol() throws Exception {
         // 所有协议均已挂载，但服务只选择 JSON-RPC，SOAP 别名不等于开放 SOAP。
         MetConfiguration incoming = HttpCompositionConfiguration.incoming();
@@ -62,7 +67,10 @@ public class HttpProtocolIsolationTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @NxnRpc(name = "soap", version = "1.1")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void malformedJsonDoesNotInterruptTheSoapRoute() throws Exception {
         // 一个端口同时挂载 JSON-RPC 和 SOAP，畸形报文只能影响被选中的协议。
         MetConfiguration incoming = HttpCompositionConfiguration.incoming();
@@ -100,7 +108,10 @@ public class HttpProtocolIsolationTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @NxnRpc(name = "soap", version = "1.1")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void aNestedSoapMountWinsOverItsJsonRpcParent() throws Exception {
         // 两个协议的 context 存在父子关系，监听必须按完整路径选择更具体的挂载。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("jsonrpc");
@@ -126,7 +137,10 @@ public class HttpProtocolIsolationTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @NxnRpc(name = "xmlrpc")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingJsonRpcDoesNotCancelAnXmlRpcCallOnTheListener() throws Exception {
         // 被阻塞的 JSON-RPC 调用和 XML-RPC 服务分别拥有自己的协议会话。
         // 为阻塞中的 JSON 和仍需执行的 XML 预留两个业务线程，避免默认单核心线程将后者排队。

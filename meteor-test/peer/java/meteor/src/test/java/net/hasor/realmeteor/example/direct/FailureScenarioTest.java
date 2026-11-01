@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ExecutionException;
 import net.hasor.example.direct.DirectRpcExample;
@@ -19,10 +20,11 @@ import net.hasor.meteor.SendLimitPolicy;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 使用点对点订单契约演示业务失败、超时、取消和实例离线上线。 */
+@NxnRpc(name = "rsf", version = "1")
 public class FailureScenarioTest {
     @Test
     public void businessFailureIsDifferentFromTimeout() throws Exception {
@@ -45,7 +47,7 @@ public class FailureScenarioTest {
             Object[] failedArguments = { query(ControlledOrderService.FAILURE_ID) };
             MetFuture failed = remote.asyncInvoke(service, "find", failedTypes, failedArguments);
             Throwable business = failure(failed);
-            assertTrue(business.toString(), business instanceof MetException);
+            assertTrue(business instanceof MetException, business.toString());
             assertFalse(business instanceof MetTimeoutException);
             assertTrue(business.getMessage().contains("inventory unavailable"));
         }
@@ -167,7 +169,7 @@ public class FailureScenarioTest {
                 Object[] secondArguments = { query(42) };
                 MetFuture second = remote.asyncInvoke(service, "find", secondTypes, secondArguments);
                 Throwable rejected = failure(second);
-                assertTrue(rejected.toString(), rejected instanceof MetException);
+                assertTrue(rejected instanceof MetException, rejected.toString());
                 assertFalse(rejected instanceof MetTimeoutException);
                 waiting.cancel();
             } finally {

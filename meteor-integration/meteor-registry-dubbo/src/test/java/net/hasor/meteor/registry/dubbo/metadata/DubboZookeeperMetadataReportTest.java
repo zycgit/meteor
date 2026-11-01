@@ -19,8 +19,8 @@ import org.apache.dubbo.metadata.MappingListener;
 import org.apache.dubbo.remoting.zookeeper.curator5.ZookeeperClientManager;
 import org.apache.dubbo.rpc.model.ApplicationModel;
 import org.apache.dubbo.rpc.model.FrameworkModel;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class DubboZookeeperMetadataReportTest {
     private static final String SERVICE = "net.hasor.example.registry.dubbo.LateMappingService";
@@ -160,7 +160,7 @@ public class DubboZookeeperMetadataReportTest {
                 assertTrue(report.registerServiceAppMapping(SERVICE, "mapping", "async-provider", null));
                 assertNotNull(events.poll(5, TimeUnit.SECONDS));
                 String thread = callback.get().getName();
-                assertTrue(thread, thread.startsWith("Dubbo-framework-mapping-refreshing-scheduler"));
+                assertTrue(thread.startsWith("Dubbo-framework-mapping-refreshing-scheduler"), thread);
             } finally {
                 report.destroy();
             }

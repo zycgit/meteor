@@ -13,11 +13,14 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 public class GrpcAnnotationScenarioTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void annotationProviderAcceptsAFileBasedConsumer() throws Exception {
         // 服务端由注解生成描述，客户端按已有 proto 绑定相同 Java 接口。
         MetConfiguration incoming = this.serverConfiguration();
@@ -42,7 +45,8 @@ public class GrpcAnnotationScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void annotationConsumerCallsAFileBasedProvider() throws Exception {
         // 提供者使用已有契约，消费者只提供公共注解和普通 Java DTO。
         MetConfiguration incoming = this.serverConfiguration();

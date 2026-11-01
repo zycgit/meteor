@@ -16,13 +16,18 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesRpcEncodedInteropTest {
     private static final String NAMESPACE = "urn:hasor:meteor:soap:RpcEchoService";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void axisClientInvokesMeteorRpcEncodedSoap11() throws Exception {
         // Meteor 发布普通 Java 接口，并自动生成 RPC/encoded SOAP 1.1 契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -59,7 +64,9 @@ public class WebServicesRpcEncodedInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void axisClientInvokesMeteorRpcEncodedSoap12() throws Exception {
         // 原厂 Axis 1.4 不发送媒体类型 action，Meteor 明确发布允许省略 action 的 SOAP 1.2 契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -97,7 +104,8 @@ public class WebServicesRpcEncodedInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientInvokesAxisRpcEncodedSoap11Engine() throws Exception {
         // 使用真实 AxisServer 引擎处理 SOAP；测试显式持有外部 HTTP 监听与引擎生命周期。
         try (SoapPeerProcess server = SoapPeerProcess.axisServer()) {
@@ -127,7 +135,9 @@ public class WebServicesRpcEncodedInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientInvokesAxisRpcEncodedSoap12Engine() throws Exception {
         // 使用真实 AxisServer 引擎处理 SOAP；测试显式持有外部 HTTP 监听与引擎生命周期。
         try (SoapPeerProcess server = SoapPeerProcess.axisServer()) {

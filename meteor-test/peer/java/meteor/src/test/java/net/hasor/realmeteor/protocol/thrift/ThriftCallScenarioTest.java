@@ -30,13 +30,17 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import org.apache.thrift.TApplicationException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 每个场景从业务接口发布开始，所有参数与结果均经过真实 TCP 链路。 */
+@NxnRpc(name = "thrift")
 public class ThriftCallScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryUnframedTypedProxyCallsOrdinaryService() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", false);
@@ -59,7 +63,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void compactFramedTypedProxyCallsOrdinaryService() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("compact", true);
@@ -82,7 +87,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void compactUnframedTypedProxyCallsOrdinaryService() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("compact", false);
@@ -105,7 +111,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonFramedTypedProxyCallsOrdinaryService() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("json", true);
@@ -128,7 +135,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonUnframedTypedProxyCallsOrdinaryService() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("json", false);
@@ -151,7 +159,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void parameterDeclarationOrderUsesGeneratedFieldIds() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -181,7 +190,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void structRoundTripPreservesEveryScalarAndNestedField() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -206,7 +216,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unsetOptionalFieldsRemainUnset() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -233,7 +244,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitOptionalZeroAndEmptyTextRemainSet() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -263,7 +275,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void idlDefaultsSurviveAResultWithoutExplicitAssignments() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -288,7 +301,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void listRetainsOrderUnicodeAndEmptyElements() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -312,7 +326,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mapRetainsTypedKeysAndIntegerValues() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -338,7 +353,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void setRetainsLongValues() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -362,7 +378,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryRetainsBytesWithoutReadingOutsideTheBufferSlice() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -390,7 +407,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void enumRetainsItsGeneratedConstant() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -413,7 +431,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unionRetainsTheSelectedAlternative() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -437,7 +456,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void uuidRetainsBothLongHalves() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -461,7 +481,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void extendedServiceInvokesInheritedAndDeclaredMethods() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -485,7 +506,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void declaredFailureReachesTypedCallerAsGeneratedException() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -510,7 +532,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unexpectedFailureReachesTypedCallerAsApplicationException() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -534,7 +557,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directCoreFutureRetainsItsExecutionExceptionContract() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -562,7 +586,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void ordinaryVoidCompletesWithAnAcknowledgedResult() throws Exception {
         // 验证 IDL 的业务类型在真实网络往返后保留语义。
         MetConfiguration incoming = this.incoming("binary", true);
@@ -587,7 +612,8 @@ public class ThriftCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void onewayCompletesWithoutWaitingForBusinessCompletion() throws Exception {
         // 将通知业务保持在途，证明消息调用完成不依赖服务端返回业务结果。
         MetConfiguration incoming = this.incoming("binary", true);

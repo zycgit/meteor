@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -22,11 +23,14 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcMetadata;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc-web")
 public class GrpcWebHttpTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryJsonUnaryOverHttp1() throws Exception {
         // 在 HTTP/1 上使用 Json，传输体选择 二进制 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
@@ -53,7 +57,8 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryProtobufUnaryOverHttp1() throws Exception {
         // 在 HTTP/1 上使用 Protobuf，传输体选择 二进制 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
@@ -83,7 +88,8 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textJsonUnaryOverHttp1() throws Exception {
         // 在 HTTP/1 上使用 Json，传输体选择 文本 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
@@ -110,7 +116,8 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textProtobufUnaryOverHttp1() throws Exception {
         // 在 HTTP/1 上使用 Protobuf，传输体选择 文本 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
@@ -140,7 +147,8 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryJsonUnaryOverHttp2() throws Exception {
         // 在 HTTP/2 上使用 Json，传输体选择 二进制 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
@@ -167,7 +175,8 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryProtobufUnaryOverHttp2() throws Exception {
         // 在 HTTP/2 上使用 Protobuf，传输体选择 二进制 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
@@ -197,7 +206,8 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textJsonUnaryOverHttp2() throws Exception {
         // 在 HTTP/2 上使用 Json，传输体选择 文本 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
@@ -224,7 +234,8 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textProtobufUnaryOverHttp2() throws Exception {
         // 在 HTTP/2 上使用 Protobuf，传输体选择 文本 gRPC-Web 帧。
         MetConfiguration incoming = this.incoming();
@@ -254,7 +265,8 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryUnaryPreservesRepeatedRequestMetadata() throws Exception {
         // gRPC-Web 头部使用已存在的 GrpcMetadata API，服务观察真实入站值。
         MetConfiguration incoming = this.incoming();
@@ -291,7 +303,8 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textUnaryPreservesResponseHeadersAndBodyTrailers() throws Exception {
         // 响应初始头部仍在 HTTP 头，尾部元数据由 gRPC-Web 正文末尾帧承载。
         MetConfiguration incoming = this.incoming();
@@ -326,7 +339,8 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unaryErrorKeepsStatusAndEscapedDescription() throws Exception {
         // 业务拒绝只通过 gRPC-Web 状态帧报告，HTTP 本身不代表业务成功。
         MetConfiguration incoming = this.incoming();
@@ -355,7 +369,10 @@ public class GrpcWebHttpTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "grpc-web")
+    @NxnRpc(name = "grpc")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void grpcAndGrpcWebUseSeparateContextsOnOneHttpPort() throws Exception {
         // 原生 gRPC 与 gRPC-Web 在相同端口发布同一个接口，分别使用各自挂载点。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc-web");

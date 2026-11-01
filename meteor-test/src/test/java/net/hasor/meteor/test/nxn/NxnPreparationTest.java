@@ -11,12 +11,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 真实 Gradle 准备任务的文件隔离测试，不启动 Docker 或解析 SDK。 */
 public class NxnPreparationTest {
@@ -32,14 +32,14 @@ public class NxnPreparationTest {
     private Path maven;
     private Path seed;
 
-    @BeforeClass
+    @BeforeAll
     public static void prepareGradle() throws Exception {
         // 同一测试类借用已安装的 Wrapper 分发，缓存归本类所有。
         gradle = findGradle();
         gradleCache = Files.createTempDirectory("meteor-gradle-preparation-cache-");
     }
 
-    @AfterClass
+    @AfterAll
     public static void releaseGradle() throws Exception {
         if (gradleCache == null) {
             return;
@@ -56,7 +56,7 @@ public class NxnPreparationTest {
         deleteTree(gradleCache);
     }
 
-    @Before
+    @BeforeEach
     public void prepareFixture() throws Exception {
         // 独立使用生产准备脚本，输入源码的构建配置不参与准备过程。
         this.directory = Files.createTempDirectory("meteor-gradle-preparation-");
@@ -77,7 +77,7 @@ public class NxnPreparationTest {
         this.seed = this.directory.resolve("seed");
     }
 
-    @After
+    @AfterEach
     public void releaseFixture() throws Exception {
         deleteTree(this.directory);
     }
@@ -132,7 +132,7 @@ public class NxnPreparationTest {
         // 在复制之前失败，不覆盖旧证据。
         assertNotEquals(0, result.get("exitCode"));
         String diagnostics = result.get("output").toString();
-        assertTrue(diagnostics, diagnostics.contains("A test workspace must be fresh:"));
+        assertTrue(diagnostics.contains("A test workspace must be fresh:"), diagnostics);
         assertEquals("old", Files.readString(this.workspace.resolve("stale-result.xml")));
     }
 
@@ -171,7 +171,7 @@ public class NxnPreparationTest {
         builder.redirectOutput(output.toFile());
         Process process = builder.start();
         try {
-            assertTrue("Preparation task timed out", process.waitFor(90, TimeUnit.SECONDS));
+            assertTrue(process.waitFor(90, TimeUnit.SECONDS), "Preparation task timed out");
             return Map.of("exitCode", process.exitValue(), "output", Files.readString(output));
         } finally {
             if (process.isAlive()) {
@@ -186,7 +186,7 @@ public class NxnPreparationTest {
     }
 
     private static void assertSuccess(Map<String, Object> result) {
-        assertEquals(result.get("output").toString(), 0, result.get("exitCode"));
+        assertEquals(0, result.get("exitCode"), result.get("output").toString());
     }
 
     private static Path findRepository() {

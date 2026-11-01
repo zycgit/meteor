@@ -6,6 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.thrift;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.nio.file.Path;
 import java.util.*;
 import net.hasor.cobble.StringUtils;
@@ -18,13 +20,16 @@ import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftIdlResource;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 普通 Java DTO 与官方生成契约双向互通，每个参数组合都是独立场景。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "{0}/{1}/multiplexed={2}", quoteTextArguments = false)
+@MethodSource("matrix")
+@NxnRpc(name = "thrift")
 public class ThriftAnnotatedDtoScenarioTest {
     private final String  encoding;
     private final String  transport;
@@ -35,8 +40,6 @@ public class ThriftAnnotatedDtoScenarioTest {
         this.transport = transport;
         this.multiplexed = multiplexed;
     }
-
-    @Parameterized.Parameters(name = "{0}/{1}/multiplexed={2}")
     public static Collection<Object[]> matrix() {
         List<Object[]> cases = new ArrayList<>();
         cases.add(new Object[] { "binary", "tcp", false });
@@ -60,7 +63,8 @@ public class ThriftAnnotatedDtoScenarioTest {
         return cases;
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerAcceptsTheOfficialGeneratedDto() throws Exception {
         // Meteor 只发布普通接口和 DTO，编号和异常绑定现有 IDL 文件，不依赖生成资源。
         MetConfiguration configuration = this.configuration(true);
@@ -80,7 +84,8 @@ public class ThriftAnnotatedDtoScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerReadsTheOfficialGeneratedDtoAsAnOrdinaryDto() throws Exception {
         // 官方 Processor 运行在隔离 JVM；Meteor 使用同一普通 Java 接口订阅。
         List<String> arguments = this.peerArguments("server", 0);

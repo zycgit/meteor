@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -27,14 +28,17 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc")
 public class GrpcContextPathTest {
     private static final ObjectMapper MAPPER = new ObjectMapper().disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serviceWithoutPathSelectionIsVisibleOnDefaultContext() throws Exception {
         // 协议拥有默认路径和额外路径，服务不声明路径选择。
         MetConfiguration configuration = this.configuration();
@@ -63,7 +67,8 @@ public class GrpcContextPathTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serviceWithoutPathSelectionIsHiddenOnAdditionalContext() throws Exception {
         // 增加协议路径不会让未声明路径的服务自动暴露到该路径。
         MetConfiguration configuration = this.configuration();
@@ -95,7 +100,8 @@ public class GrpcContextPathTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitServicePathIsVisibleOnSelectedContext() throws Exception {
         // 服务显式选择额外路径，协议默认路径仍为 /rpc。
         MetConfiguration configuration = this.configuration();
@@ -125,7 +131,8 @@ public class GrpcContextPathTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitServicePathReplacesDefaultContextVisibility() throws Exception {
         // 额外路径的显式选择替换默认可见范围，不能叠加默认路径。
         MetConfiguration configuration = this.configuration();
@@ -158,7 +165,8 @@ public class GrpcContextPathTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serviceCanSelectMultipleRouteMounts() throws Exception {
         // 同一个服务显式选择两个已配置路径。
         MetConfiguration configuration = this.configuration();
@@ -190,7 +198,8 @@ public class GrpcContextPathTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nestedRequestUsesLongestConfiguredContextPrefix() throws Exception {
         // 默认路径是额外路径的前缀，路由必须先匹配更长的路径。
         MetConfiguration configuration = this.configuration();
@@ -221,7 +230,8 @@ public class GrpcContextPathTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nestedContextDoesNotInheritParentServiceVisibility() throws Exception {
         // 嵌套路径拥有独立可见范围，父路径的服务不能自动继承到子路径。
         MetConfiguration configuration = this.configuration();
@@ -253,7 +263,8 @@ public class GrpcContextPathTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void outboundUnaryUsesServiceSelectedContextPath() throws Exception {
         // 官方服务端只注册 /admin 方法，客户端默认路径保持为 /rpc。
         var method = this.method("admin/example.Echo/echo", MethodDescriptor.MethodType.UNARY);
@@ -285,7 +296,8 @@ public class GrpcContextPathTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void outboundServerStreamUsesServiceSelectedContextPath() throws Exception {
         // 官方服务端仅在额外路径注册响应流，避免默认路径掩盖出站选择错误。
         var method = this.method("admin/example.Messages/list", MethodDescriptor.MethodType.SERVER_STREAMING);

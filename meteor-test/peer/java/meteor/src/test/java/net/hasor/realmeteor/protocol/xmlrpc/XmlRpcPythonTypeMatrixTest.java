@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.xmlrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -20,20 +23,20 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.matrix.types.TypeValueAssertions;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Python 标准库与 Meteor 的结构类型互通；每个向量和调用方向独立报告。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/python/xmlrpc/direct/{0}/{1}", quoteTextArguments = false)
+@MethodSource("vectors")
+@NxnRpc(name = "xmlrpc")
 public class XmlRpcPythonTypeMatrixTest {
     private final String vector;
 
     public XmlRpcPythonTypeMatrixTest(String type, String vector) {
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/python/xmlrpc/direct/{0}/{1}")
     public static Collection<Object[]> vectors() throws Exception {
         // 标准 XML-RPC 整数为有符号 32 位；仅排除确实超出线上整数范围的向量。
         List<Object[]> parameters = new ArrayList<>();
@@ -46,7 +49,8 @@ public class XmlRpcPythonTypeMatrixTest {
         return parameters;
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerCallsMeteorProvider() throws Exception {
         // 配置真实监听和显式 nil 扩展，普通 Java DTO 由协议直接编解码。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -67,7 +71,8 @@ public class XmlRpcPythonTypeMatrixTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerCallsPythonProvider() throws Exception {
         // Python 作为独立网络提供者；Meteor 只配置出站端点，不开放监听。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);

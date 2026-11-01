@@ -28,8 +28,10 @@ import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 连接器与协议 SPI 契约的单元覆盖，使用真实 socket 验证传输及资源行为。 */
 public class TcpTransportTest {
@@ -71,7 +73,8 @@ public class TcpTransportTest {
         return response;
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void managerCloseDoesNotWaitForPendingRpcReply() throws Exception {
         // 建立一条等待服务端回复的真实 TCP 请求。
         BlockingQueue<ReceivedRequest> requests = new LinkedBlockingQueue<>();
@@ -375,7 +378,8 @@ public class TcpTransportTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingHandshakeClosesOutgoingSocket() throws Exception {
         // 原始对端读取本端握手，保持连接 future 尚未完成。
         try (ServerSocket peer = new ServerSocket(0)) {

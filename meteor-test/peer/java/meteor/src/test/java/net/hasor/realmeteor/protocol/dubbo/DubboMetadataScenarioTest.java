@@ -15,12 +15,16 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetResponse;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 普通 request/response 选项映射为 Dubbo attachments，不占用业务参数。 */
+@NxnRpc(name = "dubbo")
 public class DubboMetadataScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void userOptionsTravelAsRequestAndResponseAttachments() throws Exception {
         // 配置双方 Dubbo TCP 能力，客户端不开放监听端口。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("dubbo");

@@ -18,14 +18,14 @@ import net.hasor.meteor.address.DiskCache;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.dsl.RouteContext;
 import net.hasor.meteor.address.provider.AddressProvider;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class CacheAddressPoolTest {
-    @Rule
-    public TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
 
     @Test
     public void poolUpdaterAndProvidersShareAddressChangesBeforeStart() throws Exception {
@@ -193,7 +193,7 @@ public class CacheAddressPoolTest {
         MetConfiguration configuration = this.settings();
         InterAddress address = new InterAddress("rsf://127.0.0.1:2111/default");
         try (CacheAddressPool seed = new CacheAddressPool(this.snapshot(configuration)); //
-             DiskCache cache = new DiskCache(seed, this.temporary.getRoot(), 60000, 3600000)) {
+             DiskCache cache = new DiskCache(seed, this.temporary.toFile(), 60000, 3600000)) {
             seed.appendAddress("service", address);
             cache.storeConfig();
         }
@@ -218,7 +218,7 @@ public class CacheAddressPoolTest {
         MetConfiguration configuration = this.settings();
         InterAddress address = new InterAddress("rsf://127.0.0.1:2111/default");
         try (CacheAddressPool seed = new CacheAddressPool(this.snapshot(configuration)); //
-             DiskCache cache = new DiskCache(seed, this.temporary.getRoot(), 60000, 3600000)) {
+             DiskCache cache = new DiskCache(seed, this.temporary.toFile(), 60000, 3600000)) {
             seed.appendAddress("service", address);
             cache.storeConfig();
         }
@@ -263,7 +263,7 @@ public class CacheAddressPoolTest {
         settings.setRefreshCacheTime(60000);
         settings.setLocalDiskCache(false);
         settings.setDiskCacheTimeInterval(3600000);
-        settings.setDataHome(this.temporary.getRoot().toPath());
+        settings.setDataHome(this.temporary);
         return settings;
     }
 

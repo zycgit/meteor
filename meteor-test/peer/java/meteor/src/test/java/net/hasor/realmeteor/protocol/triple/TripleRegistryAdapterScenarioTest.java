@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -29,31 +34,28 @@ import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Dubbo Triple wrapped profile 的显式注册适配，不等同于 classic Dubbo 原生注册桥。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "adapter={0},profile=wrapped-hessian2", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "triple")
 public class TripleRegistryAdapterScenarioTest {
     private static final String SERVICE = "net.hasor.peer.protocol.triple.DubboWrappedService";
     private static final String TEXT    = "Triple 中文 🙂";
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
     public TripleRegistryAdapterScenarioTest(String backend) {
         this.backend = backend;
     }
-
-    @Parameterized.Parameters(name = "adapter={0},profile=wrapped-hessian2")
     public static Collection<Object[]> backends() {
         // 三种注册后端分别执行相同的独立官方 SDK 适配场景。
         List<Object[]> result = new ArrayList<>();
@@ -63,10 +65,11 @@ public class TripleRegistryAdapterScenarioTest {
         return result;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerOfficialDubboClientUsesRegistryAdapter() throws Exception {
         // 注册存储独占；保留官方对端既有固定 wrapped 合同与输入语义。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             registry.setPublishHost(ContainerProcess.runnerHost());
@@ -92,7 +95,7 @@ public class TripleRegistryAdapterScenarioTest {
                     try (DubboTripleProcess peer = DubboTripleProcess.start("client", port, host, //
                             "--mode=wrapped", "--scenario=echo")) {
                         JsonNode outcome = peer.awaitResult();
-                        assertFalse(outcome.toString(), outcome.has("error"));
+                        assertFalse(outcome.has("error"), outcome.toString());
                         assertEquals(TEXT, outcome.path("value").asText());
                     }
                 }
@@ -100,10 +103,11 @@ public class TripleRegistryAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMeteorDiscoversOfficialDubboThroughRegistryAdapter() throws Exception {
         // Meteor 只声明出站 Triple 和真实注册扩展，订阅不携带固定服务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, false);
@@ -136,7 +140,7 @@ public class TripleRegistryAdapterScenarioTest {
     private MetConfiguration configuration(RegistryConfiguration registry, boolean listening) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple").setDefaultTimeout(10000);
         configuration.setApplicationName(listening ? "triple-provider-adapter" : "triple-consumer-adapter");
-        configuration.setDataHome(this.data.newFolder("application").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("application")));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 注册扩展内部管理出口。
         ConnectorSettings connector = configuration.connector("http").option("httpVersion", 2);

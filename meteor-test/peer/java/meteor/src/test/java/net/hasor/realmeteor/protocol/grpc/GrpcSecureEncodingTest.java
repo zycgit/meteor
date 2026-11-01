@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.protocol.grpc.Echo;
 import net.hasor.example.protocol.grpc.EchoImpl;
 import net.hasor.example.protocol.grpc.Message;
@@ -13,13 +14,17 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 每个编码与传输组合独立从 bootstrap 完成真实 RPC。 */
+@NxnRpc(name = "grpc")
 public class GrpcSecureEncodingTest {
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonH2cPriorKnowledgeCallsPublishedService() throws Exception {
         // 为 Json 编码准备明文 HTTP/2 prior knowledge。
         MetConfiguration incoming = this.configuration(true, Security.H2C);
@@ -49,7 +54,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonTlsServerAuthenticationCallsPublishedService() throws Exception {
         // 为 Json 编码准备仅验证服务端证书的 TLS 与 h2 ALPN。
         MetConfiguration incoming = this.configuration(true, Security.TLS);
@@ -79,7 +85,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonMutualTlsCallsPublishedService() throws Exception {
         // 为 Json 编码准备分别持有服务端和客户端身份的双向 TLS。
         MetConfiguration incoming = this.configuration(true, Security.MUTUAL_TLS);
@@ -109,7 +116,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufH2cPriorKnowledgeCallsPublishedService() throws Exception {
         // 为 Protobuf 编码准备明文 HTTP/2 prior knowledge。
         MetConfiguration incoming = this.configuration(true, Security.H2C);
@@ -142,7 +150,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufTlsServerAuthenticationCallsPublishedService() throws Exception {
         // 为 Protobuf 编码准备仅验证服务端证书的 TLS 与 h2 ALPN。
         MetConfiguration incoming = this.configuration(true, Security.TLS);
@@ -175,7 +184,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufMutualTlsCallsPublishedService() throws Exception {
         // 为 Protobuf 编码准备分别持有服务端和客户端身份的双向 TLS。
         MetConfiguration incoming = this.configuration(true, Security.MUTUAL_TLS);
@@ -208,7 +218,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaH2cPriorKnowledgeCallsPublishedService() throws Exception {
         // 为 Java 编码准备明文 HTTP/2 prior knowledge。
         MetConfiguration incoming = this.configuration(true, Security.H2C);
@@ -238,7 +249,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaTlsServerAuthenticationCallsPublishedService() throws Exception {
         // 为 Java 编码准备仅验证服务端证书的 TLS 与 h2 ALPN。
         MetConfiguration incoming = this.configuration(true, Security.TLS);
@@ -268,7 +280,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaMutualTlsCallsPublishedService() throws Exception {
         // 为 Java 编码准备分别持有服务端和客户端身份的双向 TLS。
         MetConfiguration incoming = this.configuration(true, Security.MUTUAL_TLS);
@@ -298,7 +311,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianH2cPriorKnowledgeCallsPublishedService() throws Exception {
         // 为 Hessian 编码准备明文 HTTP/2 prior knowledge。
         MetConfiguration incoming = this.configuration(true, Security.H2C);
@@ -328,7 +342,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianTlsServerAuthenticationCallsPublishedService() throws Exception {
         // 为 Hessian 编码准备仅验证服务端证书的 TLS 与 h2 ALPN。
         MetConfiguration incoming = this.configuration(true, Security.TLS);
@@ -358,7 +373,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianMutualTlsCallsPublishedService() throws Exception {
         // 为 Hessian 编码准备分别持有服务端和客户端身份的双向 TLS。
         MetConfiguration incoming = this.configuration(true, Security.MUTUAL_TLS);
@@ -388,7 +404,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hproseH2cPriorKnowledgeCallsPublishedService() throws Exception {
         // 为 Hprose 编码准备明文 HTTP/2 prior knowledge。
         MetConfiguration incoming = this.configuration(true, Security.H2C);
@@ -418,7 +435,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hproseTlsServerAuthenticationCallsPublishedService() throws Exception {
         // 为 Hprose 编码准备仅验证服务端证书的 TLS 与 h2 ALPN。
         MetConfiguration incoming = this.configuration(true, Security.TLS);
@@ -448,7 +466,8 @@ public class GrpcSecureEncodingTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hproseMutualTlsCallsPublishedService() throws Exception {
         // 为 Hprose 编码准备分别持有服务端和客户端身份的双向 TLS。
         MetConfiguration incoming = this.configuration(true, Security.MUTUAL_TLS);

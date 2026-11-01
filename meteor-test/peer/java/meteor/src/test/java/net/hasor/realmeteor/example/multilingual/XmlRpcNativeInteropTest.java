@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.List;
 import net.hasor.example.echo.TextEchoService;
@@ -12,14 +15,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** xmlrpc-c 的 C 与现代 C++ API 各自验证一次基础双向文本互通。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/{0}/xmlrpc/xmlrpc-c@{1}/{2}", quoteTextArguments = false)
+@MethodSource("languages")
+@NxnRpc(name = "xmlrpc")
 public class XmlRpcNativeInteropTest {
     private final String language;
     private final String executable;
@@ -28,8 +33,6 @@ public class XmlRpcNativeInteropTest {
         this.language = language;
         this.executable = executable;
     }
-
-    @Parameterized.Parameters(name = "sdk/{0}/xmlrpc/xmlrpc-c@{1}/{2}")
     public static List<Object[]> languages() {
         // 发行包与上游 Super Stable 分别编译 C/C++，不能共用系统旧库。
         List<Object[]> versions = new ArrayList<>();
@@ -42,7 +45,8 @@ public class XmlRpcNativeInteropTest {
         return versions;
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sdkToMeteorXmlRpcEcho() throws Exception {
         // 正式启动 Meteor 后发布文本接口，C/C++ 对端自行完成 HTTP 和 XML-RPC 编解码。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -60,13 +64,14 @@ public class XmlRpcNativeInteropTest {
             List<String> command = List.of(this.executable, "consumer", message);
             try (OrderPeerProcess consumer = OrderPeerProcess.start("native", command, target)) {
                 String output = consumer.awaitOutput();
-                assertTrue(output, output.contains("OK xmlrpc-c "));
-                assertTrue(output, output.contains(message));
+                assertTrue(output.contains("OK xmlrpc-c "), output);
+                assertTrue(output.contains(message), output);
             }
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorToSdkXmlRpcEcho() throws Exception {
         // 原生 SDK 提供者使用独占动态端口，Meteor 只创建出站 HTTP 通道。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);

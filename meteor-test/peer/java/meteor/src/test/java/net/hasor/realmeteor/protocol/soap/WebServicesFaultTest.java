@@ -17,12 +17,17 @@ import net.hasor.cobble.StringUtils;
 import net.hasor.example.protocol.soap.EchoService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesFaultTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serviceFailureReturnsSoapFault() throws Exception {
         // 发布一个总是失败的 SOAP 服务。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -59,15 +64,16 @@ public class WebServicesFaultTest {
             // 协议把失败映射为 HTTP 500 SOAP Fault，并保留可诊断信息。
             assertEquals(500, response.statusCode());
             String contentType = response.headers().firstValue("content-type").orElse("");
-            assertTrue(contentType, StringUtils.startsWithIgnoreCase(contentType, "text/xml"));
-            assertTrue(response.body(), response.body().contains("Fault"));
-            assertTrue(response.body(), response.body().contains("soap:Server"));
-            assertTrue(response.body(), response.body().contains("处理失败"));
-            assertTrue(response.body(), response.body().contains("第二行"));
+            assertTrue(StringUtils.startsWithIgnoreCase(contentType, "text/xml"), contentType);
+            assertTrue(response.body().contains("Fault"), response.body());
+            assertTrue(response.body().contains("soap:Server"), response.body());
+            assertTrue(response.body().contains("处理失败"), response.body());
+            assertTrue(response.body().contains("第二行"), response.body());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void responseOptionsDoNotOverrideSoapControlHeaders() throws Exception {
         // 配置与 SOAP 控制头同名的响应选项。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -107,7 +113,8 @@ public class WebServicesFaultTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void businessResponseOptionBecomesHttpHeader() throws Exception {
         // 配置一个允许透传的业务响应选项。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");

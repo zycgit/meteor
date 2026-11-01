@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import net.hasor.example.direct.DirectRpcExample;
@@ -17,12 +18,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetContextEventType;
 import net.hasor.meteor.MetExtension;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 生命周期、配置快照及扩展所有权，通过公开 bootstrap 入口验证。 */
 public class LifecycleScenarioTest {
-    @Test(timeout = 30000)
+    @NxnRpc(name = "rsf", version = "1")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void manualOnlineAndOfflineControlTheApplicationListeners() throws Exception {
         MetConfiguration configuration = DirectRpcExample.server("127.0.0.1", 0, 0);
         configuration.setAutomaticOnline(false);
@@ -59,7 +64,9 @@ public class LifecycleScenarioTest {
         assertEquals(expected, events);
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "rsf", version = "1")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reusingConfigurationCreatesIndependentSettingsSnapshots() throws Exception {
         MetConfiguration configuration = DirectRpcExample.client("rsf");
         configuration.setApplicationName("first").setRequestOption("tenant", "original");
@@ -81,7 +88,9 @@ public class LifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "rsf", version = "1")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void builtContextSettingsAreReadOnly() throws Exception {
         MetConfiguration configuration = DirectRpcExample.client("rsf");
         configuration.setRequestOption("tenant", "configured");
@@ -95,7 +104,9 @@ public class LifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @NxnRpc(name = "rsf", version = "1")
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void eachContextOwnsItsExtensionInstanceAndLifecycle() throws Exception {
         MetConfiguration configuration = DirectRpcExample.client("rsf");
         configuration.addExtension(context -> new LifecycleProbe());
@@ -118,7 +129,8 @@ public class LifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void anUnknownProtocolFailsWhileBuildingTheContext() {
         // 名称选择已有 SPI 能力，不存在的名称在 bootstrap 阶段直接报错。
         MetConfiguration configuration = new MetConfiguration();

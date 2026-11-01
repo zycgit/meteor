@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc.registry;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -29,25 +34,22 @@ import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** JSON-RPC 的显式 Node 注册适配；业务请求由原生 Jayson SDK 发送，不宣称原生注册发现。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "jsonrpc/node/adapter/{0}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class JsonRpcNodeRegistryAdapterTest {
-    @Rule
-    public final  TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final String          backend;
 
     public JsonRpcNodeRegistryAdapterTest(String backend) {
         this.backend = backend;
     }
-
-    @Parameterized.Parameters(name = "jsonrpc/node/adapter/{0}")
     public static Collection<Object[]> backends() {
         List<Object[]> values = new ArrayList<>();
         values.add(new Object[] { "jdbc" });
@@ -56,10 +58,11 @@ public class JsonRpcNodeRegistryAdapterTest {
         return values;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeConsumerResolvesBasicOrder() throws Exception {
         // Meteor 经公开 bootstrap 接入当前注册库；Node 启动时没有服务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "meteor-provider", true);
@@ -87,10 +90,11 @@ public class JsonRpcNodeRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeConsumerResolvesUnicodeOrder() throws Exception {
         // Meteor 经公开 bootstrap 接入当前注册库；Node 启动时没有服务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "meteor-provider", true);
@@ -118,10 +122,11 @@ public class JsonRpcNodeRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeConsumerResolvesBinaryOrder() throws Exception {
         // Meteor 经公开 bootstrap 接入当前注册库；Node 启动时没有服务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "meteor-provider", true);
@@ -149,10 +154,11 @@ public class JsonRpcNodeRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversNodeBasicOrder() throws Exception {
         // Meteor 只有注册库和服务身份，没有预先指定业务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "meteor-consumer", false);
@@ -184,10 +190,11 @@ public class JsonRpcNodeRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversNodeUnicodeOrder() throws Exception {
         // Meteor 只有注册库和服务身份，没有预先指定业务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "meteor-consumer", false);
@@ -219,10 +226,11 @@ public class JsonRpcNodeRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversNodeBinaryOrder() throws Exception {
         // Meteor 只有注册库和服务身份，没有预先指定业务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "meteor-consumer", false);
@@ -254,10 +262,11 @@ public class JsonRpcNodeRegistryAdapterTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void withdrawingNodeRegistrationUpdatesExistingMeteorSubscription() throws Exception {
         // Node 进程全程存活，单独验证服务撤回通知使已有消费者摘除地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration configuration = this.configuration(registry, "withdrawal-consumer", false);
@@ -286,7 +295,7 @@ public class JsonRpcNodeRegistryAdapterTest {
     private MetConfiguration configuration(RegistryConfiguration registry, String application, boolean listener) throws Exception {
         // 注册扩展管理 RPC 使用独立 RSF 出口，业务只挂载 JSON-RPC。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("jsonrpc");
-        configuration.setApplicationName(application).setDataHome(this.data.newFolder(application).toPath());
+        configuration.setApplicationName(application).setDataHome(Files.createDirectory(this.data.resolve(application)));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf");
         var http = configuration.connector("http");

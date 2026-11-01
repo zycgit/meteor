@@ -6,16 +6,22 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.composition.http;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.composition.CompositionEchoService;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "hessian", version = "2")
+@NxnRpc(name = "hprose")
 public class HessianHproseCompositionTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianAndHproseUseSeparateContextsOnOneHttpPort() throws Exception {
         // 两个真实协议插件挂载到同一个 HTTP 端点，复用两者都支持的普通回显接口。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("hessian");

@@ -11,8 +11,8 @@ import net.hasor.meteor.registry.admin.*;
 import net.hasor.meteor.registry.shared.storage.domain.EntServiceRuntimeData;
 import net.hasor.meteor.registry.shared.storage.domain.RefProtocolMountData;
 import net.hasor.meteor.registry.shared.storage.domain.ServiceSummary;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 管理摘要和直连目录在已有 DTO 上完成映射与筛选。 */
 public class DirectoryMappingTest {

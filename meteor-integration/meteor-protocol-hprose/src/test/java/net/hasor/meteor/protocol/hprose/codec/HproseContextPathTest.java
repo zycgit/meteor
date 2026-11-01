@@ -25,8 +25,8 @@ import net.hasor.meteor.domain.ProtocolStatus;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class HproseContextPathTest {
     public interface Echo {

@@ -24,11 +24,13 @@ import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.connector.transport.tcp.TcpTransportFactory;
 import net.hasor.meteor.connector.transport.udp.UdpTransportFactory;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newRuntimeServices;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /**
  * 通过真实网络验证独立传输 SPI；不包含应用协议或 RPC 场景。
@@ -56,7 +58,8 @@ public class NetworkConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpIsUsableWithoutRsf() throws Exception {
         // 仅配置 TCP 传输，直接验证 SPI 的监听器退出契约。
         ConnectorConfig config = this.config("tcp");
@@ -112,7 +115,8 @@ public class NetworkConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpListenerFactoryFailureClosesConstructingChannel() throws Exception {
         // 建立真实 TCP 对端，让失败发生在物理连接已经创建、监听器仍在装配的窗口。
         ConnectorConfig config = this.config("tcp");
@@ -141,7 +145,8 @@ public class NetworkConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void suspendingBetweenFactoryAndConnectedClosesTheAcceptedRoutedSocket() throws Exception {
         // 接收器装配发生在 connected 回调之前，用闩锁固定这段所有权窗口。
         ConnectorConfig config = this.config("tcp");
@@ -176,7 +181,8 @@ public class NetworkConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingBetweenFactoryAndConnectedKeepsTheAcceptedRoutedSocket() throws Exception {
         // close 只关闭监听入口；已 accept 的连接即使仍在建立上层接收器，也应继续完成交付。
         ConnectorConfig config = this.config("tcp");
@@ -213,7 +219,8 @@ public class NetworkConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpIsUsableWithoutRsf() throws Exception {
         // 通过 JDK 临时套接字选择 UDP 端口，再向传输 SPI 显式传入非零监听端口。
         int port;
@@ -276,7 +283,8 @@ public class NetworkConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpListenerFactoryFailureClosesConstructingChannel() throws Exception {
         // UDP 不等待远端应答，直接固定监听器装配失败后的连接终态。
         ConnectorConfig config = this.config("udp");
@@ -305,7 +313,8 @@ public class NetworkConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpRejectsZeroBindPortWithoutPreventingValidBind() throws Exception {
         // 构造配置使用合法端口，单独向 bind 传入零端口地址。
         int port;
@@ -346,7 +355,8 @@ public class NetworkConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpCarriesCompleteMessagesWithoutRsf() throws Exception {
         // 使用 HTTP 传输 SPI，不安装应用协议。
         ConnectorConfig config = this.config("http");
@@ -418,7 +428,8 @@ public class NetworkConnectorTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingHttpConnectorClosesUnusedLogicalChannel() throws Exception {
         // 使用 HTTP 传输 SPI，不安装应用协议。
         ConnectorConfig config = this.config("http");

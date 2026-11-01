@@ -13,10 +13,10 @@ import net.hasor.example.protocol.soap.MetXmlMapValue;
 import net.hasor.example.protocol.soap.MetXmlWrappedUser;
 import net.hasor.meteor.protocol.soap.definition.SoapXmlUtils;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapNestedDtoMappingTest {
     @Test

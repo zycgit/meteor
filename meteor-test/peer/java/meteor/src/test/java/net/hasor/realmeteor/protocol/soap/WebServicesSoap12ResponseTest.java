@@ -23,13 +23,17 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolStatus;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.2")
 public class WebServicesSoap12ResponseTest {
     private static final String NAMESPACE = "http://www.w3.org/2003/05/soap-envelope";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneWayAcceptsEmptyHttp200() throws Exception {
         // 外部 HTTP 对端接收 SOAP 1.2 请求并返回空 200。
         AtomicReference<String> contentType = new AtomicReference<>();
@@ -59,19 +63,20 @@ public class WebServicesSoap12ResponseTest {
                 // 调用完成说明空成功响应已被当作 one-way 回执。
                 SignalService remote = context.getRsfClient(this.address(server)).getRemote(service);
                 remote.signal("notice");
-                assertTrue(contentType.get(), contentType.get().startsWith("application/soap+xml"));
+                assertTrue(contentType.get().startsWith("application/soap+xml"), contentType.get());
                 String action = "action=\"urn:hasor:meteor:soap:SignalService/signal\"";
-                assertTrue(contentType.get(), contentType.get().contains(action));
+                assertTrue(contentType.get().contains(action), contentType.get());
                 assertNull(soapAction.get());
-                assertTrue(body.get(), body.get().contains(NAMESPACE));
-                assertTrue(body.get(), body.get().contains("notice"));
+                assertTrue(body.get().contains(NAMESPACE), body.get());
+                assertTrue(body.get().contains("notice"), body.get());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneWayAcceptsEmptyHttp202() throws Exception {
         // 外部 HTTP 对端接收 SOAP 1.2 请求并返回空 202。
         AtomicReference<String> contentType = new AtomicReference<>();
@@ -101,19 +106,20 @@ public class WebServicesSoap12ResponseTest {
                 // 调用完成说明空成功响应已被当作 one-way 回执。
                 SignalService remote = context.getRsfClient(this.address(server)).getRemote(service);
                 remote.signal("notice");
-                assertTrue(contentType.get(), contentType.get().startsWith("application/soap+xml"));
+                assertTrue(contentType.get().startsWith("application/soap+xml"), contentType.get());
                 String action = "action=\"urn:hasor:meteor:soap:SignalService/signal\"";
-                assertTrue(contentType.get(), contentType.get().contains(action));
+                assertTrue(contentType.get().contains(action), contentType.get());
                 assertNull(soapAction.get());
-                assertTrue(body.get(), body.get().contains(NAMESPACE));
-                assertTrue(body.get(), body.get().contains("notice"));
+                assertTrue(body.get().contains(NAMESPACE), body.get());
+                assertTrue(body.get().contains("notice"), body.get());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneWayAcceptsEmptyHttp204() throws Exception {
         // 外部 HTTP 对端接收 SOAP 1.2 请求并返回空 204。
         AtomicReference<String> contentType = new AtomicReference<>();
@@ -143,19 +149,20 @@ public class WebServicesSoap12ResponseTest {
                 // 调用完成说明空成功响应已被当作 one-way 回执。
                 SignalService remote = context.getRsfClient(this.address(server)).getRemote(service);
                 remote.signal("notice");
-                assertTrue(contentType.get(), contentType.get().startsWith("application/soap+xml"));
+                assertTrue(contentType.get().startsWith("application/soap+xml"), contentType.get());
                 String action = "action=\"urn:hasor:meteor:soap:SignalService/signal\"";
-                assertTrue(contentType.get(), contentType.get().contains(action));
+                assertTrue(contentType.get().contains(action), contentType.get());
                 assertNull(soapAction.get());
-                assertTrue(body.get(), body.get().contains(NAMESPACE));
-                assertTrue(body.get(), body.get().contains("notice"));
+                assertTrue(body.get().contains(NAMESPACE), body.get());
+                assertTrue(body.get().contains("notice"), body.get());
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void externalReceiverFaultPreservesReason() throws Exception {
         // 合法 Receiver Fault 即使伪造成功扩展状态也应失败。
         String fault = """
@@ -187,7 +194,7 @@ public class WebServicesSoap12ResponseTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof MetException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("external failure"));
+                assertTrue(message.contains("external failure"), message);
                 assertEquals(ProtocolStatus.InvokeError, ((MetException) failure.getCause()).getStatus());
             }
         } finally {
@@ -195,7 +202,8 @@ public class WebServicesSoap12ResponseTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void faultWithoutCodeIsRejected() throws Exception {
         // SOAP 1.2 Fault 缺少必需的 Code。
         String fault = """
@@ -225,14 +233,15 @@ public class WebServicesSoap12ResponseTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("requires Code/Value and Reason"));
+                assertTrue(message.contains("requires Code/Value and Reason"), message);
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void faultWithoutReasonIsRejected() throws Exception {
         // SOAP 1.2 Fault 缺少必需的 Reason。
         String fault = """
@@ -262,14 +271,15 @@ public class WebServicesSoap12ResponseTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("requires Code/Value and Reason"));
+                assertTrue(message.contains("requires Code/Value and Reason"), message);
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void faultReasonWithoutLanguageIsRejected() throws Exception {
         // SOAP 1.2 Reason Text 缺少 xml:lang。
         String fault = """
@@ -300,14 +310,15 @@ public class WebServicesSoap12ResponseTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("requires xml:lang"));
+                assertTrue(message.contains("requires xml:lang"), message);
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void faultWithForeignTopLevelCodeIsRejected() throws Exception {
         // 应用命名空间的顶层 Fault Code 不能替代标准 SOAP Code。
         String fault = """
@@ -338,14 +349,15 @@ public class WebServicesSoap12ResponseTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("Invalid SOAP 1.2 Fault Code"));
+                assertTrue(message.contains("Invalid SOAP 1.2 Fault Code"), message);
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void faultWithUnboundCodePrefixIsRejected() throws Exception {
         // Fault Code 的 QName 前缀必须有命名空间绑定。
         String fault = """
@@ -376,7 +388,7 @@ public class WebServicesSoap12ResponseTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("Invalid SOAP Fault QName"));
+                assertTrue(message.contains("Invalid SOAP Fault QName"), message);
             }
         } finally {
             server.stop(0);

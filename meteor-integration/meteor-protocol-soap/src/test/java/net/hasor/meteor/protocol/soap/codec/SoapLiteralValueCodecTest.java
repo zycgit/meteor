@@ -16,10 +16,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import net.hasor.example.protocol.soap.codec.LiteralBinaryAttribute;
 import net.hasor.example.protocol.soap.codec.LiteralBinaryBean;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapLiteralValueCodecTest {
     @Test

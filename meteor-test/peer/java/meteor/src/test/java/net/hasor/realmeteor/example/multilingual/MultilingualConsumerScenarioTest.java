@@ -4,15 +4,27 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.cobble.StringUtils;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 每个外语消费者只访问其协议对应的测试自有 Meteor 提供者。 */
-@RunWith(Parameterized.class)
+@NxnRpc(name = "grpc", cases = "example/*/grpc/direct/consumer")
+@NxnRpc(name = "thrift", cases = "example/*/thrift/direct/consumer")
+@NxnRpc(name = "soap", version = "1.1", cases = "example/*/soap/direct/consumer")
+@NxnRpc(name = "jsonrpc", version = "2.0", cases = "example/*/jsonrpc/direct/consumer")
+@NxnRpc(name = "xmlrpc", cases = "example/*/xmlrpc/direct/consumer")
+@NxnRpc(name = "hprose", cases = "example/*/hprose/direct/consumer")
+@NxnRpc(name = "connect", version = "1", cases = "example/*/connect/direct/consumer")
+@NxnRpc(name = "oncrpc", version = "2", cases = "example/*/oncrpc/direct/consumer")
+@ParameterizedClass(autoCloseArguments = false, name = "example/{0}/{1}/direct/consumer", quoteTextArguments = false)
+@MethodSource("scenarios")
 public class MultilingualConsumerScenarioTest {
     private final String language;
     private final String protocol;
@@ -21,13 +33,12 @@ public class MultilingualConsumerScenarioTest {
         this.language = language;
         this.protocol = protocol;
     }
-
-    @Parameterized.Parameters(name = "example/{0}/{1}/direct/consumer")
     public static List<Object[]> scenarios() {
         return OrderPeerProcess.languagesAndProtocols();
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void languageConsumerSavesAndFindsTheOrder() throws Exception {
         // 从公开入口创建当前协议的 Meteor 提供者，不挂载其它业务协议。
         try (OrderPeerProcess provider = OrderPeerProcess.javaMain(this.protocol, "Provider", null)) {

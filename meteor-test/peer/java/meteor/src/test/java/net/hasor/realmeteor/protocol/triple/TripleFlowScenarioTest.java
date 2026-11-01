@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -22,12 +23,15 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** wrapper、原生 Protobuf 与 ProtoJSON 使用同一组 Java Flow API。 */
+@NxnRpc(name = "triple")
 public class TripleFlowScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrapperUnaryPreservesBusinessValues() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -51,7 +55,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrapperServerStreamKeepsMessageOrder() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -78,7 +83,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrapperClientStreamReturnsItsSummary() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -103,7 +109,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrapperBidirectionalStreamKeepsEachMessage() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -133,7 +140,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufUnaryPreservesBusinessValues() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -160,7 +168,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufServerStreamKeepsMessageOrder() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -190,7 +199,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufClientStreamReturnsItsSummary() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -218,7 +228,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufBidirectionalStreamKeepsEachMessage() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -251,7 +262,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protoJsonUnaryPreservesBusinessValues() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -278,7 +290,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protoJsonServerStreamKeepsMessageOrder() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -308,7 +321,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protoJsonClientStreamReturnsItsSummary() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -336,7 +350,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protoJsonBidirectionalStreamKeepsEachMessage() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -369,7 +384,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyServerStreamCompletesWithoutSyntheticMessages() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -393,7 +409,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyClientStreamReturnsZero() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
@@ -417,7 +434,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void earlyClientStreamResponseCancelsInputAndPreservesFollowingCalls() throws Exception {
         // 服务端不消费完整输入就返回，客户端源保持开放以观察反向取消。
         CountDownLatch cancelled = new CountDownLatch(1);
@@ -469,7 +487,8 @@ public class TripleFlowScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void earlyClientStreamFailureCancelsInputAndPreservesFollowingCalls() throws Exception {
         // 服务端尚未消费完输入就失败，错误终态仍必须释放客户端的请求源。
         CountDownLatch cancelled = new CountDownLatch(1);

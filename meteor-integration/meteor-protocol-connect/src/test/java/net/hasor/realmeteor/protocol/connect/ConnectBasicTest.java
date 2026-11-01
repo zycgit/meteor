@@ -12,12 +12,15 @@ import net.hasor.example.protocol.connect.ConnectMessage;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 单插件通过公开 bootstrap 发布、订阅和调用服务的基础验证。 */
 public class ConnectBasicTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonUnaryPreservesUnicodeBusinessValues() throws Exception {
         // 从公开配置入口挂载 Connect，客户端不开放监听端口。
         MetConfiguration incoming = this.configuration(true);

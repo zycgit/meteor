@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.xmlrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.hasor.example.protocol.xmlrpc.XmlRpcDemoService;
@@ -14,14 +15,18 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Apache 官方 Java SDK 使用标准 XML-RPC 调用 Meteor 提供者，不启用厂商扩展。 */
+@NxnRpc(name = "xmlrpc")
 public class ApacheXmlRpcProviderTest {
     private static final String PEER_CLASS = "net.hasor.peer.protocol.xmlrpc.ApacheXmlRpcPeer";
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaSdkCallsPublishedServiceWithUnicodeText() throws Exception {
         // 发布普通业务接口，SDK 只使用 Meteor 实际绑定的网络地址。
         MetConfiguration configuration = this.configuration();
@@ -39,12 +44,13 @@ public class ApacheXmlRpcProviderTest {
             Map<String, Object> response = JavaSdkPeerUtils.exchange("xmlrpc", PEER_CLASS, request);
 
             // 读取 SDK 的原生结果，Meteor 或手写 XML 解析器不参与客户端解码。
-            assertFalse(response.toString(), response.containsKey("errorCode"));
+            assertFalse(response.containsKey("errorCode"), response.toString());
             assertEquals(expected, response.get("result"));
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void apache313InvalidSurrogateReferencesAreRejectedByMeteor() throws Exception {
         // XML 1.0 支持 emoji；本例固定验证旧 SDK 将 UTF-16 代理对拆成非法数字引用的边界。
         MetConfiguration configuration = this.configuration();
@@ -67,7 +73,8 @@ public class ApacheXmlRpcProviderTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaSdkPreservesPositionalIntegerArguments() throws Exception {
         // 减法可以观察参数顺序，不能用交换律掩盖位置绑定错误。
         MetConfiguration configuration = this.configuration();
@@ -89,7 +96,8 @@ public class ApacheXmlRpcProviderTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaSdkPreservesBinaryValues() throws Exception {
         // 发布二进制回显方法，覆盖 XML-RPC 的 base64 标准值类型。
         MetConfiguration configuration = this.configuration();
@@ -112,7 +120,8 @@ public class ApacheXmlRpcProviderTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     @SuppressWarnings("unchecked")
     public void javaSdkPreservesNestedStructValues() throws Exception {
         // 普通 Java Map 表达标准 struct，不使用 Apache 可序列化对象扩展。
@@ -143,7 +152,8 @@ public class ApacheXmlRpcProviderTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaSdkReadsPublishedBusinessFault() throws Exception {
         // Meteor 业务抛出的错误码应由 Apache 客户端按标准 fault 读取。
         MetConfiguration configuration = this.configuration();

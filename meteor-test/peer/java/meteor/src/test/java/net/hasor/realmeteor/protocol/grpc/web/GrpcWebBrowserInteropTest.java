@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
@@ -21,13 +22,16 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 grpc-web 生成客户端在真实 Chromium 中调用公开 bootstrap 发布的服务。 */
+@NxnRpc(name = "grpc-web")
 public class GrpcWebBrowserInteropTest {
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBrowserUsesBinaryUnary() throws Exception {
         // 浏览器先创建独立页面 origin，协议挂载仅允许该来源。
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
@@ -57,7 +61,8 @@ public class GrpcWebBrowserInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBrowserUsesTextUnary() throws Exception {
         // 浏览器先创建独立页面 origin，协议挂载仅允许该来源。
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
@@ -86,7 +91,8 @@ public class GrpcWebBrowserInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBrowserReceivesTextServerStream() throws Exception {
         // 浏览器先创建独立页面 origin，协议挂载仅允许该来源。
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
@@ -121,7 +127,8 @@ public class GrpcWebBrowserInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBrowserReceivesApplicationStatus() throws Exception {
         // 浏览器先创建独立页面 origin，协议挂载仅允许该来源。
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
@@ -150,7 +157,8 @@ public class GrpcWebBrowserInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBrowserReceivesLateStreamFailure() throws Exception {
         // 浏览器先创建独立页面 origin，协议挂载仅允许该来源。
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
@@ -181,7 +189,8 @@ public class GrpcWebBrowserInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void browserAllowsCredentialsForConfiguredOrigin() throws Exception {
         // 浏览器先创建独立页面 origin，协议挂载仅允许该来源。
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
@@ -212,7 +221,8 @@ public class GrpcWebBrowserInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void browserRejectsUnlistedOrigin() throws Exception {
         // 启动真实浏览器，制造跨域请求与严格配置之间的冲突。
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
@@ -250,7 +260,8 @@ public class GrpcWebBrowserInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void browserRejectsUnlistedRequestHeader() throws Exception {
         // 启动真实浏览器，制造跨域请求与严格配置之间的冲突。
         try (GrpcWebBrowserProcess peer = GrpcWebBrowserProcess.start()) {
@@ -289,7 +300,8 @@ public class GrpcWebBrowserInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1BrowserCancellationLeavesServerBoundedByRequestDeadline() throws Exception {
         // HTTP/1 取消先停止浏览器读取，服务端按调用携带的 1500ms 期限回收无限流。
         CountDownLatch cancelled = new CountDownLatch(1);
@@ -338,7 +350,8 @@ public class GrpcWebBrowserInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsHttp2BrowserCancellationReleasesServerSubscription() throws Exception {
         // 无限流只发送首条消息，用取消信号证明 HTTP/2 RST_STREAM 立即传播。
         CountDownLatch cancelled = new CountDownLatch(1);
@@ -390,13 +403,14 @@ public class GrpcWebBrowserInteropTest {
                         http2 = true;
                     }
                 }
-                assertTrue("Chromium must negotiate HTTP/2 through TLS ALPN", http2);
+                assertTrue(http2, "Chromium must negotiate HTTP/2 through TLS ALPN");
                 assertTrue(cancelled.await(2, TimeUnit.SECONDS));
             }
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void browserDeadlineReleasesServerSubscription() throws Exception {
         // 服务流不产生结果，期限由官方客户端通过 grpc-timeout 传递。
         CountDownLatch cancelled = new CountDownLatch(1);

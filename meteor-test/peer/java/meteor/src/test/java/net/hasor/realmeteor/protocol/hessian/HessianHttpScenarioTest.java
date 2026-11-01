@@ -16,13 +16,18 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "hessian", version = "2")
 public class HessianHttpScenarioTest {
 
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void integerParameterAndReturnUseIntegerValues() throws Exception {
         // int 参数与返回值经过公开代理的 Hessian 转换链路。
         MetConfiguration incoming = this.serverConfiguration();
@@ -43,7 +48,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void longParameterAndReturnKeepTheirFullPrecision() throws Exception {
         // Hessian long 不经过 JSON 数字转换，保留 64 位整数精度。
         MetConfiguration incoming = this.serverConfiguration();
@@ -65,7 +71,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void doubleParameterAndReturnKeepTheirValue() throws Exception {
         // Hessian double 在参数与返回值间保留浮点值。
         MetConfiguration incoming = this.serverConfiguration();
@@ -86,7 +93,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void booleanParameterAndReturnKeepTheirValue() throws Exception {
         // Hessian 布尔值按业务接口的 boolean 类型传递。
         MetConfiguration incoming = this.serverConfiguration();
@@ -107,7 +115,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryParameterAndReturnKeepEveryByte() throws Exception {
         // 二进制内容直接按 byte[] 编码，涵盖符号位与零字节。
         MetConfiguration incoming = this.serverConfiguration();
@@ -129,7 +138,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void dateParameterAndReturnKeepMillisecondPrecision() throws Exception {
         // Hessian 日期使用毫秒时间，保留非整秒值。
         MetConfiguration incoming = this.serverConfiguration();
@@ -151,7 +161,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void typedCollectionKeepsItsBusinessObjects() throws Exception {
         // 集合元素按 Hessian 类型信息恢复为业务 DTO。
         MetConfiguration incoming = this.serverConfiguration();
@@ -180,7 +191,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nestedMapKeepsItsValuesAndTypes() throws Exception {
         // 动态 Map 保留嵌套集合与不同基础类型。
         MetConfiguration incoming = this.serverConfiguration();
@@ -209,7 +221,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nullParameterAndReturnRemainNull() throws Exception {
         // Hessian 原生 null 不需要附加扩展配置。
         MetConfiguration incoming = this.serverConfiguration();
@@ -230,7 +243,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sameArityOverloadsUseTheirDeclaredParameterTypes() throws Exception {
         // 相同参数数量的重载通过声明类型区分。
         MetConfiguration incoming = this.serverConfiguration();
@@ -252,7 +266,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void zeroArgumentMethodIsInvocable() throws Exception {
         // 无参数方法使用普通 Hessian 调用与结果。
         MetConfiguration incoming = this.serverConfiguration();
@@ -273,7 +288,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void applicationFaultReachesTheCallerAsAnException() throws Exception {
         // 业务异常应作为 Hessian fault 返回，不是网络错误或超时。
         MetConfiguration incoming = this.serverConfiguration();
@@ -299,7 +315,8 @@ public class HessianHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incomingHessianCallsExecuteThePublishedServiceFilter() throws Exception {
         // 用户服务过滤器必须经过 Dispatcher 的正式调用链。
         MetConfiguration incoming = this.serverConfiguration();

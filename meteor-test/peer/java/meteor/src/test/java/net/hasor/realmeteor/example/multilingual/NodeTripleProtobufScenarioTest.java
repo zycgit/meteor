@@ -4,13 +4,18 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.example.multilingual;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 只验证 Triple 的 Protobuf/gRPC 兼容面，不代表专用 Triple SDK 或 POJO 包装互通。 */
+@NxnRpc(name = "triple")
 public class NodeTripleProtobufScenarioTest {
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeGrpcConsumerCallsMeteorTripleProtobuf() throws Exception {
         // 测试应用只挂载 triple，使用公开 bootstrap 并绑定订单 proto 资源。
         try (OrderPeerProcess provider = OrderPeerProcess.javaMain("triple", "Provider", null)) {
@@ -28,7 +33,8 @@ public class NodeTripleProtobufScenarioTest {
         }
     }
 
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTripleProtobufConsumerCallsNodeGrpc() throws Exception {
         // 官方 Connect Node 仅发布标准 gRPC 服务，双方使用同一份订单契约。
         List<String> command = List.of( //

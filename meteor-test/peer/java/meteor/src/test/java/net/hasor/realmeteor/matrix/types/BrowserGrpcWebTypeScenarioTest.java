@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.matrix.types;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,12 +20,14 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 真实浏览器仅作为 gRPC-Web 消费者，官方传输与 Buf 原生 BigInt 编码共同验证类型精度。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/browser/grpcweb-{0}/direct/{2}/{1}/meteor-provider", quoteTextArguments = false)
+@MethodSource("scenarios")
+@NxnRpc(name = "grpc-web")
 public class BrowserGrpcWebTypeScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final        String       format;
@@ -32,8 +37,6 @@ public class BrowserGrpcWebTypeScenarioTest {
         this.format = format;
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/browser/grpcweb-{0}/direct/{2}/{1}/meteor-provider")
     public static List<Object[]> scenarios() throws Exception {
         // 二进制和 Base64 文本是 gRPC-Web 传输形态；消息自身均使用同一份 Protobuf 类型契约。
         List<Object[]> scenarios = new ArrayList<>();
@@ -45,7 +48,8 @@ public class BrowserGrpcWebTypeScenarioTest {
         return scenarios;
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialBrowserPreservesDeclaredType() throws Exception {
         // 浏览器先建立独立页面 origin，公开配置只允许该来源，不绕过 CORS 或伪造浏览器服务端。
         try (TypeNodePeerProcess peer = TypeNodePeerProcess.browser()) {

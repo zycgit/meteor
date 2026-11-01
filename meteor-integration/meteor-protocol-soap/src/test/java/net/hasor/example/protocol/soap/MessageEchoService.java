@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.protocol.soap;
-
 import net.hasor.meteor.annotation.MetMessage;
 
 /** 用于验证消息注解与请求响应 WSDL 不一致的接口。 */

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -23,12 +24,15 @@ import net.hasor.meteor.SendLimitPolicy;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc")
 public class GrpcFlowTest {
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufServerStreamReturnsEachMessage() throws Exception {
         // 配置 Protobuf 资源和双端 HTTP/2 增量正文。
         GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
@@ -64,7 +68,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufClientStreamReturnsItsSummary() throws Exception {
         // 配置 Protobuf 客户端流，双方绑定相同的 proto 资源。
         GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
@@ -100,7 +105,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufEmptyClientStreamReturnsZero() throws Exception {
         // 配置支持 Protobuf 的客户端流服务。
         GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
@@ -133,7 +139,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufBidirectionalStreamReturnsEachRequest() throws Exception {
         // 配置 Protobuf 双向流，双方通过同一 proto 描述消息。
         GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
@@ -173,7 +180,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufEmptyServerStreamCompletesWithoutMessages() throws Exception {
         // 配置 Protobuf 服务端流，准备请求零条消息。
         GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/protocol/proto/grpc/flow.proto"));
@@ -205,7 +213,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serverStreamReturnsEachMessage() throws Exception {
         // 配置 JSON 服务端流和双端 HTTP/2 增量正文。
         MetConfiguration incoming = this.configuration(true, 5000);
@@ -237,7 +246,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientStreamReturnsItsSummary() throws Exception {
         // 配置 JSON 客户端流服务。
         MetConfiguration incoming = this.configuration(true, 5000);
@@ -269,7 +279,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyClientStreamReturnsZero() throws Exception {
         // 配置 JSON 客户端流服务。
         MetConfiguration incoming = this.configuration(true, 5000);
@@ -298,7 +309,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void bidirectionalStreamReturnsEachRequest() throws Exception {
         // 配置 JSON 双向流服务。
         MetConfiguration incoming = this.configuration(true, 5000);
@@ -334,7 +346,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void emptyServerStreamCompletesWithoutMessages() throws Exception {
         // 配置 JSON 服务端流，准备请求零条消息。
         MetConfiguration incoming = this.configuration(true, 5000);
@@ -362,7 +375,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void demandControlsDeliveryAcrossHttp2Windows() throws Exception {
         // 配置可持续生成大消息的服务，验证需求量与 HTTP/2 窗口配合。
         try (MetContext server = this.configuration(true, 10000).buildContext(); //
@@ -409,7 +423,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void secondSubscriberIsRejected() throws Exception {
         // 配置服务端流，验证单个远程响应流只允许一个订阅者。
         try (MetContext server = this.configuration(true, 10000).buildContext(); //
@@ -442,7 +457,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellationReleasesTheRemoteSource() throws Exception {
         // 准备可观察取消信号的消息源和两端流式配置。
         MessageService implementation = new MessageService();
@@ -473,7 +489,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sourceFailureIsDeliveredToSubscriber() throws Exception {
         // 准备会主动失败的远端消息源。
         MessageService implementation = new MessageService();
@@ -503,7 +520,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidDemandDoesNotPoisonLaterCalls() throws Exception {
         // 准备服务端流，用非法需求量验证调用之间的隔离。
         MessageService implementation = new MessageService();
@@ -540,7 +558,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void deadlineFailsAStreamWithoutDemand() throws Exception {
         // 将双端调用期限设为 600 毫秒，准备永不产出消息的流。
         MessageService implementation = new MessageService();
@@ -569,7 +588,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void contextCloseFailsAStreamWithoutDemand() throws Exception {
         // 准备未发出需求的响应流，验证上下文关闭时的清理。
         try (MetContext server = this.configuration(true, 5000).buildContext(); //
@@ -597,7 +617,8 @@ public class GrpcFlowTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void blockedConsumerDoesNotPreventDeadlineFromReleasingTheRequestPermit() throws Exception {
         // 将客户端并发配额设为一，利用闩锁阻塞首个消息的处理。
         MetConfiguration configuration = this.configuration(false, 700);

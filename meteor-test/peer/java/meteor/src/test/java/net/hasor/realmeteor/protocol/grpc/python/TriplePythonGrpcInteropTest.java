@@ -4,6 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.protocol.grpc.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
@@ -14,12 +15,16 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 仅验证 Triple 的 Protobuf/gRPC 兼容面；对端为 grpcio，不是 Python Triple SDK。 */
+@NxnRpc(name = "triple")
 public class TriplePythonGrpcInteropTest {
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonGrpcClientCallsMeteorTripleProtobuf() throws Exception {
         // Meteor 仅安装 Triple，显式选择 gRPC 传输和普通订单 Protobuf 契约。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
@@ -45,7 +50,8 @@ public class TriplePythonGrpcInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorTripleClientCallsPythonGrpcProtobuf() throws Exception {
         // grpcio 发布标准 Protobuf 服务；Meteor 仅配置 Triple 出站能力。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");

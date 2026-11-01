@@ -22,10 +22,10 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class JsonRpcBindingTest {
     private MetContext      context;
@@ -33,7 +33,7 @@ public class JsonRpcBindingTest {
     private RouteMountIndex routes;
     private JsonRpcCodec    codec;
 
-    @Before
+    @BeforeEach
     public void prepareServiceMetadata() throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         configuration.connector("tcp").protocol("rsf");
@@ -47,7 +47,7 @@ public class JsonRpcBindingTest {
         this.codec = new JsonRpcCodec(this.protocol, this.routes, this.context);
     }
 
-    @After
+    @AfterEach
     public void closeContext() throws Exception {
         this.context.close();
     }

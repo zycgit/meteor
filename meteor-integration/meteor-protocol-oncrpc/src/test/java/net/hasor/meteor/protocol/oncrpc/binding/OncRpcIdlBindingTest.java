@@ -20,8 +20,8 @@ import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrCodec;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrInput;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrOutput;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** RPC/XDR 文件的静态绑定及值编解码，和网络生命周期分开验证。 */
 public class OncRpcIdlBindingTest {

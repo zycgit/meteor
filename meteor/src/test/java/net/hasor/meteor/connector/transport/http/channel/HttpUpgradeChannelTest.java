@@ -18,8 +18,10 @@ import net.hasor.meteor.connector.transport.ChannelListener;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.websocket.WebSocketHandshakeUtils;
 import net.hasor.meteor.connector.transport.http.websocket.WebSocketPayload;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 升级通道的 actor 提交顺序与 transport 终止契约。 */
 public class HttpUpgradeChannelTest {
@@ -119,7 +121,8 @@ public class HttpUpgradeChannelTest {
         assertSame(reset, exchange.completion().getCause());
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void drainCannotOvertakeAnAdmittedWriteBeforeExecutorSubmission() throws Exception {
         // 第一次 execute 在真正入队前暂停，重现 write 已接纳但 actor 尚不可见的交错。
         ControlledExecutor executor = new ControlledExecutor();

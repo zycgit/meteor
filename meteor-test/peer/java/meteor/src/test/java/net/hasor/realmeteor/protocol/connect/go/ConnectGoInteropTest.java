@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.connect.go;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.net.URI;
 import java.net.URL;
@@ -24,13 +27,15 @@ import net.hasor.meteor.protocol.connect.ConnectStatusException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 普通订单接口与官方 Connect Go 对端双向互通，分别记录提供者与消费者场景。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "tls={0}", quoteTextArguments = false)
+@MethodSource("tlsModes")
+@NxnRpc(name = "connect", version = "1")
 public class ConnectGoInteropTest {
     private static final String SERVICE = "meteor.example.OrderDemoService";
     private final        String tlsMode;
@@ -38,13 +43,12 @@ public class ConnectGoInteropTest {
     public ConnectGoInteropTest(String tlsMode) {
         this.tlsMode = tlsMode;
     }
-
-    @Parameterized.Parameters(name = "tls={0}")
     public static Object[][] tlsModes() {
         return new Object[][] { { "plain" }, { "tls" }, { "mtls" } };
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerGoClientReadsUnicodeAndBinary() throws Exception {
         // Meteor 只挂载 Connect；双方通过同一份公开订单 proto 解释请求和响应。
         MetConfiguration configuration = this.configuration(true);
@@ -60,12 +64,13 @@ public class ConnectGoInteropTest {
             // 独立 Go 客户端执行本场景的保存和查询，Java 侧核对进程成功退出后的结果。
             try (GoPeerProcess peer = GoPeerProcess.start("connect", "client", this.tlsMode, "unicode", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMeteorReadsUnicodeAndBinary() throws Exception {
         // Go 服务端自己选择空闲端口，Meteor 消费端只声明出站的 Connect 能力。
         MetConfiguration configuration = this.configuration(false);
@@ -97,7 +102,8 @@ public class ConnectGoInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerGoClientReadsPositiveInt32Boundary() throws Exception {
         // Meteor 只挂载 Connect；双方通过同一份公开订单 proto 解释请求和响应。
         MetConfiguration configuration = this.configuration(true);
@@ -113,12 +119,13 @@ public class ConnectGoInteropTest {
             // 独立 Go 客户端执行本场景的保存和查询，Java 侧核对进程成功退出后的结果。
             try (GoPeerProcess peer = GoPeerProcess.start("connect", "client", this.tlsMode, "boundary", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMeteorReadsPositiveInt32Boundary() throws Exception {
         // Go 服务端自己选择空闲端口，Meteor 消费端只声明出站的 Connect 能力。
         MetConfiguration configuration = this.configuration(false);
@@ -150,7 +157,8 @@ public class ConnectGoInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerGoClientReadsNegativeInt32Boundary() throws Exception {
         // Meteor 只挂载 Connect；双方通过同一份公开订单 proto 解释请求和响应。
         MetConfiguration configuration = this.configuration(true);
@@ -167,12 +175,13 @@ public class ConnectGoInteropTest {
             String scenario = "negative-boundary";
             try (GoPeerProcess peer = GoPeerProcess.start("connect", "client", this.tlsMode, scenario, target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMeteorReadsNegativeInt32Boundary() throws Exception {
         // Go 服务端自己选择空闲端口，Meteor 消费端只声明出站的 Connect 能力。
         MetConfiguration configuration = this.configuration(false);
@@ -205,7 +214,8 @@ public class ConnectGoInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerGoClientReadsEmptyProto3Fields() throws Exception {
         // Meteor 只挂载 Connect；双方通过同一份公开订单 proto 解释请求和响应。
         MetConfiguration configuration = this.configuration(true);
@@ -221,12 +231,13 @@ public class ConnectGoInteropTest {
             // 独立 Go 客户端执行本场景的保存和查询，Java 侧核对进程成功退出后的结果。
             try (GoPeerProcess peer = GoPeerProcess.start("connect", "client", this.tlsMode, "empty", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMeteorReadsEmptyProto3Fields() throws Exception {
         // Go 服务端自己选择空闲端口，Meteor 消费端只声明出站的 Connect 能力。
         MetConfiguration configuration = this.configuration(false);
@@ -259,7 +270,8 @@ public class ConnectGoInteropTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerGoClientReadsMissingOrderFailure() throws Exception {
         // Meteor 只挂载 Connect；双方通过同一份公开订单 proto 解释请求和响应。
         MetConfiguration configuration = this.configuration(true);
@@ -275,15 +287,16 @@ public class ConnectGoInteropTest {
             // 独立 Go 客户端执行不存在订单的查询并检查实际业务错误。
             try (GoPeerProcess peer = GoPeerProcess.start("connect", "client", this.tlsMode, "missing", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
                 assertEquals("invalid_argument", result.path("code").asText());
                 String message = result.path("message").asText();
-                assertTrue(message, message.contains("Order not found: 404"));
+                assertTrue(message.contains("Order not found: 404"), message);
             }
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMeteorReceivesMissingOrderFailure() throws Exception {
         // Go 按 Connect 标准返回 not_found，客户端使用公开订阅与同步代理。
         MetConfiguration configuration = this.configuration(false);
@@ -306,7 +319,7 @@ public class ConnectGoInteropTest {
             Class<UndeclaredThrowableException> errorType = UndeclaredThrowableException.class;
             UndeclaredThrowableException failure = assertThrows(errorType, () -> remote.find(query));
             ConnectStatusException status = ConnectStatusException.find(failure);
-            assertNotNull(failure.toString(), status);
+            assertNotNull(status, failure.toString());
             assertEquals("not_found", status.getCode());
             assertEquals("Order not found: 404", status.getDescription());
         }

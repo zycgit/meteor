@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc.types;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -22,13 +25,15 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.oncrpc.OncRpcNativeProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** C 端没有超范围整数值；Meteor 在编码前明确拒绝，不能截断后当作成功互通。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "{0}/{1}", quoteTextArguments = false)
+@MethodSource("parameters")
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcRejectedTypeMatrixTest {
     private final String transport;
     private final String vector;
@@ -39,8 +44,6 @@ public class OncRpcRejectedTypeMatrixTest {
         this.vector = vector;
         this.error = error;
     }
-
-    @Parameterized.Parameters(name = "{0}/{1}")
     public static Collection<Object[]> parameters() {
         // 固定顺序对应当前 IDL 的范围和长度约束，不混入正常值场景。
         List<Object[]> parameters = new ArrayList<>();
@@ -60,7 +63,8 @@ public class OncRpcRejectedTypeMatrixTest {
         return parameters;
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerRejectsUnrepresentableType() throws Exception {
         // 实际原生服务已就绪；错误只允许来自当前字段的确定编码约束。
         String protocol = "oncrpc";

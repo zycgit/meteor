@@ -18,11 +18,11 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SoapEncodedSchemaTest {
     private static final String XSD  = XMLConstants.W3C_XML_SCHEMA_NS_URI;

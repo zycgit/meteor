@@ -9,8 +9,8 @@ package net.hasor.meteor.address;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class BucketTest {
     private final InterAddress localAddress  = new InterAddress("127.0.0.1", 8000, "local");

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -29,12 +30,15 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.protocol.grpc.support.GrpcHttp2Peer;
 import net.hasor.realmeteor.protocol.grpc.support.GrpcTlsPeer;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 gRPC-Java 与 Meteor 经真实 TLS 互通，并区分 ALPN、h2c 与 HTTP/1 路径。 */
+@NxnRpc(name = "grpc")
 public class GrpcSecureInteropTest {
-    @Test(timeout = 25000)
+    @Test
+    @Timeout(value = 25000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientInvokesMeteorProtobufOverTls() throws Exception {
         // 服务端仅要求单向 TLS，官方客户端独立校验本地 CA 签发的服务端证书。
         MetConfiguration configuration = this.serverConfiguration(false, "h2");
@@ -68,7 +72,8 @@ public class GrpcSecureInteropTest {
         }
     }
 
-    @Test(timeout = 25000)
+    @Test
+    @Timeout(value = 25000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorInvokesOfficialProtobufServerOverTls() throws Exception {
         // 官方服务使用独立 TLS 配置和业务实现，Meteor 客户端不提供客户端证书。
         AtomicInteger calls = new AtomicInteger();
@@ -97,7 +102,8 @@ public class GrpcSecureInteropTest {
         }
     }
 
-    @Test(timeout = 25000)
+    @Test
+    @Timeout(value = 25000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientInvokesMeteorProtobufOverMutualTls() throws Exception {
         // Meteor 要求客户端证书，官方客户端使用独立签发的 client 身份。
         MetConfiguration configuration = this.serverConfiguration(true, "h2");
@@ -129,7 +135,8 @@ public class GrpcSecureInteropTest {
         }
     }
 
-    @Test(timeout = 25000)
+    @Test
+    @Timeout(value = 25000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorInvokesOfficialProtobufServerOverMutualTls() throws Exception {
         // 官方服务要求客户端证书，Meteor 通过公开 connector 配置选择 client 身份。
         AtomicInteger calls = new AtomicInteger();
@@ -158,7 +165,8 @@ public class GrpcSecureInteropTest {
         }
     }
 
-    @Test(timeout = 25000)
+    @Test
+    @Timeout(value = 25000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientWithoutCertificateCannotInvokeMutualTlsMeteor() throws Exception {
         // 服务端要求 mTLS，而官方客户端只加载 CA 信任，不配置任何客户端身份。
         MetConfiguration configuration = this.serverConfiguration(true, "h2");
@@ -191,7 +199,8 @@ public class GrpcSecureInteropTest {
         }
     }
 
-    @Test(timeout = 25000)
+    @Test
+    @Timeout(value = 25000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorWithoutCertificateCannotInvokeMutualTlsOfficialServer() throws Exception {
         // 官方服务明确要求客户端证书，Meteor 客户端保持无身份的单向 TLS 配置。
         AtomicInteger calls = new AtomicInteger();
@@ -214,14 +223,15 @@ public class GrpcSecureInteropTest {
             var remote = client.getRsfClient(address);
             var pending = remote.asyncInvoke(info, "echo", new Class<?>[] { Message.class }, new Object[] { request });
             ExecutionException error = assertThrows(ExecutionException.class, () -> pending.get(5, TimeUnit.SECONDS));
-            assertTrue(error.toString(), error.getCause() instanceof IOException);
+            assertTrue(error.getCause() instanceof IOException, error.toString());
             assertEquals(0, calls.get());
         } finally {
             peer.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
         }
     }
 
-    @Test(timeout = 25000)
+    @Test
+    @Timeout(value = 25000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tlsHttp11CannotInvokeGrpcService() throws Exception {
         // 监听允许协商 HTTP/1.1，但挂载的 gRPC 业务仍只接受 HTTP/2。
         MetConfiguration configuration = this.serverConfiguration(false, "h2,http/1.1");
@@ -258,13 +268,14 @@ public class GrpcSecureInteropTest {
                 var input = new InputStreamReader(peer.getInputStream(), StandardCharsets.US_ASCII);
                 String status = new BufferedReader(input).readLine();
                 assertNotNull(status);
-                assertTrue(status, status.startsWith("HTTP/1.1 505 "));
+                assertTrue(status.startsWith("HTTP/1.1 505 "), status);
                 assertEquals(0, implementation.getCalls());
             }
         }
     }
 
-    @Test(timeout = 25000)
+    @Test
+    @Timeout(value = 25000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialGrpcClientRejectsHttp11OnlyAlpn() throws Exception {
         // 服务端仅提供 http/1.1，官方 gRPC 客户端要求 h2，双方没有共同 ALPN。
         MetConfiguration configuration = this.serverConfiguration(false, "http/1.1");
@@ -297,7 +308,8 @@ public class GrpcSecureInteropTest {
         }
     }
 
-    @Test(timeout = 25000)
+    @Test
+    @Timeout(value = 25000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialHttp2PeerObservesAlpnAndGrpcTrailersOverTls() throws Exception {
         // 官方 Netty 对端保留完整 HTTP/2 帧，分别检查 ALPN、初始头和最终 trailers。
         MetConfiguration configuration = this.serverConfiguration(false, "h2,http/1.1");
@@ -328,7 +340,8 @@ public class GrpcSecureInteropTest {
         }
     }
 
-    @Test(timeout = 25000)
+    @Test
+    @Timeout(value = 25000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialH2cUpgradeCarriesGrpcRequestAndFinalTrailers() throws Exception {
         // 官方 Netty 升级客户端从 HTTP/1.1 切换至 h2c，业务服务通过公开入口发布。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc");

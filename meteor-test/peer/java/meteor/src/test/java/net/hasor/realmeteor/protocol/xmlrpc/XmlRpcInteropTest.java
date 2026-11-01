@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.xmlrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Date;
@@ -22,14 +23,18 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.xmlrpc.XmlRpcException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Python 标准库与 Meteor 的独立双向互通；每种线协议类型独立验证。 */
+@NxnRpc(name = "xmlrpc")
 public class XmlRpcInteropTest {
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorUnicodeString() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -53,7 +58,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorInteger() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -77,7 +83,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorBoolean() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -101,7 +108,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorDouble() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -125,7 +133,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorBinary() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -149,7 +158,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorDateTime() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -173,7 +183,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorTypedArray() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -197,7 +208,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorNestedStruct() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -221,7 +233,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorApplicationFault() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -245,7 +258,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorNoArguments() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -269,7 +283,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorOptionalNil() throws Exception {
         // 配置实际监听端口和协议挂载，Python 直接使用标准库客户端。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -294,7 +309,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerUnicodeString() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -321,7 +337,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerInteger() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -347,7 +364,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerBoolean() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -373,7 +391,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerDouble() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -399,7 +418,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerBinary() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -426,7 +446,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerDateTime() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -453,7 +474,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerTypedArray() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -490,7 +512,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerNestedStruct() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -518,7 +541,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerApplicationFault() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -551,7 +575,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerNoArguments() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -577,7 +602,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerOptionalNil() throws Exception {
         // Python 标准库监听端口，Meteor 只配置出站传输和协议。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -604,7 +630,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonClientCallsMeteorOverHttps() throws Exception {
         // 用实际测试 CA 开启 HTTPS，独立 Python 客户端校验服务端证书和主机名。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -629,7 +656,8 @@ public class XmlRpcInteropTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorCallsPythonServerOverHttps() throws Exception {
         // Python 用测试服务端证书提供 HTTPS，Meteor 使用同一 CA 校验证书。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);

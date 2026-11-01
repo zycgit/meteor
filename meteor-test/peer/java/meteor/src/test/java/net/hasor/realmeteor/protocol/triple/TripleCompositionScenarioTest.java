@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -25,14 +26,20 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Triple 与既有协议共享端口时，协议与服务上下文各自保持隔离。 */
+@NxnRpc(name = "triple")
 public class TripleCompositionScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "triple")
+    @NxnRpc(name = "grpc")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpJsonAndGrpcJsonUseSeparateContextsOnOneHttpPort() throws Exception {
         // 一个物理 HTTP 监听分别挂载普通 Triple JSON 与标准 gRPC JSON。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("triple");
@@ -81,7 +88,10 @@ public class TripleCompositionScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "triple")
+    @NxnRpc(name = "grpc")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrappedTripleAndNativeGrpcShareOneMutualTlsPort() throws Exception {
         // 同一 h2 双向 TLS 监听分别承载 Triple wrapper 与原生 Protobuf gRPC。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("triple");
@@ -134,7 +144,8 @@ public class TripleCompositionScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitlyMountedServiceIsNotVisibleAtDefaultContext() throws Exception {
         // 协议有默认上下文与可选上下文，服务只选择后者。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");

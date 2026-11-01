@@ -13,8 +13,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import net.hasor.meteor.address.InterAddress;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class XmlRuleParserTest {
     private final        InterAddress east       = new InterAddress("rsf", "127.0.0.1", 2181, "east");

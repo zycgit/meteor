@@ -10,12 +10,18 @@ import net.hasor.example.protocol.hprose.TextService;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Hprose 通用序列化器可以用于 RSFS；HTTP/Hprose 的固定线协议仍是独立能力。 */
+@NxnRpc(name = "hprose")
+@NxnRpc(name = "rsf", version = "1")
 public class HproseRsfsSerializationTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hproseSerializationOverRsfsWithServerAuthentication() throws Exception {
         // TCP 端点启用 TLS，单向认证客户端只加载服务器 CA 的信任库。
         MetConfiguration incoming = new MetConfiguration();
@@ -51,7 +57,8 @@ public class HproseRsfsSerializationTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hproseSerializationOverRsfsWithMutualTls() throws Exception {
         // 双向 TLS 使用独立身份，服务端要求客户端提供受信任的证书。
         MetConfiguration incoming = new MetConfiguration();

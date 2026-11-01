@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
@@ -36,14 +37,18 @@ import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** gRPC-Web 的二进制、文本和响应流通过 TLS 后保持协议与调用语义。 */
+@NxnRpc(name = "grpc-web")
 public class GrpcWebTlsTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryJsonUnaryUsesHttpsHttp1() throws Exception {
         // 配置 HTTP/1、服务端证书认证与二进制 gRPC-Web 消息。
         MetConfiguration incoming = this.serverConfiguration(1, "NONE");
@@ -70,7 +75,8 @@ public class GrpcWebTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textProtobufUnaryUsesHttpsHttp1() throws Exception {
         // 配置 HTTP/1、服务端证书认证与文本 gRPC-Web 消息。
         MetConfiguration incoming = this.serverConfiguration(1, "NONE");
@@ -100,7 +106,8 @@ public class GrpcWebTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryProtobufUnaryUsesMutualTlsHttp2() throws Exception {
         // 配置 HTTP/2、双向身份认证与二进制 gRPC-Web 消息。
         MetConfiguration incoming = this.serverConfiguration(2, "REQUIRE");
@@ -130,7 +137,8 @@ public class GrpcWebTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textJsonUnaryUsesMutualTlsHttp2() throws Exception {
         // 配置 HTTP/2、双向身份认证与文本 gRPC-Web 消息。
         MetConfiguration incoming = this.serverConfiguration(2, "REQUIRE");
@@ -157,7 +165,8 @@ public class GrpcWebTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentHttpsClientNegotiatesHttp2WithAlpn() throws Exception {
         // 服务端只宣告 h2，独立 JDK 客户端发送标准 gRPC-Web 二进制帧。
         MetConfiguration incoming = this.serverConfiguration(2, "NONE");
@@ -192,12 +201,13 @@ public class GrpcWebTlsTest {
             byte[] trailers = new byte[frames.getInt()];
             frames.get(trailers);
             String metadata = new String(trailers, StandardCharsets.US_ASCII);
-            assertTrue(metadata, metadata.contains("grpc-status: 0"));
+            assertTrue(metadata.contains("grpc-status: 0"), metadata);
             assertFalse(frames.hasRemaining());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textBusinessFaultSurvivesHttps() throws Exception {
         // HTTPS 文本模式必须从正文尾帧恢复错误码与百分号转义的描述。
         MetConfiguration incoming = this.serverConfiguration(1, "NONE");
@@ -226,7 +236,8 @@ public class GrpcWebTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void textHttpsResponseStreamHonorsSubscriberDemand() throws Exception {
         // HTTP/1 的分块正文与 TLS 共同承载文本响应流，用户逐条请求数据。
         MetConfiguration incoming = this.serverConfiguration(1, "NONE");
@@ -264,7 +275,8 @@ public class GrpcWebTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingBinaryMutualTlsStreamReleasesRemoteSource() throws Exception {
         // HTTP/2 双向认证下取消单个响应流，应通知服务端结束源而不关闭共享连接。
         MetConfiguration incoming = this.serverConfiguration(2, "REQUIRE");
@@ -317,7 +329,8 @@ public class GrpcWebTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2MutualTlsRejectsMissingClientCertificate() throws Exception {
         // 注册 gRPC-Web 服务，但在 HTTP/2 入站处理之前强制校验客户端证书。
         MetConfiguration incoming = this.serverConfiguration(2, "REQUIRE");
@@ -344,15 +357,16 @@ public class GrpcWebTlsTest {
                     rejected = socket.getInputStream().read() < 0;
                 } catch (IOException failure) {
                     boolean timedOut = failure instanceof SocketTimeoutException;
-                    assertFalse("TLS rejection must not time out: " + failure, timedOut);
+                    assertFalse(timedOut, "TLS rejection must not time out: " + failure);
                     rejected = true;
                 }
-                assertTrue("Anonymous peer must not receive application data", rejected);
+                assertTrue(rejected, "Anonymous peer must not receive application data");
             }
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsRejectsUntrustedClientCertificate() throws Exception {
         // 客户端有证书，但其签发者不属于服务端配置的信任集。
         MetConfiguration incoming = this.serverConfiguration(1, "REQUIRE");
@@ -378,7 +392,8 @@ public class GrpcWebTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientRejectsUntrustedServerCertificate() throws Exception {
         // gRPC-Web 客户端必须遵守 CA 校验，不能因为 HTTP 适配而信任所有服务器。
         MetConfiguration incoming = this.serverConfiguration(1, "NONE");
@@ -404,7 +419,8 @@ public class GrpcWebTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incompatibleAlpnFailsBeforeRpcTimeout() throws Exception {
         // 服务端只接受 HTTP/1.1，客户端只接受 h2，配置必须在握手阶段失败。
         MetConfiguration incoming = this.serverConfiguration(1, "NONE");

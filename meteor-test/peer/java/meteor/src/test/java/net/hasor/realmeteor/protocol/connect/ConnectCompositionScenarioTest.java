@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.connect;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.protocol.connect.ConnectDemoService;
 import net.hasor.example.protocol.connect.ConnectDemoServiceImpl;
 import net.hasor.example.protocol.connect.ConnectMessage;
@@ -13,12 +14,18 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Connect 与现有 gRPC 通过不同上下文共享 HTTP 监听，保持协议与服务选择隔离。 */
+@NxnRpc(name = "connect", version = "1")
 public class ConnectCompositionScenarioTest {
-    @Test(timeout = 20000)
+    @NxnRpc(name = "connect", version = "1")
+    @NxnRpc(name = "grpc")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void connectAndGrpcUseSeparateContextsOnOneHttpPort() throws Exception {
         // 一个 HTTP 端点挂载两个真实协议，分别声明各自上下文。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("connect");

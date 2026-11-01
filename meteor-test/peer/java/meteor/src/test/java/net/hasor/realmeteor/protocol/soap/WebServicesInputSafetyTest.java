@@ -17,10 +17,12 @@ import net.hasor.example.protocol.soap.EchoService;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.realmeteor.protocol.soap.support.SoapResponseUtils;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesInputSafetyTest {
     private static final String SOAP_ACTOR_NEXT = "http://schemas.xmlsoap.org/soap/actor/next";
 
@@ -52,7 +54,7 @@ public class WebServicesInputSafetyTest {
 
             // 协议返回 MustUnderstand，业务方法没有开始执行。
             assertEquals(500, response.statusCode());
-            assertTrue(response.body(), response.body().contains("soap:MustUnderstand"));
+            assertTrue(response.body().contains("soap:MustUnderstand"), response.body());
             assertEquals(0, invocations.get());
         }
     }
@@ -86,7 +88,7 @@ public class WebServicesInputSafetyTest {
 
             // 当前节点拒绝未知必选 Header，业务方法没有开始执行。
             assertEquals(500, response.statusCode());
-            assertTrue(response.body(), response.body().contains("soap:MustUnderstand"));
+            assertTrue(response.body().contains("soap:MustUnderstand"), response.body());
             assertEquals(0, invocations.get());
         }
     }
@@ -120,7 +122,7 @@ public class WebServicesInputSafetyTest {
 
             // 请求正常进入业务服务。
             assertEquals(200, response.statusCode());
-            assertTrue(response.body(), response.body().contains("forwarded"));
+            assertTrue(response.body().contains("forwarded"), response.body());
             assertEquals(1, invocations.get());
         }
     }
@@ -185,8 +187,8 @@ public class WebServicesInputSafetyTest {
             // XML 解析阶段返回 SOAP Client Fault，实体值没有交给业务方法。
             assertEquals(500, response.statusCode());
             String responseBody = response.body();
-            assertTrue(responseBody, responseBody.contains("soap:Client"));
-            assertTrue(responseBody, responseBody.contains("DOCTYPE"));
+            assertTrue(responseBody.contains("soap:Client"), responseBody);
+            assertTrue(responseBody.contains("DOCTYPE"), responseBody);
             assertEquals(0, invocations.get());
         }
     }
@@ -217,8 +219,8 @@ public class WebServicesInputSafetyTest {
 
             // 结构在 Transformer/Jackson 前被拒绝，并返回 SOAP Client Fault。
             assertEquals(500, response.statusCode());
-            assertTrue(response.body(), response.body().contains("soap:Client"));
-            assertTrue(response.body(), response.body().contains("XML nesting depth"));
+            assertTrue(response.body().contains("soap:Client"), response.body());
+            assertTrue(response.body().contains("XML nesting depth"), response.body());
             assertEquals(0, invocations.get());
         }
     }
@@ -249,8 +251,8 @@ public class WebServicesInputSafetyTest {
 
             // 节点总量在业务反序列化前被拒绝。
             assertEquals(500, response.statusCode());
-            assertTrue(response.body(), response.body().contains("soap:Client"));
-            assertTrue(response.body(), response.body().contains("too many XML nodes"));
+            assertTrue(response.body().contains("soap:Client"), response.body());
+            assertTrue(response.body().contains("too many XML nodes"), response.body());
             assertEquals(0, invocations.get());
         }
     }

@@ -6,6 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.dubbo;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -24,36 +28,34 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.example.discovery.AddressSelectionAwaiter;
 import net.hasor.realmeteor.environment.discovery.ForeignServiceRegistrar;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Dubbo 3 的 TCP/Hessian2 显式注册适配，与原生 ZooKeeper 注册桥分别记录。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "adapter={0},profile=dubbo3-tcp-hessian2", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "dubbo", version = "3")
 public class DubboRegistryAdapterScenarioTest {
     private static final String SERVICE = DubboInteropService.class.getName();
     private static final String TEXT    = "Dubbo 中文 🙂";
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
     public DubboRegistryAdapterScenarioTest(String backend) {
         this.backend = backend;
     }
-
-    @Parameterized.Parameters(name = "adapter={0},profile=dubbo3-tcp-hessian2")
     public static Collection<Object[]> backends() {
         // 各注册存储独立验证同一代表 profile，不与旧版或 TLS 做无关组合。
         List<Object[]> result = new ArrayList<>();
@@ -63,10 +65,11 @@ public class DubboRegistryAdapterScenarioTest {
         return result;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void providerOfficialDubboClientUsesStorageAdapter() throws Exception {
         // Meteor 通过 bootstrap 接入独占存储；只启用标准 TCP/Hessian2 业务 profile。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             registry.setPublishHost(ContainerProcess.runnerHost());
@@ -94,7 +97,7 @@ public class DubboRegistryAdapterScenarioTest {
                     try (DubboProcess peer = DubboProcess.start("--command=client", "--url=" + target, //
                             "--group=interop", "--version=1.0.0", "--scenario=echo")) {
                         JsonNode outcome = peer.awaitResult();
-                        assertFalse(outcome.toString(), outcome.has("error"));
+                        assertFalse(outcome.has("error"), outcome.toString());
                         assertEquals(TEXT, outcome.path("value").asText());
                     }
                 }
@@ -102,10 +105,11 @@ public class DubboRegistryAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void consumerMeteorDiscoversOfficialDubboThroughStorageAdapter() throws Exception {
         // 不安装 nativeDubbo 桥；本场景只订阅 Meteor 存储目录，没有预设业务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, false);
@@ -138,7 +142,7 @@ public class DubboRegistryAdapterScenarioTest {
     private MetConfiguration configuration(RegistryConfiguration registry, boolean listening) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("dubbo").setDefaultTimeout(10000);
         configuration.setApplicationName(listening ? "dubbo-provider-adapter" : "dubbo-consumer-adapter");
-        configuration.setDataHome(this.data.newFolder("application").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("application")));
         configuration.addExtension(registry);
         ConnectorSettings connector = configuration.connector("tcp");
         if (listening) {

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import com.google.protobuf.Empty;
@@ -27,11 +28,14 @@ import net.hasor.meteor.MetExtension;
 import net.hasor.meteor.MetPublisher.ConfigurationBuilder;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc")
 public class GrpcPublicationTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingDefaultProtoKeepsTheLocalServiceWithoutExposingGrpc() throws Exception {
         // 正式注册事件仍描述本地服务，缺少 proto 只让 gRPC 拒绝这个端点。
         MetConfiguration configuration = this.configuration();
@@ -168,7 +172,8 @@ public class GrpcPublicationTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonMountAcceptsAnOrdinaryJavaProviderWithoutProto() throws Exception {
         // JSON 挂载不需要 proto，两端仍使用独立容器验证真实网络能力。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc");
@@ -193,6 +198,8 @@ public class GrpcPublicationTest {
         }
     }
 
+    @NxnRpc(name = "grpc")
+    @NxnRpc(name = "rsf", version = "1")
     @Test
     public void selectingAnotherProtocolSkipsGrpcResourceValidation() throws Exception {
         // 同时配置 gRPC 与 RSF，随后将服务限制为 RSF。
@@ -215,7 +222,10 @@ public class GrpcPublicationTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "grpc")
+    @NxnRpc(name = "rsf", version = "1")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingProtoDoesNotWithdrawTheRsfPublication() throws Exception {
         // 服务允许 RSF 与 gRPC，两种协议独立判断是否能接受这个 Java 接口。
         MetConfiguration incoming = this.configuration();
@@ -276,7 +286,8 @@ public class GrpcPublicationTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void boundProtoAllowsProviderRegistrationAndStartup() throws Exception {
         // 两端绑定同一个 proto，在容器启动前发布和订阅接口。
         MetConfiguration incoming = this.configuration();

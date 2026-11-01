@@ -22,19 +22,24 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TMessage;
 import org.apache.thrift.protocol.TMessageType;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TMemoryBuffer;
 import org.apache.thrift.transport.TMemoryInputTransport;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 真实 HTTP 传输上的 Thrift 编码、版本与标准消息互通场景。 */
+@NxnRpc(name = "thrift")
 public class ThriftHttpScenarioTest {
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void compactProxyCallsOverHttp1() throws Exception {
         // 显式设置 compact 编码，客户端选择 HTTP/1。
         MetConfiguration incoming = this.serverConfiguration();
@@ -56,7 +61,8 @@ public class ThriftHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonProxyCallsOverHttp1() throws Exception {
         // 显式设置 json 编码，客户端选择 HTTP/1。
         MetConfiguration incoming = this.serverConfiguration();
@@ -78,7 +84,8 @@ public class ThriftHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void binaryProxyCallsOverHttp2() throws Exception {
         // 不设置 encoding，验证默认 binary 编码，客户端选择 HTTP/2。
         MetConfiguration incoming = this.serverConfiguration();
@@ -100,7 +107,8 @@ public class ThriftHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void compactProxyCallsOverHttp2() throws Exception {
         // 显式设置 compact 编码，客户端选择 HTTP/2。
         MetConfiguration incoming = this.serverConfiguration();
@@ -122,7 +130,8 @@ public class ThriftHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonProxyCallsOverHttp2() throws Exception {
         // 显式设置 json 编码，客户端选择 HTTP/2。
         MetConfiguration incoming = this.serverConfiguration();
@@ -144,7 +153,8 @@ public class ThriftHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void h2cUpgradePreservesAnOfficialBinaryThriftMessage() throws Exception {
         // JDK HTTP 客户端独立发起 h2c 升级，正文由 Apache Thrift 官方协议编码。
         MetConfiguration configuration = this.serverConfiguration();

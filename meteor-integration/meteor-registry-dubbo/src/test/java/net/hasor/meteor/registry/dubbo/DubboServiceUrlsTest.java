@@ -19,8 +19,8 @@ import net.hasor.meteor.annotation.MetMethod;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.utils.UrlUtils;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 使用真实服务描述验证 Meteor 身份与原生 Dubbo URL 的转换，不连接网络。 */
 public class DubboServiceUrlsTest {

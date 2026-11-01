@@ -22,14 +22,19 @@ import net.hasor.example.protocol.soap.DocumentBareService;
 import net.hasor.example.protocol.soap.DocumentBareServiceImpl;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesDocumentBareTest {
     private static final String NAMESPACE = "urn:hasor:meteor:soap:DocumentBareService";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11BareRequestCarriesSeparateParameterElements() throws Exception {
         // 选择 SOAP 1.1 document/literal bare，并发布普通 Java 服务。
         MetConfiguration configuration = this.configuration("1.1");
@@ -67,7 +72,9 @@ public class WebServicesDocumentBareTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12BareRequestCarriesSeparateParameterElements() throws Exception {
         // 选择 SOAP 1.2 document/literal bare，并发布普通 Java 服务。
         MetConfiguration configuration = this.configuration("1.2");
@@ -105,7 +112,8 @@ public class WebServicesDocumentBareTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11BareNoArgumentRequestUsesAnEmptyBody() throws Exception {
         // 选择 SOAP 1.1 document/literal bare，并发布普通 Java 服务。
         MetConfiguration configuration = this.configuration("1.1");
@@ -140,7 +148,9 @@ public class WebServicesDocumentBareTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12BareNoArgumentRequestUsesAnEmptyBody() throws Exception {
         // 选择 SOAP 1.2 document/literal bare，并发布普通 Java 服务。
         MetConfiguration configuration = this.configuration("1.2");
@@ -175,7 +185,8 @@ public class WebServicesDocumentBareTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap11BareVoidResponseUsesAnEmptyBody() throws Exception {
         // 选择 SOAP 1.1 document/literal bare，并发布普通 Java 服务。
         MetConfiguration configuration = this.configuration("1.1");
@@ -209,7 +220,9 @@ public class WebServicesDocumentBareTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void soap12BareVoidResponseUsesAnEmptyBody() throws Exception {
         // 选择 SOAP 1.2 document/literal bare，并发布普通 Java 服务。
         MetConfiguration configuration = this.configuration("1.2");

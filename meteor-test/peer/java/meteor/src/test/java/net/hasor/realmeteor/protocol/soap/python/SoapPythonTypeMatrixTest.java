@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.soap.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
@@ -26,25 +31,23 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.matrix.types.TypeValueAssertions;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 同一普通 Java DTO 与 Python SDK 原生值双向互通，每个实例只验证一个类型向量。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/python/soap/direct/{0}/{1}", quoteTextArguments = false)
+@MethodSource("vectors")
+@NxnRpc(name = "soap", version = "1.1")
 public class SoapPythonTypeMatrixTest {
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String vector;
 
     public SoapPythonTypeMatrixTest(String type, String vector) {
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/python/soap/direct/{0}/{1}")
     public static List<Object[]> vectors() throws Exception {
         // 固定共享向量顺序，使每个类型边界在 JUnit 和矩阵报告中有独立身份。
         List<Object[]> cases = new ArrayList<>();
@@ -54,7 +57,8 @@ public class SoapPythonTypeMatrixTest {
         return cases;
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorProviderAcceptsPythonNativeType() throws Exception {
         // Meteor 从公开 bootstrap 启动，服务绑定独立 SDK 生成的 WSDL。
         MetConfiguration configuration = this.configuration(true);
@@ -77,7 +81,8 @@ public class SoapPythonTypeMatrixTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerReadsPythonNativeType() throws Exception {
         // soapfish2 在独立容器发布相同契约，Meteor 只配置出站协议。
         MetConfiguration configuration = this.configuration(false);
@@ -102,7 +107,7 @@ public class SoapPythonTypeMatrixTest {
 
     private MetConfiguration configuration(boolean listen) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
-        configuration.setDataHome(this.data.newFolder("application").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("application")));
         var http = configuration.connector("http");
         if (listen) {
             http.bind(ContainerProcess.runnerHost(), 0);

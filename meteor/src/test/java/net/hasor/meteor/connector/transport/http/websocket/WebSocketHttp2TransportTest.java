@@ -27,15 +27,18 @@ import net.hasor.meteor.connector.transport.http.channel.HttpBodyStream;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.meteor.connector.HttpTransportPlans.routes;
 import static net.hasor.meteor.connector.TransportTestConfigs.transport;
 import static net.hasor.meteor.connector.transport.TransportTestServices.newHttpConnector;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 在真实 HTTP/2 连接上验证 WebSocket stream 的准入与排空边界。 */
 public class WebSocketHttp2TransportTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void refusingAnUnregisteredUpgradeLeavesTheAcceptedStreamUsable() throws Exception {
         // 服务端只允许一个未结束的 exchange；客户端允许继续提交第二个 stream。
         ConnectorConfig incoming = config(1);
@@ -93,7 +96,8 @@ public class WebSocketHttp2TransportTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void drainingServerRejectsExtendedConnectWhileFinishingASubmittedResponse() throws Exception {
         // Meteor 同时挂载普通 HTTP 与 WebSocket，独立 Netty 对端直接观察 HTTP/2 帧。
         ConnectorConfig incoming = mixedConfig();
@@ -205,8 +209,8 @@ public class WebSocketHttp2TransportTest {
             incomingChannel.execute(prepared::countDown);
             assertTrue(prepared.await(5, TimeUnit.SECONDS));
             assertFalse(draining.isDone());
-            assertFalse("Submitted response failed: " + writing.getCause(), writing.isDone());
-            assertTrue("HTTP/2 peer closed: " + errors, peer.isActive());
+            assertFalse(writing.isDone(), "Submitted response failed: " + writing.getCause());
+            assertTrue(peer.isActive(), "HTTP/2 peer closed: " + errors);
             Http2StreamChannel rejectedStream = streams.open().get(5, TimeUnit.SECONDS);
             Http2Headers websocket = new DefaultHttp2Headers() //
                     .method("CONNECT").scheme("http").path("/ws").authority("localhost") //
@@ -248,7 +252,7 @@ public class WebSocketHttp2TransportTest {
             writing.get(5, TimeUnit.SECONDS);
             arrival.completion().get(5, TimeUnit.SECONDS);
             draining.get(5, TimeUnit.SECONDS);
-            assertTrue(errors.toString(), errors.isEmpty());
+            assertTrue(errors.isEmpty(), errors.toString());
         } finally {
             try {
                 if (peer != null) {
@@ -348,7 +352,7 @@ public class WebSocketHttp2TransportTest {
         LinkedBlockingQueue<Http2StreamFrame> received = frames.computeIfAbsent(stream.id(), //
                 key -> new LinkedBlockingQueue<>());
         Http2StreamFrame frame = received.poll(5, TimeUnit.SECONDS);
-        assertNotNull("No frame for stream " + stream.id() + ", available streams: " + frames.keySet(), frame);
+        assertNotNull(frame, "No frame for stream " + stream.id() + ", available streams: " + frames.keySet());
         return frame;
     }
 

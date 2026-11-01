@@ -18,27 +18,26 @@ import java.util.Map;
 import java.util.stream.Stream;
 import javax.xml.parsers.DocumentBuilderFactory;
 import net.hasor.cobble.StringUtils;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 报告完整性使用独立文件夹验证，不启动 Docker、Gradle 或协议对端。 */
 public class NxnReportTest {
-    @Rule
-    public final TemporaryFolder temporary = new TemporaryFolder();
+    @TempDir
+    public Path temporary;
     private Path root;
     private Path build;
     private Path manifestPath;
     private Map<String, Object> manifest;
 
-    @Before
+    @BeforeEach
     public void prepareCurrentRun() throws Exception {
         // 两个工作组分别持有一份原始 XML、逻辑报告和独立进程证据。
-        this.root = this.temporary.getRoot().toPath();
+        this.root = this.temporary;
         this.build = this.root.resolve("build");
         this.manifestPath = this.root.resolve("manifest.json");
         this.manifest = map("schemaVersion", 3, "runId", "current-run", "userIncludes", list(), //
@@ -747,6 +746,311 @@ public class NxnReportTest {
     }
 
     @Test
+    public void rpcRunCanSelectFewerDiscoveredClasses() throws Exception {
+        // RPC 声明只选择两个类，另一个已发现类属于其它协议。
+        strings(this.manifest, "discoveredClasses").add("test.Third");
+        this.declareRpcSelection();
+
+        // 协议子集不需要冒充整轮类覆盖，真实结果仍全部验证。
+        assertEquals(list(), this.aggregate().get("aggregationErrors"));
+    }
+
+    @Test
+    public void emptyRpcGroupIsAcceptedWithExplicitSelectionEvidence() throws Exception {
+        // 第一组的参数在展开后全部被排除，第二组仍有实际用例。
+        this.declareRpcSelection();
+        this.emptyRpcGroup("g1");
+
+        // 被排除的参数不伪造成跳过或未执行用例。
+        Map<String, Object> summary = this.aggregate();
+        assertEquals(list(), summary.get("aggregationErrors"));
+        assertEquals(1, summary.get("passed"));
+        assertEquals(0, summary.get("skipped"));
+        assertEquals(0, summary.get("notExecuted"));
+        assertEquals(false, summary.get("notExecutedUnknown"));
+    }
+
+    @Test
+    public void rpcGroupCanExcludeOneAssignedClassAfterParameterExpansion() throws Exception {
+        // 同一组粗选两个类，第三个类没有匹配当前 RPC 的实际参数。
+        for (String field : List.of("discoveredClasses", "selectedClasses", "selectedSelections")) {
+            strings(this.manifest, field).add("test.Third");
+        }
+        strings(this.group(0), "classes").add("test.Third");
+        strings(this.group(0), "filters").add("test.Third");
+        List<String> filters = strings(this.group(0), "filters");
+        this.update("g1", "configuration.json", map("classNames", list("test.First", "test.Third"), //
+                "includes", filters));
+        this.update("g1", "summary.json", map("includes", filters));
+        this.declareRpcSelection();
+
+        // 已声明的叶子计划保留实际执行类，不要求排除的类生成假结果。
+        Map<String, Object> summary = this.aggregate();
+        assertEquals(list(), summary.get("aggregationErrors"));
+        assertEquals(2, summary.get("classes"));
+    }
+
+    @Test
+    public void anEntirelyEmptyRpcRunIsRejected() throws Exception {
+        // 所有候选组都在参数展开后成为明确的零选择。
+        this.declareRpcSelection();
+        this.emptyRpcGroup("g1");
+        this.emptyRpcGroup("g2");
+
+        // 整轮必须至少执行一个真实用例。
+        this.assertError("No testcases were executed");
+    }
+
+    @Test
+    public void emptyRpcGroupWithoutSelectionEmptyEvidenceIsRejected() throws Exception {
+        // 缺少明确的筛除证据不能被解释为正常的协议子集。
+        this.declareRpcSelection();
+        this.emptyRpcGroup("g1");
+        this.update("g1", "summary.json", map("selectionEmpty", false));
+
+        // 没有结果仍然报告错误，不能把 JVM 失联当成零匹配。
+        this.assertError("has no current results");
+    }
+
+    @Test
+    public void emptyRpcXmlCannotReplaceExplicitZeroSelectionEvidence() throws Exception {
+        // 空 XML 套件不能自行证明参数已经被 RPC 筛除。
+        this.declareRpcSelection();
+        this.emptyRpcGroup("g1");
+        Path current = this.root.resolve("g1/test-results/test/TEST-test.First.xml");
+        this.writeText(current, "<testsuite name=\"test.First\" tests=\"0\"/>");
+        Path archived = this.report("g1").resolve("test-results/TEST-test.First.xml");
+        Files.createDirectories(archived.getParent());
+        Files.copy(current, archived);
+        this.update("g1", "summary.json", map("selectionEmpty", false, "resultsAvailable", true));
+
+        // 即使套件、计数和文件一致，也必须明确提供零选择证据。
+        this.assertError("empty RPC result has no explicit zero selection evidence");
+    }
+
+    @Test
+    public void emptySelectionEvidenceCannotRelaxAnAllRun() throws Exception {
+        // 全量运行不能借用 RPC 专属的零选择标记。
+        this.emptyRpcGroup("g1");
+
+        // 全量覆盖和结果要求保持不变。
+        this.assertError("cannot claim an empty selection without RPC filtering");
+    }
+
+    @Test
+    public void rpcGroupWithoutDeclarationsIsRejected() throws Exception {
+        // 清单包含协议选择，工作组却丢失了原始声明。
+        this.declareRpcSelection();
+        this.group(0).remove("rpcCases");
+
+        // 运行范围必须与实际下发的声明一致。
+        this.assertError("changed its RPC declarations");
+    }
+
+    @Test
+    public void rpcGroupWithAChangedVersionIsRejected() throws Exception {
+        // 工作组实际执行另一个线协议版本，不能借用当前范围的结果。
+        this.declareRpcSelection();
+        this.update("g1", "summary.json", map("rpcVersion", "1.1"));
+
+        // 版本来自本轮清单与执行配置的交叉核验。
+        this.assertError("changed the rpcVersion selection");
+    }
+
+    @Test
+    public void rpcGroupWithChangedDeclarationsIsRejected() throws Exception {
+        // 执行配置不能把参数通配范围缩小后仍报告原始范围。
+        this.declareRpcSelection();
+        Map<String, Object> changed = map("test.First", map("first", //
+                list(map("name", "soap", "version", "1.2", "cases", "other"))));
+        this.update("g1", "configuration.json", map("rpcCases", changed));
+
+        // 声明快照必须保持一致。
+        this.assertError("changed its RPC declarations");
+    }
+
+    @Test
+    public void rpcGroupWithoutAnExplicitLeafPlanIsRejected() throws Exception {
+        // RPC 范围不能只依赖成功 XML 来推测计划。
+        this.declareRpcSelection();
+        Path summaryPath = this.report("g1").resolve("summary.json");
+        Map<String, Object> summary = readMap(summaryPath);
+        summary.remove("plannedCases");
+        NxnReport.writeJson(summaryPath, summary);
+
+        // 缺少执行前计划时不放宽类与方法覆盖。
+        this.assertError("RPC selection has no explicit testcase plan");
+    }
+
+    @Test
+    public void rpcGroupCannotExecuteCasesAbsentFromItsLeafPlan() throws Exception {
+        // 已执行 XML 没有变化，但执行前计划中没有这项用例。
+        this.declareRpcSelection();
+        this.update("g1", "summary.json", map("plannedCases", list()));
+
+        // 真实执行不能越过已声明的 RPC 范围。
+        this.assertError("executed testcases outside its RPC selection plan");
+    }
+
+    @Test
+    public void matchingRpcPlanAndXmlCannotBypassTheParameterDeclaration() throws Exception {
+        // 计划与 XML 相互一致，但实际参数属于 SOAP 1.1 向量。
+        this.declareRpcSelection();
+        this.firstRpcDeclaration(map("name", "soap", "version", "1.2", "cases", "soap12/*"));
+        this.rewriteFirstRpcCase("first[soap11/x]");
+
+        // 聚合器直接核验注解声明，不把两份相同的错误证据视为范围正确。
+        this.assertError("testcase does not match its RPC selection: test.First#first[soap11/x]");
+    }
+
+    @Test
+    public void rpcPlanLeavesAreCheckedEvenWhenTheXmlMatchesTheDeclaration() throws Exception {
+        // 已执行向量合法，计划另行混入一个未获准的参数。
+        this.declareRpcSelection();
+        this.firstRpcDeclaration(map("name", "soap", "version", "1.2", "cases", "soap12/*"));
+        this.rewriteFirstRpcCase("first[soap12/x]");
+        String unexpected = "test.First#first[soap11/x]";
+        this.update("g1", "summary.json", map("plannedCases", list(unexpected), //
+                "notExecutedCases", list(unexpected), "notExecuted", 1));
+
+        // 未执行的计划叶子同样必须属于 RPC 声明范围。
+        this.assertError("testcase does not match its RPC selection: " + unexpected);
+    }
+
+    @Test
+    public void rpcXmlLeavesAreCheckedEvenWhenThePlanMatchesTheDeclaration() throws Exception {
+        // 计划向量合法，XML 却记录了另一个协议参数。
+        this.declareRpcSelection();
+        this.firstRpcDeclaration(map("name", "soap", "version", "1.2", "cases", "soap12/*"));
+        this.rewriteFirstRpcCase("first[soap11/x]");
+        String planned = "test.First#first[soap12/x]";
+        this.update("g1", "summary.json", map("plannedCases", list(planned), //
+                "notExecutedCases", list(planned), "notExecuted", 1));
+
+        // 实际叶子独立核验，不能仅靠合法的计划声明通过。
+        this.assertError("testcase does not match its RPC selection: test.First#first[soap11/x]");
+    }
+
+    @Test
+    public void rpcLeavesWithoutADeclaredMethodAreReportedAsUnknown() throws Exception {
+        // 类过滤器允许方法进入，协议声明中却没有该方法。
+        this.declareRpcSelection();
+        this.rewriteFirstRpcCase("other[vector]");
+
+        // 未知方法与已知方法的参数不匹配分别报告。
+        this.assertError("has an unknown RPC testcase: test.First#other[vector]");
+    }
+
+    @Test
+    public void rpcLeafFromAnotherProtocolCannotBorrowTheGroupCatalog() throws Exception {
+        // 第一组声明含两个协议，目录可用不能证明实际叶子的协议相符。
+        this.declareRpcSelection();
+        Map<String, Object> selected = map("name", "soap", "version", "1.2", "cases", "other/*");
+        Map<String, Object> wrong = map("name", "jsonrpc", "version", "2.0", "cases", "*");
+        this.firstRpcDeclaration(selected);
+        Map<String, Object> methods = child(child(this.manifest, "rpcCases"), "test.First");
+        entries(methods, "first").add(wrong);
+        this.firstRpcDeclarationValues(methods);
+
+        // 实际 SOAP 范围不接受只匹配 JSON-RPC 声明的参数。
+        this.assertError("testcase does not match its RPC selection: test.First#first[vector]");
+    }
+
+    @Test
+    public void rpcLeafFromAnotherVersionCannotBorrowTheGroupCatalog() throws Exception {
+        // 同一方法可声明两个版本，但当前参数只属于旧版本。
+        this.declareRpcSelection();
+        Map<String, Object> selected = map("name", "soap", "version", "1.2", "cases", "soap12/*");
+        Map<String, Object> wrong = map("name", "soap", "version", "1.1", "cases", "*");
+        this.firstRpcDeclarationValues(map("first", list(selected, wrong)));
+
+        // 参数合法性同时受到协议名、版本与显示名称的约束。
+        this.assertError("testcase does not match its RPC selection: test.First#first[vector]");
+    }
+
+    @Test
+    public void rpcParameterNamesPreserveTheirInnerBrackets() throws Exception {
+        // 显示名称自身带方括号，契约选择按完整原始名称匹配。
+        this.declareRpcSelection();
+        this.firstRpcDeclaration(map("name", "soap", "version", "1.2", "cases", "soap12/x[value]"));
+        this.rewriteFirstRpcCase("first[soap12/x[value]]");
+
+        // 外层参数包装被移除一次，名称内部内容保持不变。
+        assertEquals(list(), this.aggregate().get("aggregationErrors"));
+    }
+
+    @Test
+    public void ordinaryRpcMethodsMatchAnEmptyParameterName() throws Exception {
+        // 普通 Jupiter 方法没有参数类显示名称。
+        this.declareRpcSelection();
+        this.firstRpcDeclaration(map("name", "soap", "version", "1.2", "cases", ""));
+        this.rewriteFirstRpcCase("first()");
+
+        // 同一选择器使用空参数名称验证普通方法。
+        assertEquals(list(), this.aggregate().get("aggregationErrors"));
+    }
+
+    @Test
+    public void emptyRpcSelectionCannotContainExecutedCases() throws Exception {
+        // 零选择标记与实际成功用例冲突。
+        this.declareRpcSelection();
+        this.update("g1", "summary.json", map("selectionEmpty", true, "plannedCases", list(), //
+                "resultsAvailable", false));
+
+        // 真实 XML 不会因零选择标记被丢弃。
+        Map<String, Object> summary = this.aggregate();
+        assertEquals(2, summary.get("tests"));
+        assertTrue(containsError(strings(summary, "aggregationErrors"), "claims an empty RPC selection"));
+    }
+
+    @Test
+    public void emptyRpcSelectionCannotHideExecutionFailure() throws Exception {
+        // 筛除参数后若启动或发现失败，仍然是测试错误。
+        this.declareRpcSelection();
+        this.emptyRpcGroup("g1");
+        this.update("g1", "summary.json", map("taskFailure", "discovery failed"));
+
+        // 正常零匹配不得掩盖执行异常。
+        this.assertError("test execution failed: discovery failed");
+    }
+
+    @Test
+    public void emptyRpcSelectionStillRequiresProcessEvidence() throws Exception {
+        // 参数全部筛除不免除进程退出和资源释放证据。
+        this.declareRpcSelection();
+        this.emptyRpcGroup("g1");
+        Files.delete(this.root.resolve("g1/process/status.json"));
+
+        // 丢失进程状态仍然阻止成功汇总。
+        this.assertError("process evidence is invalid");
+    }
+
+    @Test
+    public void rpcMarkdownNamesTheProtocolVersionAndCaseFilter() throws Exception {
+        // 协议版本与显式方法选择共同限定本轮范围。
+        this.declareRpcSelection();
+        this.manifest.put("userIncludes", list("test.First", "test.Second"));
+        this.aggregate();
+
+        // 报告清楚表达子集，不能宣称已经执行全部协议。
+        String markdown = Files.readString(this.build.resolve("interoperability/report.md"));
+        assertTrue(markdown.contains("RPC：`soap`，协议版本：`1.2`。"));
+        assertTrue(markdown.contains("用例筛选：`test.First`、`test.Second`。"));
+        assertFalse(markdown.contains("用例筛选：全部"));
+    }
+
+    @Test
+    public void rpcMarkdownWithoutCaseFiltersNamesTheDeclaredScope() throws Exception {
+        // 协议选择未叠加 --tests，范围仍然只属于该协议。
+        this.declareRpcSelection();
+        this.aggregate();
+
+        // 不把协议声明范围写成整个测试工程的全量。
+        String markdown = Files.readString(this.build.resolve("interoperability/report.md"));
+        assertTrue(markdown.contains("用例筛选：该协议声明范围。"));
+    }
+
+    @Test
     public void splitParameterizedClassIsMerged() throws Exception {
         // 同一参数化类按方法分组后仍合并为一个 XML suite。
         this.splitClass("consumer[vector]");
@@ -1095,6 +1399,17 @@ public class NxnReportTest {
     }
 
     @Test
+    public void baselineIsNotAppliedToRpcRun() throws Exception {
+        // 全量基线不能用来评价指定 RPC 子集。
+        this.declareRpcSelection();
+        Path baseline = this.root.resolve("baseline.json");
+
+        // 提前拒绝比较，避免把其它协议记为丢失用例。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> this.aggregate(baseline));
+        assertTrue(failure.getMessage().contains("unfiltered run"));
+    }
+
+    @Test
     public void archivedGroupsResolveContainerPathsWithoutTheWorkspace() throws Exception {
         // 归档保留容器内原路径，宿主只拥有相邻的分组证据。
         this.remotePeer(map(), false);
@@ -1240,6 +1555,78 @@ public class NxnReportTest {
         this.addProcess(directory.resolve("process"), identity, identity + "-jvm");
     }
 
+    private void declareRpcSelection() throws Exception {
+        // 声明同一线协议版本，测试计划来自已有的真实 XML 夹具。
+        Map<String, Object> declarations = new LinkedHashMap<>();
+        for (String className : strings(this.manifest, "selectedClasses")) {
+            String simpleName = className.substring(className.lastIndexOf('.') + 1);
+            String methodName = Character.toLowerCase(simpleName.charAt(0)) + simpleName.substring(1);
+            Map<String, Object> declaration = map("name", "soap", "version", "1.2", "cases", "*");
+            declarations.put(className, map(methodName, list(declaration)));
+        }
+        this.manifest.putAll(map("rpc", "soap", "rpcVersion", "1.2", "rpcCases", declarations));
+        for (Map<String, Object> group : entries(this.manifest, "groups")) {
+            Map<String, Object> assigned = new LinkedHashMap<>();
+            for (String className : strings(group, "classes")) {
+                assigned.put(className, declarations.get(className));
+            }
+            Map<String, Object> selection = map("rpc", "soap", "rpcVersion", "1.2", "rpcCases", assigned);
+            group.putAll(selection);
+            String identity = (String) group.get("id");
+            this.update(identity, "configuration.json", selection);
+            List<String> planned = new ArrayList<>();
+            Path selected = this.report(identity).resolve("selected-cases.json");
+            for (Map<String, Object> testcase : readList(selected)) {
+                planned.add((String) testcase.get("caseId"));
+            }
+            Map<String, Object> summary = new LinkedHashMap<>(selection);
+            summary.putAll(map("plannedCases", planned, "notExecutedCases", list(), //
+                    "notExecuted", 0, "selectionEmpty", false));
+            this.update(identity, "summary.json", summary);
+        }
+    }
+
+    private void emptyRpcGroup(String identity) throws Exception {
+        // 正常筛除参数不会产生 XML、跳过项或失败项，保留进程清理证据。
+        deleteTree(this.root.resolve(identity).resolve("test-results/test"));
+        deleteTree(this.report(identity).resolve("test-results"));
+        NxnReport.writeJson(this.report(identity).resolve("selected-cases.json"), list());
+        this.update(identity, "summary.json", map("tests", 0, "passed", 0, "failed", 0, "skipped", 0, //
+                "selectionEmpty", true, "resultsAvailable", false, "plannedCases", list(), //
+                "notExecutedCases", list(), "notExecuted", 0));
+    }
+
+    private void firstRpcDeclaration(Map<String, Object> declaration) throws Exception {
+        this.firstRpcDeclarationValues(map("first", list(declaration)));
+    }
+
+    private void firstRpcDeclarationValues(Map<String, Object> methods) throws Exception {
+        // 四份范围声明保持一致，使断言只验证叶子与声明的语义匹配。
+        child(this.manifest, "rpcCases").put("test.First", methods);
+        Map<String, Object> assigned = child(this.group(0), "rpcCases");
+        assigned.put("test.First", methods);
+        this.update("g1", "configuration.json", map("rpcCases", assigned));
+        this.update("g1", "summary.json", map("rpcCases", assigned));
+    }
+
+    private void rewriteFirstRpcCase(String scenario) throws Exception {
+        // 原始 XML、归档 XML 与选中项同步更新，避免其它完整性校验先行失败。
+        Path selected = this.report("g1").resolve("selected-cases.json");
+        List<Map<String, Object>> cases = readList(selected);
+        Map<String, Object> testcase = cases.get(0);
+        String previous = (String) testcase.get("scenario");
+        Path current = this.root.resolve("g1/test-results/test/TEST-test.First.xml");
+        String xml = Files.readString(current).replace("name=\"" + previous + "\"", "name=\"" + scenario + "\"");
+        this.writeText(current, xml);
+        Path archived = this.report("g1").resolve("test-results/TEST-test.First.xml");
+        Files.copy(current, archived, StandardCopyOption.REPLACE_EXISTING);
+        String caseId = "test.First#" + scenario;
+        testcase.put("scenario", scenario);
+        testcase.put("caseId", caseId);
+        NxnReport.writeJson(selected, cases);
+        this.update("g1", "summary.json", map("plannedCases", list(caseId)));
+    }
+
     private void addSdkGroup(String identity, String parameter, String status) throws Exception {
         this.addSdkMethodGroup(identity, "call", parameter, status);
     }
@@ -1315,7 +1702,7 @@ public class NxnReportTest {
 
     private void assertError(String text) throws Exception {
         List<String> errors = strings(this.aggregate(), "aggregationErrors");
-        assertTrue(text + ": " + errors, containsError(errors, text));
+        assertTrue(containsError(errors, text), text + ": " + errors);
     }
 
     private static boolean containsError(List<String> errors, String text) {

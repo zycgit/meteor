@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.connect.go;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -34,22 +39,21 @@ import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** Connect Go 显式注册发现适配；Go SDK 不原生解析 Meteor 注册数据，也不由 Java 代发业务 RPC。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "adapter={0},tls={1}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "connect", version = "1")
 public class ConnectGoRegistryAdapterScenarioTest {
     private static final String SERVICE = "meteor.example.OrderDemoService";
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
     private final String tlsMode;
@@ -58,8 +62,6 @@ public class ConnectGoRegistryAdapterScenarioTest {
         this.backend = backend;
         this.tlsMode = tlsMode;
     }
-
-    @Parameterized.Parameters(name = "adapter={0},tls={1}")
     public static Collection<Object[]> backends() {
         // 顺序固定为三个明文注册后端，再以 Nacos 验证同一适配链路上的双向认证。
         List<Object[]> result = new ArrayList<>();
@@ -70,10 +72,11 @@ public class ConnectGoRegistryAdapterScenarioTest {
         return result;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goConsumerResolvesMeteorProviderThroughRegistryAdapter() throws Exception {
         // 每个场景独占注册库和应用目录，Meteor 启动后通过公开入口发布订单接口。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "connect-go-provider-adapter", true);
@@ -95,17 +98,18 @@ public class ConnectGoRegistryAdapterScenarioTest {
                         JsonNode result = peer.awaitResult();
 
                         // 官方 Go 客户端自己完成 save 和 find，并逐字段核对 Unicode 和二进制内容。
-                        assertTrue(result.toString(), result.path("ok").asBoolean());
+                        assertTrue(result.path("ok").asBoolean(), result.toString());
                     }
                 }
             }
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversGoProviderThroughRegistryAdapter() throws Exception {
         // 消费端配置注册扩展和出站 Connect，订阅不携带任何固定业务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "connect-go-consumer-adapter", false);
@@ -152,7 +156,7 @@ public class ConnectGoRegistryAdapterScenarioTest {
     private MetConfiguration configuration(RegistryConfiguration registry, String application, boolean listening) throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("connect").setDefaultTimeout(10000);
         configuration.setApplicationName(application);
-        configuration.setDataHome(this.data.newFolder(application).toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve(application)));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 注册扩展内部管理出口，不绑定监听端口。
         ConnectorSettings connector = configuration.connector("http").option("httpVersion", 1);

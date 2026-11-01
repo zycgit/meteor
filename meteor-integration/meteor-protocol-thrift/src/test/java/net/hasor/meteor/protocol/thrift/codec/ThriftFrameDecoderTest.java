@@ -15,8 +15,10 @@ import net.hasor.example.protocol.thrift.generated.InteropService;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.*;
 import org.apache.thrift.transport.TMemoryBuffer;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 public class ThriftFrameDecoderTest {
     @Test
@@ -301,7 +303,8 @@ public class ThriftFrameDecoderTest {
         assertEquals(39, messages.get(0).sequenceId());
     }
 
-    @Test(timeout = 5000)
+    @Test
+    @Timeout(value = 5000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unframedBinaryDecodesLargeContainerFromSingleByteFragments() throws Exception {
         // 约 64KB 的容器以单字节到达，已读元素不应在每次接收时重新扫描。
         ThriftWireCodec wire = new ThriftWireCodec(128 * 1024, 40000, 32);
@@ -320,7 +323,8 @@ public class ThriftFrameDecoderTest {
         assertArrayEquals(data, messages.get(0).data());
     }
 
-    @Test(timeout = 5000)
+    @Test
+    @Timeout(value = 5000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unframedCompactDecodesLargeContainerFromSingleByteFragments() throws Exception {
         // Compact 容器约 64KB，覆盖大量短字符串元素的分片扫描。
         ThriftWireCodec wire = new ThriftWireCodec(128 * 1024, 40000, 32);
@@ -339,7 +343,8 @@ public class ThriftFrameDecoderTest {
         assertArrayEquals(data, messages.get(0).data());
     }
 
-    @Test(timeout = 5000)
+    @Test
+    @Timeout(value = 5000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unframedJsonDecodesLargeContainerFromSingleByteFragments() throws Exception {
         // JSON 容器约 64KB，数组边界检测也要保留已经扫描的进度。
         ThriftWireCodec wire = new ThriftWireCodec(128 * 1024, 40000, 32);
@@ -358,7 +363,8 @@ public class ThriftFrameDecoderTest {
         assertArrayEquals(data, messages.get(0).data());
     }
 
-    @Test(timeout = 5000)
+    @Test
+    @Timeout(value = 5000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unframedBinaryDecodesLargeStringFromSingleByteFragments() throws Exception {
         // 长字符串正文逐字节到达，长度头不能使每次分片都申请完整字符串数组。
         ThriftWireCodec wire = new ThriftWireCodec(128 * 1024, 128, 32);
@@ -376,7 +382,8 @@ public class ThriftFrameDecoderTest {
         assertArrayEquals(data, messages.get(0).data());
     }
 
-    @Test(timeout = 5000)
+    @Test
+    @Timeout(value = 5000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unframedCompactDecodesLargeStringFromSingleByteFragments() throws Exception {
         // Compact 长度 varint 之后仍有大量分片，未齐正文不能触发反复的大数组申请。
         ThriftWireCodec wire = new ThriftWireCodec(128 * 1024, 128, 32);

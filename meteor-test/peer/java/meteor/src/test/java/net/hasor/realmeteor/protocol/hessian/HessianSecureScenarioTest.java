@@ -29,12 +29,17 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** Hessian 的 HTTP 版本、安全握手及证书校验从公开发布入口验证。 */
+@NxnRpc(name = "hessian", version = "2")
 public class HessianSecureScenarioTest {
-    @Test(timeout = 20000)
+    @NxnRpc(name = "hessian", version = "1")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianOneCallsOverPlainHttp1() throws Exception {
         // Hessian 1 调用使用普通 HTTP/1 链路。
         MetConfiguration incoming = this.incoming();
@@ -55,7 +60,8 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianTwoCallsOverPlainHttp1() throws Exception {
         // Hessian 2 调用使用普通 HTTP/1 链路。
         MetConfiguration incoming = this.incoming();
@@ -76,7 +82,8 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianTwoCallsOverHttp2PriorKnowledge() throws Exception {
         // 客户端显式选择 HTTP/2 prior knowledge，无需 TLS。
         MetConfiguration incoming = this.incoming();
@@ -97,7 +104,9 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @NxnRpc(name = "hessian", version = "1")
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianOneUsesHttpsHttp1ServerAuthentication() throws Exception {
         // Hessian 1 保持相同调用格式，仅由 HTTP 传输开启 TLS。
         MetConfiguration incoming = this.secureIncoming(1, "NONE");
@@ -118,7 +127,8 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianTwoUsesHttpsHttp1MutualAuthentication() throws Exception {
         // HTTP/1 HTTPS 同时验证服务端和客户端证书。
         MetConfiguration incoming = this.secureIncoming(1, "REQUIRE");
@@ -139,7 +149,8 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hessianTwoUsesHttpsHttp2MutualAuthentication() throws Exception {
         // Hessian 2 经双向 TLS 与 h2 ALPN 传输。
         MetConfiguration incoming = this.secureIncoming(2, "REQUIRE");
@@ -160,7 +171,8 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentClientUpgradesHessianCallToH2c() throws Throwable {
         // 同一 HTTP 监听接收 h2c Upgrade，调用内容由 Caucho 官方编解码器生成。
         MetConfiguration configuration = this.incoming();
@@ -183,7 +195,8 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentHttpsClientNegotiatesHttp2WithAlpn() throws Throwable {
         // 服务端仅宣告 h2，独立客户端通过 TLS ALPN 选择 HTTP/2。
         MetConfiguration configuration = this.secureIncoming(2, "NONE");
@@ -208,7 +221,8 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2MutualTlsRejectsMissingClientCertificate() throws Exception {
         // Hessian 挂载在要求客户端身份的 h2 HTTPS 端点上。
         MetConfiguration configuration = this.secureIncoming(2, "REQUIRE");
@@ -235,15 +249,16 @@ public class HessianSecureScenarioTest {
                     rejected = socket.getInputStream().read() < 0;
                 } catch (IOException failure) {
                     boolean timedOut = failure instanceof SocketTimeoutException;
-                    assertFalse("TLS rejection must not time out: " + failure, timedOut);
+                    assertFalse(timedOut, "TLS rejection must not time out: " + failure);
                     rejected = true;
                 }
-                assertTrue("Anonymous client must not receive HTTP/2 application data", rejected);
+                assertTrue(rejected, "Anonymous client must not receive HTTP/2 application data");
             }
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsRejectsUntrustedClientCertificate() throws Exception {
         // 客户端有证书，但其签发者不属于端点信任集。
         MetConfiguration configuration = this.secureIncoming(1, "REQUIRE");
@@ -268,7 +283,8 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientRejectsUntrustedServerCertificate() throws Exception {
         // 客户端只信任另外的 CA，合法 Hessian 消息不能绕过服务端证书校验。
         MetConfiguration configuration = this.secureIncoming(1, "NONE");
@@ -293,7 +309,8 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientRejectsWrongServerHostname() throws Exception {
         // 证书由受信 CA 签发，但名称不属于当前访问地址，HTTPS 必须拒绝它。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("hessian");
@@ -322,7 +339,8 @@ public class HessianSecureScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incompatibleAlpnFailsBeforeRpcTimeout() throws Exception {
         // 服务端只支持 HTTP/1.1，客户端只接受 h2，协议协商必须及时失败。
         MetConfiguration incoming = this.secureIncoming(1, "NONE");

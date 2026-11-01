@@ -35,8 +35,8 @@ import net.hasor.meteor.domain.payload.ThrowPayload;
 import net.hasor.meteor.protocol.dubbo.codec.DubboCodec;
 import net.hasor.meteor.protocol.dubbo.codec.DubboFrame;
 import net.hasor.meteor.protocol.dubbo.codec.DubboFrameDecoder;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 可控串行通道验证会话生命周期；真实网络场景由 realmeteor 包覆盖。 */
 public class DubboSessionTest {

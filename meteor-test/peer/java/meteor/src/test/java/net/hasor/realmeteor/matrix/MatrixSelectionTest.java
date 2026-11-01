@@ -10,16 +10,16 @@ import java.util.*;
 import net.hasor.example.contract.scalar.ScalarValueProfile;
 import net.hasor.example.matrix.OrderProtocol;
 import net.hasor.realmeteor.composition.state.OrderedProtocolStateTest;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 只检查矩阵参数选择，不启动应用、注册中心或协议对端。 */
 public class MatrixSelectionTest {
     private final Map<String, String> previousProperties = new LinkedHashMap<>();
 
-    @Before
+    @BeforeEach
     public void isolateSelectionProperties() {
         // 每个用例独占筛选条件，既不继承命令行范围，也不污染随后运行的真实矩阵。
         String[] properties = { // 每个独立筛选维度分别保存。
@@ -36,7 +36,7 @@ public class MatrixSelectionTest {
         }
     }
 
-    @After
+    @AfterEach
     public void restoreSelectionProperties() {
         // 恢复调用者已有的设置，包括原本不存在的属性。
         for (Map.Entry<String, String> entry : this.previousProperties.entrySet()) {

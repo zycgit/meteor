@@ -21,6 +21,10 @@ apply from: 'docker/prepare.gradle'
 
 // 容器默认使用镜像内执行器，维护时可验证独立构建的同一原生程序。
 tasks.named('test') {
+    // 子 Gradle 夹具借用当前分发，不通过隔离后的 user.home 猜测 Wrapper 缓存。
+    def windows = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+    def executable = windows ? 'bin/gradle.bat' : 'bin/gradle'
+    systemProperty 'meteor.test.gradle.executable', new File(gradle.gradleHomeDir, executable).absolutePath
     def nativeExecutable = providers.gradleProperty('nxn.nativeExecutable')
     if (nativeExecutable.isPresent()) {
         systemProperty 'meteor.test.native.executable', rootProject.file(nativeExecutable.get()).absolutePath

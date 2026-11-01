@@ -29,14 +29,14 @@ import net.hasor.meteor.registry.shared.storage.domain.EntRuleConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.RuleKind;
 import net.hasor.meteor.registry.shared.utils.RegistryGovernanceUtils;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class GovernanceModelTest {
     private final MemoryRegistryConfiguration storageConfiguration = new MemoryRegistryConfiguration();
 
-    @Before
+    @BeforeEach
     public void configure() {
         this.storageConfiguration.setManagementToken("secret");
     }

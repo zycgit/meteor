@@ -4,6 +4,7 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.protocol.soap.node;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URL;
 import java.nio.file.Path;
 import net.hasor.example.protocol.soap.EchoService;
@@ -15,13 +16,17 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.node.NodeRpcPeer;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** SOAP 1.1 document/literal 的最小双向互通，不推断类型或传输的完整支持。 */
+@NxnRpc(name = "soap", version = "1.1")
 public class SoapNodeInteropTest {
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nodeSoapConsumerCallsMeteorProvider() throws Exception {
         // Meteor 经 bootstrap 启动并发布同一份测试 Echo 契约。
         MetConfiguration configuration = new MetConfiguration().setRequestTimeout(10000);
@@ -44,7 +49,8 @@ public class SoapNodeInteropTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerCallsNodeSoapProvider() throws Exception {
         // node-soap 使用自己的监听、WSDL 解析及 SOAP 编解码，不代理 Meteor 服务。
         URL contract = this.getClass().getResource("/protocol/wsdl/echo.wsdl");

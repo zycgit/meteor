@@ -31,8 +31,8 @@ import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.payload.ResponsePayload;
 import net.hasor.meteor.serialize.SerializeCoder;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 入站任务、过滤器和调度器的单元契约；受控通道不代表真实网络场景。 */
 public class MetInvocationTest {
@@ -979,7 +979,7 @@ public class MetInvocationTest {
 
         private ResponsePayload take() throws Exception {
             ResponsePayload response = this.responses.poll(3, TimeUnit.SECONDS);
-            assertNotNull("Expected response", response);
+            assertNotNull(response, "Expected response");
             return response;
         }
 

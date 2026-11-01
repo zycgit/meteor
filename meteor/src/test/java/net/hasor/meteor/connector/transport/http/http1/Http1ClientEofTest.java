@@ -29,12 +29,14 @@ import net.hasor.meteor.connector.transport.http.channel.HttpRequest;
 import net.hasor.meteor.connector.transport.http.channel.HttpResponse;
 import net.hasor.neta.channel.*;
 import net.hasor.neta.codec.http.HttpObject;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 以明确的任务顺序验证完整响应、发送结果与连接 EOF 的交错。 */
 public class Http1ClientEofTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void completeBufferedResponseWaitsForPendingSendAfterEof() throws Exception {
         try (Fixture test = new Fixture()) {
             // 正常入队请求，暂不交付底层发送完成通知。
@@ -57,7 +59,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void completeBufferedResponseSurvivesEofAfterSend() throws Exception {
         try (Fixture test = new Fixture()) {
             // 发送结果先到，随后完整响应和 EOF 连续进入同一串行执行器。
@@ -76,7 +79,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sendFailureWithoutResponseKeepsOriginalCause() throws Exception {
         try (Fixture test = new Fixture()) {
             // 还没有响应时，真实发送失败先于连接 EOF 到达。
@@ -94,7 +98,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sendFailureAfterResponseKeepsOriginalCause() throws Exception {
         try (Fixture test = new Fixture()) {
             // 响应和 EOF 已经到达，但发送结果尚未完成。
@@ -116,7 +121,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void eofFailsIncompleteStreamingBody() throws Exception {
         try (Fixture test = new Fixture()) {
             // 发送已经完成；响应只有部分正文，没有交付正文结束标记。
@@ -138,7 +144,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oldSocketEofLeavesCurrentExchangeUsable() throws Exception {
         try (Fixture test = new Fixture()) {
             // 当前请求使用新连接，旧连接的关闭通知随后才到达。
@@ -159,7 +166,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void eofBeforeResponseKeepsExchangeFailed() throws Exception {
         try (Fixture test = new Fixture()) {
             // 发送已经结束，但 EOF 到达时根本没有响应；随后才出现迟到的响应事件。
@@ -177,7 +185,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void sendCancellationAfterCompleteResponseEofAbortsPendingWrite() throws Exception {
         try (Fixture test = new Fixture()) {
             // 完整响应与 EOF 已到达，已接受写入尚未结束，物理连接正在优雅关闭。
@@ -199,7 +208,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exchangeCancellationAfterCompleteResponseEofAbortsPendingWrite() throws Exception {
         try (Fixture test = new Fixture()) {
             // 原写入尚在等待完成通知，响应和 EOF 不得丢失物理连接的管理归属。
@@ -221,7 +231,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void eofWithoutResponseAbortsPendingWriteImmediately() throws Exception {
         try (Fixture test = new Fixture()) {
             // 请求已接受但写入未完成，EOF 到来时没有任何响应。
@@ -238,7 +249,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void eofWithTruncatedResponseAbortsPendingWriteImmediately() throws Exception {
         try (Fixture test = new Fixture()) {
             // 请求写入仍待完成，响应正文只到达部分数据，随后输入结束。
@@ -261,7 +273,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void inboundErrorAbortsPendingWriteImmediately() throws Exception {
         try (Fixture test = new Fixture()) {
             // 尚未收到响应时，真实输入错误先于发送完成通知到达。
@@ -278,7 +291,8 @@ public class Http1ClientEofTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void completeResponseEofPreventsKeepAliveReuseAfterWriteFinishes() throws Exception {
         try (Fixture test = new Fixture()) {
             // 即使响应声明保持连接，随后到达的 EOF 也使该连接失去复用资格。

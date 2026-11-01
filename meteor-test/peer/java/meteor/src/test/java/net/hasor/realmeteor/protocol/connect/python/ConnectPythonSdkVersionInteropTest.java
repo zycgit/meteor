@@ -4,6 +4,9 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.protocol.connect.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,13 +20,16 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 官方 Connect Python SDK 的基础订单互通，不以 gRPC 或代理链路替代目标协议。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "sdk/python/{1}/connectrpc@{0}/{2}/{3}", quoteTextArguments = false)
+@MethodSource("protocols")
+@NxnRpc(name = "connect", version = "1", cases = "sdk/python/connect/*")
+@NxnRpc(name = "grpc-web", cases = "sdk/python/grpc-web/*")
 public class ConnectPythonSdkVersionInteropTest {
     private final String version;
     private final String protocol;
@@ -36,8 +42,6 @@ public class ConnectPythonSdkVersionInteropTest {
         this.messageApi = messageApi;
         this.direction = direction;
     }
-
-    @Parameterized.Parameters(name = "sdk/python/{1}/connectrpc@{0}/{2}/{3}")
     public static Object[][] protocols() {
         // 0.11 切换默认 Protobuf 实现；分别保留 Google 兼容入口和新的原生生成入口。
         List<Object[]> parameters = new ArrayList<>();
@@ -57,7 +61,8 @@ public class ConnectPythonSdkVersionInteropTest {
         return parameters.toArray(new Object[0][]);
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void ordersRoundTripWithTheSelectedSdkVersion() throws Exception {
         // 每个参数实例只执行一个调用方向，原始 SDK 版本由 Python 进程再次核验并写入日志。
         if (StringUtils.equals(this.direction, "SDK-to-Meteor")) {

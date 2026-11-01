@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -29,13 +30,18 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class JsonRpcHttpScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @Test(timeout = 15000)
+    @NxnRpc(name = "jsonrpc", version = "2.0")
+    @NxnRpc(name = "hprose")
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonRpcAndHproseShareOneHttpPortThroughContextRouting() throws Exception {
         // 两个正式协议插件通过 SPI 发现，并挂载到同一个 HTTP 监听端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("jsonrpc");
@@ -84,7 +90,8 @@ public class JsonRpcHttpScenarioTest {
     }
 
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void javaProxyCallsOverHttp2PriorKnowledge() throws Exception {
         // 显式选择 HTTP/2，验证代理调用在实际网络上完成。
         MetConfiguration incoming = this.serverConfiguration();
@@ -109,7 +116,8 @@ public class JsonRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void genericDtoArgumentsAndResultsKeepTheirElementTypes() throws Exception {
         // 泛型集合直接使用接口签名中的元素类型进行 JSON 映射。
         MetConfiguration incoming = this.serverConfiguration();
@@ -142,7 +150,8 @@ public class JsonRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void proxyNotificationCompletesAfterSubmission() throws Exception {
         // 消息方法只等待提交完成，应用通过通知队列观察实际处理。
         MetConfiguration incoming = this.serverConfiguration();
@@ -168,7 +177,8 @@ public class JsonRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incomingCallsPassThroughPublishedFilters() throws Exception {
         // 过滤器由用户发布 API 绑定，协议不能绕过 Dispatcher 调用链。
         MetConfiguration incoming = this.serverConfiguration();
@@ -198,7 +208,8 @@ public class JsonRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentHttp2CallsKeepTheirOwnResults() throws Exception {
         // HTTP/2 在一个连接中并发承载多个普通 RPC。
         MetConfiguration incoming = this.serverConfiguration();
@@ -232,7 +243,8 @@ public class JsonRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void h2cUpgradePreservesTheJsonRpcResponse() throws Exception {
         // JDK 客户端通过 HTTP/1 Upgrade 请求切换到明文 HTTP/2。
         MetConfiguration incoming = this.serverConfiguration();
@@ -264,7 +276,8 @@ public class JsonRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requestTimeoutCompletesTheCallerFuture() throws Exception {
         // 用闩锁保持一次真实远程调用在途，控制取消或超时的触发时刻。
         MetConfiguration incoming = this.serverConfiguration();
@@ -319,7 +332,8 @@ public class JsonRpcHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingOneHttp2CallDoesNotCancelOtherCalls() throws Exception {
         // 用闩锁保持一次真实远程调用在途，控制取消或超时的触发时刻。
         MetConfiguration incoming = this.serverConfiguration();

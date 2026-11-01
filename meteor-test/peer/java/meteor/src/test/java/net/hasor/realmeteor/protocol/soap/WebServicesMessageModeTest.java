@@ -22,11 +22,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesMessageModeTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mixedServiceOrdinaryMethodKeepsRequestResponseMode() throws Exception {
         // Java 接口同时声明普通方法与消息方法，生成契约保留普通方法的业务返回值。
         MetConfiguration incoming = this.incomingConfiguration();
@@ -57,12 +61,13 @@ public class WebServicesMessageModeTest {
             // 真实 HTTP 调用普通方法，过滤器与返回值均遵循 request-response 语义。
             MixedService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscribed);
             assertEquals("ordinary result", remote.echo("ordinary result"));
-            assertFalse("Ordinary method was treated as a message", observedMessage.get());
-            assertFalse("Mixed service must not enable message mode for every method", subscribed.isMessage());
+            assertFalse(observedMessage.get(), "Ordinary method was treated as a message");
+            assertFalse(subscribed.isMessage(), "Mixed service must not enable message mode for every method");
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mixedServiceAnnotatedMethodAcknowledgesBeforeBusinessCompletion() throws Exception {
         // 消息方法进入业务后保持阻塞，普通方法与它共享同一个服务绑定。
         BlockingSignalServiceImpl notifications = new BlockingSignalServiceImpl();
@@ -95,17 +100,17 @@ public class WebServicesMessageModeTest {
             MixedService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscribed);
             Future<?> call = invocation.submit(() -> remote.signal("mixed notice"));
             try {
-                assertTrue("Business method was not entered", notifications.awaitEntered(5, TimeUnit.SECONDS));
+                assertTrue(notifications.awaitEntered(5, TimeUnit.SECONDS), "Business method was not entered");
                 call.get(2, TimeUnit.SECONDS);
-                assertTrue("Caller filter did not see message mode", observedMessage.get());
-                assertFalse("Method annotation changed the whole service mode", subscribed.isMessage());
-                assertFalse("Business method finished before acknowledgement", notifications.isFinished());
+                assertTrue(observedMessage.get(), "Caller filter did not see message mode");
+                assertFalse(subscribed.isMessage(), "Method annotation changed the whole service mode");
+                assertFalse(notifications.isFinished(), "Business method finished before acknowledgement");
             } finally {
                 notifications.release();
             }
 
             // 收到入队确认后，远端业务仍能够继续执行并消费完整参数。
-            assertTrue("Business method did not finish", notifications.awaitFinished(5, TimeUnit.SECONDS));
+            assertTrue(notifications.awaitFinished(5, TimeUnit.SECONDS), "Business method did not finish");
             assertEquals("mixed notice", notifications.getMessage());
         } finally {
             notifications.release();
@@ -113,7 +118,8 @@ public class WebServicesMessageModeTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void asMessageBindingCallsUnannotatedOneWayMethod() throws Exception {
         // 旧接口不使用注解，由发布与订阅端显式配置整个服务的消息模式。
         MetConfiguration incoming = this.incomingConfiguration();
@@ -140,13 +146,14 @@ public class WebServicesMessageModeTest {
             // 客户端正常完成 one-way 网络调用，远端业务收到通知。
             PlainSignalService remote = client.getRsfClient(server.getListenAddress("soap")).getRemote(subscribed);
             remote.signal("legacy notice");
-            assertTrue("Message binding was lost", subscribed.isMessage());
-            assertTrue("Business method was not invoked", service.awaitInvocation(5, TimeUnit.SECONDS));
+            assertTrue(subscribed.isMessage(), "Message binding was lost");
+            assertTrue(service.awaitInvocation(5, TimeUnit.SECONDS), "Business method was not invoked");
             assertEquals("legacy notice", service.getMessage());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unannotatedOneWayMethodRemainsLocalAndRejectsSoapRequests() throws Exception {
         // WSDL 声明 one-way，但 Java 接口没有方法注解或服务级消息配置。
         MetConfiguration configuration = this.incomingConfiguration();
@@ -266,7 +273,7 @@ public class WebServicesMessageModeTest {
 
     private URL resource(String path) {
         URL resource = this.getClass().getResource(path);
-        assertNotNull("Missing test resource " + path, resource);
+        assertNotNull(resource, "Missing test resource " + path);
         return resource;
     }
 }

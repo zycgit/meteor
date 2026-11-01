@@ -18,8 +18,8 @@ import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import net.hasor.meteor.registry.shared.DecoratedRegistryConfiguration;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntInstanceRuntimeData;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 大目录验证读取范围和单页契约，不作为真实集群性能基准。 */
 public class DirectoryPaginationTest {
@@ -44,7 +44,7 @@ public class DirectoryPaginationTest {
             return (StorageAccess) Proxy.newProxyInstance(StorageAccess.class.getClassLoader(), new Class<?>[] { StorageAccess.class }, (proxy, method, args) -> {
                 String operation = method.getName();
                 reads.merge(operation, 1, Integer::sum);
-                assertFalse("No enrichment reads", Set.of("getInstance", "instanceServices", "members").contains(operation));
+                assertFalse(Set.of("getInstance", "instanceServices", "members").contains(operation), "No enrichment reads");
                 if (StringUtils.equals(operation, "instances")) {
                     assertEquals("app-42", args[0]);
                 }

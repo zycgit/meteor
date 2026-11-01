@@ -16,7 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 持有常驻语言容器中的独立订单进程、日志和有界等待。 */
 final class OrderPeerProcess implements AutoCloseable {
@@ -131,7 +131,7 @@ final class OrderPeerProcess implements AutoCloseable {
                     return line.substring(prefix.length()).trim();
                 }
             }
-            assertTrue("Provider exited before listening:\n" + output, this.process.isAlive());
+            assertTrue(this.process.isAlive(), "Provider exited before listening:\n" + output);
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
         }
         throw new AssertionError("Provider startup timed out:\n" + this.output());
@@ -140,7 +140,7 @@ final class OrderPeerProcess implements AutoCloseable {
     JsonNode awaitResult() throws Exception {
         String output = this.awaitOutput();
         List<String> results = output.lines().filter(line -> line.startsWith("{")).toList();
-        assertFalse("Order consumer produced no JSON order:\n" + output, results.isEmpty());
+        assertFalse(results.isEmpty(), "Order consumer produced no JSON order:\n" + output);
         return JSON.readTree(results.get(results.size() - 1));
     }
 
@@ -148,8 +148,8 @@ final class OrderPeerProcess implements AutoCloseable {
         // 消费者完成调用后正常退出，原始输出由当前场景按协议解释。
         boolean finished = this.process.waitFor(45, TimeUnit.SECONDS);
         String output = this.output();
-        assertTrue("Order consumer timed out:\n" + output, finished);
-        assertEquals("Order consumer failed:\n" + output, 0, this.process.exitValue());
+        assertTrue(finished, "Order consumer timed out:\n" + output);
+        assertEquals(0, this.process.exitValue(), "Order consumer failed:\n" + output);
         return output;
     }
 
@@ -189,7 +189,7 @@ final class OrderPeerProcess implements AutoCloseable {
                 this.process.destroy();
                 if (!this.process.waitFor(5, TimeUnit.SECONDS)) {
                     this.process.destroyForcibly();
-                    assertTrue("Order peer did not exit", this.process.waitFor(5, TimeUnit.SECONDS));
+                    assertTrue(this.process.waitFor(5, TimeUnit.SECONDS), "Order peer did not exit");
                 }
             }
         } finally {

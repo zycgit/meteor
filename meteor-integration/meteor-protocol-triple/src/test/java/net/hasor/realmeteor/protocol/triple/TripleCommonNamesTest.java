@@ -11,11 +11,14 @@ import net.hasor.example.protocol.triple.WireEcho;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 public class TripleCommonNamesTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void annotatedProviderAcceptsTheOriginalWireMethod() throws Exception {
         // 提供者 Java 方法为 repeat，消费者沿用协议上的 echo。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -33,7 +36,8 @@ public class TripleCommonNamesTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void annotatedConsumerCallsTheOriginalWireMethod() throws Exception {
         // 提供者不携带注解，消费者以自己的 repeat 方法访问相同契约。
         try (MetContext server = this.configuration(true).buildContext(); //

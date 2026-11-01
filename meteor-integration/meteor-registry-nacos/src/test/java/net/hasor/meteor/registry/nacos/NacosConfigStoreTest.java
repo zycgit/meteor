@@ -16,29 +16,40 @@ import com.alibaba.nacos.api.config.ConfigService;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.codec.MD5;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 模拟服务端持久 CAS 已推进、Config 查询快照稍后才追上的自动合并边界。 */
 public class NacosConfigStoreTest {
     private static final String GROUP = "meteor-config-store-unit";
+    private ConfigService configs;
 
-    @BeforeClass
+    @BeforeAll
     public static void initializeSerialization() throws Exception {
         // JSON 类加载和覆盖率插桩先完成，短 deadline 场景只衡量自动合并的时间预算。
         String document = RegistryJson.write(Map.of("name", "initialized"));
         RegistryJson.read(document, Map.class);
     }
 
-    @Test(timeout = 10000)
+    @BeforeEach
+    public void prepareConfigService() {
+        // 代理类准备不属于 CAS 超时预算，每个场景使用独立 mock。
+        this.configs = mock(ConfigService.class);
+    }
+
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void indexMergesExistingApplicationsAfterMoreThanEightStaleReads() throws Exception {
         // writer 和 reader 是真实场景中落到同一索引桶的两个合法应用名。
-        ConfigService configs = mock(ConfigService.class);
+        ConfigService configs = this.configs;
         String index = "index.applications.6";
         String stale = "{\"id\":\"other\",\"key\":\"applications.other\"}\n";
         Map<String, String> writer = Map.of("id", "composition-writer", "key", "applications.composition-writer");
@@ -73,10 +84,11 @@ public class NacosConfigStoreTest {
         assertEquals("applications.composition-reader", entries.get("composition-reader"));
     }
 
-    @Test(timeout = 10000)
+    @Test
+    @Timeout(value = 10000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void updatePreservesAdministrativeFieldsAfterMoreThanEightStaleReads() throws Exception {
         // 服务详情的持久版本已经带有管理字段，但查询缓存尚未包含它们。
-        ConfigService configs = mock(ConfigService.class);
+        ConfigService configs = this.configs;
         String key = "services.echo";
         String stale = "{\"name\":\"before\"}";
         String committed = "{\"name\":\"before\",\"ruleEnabled\":{\"SERVICE_ROUTE\":false}}";
@@ -108,10 +120,11 @@ public class NacosConfigStoreTest {
         assertEquals(Map.of("SERVICE_ROUTE", false), actual.get("ruleEnabled"));
     }
 
-    @Test(timeout = 2000)
+    @Test
+    @Timeout(value = 2000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void indexStopsConflictingMergeWhenConfiguredTimeoutExpires() throws Exception {
         // 存储持续拒绝 CAS；很短的既有超时应先于八次固定退避结束。
-        ConfigService configs = mock(ConfigService.class);
+        ConfigService configs = this.configs;
         AtomicInteger writes = new AtomicInteger();
         when(configs.publishConfigCas(anyString(), eq(GROUP), anyString(), anyString())).thenAnswer(call -> {
             writes.incrementAndGet();
@@ -127,10 +140,11 @@ public class NacosConfigStoreTest {
         assertTrue(writes.get() > 0 && writes.get() < 8);
     }
 
-    @Test(timeout = 2000)
+    @Test
+    @Timeout(value = 2000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void updateStopsConflictingMergeWhenConfiguredTimeoutExpires() throws Exception {
         // 永久冲突仍然失败；内部自动合并的时间预算来自现有 timeoutMillis。
-        ConfigService configs = mock(ConfigService.class);
+        ConfigService configs = this.configs;
         AtomicInteger writes = new AtomicInteger();
         when(configs.publishConfigCas(anyString(), eq(GROUP), anyString(), anyString())).thenAnswer(call -> {
             writes.incrementAndGet();

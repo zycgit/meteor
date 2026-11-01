@@ -16,18 +16,23 @@ import net.hasor.meteor.annotation.MetMethod;
 import net.hasor.meteor.annotation.MetParam;
 import net.hasor.meteor.annotation.MetService;
 import net.hasor.meteor.bootstrap.MetConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import org.apache.thrift.protocol.TJSONProtocol;
 import org.apache.thrift.protocol.TMessage;
 import org.apache.thrift.protocol.TMessageType;
 import org.apache.thrift.transport.TMemoryBuffer;
 import org.apache.thrift.transport.TMemoryInputTransport;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** curl 原样发送官方 TJSON 消息，Meteor 通过公开入口发布普通 Java Echo 服务。 */
+@NxnRpc(name = "thrift")
 public class ShellThriftHttpConsumerScenarioTest {
-    @Test(timeout = 120000)
+    @Test
+    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void curlCallsMeteorUsingThriftHttpJson() throws Exception {
         // 官方生成契约只负责消息表示，curl 请求文件由本场景独占并供语言容器共享。
         String value = "Thrift HTTP from curl 中文";
@@ -67,10 +72,10 @@ public class ShellThriftHttpConsumerScenarioTest {
 
                 // 官方 SDK 解读真实响应，方法、消息类型、序号和业务结果共同证明本次往返。
                 String fields = Files.readString(headers, StandardCharsets.US_ASCII);
-                assertTrue(fields, fields.startsWith("HTTP/1.1 200"));
+                assertTrue(fields.startsWith("HTTP/1.1 200"), fields);
                 boolean thriftContentType = fields.lines() //
                         .anyMatch(line -> StringUtils.equalsIgnoreCase(line, "Content-Type: application/x-thrift"));
-                assertTrue(fields, thriftContentType);
+                assertTrue(thriftContentType, fields);
                 TMemoryInputTransport input = new TMemoryInputTransport(Files.readAllBytes(response));
                 TJSONProtocol reader = new TJSONProtocol(input);
                 TMessage reply = reader.readMessageBegin();
@@ -80,7 +85,7 @@ public class ShellThriftHttpConsumerScenarioTest {
                 InteropService.echo_result result = new InteropService.echo_result();
                 result.read(reader);
                 reader.readMessageEnd();
-                assertTrue("Thrift success field is missing", result.isSetSuccess());
+                assertTrue(result.isSetSuccess(), "Thrift success field is missing");
                 assertEquals(value, result.getSuccess());
             }
         } finally {

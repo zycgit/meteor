@@ -16,8 +16,8 @@ import net.hasor.meteor.protocol.oncrpc.codec.XdrCodec;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrInput;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrOutput;
 import net.hasor.meteor.protocol.oncrpc.codec.XdrStructCodec;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 位置、编号和类型映射在发布时确定，测试不创建网络通道。 */
 public class XdrSchemaBuilderTest {

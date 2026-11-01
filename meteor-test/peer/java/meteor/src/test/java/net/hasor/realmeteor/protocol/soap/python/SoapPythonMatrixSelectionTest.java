@@ -6,25 +6,27 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.soap.python;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.Collection;
 import net.hasor.realmeteor.matrix.OrderDiscovery;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 单独检查 Python SOAP 的发现筛选，不启动 Python 或 SOAP 服务。 */
+@NxnRpc(name = "soap")
 public class SoapPythonMatrixSelectionTest {
     private String previousDiscovery;
 
-    @Before
+    @BeforeEach
     public void isolateDiscoverySelection() {
         // 不继承外部任务的筛选，避免筛选校验本身受运行范围影响。
         this.previousDiscovery = System.getProperty("meteor.matrix.discoveries");
         System.clearProperty("meteor.matrix.discoveries");
     }
 
-    @After
+    @AfterEach
     public void restoreDiscoverySelection() {
         // 运行后还原原始命令行或默认状态。
         if (this.previousDiscovery == null) {

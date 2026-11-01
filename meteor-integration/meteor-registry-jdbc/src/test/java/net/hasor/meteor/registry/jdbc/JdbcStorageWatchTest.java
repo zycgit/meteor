@@ -19,11 +19,11 @@ import net.hasor.dbvisitor.jdbc.core.JdbcTemplate;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.*;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.configuration;
 import static net.hasor.example.registry.jdbc.JdbcTestSupport.createDatabase;
 import static net.hasor.meteor.registry.jdbc.JdbcStorageData.*;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class JdbcStorageWatchTest {
     @Test
@@ -45,7 +45,7 @@ public class JdbcStorageWatchTest {
                     Thread.currentThread().interrupt();
                 }
             });
-            assertTrue("Watch listener did not start", listenerStarted.await(3, TimeUnit.SECONDS));
+            assertTrue(listenerStarted.await(3, TimeUnit.SECONDS), "Watch listener did not start");
 
             // 阻塞的治理回调不能占用租约线程，下一轮心跳仍应替换哨兵值。
             JdbcTemplate jdbc = new JdbcTemplate(connection);
@@ -268,6 +268,6 @@ public class JdbcStorageWatchTest {
         while (!condition.call() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }
-        assertTrue("Asynchronous storage condition did not become true", condition.call());
+        assertTrue(condition.call(), "Asynchronous storage condition did not become true");
     }
 }

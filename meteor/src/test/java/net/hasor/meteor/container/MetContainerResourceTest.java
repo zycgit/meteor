@@ -13,8 +13,8 @@ import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.container.ContainerFixtures.Echo;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MetContainerResourceTest {
     private final AddressPool  addresses = new AddressPool("unit", 1000);

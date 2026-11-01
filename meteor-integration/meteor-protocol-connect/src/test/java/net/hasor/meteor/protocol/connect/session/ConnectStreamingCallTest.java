@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import net.hasor.meteor.protocol.connect.ConnectStatusException;
 import net.hasor.meteor.protocol.connect.codec.ConnectEnvelope;
 import net.hasor.meteor.protocol.connect.codec.ConnectFrameCodec;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ConnectStreamingCallTest {
     @Test

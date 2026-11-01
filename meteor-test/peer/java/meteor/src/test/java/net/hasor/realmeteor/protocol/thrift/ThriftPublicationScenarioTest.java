@@ -19,13 +19,18 @@ import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftServiceResource;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import org.apache.thrift.TApplicationException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 发布契约与多服务选择均通过正式发布 API 验证。 */
+@NxnRpc(name = "thrift")
 public class ThriftPublicationScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void missingIdlKeepsLocalServiceCallableAndRejectsNetworkCalls() throws Exception {
         // 提供者没有 IDL 资源，消费者具有相同 Java 接口及有效的生成契约。
         MetConfiguration incoming = this.incoming(false);
@@ -58,7 +63,8 @@ public class ThriftPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidProtocolResourceRejectsRegistration() throws Exception {
         // 当前协议显式绑定错误类型时，配置错误在发布阶段暴露。
         MetConfiguration configuration = this.incoming(false);
@@ -73,7 +79,8 @@ public class ThriftPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void overloadedBusinessMethodsRejectExplicitIdl() throws Exception {
         // IDL 不提供 Java 重载语义，同名方法不能互相覆盖。
         MetConfiguration configuration = this.incoming(false);
@@ -90,7 +97,8 @@ public class ThriftPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incompatibleReturnTypeRejectsExplicitIdl() throws Exception {
         // Java 返回类型必须与显式 IDL 契约一致。
         MetConfiguration configuration = this.incoming(false);
@@ -107,7 +115,8 @@ public class ThriftPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void streamingReturnTypeRejectsExplicitIdl() throws Exception {
         // Thrift 单次结果不能隐式承载 Flow 流。
         MetConfiguration configuration = this.incoming(false);
@@ -126,7 +135,8 @@ public class ThriftPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unmarkedOnewayRejectsExplicitIdl() throws Exception {
         // IDL oneway 与 Java 消息声明必须一致。
         MetConfiguration configuration = this.incoming(false);
@@ -143,7 +153,8 @@ public class ThriftPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incompatibleMessageDeclarationRejectsExplicitIdl() throws Exception {
         // 普通 IDL void 方法不能绑定为 Meteor 消息调用。
         MetConfiguration configuration = this.incoming(false);
@@ -162,7 +173,8 @@ public class ThriftPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nonMultiplexedEndpointRejectsAmbiguousServices() throws Exception {
         // 普通 Thrift 消息只有方法名，同一端点的两个提供者不能被静默择一。
         MetConfiguration incoming = this.incoming(false);
@@ -187,7 +199,8 @@ public class ThriftPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void multiplexedPrefixSelectsThePublishedService() throws Exception {
         // 两个提供者共用一个监听端口，服务别名成为 service:method 前缀。
         MetConfiguration incoming = this.incoming(true);
@@ -225,7 +238,10 @@ public class ThriftPublicationScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @NxnRpc(name = "thrift")
+    @NxnRpc(name = "rsf", version = "1")
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void framedThriftAndRsfShareOneTcpPort() throws Exception {
         // 一个 TCP 连接器挂载两个协议；探测必须保留 RSF magic 与 Thrift 长度头的区别。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("thrift");

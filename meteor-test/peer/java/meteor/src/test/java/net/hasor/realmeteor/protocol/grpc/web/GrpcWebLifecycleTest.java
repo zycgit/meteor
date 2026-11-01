@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.web;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
@@ -34,13 +35,17 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "grpc-web")
 public class GrpcWebLifecycleTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentHttp2ClientMultiplexesCallsOnOneConnection() throws Exception {
         // 独立 HTTP/2 客户端复用连接；Meteor 服务端仍通过 bootstrap 发布普通 Java 接口。
         MetConfiguration incoming = this.incoming();
@@ -89,7 +94,8 @@ public class GrpcWebLifecycleTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingTheHttp2ClientCancelsTheRemotePublisherBeforeItsDeadline() throws Exception {
         // 使用长于断言等待时间的期限，排除依靠正常超时回收的假成功。
         MetConfiguration incoming = this.incoming().setDefaultTimeout(15000);
@@ -140,7 +146,8 @@ public class GrpcWebLifecycleTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void gzipRequestAndResponseKeepTheirCompressedFrameFlag() throws Exception {
         // 服务选择 gRPC gzip；独立 HTTP 对端直接验证实际帧，避免仅检查配置值。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("grpc-web");
@@ -190,7 +197,8 @@ public class GrpcWebLifecycleTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void h2cUpgradeRetainsTheGrpcWebDataAndTrailerFrames() throws Exception {
         // JDK HTTP/2 客户端从 HTTP/1 Upgrade 建立 h2c，不使用 prior-knowledge 连接。
         MetConfiguration configuration = this.incoming();
@@ -226,7 +234,8 @@ public class GrpcWebLifecycleTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void twoTextRequestMessagesAreRejectedBeforeDispatchingTheFirst() throws Exception {
         // 服务记录是否执行，证明请求流拒绝发生在 Dispatcher 入队之前。
         MetConfiguration configuration = this.incoming();

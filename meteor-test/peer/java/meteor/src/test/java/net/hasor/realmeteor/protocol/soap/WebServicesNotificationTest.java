@@ -23,11 +23,15 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesNotificationTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void oneWayReturnsAcceptedWhileBusinessExecutionContinues() throws Exception {
         // 由 Java 消息注解生成 one-way 契约，业务等待场景显式释放。
         BlockingSignalServiceImpl service = new BlockingSignalServiceImpl();
@@ -53,19 +57,20 @@ public class WebServicesNotificationTest {
                 HttpResponse<byte[]> response = this.http().send(request, HttpResponse.BodyHandlers.ofByteArray());
                 assertEquals(202, response.statusCode());
                 assertEquals(0, response.body().length);
-                assertTrue("Business method was not entered", service.awaitEntered(5, TimeUnit.SECONDS));
-                assertFalse("Business method finished before the caller returned", service.isFinished());
+                assertTrue(service.awaitEntered(5, TimeUnit.SECONDS), "Business method was not entered");
+                assertFalse(service.isFinished(), "Business method finished before the caller returned");
             } finally {
                 service.release();
             }
 
             // 解除阻塞后，业务仍在后台完成并收到原始参数。
-            assertTrue("Business method did not finish", service.awaitFinished(5, TimeUnit.SECONDS));
+            assertTrue(service.awaitFinished(5, TimeUnit.SECONDS), "Business method did not finish");
             assertEquals("notice", service.getMessage());
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientReadsMessageAnnotationBeforeCallerFilters() throws Exception {
         // 服务端业务进入后保持阻塞，客户端过滤器记录调用模式。
         BlockingSignalServiceImpl service = new BlockingSignalServiceImpl();
@@ -98,16 +103,16 @@ public class WebServicesNotificationTest {
             SignalService remote = caller.getRemote(subscribed);
             Future<?> call = invocation.submit(() -> remote.signal("notice"));
             try {
-                assertTrue("Business method was not entered", service.awaitEntered(5, TimeUnit.SECONDS));
+                assertTrue(service.awaitEntered(5, TimeUnit.SECONDS), "Business method was not entered");
                 call.get(2, TimeUnit.SECONDS);
-                assertTrue("Caller filter did not see message mode", observedMessage.get());
-                assertFalse("Business method finished before acknowledgement", service.isFinished());
+                assertTrue(observedMessage.get(), "Caller filter did not see message mode");
+                assertFalse(service.isFinished(), "Business method finished before acknowledgement");
             } finally {
                 service.release();
             }
 
             // 回执后解除业务阻塞，确认异步工作最终完成。
-            assertTrue("Business method did not finish", service.awaitFinished(5, TimeUnit.SECONDS));
+            assertTrue(service.awaitFinished(5, TimeUnit.SECONDS), "Business method did not finish");
         } finally {
             service.release();
             invocation.shutdownNow();

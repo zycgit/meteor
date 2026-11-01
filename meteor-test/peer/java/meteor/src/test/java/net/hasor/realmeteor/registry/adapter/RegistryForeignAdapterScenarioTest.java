@@ -6,6 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.adapter;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -32,23 +37,20 @@ import net.hasor.realmeteor.environment.discovery.PythonOrderPeer;
 import net.hasor.realmeteor.environment.discovery.RegistryAddressResolver;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
 /** 外语显式注册适配矩阵；不宣称 Python SDK 原生理解 Meteor 注册数据。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "{0}", quoteTextArguments = false)
+@MethodSource("backends")
+@NxnRpc(name = "xmlrpc")
 public class RegistryForeignAdapterScenarioTest {
     private static final ObjectMapper JSON = new ObjectMapper();
-
-    @Parameterized.Parameters(name = "{0}")
     public static Collection<Object[]> backends() {
         List<Object[]> result = new ArrayList<>();
         result.add(new Object[] { "jdbc" });
@@ -57,8 +59,8 @@ public class RegistryForeignAdapterScenarioTest {
         return result;
     }
 
-    @Rule
-    public final TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
 
     private final String backend;
 
@@ -66,10 +68,11 @@ public class RegistryForeignAdapterScenarioTest {
         this.backend = backend;
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void pythonConsumerResolvesMeteorProviderThroughPublicStorage() throws Exception {
         // 注册库独占；Meteor 提供者经 bootstrap 启动后才发布统一订单接口。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration incoming = this.configuration(registry, "java-provider");
@@ -95,10 +98,11 @@ public class RegistryForeignAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerDiscoversRegisteredPythonProvider() throws Exception {
         // Java 只配置出站 XML-RPC 与注册库，订阅中没有固定远端业务地址。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "java-consumer");
@@ -130,10 +134,11 @@ public class RegistryForeignAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void withdrawingForeignRegistrationRemovesSubscribedAddress() throws Exception {
         // 本场景只改变外部服务登记，Python 进程继续存活以排除连接失败造成的假阳性。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "withdrawal-consumer");
@@ -162,10 +167,11 @@ public class RegistryForeignAdapterScenarioTest {
         }
     }
 
-    @Test(timeout = 180000)
+    @Test
+    @Timeout(value = 180000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void restartedPythonProviderUpdatesExistingMeteorSubscription() throws Exception {
         // 消费者与代理只创建一次；先验证旧进程可用，再通过登记会话关闭撤回旧成员。
-        Path home = this.data.newFolder("registry").toPath();
+        Path home = Files.createDirectory(this.data.resolve("registry"));
         try (RegistryDiscoveryEnvironment environment = RegistryDiscoveryEnvironment.open(this.backend, home)) {
             RegistryConfiguration registry = environment.configuration();
             MetConfiguration outgoing = this.configuration(registry, "restart-consumer");
@@ -207,7 +213,7 @@ public class RegistryForeignAdapterScenarioTest {
     private MetConfiguration configuration(RegistryConfiguration registry, String applicationName) throws Exception {
         MetConfiguration configuration = new MetConfiguration();
         configuration.setApplicationName(applicationName);
-        configuration.setDataHome(this.data.newFolder(applicationName).toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve(applicationName)));
         configuration.addExtension(registry);
         configuration.connector("tcp").protocol("rsf"); // 注册扩展的内部管理出口，不开放监听。
         return configuration;
@@ -222,16 +228,16 @@ public class RegistryForeignAdapterScenarioTest {
 
     private static void assertOrder(JsonNode expected, JsonNode actual) throws Exception {
         // Java 对象树中的 byte[] 是 BinaryNode，Python JSON 结果中的同一字段是 Base64 文本。
-        assertTrue("Order must be an object", actual.isObject());
-        assertEquals("Order fields", expected.size(), actual.size());
+        assertTrue(actual.isObject(), "Order must be an object");
+        assertEquals(expected.size(), actual.size(), "Order fields");
         JsonNode id = actual.path("id");
-        assertTrue("Order id must be an integer", id.isIntegralNumber());
-        assertTrue("Order id must fit int32", id.canConvertToInt());
+        assertTrue(id.isIntegralNumber(), "Order id must be an integer");
+        assertTrue(id.canConvertToInt(), "Order id must fit int32");
         assertEquals(expected.path("id").intValue(), id.intValue());
 
         // 文本按业务内容精确比较，不能通过整树字符串掩盖类型或字段差异。
         JsonNode description = actual.path("description");
-        assertTrue("Order description must be text", description.isTextual());
+        assertTrue(description.isTextual(), "Order description must be text");
         assertEquals(expected.path("description").textValue(), description.textValue());
 
         JsonNode attachment = actual.path("attachment");
@@ -239,11 +245,11 @@ public class RegistryForeignAdapterScenarioTest {
         if (attachment.isBinary()) {
             bytes = attachment.binaryValue();
         } else {
-            assertTrue("Order attachment must be binary or Base64 text", attachment.isTextual());
+            assertTrue(attachment.isTextual(), "Order attachment must be binary or Base64 text");
             bytes = Base64.getDecoder().decode(attachment.textValue());
         }
         byte[] expectedBytes = Base64.getDecoder().decode(expected.path("attachment").textValue());
-        assertArrayEquals("Order attachment bytes", expectedBytes, bytes);
+        assertArrayEquals(expectedBytes, bytes, "Order attachment bytes");
     }
 
     private static void awaitPort(MetContext context, MetBindInfo<?> service, int expectedPort) throws Exception {

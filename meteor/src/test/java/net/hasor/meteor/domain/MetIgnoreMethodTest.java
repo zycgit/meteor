@@ -12,8 +12,8 @@ import java.util.List;
 import net.hasor.example.bootstrap.SelectiveServiceExample.Parent;
 import net.hasor.example.bootstrap.SelectiveServiceExample.Published;
 import net.hasor.example.bootstrap.SelectiveServiceExample.Service;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MetIgnoreMethodTest {
     @Test

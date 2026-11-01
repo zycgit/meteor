@@ -14,8 +14,8 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.domain.MetException;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ProtocolStatus;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 通过已组装的传输与协议端点验证公开入站生命周期。 */
 public class ConnectorConnectionsTest {

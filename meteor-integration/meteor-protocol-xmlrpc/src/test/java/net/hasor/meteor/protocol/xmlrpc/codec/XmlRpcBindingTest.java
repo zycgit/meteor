@@ -22,10 +22,10 @@ import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.payload.RequestPayload;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.protocol.xmlrpc.XmlRpcException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class XmlRpcBindingTest {
     private MetContext      context;
@@ -34,7 +34,7 @@ public class XmlRpcBindingTest {
     private XmlRpcCodec     codec;
     private XmlRpcWireCodec wire;
 
-    @Before
+    @BeforeEach
     public void preparePublishedMetadata() throws Exception {
         MetConfiguration configuration = new MetConfiguration().setDefaultGroup("wire");
         configuration.connector("tcp").protocol("rsf");
@@ -48,7 +48,7 @@ public class XmlRpcBindingTest {
         this.wire = new XmlRpcWireCodec(this.protocol);
     }
 
-    @After
+    @AfterEach
     public void closeContext() throws Exception {
         this.context.close();
     }

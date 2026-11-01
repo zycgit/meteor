@@ -15,8 +15,8 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import net.hasor.meteor.domain.ProtocolConfig;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class GrpcWebBase64InputStreamTest {
     @Test

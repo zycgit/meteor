@@ -6,7 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.triple;
-
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,12 +21,15 @@ import org.apache.dubbo.config.RegistryConfig;
 import org.apache.dubbo.config.ServiceConfig;
 import org.apache.dubbo.config.bootstrap.DubboBootstrap;
 import org.apache.dubbo.rpc.model.FrameworkModel;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 同一 JUnit 进程内，官方 Triple 3.2.20 SDK 与 Meteor 通过真实网络完成双向基础调用。 */
 public class TripleJavaSdkBasicTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialJavaSdkCallsPublishedHessian2Service() throws Exception {
         // SDK 会规范化普通 loopback 直连地址，因此 Meteor 监听本机接口的随机端口。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("triple");
@@ -78,7 +80,8 @@ public class TripleJavaSdkBasicTest {
         }
     }
 
-    @Test(timeout = 60000)
+    @Test
+    @Timeout(value = 60000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerCallsExternalJavaSdkServer() throws Exception {
         // SDK 将 0/-1 解释为默认或扫描端口，先由 loopback:0 取得随机候选端口。
         int port;

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
@@ -31,14 +32,17 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.bootstrap.MetConfiguration.ConnectorSettings;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** JSON-RPC 在 HTTP/2、TLS 和客户端证书认证下仍通过公开入口执行真实业务。 */
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class JsonRpcTlsTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsHttp1UsesServerAuthentication() throws Exception {
         // 两端显式配置 HTTP/1 与测试 CA，传输参数通过正式 bootstrap 入口生效。
         MetConfiguration incoming = new MetConfiguration();
@@ -66,7 +70,8 @@ public class JsonRpcTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsHttp2UsesAlpn() throws Exception {
         // 两端显式配置 HTTP/2 与测试 CA，传输参数通过正式 bootstrap 入口生效。
         MetConfiguration incoming = new MetConfiguration();
@@ -94,7 +99,8 @@ public class JsonRpcTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsHttp1UsesMutualAuthentication() throws Exception {
         // 两端显式配置 HTTP/1 与测试 CA，传输参数通过正式 bootstrap 入口生效。
         MetConfiguration incoming = new MetConfiguration();
@@ -122,7 +128,8 @@ public class JsonRpcTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void httpsHttp2UsesMutualAuthentication() throws Exception {
         // 两端显式配置 HTTP/2 与测试 CA，传输参数通过正式 bootstrap 入口生效。
         MetConfiguration incoming = new MetConfiguration();
@@ -150,7 +157,8 @@ public class JsonRpcTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void independentHttpsClientNegotiatesHttp2WithAlpn() throws Exception {
         // 服务端只宣告 h2，独立客户端必须通过 TLS ALPN 选择 HTTP/2。
         MetConfiguration configuration = new MetConfiguration();
@@ -179,7 +187,8 @@ public class JsonRpcTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http1MutualTlsRejectsMissingClientCertificate() throws Exception {
         // 使用不同身份或信任配置触发真实 TLS 拒绝，不通过业务超时模拟握手失败。
         MetConfiguration configuration = new MetConfiguration();
@@ -212,7 +221,8 @@ public class JsonRpcTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void http2MutualTlsRejectsMissingClientCertificate() throws Exception {
         // 只允许 h2 的监听器要求客户端身份，服务从公开 bootstrap 入口发布。
         MetConfiguration configuration = new MetConfiguration();
@@ -243,16 +253,17 @@ public class JsonRpcTlsTest {
                     rejected = socket.getInputStream().read() < 0;
                 } catch (IOException failure) {
                     boolean timedOut = failure instanceof SocketTimeoutException;
-                    assertFalse("TLS rejection must not time out: " + failure, timedOut);
+                    assertFalse(timedOut, "TLS rejection must not time out: " + failure);
                     rejected = true;
                 }
-                assertTrue("An anonymous peer must not receive HTTP/2 application data", rejected);
+                assertTrue(rejected, "An anonymous peer must not receive HTTP/2 application data");
                 assertTrue(implementation.getNotifications().isEmpty());
             }
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void mutualTlsRejectsUntrustedClientCertificate() throws Exception {
         // 使用不同身份或信任配置触发真实 TLS 拒绝，不通过业务超时模拟握手失败。
         MetConfiguration configuration = new MetConfiguration();
@@ -285,7 +296,8 @@ public class JsonRpcTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientRejectsUntrustedServerCertificate() throws Exception {
         // 使用不同身份或信任配置触发真实 TLS 拒绝，不通过业务超时模拟握手失败。
         MetConfiguration configuration = new MetConfiguration();
@@ -318,7 +330,8 @@ public class JsonRpcTlsTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void incompatibleAlpnFailsBeforeRpcTimeout() throws Exception {
         // 服务端仅支持 HTTP/1.1，客户端仅请求 h2；双方没有可用的 ALPN 交集。
         MetConfiguration incoming = new MetConfiguration();

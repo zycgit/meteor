@@ -20,12 +20,16 @@ import net.hasor.meteor.*;
 import net.hasor.meteor.annotation.MetMessage;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import net.hasor.meteor.rpc.MetCaller;
-import static org.junit.Assert.*;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "hessian", version = "2")
 public class HessianLifecycleScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentHttp2CallsKeepTheirOwnResults() throws Exception {
         // HTTP/2 在并发承载多个普通 RPC。
         MetConfiguration incoming = this.serverConfiguration();
@@ -59,7 +63,8 @@ public class HessianLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requestTimeoutCompletesTheCallerFuture() throws Exception {
         // 用闩锁保持一次真实远程调用在途，控制取消或超时的触发时刻。
         MetConfiguration incoming = this.serverConfiguration();
@@ -114,7 +119,8 @@ public class HessianLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellingOneHttp2CallDoesNotCancelOtherCalls() throws Exception {
         // 用闩锁保持一次真实远程调用在途，控制取消或超时的触发时刻。
         MetConfiguration incoming = this.serverConfiguration();
@@ -171,7 +177,8 @@ public class HessianLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void closingTheServerFailsPendingCallsWithoutWaitingForTimeout() throws Exception {
         // 阻塞一次业务执行，观察连接关闭对在途调用的终止通知。
         MetConfiguration incoming = this.serverConfiguration();
@@ -224,7 +231,8 @@ public class HessianLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void flowServiceRemainsLocalAndIsUnavailableOverHessian() throws Exception {
         // Hessian 不能承载 Flow，分别启动提供者和合法的普通调用消费者。
         MetConfiguration incoming = this.serverConfiguration();
@@ -260,7 +268,8 @@ public class HessianLifecycleScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void messageServiceRemainsCallableThroughTheLocalClient() throws Exception {
         // Hessian 使用请求和响应，不将 @MetMessage 静默当成普通调用。
         MetConfiguration configuration = this.serverConfiguration();

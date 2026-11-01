@@ -22,16 +22,21 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.soap.definition.SoapWsdlResource;
 import net.hasor.realmeteor.protocol.soap.support.SoapTlsSupport;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class WebServicesHttpsInteropTest {
     private static final String ECHO_NAMESPACE      = "urn:meteor:test:echo";
     private static final String ECHO_TYPE_NAMESPACE = "urn:meteor:test:echo:types";
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void metroClientCallsMeteorOverMutualHttps() throws Exception {
         // Meteor 通过公开 Bootstrap 在双向 TLS HTTP/1.1 上发布外部 WSDL。
         MetConfiguration configuration = new MetConfiguration().setDefaultProtocol("soap");
@@ -69,7 +74,9 @@ public class WebServicesHttpsInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @NxnRpc(name = "soap", version = "1.2")
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorClientCallsMetroSoap12OverMutualHttps() throws Exception {
         // 独立 Metro SOAP 1.2 Provider 由 JDK HttpsServer 承载并要求客户端证书。
         try (SoapPeerProcess server = SoapPeerProcess.metroServer("echo", "1.2", true)) {
@@ -115,7 +122,7 @@ public class WebServicesHttpsInteropTest {
 
     private URL resource(String path) {
         URL resource = this.getClass().getResource(path);
-        assertNotNull("Missing test resource " + path, resource);
+        assertNotNull(resource, "Missing test resource " + path);
         return resource;
     }
 }

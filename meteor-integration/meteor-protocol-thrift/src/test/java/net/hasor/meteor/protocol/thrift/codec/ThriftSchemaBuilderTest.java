@@ -23,8 +23,8 @@ import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.protocol.thrift.ThriftIdlResource;
 import net.hasor.meteor.protocol.thrift.annotation.*;
 import org.apache.thrift.protocol.TType;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 发布阶段的注解契约验证，不构造任何业务 DTO 或调用实现。 */
 public class ThriftSchemaBuilderTest {

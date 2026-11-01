@@ -11,12 +11,15 @@ import net.hasor.example.protocol.hprose.EchoService;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 插件基础验证：通过公开入口完成一次自身协议调用。 */
 public class HproseBasicScenarioTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void bootstrapPublishesAndConsumesHproseService() throws Exception {
         // 服务端监听和客户端通道只挂载本插件，不依赖外部语言或其他协议。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("hprose");

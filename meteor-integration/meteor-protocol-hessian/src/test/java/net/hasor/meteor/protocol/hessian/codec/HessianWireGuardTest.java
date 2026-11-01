@@ -13,8 +13,8 @@ import com.caucho.hessian.io.Hessian2Output;
 import com.caucho.hessian.io.HessianOutput;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodecTestFixture.BusinessException;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodecTestFixture.Person;
-import org.junit.Test;
-import static org.junit.Assert.assertThrows;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class HessianWireGuardTest {
     private static final int MAX_MESSAGE_SIZE = 1024 * 1024;

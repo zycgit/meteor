@@ -22,20 +22,20 @@ import net.hasor.meteor.domain.warp.MetBindInfoWrap;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodecTestFixture.BusinessException;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodecTestFixture.Methods;
 import net.hasor.meteor.protocol.hessian.codec.HessianCodecTestFixture.Person;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class HessianCodecTest {
     private HessianCodecTestFixture fixture;
 
-    @Before
+    @BeforeEach
     public void prepareMetadata() throws Exception {
         this.fixture = new HessianCodecTestFixture();
     }
 
-    @After
+    @AfterEach
     public void closeContext() throws Exception {
         this.fixture.close();
     }

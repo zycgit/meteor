@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.example.protocol.oncrpc.OncRpcDemoCodecs;
 import net.hasor.example.protocol.oncrpc.OncRpcDemoService;
 import net.hasor.example.protocol.oncrpc.OncRpcDemoServiceImpl;
@@ -13,13 +14,17 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** TCP record marking 的多个 fragment 经真实网络进入两端协议会话。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcTcpRecordScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpReassemblesFragmentedRequestAndReplyRecords() throws Exception {
         // 两端选择普通 ONC RPC TCP，监听地址由公开启动 API 分配。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("oncrpc");
@@ -51,8 +56,8 @@ public class OncRpcTcpRecordScenarioTest {
                 // 大报文跨越多个 record fragment 后保持完整，两个方向均已实际发送多个 fragment。
                 assertArrayEquals(request, remote.bytes(request));
                 relay.assertHealthy();
-                assertTrue("request must contain multiple record fragments", relay.getRequestFragments() > 1);
-                assertTrue("reply must contain multiple record fragments", relay.getResponseFragments() > 1);
+                assertTrue(relay.getRequestFragments() > 1, "request must contain multiple record fragments");
+                assertTrue(relay.getResponseFragments() > 1, "reply must contain multiple record fragments");
             }
         }
     }

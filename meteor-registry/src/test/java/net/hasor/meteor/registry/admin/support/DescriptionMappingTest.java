@@ -16,8 +16,8 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.registry.admin.description.*;
 import net.hasor.meteor.registry.shared.utils.RegistryJson;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 注册描述的公开 DTO 映射；内部输入使用 JSON，返回值只保留 Java 纯数据。 */
 public class DescriptionMappingTest {
@@ -419,18 +419,18 @@ public class DescriptionMappingTest {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> object(Object value) {
-        assertTrue("描述中的对象必须是 JDK Map", value instanceof Map<?, ?>);
+        assertTrue(value instanceof Map<?, ?>, "描述中的对象必须是 JDK Map");
         return (Map<String, Object>) value;
     }
 
     @SuppressWarnings("unchecked")
     private static List<Object> array(Object value) {
-        assertTrue("描述中的数组必须是 JDK List", value instanceof List<?>);
+        assertTrue(value instanceof List<?>, "描述中的数组必须是 JDK List");
         return (List<Object>) value;
     }
 
     private static void assertJdkTree(Object value) {
-        assertFalse("公开描述不能残留 Jackson 节点", value instanceof JsonNode);
+        assertFalse(value instanceof JsonNode, "公开描述不能残留 Jackson 节点");
         if (value instanceof Map<?, ?> map) {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 assertTrue(entry.getKey() instanceof String);
@@ -442,7 +442,7 @@ public class DescriptionMappingTest {
             }
         } else {
             boolean scalar = value == null || value instanceof String || value instanceof Boolean;
-            assertTrue("扩展值只能包含 JDK JSON 数据", scalar || value instanceof Number);
+            assertTrue(scalar || value instanceof Number, "扩展值只能包含 JDK JSON 数据");
         }
     }
 }

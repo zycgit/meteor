@@ -16,8 +16,8 @@ import net.hasor.meteor.registry.shared.storage.domain.EntConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.EntInstanceRuntimeData;
 import net.hasor.meteor.registry.shared.storage.domain.EntServiceRuntimeData;
 import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class NacosStorageWatchTest {
     private static void await(BooleanSupplier condition) throws Exception {
@@ -26,7 +26,7 @@ public class NacosStorageWatchTest {
         while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }
-        assertTrue("Nacos subscription did not converge", condition.getAsBoolean());
+        assertTrue(condition.getAsBoolean(), "Nacos subscription did not converge");
     }
 
     @Test

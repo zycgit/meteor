@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc.go;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.lang.reflect.UndeclaredThrowableException;
 import com.fasterxml.jackson.databind.JsonNode;
 import net.hasor.cobble.StringUtils;
@@ -21,13 +24,15 @@ import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.golang.GoPeerProcess;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** grpc-go 与 Meteor 双向直连，通过普通订单接口验证三种传输安全模式。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "tls={0}", quoteTextArguments = false)
+@MethodSource("tlsModes")
+@NxnRpc(name = "grpc")
 public class GrpcGoInteropTest {
     private static final String SERVICE = "meteor.example.OrderDemoService";
     private final        String tlsMode;
@@ -35,13 +40,12 @@ public class GrpcGoInteropTest {
     public GrpcGoInteropTest(String tlsMode) {
         this.tlsMode = tlsMode;
     }
-
-    @Parameterized.Parameters(name = "tls={0}")
     public static Object[][] tlsModes() {
         return new Object[][] { { "plain" }, { "tls" }, { "mtls" } };
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goClientSavesAndFindsUnicodeOrder() throws Exception {
         // Meteor 通过公开入口发布普通订单服务，绑定示例自带的 Protobuf 契约。
         MetConfiguration configuration = this.configuration(true);
@@ -55,12 +59,13 @@ public class GrpcGoInteropTest {
             String target = server.getListenAddress("grpc").getHostPort();
             try (GoPeerProcess peer = GoPeerProcess.start("grpc", "client", this.tlsMode, "unicode", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goClientSavesAndFindsMaximumIdOrder() throws Exception {
         // Meteor 通过公开入口发布普通订单服务，绑定示例自带的 Protobuf 契约。
         MetConfiguration configuration = this.configuration(true);
@@ -74,12 +79,13 @@ public class GrpcGoInteropTest {
             String target = server.getListenAddress("grpc").getHostPort();
             try (GoPeerProcess peer = GoPeerProcess.start("grpc", "client", this.tlsMode, "boundary", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goClientSavesAndFindsMinimumIdOrder() throws Exception {
         // Meteor 通过公开入口发布普通订单服务，绑定示例自带的 Protobuf 契约。
         MetConfiguration configuration = this.configuration(true);
@@ -94,12 +100,13 @@ public class GrpcGoInteropTest {
             String scenario = "negative-boundary";
             try (GoPeerProcess peer = GoPeerProcess.start("grpc", "client", this.tlsMode, scenario, target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goClientSavesAndFindsEmptyOrder() throws Exception {
         // Meteor 通过公开入口发布普通订单服务，绑定示例自带的 Protobuf 契约。
         MetConfiguration configuration = this.configuration(true);
@@ -113,12 +120,13 @@ public class GrpcGoInteropTest {
             String target = server.getListenAddress("grpc").getHostPort();
             try (GoPeerProcess peer = GoPeerProcess.start("grpc", "client", this.tlsMode, "empty", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void goClientReceivesMissingOrderFailure() throws Exception {
         // 发布没有任何订单的实现，错误由业务查询产生。
         MetConfiguration configuration = this.configuration(true);
@@ -132,14 +140,15 @@ public class GrpcGoInteropTest {
             String target = server.getListenAddress("grpc").getHostPort();
             try (GoPeerProcess peer = GoPeerProcess.start("grpc", "client", this.tlsMode, "missing", target)) {
                 JsonNode result = peer.awaitResult();
-                assertTrue(result.toString(), result.path("ok").asBoolean());
+                assertTrue(result.path("ok").asBoolean(), result.toString());
                 assertEquals("Internal", result.path("code").asText());
-                assertTrue(result.toString(), result.path("message").asText().contains("Order not found: 404"));
+                assertTrue(result.path("message").asText().contains("Order not found: 404"), result.toString());
             }
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSavesAndFindsUnicodeOrderOnGoServer() throws Exception {
         // grpc-go 独立服务监听临时端口，Meteor 只配置当前协议的出站能力。
         MetConfiguration configuration = this.configuration(false);
@@ -168,7 +177,8 @@ public class GrpcGoInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSavesAndFindsMaximumIdOrderOnGoServer() throws Exception {
         // grpc-go 独立服务监听临时端口，Meteor 只配置当前协议的出站能力。
         MetConfiguration configuration = this.configuration(false);
@@ -197,7 +207,8 @@ public class GrpcGoInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSavesAndFindsMinimumIdOrderOnGoServer() throws Exception {
         // grpc-go 独立服务监听临时端口，Meteor 只配置当前协议的出站能力。
         MetConfiguration configuration = this.configuration(false);
@@ -227,7 +238,8 @@ public class GrpcGoInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorSavesAndFindsEmptyOrderOnGoServer() throws Exception {
         // grpc-go 独立服务监听临时端口，Meteor 只配置当前协议的出站能力。
         MetConfiguration configuration = this.configuration(false);
@@ -256,7 +268,8 @@ public class GrpcGoInteropTest {
         }
     }
 
-    @Test(timeout = 45000)
+    @Test
+    @Timeout(value = 45000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorReceivesMissingOrderFailureFromGoServer() throws Exception {
         // 启动没有订单的 grpc-go 服务，Meteor 从公开订阅 API 获得普通 Java 代理。
         MetConfiguration configuration = this.configuration(false);

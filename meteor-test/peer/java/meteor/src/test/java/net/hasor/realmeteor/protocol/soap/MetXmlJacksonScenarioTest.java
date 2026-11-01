@@ -39,15 +39,19 @@ import net.hasor.example.protocol.soap.*;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.1")
 public class MetXmlJacksonScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void objectPropertyUsesJsonDeserializeTargetInBothDirections() throws Exception {
         // Object 属性通过 Jackson 的 as 指定读取类型，无需 Meteor 类型注册。
         MetConfiguration incoming = this.configuration(true);
@@ -85,7 +89,8 @@ public class MetXmlJacksonScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void objectPropertyUsesNativeJacksonSubtypeInformationInBothDirections() throws Exception {
         // Jackson 的 kind 判别属性选择声明的子类型，不把 Java 类名加入 SOAP 类型协议。
         MetConfiguration incoming = this.configuration(true);
@@ -123,7 +128,8 @@ public class MetXmlJacksonScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativeSubtypeDiscriminatorUsesTheDeclaredKindOnTheWire() throws Exception {
         // 原生 Jackson PROPERTY 判别符在 XML 中使用 kind 属性，不声明 Java 类型 QName。
         MetConfiguration configuration = this.configuration(true);
@@ -163,7 +169,8 @@ public class MetXmlJacksonScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void configuredModuleSerializersAndDeserializersRunAtBothEndpoints() throws Exception {
         // 每个上下文提供独立 XmlMapper 和用户 Module，计数只观察实际读写器执行。
         AtomicInteger serverWrites = new AtomicInteger();
@@ -204,15 +211,16 @@ public class MetXmlJacksonScenarioTest {
             // 读写器约定 wireValue 字段，无法用默认 bean 映射冒充；服务端仍直接处理 Token。
             MetXmlJacksonToken response = remote.echo(new MetXmlJacksonToken("alpha"));
             assertEquals("alpha-server", response.value());
-            assertTrue("Client serializer must write the request", clientWrites.get() > 0);
-            assertTrue("Server deserializer must read the request", serverReads.get() > 0);
-            assertTrue("Server serializer must write the response", serverWrites.get() > 0);
-            assertTrue("Client deserializer must read the response", clientReads.get() > 0);
+            assertTrue(clientWrites.get() > 0, "Client serializer must write the request");
+            assertTrue(serverReads.get() > 0, "Server deserializer must read the request");
+            assertTrue(serverWrites.get() > 0, "Server serializer must write the response");
+            assertTrue(clientReads.get() > 0, "Client deserializer must read the response");
             assertArrayEquals(initialWsdl, this.download(wsdlAddress));
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void immutableDtoUsesJsonCreatorInBothDirections() throws Exception {
         // DTO 没有无参构造器或 setter，构造参数由原生 JsonCreator/JsonProperty 绑定。
         MetConfiguration incoming = this.configuration(true);
@@ -243,7 +251,8 @@ public class MetXmlJacksonScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nativePropertyNamesAndNullInclusionAppearOnTheWire() throws Exception {
         // JsonProperty 决定 XML 名称，JsonInclude 决定空值是否实际写到报文中。
         MetConfiguration configuration = this.configuration(true);
@@ -282,7 +291,8 @@ public class MetXmlJacksonScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void customSerdePreservesSoapNamespacesAndNestedAttributeGroup() throws Exception {
         // 局部 Token 使用自定义读写器，其余 DTO 保留 SOAP QName、order 与属性包装语义。
         AtomicInteger writes = new AtomicInteger();
@@ -351,7 +361,8 @@ public class MetXmlJacksonScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void directObjectUsesConfiguredJacksonDeserializerAtBothEndpoints() throws Exception {
         // 全局 Object 反序列化器由应用 XmlMapper 提供，不新增 Meteor 的类型反查接口。
         AtomicInteger serverReads = new AtomicInteger();
@@ -386,8 +397,8 @@ public class MetXmlJacksonScenarioTest {
             Object response = remote.echo(new MetXmlJacksonToken("alpha"));
             assertTrue(response instanceof MetXmlJacksonToken);
             assertEquals("alpha-server", ((MetXmlJacksonToken) response).value());
-            assertTrue("Server Object deserializer must be used", serverReads.get() > 0);
-            assertTrue("Client Object deserializer must be used", clientReads.get() > 0);
+            assertTrue(serverReads.get() > 0, "Server Object deserializer must be used");
+            assertTrue(clientReads.get() > 0, "Client Object deserializer must be used");
         }
     }
 

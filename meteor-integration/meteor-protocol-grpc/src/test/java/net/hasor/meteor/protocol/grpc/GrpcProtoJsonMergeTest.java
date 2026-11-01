@@ -20,8 +20,8 @@ import com.google.protobuf.Descriptors.FileDescriptor;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.util.JsonFormat;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** Protobuf JSON 合并保留 double 符号位，同时沿用官方解析器的契约校验。 */
 public class GrpcProtoJsonMergeTest {

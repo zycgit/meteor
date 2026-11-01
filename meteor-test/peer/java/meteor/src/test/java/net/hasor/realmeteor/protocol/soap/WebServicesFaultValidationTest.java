@@ -18,13 +18,17 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "soap", version = "1.2")
 public class WebServicesFaultValidationTest {
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void subcodeQNameMustStartWithAnXmlNameCharacter() throws Exception {
         // Subcode 的 QName 局部名不能以数字开头。
         String fault = """
@@ -60,14 +64,15 @@ public class WebServicesFaultValidationTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("Invalid SOAP Fault QName"));
+                assertTrue(message.contains("Invalid SOAP Fault QName"), message);
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void faultQNameCannotContainWhitespace() throws Exception {
         // 已绑定前缀也不能使包含空格的 QName 合法。
         String fault = """
@@ -102,14 +107,15 @@ public class WebServicesFaultValidationTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("Invalid SOAP Fault QName"));
+                assertTrue(message.contains("Invalid SOAP Fault QName"), message);
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reasonCannotPrecedeCode() throws Exception {
         // SOAP 1.2 Fault 的 Code 必须排在 Reason 之前。
         String fault = """
@@ -144,14 +150,15 @@ public class WebServicesFaultValidationTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("Invalid SOAP 1.2 Fault element order"));
+                assertTrue(message.contains("Invalid SOAP 1.2 Fault element order"), message);
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void faultRoleCannotOccurTwice() throws Exception {
         // SOAP 1.2 Fault 的 Role 是单值字段。
         String fault = """
@@ -187,14 +194,15 @@ public class WebServicesFaultValidationTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("Invalid SOAP 1.2 Fault element order"));
+                assertTrue(message.contains("Invalid SOAP 1.2 Fault element order"), message);
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void reasonTextCannotHideNestedElements() throws Exception {
         // Reason/Text 只允许字符内容，不能拼接嵌套 XML 得到错误消息。
         String fault = """
@@ -229,14 +237,15 @@ public class WebServicesFaultValidationTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("must contain text only"));
+                assertTrue(message.contains("must contain text only"), message);
             }
         } finally {
             server.stop(0);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void subcodeRequiresValueBeforeNestedSubcode() throws Exception {
         // 每层 Subcode 都必须有自己的 Value。
         String fault = """
@@ -273,7 +282,7 @@ public class WebServicesFaultValidationTest {
                         () -> invocation.getData(5, TimeUnit.SECONDS));
                 assertTrue(failure.getCause() instanceof IllegalArgumentException);
                 String message = failure.getCause().getMessage();
-                assertTrue(message, message.contains("SOAP Fault Code must start with Value"));
+                assertTrue(message.contains("SOAP Fault Code must start with Value"), message);
             }
         } finally {
             server.stop(0);

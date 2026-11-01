@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.List;
 import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.Order;
@@ -16,10 +17,11 @@ import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetUpdater;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 路由规则使用环境、元信息和直接业务参数选择订单提供者。 */
+@NxnRpc(name = "rsf", version = "1")
 public class RoutingScenarioTest {
     private static final String SERVICE_RULE  = """
             <route>

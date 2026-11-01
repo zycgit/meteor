@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.direct;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,12 +21,15 @@ import net.hasor.meteor.MetClient;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetResponse;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 使用公开过滤器 API 展示 Options 传输、服务覆盖及缓存短路。 */
+@NxnRpc(name = "rsf", version = "1")
 public class FilterScenarioTest {
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void requestAndResponseOptionsCrossTheNetwork() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         incoming.setResponseOption("region", "east");
@@ -55,7 +59,8 @@ public class FilterScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void withOptionsDoesNotChangeTheOriginalClient() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
@@ -85,7 +90,8 @@ public class FilterScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void aServiceFilterOverridesTheGlobalFilterWithTheSameId() throws Exception {
         MetConfiguration incoming = DirectRpcExample.server("127.0.0.1", 0, 0);
         MetConfiguration outgoing = DirectRpcExample.client("rsf");
@@ -125,7 +131,8 @@ public class FilterScenarioTest {
         }
     }
 
-    @Test(timeout = 30000)
+    @Test
+    @Timeout(value = 30000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void anOutboundFilterServesACachedOrderWithoutAnAddress() throws Exception {
         MetConfiguration configuration = DirectRpcExample.client("rsf");
         try (MetContext context = configuration.buildContext()) {

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.connect;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,12 +22,15 @@ import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.connect.ConnectStatusException;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
+@NxnRpc(name = "connect", version = "1")
 public class ConnectHttpScenarioTest {
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufUnaryPreservesUnicodeBusinessValues() throws Exception {
         // 从公开配置入口挂载 Connect，客户端不开放监听端口。
         MetConfiguration incoming = this.configuration(true);
@@ -55,7 +59,8 @@ public class ConnectHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void businessFailureCompletesTheCallerFuture() throws Exception {
         // 从公开配置入口挂载 Connect，客户端不开放监听端口。
         MetConfiguration incoming = this.configuration(true);
@@ -85,7 +90,8 @@ public class ConnectHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void concurrentHttp2CallsKeepTheirOwnResults() throws Exception {
         // 从公开配置入口挂载 Connect，客户端不开放监听端口。
         MetConfiguration incoming = this.configuration(true);
@@ -121,7 +127,8 @@ public class ConnectHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void jsonSideEffectFreeMethodCanUseGet() throws Exception {
         // GET 开关只作用于实际调用的方法，安全级别来自绑定的标准 proto。
         MetConfiguration incoming = this.configuration(true);
@@ -150,7 +157,8 @@ public class ConnectHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufSideEffectFreeMethodCanUseGet() throws Exception {
         // GET 开关只作用于实际调用的方法，安全级别来自绑定的标准 proto。
         MetConfiguration incoming = this.configuration(true);
@@ -179,7 +187,8 @@ public class ConnectHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void getRejectsAMethodWithoutSideEffectFreeDeclaration() throws Exception {
         // 同一个接口包含安全与普通方法，GET 不能被用于未声明安全的 echo。
         MetConfiguration incoming = this.configuration(true);
@@ -213,7 +222,8 @@ public class ConnectHttpScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void protobufWithoutResourceRemainsLocalAndIsUnavailableOverConnect() throws Exception {
         // 提供者缺少 proto，消费者绑定有效描述以发出合法 Protobuf 请求。
         MetConfiguration incoming = this.configuration(true);
@@ -248,7 +258,7 @@ public class ConnectHttpScenarioTest {
                 pending.getData(3, TimeUnit.SECONDS);
             });
             ConnectStatusException status = ConnectStatusException.find(failure.getCause());
-            assertNotNull("Expected a Connect protocol error: " + failure.getCause(), status);
+            assertNotNull(status, "Expected a Connect protocol error: " + failure.getCause());
             assertEquals("unimplemented", status.getCode());
             assertEquals(1, implementation.getCalls());
         }

@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.grpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -34,10 +35,13 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetTimeoutException;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.rpc.MetCaller;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 使用独立官方服务端观察物理尝试，业务侧仍只有一次普通 Meteor 调用。 */
+@NxnRpc(name = "grpc")
 public class GrpcClientRetryPolicyInteropTest {
     private static final ObjectMapper         MAPPER   = new ObjectMapper().disable(JsonParser.Feature.AUTO_CLOSE_SOURCE);
     private static final Metadata.Key<String> PREVIOUS = //
@@ -54,7 +58,8 @@ public class GrpcClientRetryPolicyInteropTest {
               "maxAttempts":3,"hedgingDelay":"0.1s","nonFatalStatusCodes":["UNAVAILABLE"]}}]}
             """;
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void officialClientRetriesMeteorFailureBeforeAnyResponseMetadata() throws Exception {
         // 服务先返回两次可重试错误，第三次成功；对端使用官方重试策略。
         AtomicInteger attempts = new AtomicInteger();
@@ -104,7 +109,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void explicitPolicyRetriesTrailersOnlyAndReportsAttemptMetadata() throws Exception {
         // 官方服务仅在第三次尝试成功，同时记录每次尝试的 previous 元数据。
         AtomicInteger attempts = new AtomicInteger();
@@ -140,7 +146,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void noRetryPolicyPerformsOnlyOneAttempt() throws Exception {
         // 官方对端始终返回 UNAVAILABLE，Meteor 未配置重试策略。
         AtomicInteger attempts = new AtomicInteger();
@@ -172,7 +179,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void committedHeadersPreventRetry() throws Exception {
         // 官方对端先提交响应头，再返回原本可重试的错误。
         AtomicInteger attempts = new AtomicInteger();
@@ -205,7 +213,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void retryStopsAtConfiguredAttemptLimit() throws Exception {
         // 对端持续失败且不指定 pushback，观察策略中的最大尝试次数。
         String pushback = "none";
@@ -240,11 +249,12 @@ public class GrpcClientRetryPolicyInteropTest {
             MetFuture limitFailure = caller.asyncInvoke(info, "echo", parameterTypes, limitFailureArguments);
             this.failure(limitFailure, 14);
             int expected = 3;
-            assertEquals(pushback, expected, attempts.get());
+            assertEquals(expected, attempts.get(), pushback);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void negativePushbackStopsRetry() throws Exception {
         // 对端用负数 pushback 明确禁止后续重试。
         String pushback = "-1";
@@ -279,11 +289,12 @@ public class GrpcClientRetryPolicyInteropTest {
             MetFuture limitFailure = caller.asyncInvoke(info, "echo", parameterTypes, limitFailureArguments);
             this.failure(limitFailure, 14);
             int expected = 1;
-            assertEquals(pushback, expected, attempts.get());
+            assertEquals(expected, attempts.get(), pushback);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void invalidPushbackStopsRetry() throws Exception {
         // 对端返回非法 pushback，客户端应停止重试。
         String pushback = "invalid";
@@ -318,11 +329,12 @@ public class GrpcClientRetryPolicyInteropTest {
             MetFuture limitFailure = caller.asyncInvoke(info, "echo", parameterTypes, limitFailureArguments);
             this.failure(limitFailure, 14);
             int expected = 1;
-            assertEquals(pushback, expected, attempts.get());
+            assertEquals(expected, attempts.get(), pushback);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void retryHonorsServerPushbackDelay() throws Exception {
         // 记录各次尝试到达时间，用对端 pushback 覆盖配置中的短退避。
         LinkedBlockingQueue<Long> arrivals = new LinkedBlockingQueue<>();
@@ -365,7 +377,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void cancellationDuringPushbackPreventsAnotherAttempt() throws Exception {
         // 对端首次失败后要求等待，给调用方留出取消整个 RPC 的窗口。
         LinkedBlockingQueue<Long> arrivals = new LinkedBlockingQueue<>();
@@ -403,7 +416,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void deadlineIncludesRetryBackoff() throws Exception {
         // 重试等待长于调用期限，观察超时是否同时取消尚未开始的尝试。
         LinkedBlockingQueue<Long> arrivals = new LinkedBlockingQueue<>();
@@ -441,7 +455,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void throttleIsSharedByTargetAndSuccessfulCallsRestoreTokens() throws Exception {
         // 同一目标共用重试令牌，失败消耗令牌而成功响应补充令牌。
         String throttle = "\"retryThrottling\":{\"maxTokens\":4,\"tokenRatio\":1},";
@@ -498,7 +513,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void hedgingWinnerCancelsThePendingAttempt() throws Exception {
         // 第一份物理调用保持等待，第二份调用成功，并观察第一份是否取消。
         CountDownLatch cancelled = new CountDownLatch(1);
@@ -547,7 +563,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void nonfatalHedgeSkipsItsConfiguredDelay() throws Exception {
         // 对端先返回非致命错误，下一次对冲不应继续等待原定三秒。
         String delayed = HEDGE.replace("0.1s", "3s");
@@ -583,11 +600,12 @@ public class GrpcClientRetryPolicyInteropTest {
             assertEquals("shortcut", result.getValue());
             assertEquals(2, arrived.size());
             long elapsed = TimeUnit.NANOSECONDS.toMillis(arrived.get(1) - arrived.get(0));
-            assertTrue("Hedge did not skip its delay: " + elapsed, elapsed < 2000);
+            assertTrue(elapsed < 2000, "Hedge did not skip its delay: " + elapsed);
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void fatalStatusEndsHedgingAfterFirstAttempt() throws Exception {
         // 对端返回致命错误，验证尚未执行的对冲不会继续发起。
         String delayed = HEDGE.replace("0.1s", "3s");
@@ -627,7 +645,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void exhaustedSharedThrottleFinishesAnAlreadyScheduledRetry() throws Exception {
         // 先安排一个待重试调用，再用另一个调用消耗同一目标的剩余令牌。
         String throttle = "\"retryThrottling\":{\"maxTokens\":4,\"tokenRatio\":1},";
@@ -670,7 +689,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void serverStreamRetryReplaysItsSingleRequest() throws Exception {
         // 记录服务端流每次收到的请求，第一次失败后允许重试成功。
         List<String> received = new CopyOnWriteArrayList<>();
@@ -708,7 +728,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void clientStreamRetrySubscribesToItsSourceOnlyOnce() throws Exception {
         // 记录请求流重试的数据数量，确认重放不会重新订阅业务数据源。
         List<String> received = new CopyOnWriteArrayList<>();
@@ -750,7 +771,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void bidirectionalRetrySubscribesToItsSourceOnlyOnce() throws Exception {
         // 记录双向流重试收到的数据，确认输入只订阅一次且回复不重复。
         List<String> received = new CopyOnWriteArrayList<>();
@@ -795,7 +817,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void unaryReplayBudgetPreventsAnotherAttempt() throws Exception {
         // 将重放预算设为八字节，让普通请求无法进入重试缓冲区。
         AtomicInteger attempts = new AtomicInteger();
@@ -825,7 +848,8 @@ public class GrpcClientRetryPolicyInteropTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void streamReplayBudgetPreventsAnotherAttempt() throws Exception {
         // 将重放预算设为八字节，让流式请求无法进入重试缓冲区。
         AtomicInteger attempts = new AtomicInteger();
@@ -890,7 +914,7 @@ public class GrpcClientRetryPolicyInteropTest {
         // 有界等待公开调用结果，确认返回的是原始 gRPC 状态。
         ExecutionException failure = assertThrows(ExecutionException.class, () -> future.getData(5, TimeUnit.SECONDS));
         Throwable cause = failure.getCause();
-        assertTrue(cause.toString(), cause instanceof GrpcStatusException);
+        assertTrue(cause instanceof GrpcStatusException, cause.toString());
         assertEquals(status, ((GrpcStatusException) cause).getCode());
     }
 

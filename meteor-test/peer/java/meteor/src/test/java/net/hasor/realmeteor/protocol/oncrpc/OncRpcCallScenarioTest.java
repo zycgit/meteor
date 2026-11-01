@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.oncrpc;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import java.math.BigInteger;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -20,12 +21,16 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.oncrpc.codec.OncRpcException;
 import net.hasor.meteor.protocol.oncrpc.codec.OncRpcMessage;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 公开入口上的 ONC RPC 普通过程、IDL 数据类型及认证策略。 */
+@NxnRpc(name = "oncrpc", version = "2")
 public class OncRpcCallScenarioTest {
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpPreservesArgumentDeclarationOrder() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("tcp");
@@ -46,7 +51,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpPreservesArgumentDeclarationOrder() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("udp");
@@ -67,7 +73,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpVoidProcedureStillReceivesAReply() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("tcp");
@@ -89,7 +96,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpVoidProcedureStillReceivesAReply() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("udp");
@@ -111,7 +119,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpOpaquePreservesZeroAndUnsignedBytes() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("tcp");
@@ -133,7 +142,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpOpaquePreservesZeroAndUnsignedBytes() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("udp");
@@ -155,7 +165,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpEmptyOpaqueIsAnOrdinaryValue() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("tcp");
@@ -176,7 +187,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpEmptyOpaqueIsAnOrdinaryValue() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("udp");
@@ -197,7 +209,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpLargeOpaqueSpansNetworkReads() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("tcp");
@@ -220,7 +233,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpLargeOpaqueFitsOneDatagram() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         // IPv6 本地回环避免开发机虚拟网卡对大 IPv4 UDP 报文的转发限制。
@@ -249,7 +263,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpCustomStructPreservesAllIdlFields() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("tcp");
@@ -272,7 +287,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpCustomStructPreservesAllIdlFields() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("udp");
@@ -295,7 +311,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpDiscriminatedUnionSelectsIntegerArm() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("tcp");
@@ -321,7 +338,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpDiscriminatedUnionSelectsDefaultVoidArm() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("udp");
@@ -346,7 +364,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpOptionalPointerCanBeAbsent() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("tcp");
@@ -369,7 +388,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpOptionalPointerPreservesRecursiveValues() throws Exception {
         // 用户仅选择传输与协议，具体线格式由 ONC RPC 插件负责。
         MetConfiguration incoming = this.incoming("udp");
@@ -397,7 +417,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void tcpBusinessFailureUsesStandardSystemError() throws Exception {
         // ONC RPC 的标准异常臂不携带任意 Java 异常对象。
         MetConfiguration incoming = this.incoming("tcp");
@@ -421,7 +442,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void udpBusinessFailureUsesStandardSystemError() throws Exception {
         // ONC RPC 的标准异常臂不携带任意 Java 异常对象。
         MetConfiguration incoming = this.incoming("udp");
@@ -445,7 +467,8 @@ public class OncRpcCallScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void authSysIdentityReachesPublishedServiceFilter() throws Exception {
         // AUTH_SYS 是调用方自报的身份数据，服务端过滤器可以读取其协议选项。
         MetConfiguration incoming = this.incoming("tcp");

@@ -6,6 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.jsonrpc.types;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.ParameterizedClass;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,27 +31,25 @@ import net.hasor.meteor.protocol.jsonrpc.JsonRpcException;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.matrix.types.ForeignTypePeer;
 import net.hasor.realmeteor.matrix.types.TypeValueAssertions;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** Jayson 使用原生 Number；不安全整数和负零按真实限制验证，不使用文本伪装原生支持。 */
-@RunWith(Parameterized.class)
+@ParameterizedClass(autoCloseArguments = false, name = "types/node/jsonrpc/direct/{1}/{0}", quoteTextArguments = false)
+@MethodSource("vectors")
+@NxnRpc(name = "jsonrpc", version = "2.0")
 public class NodeJsonRpcTypeTest {
-    @Rule
-    public final  TemporaryFolder data = new TemporaryFolder();
+    @TempDir
+    public Path data;
     private final String          vector;
 
     public NodeJsonRpcTypeTest(String vector, String type) {
         this.vector = vector;
     }
-
-    @Parameterized.Parameters(name = "types/node/jsonrpc/direct/{1}/{0}")
     public static Collection<Object[]> vectors() throws Exception {
         // 顺序沿用共享向量；每种边界和调用方向都有自己的 JUnit 身份。
         List<Object[]> cases = new ArrayList<>();
@@ -55,11 +59,12 @@ public class NodeJsonRpcTypeTest {
         return cases;
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorProviderAcceptsOneNodeTypeVector() throws Exception {
         // bootstrap 启动后发布类型业务接口，JSON-RPC 通过 /types 正式挂载。
         MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-        configuration.setDataHome(this.data.newFolder("provider").toPath());
+        configuration.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         configuration.connector("http").bind(ContainerProcess.runnerHost(), 0) //
                 .protocol("jsonrpc").contextPath("/types");
         try (MetContext provider = configuration.buildContext()) {
@@ -82,13 +87,14 @@ public class NodeJsonRpcTypeTest {
         }
     }
 
-    @Test(timeout = 40000)
+    @Test
+    @Timeout(value = 40000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void meteorConsumerAcceptsOneNodeTypeVector() throws Exception {
         // 独立 Jayson 服务端提供类型接口，消费者从 bootstrap 创建纯出站通道。
         try (ForeignTypePeer peer = ForeignTypePeer.provider("node", "jsonrpc")) {
             int port = peer.awaitPort();
             MetConfiguration configuration = new MetConfiguration().setDefaultTimeout(5000);
-            configuration.setDataHome(this.data.newFolder("consumer").toPath());
+            configuration.setDataHome(Files.createDirectory(this.data.resolve("consumer")));
             configuration.connector("http").protocol("jsonrpc").contextPath("/types");
             try (MetContext consumer = configuration.buildContext()) {
                 consumer.start();

@@ -15,12 +15,14 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.protocol.thrift.ThriftClient;
 import net.hasor.meteor.protocol.thrift.ThriftIdlResource;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Timeout;
 
 /** 普通接口的发布、引用和 DTO 往返全部经过 bootstrap。 */
 public class ThriftAnnotatedBootstrapScenarioTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void ordinaryDtoRoundTripsWithNestedContainers() throws Exception {
         // 两个独立容器使用普通 Java 接口，异常字段通过 IDL 声明。
         MetConfiguration incoming = this.configuration(true);
@@ -52,7 +54,8 @@ public class ThriftAnnotatedBootstrapScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void methodAliasKeepsJavaArgumentOrder() throws Exception {
         // 差值调用使用不同的 Java 和线协议方法名，编号也不按位置递增。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -70,7 +73,8 @@ public class ThriftAnnotatedBootstrapScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void ordinaryDeclaredExceptionReachesTheTypedClient() throws Exception {
         // Java 异常只继承 Exception，异常字段编号来自绑定的 IDL。
         try (MetContext server = this.configuration(true).buildContext(); //
@@ -90,7 +94,8 @@ public class ThriftAnnotatedBootstrapScenarioTest {
         }
     }
 
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void messageAnnotationUsesTheExistingOnewayLifecycle() throws Exception {
         // 消息方法只复用 MetMessage，业务接口不引入第二套单向调用注解。
         try (MetContext server = this.configuration(true).buildContext(); //

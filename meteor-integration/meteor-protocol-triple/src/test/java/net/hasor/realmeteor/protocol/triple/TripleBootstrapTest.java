@@ -12,12 +12,15 @@ import net.hasor.example.protocol.triple.TripleMessage;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Timeout;
 
 /** 插件从公开 bootstrap 完成一次基本网络调用。 */
 public class TripleBootstrapTest {
-    @Test(timeout = 15000)
+    @Test
+    @Timeout(value = 15000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void wrapperUnaryPreservesUnicodeBusinessValues() throws Exception {
         // 配置真实网络端点，出站容器不创建监听。
         MetConfiguration incoming = this.configuration(true);
