@@ -1,24 +1,17 @@
+import groovy.json.JsonSlurper
+
+plugins {
+    id 'com.gradleup.shadow' version '9.2.2' apply false
+}
+
+def pomMetadata = new JsonSlurper().parse(file('pom.json'))
+
 allprojects {
     group = 'net.hasor'
 }
 
 subprojects {
-    apply plugin: 'jacoco'
-    jacoco {
-        toolVersion = property('lib.jacoco')
-    }
-
-    plugins.withType(JavaPlugin).configureEach {
-        tasks.named('test') {
-            finalizedBy tasks.named('jacocoTestReport')
-        }
-        tasks.named('jacocoTestReport') {
-            reports {
-                xml.required = true
-                html.required = true
-            }
-        }
-
+    plugins.withId('java') {
         java {
             toolchain.languageVersion = JavaLanguageVersion.of(17)
         }
@@ -32,11 +25,52 @@ subprojects {
             failOnError = false
         }
         tasks.withType(Test).configureEach {
-            useJUnit()
+            useJUnitPlatform()
+            // Each test JVM keeps its files in the owning module; process isolation belongs to its caller.
+            def workDirectory = layout.buildDirectory.dir("test-work/${name}").get().asFile
+            def temporaryDirectory = new File(workDirectory, 'tmp')
+            def userDirectory = new File(workDirectory, 'home')
+            systemProperty 'java.io.tmpdir', temporaryDirectory.absolutePath
+            systemProperty 'user.home', userDirectory.absolutePath
+            doFirst {
+                temporaryDirectory.mkdirs()
+                userDirectory.mkdirs()
+            }
         }
-        tasks.withType(GenerateModuleMetadata).configureEach { enabled = false }
+        tasks.withType(JavaExec).configureEach {
+            def temporaryDirectory = layout.buildDirectory.dir("tmp/${name}").get().asFile
+            systemProperty 'java.io.tmpdir', temporaryDirectory.absolutePath
+            doFirst { temporaryDirectory.mkdirs() }
+        }
+        tasks.withType(GenerateModuleMetadata).configureEach {
+            enabled = false
+        }
+
         dependencies {
-            testImplementation "junit:junit:${property('lib.junit')}"
+            testImplementation platform("org.junit:junit-bom:${property('lib.junit')}")
+            testImplementation 'org.junit.jupiter:junit-jupiter'
+            testImplementation 'org.junit.platform:junit-platform-launcher'
+        }
+
+        apply plugin: 'jacoco'
+        jacoco {
+            toolVersion = property('lib.jacoco')
+        }
+        tasks.named('test') {
+            finalizedBy tasks.named('jacocoTestReport')
+        }
+        tasks.named('jacocoTestReport') {
+            dependsOn tasks.named('test')
+            reports {
+                xml.required = true
+                html.required = true
+            }
+        }
+        tasks.named('jacocoTestCoverageVerification') {
+            dependsOn tasks.named('test')
+        }
+        tasks.named('check') {
+            dependsOn tasks.named('jacocoTestReport'), tasks.named('jacocoTestCoverageVerification')
         }
 
         plugins.withId('maven-publish') {
@@ -52,21 +86,53 @@ subprojects {
                         pom {
                             name = providers.provider { project.findProperty('pomName') ?: project.name }
                             description = providers.provider { project.description ?: project.name }
-                            url = 'https://www.hasor.net/rsf'
-                            licenses { license { name = 'The Apache Software License, Version 2.0'; url = 'https://www.apache.org/licenses/LICENSE-2.0.txt' } }
-                            developers { developer { name = '赵永春(Mr.Zhao)'; email = 'zyc@hasor.net' } }
+                            url = pomMetadata.url
+                            licenses {
+                                pomMetadata.licenses.each { licenseMetadata ->
+                                    license {
+                                        name = licenseMetadata.name
+                                        url = licenseMetadata.url
+                                    }
+                                }
+                            }
+                            developers {
+                                pomMetadata.developers.each { developerMetadata ->
+                                    developer {
+                                        name = developerMetadata.name
+                                        email = developerMetadata.email
+                                    }
+                                }
+                            }
                             scm {
-                                connection = 'scm:git:git@gitee.com:zycgit/rsf.git'
-                                developerConnection = connection
-                                url = 'https://gitee.com/zycgit/rsf'
-                                tag = 'HEAD'
+                                connection = pomMetadata.scm.connection
+                                developerConnection = pomMetadata.scm.developerConnection
+                                url = pomMetadata.scm.url
+                                tag = pomMetadata.scm.tag
                             }
                         }
                     }
                 }
-                if (findProperty('centralBundleDir')) {
-                    repositories { maven { name = 'centralBundle'; url = uri(findProperty('centralBundleDir')) } }
+                repositories {
+                    maven {
+                        name = 'buildLocal'
+                        url = rootProject.layout.buildDirectory.dir('maven-repository')
+                    }
+                    if (findProperty('centralBundleDir')) {
+                        maven {
+                            name = 'centralBundle'
+                            url = uri(findProperty('centralBundleDir'))
+                        }
+                    }
                 }
+            }
+            plugins.withId('com.gradleup.shadow') {
+                def publication = publishing.publications.mavenJava
+                publication.setArtifacts([])
+                publication.artifact(tasks.named('shadowJar')) {
+                    classifier = null
+                }
+                publication.artifact(tasks.named('sourcesJar'))
+                publication.artifact(tasks.named('javadocJar'))
             }
             signing {
                 required { findProperty('centralRelease') == 'true' }

@@ -1,0 +1,21 @@
+{
+  "url": "https://www.hasor.net/rsf",
+  "licenses": [
+    {
+      "name": "The Apache Software License, Version 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.txt"
+    }
+  ],
+  "developers": [
+    {
+      "name": "赵永春(Mr.Zhao)",
+      "email": "zyc@hasor.net"
+    }
+  ],
+  "scm": {
+    "connection": "scm:git:git@gitee.com:zycgit/rsf.git",
+    "developerConnection": "scm:git:git@gitee.com:zycgit/rsf.git",
+    "url": "https://gitee.com/zycgit/rsf",
+    "tag": "HEAD"
+  }
+}
