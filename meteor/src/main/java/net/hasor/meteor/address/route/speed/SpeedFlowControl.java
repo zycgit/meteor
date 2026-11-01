@@ -20,9 +20,9 @@ import net.hasor.meteor.address.route.AbstractRule;
  * 配置实例：
  * &lt;flowControl enable="true|false" type="speed"&gt;
  *   &lt;action&gt;service|method|address&lt;/action&gt;
- *   &lt;rate&gt;20&lt;/rate&gt;             &lt;!-- 稳态速率 --&gt
- *   &lt;peak&gt;100&lt;/peak&gt;            &lt;!-- 峰值速率 --&gt
- *   &lt;timeWindow&gt;10&lt;/timeWindow&gt; &lt;!-- 时间窗口 --&gt
+ *   &lt;rate&gt;20&lt;/rate&gt;             &lt;!-- 稳态速率 --&gt;
+ *   &lt;peak&gt;100&lt;/peak&gt;            &lt;!-- 峰值速率 --&gt;
+ *   &lt;timeWindow&gt;10&lt;/timeWindow&gt; &lt;!-- 时间窗口 --&gt;
  * &lt;/flowControl&gt;
  * </pre>
  * 解释：根据action的配置决定RPC调用速率。

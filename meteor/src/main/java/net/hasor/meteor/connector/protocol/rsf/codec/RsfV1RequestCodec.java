@@ -12,7 +12,7 @@ import java.io.IOException;
 class RsfV1RequestCodec {
 
     /**
-     * encode Message to byte & write to network framework
+     * Encodes the request frame into the output buffer.
      */
     void encode(RsfV1RequestFrame reqMsg, RsfV1WireBuffer buf) throws IOException {
         //* --------------------------------------------------------bytes =13

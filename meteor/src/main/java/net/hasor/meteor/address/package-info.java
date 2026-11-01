@@ -6,6 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 /**
- * 地址管理 & 服务路由 & 流量控制。
+ * 地址管理、服务路由与流量控制。
  */
 package net.hasor.meteor.address;
