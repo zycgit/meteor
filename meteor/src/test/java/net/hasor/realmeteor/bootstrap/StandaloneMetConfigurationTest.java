@@ -7,6 +7,8 @@
  */
 package net.hasor.realmeteor.bootstrap;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
@@ -21,12 +23,63 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.serialize.coder.JavaSerializeCoder;
 import net.hasor.meteor.serialize.coder.JsonSerializeCoder;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** 仅内核运行时即可通过公开配置构建上下文及调用内置协议。 */
 public class StandaloneMetConfigurationTest {
     public interface Echo {
         String echo(String value);
+    }
+
+    @Test
+    public void configuredAddressBookRoutesEachServiceVersion(@TempDir Path directory) throws Exception {
+        // 两个提供者使用同一服务名、不同版本，分别绑定临时端口。
+        MetConfiguration firstConfig = new MetConfiguration();
+        firstConfig.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        MetConfiguration secondConfig = new MetConfiguration();
+        secondConfig.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        try (MetContext first = firstConfig.buildContext(); // 两个独立的服务提供者。
+             MetContext second = secondConfig.buildContext()) {
+            first.publisher().rsfService(Echo.class, value -> "v1:" + value) // 第一版服务。
+                    .group("billing").name("order-query").version("1.0").register();
+            second.publisher().rsfService(Echo.class, value -> "v2:" + value) // 第二版服务。
+                    .group("billing").name("order-query").version("2.0").register();
+            first.start();
+            second.start();
+
+            // 地址本使用服务注册信息，不依赖 Java 接口名。
+            Path book = directory.resolve("address-book.xml");
+            String xml = """
+                    <address-book xmlns="https://www.hasor.net/schema/meteor-address-book"
+                        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                        xsi:schemaLocation="https://www.hasor.net/schema/meteor-address-book https://www.hasor.net/rsf/schema/meteor-address-book.xsd">
+                      <service group="billing" name="order-query" version="1.0">
+                        <address>%s</address>
+                      </service>
+                      <service group="billing" name="order-query" version="2.0">
+                        <address>%s</address>
+                      </service>
+                    </address-book>
+                    """.formatted(first.getListenAddress("rsf"), second.getListenAddress("rsf"));
+            Files.writeString(book, xml);
+            MetConfiguration clientConfig = new MetConfiguration().setAddressBook(book.toUri().toString());
+            clientConfig.connector("tcp").protocol("rsf");
+            try (MetContext client = clientConfig.buildContext()) {
+                MetBindInfo<Echo> firstService = client.publisher().rsfService(Echo.class) // 订阅第一版。
+                        .group("billing").name("order-query").version("1.0").register();
+                MetBindInfo<Echo> secondService = client.publisher().rsfService(Echo.class) // 订阅第二版。
+                        .group("billing").name("order-query").version("2.0").register();
+                client.start();
+
+                // 不手动加载文件、不指定客户端目标；启动配置负责初始化地址池。
+                Echo firstRemote = client.getRsfClient().getRemote(firstService);
+                Echo secondRemote = client.getRsfClient().getRemote(secondService);
+                assertEquals("v1:hello", firstRemote.echo("hello"));
+                assertEquals("v2:hello", secondRemote.echo("hello"));
+                assertNull(client.getListenAddress("rsf"));
+            }
+        }
     }
 
     @Test

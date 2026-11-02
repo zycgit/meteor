@@ -6,15 +6,38 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.address;
+import java.io.ByteArrayInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamSource;
+import javax.xml.validation.SchemaFactory;
+import net.hasor.cobble.ResourcesUtils;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
+import net.hasor.meteor.MetBindInfo;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.dsl.FlowRuleParser;
 import net.hasor.meteor.address.route.unit.UnitFlowControl;
+import org.w3c.dom.Document;
+import org.w3c.dom.DocumentType;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
+import org.xml.sax.helpers.DefaultHandler;
 
 /**
  * 描述：用于接收地址更新同时也用来计算有效和无效地址。
@@ -339,5 +362,122 @@ public class AddressBucket extends Observable {
         return "AddressBucket - " + this.getServiceID() + //
                 " ,unit = " + this.unitName + //
                 " ,allAddress size = " + this.allAddressList.size();
+    }
+
+    /** 服务须已注册；位置为空时不加载。使用内置 XSD/DTD 离线校验，资源定位遵循 Cobble。 */
+    public static void loadAddressBook(MetContext context, String location) throws IOException {
+        if (StringUtils.isBlank(location)) {
+            return;
+        }
+
+        Element root;
+        try (InputStream input = ResourcesUtils.getResourceAsStream(context.getClassLoader(), location)) {
+            if (input == null) {
+                throw new FileNotFoundException("Static address book not found: " + location);
+            }
+            root = readAddressBook(input.readAllBytes());
+        } catch (ParserConfigurationException | SAXException e) {
+            throw new IOException("Invalid static address book XML: " + location + ": " + e.getMessage(), e);
+        }
+
+        for (Node node = root.getFirstChild(); node != null; node = node.getNextSibling()) {
+            if (!(node instanceof Element serviceNode)) {
+                continue;
+            }
+            String group = serviceNode.getAttribute("group").trim();
+            String name = serviceNode.getAttribute("name").trim();
+            String version = serviceNode.getAttribute("version").trim();
+            if (StringUtils.isBlank(group) || StringUtils.isBlank(name) || StringUtils.isBlank(version)) {
+                throw new IOException("Static address book group, name and version must not be blank");
+            }
+            MetBindInfo<?> service = context.getServiceInfo(group, name, version);
+            if (service == null) {
+                String identity = "[" + group + "]" + name + "-" + version;
+                throw new IllegalArgumentException("Unregistered static address book service: " + identity);
+            }
+
+            List<InterAddress> addresses = new ArrayList<>();
+            for (Node child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
+                if (!(child instanceof Element addressNode)) {
+                    continue;
+                }
+                String value = addressNode.getTextContent().trim();
+                if (StringUtils.isBlank(value)) {
+                    throw new IOException("Static address must not be blank for " + service.getBindID());
+                }
+                try {
+                    addresses.add(new InterAddress(value));
+                } catch (URISyntaxException | IllegalStateException e) {
+                    throw new IllegalArgumentException("Invalid static address for " + service.getBindID() + ": " + value, e);
+                }
+            }
+
+            context.getUpdater().appendStaticAddress(service.getBindID(), addresses);
+        }
+    }
+
+    private static Element readAddressBook(byte[] xml) throws ParserConfigurationException, IOException, SAXException {
+        // 首次解析不加载外部 DTD，用于区分两种声明方式；验证成功前不修改地址池。
+        Document document = addressBookBuilder(false).parse(new ByteArrayInputStream(xml));
+        DocumentType declaration = document.getDoctype();
+        if (declaration != null) {
+            if (StringUtils.isNotBlank(declaration.getInternalSubset())) {
+                throw new SAXException("Static address book does not allow an internal DTD subset");
+            }
+            document = addressBookBuilder(true).parse(new ByteArrayInputStream(xml));
+        } else {
+            try (InputStream schema = AddressBucket.class.getResourceAsStream("/META-INF/meteor/schema/meteor-address-book.xsd")) {
+                if (schema == null) {
+                    throw new FileNotFoundException("Bundled meteor-address-book.xsd not found");
+                }
+                SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+                factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+                factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+                factory.newSchema(new StreamSource(schema)).newValidator().validate(new DOMSource(document));
+            }
+        }
+        return document.getDocumentElement();
+    }
+
+    private static DocumentBuilder addressBookBuilder(boolean validateDtd) throws ParserConfigurationException {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        factory.setValidating(validateDtd);
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", validateDtd);
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        builder.setEntityResolver((publicId, systemId) -> {
+            boolean knownPublic = StringUtils.equals(publicId, "-//hasor.net//DTD Meteor Address Book 1.0//EN");
+            boolean knownSystem = publicId == null && StringUtils.equals(systemId, "https://www.hasor.net/rsf/schema/meteor-address-book.dtd");
+            if (!knownPublic && !knownSystem) {
+                throw new SAXException("Unsupported static address book DTD: " + systemId);
+            }
+            try (InputStream dtd = AddressBucket.class.getResourceAsStream("/META-INF/meteor/schema/meteor-address-book.dtd")) {
+                if (dtd == null) {
+                    throw new FileNotFoundException("Bundled meteor-address-book.dtd not found");
+                }
+                InputSource source = new InputSource(new ByteArrayInputStream(dtd.readAllBytes()));
+                source.setPublicId(publicId);
+                source.setSystemId(systemId);
+                return source;
+            }
+        });
+        builder.setErrorHandler(new DefaultHandler() {
+            @Override
+            public void error(SAXParseException failure) throws SAXParseException {
+                throw failure;
+            }
+
+            @Override
+            public void fatalError(SAXParseException failure) throws SAXParseException {
+                throw failure;
+            }
+        });
+        return builder;
     }
 }

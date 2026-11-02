@@ -32,6 +32,7 @@ final class MetSettingsImpl implements MetSettings {
     private final long                  queueKeepAliveTime;
     private final String                unitName;
     private final Path                  dataHome;
+    private final String                addressBook;
     private final long                  invalidWaitTime;
     private final long                  refreshCacheTime;
     private final boolean               localDiskCache;
@@ -60,6 +61,7 @@ final class MetSettingsImpl implements MetSettings {
         this.queueKeepAliveTime = source.getQueueKeepAliveTime();
         this.unitName = source.getUnitName();
         this.dataHome = source.getDataHome();
+        this.addressBook = source.getAddressBook();
         this.invalidWaitTime = source.getInvalidWaitTime();
         this.refreshCacheTime = source.getRefreshCacheTime();
         this.localDiskCache = source.isLocalDiskCache();
@@ -146,6 +148,11 @@ final class MetSettingsImpl implements MetSettings {
     @Override
     public String getUnitName() {
         return this.unitName;
+    }
+
+    @Override
+    public String getAddressBook() {
+        return this.addressBook;
     }
 
     @Override

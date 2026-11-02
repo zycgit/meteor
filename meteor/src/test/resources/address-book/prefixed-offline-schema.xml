@@ -1,0 +1,7 @@
+<met:address-book xmlns:met="https://www.hasor.net/schema/meteor-address-book"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="https://www.hasor.net/schema/meteor-address-book http://127.0.0.1:1/unavailable.xsd">
+    <met:service group="billing" name="order-query" version="1.0">
+        <met:address>rsf://127.0.0.1:28001/example</met:address>
+    </met:service>
+</met:address-book>

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<address-book>
+<address-book xmlns="https://www.hasor.net/schema/meteor-address-book"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="https://www.hasor.net/schema/meteor-address-book https://www.hasor.net/rsf/schema/meteor-address-book.xsd">
     <service group="hasor-demo" name="net.hasor.example.services.OrderService" version="1.0">
         <address>rsf://127.0.0.1:28760/example</address>
     </service>

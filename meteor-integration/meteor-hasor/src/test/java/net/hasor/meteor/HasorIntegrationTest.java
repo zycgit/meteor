@@ -164,10 +164,9 @@ class HasorIntegrationTest {
         properties.setProperty("hasor.loadPackages", "net.hasor.example.services.*");
         properties.setProperty("meteor.connectors.rsf.host", "127.0.0.1");
         properties.setProperty("meteor.connectors.rsf.port", "0");
-        try (AppContext app = Hasor.create().registerShutdownHook(false).loadSettings(properties)
-                .addModules(new MeteorModule(), binder -> {
-                    binder.bindType(OrderServiceImpl.class).asEagerSingleton();
-                }).build()) {
+        try (AppContext app = Hasor.create().registerShutdownHook(false).loadSettings(properties).addModules(new MeteorModule(), binder -> {
+            binder.bindType(OrderServiceImpl.class).asEagerSingleton();
+        }).build()) {
             MetContext context = app.getInstance(MetContext.class);
             assertEquals(MetServiceType.Provider, context.getServiceInfo(OrderService.class).getServiceType());
             assertEquals(MetServiceType.Consumer, context.getServiceInfo(InventoryService.class).getServiceType());
@@ -191,7 +190,9 @@ class HasorIntegrationTest {
             try {
                 Path book = Files.createTempFile("hasor-address-book-", ".xml");
                 String xml = """
-                        <address-book>
+                        <address-book xmlns="https://www.hasor.net/schema/meteor-address-book"
+                            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                            xsi:schemaLocation="https://www.hasor.net/schema/meteor-address-book https://www.hasor.net/rsf/schema/meteor-address-book.xsd">
                           <service group="hasor-demo" name="%s" version="1.0">
                             <address>%s</address>
                           </service>

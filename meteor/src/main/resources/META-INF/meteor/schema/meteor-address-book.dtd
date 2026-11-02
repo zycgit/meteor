@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2015-2026 the original author or authors. Licensed under Apache License 2.0. -->
+<!-- Meteor 静态地址本；group、name、version 共同定位服务。 -->
+<!ELEMENT address-book (service*)>
+<!ELEMENT service (address+)>
+<!ATTLIST service
+          group CDATA #REQUIRED
+          name CDATA #REQUIRED
+          version CDATA #REQUIRED>
+<!ELEMENT address (#PCDATA)>

@@ -1,0 +1,4 @@
+<!DOCTYPE address-book SYSTEM "https://www.hasor.net/rsf/schema/meteor-address-book.dtd">
+<address-book>
+    <service group="billing" name="order-query" version="1.0"/>
+</address-book>

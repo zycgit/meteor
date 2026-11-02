@@ -42,6 +42,7 @@ public final class MetConfiguration {
     private       long                      queueKeepAliveTime    = 300L;
     // 地址缓存与路由
     private       String                    unitName              = "default";
+    private       String                    addressBook           = null;
     private       Path                      dataHome              = Paths.get("meteor-data");
     private       long                      invalidWaitTime       = 120000L;
     private       long                      refreshCacheTime      = 60000L;
@@ -144,6 +145,13 @@ public final class MetConfiguration {
     }
 
     // 地址缓存与路由
+
+    /** 指定初始 XML 静态地址本；在 start() 时、网络监听开启前加载。 */
+    public MetConfiguration setAddressBook(String location) {
+        this.addressBook = location;
+        return this;
+    }
+
     public MetConfiguration setInvalidWaitTime(long value) {
         this.invalidWaitTime = value;
         return this;
@@ -277,6 +285,10 @@ public final class MetConfiguration {
     }
 
     // 地址缓存与路由
+    public String getAddressBook() {
+        return this.addressBook;
+    }
+
     public long getInvalidWaitTime() {
         return this.invalidWaitTime;
     }

@@ -1,0 +1,9 @@
+<!DOCTYPE address-book PUBLIC "-//hasor.net//DTD Meteor Address Book 1.0//EN" "https://www.hasor.net/rsf/schema/meteor-address-book.dtd">
+<address-book>
+    <service group="billing" name="order-query" version="1.0">
+        <address>rsf://127.0.0.1:28001/example</address>
+    </service>
+    <service group="billing" name="order-query" version="1.0" unexpected="true">
+        <address>rsf://127.0.0.1:28002/example</address>
+    </service>
+</address-book>

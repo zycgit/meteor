@@ -6,22 +6,18 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor;
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
-import net.hasor.example.ProviderMain;
 import net.hasor.example.OrderClient;
-import net.hasor.example.services.OrderServiceImpl;
-import net.hasor.example.services.OrderService;
+import net.hasor.example.ProviderMain;
 import net.hasor.example.services.InventoryService;
+import net.hasor.example.services.OrderService;
+import net.hasor.example.services.OrderServiceImpl;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
@@ -227,7 +223,9 @@ class SolonIntegrationTest {
             try {
                 Path book = Files.createTempFile("solon-address-book-", ".xml");
                 String xml = """
-                        <address-book>
+                        <address-book xmlns="https://www.hasor.net/schema/meteor-address-book"
+                            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                            xsi:schemaLocation="https://www.hasor.net/schema/meteor-address-book https://www.hasor.net/rsf/schema/meteor-address-book.xsd">
                           <service group="solon-demo" name="%s" version="1.0">
                             <address>%s</address>
                           </service>

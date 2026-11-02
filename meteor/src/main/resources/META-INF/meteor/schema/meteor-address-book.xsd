@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2015-2026 the original author or authors. Licensed under Apache License 2.0. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns="https://www.hasor.net/schema/meteor-address-book"
+           targetNamespace="https://www.hasor.net/schema/meteor-address-book"
+           elementFormDefault="qualified">
+    <xs:simpleType name="nonEmptyToken">
+        <xs:restriction base="xs:token">
+            <xs:minLength value="1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element name="address-book">
+        <xs:annotation>
+            <xs:documentation>Meteor 初始静态地址本，使用 group、name、version 定位已注册服务。</xs:documentation>
+        </xs:annotation>
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="service" minOccurs="0" maxOccurs="unbounded">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="address" type="nonEmptyToken" maxOccurs="unbounded"/>
+                        </xs:sequence>
+                        <xs:attribute name="group" type="nonEmptyToken" use="required"/>
+                        <xs:attribute name="name" type="nonEmptyToken" use="required"/>
+                        <xs:attribute name="version" type="nonEmptyToken" use="required"/>
+                    </xs:complexType>
+                </xs:element>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>

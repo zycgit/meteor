@@ -1,0 +1,5 @@
+<address-book xmlns="https://www.hasor.net/schema/meteor-address-book">
+    <service group="billing" name="order-query" version="   ">
+        <address>rsf://127.0.0.1:28001/example</address>
+    </service>
+</address-book>

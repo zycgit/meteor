@@ -273,7 +273,9 @@ class SpringIntegrationTest {
             try {
                 Path book = Files.createTempFile("spring-address-book-", ".xml");
                 String xml = """
-                        <address-book>
+                        <address-book xmlns="https://www.hasor.net/schema/meteor-address-book"
+                            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                            xsi:schemaLocation="https://www.hasor.net/schema/meteor-address-book https://www.hasor.net/rsf/schema/meteor-address-book.xsd">
                           <service group="spring-demo" name="%s" version="1.0">
                             <address>%s</address>
                           </service>

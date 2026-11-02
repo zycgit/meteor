@@ -51,7 +51,9 @@ class HasorExampleTest {
             consumerSettings.setProperty("meteor.connectors.rsf.port", "0");
             Path book = Files.createTempFile("example-address-book-", ".xml");
             String xml = """
-                    <address-book>
+                    <address-book xmlns="https://www.hasor.net/schema/meteor-address-book"
+                        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                        xsi:schemaLocation="https://www.hasor.net/schema/meteor-address-book https://www.hasor.net/rsf/schema/meteor-address-book.xsd">
                       <service group="hasor-demo" name="%s" version="1.0">
                         <address>%s</address>
                       </service>
