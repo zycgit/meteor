@@ -1,0 +1,37 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+ext.pomName = 'Meteor Spring'
+description = 'Meteor spring framework integration.'
+
+dependencies {
+    api project(':meteor')
+    api 'org.springframework:spring-context:6.2.18'
+    testImplementation project(':meteor-protocol-jsonrpc')
+    testImplementation project(':meteor-registry-jdbc')
+    testImplementation 'com.h2database:h2:2.4.240'
+    testImplementation "ognl:ognl:${property('lib.ognl')}"
+}
+
+// 示例使用标准 test 源码，供 IDEA main 和独立 Gradle 任务启动，不进入发布制品。
+tasks.register('runProviderExample', JavaExec) {
+    group = 'application'
+    description = 'Publish the Spring order and inventory example services.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.hasor.example.ProviderMain'
+    workingDir = layout.buildDirectory.dir('examples/provider').get().asFile
+    doFirst { workingDir.mkdirs() }
+}
+
+tasks.register('runConsumerExample', JavaExec) {
+    group = 'application'
+    description = 'Query the Spring order and inventory example services.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.hasor.example.ConsumerMain'
+    workingDir = layout.buildDirectory.dir('examples/consumer').get().asFile
+    doFirst { workingDir.mkdirs() }
+}

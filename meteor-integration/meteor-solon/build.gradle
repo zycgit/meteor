@@ -1,0 +1,37 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+ext.pomName = 'Meteor Solon'
+description = 'Meteor solon framework integration.'
+
+dependencies {
+    api project(':meteor')
+    api 'org.noear:solon:4.1.0'
+    testImplementation project(':meteor-protocol-jsonrpc')
+    testImplementation project(':meteor-registry-jdbc')
+    testImplementation 'com.h2database:h2:2.4.240'
+    testImplementation "ognl:ognl:${property('lib.ognl')}"
+}
+
+// 示例属于标准 test 源码，不进入发布制品；可通过 IDEA main 或以下任务分别启动。
+tasks.register('runProviderExample', JavaExec) {
+    group = 'application'
+    description = 'Publish the Solon order and inventory example services.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.hasor.example.ProviderMain'
+    workingDir = layout.buildDirectory.dir('examples/provider').get().asFile
+    doFirst { workingDir.mkdirs() }
+}
+
+tasks.register('runConsumerExample', JavaExec) {
+    group = 'application'
+    description = 'Query the Solon order and inventory example services.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.hasor.example.ConsumerMain'
+    workingDir = layout.buildDirectory.dir('examples/consumer').get().asFile
+    doFirst { workingDir.mkdirs() }
+}

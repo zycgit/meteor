@@ -1,0 +1,38 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+ext.pomName = 'Meteor Hasor'
+description = 'Meteor hasor framework integration.'
+
+dependencies {
+    api project(':meteor')
+    api "net.hasor:hasor-core:${property('lib.hasor')}"
+
+    testImplementation project(':meteor-protocol-jsonrpc')
+    testImplementation project(':meteor-registry-jdbc')
+    testImplementation 'com.h2database:h2:2.4.240'
+    testImplementation "ognl:ognl:${property('lib.ognl')}"
+}
+
+// 示例仍属于标准 test 源码，不进入发布制品；可以从 IDEA main 或以下任务运行。
+tasks.register('runProviderExample', JavaExec) {
+    group = 'application'
+    description = 'Publish the Hasor order and inventory example services.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.hasor.example.ProviderMain'
+    workingDir = layout.buildDirectory.dir('examples/provider').get().asFile
+    doFirst { workingDir.mkdirs() }
+}
+
+tasks.register('runConsumerExample', JavaExec) {
+    group = 'application'
+    description = 'Query the Hasor order and inventory example services.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.hasor.example.ConsumerMain'
+    workingDir = layout.buildDirectory.dir('examples/consumer').get().asFile
+    doFirst { workingDir.mkdirs() }
+}

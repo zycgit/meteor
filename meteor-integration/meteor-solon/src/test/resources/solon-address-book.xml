@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<address-book>
+    <service group="solon-demo" name="net.hasor.example.services.OrderService" version="1.0">
+        <address>rsf://127.0.0.1:28770/example</address>
+    </service>
+    <service group="solon-demo" name="net.hasor.example.services.InventoryService" version="1.0">
+        <address>rsf://127.0.0.1:28770/example</address>
+    </service>
+</address-book>
