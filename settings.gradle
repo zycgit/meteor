@@ -42,29 +42,37 @@ include 'meteor-protocol-dubbo'
 include 'meteor-protocol-thrift'
 include 'meteor-protocol-oncrpc'
 include 'meteor-protocol-triple'
-project(':meteor-protocol-hprose').projectDir = file('meteor-integration/meteor-protocol-hprose')
-project(':meteor-protocol-grpc').projectDir = file('meteor-integration/meteor-protocol-grpc')
-project(':meteor-protocol-soap').projectDir = file('meteor-integration/meteor-protocol-soap')
-project(':meteor-protocol-jsonrpc').projectDir = file('meteor-integration/meteor-protocol-jsonrpc')
-project(':meteor-protocol-xmlrpc').projectDir = file('meteor-integration/meteor-protocol-xmlrpc')
-project(':meteor-protocol-hessian').projectDir = file('meteor-integration/meteor-protocol-hessian')
-project(':meteor-protocol-connect').projectDir = file('meteor-integration/meteor-protocol-connect')
-project(':meteor-protocol-dubbo').projectDir = file('meteor-integration/meteor-protocol-dubbo')
-project(':meteor-protocol-thrift').projectDir = file('meteor-integration/meteor-protocol-thrift')
-project(':meteor-protocol-oncrpc').projectDir = file('meteor-integration/meteor-protocol-oncrpc')
-project(':meteor-protocol-triple').projectDir = file('meteor-integration/meteor-protocol-triple')
+project(':meteor-protocol-hprose').projectDir = file('meteor-integration/protocol-hprose')
+project(':meteor-protocol-grpc').projectDir = file('meteor-integration/protocol-grpc')
+project(':meteor-protocol-soap').projectDir = file('meteor-integration/protocol-soap')
+project(':meteor-protocol-jsonrpc').projectDir = file('meteor-integration/protocol-jsonrpc')
+project(':meteor-protocol-xmlrpc').projectDir = file('meteor-integration/protocol-xmlrpc')
+project(':meteor-protocol-hessian').projectDir = file('meteor-integration/protocol-hessian')
+project(':meteor-protocol-connect').projectDir = file('meteor-integration/protocol-connect')
+project(':meteor-protocol-dubbo').projectDir = file('meteor-integration/protocol-dubbo')
+project(':meteor-protocol-thrift').projectDir = file('meteor-integration/protocol-thrift')
+project(':meteor-protocol-oncrpc').projectDir = file('meteor-integration/protocol-oncrpc')
+project(':meteor-protocol-triple').projectDir = file('meteor-integration/protocol-triple')
 
 //
 include 'meteor-registry-jdbc'
 include 'meteor-registry-nacos'
 include 'meteor-registry-zookeeper'
 include 'meteor-registry-dubbo'
-project(':meteor-registry-jdbc').projectDir = file('meteor-integration/meteor-registry-jdbc')
-project(':meteor-registry-nacos').projectDir = file('meteor-integration/meteor-registry-nacos')
-project(':meteor-registry-zookeeper').projectDir = file('meteor-integration/meteor-registry-zookeeper')
-project(':meteor-registry-dubbo').projectDir = file('meteor-integration/meteor-registry-dubbo')
+project(':meteor-registry-jdbc').projectDir = file('meteor-integration/registry-jdbc')
+project(':meteor-registry-nacos').projectDir = file('meteor-integration/registry-nacos')
+project(':meteor-registry-zookeeper').projectDir = file('meteor-integration/registry-zookeeper')
+project(':meteor-registry-dubbo').projectDir = file('meteor-integration/registry-dubbo')
 
-// Dedicated test commands and IDE imports include the matrix; build.sh selects product projects only.
+//
+include 'meteor-hasor'
+include 'meteor-spring'
+include 'meteor-solon'
+project(':meteor-hasor').projectDir = file('meteor-integration/meteor-hasor')
+project(':meteor-spring').projectDir = file('meteor-integration/meteor-spring')
+project(':meteor-solon').projectDir = file('meteor-integration/meteor-solon')
+
+//
 if (providers.gradleProperty('includeTestProjects').getOrElse('true').toBoolean()) {
     include 'meteor-test'
     include 'meteor-test-app'
