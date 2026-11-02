@@ -1,0 +1,6 @@
+meteor:
+  registry:
+    online: false
+    management-protocols:
+      - rsf
+      - jsonrpc

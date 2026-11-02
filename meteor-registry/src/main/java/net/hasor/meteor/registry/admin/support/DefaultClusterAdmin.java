@@ -41,6 +41,8 @@ final class DefaultClusterAdmin implements MetClusterAdmin {
 
     @Override
     public RegistryStatus status() {
+        // 认证失败直接拒绝；只有认证后的存储故障转换为不可达状态。
+        this.governance.requireAccess();
         RegistryStatus result = new RegistryStatus();
         result.setCheckedAt(System.currentTimeMillis());
         try {
@@ -80,6 +82,7 @@ final class DefaultClusterAdmin implements MetClusterAdmin {
 
     @Override
     public MetPage<String> applications(MetDirectoryQuery query) {
+        this.governance.requireAccess();
         return call(() -> {
             DirectoryQuery selection = DirectoryMapping.query(query);
             RecordPage<EntApplicationCatalogData> page = this.governance.storage().applications(selection);
@@ -89,6 +92,7 @@ final class DefaultClusterAdmin implements MetClusterAdmin {
 
     @Override
     public MetPage<MetInstanceInfo> instances(String applicationName, MetDirectoryQuery query) {
+        this.governance.requireAccess();
         String application = StringUtils.isBlank(applicationName) ? null : applicationName;
         return call(() -> {
             DirectoryQuery selection = DirectoryMapping.query(query);

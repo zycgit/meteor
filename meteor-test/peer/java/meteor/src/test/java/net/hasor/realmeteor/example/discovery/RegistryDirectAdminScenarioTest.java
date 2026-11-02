@@ -37,6 +37,7 @@ public class RegistryDirectAdminScenarioTest {
     public void updateTargetOrderMetadataWithoutRegistryStorage() throws Exception {
         // 离线扩展只安装目标管理能力，不连接注册中心存储。
         RegistryConfiguration registry = new RegistryConfiguration().setOnline(false);
+        registry.setManagementToken("scenario-admin");
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
         incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");
@@ -66,6 +67,7 @@ public class RegistryDirectAdminScenarioTest {
     public void unblockTargetInstanceRestoresNetworkOrderCalls() throws Exception {
         // 提供者和消费者都安装离线扩展，管理通道与业务通道共用 RSF 监听。
         RegistryConfiguration registry = new RegistryConfiguration().setOnline(false);
+        registry.setManagementToken("scenario-admin");
         MetConfiguration incoming = RegistryDiscoveryExample.provider(registry, "127.0.0.1", 0, 0);
         incoming.setDataHome(Files.createDirectory(this.data.resolve("provider")));
         MetConfiguration outgoing = RegistryDiscoveryExample.consumer(registry, "rsf");

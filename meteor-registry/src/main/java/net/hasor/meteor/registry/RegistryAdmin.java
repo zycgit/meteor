@@ -10,7 +10,7 @@ import net.hasor.meteor.registry.admin.MetClusterAdmin;
 import net.hasor.meteor.registry.admin.MetInstanceAdmin;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
 
-/** 注册中心管理入口；管理凭据统一从 RegistryConfiguration 配置的提供者获取。 */
+/** 注册中心管理入口；获取接口及后续管理调用均读取 RegistryConfiguration 配置的当前凭据。 */
 public interface RegistryAdmin extends AutoCloseable {
 
     /** 面向集群的治理服务 */

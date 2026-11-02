@@ -6,6 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.bootstrap;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
@@ -28,6 +30,82 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class RegistryAdminConfigurationTest {
+    @Test
+    public void defaultsManagementPublicationToRsf() throws Exception {
+        // 业务端点包含 HTTP，默认管理服务仍只选择 RSF。
+        RegistryConfiguration registry = new RegistryConfiguration().setOnline(false);
+        MetConfiguration configuration = new MetConfiguration().addExtension(registry);
+        configuration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        configuration.connector("http").bind("127.0.0.1", 0).protocol("registry-http");
+        try (MetContext context = configuration.buildContext()) {
+            context.start();
+            MetBindInfo<ManagementRPC> service = context.getServiceInfo(ManagementRPC.class);
+            assertEquals(Set.of("rsf"), service.getBindProtocols());
+
+            // 实例保留全部监听地址，管理地址只返回实际开放的协议。
+            ManagementRPC local = context.getServiceProvider(service).get();
+            var instance = local.instance(null);
+            assertEquals(2, instance.getListenAddresses().size());
+            assertEquals(Set.of("tcp-0#rsf"), instance.getManagementAddress().keySet());
+        }
+    }
+
+    @Test
+    public void offlineManagementUsesConfiguredProtocolsCapturedAtCreation() throws Exception {
+        // 离线扩展明确选择 HTTP；配置对象后续修改不能扩大已建上下文的发布范围。
+        RegistryConfiguration registry = new RegistryConfiguration().setOnline(false);
+        registry.setManagementProtocols("registry-http");
+        MetConfiguration configuration = new MetConfiguration().addExtension(registry);
+        configuration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
+        configuration.connector("http").bind("127.0.0.1", 0).protocol("registry-http");
+        try (MetContext context = configuration.buildContext()) {
+            registry.setManagementProtocols("rsf");
+            context.start();
+            MetBindInfo<ManagementRPC> service = context.getServiceInfo(ManagementRPC.class);
+            assertEquals(Set.of("registry-http"), service.getBindProtocols());
+            ManagementRPC local = context.getServiceProvider(service).get();
+            assertEquals(Set.of("http-1#registry-http"), local.instance(null).getManagementAddress().keySet());
+        }
+    }
+
+    @Test
+    public void onlineManagementUsesAllConfiguredProtocols() throws Exception {
+        // 在线存储客户端将同一份协议配置传给管理服务。
+        MemoryRegistryConfiguration registry = new MemoryRegistryConfiguration();
+        registry.setManagementProtocols("rsf", "registry-http");
+        MetConfiguration configuration = new MetConfiguration().addExtension(registry);
+        configuration.connector("tcp").protocol("rsf");
+        configuration.connector("http").protocol("registry-http");
+        try (MetContext context = configuration.buildContext()) {
+            assertEquals(Set.of("rsf", "registry-http"), context.getServiceInfo(ManagementRPC.class).getBindProtocols());
+        }
+    }
+
+    @Test
+    public void rejectsEmptyManagementProtocols() {
+        RegistryConfiguration registry = new RegistryConfiguration();
+        assertThrows(IllegalArgumentException.class, () -> registry.setManagementProtocols());
+    }
+
+    @Test
+    public void rejectsNullManagementProtocols() {
+        RegistryConfiguration registry = new RegistryConfiguration();
+        assertThrows(IllegalArgumentException.class, () -> registry.setManagementProtocols((String[]) null));
+    }
+
+    @Test
+    public void rejectsBlankManagementProtocolName() {
+        RegistryConfiguration registry = new RegistryConfiguration();
+        assertThrows(IllegalArgumentException.class, () -> registry.setManagementProtocols("rsf", " "));
+    }
+
+    @Test
+    public void normalizesAndDeduplicatesManagementProtocols() {
+        RegistryConfiguration registry = new RegistryConfiguration();
+        registry.setManagementProtocols(" rsf ", "registry-http", "rsf");
+        assertEquals(List.of("rsf", "registry-http"), registry.getManagementProtocols());
+    }
+
     @Test
     public void validatesManagementConfigurationBeforeOpeningStorage() throws Exception {
         // 准备带存储观察器的注册中心配置。
@@ -133,7 +211,7 @@ public class RegistryAdminConfigurationTest {
             MetPage<MetServiceInfo> services = admin.getInstanceAdmin(instanceId).getServiceList(null);
             assertEquals(1, services.getItems().size());
             assertEquals(service.getBindID(), services.getItems().get(0).getServiceId());
-            assertTrue(context.getServiceInfo(ManagementRPC.class).isShadow());
+            assertFalse(context.getServiceInfo(ManagementRPC.class).isShadow());
 
             // 主动推送不影响管理 RPC 的注册。
             client.pushSync().get(5, TimeUnit.SECONDS);

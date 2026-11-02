@@ -115,7 +115,7 @@ public class ServiceContextPublicationTest {
         // 通过 RSF 管理通道读取 HTTP 服务的运行快照。
         MetConfiguration application = this.providerConfiguration();
         MetConfiguration callerConfiguration = new MetConfiguration() //
-                .addExtension(new RegistryConfiguration().setOnline(false));
+                .addExtension(new RegistryConfiguration().setOnline(false).setManagementToken("secret"));
         callerConfiguration.connector("tcp").protocol("rsf");
         try (MetContext context = application.buildContext(); //
              MetContext caller = callerConfiguration.buildContext()) {

@@ -30,7 +30,7 @@ public class RegistryOnlineTest {
         // 准备只提供直连管理的目标应用。
         MetConfiguration server = new MetConfiguration();
         server.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
-        server.addExtension(new RegistryConfiguration().setOnline(false));
+        server.addExtension(new RegistryConfiguration().setOnline(false).setManagementToken("secret"));
 
         // 准备连接注册中心的调用方，观察其独立存储会话。
         StorageProbe probe = new StorageProbe();
@@ -58,7 +58,7 @@ public class RegistryOnlineTest {
             // 本地也发布管理 RPC；直连入口仍然访问指定远端，并且不打开管理存储会话。
             MetInstanceAdmin instance = targets.getInstanceAdminByAddress(target.getListenAddress("rsf"));
             assertEquals(target.getInstanceID(), instance.instance().getInstanceId());
-            assertTrue(caller.getServiceInfo(ManagementRPC.class).isShadow());
+            assertFalse(caller.getServiceInfo(ManagementRPC.class).isShadow());
             assertTrue(caller.getServiceInfo(ManagementRPC.class).isDistributedCall());
             assertEquals(1, probe.openedSessions());
 

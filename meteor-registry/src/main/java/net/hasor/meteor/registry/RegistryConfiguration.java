@@ -6,6 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetContext;
@@ -18,10 +21,11 @@ import net.hasor.meteor.registry.shared.storage.StorageAccess;
 
 /** 统一配置与创建入口；在线配置决定是否连接注册中心，具体子类提供存储能力。 */
 public class RegistryConfiguration implements MetExtensionFactory {
-    private boolean               online        = true;
-    private RegistryTokenProvider tokenProvider = null;
-    private String                publishHost   = null;
-    private long                  refreshMillis = 1000;
+    private boolean               online              = true;
+    private RegistryTokenProvider tokenProvider       = null;
+    private String                publishHost         = null;
+    private long                  refreshMillis       = 1000;
+    private List<String>          managementProtocols = Collections.singletonList("rsf");
 
     /** 获取存储提供者名称；基础配置没有存储提供者。 */
     public String getProvider() {
@@ -50,8 +54,8 @@ public class RegistryConfiguration implements MetExtensionFactory {
 
         // 离线模式直接复用上下文的 RPC 能力。
         if (!this.online) {
-            new ManagementRPCImpl(context, this.publishHost);
-            return new RegistryExtension(context, null, null);
+            new ManagementRPCImpl(context, this.publishHost, this.tokenProvider, this.managementProtocols);
+            return new RegistryExtension(context, null, null, this.tokenProvider);
         }
 
         // 在线模式才创建存储客户端，实际连接留到启动阶段。
@@ -61,8 +65,9 @@ public class RegistryConfiguration implements MetExtensionFactory {
 
         Callable<StorageAccess> opener = this.createStorageOpener();
         RegistryImpl admin = new RegistryImpl(opener, this.describeStorage(), this.tokenProvider);
-        DefaultRegistryClient client = new DefaultRegistryClient(context, opener, this.refreshMillis, this.publishHost);
-        return new RegistryExtension(context, admin, client);
+        DefaultRegistryClient client = new DefaultRegistryClient(context, opener, this.refreshMillis, //
+                this.publishHost, this.tokenProvider, this.managementProtocols);
+        return new RegistryExtension(context, admin, client, this.tokenProvider);
     }
 
     /** 打开独立管理会话，调用方负责关闭；管理凭据不传给存储。 */
@@ -119,6 +124,29 @@ public class RegistryConfiguration implements MetExtensionFactory {
     /** 统一设置管理 token 获取方式；管理入口自动读取，无需调用方传递，不传给存储提供者。 */
     public RegistryConfiguration setTokenProvider(RegistryTokenProvider provider) {
         this.tokenProvider = provider;
+        return this;
+    }
+
+    /** 管理 RPC 允许发布的协议 SPI 名称，默认仅 rsf。 */
+    public List<String> getManagementProtocols() {
+        return this.managementProtocols;
+    }
+
+    /** 指定管理 RPC 发布协议；必须至少有一个，仍需在 MetConfiguration 中安装对应协议。 */
+    public RegistryConfiguration setManagementProtocols(String... protocols) {
+        if (protocols == null || protocols.length == 0) {
+            throw new IllegalArgumentException("managementProtocols must not be empty");
+        }
+        List<String> names = new ArrayList<>();
+        for (String protocol : protocols) {
+            if (StringUtils.isBlank(protocol)) {
+                throw new IllegalArgumentException("managementProtocols must not contain blank names");
+            }
+            if (!names.contains(protocol.trim())) {
+                names.add(protocol.trim());
+            }
+        }
+        this.managementProtocols = List.copyOf(names);
         return this;
     }
 

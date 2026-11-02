@@ -95,6 +95,7 @@ final class DefaultServiceAdmin implements MetServiceAdmin {
     }
 
     private MetPage<MetServiceMember> members(MetServiceType role, MetEndpointFilter filter, MetDirectoryQuery query) {
+        this.governance.requireAccess();
         return call(() -> {
             DirectoryQuery selection = DirectoryMapping.query(query);
             MetPage<MetServiceMember> result = new MetPage<>();

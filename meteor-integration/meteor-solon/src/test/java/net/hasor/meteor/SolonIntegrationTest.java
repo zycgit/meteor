@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import javax.sql.DataSource;
 import net.hasor.example.OrderClient;
 import net.hasor.example.ProviderMain;
 import net.hasor.example.services.InventoryService;
@@ -20,6 +21,7 @@ import net.hasor.example.services.OrderService;
 import net.hasor.example.services.OrderServiceImpl;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.registry.TargetAdmin;
 import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
 import org.h2.jdbcx.JdbcDataSource;
 import org.h2.tools.RunScript;
@@ -81,6 +83,39 @@ class SolonIntegrationTest {
             consumer.start();
 
             assertEquals("ORDER-1001", consumer.getBean(OrderService.class).getOrder("ORDER-1001").getOrderId());
+        } finally {
+            consumer.stop();
+            provider.stop();
+        }
+    }
+
+    @Test
+    void discoversProviderThroughAutomaticJdbcRegistryConfiguration() throws Throwable {
+        // 只注册命名 DataSource；生命周期阶段从原生配置自动装配注册中心。
+        JdbcDataSource database = new JdbcDataSource();
+        database.setURL("jdbc:h2:mem:solon_auto_registry;DB_CLOSE_DELAY=-1");
+        try (Connection connection = database.getConnection(); //
+             InputStream stream = getClass().getResourceAsStream("/META-INF/meteor/schema/h2.sql"); //
+             Reader script = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+            RunScript.execute(connection, script);
+        }
+        AppContext provider = application("provider", null);
+        AppContext consumer = application("consumer", null);
+        try {
+            provider.cfg().loadAdd("classpath:solon-registry.properties");
+            consumer.cfg().loadAdd("classpath:solon-registry.properties");
+            provider.beanMake(OrderServiceImpl.class);
+            provider.putWrap("registryDb", new BeanWrap(provider, DataSource.class, database));
+            consumer.putWrap("registryDb", new BeanWrap(consumer, DataSource.class, database));
+            provider.start();
+            consumer.start();
+
+            // 数据源名称解析、注册发现和管理凭据均经过正式容器入口。
+            assertEquals("ORDER-1001", consumer.getBean(OrderService.class).getOrder("ORDER-1001").getOrderId());
+            MetContext target = provider.getBean(MetContext.class);
+            TargetAdmin admin = consumer.getBean(MetContext.class).getExtension(TargetAdmin.class);
+            var instance = admin.getInstanceAdminByAddress(target.getListenAddress("rsf"));
+            assertEquals(target.getInstanceID(), instance.instance().getInstanceId());
         } finally {
             consumer.stop();
             provider.stop();

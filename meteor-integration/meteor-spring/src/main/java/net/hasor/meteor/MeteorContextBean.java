@@ -8,6 +8,8 @@
 package net.hasor.meteor;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collection;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
@@ -48,14 +50,25 @@ final class MeteorContextBean implements FactoryBean<MetContext>, BeanFactoryAwa
             throw new IllegalStateException("Only one MetConfiguration Bean is supported");
         }
 
+        Collection<MetExtensionFactory> extensions = this.factory.getBeansOfType(MetExtensionFactory.class).values();
         MetConfiguration configuration;
         if (configurations.length == 0) {
             configuration = SpringSettings.configuration(this.environment, this.factory.getBeanClassLoader());
+            MetExtensionFactory registry = SpringSettings.registry(this.environment, this.factory.getBeanClassLoader(), //
+                    extensions, (name, type) -> {
+                        if (StringUtils.isNotBlank(name)) {
+                            return this.factory.getBean(name, type);
+                        }
+                        return this.factory.getBean(type);
+                    });
+            if (registry != null) {
+                configuration.addExtension(registry);
+            }
         } else {
             configuration = this.factory.getBean(configurations[0], MetConfiguration.class);
         }
 
-        for (MetExtensionFactory extension : this.factory.getBeansOfType(MetExtensionFactory.class).values()) {
+        for (MetExtensionFactory extension : extensions) {
             configuration.addExtension(extension);
         }
 

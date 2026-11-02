@@ -6,8 +6,6 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example;
-import net.hasor.meteor.test.nxn.NxnRpc;
-import org.junit.jupiter.api.io.TempDir;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,12 +21,15 @@ import net.hasor.meteor.registry.admin.MetInstanceInfo;
 import net.hasor.meteor.registry.admin.MetServiceInfo;
 import net.hasor.meteor.registry.nacos.NacosRegistryConfiguration;
 import net.hasor.meteor.registry.zookeeper.ZookeeperRegistryConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 import net.hasor.realmeteor.environment.storage.NacosTestServer;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** 分别运行 Nacos、ZooKeeper 管理入口，查询独立提供者已经上报的目录。 */
 @NxnRpc(name = "rsf", version = "1")
@@ -127,8 +128,7 @@ public class RegistryAdminScenarioTest {
         throw new AssertionError("Order service did not appear in the registry directory");
     }
 
-    private Process launch(String entrypoint, Path log, String registryAddress, String registryScope)
-            throws Exception {
+    private Process launch(String entrypoint, Path log, String registryAddress, String registryScope) throws Exception {
         // 应用和管理入口由测试工程持有，运行依赖不包含整个测试宿主 SDK 图。
         List<String> command = new ArrayList<>();
         command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());

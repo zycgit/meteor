@@ -51,23 +51,26 @@ public class RegistryAdminTokenProviderTest {
                 admin.getServiceAdmin(serviceId, instanceId);
             });
             for (Runnable entrypoint : entrypoints) {
+                int before = reads.get();
                 entrypoint.run();
+                assertTrue(reads.get() > before);
             }
-            assertEquals(4, reads.get());
 
             // 轮换只更新提供者，调用管理 API 无需重新传入 token。
             expected.set("rotated");
             for (Runnable entrypoint : entrypoints) {
+                int before = reads.get();
                 entrypoint.run();
+                assertTrue(reads.get() > before);
             }
-            assertEquals(8, reads.get());
 
             // 凭据失效后，所有管理入口都拒绝访问。
             expected.set(null);
             for (Runnable entrypoint : entrypoints) {
+                int before = reads.get();
                 assertThrows(SecurityException.class, entrypoint::run);
+                assertTrue(reads.get() > before);
             }
-            assertEquals(12, reads.get());
         }
     }
 

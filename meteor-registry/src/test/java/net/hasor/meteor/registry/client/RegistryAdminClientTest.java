@@ -252,8 +252,8 @@ public class RegistryAdminClientTest {
             assertEquals("reply:hello", caller.getRsfClient().wrapper(Echo.class).echo("hello"));
             assertEquals(2, server.getServiceIDs().size());
             assertEquals(2, caller.getServiceIDs().size());
-            assertTrue(server.getServiceInfo(ManagementRPC.class).isShadow());
-            assertTrue(caller.getServiceInfo(ManagementRPC.class).isShadow());
+            assertFalse(server.getServiceInfo(ManagementRPC.class).isShadow());
+            assertFalse(caller.getServiceInfo(ManagementRPC.class).isShadow());
             assertNull(caller.getListenAddress("rsf"));
 
             // 等待两端上报，使用独立管理上下文检查监听与公告地址。
@@ -341,7 +341,7 @@ public class RegistryAdminClientTest {
             while (!(rejected instanceof MetException) && rejected.getCause() != null) {
                 rejected = rejected.getCause();
             }
-            assertTrue(rejected instanceof MetException);
+            assertInstanceOf(MetException.class, rejected);
             assertEquals(ProtocolStatus.Forbidden, ((MetException) rejected).getStatus());
             assertEquals("local", server.getRsfClient().wrapper(Echo.class).echo("local"));
 
@@ -379,7 +379,7 @@ public class RegistryAdminClientTest {
             while (!(outgoing instanceof MetException) && outgoing.getCause() != null) {
                 outgoing = outgoing.getCause();
             }
-            assertTrue(outgoing instanceof MetException);
+            assertInstanceOf(MetException.class, outgoing);
             assertEquals(ProtocolStatus.Forbidden, ((MetException) outgoing).getStatus());
             callerAdmin.unblock();
             RegistryTestUtils.await(() -> !callerAdmin.instance().isBlock());
@@ -392,7 +392,7 @@ public class RegistryAdminClientTest {
             storage.saveRule(null, id, RuleKind.SERVICE_ROUTE, invalid);
             Future<Void> invalidPull = provider.pullSync();
             ExecutionException failure = assertThrows(ExecutionException.class, () -> invalidPull.get(5, TimeUnit.SECONDS));
-            assertTrue(failure.getCause() instanceof IllegalArgumentException);
+            assertInstanceOf(IllegalArgumentException.class, failure.getCause());
             assertEquals("local", server.getSettings().getRequestOptions().getOption("baseline"));
 
             storage.deleteRule(null, id, RuleKind.SERVICE_ROUTE, storage.getRule(null, id, RuleKind.SERVICE_ROUTE).getRevision());
@@ -403,7 +403,7 @@ public class RegistryAdminClientTest {
             ExecutionException parseFailure = assertThrows(ExecutionException.class, () -> {
                 malformedPull.get(5, TimeUnit.SECONDS);
             });
-            assertTrue(parseFailure.getCause() instanceof IOException);
+            assertInstanceOf(IOException.class, parseFailure.getCause());
             assertEquals("Malformed stored record", parseFailure.getCause().getMessage());
             probe.setReadFailure(null);
             assertEquals("local", server.getSettings().getRequestOptions().getOption("baseline"));
@@ -500,7 +500,7 @@ public class RegistryAdminClientTest {
             assertEquals(probe.openedSessions(), probe.closedSessions());
             Future<Void> pull = client.pullSync();
             ExecutionException rejected = assertThrows(ExecutionException.class, () -> pull.get(5, TimeUnit.SECONDS));
-            assertTrue(rejected.getCause() instanceof IllegalStateException);
+            assertInstanceOf(IllegalStateException.class, rejected.getCause());
         } finally {
             probe.setUnavailable(false);
         }
@@ -578,14 +578,14 @@ public class RegistryAdminClientTest {
             RegistryClient client = context.getExtension(RegistryClient.class);
             context.publisher().rsfService(Echo.class, value -> value).register();
             IllegalStateException failure = assertThrows(IllegalStateException.class, context::start);
-            assertTrue(failure.getCause() instanceof IllegalArgumentException);
+            assertInstanceOf(IllegalArgumentException.class, failure.getCause());
             assertFalse(context.isOnline());
             assertNull(context.getListenAddress("rsf"));
             assertFalse(RegistryTestUtils.hasRegistrations(storageConfiguration));
             assertEquals(probe.openedSessions(), probe.closedSessions());
             Future<Void> push = client.pushSync();
             ExecutionException rejected = assertThrows(ExecutionException.class, () -> push.get(5, TimeUnit.SECONDS));
-            assertTrue(rejected.getCause() instanceof IllegalStateException);
+            assertInstanceOf(IllegalStateException.class, rejected.getCause());
         }
 
         // 场景二：补充发布主机后，能正常注册可用地址。

@@ -10,6 +10,6 @@ package net.hasor.meteor.registry;
 /** 统一提供当前管理 token，生成、读取和轮换算法由应用实现。 */
 @FunctionalInterface
 public interface RegistryTokenProvider {
-    /** 获取当前 token；允许并发调用，返回 null 或空白时拒绝管理访问，读取异常直接上抛。 */
+    /** 每次管理调用读取当前 token；允许并发调用，返回 null 或空白时拒绝访问，读取异常直接上抛。 */
     String getToken();
 }

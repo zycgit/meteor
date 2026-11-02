@@ -6,29 +6,23 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.discovery;
-import net.hasor.meteor.test.nxn.NxnRpc;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.io.TempDir;
 import net.hasor.cobble.ObjectUtils;
-import net.hasor.example.direct.DirectRpcExample;
-import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderDemoServiceImpl;
+import net.hasor.example.direct.DirectRpcExample;
+import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryAdmin;
-import net.hasor.meteor.registry.admin.MetClusterAdmin;
-import net.hasor.meteor.registry.admin.MetDirectoryQuery;
-import net.hasor.meteor.registry.admin.MetInstanceInfo;
-import net.hasor.meteor.registry.admin.MetPage;
-import net.hasor.meteor.registry.admin.MetRuleType;
-import net.hasor.meteor.registry.admin.MetServiceAdmin;
-import net.hasor.meteor.registry.admin.MetServiceInfo;
+import net.hasor.meteor.registry.admin.*;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** 注册目录与运行期治理复用订单发布入口，修改均通过管理 API 下发。 */

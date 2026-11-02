@@ -9,9 +9,11 @@ package net.hasor.meteor.registry.admin.support;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.registry.RegistryTokenProvider;
 import net.hasor.meteor.registry.admin.*;
 import net.hasor.meteor.registry.admin.description.MetServiceDescription;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
@@ -21,11 +23,13 @@ import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
 /** 通过管理 RPC 操作目标实例中的一个服务，不查询注册中心成员。 */
 final class TargetServiceAdmin implements MetServiceAdmin {
-    private final ManagementRPC rpc;
-    private final String        serviceId;
+    private final Supplier<ManagementRPC> rpc;
+    private final RegistryTokenProvider   tokens;
+    private final String                  serviceId;
 
-    public TargetServiceAdmin(ManagementRPC rpc, String serviceId) {
+    public TargetServiceAdmin(Supplier<ManagementRPC> rpc, RegistryTokenProvider tokens, String serviceId) {
         this.rpc = rpc;
+        this.tokens = tokens;
         this.serviceId = serviceId;
     }
 
@@ -33,7 +37,7 @@ final class TargetServiceAdmin implements MetServiceAdmin {
 
     @Override
     public String[] units() {
-        String unit = this.rpc.service(this.serviceId).getInstance().getUnitName();
+        String unit = this.rpc.get().service(this.tokens.getToken(), this.serviceId).getInstance().getUnitName();
         if (unit == null) {
             return new String[0];
         } else {
@@ -55,12 +59,13 @@ final class TargetServiceAdmin implements MetServiceAdmin {
 
     @Override
     public MetServiceInfo info() {
-        return RegistryJson.copy(this.rpc.service(this.serviceId).getService(), MetServiceInfo.class);
+        ServiceMemberData service = this.rpc.get().service(this.tokens.getToken(), this.serviceId);
+        return RegistryJson.copy(service.getService(), MetServiceInfo.class);
     }
 
     @Override
     public Map<String, MetServiceDescription> descriptions() {
-        ServiceMemberData service = this.rpc.service(this.serviceId);
+        ServiceMemberData service = this.rpc.get().service(this.tokens.getToken(), this.serviceId);
         ObjectNode description = service.getDescription();
         if (description == null) {
             return Collections.emptyMap();
@@ -69,7 +74,8 @@ final class TargetServiceAdmin implements MetServiceAdmin {
     }
 
     private List<MetServiceMember> members(MetServiceType role, MetEndpointFilter filter) {
-        MetServiceMember member = RegistryJson.copy(this.rpc.service(this.serviceId), MetServiceMember.class);
+        ServiceMemberData service = this.rpc.get().service(this.tokens.getToken(), this.serviceId);
+        MetServiceMember member = RegistryJson.copy(service, MetServiceMember.class);
         member.getInstance().setOnline(true);
         boolean matchedRole = role == member.getService().getRole();
         if (!matchedRole || !MemberMatcherUtils.matches(member, filter)) {
@@ -83,7 +89,7 @@ final class TargetServiceAdmin implements MetServiceAdmin {
 
     @Override
     public String fetchRule(MetRuleType type) {
-        return this.rpc.fetchServiceRule(this.serviceId, ruleType(type));
+        return this.rpc.get().fetchServiceRule(this.tokens.getToken(), this.serviceId, ruleType(type));
     }
 
     @Override
@@ -93,13 +99,13 @@ final class TargetServiceAdmin implements MetServiceAdmin {
 
     @Override
     public MetValidationResult validateRule(MetRuleType type, String rule) {
-        var validation = this.rpc.validateServiceRule(this.serviceId, ruleType(type), rule);
+        var validation = this.rpc.get().validateServiceRule(this.tokens.getToken(), this.serviceId, ruleType(type), rule);
         return RegistryJson.copy(validation, MetValidationResult.class);
     }
 
     @Override
     public void updateRule(MetRuleType type, String rule) {
-        this.rpc.updateServiceRule(this.serviceId, ruleType(type), rule);
+        this.rpc.get().updateServiceRule(this.tokens.getToken(), this.serviceId, ruleType(type), rule);
     }
 
     @Override
@@ -121,22 +127,22 @@ final class TargetServiceAdmin implements MetServiceAdmin {
 
     @Override
     public boolean isEnable() {
-        return this.rpc.isServiceEnabled(this.serviceId);
+        return this.rpc.get().isServiceEnabled(this.tokens.getToken(), this.serviceId);
     }
 
     @Override
     public void enable() {
-        this.rpc.setServiceEnabled(this.serviceId, true);
+        this.rpc.get().setServiceEnabled(this.tokens.getToken(), this.serviceId, true);
     }
 
     @Override
     public void disable() {
-        this.rpc.setServiceEnabled(this.serviceId, false);
+        this.rpc.get().setServiceEnabled(this.tokens.getToken(), this.serviceId, false);
     }
 
     @Override
     public Map<String, Object> fetchMeta() {
-        return this.rpc.fetchServiceMeta(this.serviceId);
+        return this.rpc.get().fetchServiceMeta(this.tokens.getToken(), this.serviceId);
     }
 
     @Override
@@ -146,12 +152,12 @@ final class TargetServiceAdmin implements MetServiceAdmin {
 
     @Override
     public void putMeta(Map<String, Object> values) {
-        this.rpc.putServiceMeta(this.serviceId, values);
+        this.rpc.get().putServiceMeta(this.tokens.getToken(), this.serviceId, values);
     }
 
     @Override
     public void removeMeta(String... keys) {
-        this.rpc.removeServiceMeta(this.serviceId, keys);
+        this.rpc.get().removeServiceMeta(this.tokens.getToken(), this.serviceId, keys);
     }
 
     private static RuleTypeData ruleType(MetRuleType type) {

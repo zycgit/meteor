@@ -18,8 +18,8 @@ final class RegistryExtension implements MetExtension {
     private final RegistryAdmin         admin;
     private final DefaultRegistryClient client;
 
-    RegistryExtension(MetContext context, RegistryAdmin admin, DefaultRegistryClient client) {
-        this.targetAdmin = new TargetAdminImpl(context);
+    RegistryExtension(MetContext context, RegistryAdmin admin, DefaultRegistryClient client, RegistryTokenProvider tokenProvider) {
+        this.targetAdmin = new TargetAdminImpl(context, tokenProvider);
         this.admin = admin;
         this.client = client;
     }

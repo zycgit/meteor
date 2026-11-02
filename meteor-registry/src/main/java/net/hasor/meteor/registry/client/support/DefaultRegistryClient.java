@@ -20,6 +20,7 @@ import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetContextEvent;
+import net.hasor.meteor.registry.RegistryTokenProvider;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.shared.rpc.ConfigurationData;
 import net.hasor.meteor.registry.shared.storage.StorageAccess;
@@ -41,11 +42,12 @@ public final class DefaultRegistryClient implements RegistryClient, AutoCloseabl
     private              RegistrationService            registrationService;
 
     /** 创建阶段只注册本地组件，存储连接留到 beforeStart。 */
-    public DefaultRegistryClient(MetContext context, Callable<StorageAccess> storageOpener, long refreshMillis, String publishHost) {
+    public DefaultRegistryClient(MetContext context, Callable<StorageAccess> storageOpener, long refreshMillis, //
+            String publishHost, RegistryTokenProvider tokenProvider, List<String> managementProtocols) {
         this.context = context;
         this.storageOpener = storageOpener;
         this.refreshMillis = refreshMillis;
-        this.rpcService = new ManagementRPCImpl(context, publishHost);
+        this.rpcService = new ManagementRPCImpl(context, publishHost, tokenProvider, managementProtocols);
     }
 
     public synchronized void beforeStart() throws Exception {

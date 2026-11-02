@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.Properties;
+import javax.sql.DataSource;
 import net.hasor.cobble.setting.Settings;
 import net.hasor.core.AppContext;
 import net.hasor.core.Hasor;
@@ -24,6 +25,7 @@ import net.hasor.example.services.OrderService;
 import net.hasor.example.services.OrderServiceImpl;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.registry.TargetAdmin;
 import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
 import org.h2.jdbcx.JdbcDataSource;
 import org.h2.tools.RunScript;
@@ -72,6 +74,53 @@ class HasorIntegrationTest {
                  binder.bindType(JdbcRegistryConfiguration.class).toInstance(registry(source));
              }).build()) {
             assertEquals("ORDER-1001", consumer.getInstance(OrderService.class).getOrder("ORDER-1001").getOrderId());
+        }
+    }
+
+    @Test
+    void startsAutomaticRegistryWithNativeDefaultScanPackages() throws Throwable {
+        // 不额外设置扫描范围，扩展自身发布的管理接口不能被扫描器重复注册。
+        Properties settings = new Properties();
+        settings.setProperty("meteor.connectors.rsf.host", "127.0.0.1");
+        settings.setProperty("meteor.connectors.rsf.port", "0");
+        settings.setProperty("meteor.registry.online", "false");
+        settings.setProperty("meteor.registry.management-token", "example-management-token");
+        try (AppContext app = Hasor.create().registerShutdownHook(false).loadSettings(settings) //
+                .addModules(new MeteorModule()).build()) {
+            MetContext context = app.getInstance(MetContext.class);
+            TargetAdmin admin = context.getExtension(TargetAdmin.class);
+            var instance = admin.getInstanceAdminByAddress(context.getListenAddress("rsf"));
+            assertEquals(context.getInstanceID(), instance.instance().getInstanceId());
+        }
+    }
+
+    @Test
+    void discoversProviderThroughAutomaticJdbcRegistryConfiguration() throws Throwable {
+        // 只声明数据源 Bean 和配置文件，不提供 RegistryConfiguration Bean。
+        JdbcDataSource database = new JdbcDataSource();
+        database.setURL("jdbc:h2:mem:hasor_auto_registry;DB_CLOSE_DELAY=-1");
+        try (Connection connection = database.getConnection(); //
+             InputStream stream = getClass().getResourceAsStream("/META-INF/meteor/schema/h2.sql"); //
+             Reader script = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+            RunScript.execute(connection, script);
+        }
+        Properties settings = new Properties();
+        try (InputStream stream = getClass().getResourceAsStream("/hasor-registry.properties")) {
+            settings.load(stream);
+        }
+        try (AppContext provider = application("provider", null, binder -> {
+            binder.bindType(OrderServiceImpl.class).asEagerSingleton();
+            binder.bindType(DataSource.class).nameWith("registryDb").toInstance(database);
+        }).loadSettings(settings).build(); //
+             AppContext consumer = application("consumer", null, binder -> {
+                 binder.bindType(DataSource.class).nameWith("registryDb").toInstance(database);
+             }).loadSettings(settings).build()) {
+            // 消费者通过共享存储发现提供者，使用真实网络调用。
+            assertEquals("ORDER-1001", consumer.getInstance(OrderService.class).getOrder("ORDER-1001").getOrderId());
+            MetContext target = provider.getInstance(MetContext.class);
+            TargetAdmin admin = consumer.getInstance(MetContext.class).getExtension(TargetAdmin.class);
+            var instance = admin.getInstanceAdminByAddress(target.getListenAddress("rsf"));
+            assertEquals(target.getInstanceID(), instance.instance().getInstanceId());
         }
     }
 

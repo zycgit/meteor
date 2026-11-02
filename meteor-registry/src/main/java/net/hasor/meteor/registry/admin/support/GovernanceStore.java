@@ -24,17 +24,23 @@ import net.hasor.meteor.registry.shared.utils.RegistryJson;
 /** 一个明确范围的治理存取；独立规则、元信息和开关均只重试单条 CAS 冲突。 */
 final class GovernanceStore {
     private final Supplier<StorageAccess> storage;
+    private final Runnable                checkAccess;
     private final String                  instanceId;
     private final String                  serviceId;
 
-    public GovernanceStore(Supplier<StorageAccess> storage, String instanceId, String serviceId) {
+    public GovernanceStore(Supplier<StorageAccess> storage, Runnable checkAccess, String instanceId, String serviceId) {
         this.storage = storage;
+        this.checkAccess = checkAccess;
         this.instanceId = instanceId;
         this.serviceId = serviceId;
     }
 
     public GovernanceStore scope(String instanceId, String serviceId) {
-        return new GovernanceStore(this.storage, instanceId, serviceId);
+        return new GovernanceStore(this.storage, this.checkAccess, instanceId, serviceId);
+    }
+
+    void requireAccess() {
+        this.checkAccess.run();
     }
 
     public StorageAccess storage() {
@@ -48,6 +54,7 @@ final class GovernanceStore {
     }
 
     private EntityRecord<EntRuleConfigurationData> rule(MetRuleType type) throws Exception {
+        this.requireAccess();
         RuleKind kind = RuleKind.valueOf(Objects.requireNonNull(type, "rule type").name());
         return this.storage().getRule(this.instanceId, this.serviceId, kind);
     }
@@ -80,6 +87,7 @@ final class GovernanceStore {
     }
 
     private void updateRuleRecord(MetRuleType type, Consumer<EntRuleConfigurationData> change) {
+        this.requireAccess();
         RuleKind kind = RuleKind.valueOf(Objects.requireNonNull(type, "rule type").name());
         this.update(() -> this.rule(type), EntRuleConfigurationData::new, change, value -> {
             this.storage().saveRule(this.instanceId, this.serviceId, kind, value);
@@ -107,6 +115,7 @@ final class GovernanceStore {
     }
 
     public void putMeta(Map<String, Object> values) {
+        this.requireAccess();
         validateMetadata(values);
         this.updateMetadata(data -> {
             data.putAll(RegistryJson.copy(values, Map.class));
@@ -115,6 +124,7 @@ final class GovernanceStore {
     }
 
     public void removeMeta(String[] keys) {
+        this.requireAccess();
         if (keys == null) {
             throw new IllegalArgumentException("Metadata keys must not be null");
         }

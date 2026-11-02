@@ -10,8 +10,11 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.registry.admin.MetInstanceAdmin;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
 
-/** 复用所属上下文的 RPC 能力，按地址直接管理目标应用，不访问注册中心。 */
+/** 复用所属上下文的 RPC 能力及配置的凭据来源，按地址直接管理目标应用，不访问注册中心。 */
 public interface TargetAdmin {
+    /** 使用指定凭据来源创建独立的直连管理入口，每次调用重新读取；仍借用当前上下文。 */
+    TargetAdmin withTokenProvider(RegistryTokenProvider tokenProvider);
+
     /** 创建目标实例的直连管理代理。 */
     MetInstanceAdmin getInstanceAdminByAddress(InterAddress address);
 

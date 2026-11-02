@@ -47,7 +47,7 @@
     {
       "id": "grpc",
       "module": ":meteor-protocol-grpc",
-      "factorySource": "meteor-integration/meteor-protocol-grpc/src/main/java/net/hasor/meteor/protocol/grpc/GrpcProtocol.java",
+      "factorySource": "meteor-integration/protocol-grpc/src/main/java/net/hasor/meteor/protocol/grpc/GrpcProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.grpc",
       "profiles": [
         {
@@ -93,7 +93,7 @@
     {
       "id": "grpc-web",
       "module": ":meteor-protocol-grpc",
-      "factorySource": "meteor-integration/meteor-protocol-grpc/src/main/java/net/hasor/meteor/protocol/grpc/GrpcWebProtocol.java",
+      "factorySource": "meteor-integration/protocol-grpc/src/main/java/net/hasor/meteor/protocol/grpc/GrpcWebProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.grpc.web",
       "profiles": [
         {
@@ -138,7 +138,7 @@
     {
       "id": "hprose",
       "module": ":meteor-protocol-hprose",
-      "factorySource": "meteor-integration/meteor-protocol-hprose/src/main/java/net/hasor/meteor/protocol/hprose/HproseProtocol.java",
+      "factorySource": "meteor-integration/protocol-hprose/src/main/java/net/hasor/meteor/protocol/hprose/HproseProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.hprose",
       "profiles": [
         {
@@ -166,7 +166,7 @@
     {
       "id": "soap",
       "module": ":meteor-protocol-soap",
-      "factorySource": "meteor-integration/meteor-protocol-soap/src/main/java/net/hasor/meteor/protocol/soap/SoapProtocol.java",
+      "factorySource": "meteor-integration/protocol-soap/src/main/java/net/hasor/meteor/protocol/soap/SoapProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.soap",
       "profiles": [
         {
@@ -211,7 +211,7 @@
     {
       "id": "jsonrpc",
       "module": ":meteor-protocol-jsonrpc",
-      "factorySource": "meteor-integration/meteor-protocol-jsonrpc/src/main/java/net/hasor/meteor/protocol/jsonrpc/JsonRpcProtocol.java",
+      "factorySource": "meteor-integration/protocol-jsonrpc/src/main/java/net/hasor/meteor/protocol/jsonrpc/JsonRpcProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.jsonrpc",
       "profiles": [
         {
@@ -255,7 +255,7 @@
     {
       "id": "xmlrpc",
       "module": ":meteor-protocol-xmlrpc",
-      "factorySource": "meteor-integration/meteor-protocol-xmlrpc/src/main/java/net/hasor/meteor/protocol/xmlrpc/XmlRpcProtocol.java",
+      "factorySource": "meteor-integration/protocol-xmlrpc/src/main/java/net/hasor/meteor/protocol/xmlrpc/XmlRpcProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.xmlrpc",
       "profiles": [
         {
@@ -300,7 +300,7 @@
     {
       "id": "hessian",
       "module": ":meteor-protocol-hessian",
-      "factorySource": "meteor-integration/meteor-protocol-hessian/src/main/java/net/hasor/meteor/protocol/hessian/HessianProtocol.java",
+      "factorySource": "meteor-integration/protocol-hessian/src/main/java/net/hasor/meteor/protocol/hessian/HessianProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.hessian",
       "profiles": [
         {
@@ -345,7 +345,7 @@
     {
       "id": "connect",
       "module": ":meteor-protocol-connect",
-      "factorySource": "meteor-integration/meteor-protocol-connect/src/main/java/net/hasor/meteor/protocol/connect/ConnectProtocol.java",
+      "factorySource": "meteor-integration/protocol-connect/src/main/java/net/hasor/meteor/protocol/connect/ConnectProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.connect",
       "profiles": [
         {
@@ -390,7 +390,7 @@
     {
       "id": "triple",
       "module": ":meteor-protocol-triple",
-      "factorySource": "meteor-integration/meteor-protocol-triple/src/main/java/net/hasor/meteor/protocol/triple/TripleProtocol.java",
+      "factorySource": "meteor-integration/protocol-triple/src/main/java/net/hasor/meteor/protocol/triple/TripleProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.triple",
       "profiles": [
         {
@@ -468,7 +468,7 @@
     {
       "id": "dubbo",
       "module": ":meteor-protocol-dubbo",
-      "factorySource": "meteor-integration/meteor-protocol-dubbo/src/main/java/net/hasor/meteor/protocol/dubbo/DubboProtocol.java",
+      "factorySource": "meteor-integration/protocol-dubbo/src/main/java/net/hasor/meteor/protocol/dubbo/DubboProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.dubbo",
       "profiles": [
         {
@@ -493,7 +493,7 @@
     {
       "id": "thrift",
       "module": ":meteor-protocol-thrift",
-      "factorySource": "meteor-integration/meteor-protocol-thrift/src/main/java/net/hasor/meteor/protocol/thrift/ThriftProtocol.java",
+      "factorySource": "meteor-integration/protocol-thrift/src/main/java/net/hasor/meteor/protocol/thrift/ThriftProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.thrift",
       "profiles": [
         {
@@ -538,7 +538,7 @@
     {
       "id": "oncrpc",
       "module": ":meteor-protocol-oncrpc",
-      "factorySource": "meteor-integration/meteor-protocol-oncrpc/src/main/java/net/hasor/meteor/protocol/oncrpc/OncRpcProtocol.java",
+      "factorySource": "meteor-integration/protocol-oncrpc/src/main/java/net/hasor/meteor/protocol/oncrpc/OncRpcProtocol.java",
       "scenarioPackage": "net.hasor.realmeteor.protocol.oncrpc",
       "profiles": [
         {

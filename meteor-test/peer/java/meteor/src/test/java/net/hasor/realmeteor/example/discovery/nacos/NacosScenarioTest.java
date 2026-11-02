@@ -6,10 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.discovery.nacos;
-import net.hasor.meteor.test.nxn.NxnRpc;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.io.TempDir;
 import java.util.ConcurrentModificationException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -21,12 +19,11 @@ import com.alibaba.nacos.maintainer.client.config.ConfigMaintainerFactory;
 import com.alibaba.nacos.maintainer.client.config.ConfigMaintainerService;
 import net.hasor.cobble.ObjectUtils;
 import net.hasor.cobble.StringUtils;
-import net.hasor.example.direct.DirectRpcExample;
-import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderDemoServiceImpl;
-import net.hasor.realmeteor.environment.storage.NacosTestServer;
+import net.hasor.example.direct.DirectRpcExample;
+import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
@@ -38,19 +35,20 @@ import net.hasor.meteor.registry.shared.storage.StorageAccess;
 import net.hasor.meteor.registry.shared.storage.domain.EntRuleConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.EntityRecord;
 import net.hasor.meteor.registry.shared.storage.domain.RuleKind;
+import net.hasor.meteor.test.nxn.NxnRpc;
+import net.hasor.realmeteor.environment.storage.NacosTestServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 独占真实 Nacos 进程；每个场景使用独立分组和缓存，观察自动通知及公开存储契约。 */
 public class NacosScenarioTest {
     @TempDir
-    public static Path serverData;
-    private static      NacosTestServer nacos;
+    public static  Path            serverData;
+    private static NacosTestServer nacos;
 
     @TempDir
     public Path data;

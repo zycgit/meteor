@@ -7,6 +7,8 @@
  */
 package net.hasor.meteor.registry.admin.support;
 import java.util.Arrays;
+import java.util.function.Supplier;
+import net.hasor.meteor.registry.RegistryTokenProvider;
 import net.hasor.meteor.registry.admin.*;
 import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 import net.hasor.meteor.registry.shared.rpc.RuleTypeData;
@@ -14,59 +16,64 @@ import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
 /** 通过管理 RPC 操作目标实例，不访问注册中心存储。 */
 final class TargetInstanceAdmin implements MetInstanceAdmin {
-    private final ManagementRPC rpc;
+    private final Supplier<ManagementRPC> rpc;
+    private final RegistryTokenProvider   tokens;
 
-    public TargetInstanceAdmin(ManagementRPC rpc) {
+    public TargetInstanceAdmin(Supplier<ManagementRPC> rpc, RegistryTokenProvider tokens) {
         this.rpc = rpc;
+        this.tokens = tokens;
     }
 
     // 实例和本地服务
 
     @Override
     public MetInstanceInfo instance() {
-        MetInstanceInfo instance = RegistryJson.copy(this.rpc.instance(), MetInstanceInfo.class);
+        var snapshot = this.rpc.get().instance(this.tokens.getToken());
+        MetInstanceInfo instance = RegistryJson.copy(snapshot, MetInstanceInfo.class);
         instance.setOnline(true);
         return instance;
     }
 
     @Override
     public MetPage<MetServiceInfo> getServiceList(MetDirectoryQuery query) {
-        MetServiceInfo[] services = RegistryJson.copy(this.rpc.services(), MetServiceInfo[].class);
+        var snapshot = this.rpc.get().services(this.tokens.getToken());
+        MetServiceInfo[] services = RegistryJson.copy(snapshot, MetServiceInfo[].class);
         return DirectoryMapping.local(Arrays.asList(services), query, MetServiceInfo::getServiceId);
     }
 
     @Override
     public MetServiceInfo getServiceById(String serviceId) {
-        return RegistryJson.copy(this.rpc.service(serviceId).getService(), MetServiceInfo.class);
+        var snapshot = this.rpc.get().service(this.tokens.getToken(), serviceId);
+        return RegistryJson.copy(snapshot.getService(), MetServiceInfo.class);
     }
 
     // 网络业务调用阻断
 
     @Override
     public boolean isBlock() {
-        return this.rpc.isBlock();
+        return this.rpc.get().isBlock(this.tokens.getToken());
     }
 
     @Override
     public void block() {
-        this.rpc.setBlock(true);
+        this.rpc.get().setBlock(this.tokens.getToken(), true);
     }
 
     @Override
     public void unblock() {
-        this.rpc.setBlock(false);
+        this.rpc.get().setBlock(this.tokens.getToken(), false);
     }
 
     // 实例规则
 
     @Override
     public String fetchRule(MetRuleType type) {
-        return this.rpc.fetchInstanceRule(ruleType(type));
+        return this.rpc.get().fetchInstanceRule(this.tokens.getToken(), ruleType(type));
     }
 
     @Override
     public void updateRule(MetRuleType type, String rule) {
-        this.rpc.updateInstanceRule(ruleType(type), rule);
+        this.rpc.get().updateInstanceRule(this.tokens.getToken(), ruleType(type), rule);
     }
 
     @Override

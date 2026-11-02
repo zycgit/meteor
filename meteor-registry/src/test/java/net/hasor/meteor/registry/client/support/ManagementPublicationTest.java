@@ -67,7 +67,7 @@ public class ManagementPublicationTest {
         try (MetContext context = configuration.buildContext()) {
             MetBindInfo<NumberedEcho> published = context.publisher() //
                     .rsfService(NumberedEcho.class, value -> value).register();
-            ManagementRPCImpl management = new ManagementRPCImpl(context, "127.0.0.1");
+            ManagementRPCImpl management = new ManagementRPCImpl(context, "127.0.0.1", () -> "secret", List.of("rsf"));
             String serviceId = published.getBindID();
 
             // 注册上报正文只在 description 内保存编号和 Java 类型，运行地址仍属于登记正文。
@@ -85,8 +85,8 @@ public class ManagementPublicationTest {
             assertTrue(StringUtils.equals(NumberedEcho.class.getName(), runtimeJavaType));
 
             // 管理 RPC 的成员描述保存契约，成员和摘要不重复传输派生字段。
-            ObjectNode member = RegistryJson.copy(management.service(serviceId), ObjectNode.class);
-            ObjectNode summary = RegistryJson.copy(management.services()[0], ObjectNode.class);
+            ObjectNode member = RegistryJson.copy(management.service(null, serviceId), ObjectNode.class);
+            ObjectNode summary = RegistryJson.copy(management.services(null)[0], ObjectNode.class);
             ObjectNode memberDescription = (ObjectNode) member.path("description");
             assertEquals(0xffff_ffffL, memberDescription.path("contractServiceId").asLong());
             assertFalse(memberDescription.has("role"));
@@ -115,15 +115,15 @@ public class ManagementPublicationTest {
         try (MetContext context = configuration.buildContext()) {
             MetBindInfo<Echo> published = context.publisher().rsfService(Echo.class, value -> value) //
                     .contextPathByPrefix("registry-http", "/orders", "/admin").register();
-            ManagementRPCImpl management = new ManagementRPCImpl(context, "127.0.0.1");
+            ManagementRPCImpl management = new ManagementRPCImpl(context, "127.0.0.1", () -> "secret", List.of("rsf"));
             String serviceId = published.getBindID();
             ServiceDomain<?> domain = MetBindInfoWrap.unwrap(published);
             ProtocolBinding binding = domain.getProtocolMeta("registry-http").getEndpoint("http-1");
             ObjectNode committedDescription = binding.getDescription().deepCopy();
 
             // 保留另一份查询快照，随后修改返回结果中的摘要、端点和嵌套描述。
-            ServiceMemberData changed = management.service(serviceId);
-            ServiceMemberData retained = management.service(serviceId);
+            ServiceMemberData changed = management.service(null, serviceId);
+            ServiceMemberData retained = management.service(null, serviceId);
             ObjectNode expectedDescription = changed.getDescription().deepCopy();
             changed.getInstance().setApplicationName("changed");
             changed.getInstance().getManagementAddress().put("changed", "rsf://127.0.0.1:1/default");
@@ -140,7 +140,7 @@ public class ManagementPublicationTest {
             contractMethod.put("name", "changed");
 
             // 之前的快照与下一次查询保持原值，协议准备结果和本地声明也不受影响。
-            ServiceMemberData current = management.service(serviceId);
+            ServiceMemberData current = management.service(null, serviceId);
             assertEquals(expectedDescription, retained.getDescription());
             assertEquals(expectedDescription, current.getDescription());
             assertEquals(committedDescription, binding.getDescription());
@@ -184,11 +184,11 @@ public class ManagementPublicationTest {
             };
             MetContext observed = (MetContext) Proxy.newProxyInstance(this.getClass().getClassLoader(), //
                     new Class<?>[] { MetContext.class }, observer);
-            ManagementRPCImpl management = new ManagementRPCImpl(observed, "127.0.0.1");
+            ManagementRPCImpl management = new ManagementRPCImpl(observed, "127.0.0.1", () -> "secret", List.of("rsf"));
             addressQueries.set(0);
 
             // 成员摘要和 usedProtocols 使用同一轮采样，同时仍提供独立的返回数组。
-            ServiceMemberData member = management.service(serviceId);
+            ServiceMemberData member = management.service(null, serviceId);
             assertEquals(1, addressQueries.get());
             assertArrayEquals(new String[] { "http", "rsf" }, member.getService().getProtocols());
             assertArrayEquals(new String[] { "http", "rsf" }, member.getUsedProtocols());
@@ -197,7 +197,7 @@ public class ManagementPublicationTest {
 
             // 列表摘要沿用相同采样规则，不把 HTTP 挂载名冒充当前地址协议。
             addressQueries.set(0);
-            ServiceData[] services = management.services();
+            ServiceData[] services = management.services(null);
             assertEquals(1, addressQueries.get());
             assertEquals(1, services.length);
             assertArrayEquals(new String[] { "http", "rsf" }, services[0].getProtocols());
@@ -243,13 +243,14 @@ public class ManagementPublicationTest {
         StorageProbe probe = new StorageProbe();
         probe.setNotifications(false);
         RegistryConfiguration registry = new DecoratedRegistryConfiguration(storageConfiguration, probe::observe);
+        registry.setManagementToken("secret");
         registry.setRefreshMillis(600000);
         registry.setPublishHost("127.0.0.1");
         MetConfiguration serverConfig = new MetConfiguration();
         serverConfig.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
         MetConfiguration callerConfig = new MetConfiguration();
         callerConfig.connector("tcp").protocol("rsf");
-        callerConfig.addExtension(new RegistryConfiguration().setOnline(false));
+        callerConfig.addExtension(new RegistryConfiguration().setOnline(false).setManagementToken("secret"));
 
         // 扩展仍通过正式工厂创建，只观察其管理服务查询次数。
         AtomicInteger managementLookups = new AtomicInteger();
@@ -319,6 +320,7 @@ public class ManagementPublicationTest {
         MemoryRegistryConfiguration storageConfiguration = new MemoryRegistryConfiguration();
         RegistryConfiguration registry = storageConfiguration;
         registry.setManagementToken("secret");
+        registry.setManagementProtocols("registry-http");
         registry.setRefreshMillis(600000);
         registry.setPublishHost("127.0.0.1");
         MetConfiguration application = new MetConfiguration();
@@ -394,8 +396,8 @@ public class ManagementPublicationTest {
             assertEquals(1, published.length);
             assertEquals("rsf", published[0].getProtocolName());
             ManagementRPC rpc = context.getServiceProvider(context.getServiceInfo(ManagementRPC.class)).get();
-            assertArrayEquals(new String[] { "rsf" }, rpc.service(service.getBindID()).getService().getProtocols());
-            assertArrayEquals(new String[] { "rsf" }, rpc.services()[0].getProtocols());
+            assertArrayEquals(new String[] { "rsf" }, rpc.service(null, service.getBindID()).getService().getProtocols());
+            assertArrayEquals(new String[] { "rsf" }, rpc.services(null)[0].getProtocols());
             MetBindInfo<?> local = context.getServiceInfo(service.getBindID());
             assertNotNull(local);
             assertEquals(service.getBindID(), local.getBindID());
@@ -454,7 +456,7 @@ public class ManagementPublicationTest {
             };
             MetContext observed = (MetContext) Proxy.newProxyInstance(this.getClass().getClassLoader(), //
                     new Class<?>[] { MetContext.class }, contextView);
-            ManagementRPCImpl rpc = new ManagementRPCImpl(observed, "127.0.0.1");
+            ManagementRPCImpl rpc = new ManagementRPCImpl(observed, "127.0.0.1", () -> "secret", List.of("registry-http"));
             String serviceId = context.publisher().rsfService(Echo.class, value -> value) //
                     .contextPathByPrefix("registry-http", "/orders", "/admin").register().getBindID();
 
@@ -466,6 +468,10 @@ public class ManagementPublicationTest {
             Map<String, ProtocolBinding> bindings = Map.of("edge-a", bindingA, "edge-b", bindingB);
             ProtocolMeta meta = new ProtocolMeta(declaration, contexts, null, bindings);
             declaration.replaceProtocolPublication(Map.of("registry-http", meta));
+            // 管理服务也使用同一组模拟监听端点，公告仅保留实际接受的挂载。
+            ServiceDomain<?> management = (ServiceDomain<?>) context.getServiceInfo(ManagementRPC.class);
+            ProtocolMeta managementMeta = new ProtocolMeta(management, contexts, null, bindings);
+            management.replaceProtocolPublication(Map.of("registry-http", managementMeta));
 
             // 完整快照按协议名查询地址，实例按 connector#scheme 去重，服务保留每个上下文挂载。
             RegistrationSnapshot snapshot = rpc.snapshot(null);
@@ -488,8 +494,8 @@ public class ManagementPublicationTest {
             assertEndpoint(endpoints[2], "edge-b", "/orders", edgeB.address().toString(), listenB.toString(), publishedB);
             assertEndpoint(endpoints[3], "edge-b", "/admin", edgeB.address().toString(), listenB.toString(), publishedB);
             assertEquals(Set.of(publishedA, publishedB), Set.of(service.getAddresses()));
-            assertArrayEquals(new String[] { "registry-http" }, rpc.service(serviceId).getService().getProtocols());
-            assertArrayEquals(new String[] { "registry-http" }, rpc.services()[0].getProtocols());
+            assertArrayEquals(new String[] { "registry-http" }, rpc.service(null, serviceId).getService().getProtocols());
+            assertArrayEquals(new String[] { "registry-http" }, rpc.services(null)[0].getProtocols());
         }
     }
 
@@ -506,7 +512,7 @@ public class ManagementPublicationTest {
             // 通过公开发布入口选择逻辑协议，再只采集该服务的管理快照。
             String serviceId = context.publisher().rsfService(Echo.class, value -> value) //
                     .protocol("registry-http").register().getBindID();
-            ManagementRPCImpl rpc = new ManagementRPCImpl(context, "127.0.0.1");
+            ManagementRPCImpl rpc = new ManagementRPCImpl(context, "127.0.0.1", () -> "secret", List.of("rsf"));
 
             // 逻辑名命中后不再采纳 RSF 的同名 scheme，快照只保留 HTTP 挂载。
             RegistrationSnapshot snapshot = rpc.snapshot(serviceId);
@@ -624,7 +630,7 @@ public class ManagementPublicationTest {
             storage.saveRule(null, id, RuleKind.SERVICE_ROUTE, record);
             Future<Void> pulling = client.pullSync();
             ExecutionException failure = assertThrows(ExecutionException.class, () -> pulling.get(5, TimeUnit.SECONDS));
-            assertTrue(failure.getCause() instanceof IllegalArgumentException);
+            assertInstanceOf(IllegalArgumentException.class, failure.getCause());
 
             // 修复规则后重新拉取成功，应用本地默认选项保持原值。
             storage.deleteRule(null, id, RuleKind.SERVICE_ROUTE, storage.getRule(null, id, RuleKind.SERVICE_ROUTE).getRevision());
@@ -692,7 +698,7 @@ public class ManagementPublicationTest {
         while (!(failure instanceof MetException) && failure.getCause() != null) {
             failure = failure.getCause();
         }
-        assertTrue(failure instanceof MetException);
+        assertInstanceOf(MetException.class, failure);
         assertEquals(ProtocolStatus.Forbidden, ((MetException) failure).getStatus());
     }
 

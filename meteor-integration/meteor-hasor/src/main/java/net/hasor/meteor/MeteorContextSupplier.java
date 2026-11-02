@@ -9,6 +9,7 @@ package net.hasor.meteor;
 import java.util.*;
 import java.util.function.Supplier;
 import net.hasor.cobble.ExceptionUtils;
+import net.hasor.cobble.StringUtils;
 import net.hasor.core.AppContext;
 import net.hasor.core.BindInfo;
 import net.hasor.meteor.bootstrap.MetConfiguration;
@@ -70,6 +71,21 @@ final class MeteorContextSupplier implements Supplier<MetContext>, AutoCloseable
         MetConfiguration configuration;
         if (configurationBinding == null) {
             configuration = MeteorSettings.configuration(app.getSettings(), app.getClassLoader());
+            MetExtensionFactory registry = MeteorSettings.registry(app.getSettings(), app.getClassLoader(), //
+                    extensions, (name, type) -> {
+                        if (StringUtils.isNotBlank(name)) {
+                            return app.findBindingBean(name, type);
+                        }
+                        List<? extends BindInfo<?>> bindings = app.findBindingRegister(type);
+                        if (bindings.size() != 1) {
+                            String message = "meteor.registry requires one Bean of " + type.getName();
+                            throw new IllegalArgumentException(message + "; specify its Bean name");
+                        }
+                        return app.getInstance(bindings.get(0));
+                    });
+            if (registry != null) {
+                configuration.addExtension(registry);
+            }
         } else {
             configuration = (MetConfiguration) app.getInstance(configurationBinding);
         }

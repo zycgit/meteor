@@ -8,10 +8,9 @@
 package net.hasor.realmeteor.example.discovery;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.io.TempDir;
 import java.util.concurrent.TimeUnit;
-import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.example.OrderDemoService;
+import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
@@ -20,7 +19,9 @@ import net.hasor.meteor.registry.admin.MetDirectoryQuery;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /** 显式同步的完整、单服务范围分别展示，不混入自动发现验证。 */
 public class RegistrySyncScenarioTest {

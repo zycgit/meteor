@@ -6,21 +6,19 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.registry.description;
-import net.hasor.meteor.test.nxn.NxnRpc;
-import java.nio.file.Path;
-import org.junit.jupiter.api.io.TempDir;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderDemoServiceImpl;
 import net.hasor.example.OrderQuery;
+import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.protocol.grpc.Echo;
 import net.hasor.example.protocol.grpc.EchoImpl;
 import net.hasor.example.protocol.grpc.Message;
@@ -34,9 +32,11 @@ import net.hasor.meteor.registry.admin.description.MetProtocolDescription;
 import net.hasor.meteor.registry.admin.description.MetServiceDescription;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 资源声明在首次发布前覆盖或清空，最终网络绑定与注册描述必须来自同一份定义。 */
 @NxnRpc(name = "grpc")

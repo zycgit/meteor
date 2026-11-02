@@ -22,6 +22,7 @@ import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.domain.ServiceDomain;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
+import net.hasor.meteor.registry.RegistryTokenProvider;
 import net.hasor.meteor.registry.shared.rpc.*;
 import net.hasor.meteor.registry.shared.storage.domain.EntConfigurationData;
 import net.hasor.meteor.registry.shared.storage.domain.EntInstanceRuntimeData;
@@ -32,15 +33,17 @@ import net.hasor.meteor.registry.shared.utils.RegistryJson;
 
 /** 管理本地 Meteor 的运行状态、治理、快照和管理 RPC；并发控制由实际状态的持有者负责。 */
 public final class ManagementRPCImpl implements ManagementRPC {
-    private final MetContext       context;
-    private final String           publishHost;
-    private final GovernanceFilter governance = new GovernanceFilter();
+    private final MetContext                 context;
+    private final String                     publishHost;
+    private final MetBindInfo<ManagementRPC> managementService;
+    private final GovernanceFilter           governance = new GovernanceFilter();
 
     ////////////////////////////////////////////////////////////////////////////////////////
     // 本地运行服务与管理 RPC 生命周期
 
     /** 安装扩展时发布管理 RPC 和过滤器，生命周期与上下文一致。 */
-    public ManagementRPCImpl(MetContext context, String publishHost) {
+    public ManagementRPCImpl(MetContext context, String publishHost, //
+            RegistryTokenProvider tokenProvider, List<String> managementProtocols) {
         this.context = context;
         this.publishHost = publishHost;
         if (this.context.getServiceInfo(ManagementRPC.class) != null) {
@@ -49,9 +52,12 @@ public final class ManagementRPCImpl implements ManagementRPC {
 
         MetPublisher publisher = this.context.publisher();
         publisher.bindFilter(GovernanceFilter.FILTER_ID, this.governance);
-        publisher.rsfService(ManagementRPC.class, this)//
-                .protocol("rsf")    // 内部管理通信不随业务服务发布到其他协议。
-                .asShadow()         //
+        var management = publisher.rsfService(ManagementRPC.class, this);
+        for (String protocol : managementProtocols) {
+            management.protocol(protocol);
+        }
+        this.managementService = management //
+                .bindFilter("management-authentication", new ManagementAuthentication(tokenProvider))//
                 .asDistributedCall()//
                 .register();
     }
@@ -98,7 +104,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
         RegistrationSnapshot record = new RegistrationSnapshot();
         record.setInstanceId(this.context.getInstanceID());
         if (serviceId == null) {
-            InstanceData instance = this.instance();
+            InstanceData instance = this.instance(null);
             EntInstanceRuntimeData registration = RegistryJson.copy(instance, EntInstanceRuntimeData.class);
             registration.setManagementAddresses(instance.getManagementAddress());
             record.setInstance(registration);
@@ -196,7 +202,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
     ////////////////////////////////////////////////////////////////////////////////////////
     // 直连管理：查询本地运行信息，修改只保存在当前进程。
     @Override
-    public InstanceData instance() {
+    public InstanceData instance(String token) {
         InstanceData result = new InstanceData();
         result.setInstanceId(this.context.getInstanceID());
         result.setIpAddress(this.context.getSettings().getBindAddress());
@@ -204,6 +210,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
         result.setApplicationName(this.context.getApplicationName());
         result.setUnitName(this.context.getSettings().getUnitName());
         result.setBlock(this.governance.isBlock());
+        Map<String, ProtocolMeta> managementPublications = MetBindInfoWrap.unwrap(this.managementService).getProtocolMetas();
         for (ConnectorConfig connector : this.context.getSettings().getConnectorConfigs()) {
             if (!connector.bindEnabled()) {
                 continue;
@@ -219,6 +226,11 @@ public final class ManagementRPCImpl implements ManagementRPC {
                 String addressKey = connector.name() + "#" + address.getSchema();
                 result.getListenAddresses().putIfAbsent(addressKey, address.toString());
 
+                // 管理地址只公告管理服务实际接受的端点，业务监听地址仍完整保留。
+                ProtocolMeta management = managementPublications.get(protocol.name());
+                if (management == null || management.getEndpoint(connector.name()) == null) {
+                    continue;
+                }
                 InterAddress managementAddress = address;
                 if (StringUtils.isNotBlank(this.publishHost)) {
                     managementAddress = new InterAddress(//
@@ -231,7 +243,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
     }
 
     @Override
-    public ServiceData[] services() {
+    public ServiceData[] services(String token) {
         List<ServiceData> services = new ArrayList<>();
         for (MetBindInfo<?> service : this.bindings()) {
             ServiceEndpointData[] endpoints = this.endpoints(service);
@@ -242,7 +254,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
     }
 
     @Override
-    public ServiceMemberData service(String serviceId) {
+    public ServiceMemberData service(String token, String serviceId) {
         // 直连查询只读取本地端点，不生成向注册中心发布的地址。
         MetBindInfo<?> service = this.requireService(serviceId);
         Map<String, ProtocolMeta> publications = MetBindInfoWrap.unwrap(service).getProtocolMetas();
@@ -251,7 +263,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
 
         // 返回对象和端点均由本次采集创建，描述在接入已提交协议契约时复制可变树。
         ServiceMemberData member = new ServiceMemberData();
-        member.setInstance(this.instance());
+        member.setInstance(this.instance(null));
         member.setService(this.serviceSnapshot(service, endpoints, usedProtocols));
         member.setEndpoints(endpoints);
         member.setUsedProtocols(usedProtocols);
@@ -261,35 +273,35 @@ public final class ManagementRPCImpl implements ManagementRPC {
     }
 
     @Override
-    public boolean isServiceEnabled(String serviceId) {
+    public boolean isServiceEnabled(String token, String serviceId) {
         this.requireService(serviceId);
         return this.governance.isServiceEnabled(serviceId);
     }
 
     @Override
-    public void setServiceEnabled(String serviceId, boolean enabled) {
+    public void setServiceEnabled(String token, String serviceId, boolean enabled) {
         this.requireService(serviceId);
         this.governance.setServiceEnabled(serviceId, enabled);
     }
 
     @Override
-    public boolean isBlock() {
+    public boolean isBlock(String token) {
         return this.governance.isBlock();
     }
 
     @Override
-    public void setBlock(boolean block) {
+    public void setBlock(String token, boolean block) {
         this.governance.setBlock(block);
     }
 
     @Override
-    public String fetchServiceRule(String serviceId, RuleTypeData type) {
+    public String fetchServiceRule(String token, String serviceId, RuleTypeData type) {
         this.requireService(serviceId);
         return this.readRule(serviceId, type);
     }
 
     @Override
-    public String fetchInstanceRule(RuleTypeData type) {
+    public String fetchInstanceRule(String token, RuleTypeData type) {
         // 核心没有实例规则对象；仅当现有业务服务规则一致时返回共同值。
         List<String> services = this.serviceIds();
         if (services.isEmpty()) {
@@ -306,19 +318,19 @@ public final class ManagementRPCImpl implements ManagementRPC {
     }
 
     @Override
-    public ValidationData validateServiceRule(String serviceId, RuleTypeData type, String value) {
+    public ValidationData validateServiceRule(String token, String serviceId, RuleTypeData type, String value) {
         this.requireService(serviceId);
 
         return RegistryGovernanceUtils.validateRule(type, value);
     }
 
     @Override
-    public void updateInstanceRule(RuleTypeData type, String rule) {
+    public void updateInstanceRule(String token, RuleTypeData type, String rule) {
         this.updateRule(null, type, rule);
     }
 
     @Override
-    public void updateServiceRule(String serviceId, RuleTypeData type, String rule) {
+    public void updateServiceRule(String token, String serviceId, RuleTypeData type, String rule) {
         this.updateRule(serviceId, type, rule);
     }
 
@@ -334,7 +346,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
     }
 
     @Override
-    public Map<String, Object> fetchServiceMeta(String serviceId) {
+    public Map<String, Object> fetchServiceMeta(String token, String serviceId) {
         MetBindInfo<?> service = this.requireService(serviceId);
         Map<String, Object> metadata = new LinkedHashMap<>();
         for (String key : service.getMetaKeys()) {
@@ -347,7 +359,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
     }
 
     @Override
-    public void putServiceMeta(String serviceId, Map<String, Object> values) {
+    public void putServiceMeta(String token, String serviceId, Map<String, Object> values) {
         if (values == null || values.size() > MetBindInfo.MAX_METADATA_SIZE) {
             throw new IllegalArgumentException("Metadata must not exceed " + MetBindInfo.MAX_METADATA_SIZE + " entries");
         }
@@ -362,7 +374,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
     }
 
     @Override
-    public void removeServiceMeta(String serviceId, String[] keys) {
+    public void removeServiceMeta(String token, String serviceId, String[] keys) {
         if (keys == null) {
             throw new IllegalArgumentException("Metadata keys must not be null");
         }
@@ -546,7 +558,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
         List<MetBindInfo<?>> result = new ArrayList<>();
         for (String id : this.context.getServiceIDs()) {
             MetBindInfo<?> service = this.context.getServiceInfo(id);
-            if (service != null && !service.isShadow()) {
+            if (service != null && !service.isShadow() && service.getBindType() != ManagementRPC.class) {
                 result.add(service);
             }
         }
@@ -556,7 +568,7 @@ public final class ManagementRPCImpl implements ManagementRPC {
 
     private MetBindInfo<?> requireService(String id) {
         MetBindInfo<?> service = this.context.getServiceInfo(id);
-        if (service == null || service.isShadow()) {
+        if (service == null || service.isShadow() || service.getBindType() == ManagementRPC.class) {
             throw new IllegalArgumentException("Unknown business service: " + id);
         }
 

@@ -25,7 +25,7 @@ final class RegistryImpl implements RegistryAdmin {
 
     RegistryImpl(Callable<StorageAccess> storageOpener, RegistryInfo info, RegistryTokenProvider tokenProvider) {
         this.tokenProvider = tokenProvider;
-        this.admins = new AdminFactory(this::requireStorage, info.getProvider(), info.getScope());
+        this.admins = new AdminFactory(this::requireStorage, this::requireManagementToken, info.getProvider(), info.getScope());
         this.storageOpener = storageOpener;
     }
 
@@ -46,7 +46,8 @@ final class RegistryImpl implements RegistryAdmin {
     }
 
     StorageAccess openStorage() throws Exception {
-        this.requireOpen();
+        // 已取得的管理接口也必须读取当前凭据，失效后不能继续复用。
+        this.requireManagementToken();
         StorageAccess ready = this.storage;
         if (ready != null) {
             return ready;

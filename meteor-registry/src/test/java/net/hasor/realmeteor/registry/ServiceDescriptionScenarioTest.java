@@ -55,7 +55,7 @@ public class ServiceDescriptionScenarioTest {
         // 目标正常发布 RSF，调用方只提供直连管理能力，不连接注册存储。
         MemoryRegistryConfiguration registry = registry();
         MetConfiguration outgoing = new MetConfiguration();
-        outgoing.addExtension(new RegistryConfiguration().setOnline(false));
+        outgoing.addExtension(new RegistryConfiguration().setOnline(false).setManagementToken("description-tests"));
         outgoing.connector("tcp").protocol("rsf");
         try (MetContext server = configuration(registry).buildContext(); //
              MetContext caller = outgoing.buildContext()) {

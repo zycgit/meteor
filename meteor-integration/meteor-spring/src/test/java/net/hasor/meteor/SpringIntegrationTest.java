@@ -24,7 +24,10 @@ import net.hasor.example.services.OrderService;
 import net.hasor.example.services.OrderServiceImpl;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetServiceType;
+import javax.sql.DataSource;
+import net.hasor.meteor.registry.TargetAdmin;
 import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
+import org.springframework.core.io.support.ResourcePropertySource;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.h2.jdbcx.JdbcDataSource;
 import org.h2.tools.RunScript;
@@ -101,6 +104,35 @@ class SpringIntegrationTest {
             consumer.refresh();
 
             assertEquals("ORDER-1001", consumer.getBean(OrderService.class).getOrder("ORDER-1001").getOrderId());
+        }
+    }
+
+    @Test
+    void discoversProviderThroughAutomaticJdbcRegistryConfiguration() throws Exception {
+        // 原生 Environment 读取配置，容器只提供命名数据源和业务实现。
+        JdbcDataSource database = new JdbcDataSource();
+        database.setURL("jdbc:h2:mem:spring_auto_registry;DB_CLOSE_DELAY=-1");
+        try (Connection connection = database.getConnection(); //
+             InputStream stream = getClass().getResourceAsStream("/META-INF/meteor/schema/h2.sql"); //
+             Reader script = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+            RunScript.execute(connection, script);
+        }
+        try (AnnotationConfigApplicationContext provider = application("provider", null); //
+             AnnotationConfigApplicationContext consumer = application("consumer", null)) {
+            provider.getEnvironment().getPropertySources().addFirst(new ResourcePropertySource("classpath:spring-registry.properties"));
+            consumer.getEnvironment().getPropertySources().addFirst(new ResourcePropertySource("classpath:spring-registry.properties"));
+            provider.registerBean(OrderService.class, OrderServiceImpl::new);
+            provider.registerBean("registryDb", DataSource.class, () -> database);
+            consumer.registerBean("registryDb", DataSource.class, () -> database);
+            provider.refresh();
+            consumer.refresh();
+
+            // 没有 RegistryConfiguration Bean 或静态地址，仍能发现和管理目标。
+            assertEquals("ORDER-1001", consumer.getBean(OrderService.class).getOrder("ORDER-1001").getOrderId());
+            MetContext target = provider.getBean(MetContext.class);
+            TargetAdmin admin = consumer.getBean(MetContext.class).getExtension(TargetAdmin.class);
+            var instance = admin.getInstanceAdminByAddress(target.getListenAddress("rsf"));
+            assertEquals(target.getInstanceID(), instance.instance().getInstanceId());
         }
     }
 

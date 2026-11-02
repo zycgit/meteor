@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetServiceType;
 import org.noear.solon.annotation.Bean;
@@ -41,14 +42,30 @@ final class MeteorContextLifecycle implements Lifecycle {
             throw new IllegalStateException("Only one MetConfiguration Bean is supported");
         }
 
+        List<MetExtensionFactory> extensions = this.app.getBeansOfType(MetExtensionFactory.class);
         MetConfiguration configuration;
         if (configurations.isEmpty()) {
             configuration = SolonSettings.configuration(this.app.cfg(), this.app.getClassLoader());
+            MetExtensionFactory registry = SolonSettings.registry(this.app.cfg(), this.app.getClassLoader(), //
+                    extensions, (name, type) -> {
+                        if (StringUtils.isNotBlank(name)) {
+                            return this.app.getBean(name);
+                        }
+                        List<?> beans = this.app.getBeansOfType(type);
+                        if (beans.size() != 1) {
+                            String message = "meteor.registry requires one Bean of " + type.getName();
+                            throw new IllegalArgumentException(message + "; specify its Bean name");
+                        }
+                        return beans.get(0);
+                    });
+            if (registry != null) {
+                configuration.addExtension(registry);
+            }
         } else {
             configuration = configurations.get(0);
         }
 
-        this.app.getBeansOfType(MetExtensionFactory.class).forEach(configuration::addExtension);
+        extensions.forEach(configuration::addExtension);
         this.context = configuration.buildContext(this.app.getClassLoader());
         try {
             Set<Class<?>> providerTypes = new HashSet<>();

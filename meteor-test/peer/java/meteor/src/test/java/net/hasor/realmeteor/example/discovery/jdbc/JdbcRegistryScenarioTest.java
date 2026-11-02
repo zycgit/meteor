@@ -6,28 +6,28 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.example.discovery.jdbc;
-import net.hasor.meteor.test.nxn.NxnRpc;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.io.TempDir;
-import net.hasor.example.direct.DirectRpcExample;
-import net.hasor.example.discovery.RegistryDiscoveryExample;
+import java.util.concurrent.TimeUnit;
 import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderDemoServiceImpl;
 import net.hasor.example.OrderQuery;
+import net.hasor.example.direct.DirectRpcExample;
+import net.hasor.example.discovery.RegistryDiscoveryExample;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.registry.RegistryAdmin;
 import net.hasor.meteor.registry.admin.MetDirectoryQuery;
 import net.hasor.meteor.registry.admin.MetServiceAdmin;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import java.util.concurrent.TimeUnit;
-import org.junit.jupiter.api.Timeout;
 
 /** 应用退出后重新接入同一个 JDBC 注册库，持久治理仍在，运行期成员已撤回。 */
 public class JdbcRegistryScenarioTest {

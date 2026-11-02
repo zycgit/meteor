@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import net.hasor.meteor.*;
 import net.hasor.meteor.domain.ProtocolStatus;
+import net.hasor.meteor.registry.shared.rpc.ManagementRPC;
 
 /** 直接维护网络业务调用的阻断状态，不依赖管理 RPC 或容器查询。 */
 final class GovernanceFilter implements MetFilter {
@@ -21,7 +22,7 @@ final class GovernanceFilter implements MetFilter {
     @Override
     public void doFilter(MetRequest request, MetResponse response, MetFilterChain chain) throws Throwable {
         MetBindInfo<?> service = request.getBindInfo();
-        if (service.isShadow()) {
+        if (service.isShadow() || service.getBindType() == ManagementRPC.class) {
             chain.doFilter(request, response);
             return;
         }

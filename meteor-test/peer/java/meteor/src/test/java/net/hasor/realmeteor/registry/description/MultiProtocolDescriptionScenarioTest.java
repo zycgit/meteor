@@ -4,19 +4,17 @@
  * See the LICENSE.txt file for the full license.
  */
 package net.hasor.realmeteor.registry.description;
-import net.hasor.meteor.test.nxn.NxnRpc;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.io.TempDir;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
-import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderDemoServiceImpl;
 import net.hasor.example.OrderQuery;
+import net.hasor.example.direct.DirectRpcExample;
 import net.hasor.example.protocol.grpc.Echo;
 import net.hasor.example.protocol.grpc.EchoImpl;
 import net.hasor.meteor.MetBindInfo;
@@ -30,10 +28,12 @@ import net.hasor.meteor.registry.admin.description.MetProtocolDescription;
 import net.hasor.meteor.registry.admin.description.MetServiceDescription;
 import net.hasor.meteor.registry.client.RegistryClient;
 import net.hasor.meteor.registry.memory.MemoryRegistryConfiguration;
+import net.hasor.meteor.test.nxn.NxnRpc;
 import net.hasor.realmeteor.environment.discovery.RegistryDiscoveryEnvironment;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.*;
 
 /** 复用订单示例，验证跨协议组合后的注册描述；协议单测不依赖注册中心。 */
 @NxnRpc(name = "rsf", version = "1")

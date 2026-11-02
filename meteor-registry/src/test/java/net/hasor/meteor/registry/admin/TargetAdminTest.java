@@ -50,7 +50,7 @@ public class TargetAdminTest {
 
         // 调用方使用离线注册中心扩展，只通过 RPC 管理目标。
         MetConfiguration callerConfiguration = new MetConfiguration();
-        callerConfiguration.addExtension(new RegistryConfiguration().setOnline(false));
+        callerConfiguration.addExtension(new RegistryConfiguration().setOnline(false).setManagementToken("secret"));
         callerConfiguration.connector("tcp").protocol("rsf").option("serializeType", "Json");
 
         try (MetContext first = serverConfiguration.setApplicationName("orders").buildContext(); //
@@ -78,7 +78,7 @@ public class TargetAdminTest {
 
             // 查询目标的应用、服务和端点信息。
             MetBindInfo<ManagementRPC> management = first.getServiceInfo(ManagementRPC.class);
-            assertTrue(management.isShadow());
+            assertFalse(management.isShadow());
             assertEquals(first.getInstanceID(), instance.instance().getInstanceId());
             assertEquals("orders", instance.instance().getApplicationName());
             assertEquals(Map.of("tcp-0#rsf", address.toString()), instance.instance().getManagementAddress());
@@ -228,7 +228,7 @@ public class TargetAdminTest {
         server.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
         server.connector("http").protocol("registry-http").addressScheme("http");
         MetConfiguration client = new MetConfiguration();
-        client.addExtension(new RegistryConfiguration().setOnline(false));
+        client.addExtension(new RegistryConfiguration().setOnline(false).setManagementToken("secret"));
         client.connector("tcp").protocol("rsf");
 
         try (MetContext target = server.buildContext(); //
@@ -274,7 +274,7 @@ public class TargetAdminTest {
         server.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
         server.connector("http").protocol("registry-http").addressScheme("http");
         MetConfiguration client = new MetConfiguration();
-        client.addExtension(new RegistryConfiguration().setOnline(false));
+        client.addExtension(new RegistryConfiguration().setOnline(false).setManagementToken("secret"));
         client.connector("tcp").protocol("rsf");
 
         try (MetContext target = server.buildContext(); //
@@ -332,7 +332,7 @@ public class TargetAdminTest {
 
         // 调用方只启用直连管理，目标规则在用例中逐步修改。
         MetConfiguration callerConfiguration = new MetConfiguration();
-        callerConfiguration.addExtension(new RegistryConfiguration().setOnline(false));
+        callerConfiguration.addExtension(new RegistryConfiguration().setOnline(false).setManagementToken("secret"));
         callerConfiguration.connector("tcp").protocol("rsf").option("serializeType", "Json");
 
         String baseline = "<route><return value='addresses'/></route>";
@@ -458,7 +458,7 @@ public class TargetAdminTest {
 
         // 调用方使用离线扩展，管理操作全部直连目标。
         MetConfiguration callerConfiguration = new MetConfiguration();
-        callerConfiguration.addExtension(new RegistryConfiguration().setOnline(false));
+        callerConfiguration.addExtension(new RegistryConfiguration().setOnline(false).setManagementToken("secret"));
         callerConfiguration.connector("tcp").protocol("rsf").option("serializeType", "Json");
 
         RegistryConfiguration bootstrap = registryConfiguration.setManagementToken("secret");
@@ -525,12 +525,12 @@ public class TargetAdminTest {
     @Test
     public void directManagementWorksWithoutRegistryOnEitherSide() throws Exception {
         // 双方均使用离线扩展，只有目标应用开启监听。
-        RegistryConfiguration serverExtension = new RegistryConfiguration().setOnline(false);
+        RegistryConfiguration serverExtension = new RegistryConfiguration().setOnline(false).setManagementToken("secret");
         serverExtension.setPublishHost("127.0.0.1");
         MetConfiguration server = new MetConfiguration().addExtension(serverExtension);
         server.connector("tcp").bind("0.0.0.0", 0).protocol("rsf").option("serializeType", "Json");
         MetConfiguration client = new MetConfiguration();
-        client.addExtension(new RegistryConfiguration().setOnline(false));
+        client.addExtension(new RegistryConfiguration().setOnline(false).setManagementToken("secret"));
         client.connector("tcp").protocol("rsf").option("serializeType", "Json");
 
         try (MetContext target = server.buildContext(); //
@@ -556,7 +556,7 @@ public class TargetAdminTest {
             MetServiceAdmin service = targets.getServiceAdminByAddress(address, id);
             MetBindInfo<ManagementRPC> management = caller.getServiceInfo(ManagementRPC.class);
             assertEquals(MetServiceType.Provider, management.getServiceType());
-            assertTrue(management.isShadow());
+            assertFalse(management.isShadow());
             assertEquals(target.getInstanceID(), instance.instance().getInstanceId());
             assertEquals(Map.of("tcp-0#rsf", address.toString()), instance.instance().getManagementAddress());
             assertEquals(1, instance.getServiceList(null).getItems().size());
@@ -592,7 +592,7 @@ public class TargetAdminTest {
         while (!(failure instanceof MetException) && failure.getCause() != null) {
             failure = failure.getCause();
         }
-        assertTrue(failure instanceof MetException);
+        assertInstanceOf(MetException.class, failure);
         assertEquals(ProtocolStatus.Forbidden, ((MetException) failure).getStatus());
     }
 }

@@ -13,8 +13,8 @@ import net.hasor.meteor.registry.RegistryConfiguration;
 import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
 import net.hasor.meteor.registry.nacos.NacosRegistryConfiguration;
 import net.hasor.meteor.registry.zookeeper.ZookeeperRegistryConfiguration;
-import net.hasor.realmeteor.environment.storage.NacosTestServer;
 import net.hasor.realmeteor.environment.storage.JdbcTestServer;
+import net.hasor.realmeteor.environment.storage.NacosTestServer;
 import net.hasor.realmeteor.environment.storage.ZookeeperTestServer;
 import org.h2.jdbcx.JdbcDataSource;
 
