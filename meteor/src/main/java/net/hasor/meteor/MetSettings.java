@@ -23,7 +23,7 @@ public interface MetSettings {
     /**获取本地数据目录。*/
     Path getDataHome();
 
-    /** 初始 XML 静态地址本位置；null 表示未配置。 */
+    /** 消费端 XML 静态地址本位置；null 表示未配置。 */
     String getAddressBook();
 
     /**获取默认超时时间。*/

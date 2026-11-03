@@ -13,12 +13,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.util.List;
+import java.util.Set;
 import javax.sql.DataSource;
 import net.hasor.example.OrderClient;
 import net.hasor.example.ProviderMain;
 import net.hasor.example.services.InventoryService;
 import net.hasor.example.services.OrderService;
 import net.hasor.example.services.OrderServiceImpl;
+import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetServiceType;
 import net.hasor.meteor.registry.TargetAdmin;
@@ -26,6 +29,7 @@ import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
 import org.h2.jdbcx.JdbcDataSource;
 import org.h2.tools.RunScript;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.Solon;
 import org.noear.solon.SolonApp;
 import org.noear.solon.annotation.Bean;
@@ -36,6 +40,35 @@ import org.noear.solon.core.Props;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SolonIntegrationTest {
+    @TempDir
+    Path directory;
+
+    @Test
+    void loadsExampleAddressBookFromClasspath() throws Throwable {
+        // 使用演示主配置中的 DTD 地址本，仅将监听端口改为随机端口。
+        AppContext app = application("consumer", null);
+        try {
+            app.cfg().loadAdd("classpath:solon-consumer.properties");
+            app.cfg().setProperty("meteor.connectors.rsf.port", "0");
+            app.start();
+
+            // 两个消费接口均按服务坐标加载静态地址和允许的协议。
+            MetContext context = app.getBean(MetContext.class);
+            String orderID = context.getServiceInfo(OrderService.class).getBindID();
+            String inventoryID = context.getServiceInfo(InventoryService.class).getBindID();
+            List<InterAddress> expected = List.of(new InterAddress("rsf://127.0.0.1:28770/example"));
+            assertEquals("solon-order-consumer", context.getApplicationName());
+            assertEquals(Set.of("rsf"), context.getUpdater().getSupportedProtocols(orderID));
+            assertEquals(Set.of("rsf"), context.getUpdater().getSupportedProtocols(inventoryID));
+            assertEquals(expected, context.getUpdater().queryAllAddresses(orderID));
+            assertEquals(expected, context.getUpdater().queryAllAddresses(inventoryID));
+            assertEquals(expected, context.getUpdater().queryAvailableAddresses(orderID));
+            assertEquals(expected, context.getUpdater().queryAvailableAddresses(inventoryID));
+        } finally {
+            app.stop();
+        }
+    }
+
     @Test
     void injectsConsumerAndPublishesManagedProvider() throws Throwable {
         // 插件安装早于业务扫描，服务实现应在初始化阶段识别。
@@ -56,6 +89,9 @@ class SolonIntegrationTest {
             consumer.start();
             OrderClient caller = consumer.getBean(OrderClient.class);
             assertNotNull(consumer.getBean(InventoryService.class));
+            MetContext client = consumer.getBean(MetContext.class);
+            String serviceID = client.getServiceInfo(OrderService.class).getBindID();
+            assertEquals(Set.of("rsf"), client.getUpdater().getSupportedProtocols(serviceID));
             assertEquals("ORDER-1001", caller.getOrder("ORDER-1001").getOrderId());
         } finally {
             if (consumer != null) {
@@ -247,26 +283,19 @@ class SolonIntegrationTest {
         return config;
     }
 
-    private static AppContext application(String name, String address) throws Throwable {
+    private AppContext application(String name, String address) throws Throwable {
         Props properties = new Props();
-        properties.setProperty("meteor.application-name", name);
+        properties.setProperty("meteor.application", name);
         properties.setProperty("meteor.unit", "framework");
         properties.setProperty("meteor.scan-packages", "net.hasor.example.services");
         properties.setProperty("meteor.connectors.rsf.host", "127.0.0.1");
         properties.setProperty("meteor.connectors.rsf.port", "0");
         if (address != null) {
-            try {
-                Path book = Files.createTempFile("solon-address-book-", ".xml");
-                String xml = """
-                        <address-book xmlns="https://www.hasor.net/schema/meteor-address-book"
-                            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                            xsi:schemaLocation="https://www.hasor.net/schema/meteor-address-book https://www.hasor.net/rsf/schema/meteor-address-book.xsd">
-                          <service group="solon-demo" name="%s" version="1.0">
-                            <address>%s</address>
-                          </service>
-                        </address-book>
-                        """.formatted(OrderService.class.getName(), address);
-                Files.writeString(book, xml);
+            try (InputStream input = getClass().getResourceAsStream("/solon-consumer-address-book.xml")) {
+                assertNotNull(input);
+                String xml = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+                Path book = Files.createTempFile(this.directory, "solon-address-book-", ".xml");
+                Files.writeString(book, xml.replace("${address}", address));
                 properties.setProperty("meteor.address-book", book.toUri().toString());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

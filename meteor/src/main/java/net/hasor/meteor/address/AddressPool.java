@@ -6,11 +6,15 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.address;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
+import net.hasor.cobble.ResourcesUtils;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.function.EFunction;
 import net.hasor.cobble.logging.Logger;
@@ -25,12 +29,13 @@ import net.hasor.meteor.address.dsl.RouteContext;
  * @version : 2014年9月12日
  */
 public class AddressPool {
-    protected static final Logger                     logger = LoggerFactory.getLogger(AddressPool.class);
+    protected static final Logger                     logger    = LoggerFactory.getLogger(AddressPool.class);
     protected final        Map<String, AddressBucket> addressPool;
     protected final        Object                     poolLock;
     private final          String                     unitName;
     private final          long                       invalidWakeupTimeMs;
     private final          AddressCacheResult         rulerCache;
+    private volatile       Set<String>                protocols = Set.of();
 
     public AddressPool() {
         this("default", 120000);
@@ -49,12 +54,58 @@ public class AddressPool {
         return this.addressPool.getOrDefault(serviceID, null);
     }
 
+    /** 加载消费端 XML 地址本，仅更新已存在的服务；空位置不加载。 */
+    public void loadAddressBook(ClassLoader classLoader, String location) throws IOException {
+        if (StringUtils.isBlank(location)) {
+            return;
+        }
+
+        AddressBook book;
+        try (InputStream input = ResourcesUtils.getResourceAsStream(classLoader, location)) {
+            if (input == null) {
+                throw new FileNotFoundException("Static address book not found: " + location);
+            }
+            book = AddressBook.parse(input);
+        }
+
+        for (AddressBook.Service service : book.getServices()) {
+            AddressBucket bucket = this.addressPool.get(service.getServiceID());
+            if (bucket == null) {
+                continue;
+            }
+            bucket.newAddress(service.getAddresses(), AddressTypeEnum.Static);
+        }
+        this.rulerCache.reset();
+    }
+
+    /** 由运行时根据连接器挂载配置更新支持的地址 scheme，已有和后续地址本统一生效。 */
+    protected void configProtocols(Collection<String> protocols) {
+        Set<String> configured = Set.copyOf(protocols);
+        List<AddressBucket> buckets;
+        synchronized (this.poolLock) {
+            this.protocols = configured;
+            buckets = new ArrayList<>(this.addressPool.values());
+        }
+
+        for (AddressBucket bucket : buckets) {
+            bucket.configProtocols(configured);
+        }
+        this.rulerCache.reset();
+    }
+
+    public Set<String> getSupportedProtocols(String serviceID) {
+        AddressBucket bucket = this.addressPool.get(serviceID);
+        return bucket == null ? Set.of() : bucket.getProtocols();
+    }
+
     /** 登记已完成地址与规则初始化的服务地址本；已有发现结果继续保留。 */
     public void registerBucket(AddressBucket prepared) {
+        prepared.configProtocols(this.protocols);
         AddressBucket existing;
         synchronized (this.poolLock) {
             existing = this.addressPool.putIfAbsent(prepared.getServiceID(), prepared);
         }
+
         if (existing != null) {
             existing.initialize(prepared);
         }
@@ -154,6 +205,7 @@ public class AddressPool {
         AddressBucket bucket = this.addressPool.get(serviceID);
         if (bucket == null) {
             AddressBucket newBucket = new AddressBucket(serviceID, this.unitName);
+            newBucket.configProtocols(this.protocols);
             synchronized (this.poolLock) {
                 bucket = this.addressPool.putIfAbsent(serviceID, newBucket);
                 if (bucket == null) {

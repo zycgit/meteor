@@ -6,9 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.Collection;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import org.springframework.beans.factory.BeanFactory;
@@ -97,7 +97,7 @@ final class MeteorContextBean implements FactoryBean<MetContext>, BeanFactoryAwa
         } else {
             binding = context.publisher().rsfService(type).toProvider(() -> this.factory.getBean(name, type));
         }
-        SpringSettings.configureService(this.environment, type, binding);
+
         binding.register();
     }
 

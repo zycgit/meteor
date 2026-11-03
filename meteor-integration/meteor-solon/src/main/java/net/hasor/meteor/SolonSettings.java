@@ -24,7 +24,7 @@ final class SolonSettings {
     static MetConfiguration configuration(Props properties, ClassLoader loader) {
         MetConfiguration config = new MetConfiguration();
         config.setAddressBook(properties.get("meteor.address-book"));
-        config.setApplicationName(properties.get("meteor.application-name", config.getApplicationName()));
+        config.setApplicationName(properties.get("meteor.application", config.getApplicationName()));
         config.setUnitName(properties.get("meteor.unit", config.getUnitName()));
         config.setDefaultProtocol(properties.get("meteor.default-protocol", config.getDefaultProtocol()));
         config.setDefaultGroup(properties.get("meteor.default-group", config.getDefaultGroup()));
@@ -164,25 +164,8 @@ final class SolonSettings {
         return registry;
     }
 
-    static <T> void configureService(Props properties, Class<T> type, MetPublisher.ConfigurationBuilder<T> binding) {
-        String prefix = "meteor.services." + type.getName() + ".";
-        String scalar = properties.get(prefix + "protocols");
-        String[] protocols;
-        if (StringUtils.isNotBlank(scalar)) {
-            protocols = Arrays.stream(scalar.split(",")).map(String::trim) // 单值配置支持逗号分隔的协议名。
-                    .filter(value -> !value.isEmpty()).toArray(String[]::new);
-        } else {
-            protocols = properties.getList(prefix + "protocols").toArray(String[]::new);
-        }
-
-        if (protocols.length > 0) {
-            binding.protocol(protocols[0], Arrays.copyOfRange(protocols, 1, protocols.length));
-        }
-        options(properties, prefix + "aliases.", binding::aliasName);
-    }
-
     private static void options(Props properties, String prefix, BiConsumer<String, String> setter) {
-        // Protocol option/alias names are opaque keys; keep hyphens instead of applying Bean-name conversion.
+        // Protocol option names are opaque keys; keep hyphens instead of applying Bean-name conversion.
         for (String name : properties.stringPropertyNames()) {
             if (name.startsWith(prefix)) {
                 setter.accept(name.substring(prefix.length()), properties.get(name));

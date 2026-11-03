@@ -146,7 +146,7 @@ public final class MetConfiguration {
 
     // 地址缓存与路由
 
-    /** 指定初始 XML 静态地址本；在 start() 时、网络监听开启前加载。 */
+    /** 指定消费端 XML 地址本；在 start() 恢复地址缓存后、网络监听开启前加载。 */
     public MetConfiguration setAddressBook(String location) {
         this.addressBook = location;
         return this;

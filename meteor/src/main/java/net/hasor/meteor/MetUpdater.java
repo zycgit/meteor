@@ -6,8 +6,10 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import net.hasor.meteor.address.InterAddress;
 
 /**
@@ -16,6 +18,12 @@ import net.hasor.meteor.address.InterAddress;
  * @author 赵永春 (zyc@hasor.net)
  */
 public interface MetUpdater {
+    /** 加载消费端 XML 静态地址本，仅作用于已有服务。 */
+    void loadAddressBook(ClassLoader classLoader, String location) throws IOException;
+
+    /** 消费端连接器支持的地址 scheme；空集合表示未限制或服务不存在。 */
+    Set<String> getSupportedProtocols(String serviceID);
+
     /** 使用 XML 更新服务级路由；空正文清除规则。 */
     boolean updateServiceRoute(String serviceID, String scriptBody);
 

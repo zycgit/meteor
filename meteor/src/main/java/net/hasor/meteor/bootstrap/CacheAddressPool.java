@@ -7,6 +7,8 @@
  */
 package net.hasor.meteor.bootstrap;
 import java.io.File;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.function.BiFunction;
 import net.hasor.cobble.concurrent.future.Cancellable;
 import net.hasor.meteor.MetSettings;
@@ -17,6 +19,8 @@ import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.provider.AddressProvider;
 import net.hasor.meteor.address.provider.InstanceAddressProvider;
 import net.hasor.meteor.address.provider.PoolAddressProvider;
+import net.hasor.meteor.connector.ConnectorConfig;
+import net.hasor.meteor.domain.ProtocolConfig;
 
 /** Composes the independent address pool, disk cache and providers using RSF settings. */
 public class CacheAddressPool extends AddressPool implements MetUpdater, AutoCloseable {
@@ -38,6 +42,15 @@ public class CacheAddressPool extends AddressPool implements MetUpdater, AutoClo
         super(settings.getUnitName(), settings.getInvalidWaitTime());
         this.settings = settings;
         this.provider = new PoolAddressProvider(this);
+
+        // 消费能力由实际配置的连接器挂载决定，按公开地址 scheme 匹配。
+        Set<String> schemes = new LinkedHashSet<>();
+        for (ConnectorConfig connector : settings.getConnectorConfigs()) {
+            for (ProtocolConfig protocol : connector.protocols()) {
+                schemes.add(protocol.scheme());
+            }
+        }
+        this.configProtocols(schemes);
     }
 
     public AddressProvider getProvider() {

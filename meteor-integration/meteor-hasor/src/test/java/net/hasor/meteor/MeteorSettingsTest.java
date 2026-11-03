@@ -51,7 +51,7 @@ class MeteorSettingsTest {
     void derivesTransportFromProtocolSpiAndReadsHttpContext() throws Exception {
         // 不配置 transport 或 protocols.name，传输能力来自已安装 SPI。
         Map<String, Object> values = new LinkedHashMap<>();
-        values.put("meteor.application-name", "example");
+        values.put("meteor.application", "example");
         values.put("meteor.connectors.rsf.host", "127.0.0.1");
         values.put("meteor.connectors.rsf.port", 8000);
         values.put("meteor.connectors.rsf.options.max-frame-size", "1024");
@@ -110,8 +110,8 @@ class MeteorSettingsTest {
 
     @Test
     void readsNativeConfigurationOverrides() throws Exception {
-        DefaultSettings source = settings(Map.of("meteor.connectors.rsf.host", "127.0.0.1", "meteor.connectors.rsf.port", 8000, "meteor.application-name", "before"));
-        source.setSetting("meteor.application-name", "after", Settings.DefaultNameSpace);
+        DefaultSettings source = settings(Map.of("meteor.connectors.rsf.host", "127.0.0.1", "meteor.connectors.rsf.port", 8000, "meteor.application", "before"));
+        source.setSetting("meteor.application", "after", Settings.DefaultNameSpace);
         MetConfiguration config = MeteorSettings.configuration(source, getClass().getClassLoader());
         assertEquals("after", config.getApplicationName());
     }

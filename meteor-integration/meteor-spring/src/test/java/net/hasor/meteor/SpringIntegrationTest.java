@@ -15,23 +15,25 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.sql.DataSource;
 import net.hasor.example.OrderClient;
 import net.hasor.example.services.InventoryService;
 import net.hasor.example.services.OrderService;
 import net.hasor.example.services.OrderServiceImpl;
+import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.bootstrap.MetConfiguration;
 import net.hasor.meteor.domain.MetServiceType;
-import javax.sql.DataSource;
 import net.hasor.meteor.registry.TargetAdmin;
 import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
-import org.springframework.core.io.support.ResourcePropertySource;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.h2.jdbcx.JdbcDataSource;
 import org.h2.tools.RunScript;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.config.BeanPostProcessor;
@@ -39,12 +41,40 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.MapPropertySource;
+import org.springframework.core.io.support.ResourcePropertySource;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SpringIntegrationTest {
+    @TempDir
+    Path directory;
+
     @Configuration(proxyBeanMethods = false)
     @EnableMeteor(basePackages = "net.hasor.example.services")
     static class Enable {
+    }
+
+    @Test
+    void loadsExampleAddressBookFromClasspath() throws Exception {
+        // 使用演示主配置中的 XSD 地址本，仅将监听端口改为随机端口。
+        try (AnnotationConfigApplicationContext app = application("consumer", null)) {
+            var sources = app.getEnvironment().getPropertySources();
+            sources.addFirst(new ResourcePropertySource("classpath:spring-consumer.properties"));
+            sources.addFirst(new MapPropertySource("ports", Map.of("meteor.connectors.rsf.port", "0")));
+            app.refresh();
+
+            // 两个消费接口均按服务坐标加载静态地址和允许的协议。
+            MetContext context = app.getBean(MetContext.class);
+            String orderID = context.getServiceInfo(OrderService.class).getBindID();
+            String inventoryID = context.getServiceInfo(InventoryService.class).getBindID();
+            List<InterAddress> expected = List.of(new InterAddress("rsf://127.0.0.1:28780/example"));
+            assertEquals("spring-order-consumer", context.getApplicationName());
+            assertEquals(Set.of("rsf"), context.getUpdater().getSupportedProtocols(orderID));
+            assertEquals(Set.of("rsf"), context.getUpdater().getSupportedProtocols(inventoryID));
+            assertEquals(expected, context.getUpdater().queryAllAddresses(orderID));
+            assertEquals(expected, context.getUpdater().queryAllAddresses(inventoryID));
+            assertEquals(expected, context.getUpdater().queryAvailableAddresses(orderID));
+            assertEquals(expected, context.getUpdater().queryAvailableAddresses(inventoryID));
+        }
     }
 
     @Test
@@ -175,28 +205,32 @@ class SpringIntegrationTest {
     }
 
     @Test
-    void mountsJsonRpcAndRestrictsProviderProtocol() {
-        // 同时安装 TCP/RSF 与 HTTP/JSON-RPC，单个服务只发布 JSON-RPC。
+    void loadsJsonRpcStaticAddressWithoutRestrictingProvider() {
+        // 提供者启用两个协议，消费端 XML 只声明 JSON-RPC 静态地址。
         try (AnnotationConfigApplicationContext provider = application("http-provider", null)) {
             Map<String, Object> protocols = new LinkedHashMap<>();
             protocols.put("meteor.connectors.jsonrpc.host", "127.0.0.1");
             protocols.put("meteor.connectors.jsonrpc.port", "0");
             protocols.put("meteor.connectors.jsonrpc.context", "/rpc");
-            protocols.put("meteor.services." + OrderService.class.getName() + ".protocols", "jsonrpc");
-            protocols.put("meteor.services." + OrderService.class.getName() + ".aliases.jsonrpc", "orders");
             provider.getEnvironment().getPropertySources().addFirst(new MapPropertySource("protocols", protocols));
             provider.registerBean(OrderService.class, OrderServiceImpl::new);
             provider.refresh();
             MetContext server = provider.getBean(MetContext.class);
             assertNotNull(server.getListenAddress("rsf"));
-            assertEquals(Set.of("jsonrpc"), server.getServiceInfo(OrderService.class).getBindProtocols());
-            assertEquals("orders", server.getServiceInfo(OrderService.class).getAliasName("jsonrpc"));
+            assertTrue(server.getServiceInfo(OrderService.class).getBindProtocols().isEmpty());
+            assertNotNull(server.getListenAddress("jsonrpc"));
             String address = server.getListenAddress("jsonrpc").toString();
 
-            // 消费端安装相同协议和别名，通过实际 HTTP 端口调用。
+            // 消费端从 XML 读取 JSON-RPC 静态地址，通过实际 HTTP 端口调用。
             try (AnnotationConfigApplicationContext consumer = application("http-consumer", address)) {
-                consumer.getEnvironment().getPropertySources().addFirst(new MapPropertySource("protocols", protocols));
+                Map<String, Object> consumerProtocols = new LinkedHashMap<>(protocols);
+                consumerProtocols.put("meteor.address-book", writeAddressBook("spring-consumer-address-book.xml", address));
+                consumer.getEnvironment().getPropertySources().addFirst(new MapPropertySource("protocols", consumerProtocols));
                 consumer.refresh();
+                MetContext client = consumer.getBean(MetContext.class);
+                String serviceID = client.getServiceInfo(OrderService.class).getBindID();
+                assertEquals(Set.of("rsf", "jsonrpc"), client.getUpdater().getSupportedProtocols(serviceID));
+                assertTrue(client.getServiceInfo(OrderService.class).getBindProtocols().isEmpty());
                 assertEquals("ORDER-1001", consumer.getBean(OrderService.class).getOrder("ORDER-1001").getOrderId());
             }
         }
@@ -233,8 +267,8 @@ class SpringIntegrationTest {
     }
 
     @Test
-    void releasesContextWhenBindingFails() {
-        // 扩展已经分配资源，绑定非法协议时必须关闭该扩展。
+    void releasesContextWhenAddressBookFails() {
+        // 扩展已经分配资源，消费端 XML 校验失败时必须关闭该扩展。
         AtomicBoolean extensionClosed = new AtomicBoolean();
         try (AnnotationConfigApplicationContext app = application("binding-failure", null)) {
             app.registerBean(MetExtensionFactory.class, () -> context -> new MetExtension() {
@@ -256,8 +290,7 @@ class SpringIntegrationTest {
                     extensionClosed.set(true);
                 }
             });
-            String key = "meteor.services." + OrderService.class.getName() + ".protocols";
-            Map<String, Object> invalid = Map.of(key, "missing");
+            Map<String, Object> invalid = Map.of("meteor.address-book", "classpath:spring-invalid-address-book.xml");
             app.getEnvironment().getPropertySources().addFirst(new MapPropertySource("invalid", invalid));
             assertThrows(RuntimeException.class, app::refresh);
             assertTrue(extensionClosed.get());
@@ -294,33 +327,31 @@ class SpringIntegrationTest {
         return config;
     }
 
-    private static AnnotationConfigApplicationContext application(String name, String address) {
+    private AnnotationConfigApplicationContext application(String name, String address) {
         AnnotationConfigApplicationContext app = new AnnotationConfigApplicationContext();
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("meteor.application-name", name);
+        properties.put("meteor.application", name);
         properties.put("meteor.unit", "framework");
         properties.put("meteor.connectors.rsf.host", "127.0.0.1");
         properties.put("meteor.connectors.rsf.port", "0");
         if (address != null) {
-            try {
-                Path book = Files.createTempFile("spring-address-book-", ".xml");
-                String xml = """
-                        <address-book xmlns="https://www.hasor.net/schema/meteor-address-book"
-                            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                            xsi:schemaLocation="https://www.hasor.net/schema/meteor-address-book https://www.hasor.net/rsf/schema/meteor-address-book.xsd">
-                          <service group="spring-demo" name="%s" version="1.0">
-                            <address>%s</address>
-                          </service>
-                        </address-book>
-                        """.formatted(OrderService.class.getName(), address);
-                Files.writeString(book, xml);
-                properties.put("meteor.address-book", book.toUri().toString());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            properties.put("meteor.address-book", writeAddressBook("spring-consumer-address-book.xml", address));
         }
         app.getEnvironment().getPropertySources().addFirst(new MapPropertySource("meteorTest", properties));
         app.register(Enable.class);
         return app;
     }
+
+    private String writeAddressBook(String resource, String address) {
+        try (InputStream input = getClass().getResourceAsStream("/" + resource)) {
+            assertNotNull(input);
+            String xml = new String(input.readAllBytes(), StandardCharsets.UTF_8).replace("${address}", address);
+            Path book = Files.createTempFile(this.directory, "spring-address-book-", ".xml");
+            Files.writeString(book, xml);
+            return book.toUri().toString();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
 }

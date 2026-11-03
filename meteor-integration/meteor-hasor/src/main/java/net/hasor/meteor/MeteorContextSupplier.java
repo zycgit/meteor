@@ -122,7 +122,6 @@ final class MeteorContextSupplier implements Supplier<MetContext>, AutoCloseable
             });
         }
 
-        MeteorSettings.configureService(app.getSettings(), type, binding);
         binding.register();
     }
 

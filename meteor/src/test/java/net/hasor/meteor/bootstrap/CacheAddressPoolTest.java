@@ -6,26 +6,41 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.bootstrap;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.nio.file.Path;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.BiFunction;
 import net.hasor.cobble.concurrent.future.Cancellable;
+import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetUpdater;
 import net.hasor.meteor.address.DiskCache;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.address.dsl.RouteContext;
 import net.hasor.meteor.address.provider.AddressProvider;
 import org.junit.jupiter.api.Test;
-import java.nio.file.Path;
 import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class CacheAddressPoolTest {
     @TempDir
     public Path temporary;
+
+    @Test
+    public void connectorAddressSchemeFiltersCandidatesBeforeStartup() throws Exception {
+        // 消费连接器使用自定义 scheme，筛选不能误用 SPI 协议名 rsf。
+        MetConfiguration configuration = this.settings();
+        configuration.connector("tcp").protocol("rsf").addressScheme("edge-rsf");
+        try (MetContext context = configuration.buildContext()) {
+            InterAddress configured = new InterAddress("edge-rsf://127.0.0.1:2111/default");
+            InterAddress unsupported = new InterAddress("rsf://127.0.0.1:2112/default");
+            context.getUpdater().appendStaticAddress("service", List.of(configured, unsupported));
+
+            // 启动前即可选到匹配的地址；不支持的地址仍完整保留。
+            assertEquals(Set.of("edge-rsf"), context.getUpdater().getSupportedProtocols("service"));
+            assertEquals(List.of(configured), context.getUpdater().queryAvailableAddresses("service"));
+            assertEquals(List.of(configured, unsupported), context.getUpdater().queryAllAddresses("service"));
+        }
+    }
 
     @Test
     public void poolUpdaterAndProvidersShareAddressChangesBeforeStart() throws Exception {

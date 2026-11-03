@@ -26,7 +26,7 @@ class SolonSettingsTest {
     void derivesTransportFromProtocolSpiAndReadsHttpContext() throws Exception {
         // 不配置 transport 或 protocols.name，传输能力来自已安装 SPI。
         Map<String, Object> values = new LinkedHashMap<>();
-        values.put("meteor.application-name", "example");
+        values.put("meteor.application", "example");
         values.put("meteor.connectors.rsf.host", "127.0.0.1");
         values.put("meteor.connectors.rsf.port", 8000);
         values.put("meteor.connectors.rsf.options.max-frame-size", "1024");
@@ -85,8 +85,8 @@ class SolonSettingsTest {
 
     @Test
     void readsNativeConfigurationOverrides() throws Exception {
-        Props source = settings(Map.of("meteor.connectors.rsf.host", "127.0.0.1", "meteor.connectors.rsf.port", 8000, "meteor.application-name", "before"));
-        source.setProperty("meteor.application-name", "after");
+        Props source = settings(Map.of("meteor.connectors.rsf.host", "127.0.0.1", "meteor.connectors.rsf.port", 8000, "meteor.application", "before"));
+        source.setProperty("meteor.application", "after");
         MetConfiguration config = SolonSettings.configuration(source, getClass().getClassLoader());
         assertEquals("after", config.getApplicationName());
     }

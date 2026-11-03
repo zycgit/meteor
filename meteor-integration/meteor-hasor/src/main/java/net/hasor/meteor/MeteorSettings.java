@@ -22,7 +22,7 @@ final class MeteorSettings {
     static MetConfiguration configuration(Settings settings, ClassLoader loader) {
         MetConfiguration config = new MetConfiguration();
         config.setAddressBook(settings.getString("meteor.address-book"));
-        config.setApplicationName(settings.getString("meteor.application-name", config.getApplicationName()));
+        config.setApplicationName(settings.getString("meteor.application", config.getApplicationName()));
         config.setUnitName(settings.getString("meteor.unit", config.getUnitName()));
         config.setDefaultProtocol(settings.getString("meteor.default-protocol", config.getDefaultProtocol()));
         config.setDefaultGroup(settings.getString("meteor.default-group", config.getDefaultGroup()));
@@ -151,15 +151,6 @@ final class MeteorSettings {
             }
         }
         return registry;
-    }
-
-    static <T> void configureService(Settings settings, Class<T> type, MetPublisher.ConfigurationBuilder<T> binding) {
-        String prefix = "meteor.services." + type.getName();
-        String[] protocols = Arrays.stream(settings.getStringArray(prefix + ".protocols")).flatMap(value -> Arrays.stream(value.split(","))).map(String::trim).filter(value -> !value.isEmpty()).toArray(String[]::new);
-        if (protocols.length > 0) {
-            binding.protocol(protocols[0], Arrays.copyOfRange(protocols, 1, protocols.length));
-        }
-        options(settings, settings.getNode(prefix + ".aliases"), binding::aliasName);
     }
 
     private static void options(Settings settings, SettingNode node, BiConsumer<String, String> setter) {

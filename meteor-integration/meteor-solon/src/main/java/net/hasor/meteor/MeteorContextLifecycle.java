@@ -123,7 +123,6 @@ final class MeteorContextLifecycle implements Lifecycle {
             binding = this.context.publisher().rsfService(type);
         }
 
-        SolonSettings.configureService(this.app.cfg(), type, binding);
         binding.register();
         if (!provider) {
             T proxy = this.context.getRsfClient().getRemote(this.context.getServiceInfo(type));

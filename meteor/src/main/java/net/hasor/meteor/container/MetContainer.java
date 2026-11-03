@@ -284,7 +284,7 @@ public class MetContainer {
             throw new MetException(ProtocolStatus.Forbidden, "Provider Not set the implementation class.");
         }
 
-        // 地址计算与 XML 解析只操作未发布的地址本，不占用容器注册锁。
+        // 先准备服务的初始地址与规则，不占用容器注册锁。
         AddressBucket prepared = new AddressBucket(serviceID, this.addressPool.getUnitName());
         prepared.newAddress(serviceDefine.getAddressSet(), AddressTypeEnum.Static);
         String flowControl = serviceDefine.getFlowControl();

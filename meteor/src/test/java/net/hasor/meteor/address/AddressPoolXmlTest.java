@@ -9,6 +9,7 @@ package net.hasor.meteor.address;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.annotation.MetService;
@@ -16,7 +17,7 @@ import net.hasor.meteor.bootstrap.MetConfiguration;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-class AddressBucketXmlTest {
+class AddressPoolXmlTest {
     @MetService
     public interface EchoService {
         String echo(String text);
@@ -59,7 +60,7 @@ class AddressBucketXmlTest {
         try (MetContext context = new MetConfiguration().buildContext()) {
             MetBindInfo<EchoService> service = context.publisher().rsfService(EchoService.class) // 显式服务注册信息。
                     .group("billing").name("order-query").version("2026.1").register();
-            AddressBucket.loadAddressBook(context, file);
+            context.getUpdater().loadAddressBook(context.getClassLoader(), file);
             List<InterAddress> addresses = context.getUpdater().queryAllAddresses(service.getBindID());
             assertEquals(2, addresses.size());
             assertTrue(addresses.contains(new InterAddress("rsf://127.0.0.1:28001/example")));
@@ -76,7 +77,7 @@ class AddressBucketXmlTest {
                     .group("billing").name("order-query").version("1.0").register();
             MetBindInfo<EchoService> second = context.publisher().rsfService(EchoService.class) // 第二版服务。
                     .group("billing").name("order-query").version("2.0").register();
-            AddressBucket.loadAddressBook(context, file);
+            context.getUpdater().loadAddressBook(context.getClassLoader(), file);
             assertEquals(List.of(new InterAddress("rsf://127.0.0.1:28001/example")), context.getUpdater().queryAllAddresses(first.getBindID()));
             assertEquals(List.of(new InterAddress("rsf://127.0.0.1:28002/example")), context.getUpdater().queryAllAddresses(second.getBindID()));
         }
@@ -91,7 +92,7 @@ class AddressBucketXmlTest {
                     .group("billing").name("order-query").version("1.0").register();
             MetBindInfo<EchoService> warehouse = context.publisher().rsfService(EchoService.class) // 另一个分组。
                     .group("warehouse").name("order-query").version("1.0").register();
-            AddressBucket.loadAddressBook(context, file);
+            context.getUpdater().loadAddressBook(context.getClassLoader(), file);
             assertEquals(1, context.getUpdater().queryAllAddresses(billing.getBindID()).size());
             assertTrue(context.getUpdater().queryAllAddresses(warehouse.getBindID()).isEmpty());
         }
@@ -103,7 +104,7 @@ class AddressBucketXmlTest {
         try (MetContext context = new MetConfiguration().buildContext()) {
             MetBindInfo<EchoService> service = context.publisher().rsfService(EchoService.class) // 初始静态地址。
                     .group("billing").name("order-query").version("1.0").register();
-            AddressBucket.loadAddressBook(context, file);
+            context.getUpdater().loadAddressBook(context.getClassLoader(), file);
             context.getUpdater().refreshAddress(service.getBindID(), List.of());
             assertEquals(List.of(new InterAddress("rsf://127.0.0.1:28001/example")), context.getUpdater().queryAllAddresses(service.getBindID()));
         }
@@ -112,19 +113,21 @@ class AddressBucketXmlTest {
     @Test
     void rejectsMissingFile() throws Exception {
         try (MetContext context = new MetConfiguration().buildContext()) {
-            assertThrows(FileNotFoundException.class, () -> AddressBucket.loadAddressBook(context, "classpath:missing-address-book.xml"));
+            assertThrows(FileNotFoundException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), "classpath:missing-address-book.xml"));
         }
     }
 
     @Test
-    void rejectsUnknownVersion() throws Exception {
+    void ignoresUnknownVersion() throws Exception {
+        // 不存在的服务条目不生效，也不创建新地址桶。
         String file = "classpath:address-book/unknown-version.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
             MetBindInfo<EchoService> service = context.publisher().rsfService(EchoService.class) // 只注册第一版。
                     .group("billing").name("order-query").version("1.0").register();
-            IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> AddressBucket.loadAddressBook(context, file));
-            assertTrue(error.getMessage().contains("Unregistered"));
+            context.getUpdater().loadAddressBook(context.getClassLoader(), file);
+            assertEquals(1, context.getServiceIDs().size());
             assertTrue(context.getUpdater().queryAllAddresses(service.getBindID()).isEmpty());
+            assertNull(context.getUpdater().queryAllAddresses("[billing]order-query-2.0"));
         }
     }
 
@@ -132,19 +135,21 @@ class AddressBucketXmlTest {
     void rejectsMissingVersion() throws Exception {
         String file = "classpath:address-book/missing-version.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
-            IOException error = assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            IOException error = assertThrows(IOException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
             assertTrue(error.getMessage().contains("version"));
         }
     }
 
     @Test
-    void rejectsEmptyAddressList() throws Exception {
+    void emptyAddressListLeavesRegistryDiscoveryAvailable() throws Exception {
+        // 空地址列表不会改变连接器支持范围，仍可使用注册发现。
         String file = "classpath:address-book/empty-address-list.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
-            context.publisher().rsfService(EchoService.class) // 注册存在但没有地址的条目。
+            MetBindInfo<EchoService> service = context.publisher().rsfService(EchoService.class) // 已有消费接口。
                     .group("billing").name("order-query").version("1.0").register();
-            IOException error = assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
-            assertTrue(error.getMessage().contains("address"));
+            context.getUpdater().loadAddressBook(context.getClassLoader(), file);
+            assertEquals(Set.of("rsf"), context.getUpdater().getSupportedProtocols(service.getBindID()));
+            assertTrue(context.getUpdater().queryAllAddresses(service.getBindID()).isEmpty());
         }
     }
 
@@ -154,7 +159,7 @@ class AddressBucketXmlTest {
         try (MetContext context = new MetConfiguration().buildContext()) {
             context.publisher().rsfService(EchoService.class) // 非法地址不能写入地址池。
                     .group("billing").name("order-query").version("1.0").register();
-            assertThrows(IllegalArgumentException.class, () -> AddressBucket.loadAddressBook(context, file));
+            assertThrows(IllegalArgumentException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
         }
     }
 
@@ -162,7 +167,7 @@ class AddressBucketXmlTest {
     void rejectsExternalEntities() throws Exception {
         String file = "classpath:address-book/external-entity.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
-            assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            assertThrows(IOException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
         }
     }
 
@@ -173,7 +178,7 @@ class AddressBucketXmlTest {
         try (MetContext context = new MetConfiguration().buildContext()) {
             MetBindInfo<EchoService> service = context.publisher().rsfService(EchoService.class) // 准备可解析的服务。
                     .group("billing").name("order-query").version("1.0").register();
-            IOException error = assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            IOException error = assertThrows(IOException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
             assertTrue(error.getMessage().contains("unexpected"));
             assertTrue(context.getUpdater().queryAllAddresses(service.getBindID()).isEmpty());
         }
@@ -184,7 +189,7 @@ class AddressBucketXmlTest {
         // 即使文件未声明 schemaLocation，加载器也必须使用内置 XSD 校验。
         String file = "classpath:address-book/missing-version-without-schema-location.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
-            IOException error = assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            IOException error = assertThrows(IOException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
             assertTrue(error.getMessage().contains("version"));
         }
     }
@@ -196,7 +201,7 @@ class AddressBucketXmlTest {
         try (MetContext context = new MetConfiguration().buildContext()) {
             MetBindInfo<EchoService> service = context.publisher().rsfService(EchoService.class) // 已登记的业务服务。
                     .group("billing").name("order-query").version("1.0").register();
-            AddressBucket.loadAddressBook(context, file);
+            context.getUpdater().loadAddressBook(context.getClassLoader(), file);
             assertEquals(List.of(new InterAddress("rsf://127.0.0.1:28001/example")), context.getUpdater().queryAllAddresses(service.getBindID()));
         }
     }
@@ -205,7 +210,7 @@ class AddressBucketXmlTest {
     void rejectsBlankRegistrationAttribute() throws Exception {
         String file = "classpath:address-book/blank-version.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
-            assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            assertThrows(IOException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
         }
     }
 
@@ -213,7 +218,7 @@ class AddressBucketXmlTest {
     void rejectsWrongNamespace() throws Exception {
         String file = "classpath:address-book/wrong-namespace.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
-            assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            assertThrows(IOException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
         }
     }
 
@@ -221,7 +226,7 @@ class AddressBucketXmlTest {
     void rejectsUnknownServiceChild() throws Exception {
         String file = "classpath:address-book/unknown-service-child.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
-            assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            assertThrows(IOException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
         }
     }
 
@@ -232,7 +237,7 @@ class AddressBucketXmlTest {
         try (MetContext context = new MetConfiguration().buildContext()) {
             MetBindInfo<EchoService> service = context.publisher().rsfService(EchoService.class) // 已注册的业务接口。
                     .group("billing").name("order-query").version("1.0").register();
-            AddressBucket.loadAddressBook(context, file);
+            context.getUpdater().loadAddressBook(context.getClassLoader(), file);
             assertEquals(2, context.getUpdater().queryAllAddresses(service.getBindID()).size());
         }
     }
@@ -243,7 +248,7 @@ class AddressBucketXmlTest {
         try (MetContext context = new MetConfiguration().buildContext()) {
             MetBindInfo<EchoService> service = context.publisher().rsfService(EchoService.class) // SYSTEM 声明同样离线加载。
                     .group("billing").name("order-query").version("1.0").register();
-            AddressBucket.loadAddressBook(context, file);
+            context.getUpdater().loadAddressBook(context.getClassLoader(), file);
             assertEquals(List.of(new InterAddress("rsf://127.0.0.1:28001/example")), context.getUpdater().queryAllAddresses(service.getBindID()));
         }
     }
@@ -252,7 +257,7 @@ class AddressBucketXmlTest {
     void dtdRejectsMissingVersion() throws Exception {
         String file = "classpath:address-book/dtd-missing-version.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
-            IOException error = assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            IOException error = assertThrows(IOException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
             assertTrue(error.getMessage().contains("version"));
         }
     }
@@ -263,17 +268,20 @@ class AddressBucketXmlTest {
         try (MetContext context = new MetConfiguration().buildContext()) {
             MetBindInfo<EchoService> service = context.publisher().rsfService(EchoService.class) // 校验整份文档再写入。
                     .group("billing").name("order-query").version("1.0").register();
-            IOException error = assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            IOException error = assertThrows(IOException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
             assertTrue(error.getMessage().contains("unexpected"));
             assertTrue(context.getUpdater().queryAllAddresses(service.getBindID()).isEmpty());
         }
     }
 
     @Test
-    void dtdRejectsEmptyAddressList() throws Exception {
+    void dtdAllowsServiceWithoutStaticAddresses() throws Exception {
         String file = "classpath:address-book/dtd-empty-address-list.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
-            assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            context.publisher().rsfService(EchoService.class) // 仍然只更新已经存在的服务。
+                    .group("billing").name("order-query").version("1.0").register();
+            context.getUpdater().loadAddressBook(context.getClassLoader(), file);
+            assertEquals(Set.of("rsf"), context.getUpdater().getSupportedProtocols("[billing]order-query-1.0"));
         }
     }
 
@@ -281,8 +289,50 @@ class AddressBucketXmlTest {
     void rejectsUnknownDtdLocation() throws Exception {
         String file = "classpath:address-book/unknown-dtd.xml";
         try (MetContext context = new MetConfiguration().buildContext()) {
-            IOException error = assertThrows(IOException.class, () -> AddressBucket.loadAddressBook(context, file));
+            IOException error = assertThrows(IOException.class, () -> context.getUpdater().loadAddressBook(context.getClassLoader(), file));
             assertTrue(error.getMessage().contains("Unsupported static address book DTD"));
         }
+    }
+
+    @Test
+    void staticProviderListPreservesEveryAddressScheme() throws Exception {
+        // 独立地址池未限定连接器能力时，XML 中不同协议的地址全部收录并可用。
+        AddressPool pool = new AddressPool();
+        String id = "[billing]order-query-1.0";
+        pool.registerBucket(new AddressBucket(id, "local"));
+        pool.loadAddressBook(getClass().getClassLoader(), "classpath:address-book/mixed-protocols.xml");
+        assertEquals(4, pool.queryAllAddresses(id).size());
+        assertEquals(pool.queryAllAddresses(id), pool.queryAvailableAddresses(id));
+    }
+
+    @Test
+    void connectorSchemesFilterAvailabilityWithoutDiscardingStaticAddresses() throws Exception {
+        // 同一份 XML 保留所有协议；只有连接器支持的两个 scheme 进入可用列表。
+        AddressPool pool = new AddressPool();
+        pool.configProtocols(Set.of("rsf", "jsonrpc"));
+        String id = "[billing]order-query-1.0";
+        pool.registerBucket(new AddressBucket(id, "local"));
+        pool.loadAddressBook(getClass().getClassLoader(), "classpath:address-book/mixed-protocols.xml");
+        assertEquals(4, pool.queryAllAddresses(id).size());
+        assertEquals(3, pool.queryAvailableAddresses(id).size());
+        assertTrue(pool.queryAvailableAddresses(id).stream() // 三个候选对应两个连接器支持的协议。
+                .allMatch(address -> Set.of("rsf", "jsonrpc").contains(address.getSchema())));
+        assertEquals(Set.of("rsf", "jsonrpc"), pool.getSupportedProtocols(id));
+    }
+
+    @Test
+    void emptyXmlDoesNotResetConnectorSchemesOrDiscoveredAddresses() throws Exception {
+        // XML 不携带协议范围；加载空列表不能重置连接器筛选或清除注册发现结果。
+        AddressPool pool = new AddressPool();
+        String id = "[billing]order-query-1.0";
+        InterAddress rsf = new InterAddress("rsf", "127.0.0.1", 28001, "local");
+        InterAddress jsonrpc = new InterAddress("jsonrpc", "127.0.0.2", 28002, "local");
+        pool.appendAddress(id, List.of(rsf, jsonrpc));
+        pool.configProtocols(Set.of("rsf"));
+        assertEquals(rsf, pool.nextAddress(id, "echo", new Object[0]));
+        pool.loadAddressBook(getClass().getClassLoader(), "classpath:address-book/empty-address-list.xml");
+        assertEquals(Set.of("rsf"), pool.getSupportedProtocols(id));
+        assertEquals(List.of(rsf), pool.queryAvailableAddresses(id));
+        assertEquals(Set.of(rsf, jsonrpc), Set.copyOf(pool.queryAllAddresses(id)));
     }
 }

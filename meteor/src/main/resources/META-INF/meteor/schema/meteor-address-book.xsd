@@ -11,14 +11,14 @@
     </xs:simpleType>
     <xs:element name="address-book">
         <xs:annotation>
-            <xs:documentation>Meteor 初始静态地址本，使用 group、name、version 定位已注册服务。</xs:documentation>
+            <xs:documentation>Meteor 消费端静态地址本，使用 group、name、version 定位已有服务并列出全部提供者地址。</xs:documentation>
         </xs:annotation>
         <xs:complexType>
             <xs:sequence>
                 <xs:element name="service" minOccurs="0" maxOccurs="unbounded">
                     <xs:complexType>
                         <xs:sequence>
-                            <xs:element name="address" type="nonEmptyToken" maxOccurs="unbounded"/>
+                            <xs:element name="address" type="nonEmptyToken" minOccurs="0" maxOccurs="unbounded"/>
                         </xs:sequence>
                         <xs:attribute name="group" type="nonEmptyToken" use="required"/>
                         <xs:attribute name="name" type="nonEmptyToken" use="required"/>

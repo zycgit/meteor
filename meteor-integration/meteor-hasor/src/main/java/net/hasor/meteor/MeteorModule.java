@@ -10,7 +10,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Supplier;
-import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.setting.Settings;
 import net.hasor.core.*;
 import net.hasor.core.Module;
@@ -18,36 +17,16 @@ import net.hasor.meteor.annotation.MetService;
 
 /** Registers the context and service suppliers using Hasor's native bindings. */
 public final class MeteorModule implements Module {
-    private final String[] packages;
-
-    public MeteorModule(String... packages) {
-        this.packages = packages;
-    }
-
     @Override
     public void loadModule(ApiBinder binder) {
         Settings settings = binder.getSettings();
-        String[] packages = this.packages;
-        if (packages.length == 0) {
-            String[] configured = settings.getStringArray("hasor.loadPackages");
-            packages = Arrays.stream(configured).flatMap(value -> {
-                return Arrays.stream(value.split(","));
-            }).map(value -> {
-                String name = value.trim();
-                if (name.endsWith(".*")) {
-                    return name.substring(0, name.length() - 2);
-                }
-                return name;
-            }).filter(value -> {
-                return !value.isEmpty();
-            }).toArray(String[]::new);
-        }
-
-        for (String name : packages) {
-            if (StringUtils.isBlank(name)) {
-                throw new IllegalArgumentException("Empty Meteor service scan package");
-            }
-        }
+        String[] packages = Arrays.stream(settings.getString("hasor.loadPackages", "").split(",")) //
+                .map(String::trim).filter(value -> !value.isEmpty()).map(name -> {
+                    if (name.endsWith(".*")) {
+                        return name.substring(0, name.length() - 2);
+                    }
+                    return name;
+                }).toArray(String[]::new);
 
         Set<Class<?>> services = new HashSet<>();
         if (packages.length > 0) {

@@ -20,7 +20,6 @@ import net.hasor.cobble.concurrent.future.Future;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
 import net.hasor.meteor.*;
-import net.hasor.meteor.address.AddressBucket;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ConnectorManager;
 import net.hasor.meteor.connector.MetChannel;
@@ -163,7 +162,7 @@ public final class MetContextImpl implements MetContext {
 
                 this.addresses.start(this.connectors::schedule);
                 // 服务已注册，缓存已恢复；初始静态地址必须在对外监听前加载。
-                AddressBucket.loadAddressBook(this, this.settings.getAddressBook());
+                this.addresses.loadAddressBook(this.classLoader, this.settings.getAddressBook());
                 if (this.settings.isAutomaticOnline()) {
                     this.connectors.startInbound();
                     this.state = State.ONLINE;

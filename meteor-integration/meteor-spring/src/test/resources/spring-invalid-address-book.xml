@@ -1,0 +1,3 @@
+<address-book xmlns="https://www.hasor.net/schema/meteor-address-book">
+    <service group="spring-demo" name="net.hasor.example.services.OrderService"/>
+</address-book>

@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.Properties;
+import java.util.Set;
 import javax.sql.DataSource;
 import net.hasor.cobble.setting.Settings;
 import net.hasor.core.AppContext;
@@ -30,9 +31,13 @@ import net.hasor.meteor.registry.jdbc.JdbcRegistryConfiguration;
 import org.h2.jdbcx.JdbcDataSource;
 import org.h2.tools.RunScript;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
 
 class HasorIntegrationTest {
+    @TempDir
+    Path directory;
+
     @Test
     void classifiesAfterAllModulesAndInjectsConsumer() throws Throwable {
         // Meteor 模块先加载，提供者定义在后续模块，仍应识别为提供者。
@@ -51,6 +56,9 @@ class HasorIntegrationTest {
             }).build()) {
                 OrderClient caller = consumer.getInstance(OrderClient.class);
                 assertNotNull(consumer.getInstance(InventoryService.class));
+                MetContext client = consumer.getInstance(MetContext.class);
+                String serviceID = client.getServiceInfo(OrderService.class).getBindID();
+                assertEquals(Set.of("rsf"), client.getUpdater().getSupportedProtocols(serviceID));
                 assertEquals("ORDER-1001", caller.getOrder("ORDER-1001").getOrderId());
             }
         }
@@ -165,12 +173,14 @@ class HasorIntegrationTest {
     void acceptsInterfaceBindingBeforeMeteorModule() throws Throwable {
         // 原生接口绑定无需重新生成消费者，也不要求 Module 装载顺序。
         OrderService instance = new OrderServiceImpl();
-        try (AppContext app = Hasor.create().registerShutdownHook(false).addModules(binder -> {
+        Properties scope = new Properties();
+        scope.setProperty("hasor.loadPackages", "net.hasor.example.services");
+        try (AppContext app = Hasor.create().registerShutdownHook(false).loadSettings(scope).addModules(binder -> {
             binder.bindType(OrderService.class).toInstance(instance);
             MetConfiguration config = new MetConfiguration();
             config.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
             binder.bindType(MetConfiguration.class).toInstance(config);
-        }).addModules(new MeteorModule("net.hasor.example.services")).build()) {
+        }).addModules(new MeteorModule()).build()) {
             MetContext meteor = app.getInstance(MetContext.class);
             assertSame(instance, meteor.getServiceProvider(meteor.getServiceInfo(OrderService.class)).get());
         }
@@ -178,11 +188,12 @@ class HasorIntegrationTest {
 
     @Test
     void readsScanPackagesFromNativeSettings() throws Throwable {
-        // 重复节点与逗号列表均由模块读取；最后一个空目录不能覆盖前面的服务包。
+        // 和 Hasor 原生扫描一致，使用当前有效值，不合并较低优先级的扫描节点。
         try (AppContext app = Hasor.create().registerShutdownHook(false).addModules(binder -> {
             Settings settings = binder.getSettings();
-            settings.setSetting("hasor.loadPackages", "net.hasor.example.services,net.hasor.example", Settings.DefaultNameSpace);
-            settings.addSetting("hasor.loadPackages", "net.hasor.example.empty", Settings.DefaultNameSpace);
+            settings.setSetting("hasor.loadPackages", "net.hasor.meteor", Settings.DefaultNameSpace);
+            String scanScope = "net.hasor.example.services,net.hasor.example";
+            settings.addSetting("hasor.loadPackages", scanScope, Settings.DefaultNameSpace);
             MetConfiguration configuration = new MetConfiguration();
             configuration.connector("tcp").bind("127.0.0.1", 0).protocol("rsf");
             binder.bindType(MetConfiguration.class).toInstance(configuration);
@@ -192,6 +203,7 @@ class HasorIntegrationTest {
             assertEquals(MetServiceType.Provider, context.getServiceInfo(OrderService.class).getServiceType());
             assertEquals(MetServiceType.Consumer, context.getServiceInfo(InventoryService.class).getServiceType());
             assertSame(app.getInstance(OrderServiceImpl.class), app.getInstance(OrderService.class));
+            assertNull(context.getServiceInfo(ScannerTypes.Service.class));
         }
     }
 
@@ -201,7 +213,7 @@ class HasorIntegrationTest {
         Hasor builder = Hasor.create().registerShutdownHook(false).addModules(binder -> {
             binder.bindType(MetConfiguration.class).nameWith("first").toInstance(new MetConfiguration());
             binder.bindType(MetConfiguration.class).nameWith("second").toInstance(new MetConfiguration());
-        }).addModules(new MeteorModule("net.hasor.example.services"));
+        }).addModules(new MeteorModule());
         RuntimeException error = assertThrows(RuntimeException.class, builder::build);
         assertTrue(error.toString().contains("Only one MetConfiguration"));
     }
@@ -229,31 +241,25 @@ class HasorIntegrationTest {
         return config;
     }
 
-    private static Hasor application(String name, String address, Module... modules) {
+    private Hasor application(String name, String address, Module... modules) {
         Properties properties = new Properties();
-        properties.setProperty("meteor.application-name", name);
+        properties.setProperty("hasor.loadPackages", "net.hasor.example.services");
+        properties.setProperty("meteor.application", name);
         properties.setProperty("meteor.unit", "framework");
         properties.setProperty("meteor.connectors.rsf.host", "127.0.0.1");
         properties.setProperty("meteor.connectors.rsf.port", "0");
         if (address != null) {
-            try {
-                Path book = Files.createTempFile("hasor-address-book-", ".xml");
-                String xml = """
-                        <address-book xmlns="https://www.hasor.net/schema/meteor-address-book"
-                            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                            xsi:schemaLocation="https://www.hasor.net/schema/meteor-address-book https://www.hasor.net/rsf/schema/meteor-address-book.xsd">
-                          <service group="hasor-demo" name="%s" version="1.0">
-                            <address>%s</address>
-                          </service>
-                        </address-book>
-                        """.formatted(OrderService.class.getName(), address);
-                Files.writeString(book, xml);
+            try (InputStream input = getClass().getResourceAsStream("/hasor-consumer-address-book.xml")) {
+                assertNotNull(input);
+                String xml = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+                Path book = Files.createTempFile(this.directory, "hasor-address-book-", ".xml");
+                Files.writeString(book, xml.replace("${address}", address));
                 properties.setProperty("meteor.address-book", book.toUri().toString());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
         return Hasor.create().registerShutdownHook(false).loadSettings(properties) // 先安装 Meteor，再安装业务模块。
-                .addModules(new MeteorModule("net.hasor.example.services")).addModules(modules);
+                .addModules(new MeteorModule()).addModules(modules);
     }
 }

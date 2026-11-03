@@ -27,7 +27,7 @@ final class SpringSettings {
     static MetConfiguration configuration(Environment environment, ClassLoader loader) {
         MetConfiguration config = new MetConfiguration();
         config.setAddressBook(environment.getProperty("meteor.address-book"));
-        config.setApplicationName(environment.getProperty("meteor.application-name", config.getApplicationName()));
+        config.setApplicationName(environment.getProperty("meteor.application", config.getApplicationName()));
         config.setUnitName(environment.getProperty("meteor.unit", config.getUnitName()));
         config.setDefaultProtocol(environment.getProperty("meteor.default-protocol", config.getDefaultProtocol()));
         config.setDefaultGroup(environment.getProperty("meteor.default-group", config.getDefaultGroup()));
@@ -72,10 +72,7 @@ final class SpringSettings {
     /** 仅显式配置时加载可选注册中心；已有配置 Bean 优先，应用资源仍由容器持有。 */
     static MetExtensionFactory registry(Environment environment, ClassLoader loader, //
             Collection<MetExtensionFactory> extensions, BiFunction<String, Class<?>, Object> beans) {
-        boolean configured = environment.containsProperty("meteor.registry.provider")
-                || environment.containsProperty("meteor.registry.online")
-                || environment.containsProperty("meteor.registry.enabled")
-                || propertyNames(environment).stream().anyMatch(name -> name.startsWith("meteor.registry."));
+        boolean configured = environment.containsProperty("meteor.registry.provider") || environment.containsProperty("meteor.registry.online") || environment.containsProperty("meteor.registry.enabled") || propertyNames(environment).stream().anyMatch(name -> name.startsWith("meteor.registry."));
         if (!configured || !environment.getProperty("meteor.registry.enabled", Boolean.class, true)) {
             return null;
         }
@@ -168,23 +165,6 @@ final class SpringSettings {
             }
         }
         return registry;
-    }
-
-    static <T> void configureService(Environment environment, Class<T> type, MetPublisher.ConfigurationBuilder<T> binding) {
-        String prefix = "meteor.services." + type.getName() + ".";
-        String[] protocols = environment.getProperty(prefix + "protocols", String[].class);
-        if (protocols == null) {
-            List<String> values = new ArrayList<>();
-            for (int index = 0; environment.containsProperty(prefix + "protocols[" + index + "]"); index++) {
-                values.add(environment.getRequiredProperty(prefix + "protocols[" + index + "]"));
-            }
-            protocols = values.toArray(String[]::new);
-        }
-
-        if (protocols.length > 0) {
-            binding.protocol(protocols[0], Arrays.copyOfRange(protocols, 1, protocols.length));
-        }
-        options(environment, prefix + "aliases.", binding::aliasName);
     }
 
     private static Set<String> propertyNames(Environment environment) {

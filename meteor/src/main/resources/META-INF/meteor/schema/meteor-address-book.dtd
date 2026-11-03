@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Copyright 2015-2026 the original author or authors. Licensed under Apache License 2.0. -->
-<!-- Meteor 静态地址本；group、name、version 共同定位服务。 -->
+<!-- Meteor 消费端静态地址本；列出服务的全部提供者地址，不限定协议。 -->
 <!ELEMENT address-book (service*)>
-<!ELEMENT service (address+)>
+<!ELEMENT service (address*)>
 <!ATTLIST service
           group CDATA #REQUIRED
           name CDATA #REQUIRED
