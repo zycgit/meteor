@@ -16,10 +16,14 @@
 ./meteor-test/runnxn.sh rpc soap 1.2          # 指定线协议版本
 ./meteor-test/runnxn.sh rpc dubbo 2           # Dubbo 2 大版本
 ./meteor-test/runnxn.sh test '*GrpcInteropTest'
+./meteor-test/runnxn.sh test '*Standard*MatrixTest' # 标准 API 自动矩阵
+./meteor-test/runnxn.sh all --case '*framework*'   # 框架互调及注册中心集成
 ./meteor-test/runnxn.sh rpc soap 1.2 --tests '*Soap12InteropTest.*'
 ```
 
 `test`、`--tests` 支持类名、`类名.方法名`、`类名.方法名[参数显示名]` 和 `*`；`--tests` 可重复。协议、版本和用例筛选取交集，无匹配用例时报告失败。
+
+标准矩阵根据各工程的能力声明自动匹配提供者和消费者，覆盖订单、基础类型和复杂对象 API。运行前打印发现数量、本轮选中数量，以及 RPC、消费者语言 → 提供者语言统计；特殊用例的参数在运行期展开，单独列出发现范围。
 
 版本指 RPC 线协议版本：Dubbo 使用 `2`、`3`，SOAP 使用 `1.1`、`1.2`，Hessian 使用 `1`、`2`；gRPC 等省略版本。SDK 发行版本由测试用例选择。
 
@@ -35,6 +39,7 @@ Windows 使用相同的 Gradle 任务：
 
 - `--jobs N`、`--groups N`：并发数，默认 `16`，范围 `1` 到 `16`。
 - `--tests PATTERN`：按类或方法筛选，可重复。
+- `--case PATTERN`：按标准矩阵的 caseId 或向量标识筛选，可重复，支持 `*`。失败输出中的完整 caseId 可直接用于单例重跑。
 - `--skipError true|false`：默认 `true`，遇错继续其余可执行测试，最终仍报告失败；`false` 停止后续测试并等待收尾。
 - `--no-build`：禁止构建或拉取镜像，仍编译当前源码；缺少镜像时报错。
 - `--rebuild`：重建工具链镜像，与 `--no-build` 互斥。
@@ -55,7 +60,9 @@ Maven 种子默认取 `~/.m2/repository/net/hasor`，也可用 `-Dmaven.repo.loc
 
 ## 结果与清理
 
-结果写入 [report.md](report.md)，完整日志和 XML 位于 `meteor-test/build/docker-runs/`，报告内路径相对于 `meteor-test/`。日志实时输出，每 15 秒汇总进度；失败、跳过和未执行分别记录。
+结果写入 [report.md](report.md)，完整日志和 XML 位于 `meteor-test/build/docker-runs/`，报告内路径相对于 `meteor-test/`。日志实时输出，每 15 秒汇总进度。标准矩阵失败会列出 API、RPC、双方端点与语言、发现方式、执行阶段和日志；未执行、准备失败及结果未知分别记录。
+
+本轮完整计划位于归档中的 `meteor-test/build/groups/manifest.json`，各工作组的 `matrix.json` 保存实际分配的用例。能力不匹配在计划阶段说明原因，已匹配用例的运行失败不会变成“不适用”。
 
 一次只运行一轮测试。新一轮先停止旧测试、等待清理并清除旧结果，需要保留的报告和日志应提前复制。
 

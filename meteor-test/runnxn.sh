@@ -13,13 +13,12 @@ usage() {
 VERSION 表示 RPC 线协议版本；Dubbo 使用 2 或 3 选择大版本。
 使用 sudo 启动时暂停 Linux timesyncd 和 WSL chronyd，测试及清理结束后恢复原状态。
 
-协议：
-  rsf grpc grpc-web hprose soap jsonrpc xmlrpc hessian connect triple dubbo thrift oncrpc
-  grpcweb 等同于 grpc-web，onc-rpc 等同于 oncrpc
+协议名和版本由 NXN 收集能力声明后校验；grpcweb、onc-rpc 保留兼容别名。
 
 参数：
   --groups N       并发工作组数，1 到 16；也可写成 --jobs N
   --tests PATTERN  只运行匹配的 JUnit 类或方法，可重复
+  --case PATTERN   只运行匹配的标准矩阵 caseId，可重复
   --skipError BOOL 遇错继续执行，默认 true；false 表示遇错停止，失败仍记入报告
   --rebuild        重建工具链镜像
   --no-build       禁止构建和拉取镜像，仍构建当前源码
@@ -66,9 +65,9 @@ case "$1" in
         case "$entry_rpc" in
             grpcweb) entry_rpc=grpc-web ;;
             onc-rpc) entry_rpc=oncrpc ;;
-            rsf|grpc|grpc-web|hprose|soap|jsonrpc|xmlrpc|hessian|connect|triple|dubbo|thrift|oncrpc) ;;
-            *) entry_argument_error "Unknown RPC protocol: $2" ;;
+            *) ;;
         esac
+        [[ "$entry_rpc" =~ ^[a-z][a-z0-9-]*$ ]] || entry_argument_error "Invalid RPC name: $2"
         entry_arguments+=(--rpc "$entry_rpc")
         entry_has_scope=true
         shift 2
@@ -95,9 +94,9 @@ while [[ "$#" -gt 0 ]]; do
             usage
             exit 0
             ;;
-        --tests)
+        --tests|--case)
             [[ "$#" -ge 2 && -n "$2" && "$2" != -* ]] || entry_argument_error '--tests requires a test pattern.'
-            entry_arguments+=(--tests "$2")
+            entry_arguments+=("$1" "$2")
             entry_has_scope=true
             shift 2
             ;;
@@ -105,6 +104,13 @@ while [[ "$#" -gt 0 ]]; do
             entry_pattern=${1#*=}
             [[ -n "$entry_pattern" ]] || entry_argument_error '--tests requires a test pattern.'
             entry_arguments+=(--tests "$entry_pattern")
+            entry_has_scope=true
+            shift
+            ;;
+        --case=*)
+            entry_case=${1#*=}
+            [[ -n "$entry_case" ]] || entry_argument_error '--case requires a value.'
+            entry_arguments+=(--case "$entry_case")
             entry_has_scope=true
             shift
             ;;

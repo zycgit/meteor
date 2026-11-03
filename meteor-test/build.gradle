@@ -62,15 +62,15 @@ tasks.register('prepareJava') {
         def sdkRuntime = project(':meteor-test-sdk').layout.buildDirectory.file('execution/runtimes.json').get().asFile
         def execution = new JsonSlurper().parse(runtime)
         def sdk = new JsonSlurper().parse(sdkRuntime)
-        copy {
-            from(runtime) { rename { 'java-runtime.json' } }
-            from(sdkRuntime) { rename { 'java-sdk-runtimes.json' } }
-            into preparationDirectory
-        }
-
         // 各 SDK 仅导出自己的运行图；此处只审计字节，不组合它们的类路径。
         def classpathEntries = new TreeSet<String>(execution.classpath)
         sdk.profiles.values().each { profile -> classpathEntries.addAll(profile.classpath) }
+        execution.systemProperties.each { name, value ->
+            if (name.endsWith('.classpath')) {
+                classpathEntries.addAll(value.split(File.pathSeparator))
+            }
+        }
+
         sourceSets.main.runtimeClasspath.files.each { entry -> classpathEntries.add(entry.absolutePath) }
         def artifacts = new TreeMap<String, String>()
         classpathEntries.each { path ->
@@ -78,6 +78,7 @@ tasks.register('prepareJava') {
             if (entry.name.endsWith('.jar') && !entry.isFile()) {
                 throw new GradleException("Resolved runtime artifact is missing: ${entry}")
             }
+
             def files = []
             if (entry.isFile()) {
                 files = [entry]
@@ -86,7 +87,17 @@ tasks.register('prepareJava') {
             }
             files.sort().each { artifact -> artifacts[artifact.absolutePath] = sha256(artifact) }
         }
+
         writeJson(new File(preparationDirectory, 'java-artifacts-sha256.json'), artifacts)
+        // 私有 Gradle 缓存仅挂载到 Java 容器，编排器通过生产者的校验事实验证这些运行产物。
+        execution.artifacts = artifacts
+        writeJson(runtime, execution)
+        copy {
+            from(runtime) { rename { 'java-runtime.json' } }
+            from(sdkRuntime) { rename { 'java-sdk-runtimes.json' } }
+            into preparationDirectory
+        }
+
         writeJson(new File(peerDirectory, 'runtime-java.ready.json'), [runtime: runtime.absolutePath, prepared: true])
     }
 }

@@ -31,6 +31,7 @@ abstract class MeteorDockerTask extends DefaultTask {
     @Internal boolean prepareOnly = false
     @Internal boolean skipError = true
     @Internal List<String> selectors = []
+    @Internal List<String> matrixCases = []
     @Internal String rpc
     @Internal String rpcVersion
 
@@ -89,6 +90,9 @@ abstract class MeteorDockerTask extends DefaultTask {
 
     @Option(option = 'tests', description = 'JUnit class or method filter; may be repeated.')
     void chooseTests(List<String> values) { selectors.addAll(values) }
+
+    @Option(option = 'case', description = 'Run matching standard matrix case IDs; may be repeated.')
+    void chooseCases(List<String> values) { matrixCases.addAll(values) }
 
     @Option(option = 'no-build', description = 'Use existing images without building or pulling them.')
     void skipImageBuild(boolean value) { noBuild = value }
@@ -514,6 +518,7 @@ abstract class MeteorDockerTask extends DefaultTask {
             arguments.addAll(['--rpc-version', rpcVersion])
         }
         arguments.addAll(selectors.collectMany { ['--tests', it] })
+        arguments.addAll(matrixCases.collectMany { ['--case', it] })
         arguments
     }
 
@@ -872,6 +877,9 @@ abstract class MeteorDockerTask extends DefaultTask {
             def summaryPath = reportRoot.relativize(summaryFile.toPath()).toString().replace('\\', '/')
             text = verified.getText('UTF-8').replace('[summary.json](summary.json)',
                 "[summary.json](${summaryPath})")
+            def groupsPath = reportRoot.relativize(new File(reportDirectory.parentFile, 'groups').toPath())
+                .toString().replace('\\', '/')
+            text = text.replace('](<../groups/', "](<${groupsPath}/")
             if (exitCode != 0) {
                 text = text.replaceFirst('(?m)^结果：通过', '结果：失败（含运行阶段异常）')
             }
@@ -1257,7 +1265,8 @@ abstract class MeteorDockerTask extends DefaultTask {
     }
 
     private void write(String name, String contents) {
-        new File(diagnostics, name).setText(contents, 'UTF-8')
+        // 退出码与收尾状态供其它进程读取，只有完整内容写好后才发布文件。
+        writeAtomic(new File(diagnostics, name), contents)
     }
 
     private static void stopCommand(Process process) {
@@ -1374,6 +1383,9 @@ plugins.withId('application') {
             String text = markdown.isFile() ? markdown.getText('UTF-8') :
                 '# Meteor RPC 测试报告\n\n结果：失败。未能生成完整结果，详见报告命令日志。\n'
             text = text.replace('[summary.json](summary.json)', "[summary.json](${summaryPath})")
+            def groupsPath = reportRoot.relativize(new File(reportDirectory.parentFile, 'groups').toPath())
+                .toString().replace('\\', '/')
+            text = text.replace('](<../groups/', "](<${groupsPath}/")
             if (failed) {
                 text = text.replaceFirst('(?m)^结果：通过', '结果：失败（含脚本异常）')
             }
