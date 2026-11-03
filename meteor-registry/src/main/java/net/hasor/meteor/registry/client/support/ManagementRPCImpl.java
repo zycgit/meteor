@@ -169,19 +169,12 @@ public final class ManagementRPCImpl implements ManagementRPC {
         return record;
     }
 
-    /** 按本地协议筛选并去重提供者地址，仅在结果变化时更新地址本。 */
+    /** 完整保留发现的提供者地址，去重后交给地址池计算本地可用结果。 */
     void updateAddresses(String serviceId, Collection<String> providers, boolean force) throws Exception {
-        Set<String> schemes = new HashSet<>();
-        for (ServiceEndpointData endpoint : this.endpoints(this.requireService(serviceId))) {
-            schemes.add(endpoint.getScheme().toLowerCase(Locale.ROOT));
-        }
-
-        Set<InterAddress> supported = new HashSet<>();
+        this.requireService(serviceId);
+        Set<InterAddress> discovered = new HashSet<>();
         for (String value : providers) {
-            InterAddress address = new InterAddress(value);
-            if (schemes.contains(address.getSchema().toLowerCase(Locale.ROOT))) {
-                supported.add(address);
-            }
+            discovered.add(new InterAddress(value));
         }
 
         MetUpdater updater = this.context.getUpdater();
@@ -190,12 +183,12 @@ public final class ManagementRPCImpl implements ManagementRPC {
         if (updater instanceof AddressPool pool) {
             List<InterAddress> fixed = pool.getBucket(serviceId).getStaticAddresses();
             current.removeAll(fixed);
-            supported.removeAll(fixed);
+            discovered.removeAll(fixed);
         }
-        if (force || !supported.equals(current)) {
-            List<InterAddress> discovered = new ArrayList<>(supported);
-            discovered.sort(Comparator.comparing(InterAddress::toString));
-            updater.refreshAddress(serviceId, discovered);
+        if (force || !discovered.equals(current)) {
+            List<InterAddress> addresses = new ArrayList<>(discovered);
+            addresses.sort(Comparator.comparing(InterAddress::toString));
+            updater.refreshAddress(serviceId, addresses);
         }
     }
 

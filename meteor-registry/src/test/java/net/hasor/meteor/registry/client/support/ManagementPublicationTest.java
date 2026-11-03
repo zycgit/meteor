@@ -640,6 +640,28 @@ public class ManagementPublicationTest {
     }
 
     @Test
+    public void discoveryPreservesEverySchemeAndOnlySelectsSupportedAddresses() throws Exception {
+        // 真实客户端从内存注册存储发现两个协议，应用只配置 RSF 消费连接器。
+        MemoryRegistryConfiguration registry = new MemoryRegistryConfiguration();
+        registry.setRefreshMillis(600000);
+        MetConfiguration configuration = new MetConfiguration().addExtension(registry);
+        configuration.connector("tcp").protocol("rsf");
+        try (MetContext context = configuration.buildContext(); //
+             StorageAccess storage = registry.openStorage()) {
+            String id = context.publisher().rsfService(Echo.class).register().getBindID();
+            context.start();
+            InterAddress supported = new InterAddress("rsf://127.0.0.1:2181/default");
+            InterAddress unsupported = new InterAddress("hprose://127.0.0.1:8080/default");
+            publishAddresses(storage, id, supported.toString(), unsupported.toString());
+            context.getExtension(RegistryClient.class).pullSync(id).get(5, TimeUnit.SECONDS);
+
+            // 完整发现结果写入地址本，连接器仅影响可用列表，不丢弃其它协议。
+            assertEquals(Set.of(supported, unsupported), Set.copyOf(context.getUpdater().queryAllAddresses(id)));
+            assertEquals(List.of(supported), context.getUpdater().queryAvailableAddresses(id));
+        }
+    }
+
+    @Test
     public void discoveryComparesCurrentAddressesWithoutResettingInvalidOrStaticEntries() throws Exception {
         // 准备暂停自动通知的客户端和外部公告会话。
         MemoryRegistryConfiguration storageConfiguration = new MemoryRegistryConfiguration();
