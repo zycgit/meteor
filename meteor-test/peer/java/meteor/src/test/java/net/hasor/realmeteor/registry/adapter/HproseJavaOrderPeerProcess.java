@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import net.hasor.example.Order;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 
 /** 拥有独立官方 Hprose JVM；控制管道只交付发现结果和业务数据，不代理网络 RPC。 */
 final class HproseJavaOrderPeerProcess implements AutoCloseable {
@@ -38,10 +39,7 @@ final class HproseJavaOrderPeerProcess implements AutoCloseable {
 
     private HproseJavaOrderPeerProcess(String role, Path directory) throws Exception {
         // Gradle 提供 SDK 示例的独立运行图与标准测试输出，不加载 Meteor 运行依赖。
-        String classpath = System.getProperty("hprose.java.peer.classpath");
-        if (classpath == null || classpath.isBlank()) {
-            throw new IllegalStateException("Official Hprose peer classpath is not configured");
-        }
+        String classpath = JavaSdkPeerUtils.classpath("hprose");
         Path java = Path.of(System.getProperty("java.home"), "bin", "java");
         Files.createDirectories(directory);
         this.log = Files.createTempFile(directory, "hprose-java-" + role + "-", ".log");

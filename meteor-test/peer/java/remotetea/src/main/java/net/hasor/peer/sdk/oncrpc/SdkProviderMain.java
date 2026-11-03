@@ -43,8 +43,12 @@ public final class SdkProviderMain implements OncRpcDispatchable {
             server.setCharacterEncoding(StandardCharsets.US_ASCII.name());
             Runtime.getRuntime().addShutdownHook(new Thread(server::close, "oncrpc-sdk-provider-shutdown"));
             server.listen();
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("tcp", server.getPort(), ""));
+            String scheme = "tcp";
+            if (System.getenv("METEOR_NXN_REQUEST_FILE") != null) {
+                scheme = "oncrpc";
+            }
+            String target = OrderPeerSettings.publishAddress(scheme, server.getPort(), "").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
             OrderExampleUtils.awaitShutdown();
         } finally {
             server.close();

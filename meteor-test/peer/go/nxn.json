@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "go-grpc",
+      "language": "go",
+      "implementation": "grpc-go",
+      "launch": {
+        "provider": {
+          "container": "go",
+          "command": ["/opt/meteor-peer/go/order/grpc-provider"]
+        },
+        "consumer": {
+          "container": "go",
+          "command": ["/opt/meteor-peer/go/order/grpc-consumer"]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "current",
+          "api": "order-v1",
+          "protocol": "grpc",
+          "wire": "grpc-protobuf-http2-clear",
+          "roles": ["provider", "consumer"],
+          "discoveries": ["direct"]
+        }
+      ]
+    },
+    {
+      "id": "go-connect",
+      "language": "go",
+      "implementation": "connect-go",
+      "launch": {
+        "provider": {
+          "container": "go",
+          "command": ["/opt/meteor-peer/go/order/connect-provider"]
+        },
+        "consumer": {
+          "container": "go",
+          "command": ["/opt/meteor-peer/go/order/connect-consumer"]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "current",
+          "api": "order-v1",
+          "protocol": "connect",
+          "protocolVersion": "1",
+          "wire": "connect-protobuf-http1-clear",
+          "roles": ["provider", "consumer"],
+          "discoveries": ["direct"]
+        }
+      ]
+    },
+    {
+      "id": "go-thrift",
+      "language": "go",
+      "implementation": "Apache Thrift Go",
+      "launch": {
+        "provider": {
+          "container": "go",
+          "command": ["/opt/meteor-peer/go/order/thrift-provider"]
+        },
+        "consumer": {
+          "container": "go",
+          "command": ["/opt/meteor-peer/go/order/thrift-consumer"]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "current",
+          "api": "order-v1",
+          "protocol": "thrift",
+          "wire": "thrift-binary-framed-tcp-clear",
+          "roles": ["provider", "consumer"],
+          "discoveries": ["direct"]
+        }
+      ]
+    }
+  ]
+}

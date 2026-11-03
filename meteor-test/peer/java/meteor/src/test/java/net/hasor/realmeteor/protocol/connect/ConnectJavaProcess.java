@@ -20,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 
 /** Connect 与 gRPC-Web 的 Java SDK 进程所有者，分别接入客户端结果与服务端就绪信号。 */
 public final class ConnectJavaProcess implements AutoCloseable {
@@ -45,20 +46,17 @@ public final class ConnectJavaProcess implements AutoCloseable {
         arguments.add(method);
         arguments.add(value);
         String peerClass = "net.hasor.peer.protocol.connect.ConnectJavaPeer";
-        return launch("connect.java.peer.classpath", peerClass, arguments);
+        return launch("connect", peerClass, arguments);
     }
 
     public static ConnectJavaProcess startServer() throws IOException {
-        return launch("connect.java.server.peer.classpath", //
+        return launch("connectServer", //
                 "net.hasor.peer.protocol.connect.ConnectJavaServerPeer", List.of());
     }
 
-    private static ConnectJavaProcess launch(String classpathProperty, String mainClass, List<String> arguments) //
+    private static ConnectJavaProcess launch(String profile, String mainClass, List<String> arguments) //
             throws IOException {
-        String classpath = System.getProperty(classpathProperty);
-        if (classpath == null || classpath.isBlank()) {
-            throw new IllegalStateException("Connect Java peer classpath is not configured: " + classpathProperty);
-        }
+        String classpath = JavaSdkPeerUtils.classpath(profile);
 
         // 依赖图由 Gradle 交付；服务端的 Protobuf 4 图不进入宿主主测试运行类路径。
         Path executable = Path.of(System.getProperty("java.home"), "bin", "java");

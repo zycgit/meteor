@@ -22,14 +22,15 @@ public final class NxnMain {
 
     static int run(String[] arguments) throws Exception {
         if (arguments.length == 0) {
-            throw new IllegalArgumentException("Expected run, report, or types command");
+            throw new IllegalArgumentException("Expected export, run, report, or types command");
         }
         String[] options = Arrays.copyOfRange(arguments, 1, arguments.length);
-        switch (arguments[0]) {
-            case "run": return NxnRunner.run(options);
-            case "report": return NxnReport.run(options);
-            case "types": return NxnTypeReport.run(options);
-            default: throw new IllegalArgumentException("Unknown command: " + arguments[0]);
-        }
+        return switch (arguments[0]) {
+            case "export" -> NxnRuntime.run(options);
+            case "run" -> NxnRunner.run(options);
+            case "report" -> NxnReport.run(options);
+            case "types" -> NxnTypeReport.run(options);
+            default -> throw new IllegalArgumentException("Unknown command: " + arguments[0]);
+        };
     }
 }

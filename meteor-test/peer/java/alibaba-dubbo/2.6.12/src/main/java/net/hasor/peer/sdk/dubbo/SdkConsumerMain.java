@@ -8,6 +8,7 @@ import com.alibaba.dubbo.config.ApplicationConfig;
 import com.alibaba.dubbo.config.ProtocolConfig;
 import com.alibaba.dubbo.config.ReferenceConfig;
 import com.alibaba.dubbo.config.RegistryConfig;
+import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderExampleUtils;
 import net.hasor.example.OrderQuery;
@@ -39,10 +40,11 @@ public final class SdkConsumerMain {
         try {
             // 两次调用由原 SDK 连接和编码，结果来自刚保存的订单。
             OrderDemoService orders = reference.get();
-            orders.save(OrderExampleUtils.newOrder(1001, "dubbo-sdk"));
+            Order order = OrderExampleUtils.newOrder(1001, "dubbo-sdk");
+            Order saved = orders.save(order);
             OrderQuery query = new OrderQuery();
-            query.setId(1001);
-            OrderExampleUtils.print(orders.find(query));
+            query.setId(order.getId());
+            OrderExampleUtils.print(saved, orders.find(query));
         } finally {
             // 独立进程关闭自己的引用及协议连接池，不借用当前 Apache SDK。
             reference.destroy();

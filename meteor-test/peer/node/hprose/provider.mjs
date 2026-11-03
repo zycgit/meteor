@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Copyright 2015-2026 the original author or authors. Licensed under the Apache License, Version 2.0.
 import hprose from "hprose";
+import { orderReady } from "../order-nxn.mjs";
 
 const bindHost = process.env.METEOR_ORDER_BIND_HOST || "127.0.0.1";
 const bindPort = Number(process.env.METEOR_ORDER_PORT || "8080");
@@ -28,7 +29,7 @@ server.server.on("error", (error) => {
 });
 server.server.once("listening", () => {
     const port = server.server.address().port;
-    console.log(`Order provider is ready: http://${publishHost}:${port}/hprose`);
+    orderReady(`http://${publishHost}:${port}/hprose`);
 });
 server.start();
 const close = () => {

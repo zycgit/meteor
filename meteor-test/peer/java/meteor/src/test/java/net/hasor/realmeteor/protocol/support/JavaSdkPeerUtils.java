@@ -6,6 +6,8 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.support;
+import java.io.File;
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -15,21 +17,48 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
 
-/** 仅管理独立 Java SDK 进程和本地控制文件；实际 RPC 由对端 SDK 发出。 */
+/** 读取 SDK 隔离运行图并管理独立进程；实际 RPC 由对端 SDK 发出。 */
 public final class JavaSdkPeerUtils {
     private JavaSdkPeerUtils() {
+    }
+
+    public static String classpath(String profile) throws IOException {
+        // 每个对端只读取准备阶段导出的所属运行图，不借用 JUnit 或其他 SDK 的依赖。
+        JsonNode entries = manifest().path("profiles").path(profile).path("classpath");
+        if (!entries.isArray() || entries.isEmpty()) {
+            throw new IOException("Java SDK profile has no classpath: " + profile);
+        }
+        List<String> paths = new ArrayList<>();
+        for (JsonNode entry : entries) {
+            if (!entry.isTextual() || entry.textValue().isBlank()) {
+                throw new IOException("Invalid Java SDK classpath entry in profile: " + profile);
+            }
+            paths.add(entry.textValue());
+        }
+        return String.join(File.pathSeparator, paths);
+    }
+
+    private static JsonNode manifest() throws IOException {
+        String configured = System.getProperty("meteor.test.sdk.manifest");
+        if (StringUtils.isBlank(configured)) {
+            throw new IllegalStateException("Java SDK manifest is not configured: meteor.test.sdk.manifest");
+        }
+        JsonNode manifest = new ObjectMapper().readTree(Path.of(configured).toFile());
+        if (manifest == null || !manifest.isObject()) {
+            throw new IOException("Invalid Java SDK manifest: " + configured);
+        }
+        return manifest;
     }
 
     @SuppressWarnings("unchecked")
     public static Map<String, Object> exchange(String protocol, String peerClassName, Map<String, Object> request) throws Exception {
         // Gradle 只传入当前 SDK 及其运行依赖，不借用 Meteor 的运行类路径。
-        String classpath = System.getProperty(protocol + ".java.peer.classpath");
-        if (StringUtils.isBlank(classpath)) {
-            throw new IllegalStateException("Java SDK peer classpath is not configured: " + protocol);
-        }
+        String classpath = classpath(protocol);
         String configured = System.getProperty("java.peer.output.directory", "build/java-peer-logs");
         Path outputDirectory = Files.createDirectories(Path.of(configured).toAbsolutePath());
         Path directory = Files.createTempDirectory(outputDirectory, protocol + "-");

@@ -7,6 +7,7 @@
  */
 package net.hasor.peer.sdk.dubbo;
 import java.util.Map;
+import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderExampleUtils;
 import net.hasor.example.OrderQuery;
@@ -44,10 +45,11 @@ public final class SdkRegistryConsumerMain {
             // 注册订阅完成后，通过自动发现的提供者保存和查询订单。
             bootstrap.reference(reference).start();
             OrderDemoService orders = reference.get();
-            orders.save(OrderExampleUtils.newOrder(1001, "dubbo-sdk-registry"));
+            Order order = OrderExampleUtils.newOrder(1001, "dubbo-sdk-registry");
+            Order saved = orders.save(order);
             OrderQuery query = new OrderQuery();
-            query.setId(1001);
-            OrderExampleUtils.print(orders.find(query));
+            query.setId(order.getId());
+            OrderExampleUtils.print(saved, orders.find(query));
         } finally {
             bootstrap.destroy();
         }

@@ -38,13 +38,15 @@ final class PythonSoapPeer implements AutoCloseable {
 
     private PythonSoapPeer(String role, String version) throws Exception {
         // 对端只加载锁定的 Python SDK；日志与 JSON 控制响应使用不同管道。
-        Path directory = Files.createDirectories(Path.of(System.getProperty("python.soap.logs")));
+        String logs = System.getProperty("python.soap.logs", "build/python-soap-peer-logs");
+        Path directory = Files.createDirectories(Path.of(logs));
         this.log = Files.createTempFile(directory, role + "-", ".log");
         String executable = "/opt/meteor-peer/python-soap/bin/python";
         if (StringUtils.equals(role, "consumer")) {
             executable = "/opt/meteor-peer/python-soap-" + version + "/bin/python";
         }
-        String script = System.getProperty("python.soap.script");
+        Path peers = Path.of(System.getProperty("meteor.test.peerDirectory", "peer"));
+        String script = System.getProperty("python.soap.script", peers.resolve("python/soap/peer.py").toString());
         ProcessBuilder command = new ProcessBuilder(executable, "-u", script, role, "--sdk-version", version);
         command.redirectError(this.log.toFile());
         this.process = ContainerProcess.start("python", command);

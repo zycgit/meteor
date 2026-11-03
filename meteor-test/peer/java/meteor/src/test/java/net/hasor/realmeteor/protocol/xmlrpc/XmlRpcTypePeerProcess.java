@@ -29,7 +29,10 @@ final class XmlRpcTypePeerProcess implements AutoCloseable {
 
     private XmlRpcTypePeerProcess(List<String> arguments) throws IOException {
         // 脚本与原 XML-RPC 对端同目录，沿用已有运行属性和 Python 容器。
-        Path script = Path.of(System.getProperty("xmlrpc.peer.script")).resolveSibling("type_peer.py");
+        Path peers = Path.of(System.getProperty("meteor.test.peerDirectory", "peer"));
+        Path defaultScript = peers.resolve("python/xmlrpc/peer.py");
+        Path configuredScript = Path.of(System.getProperty("xmlrpc.peer.script", defaultScript.toString()));
+        Path script = configuredScript.resolveSibling("type_peer.py");
         String python = System.getProperty("xmlrpc.python", "python3");
         List<String> command = new ArrayList<>(List.of(python, "-u", script.toString()));
         command.addAll(arguments);

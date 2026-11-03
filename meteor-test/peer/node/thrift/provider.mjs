@@ -2,10 +2,11 @@
 // Copyright 2015-2026 the original author or authors. Licensed under the Apache License, Version 2.0.
 import thrift from "thrift";
 import OrderThriftService from "./generated/OrderThriftService.js";
+import { orderReady } from "../order-nxn.mjs";
 
 const bindHost = process.env.METEOR_ORDER_BIND_HOST || "127.0.0.1";
 const bindPort = Number(process.env.METEOR_ORDER_PORT || "8080");
-const publishHost = process.env.METEOR_TEST_PEER_HOST || bindHost;
+const publishHost = process.env.METEOR_ORDER_PUBLISH_HOST || process.env.METEOR_TEST_PEER_HOST || bindHost;
 
 // 官方生成的 Processor 使用回调接口，存储保留订单的字符串及二进制内容。
 const orders = new Map();
@@ -46,7 +47,7 @@ server.on("error", (error) => {
 });
 server.listen(bindPort, bindHost, () => {
     const port = server.address().port;
-    console.log(`Order provider is ready: thrift://${publishHost}:${port}`);
+    orderReady(`thrift://${publishHost}:${port}`);
 });
 process.once("SIGINT", close);
 process.once("SIGTERM", close);

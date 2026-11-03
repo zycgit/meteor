@@ -12,13 +12,13 @@ import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class NxnPlanTest {
-    private static final String PYTHON_TEST = "net.hasor.realmeteor.protocol.thrift.python.PythonThriftTypeInteropTest";
-    private static final String GO_TEST = "net.hasor.realmeteor.matrix.types.ThriftGoTypeMatrixTest";
+    private static final String PYTHON_TEST    = "net.hasor.realmeteor.protocol.thrift.python.PythonThriftTypeInteropTest";
+    private static final String GO_TEST        = "net.hasor.realmeteor.matrix.types.ThriftGoTypeMatrixTest";
     private static final String NATIVE_PACKAGE = "net.hasor.realmeteor.registry.dubbo.";
     private static final String NATIVE_EXAMPLE = "net.hasor.realmeteor.example.sdk.NativeRegistryScenarioTest";
     private static final String NATIVE_FIXTURE = "net.hasor.realmeteor.environment.storage.RegistryServiceReuseTest";
     @TempDir
-    public Path temporary;
+    public               Path   temporary;
 
     @Test
     public void defaultsToSixteenConcurrentGroups() {
@@ -52,8 +52,7 @@ public class NxnPlanTest {
     public void invalidSkipErrorValueIsRejected() {
         // 拼错开关不能被 Boolean.parseBoolean 静默解释为关闭。
         String[] arguments = { "--run-id", "run", "--skipError", "yes" };
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> NxnPlan.parseArguments(arguments));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> NxnPlan.parseArguments(arguments));
         assertTrue(failure.getMessage().contains("--skipError must be true or false"));
     }
 
@@ -72,8 +71,7 @@ public class NxnPlanTest {
     @Test
     public void automaticGroupCountIsRejected() {
         // 固定并发配置不再接受自动资源估算选项。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> NxnPlan.parseGroupRequest("auto"));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> NxnPlan.parseGroupRequest("auto"));
         assertTrue(failure.getMessage().contains("between 1 and 16"));
     }
 
@@ -95,6 +93,15 @@ public class NxnPlanTest {
         Map<String, List<String>> selected = NxnPlan.selectClasses(List.of(), List.of("test.B", "test.A"));
         assertEquals(List.of("test.A", "test.B"), new ArrayList<>(selected.keySet()));
         assertEquals(Map.of("test.A", List.of(), "test.B", List.of()), selected);
+    }
+
+    @Test
+    public void wildcardClassFilterPreservesDotsInsideTheCaseIdentity() {
+        // SDK 版本中的点属于参数标识，不能被误当成类与方法之间的分隔符。
+        String type = "net.hasor.realmeteor.matrix.standard.StandardMatrixTest";
+        String method = "savesAndFindsOrder[order-v1/consumer=sdk-0.2.1]";
+        Map<String, List<String>> selected = NxnPlan.selectClasses(List.of("*StandardMatrixTest." + method), List.of(type));
+        assertEquals(Map.of(type, List.of(type + "." + method)), selected);
     }
 
     @Test
@@ -145,8 +152,7 @@ public class NxnPlanTest {
     @Test
     public void unknownFilterFailsBeforeExecution() {
         // 拼错筛选条件必须失败，不能退化成空运行。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> NxnPlan.selectClasses(List.of("MissingTest"), List.of("test.One")));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> NxnPlan.selectClasses(List.of("MissingTest"), List.of("test.One")));
         assertTrue(failure.getMessage().contains("No JUnit class matches"));
     }
 
@@ -154,8 +160,7 @@ public class NxnPlanTest {
     public void duplicateRuntimeClassIsRejected() {
         // 运行类列表中的重复记录会破坏唯一执行保证。
         List<String> classes = List.of("test.One", "test.One");
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> NxnPlan.selectClasses(List.of(), classes));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> NxnPlan.selectClasses(List.of(), classes));
         assertTrue(failure.getMessage().contains("unique"));
     }
 
@@ -246,8 +251,7 @@ public class NxnPlanTest {
     public void directionMethodWeightOverridesHalfClassEstimate() {
         // 已采集的方法耗时代替简单的二等分估算。
         Map<String, Object> weights = Map.of(PYTHON_TEST, 11, "test.One", 3);
-        Map<String, Object> methods = Map.of("meteorProviderPreservesPythonNativeType", 7,
-                "meteorConsumerPreservesPythonNativeType", 4);
+        Map<String, Object> methods = Map.of("meteorProviderPreservesPythonNativeType", 7, "meteorConsumerPreservesPythonNativeType", 4);
         Map<String, Object> methodWeights = Map.of(PYTHON_TEST, methods);
         List<String> classes = List.of(PYTHON_TEST, "test.One");
         List<Map<String, Object>> groups = NxnPlan.partition(classes, weights, 2, methodWeights, Map.of());
@@ -262,8 +266,7 @@ public class NxnPlanTest {
         // 用户指定参数化方法时不扩展同一矩阵的另一个方向。
         String requestedMethod = PYTHON_TEST + ".specific[json]";
         Map<String, List<String>> filters = Map.of(PYTHON_TEST, List.of(requestedMethod));
-        List<Map<String, Object>> groups = NxnPlan.partition(List.of(PYTHON_TEST),
-                Map.of(PYTHON_TEST, 10), 16, Map.of(), filters);
+        List<Map<String, Object>> groups = NxnPlan.partition(List.of(PYTHON_TEST), Map.of(PYTHON_TEST, 10), 16, Map.of(), filters);
         assertEquals(List.of(requestedMethod), groups.get(0).get("includes"));
     }
 
@@ -289,8 +292,7 @@ public class NxnPlanTest {
     public void negativeDurationIsRejected() {
         // 错误的历史耗时不能进入负载计划。
         Map<String, Object> weights = Map.of("test.One", -1);
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> NxnPlan.partition(List.of("test.One"), weights, 1, Map.of(), Map.of()));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> NxnPlan.partition(List.of("test.One"), weights, 1, Map.of(), Map.of()));
         assertTrue(failure.getMessage().contains("Invalid duration"));
     }
 
@@ -377,8 +379,7 @@ public class NxnPlanTest {
         Path directory = this.temporary;
         Path output = directory.resolve("groups");
         NxnPlan.Options options = optionsForOutput(output, directory.resolve("missing.json"));
-        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
-                "classNames", List.of("test.One", "test.Two"));
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of("test.One", "test.Two"));
 
         // 清单中的选择仍直接对应原始 testcase 所属类。
         Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
@@ -394,8 +395,7 @@ public class NxnPlanTest {
         Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of("test.One"));
 
         // 非空输出目录在准备阶段立即报错。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> NxnPlan.prepare(options, runtime));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> NxnPlan.prepare(options, runtime));
         assertTrue(failure.getMessage().contains("must be empty"));
     }
 
@@ -420,8 +420,7 @@ public class NxnPlanTest {
         Path weights = directory.resolve("weights.json");
         Files.writeString(weights, "{\"classes\":{\"test.One\":8,\"test.Two\":2}}");
         NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), weights);
-        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
-                "classNames", List.of("test.One", "test.Two"));
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of("test.One", "test.Two"));
 
         // 准备后的组预计耗时来自持久化权重。
         Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
@@ -436,8 +435,7 @@ public class NxnPlanTest {
         Path directory = this.temporary;
         NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), directory.resolve("missing.json"));
         Map<String, Object> runtime = Map.of("classpath", List.of(), "classNames", List.of("test.One"));
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> NxnPlan.prepare(options, runtime));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> NxnPlan.prepare(options, runtime));
         assertTrue(failure.getMessage().contains("classpath"));
     }
 
@@ -458,8 +456,7 @@ public class NxnPlanTest {
         String[] arguments = { "--run-id", "run", "--rpc-version", "2" };
 
         // 缺失协议在创建分组之前报错。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> NxnPlan.parseArguments(arguments));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> NxnPlan.parseArguments(arguments));
         assertTrue(failure.getMessage().contains("--rpc-version requires --rpc"));
     }
 
@@ -468,8 +465,7 @@ public class NxnPlanTest {
         // 全量执行继续接受没有 rpcCases 字段的旧运行清单。
         Path directory = this.temporary;
         NxnPlan.Options options = optionsForOutput(directory.resolve("groups"), directory.resolve("missing.json"));
-        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
-                "classNames", List.of("test.Unannotated", "test.Other"));
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of("test.Unannotated", "test.Other"));
 
         // 不因新增 RPC 筛选能力丢失原有框架或环境测试。
         Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
@@ -487,8 +483,7 @@ public class NxnPlanTest {
         String className = "test.MixedTest";
         Map<String, Object> declaration = Map.of("name", "soap", "version", "1.2", "cases", "soap12/*");
         Map<String, Object> rpcCases = Map.of(className, Map.of("callsPeer", List.of(declaration)));
-        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
-                "classNames", List.of(className), "rpcCases", rpcCases);
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of(className), "rpcCases", rpcCases);
 
         // 清单和实际 JVM 参数使用同一协议、版本及声明文件。
         Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
@@ -513,8 +508,7 @@ public class NxnPlanTest {
         Map<String, Object> declaration = Map.of("name", "grpc", "version", "", "cases", "*");
         Map<String, Object> methods = Map.of("call", List.of(declaration));
         Map<String, Object> rpcCases = Map.of("test.OneTest", methods, "test.TwoTest", methods);
-        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
-                "classNames", List.of("test.OneTest", "test.TwoTest"), "rpcCases", rpcCases);
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of("test.OneTest", "test.TwoTest"), "rpcCases", rpcCases);
 
         // 协议筛选不能覆盖用户已经缩小的 testcase 范围。
         Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
@@ -532,8 +526,7 @@ public class NxnPlanTest {
         Map<String, Object> legacy = Map.of("name", "dubbo", "version", "2", "cases", "2.7.23/*");
         Map<String, Object> current = Map.of("name", "dubbo", "version", "3", "cases", "3.3.6/*");
         Map<String, Object> methods = Map.of("legacy", List.of(legacy), "current", List.of(current));
-        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
-                "classNames", List.of("test.DubboTest"), "rpcCases", Map.of("test.DubboTest", methods));
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of("test.DubboTest"), "rpcCases", Map.of("test.DubboTest", methods));
 
         // 清单说明可选版本，同时只准备目标大版本的方法。
         Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
@@ -551,12 +544,10 @@ public class NxnPlanTest {
         Map<String, Object> grpc = Map.of("name", "grpc", "version", "", "cases", "*");
         Map<String, Object> soap = Map.of("name", "soap", "version", "1.2", "cases", "*");
         Map<String, Object> methods = Map.of("grpcCall", List.of(grpc), "soapCall", List.of(soap));
-        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"),
-                "classNames", List.of("test.MixedTest"), "rpcCases", Map.of("test.MixedTest", methods));
+        Map<String, Object> runtime = Map.of("classpath", List.of("/classes"), "classNames", List.of("test.MixedTest"), "rpcCases", Map.of("test.MixedTest", methods));
 
         // 无交集时不能生成一个看似成功的空执行计划。
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
-                () -> NxnPlan.prepare(options, runtime));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> NxnPlan.prepare(options, runtime));
         assertTrue(failure.getMessage().contains("No @NxnRpc testcase"));
         assertFalse(Files.exists(options.output));
     }

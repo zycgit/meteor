@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import net.hasor.cobble.StringUtils;
+import net.hasor.meteor.test.nxn.NxnMatrix;
 import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.launcher.TestPlan;
 import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
@@ -44,6 +45,10 @@ public final class JUnitJobMain {
     }
 
     static int execute(Path output, Map<String, Object> selection) throws Exception {
+        // 标准矩阵由编排器预先枚举；工作进程只读取分配给本组的纯数据计划。
+        if (!selection.containsKey("matrixCases") && System.getProperty("meteor.test.matrix.plan") != null) {
+            selection.put("matrixCases", NxnMatrix.cases());
+        }
         List<String> classes = strings(selection.get("classNames"));
         List<String> filters = strings(selection.get("includes"));
         if (classes.isEmpty()) {

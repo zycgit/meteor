@@ -35,8 +35,7 @@ public final class SdkRegistryProviderMain {
 
         // 发布与 Meteor 相同的接口、分组和版本。
         // SDK 用 -1 随机选端口；0 会回退为协议默认端口。
-        int requestedPort = OrderPeerSettings.port();
-        int sdkPort = requestedPort == 0 ? -1 : requestedPort;
+        int sdkPort = OrderPeerSettings.bindPort();
         ProtocolConfig protocol = new ProtocolConfig("dubbo", sdkPort);
         protocol.setHost(OrderPeerSettings.bindHost());
         String publishHost = System.getenv("METEOR_ORDER_PUBLISH_HOST");

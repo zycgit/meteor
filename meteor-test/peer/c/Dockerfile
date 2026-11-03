@@ -63,6 +63,7 @@ COPY meteor-test/peer/cpp/grpc/build-version.sh /build/meteor-test/peer/cpp/grpc
 RUN bash /build/meteor-test/peer/cpp/grpc/build-version.sh \
     /opt/meteor-toolchain/sdk-versions/grpc/1.85.0 8 sdk
 COPY meteor-test/peer/cpp/grpc/build-peers.sh meteor-test/peer/cpp/grpc/order_peer.cpp /build/meteor-test/peer/cpp/grpc/
+COPY meteor-test/peer/c/order/nxn_order.h /build/meteor-test/peer/c/order/nxn_order.h
 COPY meteor-test/peer/c/grpc /build/meteor-test/peer/c/grpc
 COPY meteor-test/resource/protocol/proto /build/meteor-test/resource/protocol/proto
 RUN bash /build/meteor-test/peer/cpp/grpc/build-version.sh \
@@ -70,6 +71,7 @@ RUN bash /build/meteor-test/peer/cpp/grpc/build-version.sh \
 
 FROM native-sdk-tools AS thrift-latest
 COPY meteor-test/peer/cpp/thrift /build/meteor-test/peer/cpp/thrift
+COPY meteor-test/peer/c/order/nxn_order.h /build/meteor-test/peer/c/order/nxn_order.h
 COPY meteor-test/peer/c/thrift /build/meteor-test/peer/c/thrift
 COPY meteor-test/resource/protocol/thrift /build/meteor-test/resource/protocol/thrift
 RUN bash /build/meteor-test/peer/cpp/thrift/build-version.sh \

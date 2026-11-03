@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "java-apache-dubbo",
+      "language": "java",
+      "implementation": "Apache Dubbo",
+      "runtimeManifestProperty": "meteor.test.sdk.manifest",
+      "launch": {
+        "provider": {
+          "container": "java",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.sdk.${entry}.SdkProviderMain"
+          ]
+        },
+        "consumer": {
+          "container": "java",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.sdk.${entry}.SdkConsumerMain"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "java-sdk-dubbo-legacy",
+          "api": "order-v1",
+          "protocol": "dubbo",
+          "protocolVersion": "2",
+          "wire": "dubbo-hessian2-tcp-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "dubboLegacy",
+          "entry": "dubbo"
+        },
+        {
+          "id": "java-sdk-dubbo-current",
+          "api": "order-v1",
+          "protocol": "dubbo",
+          "protocolVersion": "3",
+          "wire": "dubbo-hessian2-tcp-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "dubbo",
+          "entry": "dubbo"
+        },
+        {
+          "id": "java-sdk-triple-legacy",
+          "api": "order-v1",
+          "protocol": "triple",
+          "protocolVersion": "",
+          "wire": "triple-protobuf-http2-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "tripleLegacy",
+          "entry": "triple"
+        },
+        {
+          "id": "java-sdk-triple-current",
+          "api": "order-v1",
+          "protocol": "triple",
+          "protocolVersion": "",
+          "wire": "triple-protobuf-http2-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "dubbo",
+          "entry": "triple"
+        }
+      ]
+    }
+  ]
+}

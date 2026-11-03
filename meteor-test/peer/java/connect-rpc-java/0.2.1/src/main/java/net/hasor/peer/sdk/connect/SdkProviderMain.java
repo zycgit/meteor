@@ -66,8 +66,8 @@ public final class SdkProviderMain {
                 server.close();
                 workers.shutdownNow();
             }, "connect-sdk-provider-shutdown"));
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("http", server.getPort(), "/connect"));
+            String target = OrderPeerSettings.publishAddress("http", server.getPort(), "/connect").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
             OrderExampleUtils.awaitShutdown();
         } finally {
             workers.shutdownNow();

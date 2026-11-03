@@ -5,13 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.HexFormat;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
 import org.junit.jupiter.api.Test;
@@ -23,7 +17,49 @@ import static org.junit.jupiter.api.Assertions.*;
 public class NxnTypeReportTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     @TempDir
-    public Path temporary;
+    public               Path         temporary;
+
+    @Test
+    public void orderMatrixDoesNotBorrowTypeDimensionsFromDisplay() {
+        // 标准业务矩阵即便带有旧类型展示文本，也不声明类型支持。
+        Map<String, Object> testcase = executedCase();
+        testcase.put("matrix", standardMatrixCase().get("matrix"));
+
+        // 矩阵的正式声明优先于旧展示文本的形状。
+        assertNull(NxnTypeReport.parseDimensions(testcase, Map.of()));
+    }
+
+    @Test
+    public void matrixMetadataPreservesExecutionIdentityAndStatus() throws Exception {
+        // 同轮 XML 和结果身份由 JUnit 决定，matrix.id 只描述业务组合。
+        Path directory = createRun();
+        Map<String, Object> testcase = standardMatrixCase();
+        writeRun(directory, List.of(testcase));
+
+        // 读取实际证据后仍保留真实身份和状态，不生成类型支持明细。
+        Map<String, Object> run = NxnTypeReport.readRun(directory);
+        Map<String, Object> actual = NxnTypeReport.object(run.get("cases"));
+        Map<String, Object> result = NxnTypeReport.object(actual.get(testcase.get("caseId")));
+        assertEquals(testcase.get("caseId"), result.get("caseId"));
+        assertEquals("passed", result.get("status"));
+        assertEquals(testcase.get("matrix"), result.get("matrix"));
+        assertTrue(NxnTypeReport.buildDetails(run, reviewedExpectations(), Map.of()).isEmpty());
+    }
+
+    @Test
+    public void legacyTypeRunStillUsesReviewedSupportRules() throws Exception {
+        // 没有结构化矩阵元数据的旧归档继续使用原类型解析和审查规则。
+        Map<String, Object> run = NxnTypeReport.readRun(createRun());
+        List<Map<String, Object>> details = NxnTypeReport.buildDetails(run, reviewedExpectations(), Map.of());
+
+        // 只有本轮通过且命中审查规则的精确类型向量才能建立支持结论。
+        assertEquals(1, details.size());
+        Map<String, Object> detail = details.get(0);
+        assertEquals(executedCase().get("caseId"), detail.get("caseId"));
+        assertEquals("int64-maximum", detail.get("vector"));
+        assertEquals("passed", detail.get("testStatus"));
+        assertEquals("supported", detail.get("support"));
+    }
 
     @Test
     public void javaBasicDisplayPreservesBoxedType() {
@@ -769,6 +805,20 @@ public class NxnTypeReportTest {
         return testcase;
     }
 
+    private static Map<String, Object> standardMatrixCase() {
+        String id = "java-grpc-to-java-grpc";
+        Map<String, Object> testcase = scenario("net.hasor.realmeteor.matrix.standard.StandardMatrixTest", //
+                "savesAndFindsOrder", id);
+        Map<String, Object> endpoint = values("id", "java-grpc-current", "language", "java", //
+                "implementation", "gRPC-Java", "version", "1.85.1", "framework", "", "runtimeProfile", "grpcCurrent");
+        testcase.put("matrix", values("id", id, "api", "order-v1", "scenario", "save-find", //
+                "protocol", "grpc", "protocolVersion", "", "wire", "grpc-protobuf-http2-clear", //
+                "discovery", "direct", "provider", endpoint, "consumer", endpoint));
+        testcase.put("status", "passed");
+        testcase.put("seconds", "0.123");
+        return testcase;
+    }
+
     private static Map<String, Object> exampleCase() {
         return scenario("net.hasor.realmeteor.protocol.grpc.python.PythonGrpcTypeInteropTest", //
                 "meteorProviderPreservesPythonNativeType", "types/python/grpc-protobuf/direct/int64/int64-maximum");
@@ -823,7 +873,7 @@ public class NxnTypeReportTest {
 
     private static int runCli(ByteArrayOutputStream output, ByteArrayOutputStream errors, String... arguments) {
         try (PrintStream standard = new PrintStream(output, true, StandardCharsets.UTF_8); //
-                PrintStream diagnostics = new PrintStream(errors, true, StandardCharsets.UTF_8)) {
+             PrintStream diagnostics = new PrintStream(errors, true, StandardCharsets.UTF_8)) {
             return NxnTypeReport.run(arguments, standard, diagnostics);
         }
     }

@@ -29,21 +29,21 @@ $(GEN_DIR)/.generated: $(CONTRACT)
 $(BUILD_DIR)/order_%.o: $(GEN_DIR)/.generated
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $(GEN_DIR)/order_$*.c -o $@
 
-$(BUILD_DIR)/c/provider: $(ORDER_DIR)/provider.c $(BUILD_DIR)/order_svc.o $(BUILD_DIR)/order_xdr.o
+$(BUILD_DIR)/c/provider: $(ORDER_DIR)/provider.c $(BUILD_DIR)/order_svc.o $(BUILD_DIR)/order_xdr.o $(ORDER_DIR)/nxn_order.h
 	mkdir -p $(@D)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $^ $(LDLIBS) -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(filter-out %.h,$^) $(LDLIBS) -o $@
 
-$(BUILD_DIR)/c/consumer: $(ORDER_DIR)/consumer.c $(BUILD_DIR)/order_clnt.o $(BUILD_DIR)/order_xdr.o
+$(BUILD_DIR)/c/consumer: $(ORDER_DIR)/consumer.c $(BUILD_DIR)/order_clnt.o $(BUILD_DIR)/order_xdr.o $(ORDER_DIR)/nxn_order.h
 	mkdir -p $(@D)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $^ $(LDLIBS) -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(filter-out %.h,$^) $(LDLIBS) -o $@
 
-$(BUILD_DIR)/cpp/provider: $(TEST_DIR)/peer/cpp/order/provider.cpp $(BUILD_DIR)/order_svc.o $(BUILD_DIR)/order_xdr.o
+$(BUILD_DIR)/cpp/provider: $(TEST_DIR)/peer/cpp/order/provider.cpp $(BUILD_DIR)/order_svc.o $(BUILD_DIR)/order_xdr.o $(ORDER_DIR)/nxn_order.h
 	mkdir -p $(@D)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ $(LDLIBS) -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(filter-out %.h,$^) $(LDLIBS) -o $@
 
-$(BUILD_DIR)/cpp/consumer: $(TEST_DIR)/peer/cpp/order/consumer.cpp $(BUILD_DIR)/order_clnt.o $(BUILD_DIR)/order_xdr.o
+$(BUILD_DIR)/cpp/consumer: $(TEST_DIR)/peer/cpp/order/consumer.cpp $(BUILD_DIR)/order_clnt.o $(BUILD_DIR)/order_xdr.o $(ORDER_DIR)/nxn_order.h
 	mkdir -p $(@D)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ $(LDLIBS) -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(filter-out %.h,$^) $(LDLIBS) -o $@
 
 clean:
 	rm -rf $(BUILD_DIR)

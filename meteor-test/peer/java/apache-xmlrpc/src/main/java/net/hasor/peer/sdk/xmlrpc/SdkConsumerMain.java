@@ -34,12 +34,13 @@ public final class SdkConsumerMain {
         value.put("id", order.getId());
         value.put("description", order.getDescription());
         value.put("attachment", order.getAttachment());
-        client.execute("orders.save", new Object[] { value });
+        Object saved = client.execute("orders.save", new Object[] { value });
 
         // 查询结果恢复为共享订单模型，输出与 Meteor 消费者相同的 JSON。
         Map<String, Object> query = new LinkedHashMap<>();
-        query.put("id", 1001);
+        query.put("id", order.getId());
         Object result = client.execute("orders.find", new Object[] { query });
-        OrderExampleUtils.print(new ObjectMapper().convertValue(result, Order.class));
+        ObjectMapper mapper = new ObjectMapper();
+        OrderExampleUtils.print(mapper.convertValue(saved, Order.class), mapper.convertValue(result, Order.class));
     }
 }

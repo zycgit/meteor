@@ -13,6 +13,7 @@ import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 
 /** 拥有独立 RemoteTea JVM 和日志；调用、关闭都保持有界等待。 */
 final class RemoteTeaPeerProcess implements AutoCloseable {
@@ -26,10 +27,7 @@ final class RemoteTeaPeerProcess implements AutoCloseable {
 
     static RemoteTeaPeerProcess start(String transport, int port, String value, String scenario) throws Exception {
         // Gradle 只交付标准测试输出与 RemoteTea SDK，不能继承 Meteor 的运行类路径。
-        String classpath = System.getProperty("oncrpc.java.peer.classpath");
-        if (StringUtils.isBlank(classpath)) {
-            throw new IllegalStateException("RemoteTea Java peer classpath is not configured");
-        }
+        String classpath = JavaSdkPeerUtils.classpath("oncrpc");
         String configuredOutput = System.getProperty("oncrpc.peer.output.directory", "build/reports/oncrpc-peer");
         Path directory = Path.of(configuredOutput).toAbsolutePath();
         Files.createDirectories(directory);

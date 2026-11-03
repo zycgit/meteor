@@ -7,6 +7,7 @@
  */
 package net.hasor.peer.sdk.hessian;
 import com.caucho.hessian.client.HessianProxyFactory;
+import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderExampleUtils;
 import net.hasor.example.OrderQuery;
@@ -26,9 +27,10 @@ public final class SdkConsumerMain {
         OrderDemoService orders = (OrderDemoService) factory.create(OrderDemoService.class, endpoint);
 
         // 业务仍复用普通接口和 DTO，SDK 完成参数与返回值的二进制转换。
-        orders.save(OrderExampleUtils.newOrder(1001, "hessian-sdk"));
+        Order order = OrderExampleUtils.newOrder(1001, "hessian-sdk");
+        Order saved = orders.save(order);
         OrderQuery query = new OrderQuery();
-        query.setId(1001);
-        OrderExampleUtils.print(orders.find(query));
+        query.setId(order.getId());
+        OrderExampleUtils.print(saved, orders.find(query));
     }
 }

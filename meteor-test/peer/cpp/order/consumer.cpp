@@ -4,6 +4,7 @@
  */
 
 #include "order.h"
+#include "../../c/order/nxn_order.h"
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -100,6 +101,16 @@ int main() {
 
         // Adapt ordinary C++ values at the RPC boundary and save an order.
         Order order{1001, "meteor-order", {'M', 'e', 't', 'e', 'o', 'r'}};
+        if (nxn_order_enabled()) {
+            nxn_order_input input{};
+            if (!nxn_order_read(&input)) {
+                throw std::runtime_error("Cannot read NXN order input");
+            }
+            order.id = input.id;
+            order.description = input.description;
+            order.attachment.assign(input.attachment, input.attachment + input.attachment_length);
+            std::free(input.attachment);
+        }
         OrderDescription description = const_cast<char *>(order.description.c_str());
         OrderAttachment attachment{};
         attachment.OrderAttachment_len = static_cast<u_int>(order.attachment.size());
@@ -109,6 +120,14 @@ int main() {
         if (saved == nullptr) {
             throw std::runtime_error(clnt_sperror(client, "save failed"));
         }
+        const auto savedOrder = fromWire(*saved);
+        if (nxn_order_enabled()) {
+            if (saved->description == nullptr || saved->attachment == nullptr || savedOrder.id != order.id
+                    || savedOrder.description != order.description || savedOrder.attachment != order.attachment) {
+                xdr_free(reinterpret_cast<xdrproc_t>(xdr_OrderValue), reinterpret_cast<char *>(saved));
+                throw std::runtime_error("ONC RPC save returned a different NXN order");
+            }
+        }
 
         xdr_free(reinterpret_cast<xdrproc_t>(xdr_OrderValue), reinterpret_cast<char *>(saved));
 
@@ -117,11 +136,22 @@ int main() {
         if (found == nullptr) {
             throw std::runtime_error(clnt_sperror(client, "find failed"));
         }
+        if (nxn_order_enabled() && (found->description == nullptr || found->attachment == nullptr)) {
+            xdr_free(reinterpret_cast<xdrproc_t>(xdr_OrderValue), reinterpret_cast<char *>(found));
+            throw std::runtime_error("NXN order response is missing description or attachment");
+        }
 
         const auto foundOrder = fromWire(*found);
         xdr_free(reinterpret_cast<xdrproc_t>(xdr_OrderValue), reinterpret_cast<char *>(found));
 
-        printOrder(foundOrder);
+        if (nxn_order_enabled()) {
+            nxn_order_result(savedOrder.id, savedOrder.description.c_str(),
+                    savedOrder.attachment.data(), savedOrder.attachment.size(),
+                    foundOrder.id, foundOrder.description.c_str(),
+                    foundOrder.attachment.data(), foundOrder.attachment.size());
+        } else {
+            printOrder(foundOrder);
+        }
         clnt_destroy(client);
         return 0;
     } catch (const std::exception &error) {

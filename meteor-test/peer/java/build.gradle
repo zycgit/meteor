@@ -137,16 +137,6 @@ def currentCompileProfiles = [
     'axis', 'dubbo', 'thrift', 'hprose', 'soap', 'jsonrpc', 'xmlrpc', 'hessian', 'grpc', 'connect', 'oncrpc'
 ]
 
-// 矩阵只列真实存在的 SDK 入口；gRPC-Web 为消费方向，Connect 两个方向使用各自的 SDK。
-def compatibilityProfiles = [
-    dubbo: ['dubboClassic', 'dubboLegacy', 'dubbo'],
-    thrift: ['thriftClassic', 'thriftPreLayered', 'thriftLayered', 'thriftLegacy', 'thrift'],
-    hprose: ['hprose'], soap: ['soapJavax', 'soapLegacy', 'soap'],
-    jsonrpc: ['jsonrpc'], xmlrpc: ['xmlrpc'], hessian: ['hessianLegacy', 'hessianRecent'],
-    grpc: ['grpcCurrent'], grpcweb: ['connectLegacy', 'connect', 'connectCurrent'],
-    connect: ['connectLegacy', 'connect', 'connectCurrent'],
-    triple: ['tripleLegacy', 'dubbo'], oncrpc: ['oncrpc']
-]
 def jacksonDependency = "com.fasterxml.jackson.core:jackson-databind:${property('lib.jackson')}"
 def sdkRuntimes = sdkCoordinates.collectEntries { sdk, coordinates ->
     def runtime = configurations.create("${sdk}PeerRuntime") {
@@ -187,6 +177,7 @@ tasks.named('compileJava') {
     options.compilerArgs += '-parameters'
 }
 
+// 协议、角色和业务契约归各 SDK 的 nxn.json；这里只导出真实运行依赖。
 tasks.register('exportRuntimes') {
     description = 'Export the isolated classpath of every official Java SDK execution profile.'
     dependsOn tasks.named('classes')
@@ -197,7 +188,6 @@ tasks.register('exportRuntimes') {
     inputs.files { project(':meteor-test-contracts').sourceSets.main.output }
     inputs.files { isolatedProjects.values().toList().unique().collect { project(it).sourceSets.main.output } }
     inputs.property('sdkCoordinates', sdkCoordinates)
-    inputs.property('compatibilityProfiles', compatibilityProfiles)
     inputs.property('profileNotes', profileNotes)
     def destination = layout.buildDirectory.file('execution/runtimes.json')
     outputs.file(destination)
@@ -247,30 +237,14 @@ tasks.register('exportRuntimes') {
             [(sdk): metadata]
         }
 
-        // 每项只描述一个调用方向，SDK 版本来自该方向实际使用的隔离运行图。
-        def compatibility = []
-        compatibilityProfiles.each { protocol, selectedProfiles ->
-            selectedProfiles.each { profile ->
-                def metadata = profiles[profile]
-                def details = [protocol: protocol, profile: profile, sdk: metadata.sdk, version: metadata.version]
-                if (metadata.notes != null) {
-                    details.notes = metadata.notes
-                }
-                compatibility.add(details + [role: 'consumer',
-                                             mainClass: "net.hasor.peer.sdk.${protocol}.SdkConsumerMain"])
-                if (!(protocol in ['grpcweb', 'connect'])) {
-                    compatibility.add(details + [role: 'provider',
-                                                 mainClass: "net.hasor.peer.sdk.${protocol}.SdkProviderMain"])
-                }
-            }
-        }
-        def connectServer = profiles.connectServer
-        compatibility.add([protocol: 'connect', profile: 'connectServer', sdk: connectServer.sdk,
-                           version: connectServer.version, role: 'provider',
-                           mainClass: 'net.hasor.peer.sdk.connect.SdkProviderMain'])
         def file = destination.get().asFile
         file.parentFile.mkdirs()
-        def manifest = [profiles: profiles, compatibility: compatibility]
+        def manifest = [profiles: profiles]
         file.setText(JsonOutput.prettyPrint(JsonOutput.toJson(manifest)) + '\n', 'UTF-8')
     }
 }
+
+// SDK 工程自行导出版本和依赖；使用方只接收清单位置。
+ext.nxnRuntimeProperties = [
+        'meteor.test.sdk.manifest': files(tasks.named('exportRuntimes'))
+]

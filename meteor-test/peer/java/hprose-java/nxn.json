@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "java-hprose",
+      "language": "java",
+      "implementation": "Hprose Java",
+      "runtimeManifestProperty": "meteor.test.sdk.manifest",
+      "launch": {
+        "provider": {
+          "container": "java",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.sdk.${entry}.SdkProviderMain"
+          ]
+        },
+        "consumer": {
+          "container": "java",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.sdk.${entry}.SdkConsumerMain"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "java-sdk-hprose",
+          "api": "order-v1",
+          "protocol": "hprose",
+          "protocolVersion": "",
+          "wire": "hprose-hprose-http1-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "hprose",
+          "entry": "hprose"
+        }
+      ]
+    }
+  ]
+}

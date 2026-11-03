@@ -75,7 +75,17 @@ public final class OrderApplicationMain {
                 if (List.of("rsf", "dubbo", "thrift", "oncrpc").contains(protocol)) {
                     scheme = protocol;
                 }
-                System.out.println("Order provider is ready: " + scheme + "://" + host + ":" + address.getPort());
+                String path = "";
+                if (System.getenv("METEOR_NXN_REQUEST_FILE") != null && StringUtils.equals("http", scheme)) {
+                    path = "/" + protocol;
+                    if (StringUtils.equals("hessian", protocol) || StringUtils.equals("soap", protocol)) {
+                        path += "/orders";
+                    } else if (StringUtils.equals("triple", protocol)) {
+                        path = "/";
+                    }
+                }
+                String target = scheme + "://" + host + ":" + address.getPort() + path;
+                OrderExampleUtils.ready(target, "Order provider is ready: ");
                 OrderExampleUtils.awaitShutdown(context);
             } else {
                 consume(context, binding, protocol, discovery);
@@ -134,6 +144,16 @@ public final class OrderApplicationMain {
             String path = "/" + protocol;
             if (StringUtils.equals("triple", protocol)) {
                 path = "/";
+            }
+            // NXN 使用提供者返回的实际挂载目录，服务完整地址由精确路径声明处理。
+            String target = System.getenv("METEOR_ORDER_TARGET");
+            boolean exact = StringUtils.equals("hessian", protocol) || StringUtils.equals("soap", protocol);
+            if (!provider && !exact && System.getenv("METEOR_NXN_REQUEST_FILE") != null && target != null) {
+                String targetPath = URI.create(target).getPath();
+                if (targetPath == null || targetPath.isBlank()) {
+                    targetPath = "/";
+                }
+                path = targetPath;
             }
             mount.contextPath(path);
         }
@@ -201,6 +221,16 @@ public final class OrderApplicationMain {
         } else if (!StringUtils.equals("rsf", protocol)) {
             builder.aliasName(protocol, "orders");
         }
+        // Hessian 与 SOAP 地址已经包含服务路径，不再追加本地默认目录和服务名。
+        String target = System.getenv("METEOR_ORDER_TARGET");
+        boolean exact = StringUtils.equals("hessian", protocol) || StringUtils.equals("soap", protocol);
+        if (!provider && exact && System.getenv("METEOR_NXN_REQUEST_FILE") != null && target != null) {
+            String path = URI.create(target).getPath();
+            if (path == null || path.isBlank()) {
+                path = "/";
+            }
+            builder.contextPathByExact(protocol, path);
+        }
         return builder.register();
     }
 
@@ -238,14 +268,16 @@ public final class OrderApplicationMain {
         // 所有结果都来自独立提供者，ONC RPC 保留自己的查询参数形式。
         if (StringUtils.equals("oncrpc", protocol)) {
             var orders = (OncRpcOrderService) remote;
-            orders.save(order);
-            OrderExampleUtils.print(orders.find(order.getId()));
+            Order saved = orders.save(order);
+            Order found = orders.find(order.getId());
+            OrderExampleUtils.print(saved, found);
         } else {
             OrderDemoService orders = (OrderDemoService) remote;
-            orders.save(order);
+            Order saved = orders.save(order);
             OrderQuery query = new OrderQuery();
             query.setId(order.getId());
-            OrderExampleUtils.print(orders.find(query));
+            Order found = orders.find(query);
+            OrderExampleUtils.print(saved, found);
         }
     }
 

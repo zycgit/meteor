@@ -53,11 +53,19 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
     private TestPlan plan;
     private boolean failureStopped;
     private final Set<String> startedIdentities = new LinkedHashSet<>();
-    private final Set<TestIdentifier> plannedCases = new LinkedHashSet<>();
+    private final Map<String, Map<String, Object>> matrixCases = new LinkedHashMap<>();
+    private final Set<String> matrixClasses = new LinkedHashSet<>();
+    private final Set<String> plannedIdentities = new LinkedHashSet<>();
+    private final Set<TestIdentifier> observedCases = new LinkedHashSet<>();
     private final Map<String, Document> suites = new LinkedHashMap<>();
     private final Map<TestIdentifier, Element> cases = new LinkedHashMap<>();
     private final Map<TestIdentifier, Long> starts = new LinkedHashMap<>();
     private final Set<TestIdentifier> startedCases = new LinkedHashSet<>();
+    private final Set<TestIdentifier> finishedCases = new LinkedHashSet<>();
+    private final Map<String, String> explicitPhases = new LinkedHashMap<>();
+    private volatile boolean acceptingPhases = true;
+    private final List<Map<String, Object>> preparationFailures = new ArrayList<>();
+    private final List<Map<String, Object>> cleanupFailures = new ArrayList<>();
     private final Set<TestIdentifier> failedCases = new LinkedHashSet<>();
     private final Set<TestIdentifier> skippedCases = new LinkedHashSet<>();
     private final Map<String, Long> suiteStarts = new LinkedHashMap<>();
@@ -80,6 +88,9 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
         this.configuration.putIfAbsent("rpc", "");
         this.configuration.putIfAbsent("rpcVersion", "");
         this.configuration.putIfAbsent("rpcCases", Map.of());
+        this.readMatrixCases(selection.get("matrixCases"));
+        this.configuration.put("matrixCases", this.matrixSelection());
+        this.total = this.plannedIdentities.size();
         String runId = selection.get("orchestrationRunId") + "-" + selection.get("groupId");
         this.report = this.output.resolve("interoperability");
         Files.createDirectories(this.report.getParent());
@@ -116,6 +127,149 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
             problem.printStackTrace(this.originalErr);
         }
         this.progressWriter = progress;
+    }
+
+    private void readMatrixCases(Object configured) {
+        if (configured == null) {
+            return;
+        }
+        if (!(configured instanceof List<?> values)) {
+            throw new IllegalArgumentException("matrixCases must be a list");
+        }
+        for (Object value : values) {
+            if (!(value instanceof Map<?, ?> entry) || !(entry.get("caseId") instanceof String caseId)) {
+                throw new IllegalArgumentException("Matrix testcase requires a caseId");
+            }
+            Map<String, Object> matrix = new LinkedHashMap<>();
+            for (String key : List.of("id", "api", "scenario", "protocol", "protocolVersion", "wire", "discovery")) {
+                if (entry.containsKey(key)) {
+                    matrix.put(key, entry.get(key));
+                }
+            }
+            if (entry.containsKey("protocolVersions")) {
+                if (!(entry.get("protocolVersions") instanceof List<?> versions)) {
+                    throw new IllegalArgumentException("Matrix protocolVersions must be a list of strings: " + caseId);
+                }
+                List<String> protocols = new ArrayList<>();
+                for (Object version : versions) {
+                    if (!(version instanceof String text)) {
+                        String message = "Matrix protocolVersions elements must be strings: " + caseId;
+                        throw new IllegalArgumentException(message);
+                    }
+                    protocols.add(text);
+                }
+                matrix.put("protocolVersions", protocols);
+            }
+            for (String role : List.of("provider", "consumer")) {
+                Map<String, Object> endpoint = new LinkedHashMap<>();
+                if (entry.get(role) instanceof Map<?, ?> source) {
+                    List<String> fields = List.of("id", "language", "implementation", "version", "framework",
+                            "runtimeProfile");
+                    for (String key : fields) {
+                        if (source.containsKey(key)) {
+                            endpoint.put(key, source.get(key));
+                        }
+                    }
+                }
+                matrix.put(role, endpoint);
+            }
+            if (this.matrixCases.putIfAbsent(caseId, matrix) != null) {
+                throw new IllegalArgumentException("Duplicate planned matrix testcase: " + caseId);
+            }
+            int separator = caseId.indexOf('#');
+            if (separator <= 0 || separator == caseId.length() - 1) {
+                throw new IllegalArgumentException("Invalid planned matrix testcase: " + caseId);
+            }
+            this.matrixClasses.add(caseId.substring(0, separator));
+            this.plannedIdentities.add(caseId);
+        }
+    }
+
+    private List<Map<String, Object>> matrixSelection() {
+        List<Map<String, Object>> selection = new ArrayList<>();
+        for (Map.Entry<String, Map<String, Object>> entry : this.matrixCases.entrySet()) {
+            Map<String, Object> matrix = new LinkedHashMap<>();
+            matrix.put("caseId", entry.getKey());
+            matrix.putAll(entry.getValue());
+            selection.add(matrix);
+        }
+        return selection;
+    }
+
+    private boolean matrixClass(String className) {
+        return this.matrixClasses.contains(className);
+    }
+
+    private void observeCase(TestIdentifier identifier) {
+        this.observedCases.add(identifier);
+        String caseId = this.caseId(identifier);
+        // 标准矩阵的容器错误是准备或清理证据，不追加到预先确定的业务用例数量。
+        if (!this.matrixClass(this.className(identifier)) || this.matrixCases.containsKey(caseId)) {
+            this.plannedIdentities.add(caseId);
+        }
+        this.total = this.plannedIdentities.size();
+    }
+
+    private Map<String, String> logs(String className) {
+        Map<String, String> logs = new LinkedHashMap<>();
+        logs.put("stdout", "stdout.log");
+        logs.put("stderr", "stderr.log");
+        if (className != null) {
+            logs.put("suiteStdout", "test-output/" + className + ".stdout.log");
+            logs.put("suiteStderr", "test-output/" + className + ".stderr.log");
+        }
+        return logs;
+    }
+
+    private boolean hasStartedDescendant(TestIdentifier identifier) {
+        String prefix = identifier.getUniqueId() + "/";
+        return this.startedCases.stream().anyMatch(testcase -> testcase.getUniqueId().startsWith(prefix));
+    }
+
+    private List<String> affectedCaseIds(TestIdentifier identifier) {
+        if (identifier != null && this.matrixCases.containsKey(this.caseId(identifier))) {
+            return List.of(this.caseId(identifier));
+        }
+        List<String> affected = new ArrayList<>();
+        String className = identifier == null ? null : this.className(identifier);
+        List<String> parameters = new ArrayList<>();
+        if (identifier != null) {
+            parameters.addAll(this.parameterNames(identifier));
+            String segment = identifier.getUniqueIdObject().getLastSegment().getType();
+            if (StringUtils.equals("class-template-invocation", segment)) {
+                parameters.add(identifier.getDisplayName());
+            }
+        }
+        for (String caseId : this.matrixCases.keySet()) {
+            if (className != null && !caseId.startsWith(className + "#")) {
+                continue;
+            }
+            boolean matches = parameters.isEmpty();
+            for (String parameter : parameters) {
+                if (caseId.endsWith("[" + parameter + "]")) {
+                    matches = true;
+                }
+            }
+            if (matches) {
+                affected.add(caseId);
+            }
+        }
+        return affected;
+    }
+
+    private Map<String, Object> failureDetails(TestIdentifier identifier, Throwable failure, String phase) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        String className = identifier == null ? this.currentClass : this.className(identifier);
+        String caseId = identifier == null ? null : this.caseId(identifier);
+        details.put("caseId", caseId);
+        details.put("phase", phase);
+        details.put("failure", trace(failure));
+        details.put("affectedCaseIds", this.affectedCaseIds(identifier));
+        details.put("logs", this.logs(className));
+        if (this.matrixCases.containsKey(caseId)) {
+            details.put("matrix", this.matrixCases.get(caseId));
+        }
+        return details;
     }
 
     void captureOutput() throws IOException {
@@ -181,12 +335,11 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
 
     private void collectPlannedCases(TestIdentifier identifier) {
         if (identifier.isTest() && this.selected(identifier)) {
-            this.plannedCases.add(identifier);
+            this.observeCase(identifier);
         }
         for (TestIdentifier child : this.plan.getChildren(identifier)) {
             this.collectPlannedCases(child);
         }
-        this.total = this.plannedCases.size();
     }
 
     @Override
@@ -209,8 +362,7 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
             if (!this.startedCases.add(identifier) || !this.startedIdentities.add(caseId)) {
                 this.executionFailed(new IllegalStateException("Duplicate JUnit testcase identity: " + caseId));
             }
-            this.plannedCases.add(identifier);
-            this.total = this.plannedCases.size();
+            this.observeCase(identifier);
             this.currentClass = className;
             this.addCase(identifier);
             this.starts.put(identifier, System.nanoTime());
@@ -229,8 +381,9 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
                 if (this.className(identifier) == null) {
                     this.executionFailed(failure);
                 } else {
-                    this.plannedCases.add(identifier);
-                    this.total = this.plannedCases.size();
+                    if (identifier.isTest() || !this.matrixClass(this.className(identifier))) {
+                        this.observeCase(identifier);
+                    }
                     this.addFailure(identifier, failure);
                 }
             } else if (identifier.isTest() && result.getStatus() == TestExecutionResult.Status.ABORTED) {
@@ -238,6 +391,7 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
                 this.addSkipped(identifier, reason);
                 this.skippedCases.add(identifier);
             }
+            this.finishedCases.add(identifier);
             Long start = this.starts.remove(identifier);
             Element testcase = this.cases.get(identifier);
             if (testcase != null && start != null) {
@@ -276,6 +430,31 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
         }
     }
 
+    synchronized void phase(String caseId, String phase) {
+        if (!this.acceptingPhases || !this.matrixCases.containsKey(caseId)) {
+            return;
+        }
+        TestIdentifier active = null;
+        for (TestIdentifier identifier : this.starts.keySet()) {
+            if (StringUtils.equals(caseId, this.caseId(identifier)) && !this.finishedCases.contains(identifier)) {
+                active = identifier;
+                break;
+            }
+        }
+        if (active == null) {
+            return;
+        }
+        boolean preparing = StringUtils.equals("preparing", phase);
+        boolean testing = StringUtils.equals("testing", phase);
+        boolean cleanup = StringUtils.equals("cleanup", phase);
+        if (!preparing && !testing && !cleanup) {
+            throw new IllegalArgumentException("Unknown NXN testcase phase: " + phase);
+        }
+        this.explicitPhases.put(caseId, phase);
+        this.cases.get(active).setAttribute("phase", phase);
+        this.printProgress(phase, null, null);
+    }
+
     synchronized void addFailure(TestIdentifier identifier, Throwable failure) throws Exception {
         Element testcase = this.addCase(identifier);
         Element failed = testcase.getOwnerDocument().createElement("failure");
@@ -284,8 +463,21 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
         failed.setTextContent(xmlText(trace(failure)));
         testcase.appendChild(failed);
         this.failedCases.add(identifier);
-        this.printProgress(this.starts.isEmpty() ? "cleanup" : "testing", identifier, failure);
-        failure.printStackTrace(this.originalErr);
+        String phase = this.explicitPhases.getOrDefault(this.caseId(identifier), "testing");
+        if (!identifier.isTest()) {
+            phase = this.hasStartedDescendant(identifier) ? "cleanup" : "preparing";
+            this.finishedCases.add(identifier);
+        } else if (!this.startedCases.contains(identifier)) {
+            phase = "preparing";
+        }
+        if (StringUtils.equals("preparing", phase)) {
+            this.preparationFailures.add(this.failureDetails(identifier, failure, phase));
+        } else if (StringUtils.equals("cleanup", phase)) {
+            this.cleanupFailures.add(this.failureDetails(identifier, failure, phase));
+        }
+        testcase.setAttribute("phase", phase);
+        this.printProgress(phase, identifier, failure);
+        this.printFailure(failure);
         this.failureStopped = Boolean.FALSE.equals(this.configuration.get("skipError"));
     }
 
@@ -294,7 +486,7 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
     }
 
     boolean hasSelectedCases() {
-        return !this.plannedCases.isEmpty();
+        return !this.matrixCases.isEmpty() || !this.observedCases.isEmpty();
     }
 
     boolean selected(String className, String method) {
@@ -319,6 +511,17 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
         }
         int parameter = method.indexOf('[');
         String declaration = parameter < 0 ? method : method.substring(0, parameter);
+        if (this.matrixClass(className)) {
+            if (this.matrixCases.containsKey(className + "#" + method)) {
+                return true;
+            }
+            // 类模板尚未展开时允许 Jupiter 继续发现；具体向量只能执行本组计划中的身份。
+            if (parameter < 0) {
+                String prefix = className + "#" + declaration + "[";
+                return this.matrixCases.keySet().stream().anyMatch(caseId -> caseId.startsWith(prefix));
+            }
+            return this.matrixCases.containsKey(className + "#" + method);
+        }
         @SuppressWarnings("unchecked")
         Map<String, Object> rpcCases = (Map<String, Object>) this.configuration.get("rpcCases");
         String rpc = (String) this.configuration.get("rpc");
@@ -364,10 +567,10 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
     }
 
     private String methodName(TestIdentifier identifier) {
-        if (!(identifier.getSource().orElse(null) instanceof MethodSource source)) {
-            return "initializationError";
+        String name = "initializationError";
+        if (identifier.getSource().orElse(null) instanceof MethodSource source) {
+            name = source.getMethodName();
         }
-        String name = source.getMethodName();
         // 参数类的显示名称来自父调用节点，普通方法名不附加 Jupiter 的空括号。
         TestIdentifier parent = this.plan.getParent(identifier).orElse(null);
         while (parent != null) {
@@ -377,7 +580,9 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
             }
             parent = this.plan.getParent(parent).orElse(null);
         }
-        if (StringUtils.equals("test-template-invocation", identifier.getUniqueIdObject().getLastSegment().getType())) {
+        String segment = identifier.getUniqueIdObject().getLastSegment().getType();
+        if (StringUtils.equals("test-template-invocation", segment)
+                || StringUtils.equals("class-template-invocation", segment)) {
             name += "[" + identifier.getDisplayName() + "]";
         }
         return name;
@@ -408,11 +613,23 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
             progress.put("skipped", this.skippedCases.size());
             progress.put("phase", phase);
             progress.put("current", current);
+            if (current != null && current.contains("#")) {
+                progress.put("caseId", current);
+            }
             progress.put("elapsedMillis", (now - this.startedNanos) / 1_000_000);
             progress.put("testElapsedMillis", testElapsed);
             if (failure != null) {
                 progress.put("failure", failure.getClass().getName() + ": " + failure.getMessage());
-                progress.put("case", this.caseId(failedIdentifier));
+                String caseId = failedIdentifier == null ? current : this.caseId(failedIdentifier);
+                progress.put("case", caseId);
+                progress.put("caseId", caseId);
+                String className = failedIdentifier == null ? this.currentClass : this.className(failedIdentifier);
+                progress.put("logs", this.logs(className));
+                if (this.matrixCases.containsKey(caseId)) {
+                    progress.put("matrix", this.matrixCases.get(caseId));
+                } else {
+                    progress.put("affectedCaseIds", this.affectedCaseIds(failedIdentifier));
+                }
             }
             this.progressWriter.write(JSON.writeValueAsString(progress));
             this.progressWriter.newLine();
@@ -428,6 +645,7 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
         Element ignored = testcase.getOwnerDocument().createElement("skipped");
         ignored.setAttribute("message", xmlText(message));
         testcase.appendChild(ignored);
+        this.finishedCases.add(identifier);
     }
 
     private Element addCase(TestIdentifier identifier) throws Exception {
@@ -456,6 +674,8 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
         testcase.setAttribute("classname", className);
         testcase.setAttribute("uniqueId", identifier.getUniqueId());
         testcase.setAttribute("time", "0");
+        testcase.setAttribute("phase", "testing");
+        this.logs(className).forEach(testcase::setAttribute);
         document.getDocumentElement().appendChild(testcase);
         this.cases.put(identifier, testcase);
         return testcase;
@@ -467,18 +687,46 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
         } else if (this.executionFailure != failure) {
             this.executionFailure.addSuppressed(failure);
         }
-        failure.printStackTrace(this.originalErr);
+        this.printFailure(failure);
+        String phase = "preparing";
+        TestIdentifier active = this.starts.keySet().stream().findFirst().orElse(null);
+        if (active != null) {
+            phase = this.explicitPhases.getOrDefault(this.caseId(active), "testing");
+        } else if (!this.startedCases.isEmpty()) {
+            phase = "cleanup";
+        }
+        Map<String, Object> details = this.failureDetails(active, failure, phase);
+        if (StringUtils.equals("preparing", phase)) {
+            this.preparationFailures.add(details);
+        } else if (StringUtils.equals("cleanup", phase)) {
+            this.cleanupFailures.add(details);
+        }
+        this.printProgress(phase, null, failure);
+    }
+
+    private void printFailure(Throwable failure) {
+        if (this.captured.containsKey("stderr")) {
+            failure.printStackTrace(System.err);
+        } else {
+            failure.printStackTrace(this.originalErr);
+        }
     }
 
     int exitCode() {
         if (this.executionFailure != null) {
             return 2;
         }
+        for (TestIdentifier identifier : this.startedCases) {
+            if (!this.finishedCases.contains(identifier)) {
+                return 2;
+            }
+        }
         return this.failed > 0 ? 1 : 0;
     }
 
     @Override
     public void close() throws Exception {
+        this.acceptingPhases = false;
         this.printProgress("reporting", null, null);
 
         try {
@@ -506,6 +754,14 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
         synchronized (this.captured) {
             for (OutputStream stream : this.captured.values()) {
                 stream.close();
+            }
+        }
+
+        // 已开始但没有终态的节点只进入 unknownCases，不能生成成功 XML。
+        for (Map.Entry<TestIdentifier, Element> entry : this.cases.entrySet()) {
+            if (!this.finishedCases.contains(entry.getKey())) {
+                Element testcase = entry.getValue();
+                testcase.getParentNode().removeChild(testcase);
             }
         }
 
@@ -540,6 +796,12 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
                     status = "failed";
                 }
                 outcome.put("status", status);
+                outcome.put("phase", testcase.getAttribute("phase"));
+                outcome.put("logs", this.logs(className));
+                String caseId = (String) outcome.get("caseId");
+                if (this.matrixCases.containsKey(caseId)) {
+                    outcome.put("matrix", this.matrixCases.get(caseId));
+                }
                 if (failure) {
                     StringBuilder traces = new StringBuilder();
                     var nodes = testcase.getElementsByTagName("failure");
@@ -598,23 +860,35 @@ final class JUnitJobReport implements TestExecutionListener, AutoCloseable {
         for (Map<String, Object> testcase : selected) {
             executed.add((String) testcase.get("caseId"));
         }
-        List<String> planned = new ArrayList<>();
+        Set<String> planned = new LinkedHashSet<>(this.plannedIdentities);
+        Set<String> unknown = new LinkedHashSet<>();
+        for (TestIdentifier identifier : this.startedCases) {
+            if (!this.finishedCases.contains(identifier)) {
+                unknown.add(this.caseId(identifier));
+            }
+        }
         List<String> notExecuted = new ArrayList<>();
-        for (TestIdentifier identifier : this.plannedCases) {
-            String caseId = this.caseId(identifier);
-            planned.add(caseId);
-            if (!executed.contains(caseId)) {
+        for (String caseId : planned) {
+            if (!executed.contains(caseId) && !unknown.contains(caseId)) {
                 notExecuted.add(caseId);
             }
         }
         summary.put("plannedCases", planned);
+        Set<String> observed = new LinkedHashSet<>();
+        this.observedCases.forEach(identifier -> observed.add(this.caseId(identifier)));
+        summary.put("observedCaseIds", observed);
+        summary.put("matrixCases", this.matrixSelection());
+        summary.put("unknown", unknown.size());
+        summary.put("unknownCases", unknown);
+        summary.put("preparationFailures", this.preparationFailures);
+        summary.put("cleanupFailures", this.cleanupFailures);
         summary.put("notExecuted", notExecuted.size());
         summary.put("notExecutedCases", notExecuted);
         summary.put("skipError", this.configuration.getOrDefault("skipError", true));
         summary.put("testTaskStarted", this.testTaskStarted);
         summary.put("resultsAvailable", !selected.isEmpty());
         String rpc = (String) this.configuration.get("rpc");
-        boolean selectionEmpty = !rpc.isBlank() && this.plannedCases.isEmpty() && this.executionFailure == null;
+        boolean selectionEmpty = !rpc.isBlank() && !this.hasSelectedCases() && this.executionFailure == null;
         summary.put("selectionEmpty", selectionEmpty);
         summary.put("reusedResults", false);
         summary.put("excludedPreviousResultFiles", 0);

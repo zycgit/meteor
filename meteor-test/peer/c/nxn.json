@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "c-oncrpc",
+      "language": "c",
+      "implementation": "libtirpc",
+      "runtimeManifest": "../../build/preparation/sdk-versions/native/nxn-runtimes.json",
+      "launch": {
+        "provider": {"container": "native", "command": ["${executable}/provider"]},
+        "consumer": {"container": "native", "command": ["${executable}/consumer"]}
+      },
+      "capabilities": [
+        {
+          "id": "current", "api": "order-v1", "protocol": "oncrpc", "protocolVersion": "2",
+          "wire": "oncrpc-xdr-tcp-clear", "roles": ["provider", "consumer"],
+          "discoveries": ["direct"], "runtimeProfile": "cOncrpc"
+        },
+        {
+          "id": "latest", "api": "order-v1", "protocol": "oncrpc", "protocolVersion": "2",
+          "wire": "oncrpc-xdr-tcp-clear", "roles": ["provider", "consumer"],
+          "discoveries": ["direct"], "runtimeProfile": "cOncrpcLatest"
+        }
+      ]
+    }
+  ]
+}

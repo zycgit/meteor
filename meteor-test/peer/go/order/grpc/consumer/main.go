@@ -25,7 +25,7 @@ func run() error {
 		return err
 	}
 	contextPath := strings.TrimRight(target.Path, "/")
-	if contextPath == "" {
+	if contextPath == "" && !order.NxnMode() {
 		contextPath = "/grpc"
 	}
 
@@ -45,7 +45,10 @@ func run() error {
 	defer cancel()
 
 	// Save one order and fetch that same order through two ordinary RPC methods.
-	sample := order.Sample()
+	sample, err := order.Request()
+	if err != nil {
+		return err
+	}
 	saved, err := client.Save(ctx, sample)
 	if err != nil {
 		return err

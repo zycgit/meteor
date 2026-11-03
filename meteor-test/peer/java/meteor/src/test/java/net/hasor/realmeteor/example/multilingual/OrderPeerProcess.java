@@ -7,7 +7,6 @@ package net.hasor.realmeteor.example.multilingual;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -29,24 +28,6 @@ final class OrderPeerProcess implements AutoCloseable {
         this.log = log;
     }
 
-    static List<Object[]> languagesAndProtocols() {
-        List<Object[]> peers = new ArrayList<>();
-        peers.add(new Object[] { "python", "grpc" });
-        peers.add(new Object[] { "python", "thrift" });
-        peers.add(new Object[] { "python", "soap" });
-        peers.add(new Object[] { "python", "jsonrpc" });
-        peers.add(new Object[] { "python", "xmlrpc" });
-        peers.add(new Object[] { "node", "hprose" });
-        peers.add(new Object[] { "node", "jsonrpc" });
-        peers.add(new Object[] { "node", "connect" });
-        peers.add(new Object[] { "go", "grpc" });
-        peers.add(new Object[] { "go", "connect" });
-        peers.add(new Object[] { "go", "thrift" });
-        peers.add(new Object[] { "c", "oncrpc" });
-        peers.add(new Object[] { "cpp", "oncrpc" });
-        return peers;
-    }
-
     static OrderPeerProcess javaMain(String protocol, String role, String target) throws Exception {
         // 应用入口和运行依赖均归测试工程，只挂载当前协议。
         String classpath = System.getProperty("meteor.test.application.classpath");
@@ -60,17 +41,6 @@ final class OrderPeerProcess implements AutoCloseable {
             runtime = "java-meteor-peer";
         }
         return start(runtime, command, target);
-    }
-
-    static OrderPeerProcess foreignProvider(String language, String protocol) throws Exception {
-        List<String> command = foreignCommand(language, protocol, "provider");
-        return start(runtime(language), command, null);
-    }
-
-    static OrderPeerProcess foreignConsumer(String language, String protocol, String target) throws Exception {
-        // 测试自有消费者直接执行保存与查询，不从外部示例工程取入口。
-        List<String> command = foreignCommand(language, protocol, "consumer");
-        return start(runtime(language), command, target);
     }
 
     static OrderPeerProcess start(String runtime, List<String> command, String target) throws Exception {
@@ -88,33 +58,6 @@ final class OrderPeerProcess implements AutoCloseable {
             Files.deleteIfExists(log);
             throw failure;
         }
-    }
-
-    private static List<String> foreignCommand(String language, String protocol, String role) {
-        List<String> command = new ArrayList<>();
-        if (StringUtils.equals("python", language)) {
-            String executable = "python3";
-            boolean sdk = List.of("grpc", "thrift", "soap").contains(protocol);
-            if (sdk) {
-                executable = "/opt/meteor-peer/python-" + protocol + "/bin/python";
-            }
-            Path source = sources().resolve("python").resolve(protocol).resolve(role + ".py");
-            command.addAll(List.of(executable, source.toString()));
-        } else if (StringUtils.equals("node", language)) {
-            command.addAll(List.of("node", "/opt/meteor-peer/node/" + protocol + "/" + role + ".mjs"));
-        } else if (StringUtils.equals("go", language)) {
-            command.add("/opt/meteor-peer/go/order/" + protocol + "-" + role);
-        } else {
-            command.add("/opt/meteor-peer/native/order/" + language + "/" + role);
-        }
-        return command;
-    }
-
-    private static String runtime(String language) {
-        if (StringUtils.equals("c", language) || StringUtils.equals("cpp", language)) {
-            return "native";
-        }
-        return language;
     }
 
     static Path sources() {

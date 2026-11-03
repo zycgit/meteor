@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -67,7 +66,9 @@ func run() error {
 		return err
 	}
 	address := net.JoinHostPort(publishHost, actualPort)
-	fmt.Println("Order provider is ready: http://" + address + "/connect")
+	if err := order.Ready("http://" + address + "/connect"); err != nil {
+		return err
+	}
 	return server.Serve(listener)
 }
 

@@ -38,7 +38,7 @@ final class PythonConnectPeerProcess implements AutoCloseable {
     private static PythonConnectPeerProcess start(String role, String version, String protocol, String messageApi,
             String target) throws IOException {
         // SDK 和生成器均使用容器中独立安装的锁定版本，不借用 Meteor 的编解码器。
-        Path source = Path.of(System.getProperty("meteor.test.peerDirectory"));
+        Path source = Path.of(System.getProperty("meteor.test.peerDirectory", "peer"));
         Path script = source.resolve("python/connect/peer.py");
         List<String> command = new ArrayList<>();
         String executable = "/opt/meteor-peer/python-connect-" + version + "/bin/python";
@@ -51,7 +51,8 @@ final class PythonConnectPeerProcess implements AutoCloseable {
         }
 
         // 完整输出交给现有容器进程框架留档；场景只从日志读取 READY 和 RESULT 控制消息。
-        Path directory = Path.of(System.getProperty("python.grpc.logs")).resolve("connect");
+        String logs = System.getProperty("python.grpc.logs", "build/python-grpc-peer-logs");
+        Path directory = Path.of(logs).resolve("connect");
         Files.createDirectories(directory);
         Path log = Files.createTempFile(directory, version + "-" + protocol + "-" + role + "-", ".log");
         ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log.toFile());

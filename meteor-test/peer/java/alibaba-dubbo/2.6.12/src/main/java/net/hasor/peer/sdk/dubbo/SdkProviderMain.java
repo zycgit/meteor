@@ -8,7 +8,6 @@ import com.alibaba.dubbo.config.ApplicationConfig;
 import com.alibaba.dubbo.config.ProtocolConfig;
 import com.alibaba.dubbo.config.RegistryConfig;
 import com.alibaba.dubbo.config.ServiceConfig;
-import com.alibaba.dubbo.common.utils.NetUtils;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderDemoServiceImpl;
 import net.hasor.example.OrderExampleUtils;
@@ -25,9 +24,8 @@ public final class SdkProviderMain {
         System.setProperty("dubbo.service.shutdown.wait", "1000");
         ApplicationConfig application = new ApplicationConfig("dubbo-classic-order-provider");
         application.setQosEnable(false);
-        int requestedPort = OrderPeerSettings.port();
-        // 使用 SDK 公开工具取得临时端口，隔离并行场景。
-        int sdkPort = requestedPort == 0 ? NetUtils.getAvailablePort() : requestedPort;
+        // 显式传入操作系统分配的端口，不让 SDK 的端口探测回退到固定默认值。
+        int sdkPort = OrderPeerSettings.bindPort();
         ProtocolConfig protocol = new ProtocolConfig("dubbo", sdkPort);
         protocol.setHost(OrderPeerSettings.bindHost());
         protocol.setSerialization("hessian2");
@@ -51,8 +49,8 @@ public final class SdkProviderMain {
         try {
             service.export();
             int actualPort = service.getExportedUrls().get(0).getPort();
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("dubbo", actualPort, "/"));
+            String target = OrderPeerSettings.publishAddress("dubbo", actualPort, "/").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
             OrderExampleUtils.awaitShutdown();
         } finally {
             service.unexport();

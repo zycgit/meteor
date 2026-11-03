@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "java-connect-kotlin",
+      "language": "java",
+      "implementation": "Connect Kotlin",
+      "runtimeManifestProperty": "meteor.test.sdk.manifest",
+      "launch": {
+        "consumer": {
+          "container": "java",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.sdk.${entry}.SdkConsumerMain"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "java-sdk-grpc-web-legacy",
+          "api": "order-v1",
+          "protocol": "grpc-web",
+          "protocolVersion": "",
+          "wire": "grpc-web-protobuf-http1-clear",
+          "roles": [
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "connectLegacy",
+          "entry": "grpcweb"
+        },
+        {
+          "id": "java-sdk-grpc-web-default",
+          "api": "order-v1",
+          "protocol": "grpc-web",
+          "protocolVersion": "",
+          "wire": "grpc-web-protobuf-http1-clear",
+          "roles": [
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "connect",
+          "entry": "grpcweb"
+        },
+        {
+          "id": "java-sdk-connect-legacy",
+          "api": "order-v1",
+          "protocol": "connect",
+          "protocolVersion": "1",
+          "wire": "connect-protobuf-http1-clear",
+          "roles": [
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "connectLegacy",
+          "entry": "connect"
+        },
+        {
+          "id": "java-sdk-connect-default",
+          "api": "order-v1",
+          "protocol": "connect",
+          "protocolVersion": "1",
+          "wire": "connect-protobuf-http1-clear",
+          "roles": [
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "connect",
+          "entry": "connect"
+        }
+      ]
+    }
+  ]
+}

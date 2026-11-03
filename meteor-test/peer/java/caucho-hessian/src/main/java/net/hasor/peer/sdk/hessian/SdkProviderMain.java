@@ -37,8 +37,8 @@ public final class SdkProviderMain implements AutoCloseable {
             Runtime.getRuntime().addShutdownHook(new Thread(provider::close, "hessian-sdk-shutdown"));
             provider.server.start();
             int actualPort = provider.server.getAddress().getPort();
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("http", actualPort, "/hessian/orders"));
+            String target = OrderPeerSettings.publishAddress("http", actualPort, "/hessian/orders").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
             OrderExampleUtils.awaitShutdown();
         }
     }

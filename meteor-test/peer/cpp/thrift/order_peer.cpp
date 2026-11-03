@@ -3,6 +3,7 @@
  * Licensed under the Apache License, Version 2.0.
  */
 #include "OrderThriftService.h"
+#include "../../c/order/nxn_order.h"
 #include <thrift/protocol/TBinaryProtocol.h>
 #include <thrift/server/TThreadedServer.h>
 #include <thrift/transport/TBufferTransports.h>
@@ -59,7 +60,11 @@ public:
 
     void preServe() override {
         // The server has called listen; getPort now reports the actual OS-selected port.
-        std::cout << "Order provider is ready: thrift://" << host << ':' << socket->getPort() << std::endl;
+        if (nxn_order_enabled()) {
+            nxn_order_ready("thrift", host.c_str(), socket->getPort());
+        } else {
+            std::cout << "Order provider is ready: thrift://" << host << ':' << socket->getPort() << std::endl;
+        }
     }
 };
 
@@ -98,13 +103,34 @@ void consume() {
     order.__set_id(1001);
     order.__set_description("meteor-order");
     order.__set_attachment("Meteor");
+    if (nxn_order_enabled()) {
+        nxn_order_input input{};
+        if (!nxn_order_read(&input)) {
+            throw std::runtime_error("Cannot read NXN order input");
+        }
+        std::unique_ptr<unsigned char, decltype(&std::free)> bytes(input.attachment, &std::free);
+        order.__set_id(input.id);
+        order.__set_description(input.description);
+        order.__set_attachment(std::string(reinterpret_cast<char *>(input.attachment), input.attachment_length));
+    }
     ThriftOrder saved;
     client.save(saved, order);
+    if (nxn_order_enabled() && (saved.id != order.id || saved.description != order.description
+            || saved.attachment != order.attachment)) {
+        throw std::runtime_error("Thrift save returned a different NXN order");
+    }
     ThriftOrderQuery query;
     query.__set_id(order.id);
     ThriftOrder found;
     client.find(found, query);
     transport->close();
+    if (nxn_order_enabled()) {
+        nxn_order_result(saved.id, saved.description.c_str(),
+                reinterpret_cast<const unsigned char *>(saved.attachment.data()), saved.attachment.size(),
+                found.id, found.description.c_str(),
+                reinterpret_cast<const unsigned char *>(found.attachment.data()), found.attachment.size());
+        return;
+    }
 
     // Binary data is emitted as an integer array and checked byte-for-byte by JUnit.
     std::cout << "{\"id\":" << found.id << ",\"description\":" << std::quoted(found.description)

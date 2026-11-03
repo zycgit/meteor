@@ -12,6 +12,7 @@ import io.grpc.CallOptions;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.ClientCalls;
+import net.hasor.example.Order;
 import net.hasor.example.OrderContract;
 import net.hasor.example.OrderExampleUtils;
 import net.hasor.example.OrderProtoUtils;
@@ -30,13 +31,31 @@ public final class SdkConsumerMain {
         try {
             OrderContract.Order order = OrderProtoUtils.toProto(OrderExampleUtils.newOrder(1001, "grpc-sdk"));
             CallOptions options = CallOptions.DEFAULT.withDeadlineAfter(10, TimeUnit.SECONDS);
-            ClientCalls.blockingUnaryCall(channel, SdkOrderMethods.SAVE, options, order);
+            // 服务端返回的路径是部署目录，标准 gRPC 服务可以直接挂在根路径。
+            String context = target.getPath();
+            if (context == null) {
+                context = "";
+            }
+            while (context.startsWith("/")) {
+                context = context.substring(1);
+            }
+            while (context.endsWith("/")) {
+                context = context.substring(0, context.length() - 1);
+            }
+            String service = OrderExampleUtils.SERVICE_NAME;
+            if (!context.isEmpty()) {
+                service = context + "/" + service;
+            }
+            var save = SdkOrderMethods.SAVE.toBuilder().setFullMethodName(service + "/save").build();
+            var find = SdkOrderMethods.FIND.toBuilder().setFullMethodName(service + "/find").build();
+            Order saved = OrderProtoUtils.fromProto(ClientCalls.blockingUnaryCall(channel, save, options, order));
 
             // 查询刚保存的订单并输出公共 DTO 的 JSON。
-            OrderContract.OrderQuery query = OrderContract.OrderQuery.newBuilder().setId(1001).build();
+            OrderContract.OrderQuery query = OrderContract.OrderQuery.newBuilder().setId(order.getId()).build();
             OrderContract.Order result = ClientCalls //
-                    .blockingUnaryCall(channel, SdkOrderMethods.FIND, options, query);
-            OrderExampleUtils.print(OrderProtoUtils.fromProto(result));
+                    .blockingUnaryCall(channel, find, options, query);
+            Order found = OrderProtoUtils.fromProto(result);
+            OrderExampleUtils.print(saved, found);
         } finally {
             channel.shutdownNow();
             channel.awaitTermination(5, TimeUnit.SECONDS);

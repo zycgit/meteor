@@ -30,10 +30,11 @@ public final class SdkConsumerMain {
 
             // 使用官方生成的 Client 保存并查询订单。
             Order order = OrderExampleUtils.newOrder(1001, "thrift-sdk");
-            orders.save(OrderThriftSdkService.toSdk(order));
+            Order saved = OrderThriftSdkService.toOrder(orders.save(OrderThriftSdkService.toSdk(order)));
             ThriftOrderQuery query = new ThriftOrderQuery();
-            query.setId(1001);
-            OrderExampleUtils.print(OrderThriftSdkService.toOrder(orders.find(query)));
+            query.setId(order.getId());
+            Order found = OrderThriftSdkService.toOrder(orders.find(query));
+            OrderExampleUtils.print(saved, found);
         }
     }
 }

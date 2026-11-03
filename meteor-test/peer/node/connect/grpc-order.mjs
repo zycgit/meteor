@@ -10,6 +10,7 @@ import {
     Http2SessionManager,
 } from "@connectrpc/connect-node";
 import { OrderDemoService } from "./generated/order_pb.js";
+import { orderReady, orderRequest, orderResult, orderTarget } from "../order-nxn.mjs";
 
 const [protocol, role, mountPath = `/${protocol}`] = process.argv.slice(2);
 // 标准根路径用于 Triple 的 gRPC 兼容面；默认路径仍按当前协议隔离。
@@ -17,10 +18,7 @@ const contextPath = mountPath === "/" ? "" : mountPath;
 
 async function consume() {
     // 根据当前用例显式选择线协议，不借用 Connect 请求代替 gRPC 或 gRPC-Web。
-    const target = new URL(process.env.METEOR_ORDER_TARGET);
-    if (target.pathname === "/") {
-        target.pathname = contextPath;
-    }
+    const target = orderTarget(undefined, contextPath);
     let session;
     let agent;
     let transport;
@@ -43,18 +41,10 @@ async function consume() {
     const orders = createClient(OrderDemoService, transport);
     try {
         // 统一订单的保存与查询同时验证结构字段和二进制附件。
-        await orders.save({
-            id: 1001,
-            description: "Order from Node.js",
-            attachment: Buffer.from("Meteor"),
-        });
-        const found = await orders.find({ id: 1001 });
-        const result = {
-            id: found.id,
-            description: found.description,
-            attachment: Buffer.from(found.attachment).toString("base64"),
-        };
-        console.log(JSON.stringify({ language: "node", protocol, result }));
+        const request = orderRequest(true);
+        const saved = await orders.save(request);
+        const found = await orders.find({ id: request.id });
+        orderResult(protocol, found, saved);
     } finally {
         // 消费者只释放本次进程创建的 HTTP 连接和会话。
         session?.abort();
@@ -89,14 +79,14 @@ function provide() {
     const server = protocol === "grpc" ? createHttp2Server(handler) : createHttp1Server(handler);
     const host = process.env.METEOR_ORDER_BIND_HOST || "127.0.0.1";
     const port = Number(process.env.METEOR_ORDER_PORT || "0");
-    const publishHost = process.env.METEOR_TEST_PEER_HOST || host;
+    const publishHost = process.env.METEOR_ORDER_PUBLISH_HOST || process.env.METEOR_TEST_PEER_HOST || host;
     server.on("error", (error) => {
         console.error(error.stack || error);
         process.exitCode = 1;
     });
     server.listen(port, host, () => {
         const target = `http://${publishHost}:${server.address().port}${contextPath}`;
-        console.log(`Order provider is ready: ${target}`);
+        orderReady(target);
     });
 
     // 场景结束只关闭本次提供者监听与连接，不操作共享语言容器。

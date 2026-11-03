@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.cobble.StringUtils;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** 管理测试自有 Java 对端的独占进程、有界等待和保留日志。 */
@@ -47,44 +48,14 @@ final class SdkPeerProcess implements AutoCloseable {
 
     static SdkPeerProcess sdkMain(String protocol, String role, String target, String... registryParameters) throws Exception {
         // 对端只获得 SDK 依赖；测试输出目录不赋予 SDK 加载 Meteor 内核的能力。
-        String suffix = ".classpath";
-        if (StringUtils.equals("Provider", role)) {
-            suffix = ".providerClasspath";
-        } else if (StringUtils.equals("RegistryProvider", role) || StringUtils.equals("RegistryConsumer", role)) {
-            suffix = ".registryClasspath";
-        }
-        String property = "meteor.test.sdk." + protocol;
-        String classpath = System.getProperty(property + suffix);
-        if (StringUtils.isBlank(classpath)) {
-            classpath = requiredProperty(property + ".classpath");
-        }
+        String classpath = JavaSdkPeerUtils.classpath(protocol);
         return sdkWithClasspath(protocol, role, target, classpath, protocol, registryParameters);
     }
 
     static SdkPeerProcess sdkVersionMain(String protocol, String profile, String role, String target) throws Exception {
         // 显式选择当前用例的隔离运行图，不修改其它并行场景的系统属性。
-        String classpath = requiredProperty("meteor.test.sdk.profile." + profile + ".classpath");
+        String classpath = JavaSdkPeerUtils.classpath(profile);
         return sdkWithClasspath(protocol, role, target, classpath, protocol + "-" + profile);
-    }
-
-    static List<Object[]> compatibilityCases(String role) throws Exception {
-        // 版本来自构建实际解析的 SDK 图，JUnit 参数名与运行时选择使用同一份清单。
-        String configuration = requiredProperty("meteor.test.sdk.compatibility");
-        JsonNode entries = new ObjectMapper().readTree(configuration);
-        List<Object[]> cases = new ArrayList<>();
-        for (JsonNode entry : entries) {
-            if (StringUtils.equals(role, entry.required("role").textValue())) {
-                String protocol = entry.required("protocol").textValue();
-                String profile = entry.required("profile").textValue();
-                String sdk = entry.required("sdk").textValue();
-                String version = entry.required("version").textValue();
-                cases.add(new Object[] { protocol, profile, sdk + "@" + version });
-            }
-        }
-        if (cases.isEmpty()) {
-            throw new IllegalStateException("No Java SDK compatibility cases for role: " + role);
-        }
-        return cases;
     }
 
     private static SdkPeerProcess sdkWithClasspath(String protocol, String role, String target, String classpath,

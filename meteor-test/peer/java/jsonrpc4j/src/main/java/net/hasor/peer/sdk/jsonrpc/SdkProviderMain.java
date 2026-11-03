@@ -37,8 +37,9 @@ public final class SdkProviderMain {
             });
             Runtime.getRuntime().addShutdownHook(new Thread(() -> server.stop(0), "jsonrpc-sdk-shutdown"));
             server.start();
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("http", server.getAddress().getPort(), "/jsonrpc"));
+            int actualPort = server.getAddress().getPort();
+            String target = OrderPeerSettings.publishAddress("http", actualPort, "/jsonrpc").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
 
             // 当前进程拥有 HTTP 服务，退出时释放监听与连接。
             OrderExampleUtils.awaitShutdown();

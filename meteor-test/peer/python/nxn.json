@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "python-grpc",
+      "language": "python",
+      "implementation": "grpcio",
+      "launch": {
+        "provider": {
+          "container": "python",
+          "command": [
+            "/opt/meteor-peer/python-grpc/bin/python",
+            "${project}/grpc/provider.py"
+          ]
+        },
+        "consumer": {
+          "container": "python",
+          "command": [
+            "/opt/meteor-peer/python-grpc/bin/python",
+            "${project}/grpc/consumer.py"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "grpc-default",
+          "api": "order-v1",
+          "protocol": "grpc",
+          "protocolVersion": "",
+          "wire": "grpc-protobuf-http2-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "python-thrift",
+      "language": "python",
+      "implementation": "Apache Thrift",
+      "launch": {
+        "provider": {
+          "container": "python",
+          "command": [
+            "/opt/meteor-peer/python-thrift/bin/python",
+            "${project}/thrift/provider.py"
+          ]
+        },
+        "consumer": {
+          "container": "python",
+          "command": [
+            "/opt/meteor-peer/python-thrift/bin/python",
+            "${project}/thrift/consumer.py"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "thrift-default",
+          "api": "order-v1",
+          "protocol": "thrift",
+          "protocolVersion": "",
+          "wire": "thrift-binary-framed-tcp-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "python-soap",
+      "language": "python",
+      "implementation": "soapfish2 / Zeep",
+      "launch": {
+        "provider": {
+          "container": "python",
+          "command": [
+            "/opt/meteor-peer/python-soap/bin/python",
+            "${project}/soap/provider.py"
+          ]
+        },
+        "consumer": {
+          "container": "python",
+          "command": [
+            "/opt/meteor-peer/python-soap/bin/python",
+            "${project}/soap/consumer.py"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "soap-default",
+          "api": "order-v1",
+          "protocol": "soap",
+          "protocolVersion": "1.1",
+          "wire": "soap11-xml-http1-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "python-jsonrpc",
+      "language": "python",
+      "implementation": "Python standard library",
+      "launch": {
+        "provider": {
+          "container": "python",
+          "command": [
+            "python3",
+            "${project}/jsonrpc/provider.py"
+          ]
+        },
+        "consumer": {
+          "container": "python",
+          "command": [
+            "python3",
+            "${project}/jsonrpc/consumer.py"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "jsonrpc-default",
+          "api": "order-v1",
+          "protocol": "jsonrpc",
+          "protocolVersion": "2.0",
+          "wire": "jsonrpc2-json-http1-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "python-xmlrpc",
+      "language": "python",
+      "implementation": "Python standard library",
+      "launch": {
+        "provider": {
+          "container": "python",
+          "command": [
+            "python3",
+            "${project}/xmlrpc/provider.py"
+          ]
+        },
+        "consumer": {
+          "container": "python",
+          "command": [
+            "python3",
+            "${project}/xmlrpc/consumer.py"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "xmlrpc-default",
+          "api": "order-v1",
+          "protocol": "xmlrpc",
+          "protocolVersion": "",
+          "wire": "xmlrpc-xml-http1-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "python-connect",
+      "language": "python",
+      "implementation": "Connect Python",
+      "launch": {
+        "provider": {
+          "container": "python",
+          "command": [
+            "/opt/meteor-peer/python-connect/bin/python",
+            "${project}/connect/peer.py",
+            "provider",
+            "--protocol",
+            "${protocol}",
+            "--generated",
+            "/opt/meteor-peer/python-connect-generated"
+          ]
+        },
+        "consumer": {
+          "container": "python",
+          "command": [
+            "/opt/meteor-peer/python-connect/bin/python",
+            "${project}/connect/peer.py",
+            "consumer",
+            "--protocol",
+            "${protocol}",
+            "--generated",
+            "/opt/meteor-peer/python-connect-generated"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "connect-default",
+          "api": "order-v1",
+          "protocol": "connect",
+          "protocolVersion": "1",
+          "wire": "connect-protobuf-http1-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        },
+        {
+          "id": "grpc-web-default",
+          "api": "order-v1",
+          "protocol": "grpc-web",
+          "protocolVersion": "",
+          "wire": "grpc-web-protobuf-http1-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -3,6 +3,7 @@
 import thrift from "thrift";
 import OrderThriftService from "./generated/OrderThriftService.js";
 import types from "./generated/order_types.js";
+import { orderRequest, orderResult } from "../order-nxn.mjs";
 
 async function main() {
     // 使用官方 Node SDK 的 Binary framed TCP 客户端，不经过 HTTP 代理。
@@ -15,40 +16,31 @@ async function main() {
     });
     try {
         const client = thrift.createClient(OrderThriftService, connection);
-        const order = new types.ThriftOrder({
-            id: 1001,
-            description: "Order from Node.js",
-            attachment: Buffer.from("Meteor"),
-        });
+        const order = new types.ThriftOrder(orderRequest(true));
 
         // 回调由官方生成代码处理，连接或响应超时直接导致本次场景失败。
-        const found = await new Promise((resolve, reject) => {
+        const { found, saved } = await new Promise((resolve, reject) => {
             connection.on("error", reject);
             connection.on("timeout", () => reject(new Error("Thrift order request timed out")));
             connection.once("close", () => reject(new Error("Thrift order connection closed before response")));
             connection.once("connect", () => {
-                client.save(order, (saveError) => {
+                client.save(order, (saveError, saved) => {
                     if (saveError) {
                         reject(saveError);
                         return;
                     }
-                    const query = new types.ThriftOrderQuery({id: 1001});
+                    const query = new types.ThriftOrderQuery({id: order.id});
                     client.find(query, (findError, result) => {
                         if (findError) {
                             reject(findError);
                         } else {
-                            resolve(result);
+                            resolve({ found: result, saved });
                         }
                     });
                 });
             });
         });
-        const result = {
-            id: found.id,
-            description: found.description,
-            attachment: Buffer.from(found.attachment).toString("base64"),
-        };
-        console.log(JSON.stringify({language: "node", protocol: "thrift", result}));
+        orderResult("thrift", found, saved);
     } finally {
         connection.end();
         connection.destroy();

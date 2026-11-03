@@ -87,12 +87,14 @@ final class PythonThriftPeer implements AutoCloseable {
     private static PythonThriftPeer start(String sdkName, String mode, String encoding, boolean framed, //
             String security, String host, int port, String scenario) throws Exception {
         // 日志及 SDK 运行目录均属于测试 build，不安装全局 Python 依赖。
-        Path directory = Path.of(System.getProperty("python.thrift.logs"));
+        Path directory = Path.of(System.getProperty("python.thrift.logs", "build/python-thrift-peer-logs"));
         Files.createDirectories(directory);
         Path log = Files.createTempFile(directory, sdkName + "-" + mode + "-" + encoding + "-", ".log");
         List<String> command = new ArrayList<>();
+        Path peers = Path.of(System.getProperty("meteor.test.peerDirectory", "peer"));
+        Path script = peers.resolve("python/thrift/peer.py");
         command.add("/opt/meteor-peer/" + sdkName + "/bin/python");
-        command.add(System.getProperty("python.thrift.script"));
+        command.add(System.getProperty("python.thrift.script", script.toString()));
         command.add("--mode=" + mode);
         command.add("--protocol=" + encoding);
         command.add("--framed=" + framed);

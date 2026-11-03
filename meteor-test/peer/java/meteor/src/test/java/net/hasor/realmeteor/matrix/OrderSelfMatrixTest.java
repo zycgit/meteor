@@ -131,30 +131,6 @@ public class OrderSelfMatrixTest {
 
     @Test
     @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
-    public void savedOrderCanBeFoundThroughTheSelectedProtocol() throws Exception {
-        // 先启动全部容器，再订阅与发布；两端从公开 API 构建真实网络链路。
-        try (MetContext provider = this.incoming.buildContext(); //
-             MetContext consumer = this.outgoing.buildContext()) {
-            provider.start();
-            consumer.start();
-            MetBindInfo<?> subscription = this.protocol.subscribe(consumer);
-            this.assertNoCachedProvider(consumer, subscription);
-            MetBindInfo<?> publication = this.protocol.publish(provider, new OrderDemoServiceImpl());
-            assertEquals(publication.getBindID(), subscription.getBindID());
-            MetClient remote = this.remote(provider, consumer, subscription);
-
-            // 保存与查询共同证明同一笔订单经过网络进入了服务端存储。
-            Order order = OrderMatrixVectors.order("order");
-            this.protocol.save(remote, subscription, order);
-            Order found = this.protocol.find(remote, subscription, order.getId());
-            assertEquals(order.getId(), found.getId());
-            assertEquals(order.getDescription(), found.getDescription());
-            assertArrayEquals(order.getAttachment(), found.getAttachment());
-        }
-    }
-
-    @Test
-    @Timeout(value = 120000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void minimumInt32IdIsPreserved() throws Exception {
         // 独立容器与业务实例只服务本次整数下界场景。
         try (MetContext provider = this.incoming.buildContext(); //

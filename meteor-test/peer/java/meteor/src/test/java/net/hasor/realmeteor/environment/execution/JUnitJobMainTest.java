@@ -25,9 +25,11 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.BeforeParameterizedClassInvocation;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.platform.engine.TestDescriptor;
 import org.junit.platform.engine.TestExecutionResult;
@@ -765,6 +767,321 @@ public class JUnitJobMainTest {
         assertTrue(Files.readString(output.resolve("process.log")).contains("fixture released in shutdown hook"));
     }
 
+    @Test
+    public void matrixPlanFixesTheTotalBeforeParameterizedDiscovery() throws Exception {
+        // 分片计划已经包含两个向量，不需要调用参数工厂才确定总数。
+        Path output = this.output();
+        Map<String, Object> selection = selection(ParameterCase.class, List.of());
+        String first = ParameterCase.class.getName() + "#selected[types/甲/[value]]";
+        String second = ParameterCase.class.getName() + "#selected[types/乙/[value]]";
+        selection.put("matrixCases", List.of(matrixCase(first, "甲"), matrixCase(second, "乙")));
+        assertEquals(0, JUnitJobMain.execute(output, selection));
+
+        // 动态节点只是已观察项，不能使标准矩阵的总数增长或混入另一个方法。
+        List<JsonNode> progress = this.progress(output);
+        assertTrue(progress.stream().allMatch(item -> item.path("total").asInt() == 2));
+        JsonNode summary = this.read(output, "summary.json");
+        assertEquals(2, summary.path("plannedCases").size());
+        assertEquals(2, summary.path("observedCaseIds").size());
+        assertEquals(2, summary.path("passed").asInt());
+        assertEquals(0, summary.path("notExecuted").asInt());
+        assertEquals(0, summary.path("unknown").asInt());
+    }
+
+    @Test
+    public void matrixResultsExposeOnlyTheApprovedDimensionsAndLogPaths() throws Exception {
+        // 计划持有命令、环境和请求，结果只允许保留协议与双方实现的维度。
+        Path output = this.output();
+        String caseId = ParameterCase.class.getName() + "#selected[types/甲/[value]]";
+        Map<String, Object> selection = selection(ParameterCase.class, List.of());
+        Map<String, Object> matrix = matrixCase(caseId, "甲");
+        matrix.put("protocolVersions", List.of("1.1", "1.2"));
+        selection.put("matrixCases", List.of(matrix));
+        assertEquals(0, JUnitJobMain.execute(output, selection));
+
+        // JSON 与 XML 保持原始身份，并明确测试阶段和相对于工作组的日志位置。
+        JsonNode result = this.read(output, "selected-cases.json").get(0);
+        assertEquals(caseId, result.path("caseId").asText());
+        assertEquals("甲", result.path("matrix").path("id").asText());
+        JsonNode versions = result.path("matrix").path("protocolVersions");
+        assertEquals(JSON.valueToTree(List.of("1.1", "1.2")), versions);
+        assertEquals("java", result.path("matrix").path("provider").path("language").asText());
+        assertEquals("javaCurrent", result.path("matrix").path("consumer").path("runtimeProfile").asText());
+        assertFalse(result.path("matrix").has("request"));
+        assertFalse(result.path("matrix").has("caseId"));
+        assertFalse(result.path("matrix").path("provider").has("command"));
+        assertFalse(result.path("matrix").path("consumer").has("environment"));
+        assertEquals("testing", result.path("phase").asText());
+        assertEquals("stdout.log", result.path("logs").path("stdout").asText());
+        String suiteOutput = "test-output/" + ParameterCase.class.getName() + ".stdout.log";
+        assertEquals(suiteOutput, result.path("logs").path("suiteStdout").asText());
+        var testcase = this.xml(output, ParameterCase.class).getElementsByTagName("testcase").item(0);
+        assertEquals("testing", testcase.getAttributes().getNamedItem("phase").getNodeValue());
+        assertEquals(suiteOutput, testcase.getAttributes().getNamedItem("suiteStdout").getNodeValue());
+        JsonNode configured = this.read(output, "configuration.json").path("matrixCases").get(0);
+        assertFalse(configured.path("provider").has("command"));
+    }
+
+    @Test
+    public void nonStringProtocolVersionIsRejectedBeforeJUnitExecution() throws Exception {
+        // 协议版本必须逐项保持字符串，不能把整数悄悄转换成另一种版本表达。
+        Path output = this.output();
+        String caseId = PassingCase.class.getName() + "#passes";
+        Map<String, Object> matrix = matrixCase(caseId, "invalid-version");
+        matrix.put("protocolVersions", List.of("1.1", 12));
+        Map<String, Object> selection = selection(PassingCase.class, List.of());
+        selection.put("matrixCases", List.of(matrix));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> JUnitJobMain.execute(output, selection));
+
+        // 清单校验在启动之前失败，不生成可被汇总为通过的测试产物。
+        assertTrue(failure.getMessage().contains("Matrix protocolVersions elements must be strings: " + caseId));
+        assertFalse(Files.exists(output.resolve("interoperability")));
+    }
+
+    @Test
+    public void legacyDiscoveryAddsOnlyItsOwnCasesToTheFixedMatrixPlan() throws Exception {
+        // 同组既有固定矩阵向量，也有仍由 Jupiter 发现的特殊场景。
+        Path output = this.output();
+        Map<String, Object> selection = selection(ParameterCase.class, List.of());
+        selection.put("classNames", List.of(ParameterCase.class.getName(), PassingCase.class.getName()));
+        String matrix = ParameterCase.class.getName() + "#selected[types/甲/[value]]";
+        selection.put("matrixCases", List.of(matrixCase(matrix, "甲")));
+        assertEquals(0, JUnitJobMain.execute(output, selection));
+
+        // 旧场景只增加实际发现的方法，不凭空枚举尚未发现的参数数量。
+        JsonNode summary = this.read(output, "summary.json");
+        assertEquals(2, summary.path("plannedCases").size());
+        assertEquals(1, summary.path("matrixCases").size());
+        assertEquals(2, summary.path("passed").asInt());
+        JsonNode cases = this.read(output, "selected-cases.json");
+        long standard = java.util.stream.StreamSupport.stream(cases.spliterator(), false) //
+                .filter(testcase -> testcase.has("matrix")).count();
+        assertEquals(1, standard);
+    }
+
+    @Test
+    public void matrixPreparationFailureRetainsTheUnexecutedPlanWithoutFabricatingLeafFailures() throws Exception {
+        // 类初始化失败发生在叶子用例开始前，静态计划仍然可用于定位受影响向量。
+        Path output = this.output();
+        String caseId = BeforeClassFailure.class.getName() + "#cannotStart";
+        Map<String, Object> selection = selection(BeforeClassFailure.class, List.of());
+        selection.put("matrixCases", List.of(matrixCase(caseId, "prepare")));
+        assertEquals(1, JUnitJobMain.execute(output, selection));
+
+        // 只保留真实容器失败 XML，叶子身份继续列在未执行项中。
+        JsonNode summary = this.read(output, "summary.json");
+        assertEquals(1, summary.path("plannedCases").size());
+        assertEquals(caseId, summary.path("notExecutedCases").get(0).asText());
+        assertEquals(0, summary.path("unknown").asInt());
+        JsonNode failure = summary.path("preparationFailures").get(0);
+        assertEquals("preparing", failure.path("phase").asText());
+        assertEquals(caseId, failure.path("affectedCaseIds").get(0).asText());
+        JsonNode results = this.read(output, "selected-cases.json");
+        assertEquals(1, results.size());
+        assertEquals("initializationError", results.get(0).path("scenario").asText());
+        assertEquals("preparing", results.get(0).path("phase").asText());
+        List<JsonNode> events = this.progress(output);
+        JsonNode progress = events.stream().filter(item -> item.has("failure")).findFirst().orElseThrow();
+        assertEquals("preparing", progress.path("phase").asText());
+        assertEquals(caseId, progress.path("affectedCaseIds").get(0).asText());
+    }
+
+    @Test
+    public void matrixCleanupFailureKeepsTheCompletedLeafAndItsOwnFailurePhase() throws Exception {
+        // 业务方法已经完成，随后类级资源释放失败，不能回写成业务调用失败。
+        Path output = this.output();
+        String caseId = AfterClassFailure.class.getName() + "#passes";
+        Map<String, Object> selection = selection(AfterClassFailure.class, List.of());
+        selection.put("matrixCases", List.of(matrixCase(caseId, "cleanup")));
+        assertEquals(1, JUnitJobMain.execute(output, selection));
+
+        // 标准计划仍是一个业务用例，另一个真实 XML 节点单独报告清理失败。
+        JsonNode summary = this.read(output, "summary.json");
+        assertEquals(1, summary.path("plannedCases").size());
+        assertEquals(0, summary.path("notExecuted").asInt());
+        assertEquals(0, summary.path("unknown").asInt());
+        JsonNode failure = summary.path("cleanupFailures").get(0);
+        assertEquals("cleanup", failure.path("phase").asText());
+        assertEquals(caseId, failure.path("affectedCaseIds").get(0).asText());
+        JsonNode results = this.read(output, "selected-cases.json");
+        assertEquals(2, results.size());
+        assertEquals("passed", results.get(0).path("status").asText());
+        assertEquals("cleanup", results.get(1).path("phase").asText());
+        assertEquals("failed", results.get(1).path("status").asText());
+    }
+
+    @Test
+    public void startedMatrixCaseWithoutATerminalEventIsUnknownRatherThanPassedOrUnexecuted() throws Exception {
+        // 模拟工作进程在一个向量启动后失去终态，另一个向量始终没有启动。
+        Path output = this.output();
+        String running = PassingCase.class.getName() + "#passes";
+        String pending = PassingCase.class.getName() + "#neverStarted";
+        Map<String, Object> selection = selection(PassingCase.class, List.of());
+        selection.put("matrixCases", List.of(matrixCase(running, "running"), matrixCase(pending, "pending")));
+        JUnitJobReport report = new JUnitJobReport(output, selection);
+        try (report) {
+            report.testPlanExecutionStarted(plan());
+            report.executionStarted(identifier(PassingCase.class, "passes"));
+        }
+
+        // 不完整节点不进入 XML 和通过数，未知与未执行各自保留准确身份。
+        JsonNode summary = this.read(output, "summary.json");
+        assertEquals(0, summary.path("tests").asInt());
+        assertEquals(0, summary.path("passed").asInt());
+        assertEquals(1, summary.path("unknown").asInt());
+        assertEquals(running, summary.path("unknownCases").get(0).asText());
+        assertEquals(1, summary.path("notExecuted").asInt());
+        assertEquals(pending, summary.path("notExecutedCases").get(0).asText());
+        assertEquals(0, this.xml(output, PassingCase.class).getElementsByTagName("testcase").getLength());
+        assertEquals(2, report.exitCode());
+    }
+
+    @Test
+    public void taskFailureKeepsTheActiveMatrixPhaseAndParticipant() throws Exception {
+        // 任务级异常发生在准备或清理中，不能改写成业务调用阶段或关联尚未启动的向量。
+        for (String phase : List.of("preparing", "cleanup")) {
+            Path output = this.output();
+            String running = PassingCase.class.getName() + "#passes";
+            String pending = PassingCase.class.getName() + "#neverStarted";
+            Map<String, Object> selection = selection(PassingCase.class, List.of());
+            selection.put("matrixCases", List.of(matrixCase(running, "running"), matrixCase(pending, "pending")));
+            try (JUnitJobReport report = new JUnitJobReport(output, selection)) {
+                report.testPlanExecutionStarted(plan());
+                report.executionStarted(identifier(PassingCase.class, "passes"));
+                report.phase(running, phase);
+                report.executionFailed(new IllegalStateException("launcher interrupted " + phase));
+            }
+
+            // 活动用例仍无终态，仅失败归因保留当前阶段、双方身份和准确影响范围。
+            JsonNode summary = this.read(output, "summary.json");
+            String category = StringUtils.equals("preparing", phase) ? "preparationFailures" : "cleanupFailures";
+            JsonNode failure = summary.path(category).get(0);
+            assertEquals(phase, failure.path("phase").asText());
+            assertEquals(running, failure.path("caseId").asText());
+            assertEquals(List.of(running), JSON.convertValue(failure.path("affectedCaseIds"), List.class));
+            assertEquals("java", failure.path("matrix").path("provider").path("language").asText());
+            assertEquals(1, summary.path("unknown").asInt());
+            assertEquals(1, summary.path("notExecuted").asInt());
+            assertEquals(0, summary.path("tests").asInt());
+            assertEquals(0, this.xml(output, PassingCase.class).getElementsByTagName("testcase").getLength());
+        }
+    }
+
+    @Test
+    public void duplicateMatrixIdentitiesAreRejectedBeforeJUnitExecution() throws Exception {
+        // 清单重复不能被 Map 覆盖，否则会让固定总数静默变少。
+        Path output = this.output();
+        Map<String, Object> selection = selection(PassingCase.class, List.of());
+        String caseId = PassingCase.class.getName() + "#passes";
+        selection.put("matrixCases", List.of(matrixCase(caseId, "one"), matrixCase(caseId, "two")));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> JUnitJobMain.execute(output, selection));
+
+        // 错误保留重复的完整身份，不启动一个看似更小的成功任务。
+        assertTrue(failure.getMessage().contains("Duplicate planned matrix testcase: " + caseId));
+        assertFalse(Files.exists(output.resolve("interoperability")));
+    }
+
+    @Test
+    public void parameterizedContainerFailuresRetainTheirOwnVectorIdentities() throws Exception {
+        // 两个参数实例在准备阶段各自失败，不能合并为同一个 initializationError。
+        Path output = this.output();
+        Map<String, Object> selection = selection(ParameterizedPreparationFailureCase.class, List.of());
+        String prefix = ParameterizedPreparationFailureCase.class.getName() + "#cannotStart";
+        selection.put("matrixCases", List.of(matrixCase(prefix + "[甲]", "甲"), matrixCase(prefix + "[乙]", "乙")));
+        assertEquals(1, JUnitJobMain.execute(output, selection));
+
+        // 每个真实 JUnit 故障保留向量显示名，静态业务计划仍是原来的两个身份。
+        JsonNode results = this.read(output, "selected-cases.json");
+        assertEquals(2, results.size());
+        String first = results.get(0).path("caseId").asText();
+        String second = results.get(1).path("caseId").asText();
+        assertNotEquals(first, second);
+        assertTrue(first.endsWith("[甲]"));
+        assertTrue(second.endsWith("[乙]"));
+        assertEquals("failed", results.get(0).path("status").asText());
+        assertEquals("failed", results.get(1).path("status").asText());
+        JsonNode summary = this.read(output, "summary.json");
+        assertEquals(2, summary.path("plannedCases").size());
+        assertEquals(2, summary.path("preparationFailures").size());
+        assertEquals(2, summary.path("notExecuted").asInt());
+        JsonNode preparation = summary.path("preparationFailures");
+        assertEquals(prefix + "[甲]", preparation.get(0).path("affectedCaseIds").get(0).asText());
+        assertEquals(prefix + "[乙]", preparation.get(1).path("affectedCaseIds").get(0).asText());
+    }
+
+    @Test
+    public void separateTimeoutThreadCanReportItsFixturePreparationPhase() throws Exception {
+        // 标准用例的独立超时线程必须继承当前报告，方法内部准备失败才可正确归因。
+        Path output = this.output();
+        Map<String, Object> selection = selection(SeparatePreparationCase.class, List.of());
+        String caseId = SeparatePreparationCase.class.getName() + "#failsWhilePreparing";
+        selection.put("matrixCases", List.of(matrixCase(caseId, "preparing")));
+        assertEquals(1, JUnitJobMain.execute(output, selection));
+
+        // 无关 caseId 的阶段声明不影响当前用例，XML 和进度都保留明确准备阶段。
+        assertNotSame(Thread.currentThread(), SeparatePreparationCase.thread);
+        JsonNode result = this.read(output, "selected-cases.json").get(0);
+        assertEquals("preparing", result.path("phase").asText());
+        JsonNode failure = this.read(output, "summary.json").path("preparationFailures").get(0);
+        assertEquals(caseId, failure.path("affectedCaseIds").get(0).asText());
+        assertEquals("java", failure.path("matrix").path("consumer").path("language").asText());
+        List<JsonNode> events = this.progress(output);
+        JsonNode progress = events.stream().filter(item -> item.has("failure")).findFirst().orElseThrow();
+        assertEquals("preparing", progress.path("phase").asText());
+        assertEquals(caseId, progress.path("caseId").asText());
+    }
+
+    @Test
+    public void separateTimeoutThreadKeepsAnExplicitCleanupFailurePhase() throws Exception {
+        // 调用完成之后显式进入清理，关闭错误与业务调用错误分开归档。
+        Path output = this.output();
+        Map<String, Object> selection = selection(SeparateCleanupCase.class, List.of());
+        String caseId = SeparateCleanupCase.class.getName() + "#failsWhileClosing";
+        selection.put("matrixCases", List.of(matrixCase(caseId, "cleanup")));
+        assertEquals(1, JUnitJobMain.execute(output, selection));
+
+        // 阶段声明跨线程到达同一报告，叶子失败只计一次并携带双方信息与日志。
+        assertNotSame(Thread.currentThread(), SeparateCleanupCase.thread);
+        JsonNode result = this.read(output, "selected-cases.json").get(0);
+        assertEquals("cleanup", result.path("phase").asText());
+        JsonNode summary = this.read(output, "summary.json");
+        assertEquals(1, summary.path("failed").asInt());
+        assertEquals(1, summary.path("cleanupFailures").size());
+        assertEquals(0, summary.path("preparationFailures").size());
+        var testcase = this.xml(output, SeparateCleanupCase.class).getElementsByTagName("testcase").item(0);
+        assertEquals("cleanup", testcase.getAttributes().getNamedItem("phase").getNodeValue());
+        JsonNode failure = summary.path("cleanupFailures").get(0);
+        assertEquals(caseId, failure.path("caseId").asText());
+        assertEquals("stderr.log", failure.path("logs").path("stderr").asText());
+    }
+
+    private static Map<String, Object> matrixCase(String caseId, String id) {
+        Map<String, Object> endpoint = new LinkedHashMap<>();
+        endpoint.put("id", "java-grpc-current");
+        endpoint.put("language", "java");
+        endpoint.put("implementation", "gRPC-Java");
+        endpoint.put("version", "1.85.1");
+        endpoint.put("framework", "");
+        endpoint.put("runtimeProfile", "javaCurrent");
+        endpoint.put("command", List.of("java", "example.Main"));
+        endpoint.put("environment", Map.of("SECRET_TOKEN", "not-reportable"));
+        Map<String, Object> matrix = new LinkedHashMap<>();
+        matrix.put("caseId", caseId);
+        matrix.put("id", id);
+        matrix.put("api", "order-v1");
+        matrix.put("scenario", "save-find");
+        matrix.put("protocol", "grpc");
+        matrix.put("protocolVersion", "");
+        matrix.put("wire", "grpc-protobuf-http2-clear");
+        matrix.put("discovery", "direct");
+        matrix.put("provider", endpoint);
+        matrix.put("consumer", endpoint);
+        matrix.put("request", Map.of("id", 1001));
+        return matrix;
+    }
+
     private static TestPlan plan() {
         var request = LauncherDiscoveryRequestBuilder.request() //
                 .selectors(DiscoverySelectors.selectClass(PassingCase.class)) //
@@ -849,6 +1166,8 @@ public class JUnitJobMainTest {
         selection.put("groupId", "g1");
         selection.put("classNames", List.of(type.getName()));
         selection.put("includes", filters);
+        // 监听器单测独立持有计划，不能继承外层真实 NXN 矩阵的系统属性。
+        selection.put("matrixCases", List.of());
         return selection;
     }
 
@@ -1013,6 +1332,71 @@ public class JUnitJobMainTest {
         @Test
         public void cannotStart() {
             fail("Class setup failed");
+        }
+    }
+
+    public static class AfterClassFailure {
+        @Test
+        public void passes() {
+        }
+
+        @AfterAll
+        public static void cleanup() {
+            throw new IllegalStateException("after class fixture");
+        }
+    }
+
+    @ParameterizedClass(name = "{0}", quoteTextArguments = false, autoCloseArguments = false)
+    @MethodSource("vectors")
+    public static class ParameterizedPreparationFailureCase {
+        public ParameterizedPreparationFailureCase(String value) {
+        }
+
+        @BeforeParameterizedClassInvocation
+        public static void prepare(String value) {
+            throw new IllegalStateException("parameter preparation fixture " + value);
+        }
+
+        public static List<Object[]> vectors() {
+            // 实例顺序用于验证两个容器失败不会合并为一个 XML 身份。
+            List<Object[]> vectors = new ArrayList<>();
+            vectors.add(new Object[] { "甲" });
+            vectors.add(new Object[] { "乙" });
+            return vectors;
+        }
+
+        @Test
+        public void cannotStart() {
+            fail("Parameter preparation failed");
+        }
+    }
+
+    public static class SeparatePreparationCase {
+        private static volatile Thread thread;
+
+        @Test
+        @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+        public void failsWhilePreparing() {
+            thread = Thread.currentThread();
+            String caseId = SeparatePreparationCase.class.getName() + "#failsWhilePreparing";
+            JUnitJobCondition.phase(caseId, "preparing");
+            JUnitJobCondition.phase("unassigned#case", "cleanup");
+            throw new IllegalStateException("fixture preparation failed");
+        }
+    }
+
+    public static class SeparateCleanupCase {
+        private static volatile Thread thread;
+
+        @Test
+        @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+        public void failsWhileClosing() {
+            thread = Thread.currentThread();
+            String caseId = SeparateCleanupCase.class.getName() + "#failsWhileClosing";
+            JUnitJobCondition.phase(caseId, "preparing");
+            JUnitJobCondition.phase(caseId, "testing");
+            JUnitJobCondition.phase(caseId, "cleanup");
+            throw new IllegalStateException("fixture cleanup failed");
         }
     }
 

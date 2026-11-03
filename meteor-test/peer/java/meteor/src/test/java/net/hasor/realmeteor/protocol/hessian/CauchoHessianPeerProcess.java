@@ -21,9 +21,9 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import net.hasor.cobble.StringUtils;
 import net.hasor.example.protocol.hessian.HessianInteropDemo;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 
 /** 独立 Caucho JVM 的进程所有者；场景断言仍保留在 JUnit 方法中。 */
 final class CauchoHessianPeerProcess implements AutoCloseable {
@@ -105,10 +105,7 @@ final class CauchoHessianPeerProcess implements AutoCloseable {
     }
 
     private static CauchoHessianPeerProcess start(List<String> arguments) throws IOException {
-        String classpath = System.getProperty("hessian.peer.classpath");
-        if (StringUtils.isBlank(classpath)) {
-            throw new IllegalStateException("Official Caucho peer classpath is not configured");
-        }
+        String classpath = JavaSdkPeerUtils.classpath("hessian");
         Path log = Files.createTempFile(outputDirectory(), "peer-", ".log");
         Path java = Path.of(System.getProperty("java.home"), "bin", "java");
         List<String> command = new ArrayList<>();

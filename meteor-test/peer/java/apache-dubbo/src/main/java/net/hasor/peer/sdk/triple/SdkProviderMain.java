@@ -31,9 +31,8 @@ public final class SdkProviderMain {
         DubboBootstrap bootstrap = DubboBootstrap.getInstance().application(application).registry(registry);
 
         // 使用官方 ServiceConfig 发布统一订单业务。
-        // SDK 用 -1 随机选端口；0 会回退为协议默认端口。
-        int requestedPort = OrderPeerSettings.port();
-        int sdkPort = requestedPort == 0 ? -1 : requestedPort;
+        // SDK 的 0 和 -1 都可能先探协议默认端口，显式传入操作系统分配的端口。
+        int sdkPort = OrderPeerSettings.bindPort();
         ProtocolConfig protocol = new ProtocolConfig("tri", sdkPort);
         protocol.setHost(OrderPeerSettings.bindHost());
         String publishHost = System.getenv("METEOR_ORDER_PUBLISH_HOST");
@@ -59,8 +58,8 @@ public final class SdkProviderMain {
         try {
             bootstrap.protocol(protocol).service(service).start();
             int actualPort = service.getExportedUrls().get(0).getPort();
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("http", actualPort, "/"));
+            String target = OrderPeerSettings.publishAddress("http", actualPort, "/").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
             OrderExampleUtils.awaitShutdown();
         } finally {
             bootstrap.destroy();

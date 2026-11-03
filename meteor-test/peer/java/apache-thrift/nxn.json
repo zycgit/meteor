@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "java-apache-thrift",
+      "language": "java",
+      "implementation": "Apache Thrift",
+      "runtimeManifestProperty": "meteor.test.sdk.manifest",
+      "launch": {
+        "provider": {
+          "container": "java",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.sdk.${entry}.SdkProviderMain"
+          ]
+        },
+        "consumer": {
+          "container": "java",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.sdk.${entry}.SdkConsumerMain"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "java-sdk-thrift-layered",
+          "api": "order-v1",
+          "protocol": "thrift",
+          "protocolVersion": "",
+          "wire": "thrift-binary-framed-tcp-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "thriftLayered",
+          "entry": "thrift"
+        },
+        {
+          "id": "java-sdk-thrift-legacy",
+          "api": "order-v1",
+          "protocol": "thrift",
+          "protocolVersion": "",
+          "wire": "thrift-binary-framed-tcp-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "thriftLegacy",
+          "entry": "thrift"
+        },
+        {
+          "id": "java-sdk-thrift-current",
+          "api": "order-v1",
+          "protocol": "thrift",
+          "protocolVersion": "",
+          "wire": "thrift-binary-framed-tcp-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "thrift",
+          "entry": "thrift"
+        }
+      ]
+    }
+  ]
+}

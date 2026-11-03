@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 
 /** 独立官方 JVM 的所有者，供协议与注册中心场景使用相同的真实对端。 */
 public final class DubboProcess implements AutoCloseable {
@@ -40,22 +41,18 @@ public final class DubboProcess implements AutoCloseable {
     public static DubboProcess start(String... arguments) throws IOException {
         // TLS 使用已经通过原厂 SDK 自体验证的固定依赖组合。
         List<String> values = List.of(arguments);
-        String property = "dubbo.peer.classpath";
+        String profile = "dubbo";
         if (values.contains("--tls=true")) {
-            property = "dubbo.peer.tls.classpath";
+            profile = "dubboTls";
         }
-        return launch(System.getProperty(property), values, false);
+        return launch(JavaSdkPeerUtils.classpath(profile), values, false);
     }
 
     public static DubboProcess startLegacy(String... arguments) throws IOException {
-        return launch(System.getProperty("dubbo.peer.legacy.classpath"), List.of(arguments), true);
+        return launch(JavaSdkPeerUtils.classpath("dubboLegacy"), List.of(arguments), true);
     }
 
     private static DubboProcess launch(String classpath, List<String> arguments, boolean legacy) throws IOException {
-        if (classpath == null || classpath.isBlank()) {
-            throw new IllegalStateException("Official Dubbo peer classpath is not configured");
-        }
-
         // 对端仅加载共享业务模型和官方 SDK，不加载插件生产代码或 Meteor 的 JSON 实现。
         Path executable = Path.of(System.getProperty("java.home"), "bin", "java");
         List<String> command = new ArrayList<>();

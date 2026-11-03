@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "java-meteor",
+      "language": "java",
+      "implementation": "Meteor",
+      "classpathProperty": "meteor.test.application.classpath",
+      "launch": {
+        "provider": {
+          "container": "java-meteor-peer",
+          "command": [
+            "java", "--add-opens=java.base/java.io=ALL-UNNAMED", "-Xmx256m",
+            "-cp", "${classpath}", "net.hasor.peer.application.OrderApplicationMain",
+            "${entry}", "Provider"
+          ]
+        },
+        "consumer": {
+          "container": "java-meteor",
+          "command": [
+            "java", "--add-opens=java.base/java.io=ALL-UNNAMED", "-Xmx256m",
+            "-cp", "${classpath}", "net.hasor.peer.application.OrderApplicationMain",
+            "${entry}", "Consumer"
+          ]
+        }
+      },
+      "capabilities": [
+        { "id": "rsf", "api": "order-v1", "protocol": "rsf", "protocolVersion": "1", "wire": "rsf-java-tcp-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "grpc", "api": "order-v1", "protocol": "grpc", "wire": "grpc-protobuf-http2-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "grpc-web", "api": "order-v1", "protocol": "grpc-web", "entry": "grpcweb", "wire": "grpc-web-protobuf-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "connect", "api": "order-v1", "protocol": "connect", "protocolVersion": "1", "wire": "connect-protobuf-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "dubbo", "api": "order-v1", "protocol": "dubbo", "wire": "dubbo-hessian2-tcp-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "triple", "api": "order-v1", "protocol": "triple", "wire": "triple-protobuf-http2-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "thrift", "api": "order-v1", "protocol": "thrift", "wire": "thrift-binary-framed-tcp-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "hprose", "api": "order-v1", "protocol": "hprose", "wire": "hprose-hprose-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "soap", "api": "order-v1", "protocol": "soap", "protocolVersion": "1.1", "wire": "soap11-xml-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "hessian", "api": "order-v1", "protocol": "hessian", "protocolVersion": "2", "wire": "hessian2-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "jsonrpc", "api": "order-v1", "protocol": "jsonrpc", "protocolVersion": "2.0", "wire": "jsonrpc2-json-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "xmlrpc", "api": "order-v1", "protocol": "xmlrpc", "wire": "xmlrpc-xml-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] },
+        { "id": "oncrpc", "api": "order-v1", "protocol": "oncrpc", "protocolVersion": "2", "wire": "oncrpc-xdr-tcp-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"] }
+      ]
+    }
+  ]
+}

@@ -6,17 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HexFormat;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.xml.XMLConstants;
@@ -28,37 +18,30 @@ import org.w3c.dom.NodeList;
 
 /** 从单次运行的原始证据生成跨语言类型支持矩阵。 */
 public final class NxnTypeReport {
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final Map<String, Object> SUPPORT_LABELS = values( // 支持程度的显示顺序固定。
+    private static final ObjectMapper        JSON             = new ObjectMapper();
+    private static final Map<String, Object> SUPPORT_LABELS   = values( // 支持程度的显示顺序固定。
             "supported", "支持", "mapped", "映射支持", "limited", "有限支持", //
             "unsupported", "不支持", "unverified", "未验证", "failed", "失败");
-    private static final List<String> PROTOCOLS = names( // 协议目录的显示顺序固定。
+    private static final List<String>        PROTOCOLS        = names( // 协议目录的显示顺序固定。
             "rsf grpc grpc-web hprose soap jsonrpc xmlrpc hessian connect triple dubbo thrift oncrpc");
-    private static final Map<String, Object> LANGUAGE_LABELS = values( // 语言目录的显示顺序固定。
+    private static final Map<String, Object> LANGUAGE_LABELS  = values( // 语言目录的显示顺序固定。
             "java", "Java", "python", "Python", "node", "JavaScript / Node.js", //
             "browser", "JavaScript / 浏览器", "go", "Go", "c", "C", "rust", "Rust");
-    private static final Map<String, Object> TIME_LABELS = values( // Java 时间列的显示顺序固定。
+    private static final Map<String, Object> TIME_LABELS      = values( // Java 时间列的显示顺序固定。
             "local-date", "LocalDate", "local-time", "LocalTime", "local-date-time", "LocalDateTime", //
             "instant", "Instant", "offset-time", "OffsetTime", "offset-date-time", "OffsetDateTime", //
             "zoned-date-time", "ZonedDateTime", "duration", "Duration", "period", "Period", "year", "Year", //
             "year-month", "YearMonth", "month-day", "MonthDay", "zone-id", "ZoneId", "zone-offset", "ZoneOffset");
-    private static final Map<String, Object> TYPE_LABELS = values( // Java 类型名称仅用于展示。
+    private static final Map<String, Object> TYPE_LABELS      = values( // Java 类型名称仅用于展示。
             "boxed-boolean", "Boolean", "boxed-byte", "Byte", "boxed-short", "Short", "boxed-int", "Integer", //
             "boxed-long", "Long", "boxed-float", "Float", "boxed-double", "Double", "boxed-char", "Character", //
             "bytes", "byte[]", "big-integer", "BigInteger", "big-decimal", "BigDecimal", "uuid", "UUID", //
             "date", "Date", "int-array", "int[]", "string-array", "String[]", "list-string", "List<String>", //
             "set-string", "Set<String>", "map-string-int", "Map<String,Integer>", "dto", "DTO");
-    private static final Set<String> TYPE_CLASSES = new LinkedHashSet<>(names(
-            "JavaBasicTypeMatrixTest JavaTimeTypeMatrixTest GoProtoTypeMatrixTest ThriftGoTypeMatrixTest "
-                    + "NodeConnectTypeScenarioTest BrowserGrpcWebTypeScenarioTest "
-                    + "NodeHproseTypeTest NodeJsonRpcTypeTest "
-                    + "PythonJsonRpcTypeTest SoapPythonTypeMatrixTest XmlRpcPythonTypeMatrixTest "
-                    + "XmlRpcPythonTypeRejectionTest PythonGrpcTypeInteropTest PythonThriftTypeInteropTest "
-                    + "OncRpcNativeTypeMatrixTest OncRpcRejectedTypeMatrixTest"));
-    private static final Set<String> SELECT_FIELDS = new LinkedHashSet<>(names(
-            "caseId className method language protocol profile role type vector discovery encoding transport section"));
-    private static final List<String> DIMENSION_FIELDS = names("language protocol profile role type vector");
-    private static final Map<String, String> METHOD_ROLES = methodRoles();
+    private static final Set<String>         TYPE_CLASSES     = new LinkedHashSet<>(names("JavaBasicTypeMatrixTest JavaTimeTypeMatrixTest GoProtoTypeMatrixTest ThriftGoTypeMatrixTest " + "NodeConnectTypeScenarioTest BrowserGrpcWebTypeScenarioTest " + "NodeHproseTypeTest NodeJsonRpcTypeTest " + "PythonJsonRpcTypeTest SoapPythonTypeMatrixTest XmlRpcPythonTypeMatrixTest " + "XmlRpcPythonTypeRejectionTest PythonGrpcTypeInteropTest PythonThriftTypeInteropTest " + "OncRpcNativeTypeMatrixTest OncRpcRejectedTypeMatrixTest"));
+    private static final Set<String>         SELECT_FIELDS    = new LinkedHashSet<>(names("caseId className method language protocol profile role type vector discovery encoding transport section"));
+    private static final List<String>        DIMENSION_FIELDS = names("language protocol profile role type vector");
+    private static final Map<String, String> METHOD_ROLES     = methodRoles();
 
     private NxnTypeReport() {
     }
@@ -72,20 +55,20 @@ public final class NxnTypeReport {
         try {
             // 只接收显式的单轮运行，不读取 latest 或复用其它轮次结果。
             Map<String, String> options = new LinkedHashMap<>();
-            Set<String> allowed = new LinkedHashSet<>(names(
-                    "--run-directory --expectations --output --details-prefix --c-catalog"));
+            Set<String> allowed = new LinkedHashSet<>(names("--run-directory --expectations --output --details-prefix --c-catalog"));
             for (int index = 0; index < arguments.length; index++) {
                 String option = arguments[index];
                 if (StringUtils.equals(option, "--help") || StringUtils.equals(option, "-h")) {
-                    output.println("types --run-directory DIR --expectations FILE --output FILE "
-                            + "[--details-prefix PATH] [--c-catalog FILE]");
+                    output.println("types --run-directory DIR --expectations FILE --output FILE " + "[--details-prefix PATH] [--c-catalog FILE]");
                     return 0;
                 }
+
                 require(allowed.contains(option), "Unknown types option: " + option);
                 require(index + 1 < arguments.length, "Missing value for " + option);
                 require(!options.containsKey(option), "Repeated types option: " + option);
                 options.put(option, arguments[++index]);
             }
+
             for (String required : names("--run-directory --expectations --output")) {
                 require(options.containsKey(required), "Required types option: " + required);
             }
@@ -114,6 +97,7 @@ public final class NxnTypeReport {
             require(Files.isRegularFile(path), "Required same-run input is missing: " + path);
             paths.put(name, path);
         }
+
         Object selectedInput = load(paths.get("selected-cases.json"));
         require(selectedInput instanceof List<?>, "selected-cases.json must be a list");
         List<Map<String, Object>> selected = objects(selectedInput);
@@ -147,6 +131,7 @@ public final class NxnTypeReport {
         } else {
             xmlFiles = List.of();
         }
+
         require(!xmlFiles.isEmpty(), "No same-run test-results/TEST-*.xml files");
         List<Map<String, Object>> xmlCases = new ArrayList<>();
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -172,6 +157,7 @@ public final class NxnTypeReport {
                 xmlCases.add(values("caseId", caseId, "status", status, "junitXml", xmlFile.toString()));
             }
         }
+
         Map<String, Map<String, Object>> archived = caseMap(xmlCases, "same-run JUnit XML");
         require(actual.keySet().equals(archived.keySet()), "XML/selected identity mismatch");
         for (Map.Entry<String, Map<String, Object>> item : actual.entrySet()) {
@@ -238,6 +224,11 @@ public final class NxnTypeReport {
     }
 
     static Map<String, Object> parseDimensions(Map<String, Object> testcase, Map<String, Map<String, Object>> catalog) {
+        // 标准业务矩阵没有类型维度，不能再从类名或展示名推断类型支持。
+        if (testcase.containsKey("matrix")) {
+            return null;
+        }
+
         String scenario = string(testcase, "scenario");
         int bracket = scenario.indexOf('[');
         String method = bracket < 0 ? scenario : scenario.substring(0, bracket);
@@ -248,6 +239,7 @@ public final class NxnTypeReport {
                     "Unexpanded or initialization type case: " + string(testcase, "caseId"));
             return null;
         }
+
         String parameter = scenario.substring(bracket + 1, scenario.length() - 1);
         String language;
         String profile;
@@ -426,8 +418,7 @@ public final class NxnTypeReport {
         return testcase;
     }
 
-    static List<Map<String, Object>> buildDetails(Map<String, Object> run, Map<String, Object> expectations,
-            Map<String, Map<String, Object>> catalog) {
+    static List<Map<String, Object>> buildDetails(Map<String, Object> run, Map<String, Object> expectations, Map<String, Map<String, Object>> catalog) {
         Map<String, Map<String, Object>> overrides = caseMap(objects(expectations.get("caseMappings")), "caseMappings");
         Map<String, Map<String, Object>> planned = caseMap(objects(expectations.get("plannedCases")), "plannedCases");
         Set<String> fields = new LinkedHashSet<>(SELECT_FIELDS);
@@ -512,8 +503,7 @@ public final class NxnTypeReport {
                 "missing", counts.getOrDefault("missing", 0), "skipped", counts.getOrDefault("skipped", 0));
     }
 
-    static List<List<String>> profilesFor(List<Map<String, Object>> entries, Map<String, Object> axes,
-            String language, String role) {
+    static List<List<String>> profilesFor(List<Map<String, Object>> entries, Map<String, Object> axes, String language, String role) {
         Set<List<String>> profiles = new TreeSet<>(NxnTypeReport::compareNames);
         for (Map<String, Object> entry : entries) {
             profiles.add(profileKey(entry));
@@ -542,15 +532,13 @@ public final class NxnTypeReport {
         Map<String, String> declared = new LinkedHashMap<>();
         if (StringUtils.equals(language, "java")) {
             declared.put("基础类型", "boolean byte short int long float double char");
-            String boxedTypes = "boxed-boolean boxed-byte boxed-short boxed-int "
-                    + "boxed-long boxed-float boxed-double boxed-char";
+            String boxedTypes = "boxed-boolean boxed-byte boxed-short boxed-int " + "boxed-long boxed-float boxed-double boxed-char";
             declared.put("包装类型", boxedTypes);
             declared.put("文本、二进制及常见值", "string bytes big-integer big-decimal uuid date");
             declared.put("集合与结构", "int-array string-array list-string set-string map-string-int dto");
         } else {
             declared.put("布尔与有符号整数", "boolean int8 int16 int32 int64 signed-char short long");
-            String unsignedTypes = "uint8 uint16 uint32 uint64 float32 float64 "
-                    + "unsigned-char unsigned-short unsigned-long";
+            String unsignedTypes = "uint8 uint16 uint32 uint64 float32 float64 " + "unsigned-char unsigned-short unsigned-long";
             declared.put("无符号整数与浮点数", unsignedTypes);
             declared.put("文本、二进制与空值", "text string binary fixed-binary enum optional");
             declared.put("容器与结构", "list map record array fixed-array union optional-struct");
@@ -628,8 +616,7 @@ public final class NxnTypeReport {
         return signatures.get(0).equals(signatures.get(1));
     }
 
-    static String renderMarkdown(Map<String, Object> report, Path detailsPath,
-            Path reportDirectory) throws IOException {
+    static String renderMarkdown(Map<String, Object> report, Path detailsPath, Path reportDirectory) throws IOException {
         List<Map<String, Object>> cases = objects(report.get("cases"));
         Map<String, Object> run = object(report.get("run"));
         Map<String, Object> axes = object(report.get("axes"));
@@ -642,8 +629,7 @@ public final class NxnTypeReport {
         List<String> lines = new ArrayList<>();
         lines.add("# 跨语言类型支持矩阵\n");
         lines.add("按语言和调用方向分节，行表示协议与编码配置，列表示数据类型。支持结论限定于" + scope + "。\n");
-        lines.add("支持：所列向量保真往返；映射支持：经明确的线格式转换保留值；有限支持：存在范围、精度或规范化限制；"
-                + "不支持：已验证精确拒绝；未验证：本轮无证据；失败：验证结果与期望不符。\n");
+        lines.add("支持：所列向量保真往返；映射支持：经明确的线格式转换保留值；有限支持：存在范围、精度或规范化限制；" + "不支持：已验证精确拒绝；未验证：本轮无证据；失败：验证结果与期望不符。\n");
         lines.add("类型用例 " + cases.size() + " 项：通过 " + counts.getOrDefault("passed", 0) //
                 + "，失败 " + counts.getOrDefault("failed", 0) + "，跳过 " + counts.getOrDefault("skipped", 0) //
                 + "，未执行 " + counts.getOrDefault("missing", 0) + "。通过数包含精确拒绝和规范化测试，不能等同于无损支持。\n");
@@ -658,8 +644,7 @@ public final class NxnTypeReport {
         scopeRows.add(List.of("矩阵筛选", filterDescription(configuration.get("matrixSelection"))));
         scopeRows.add(List.of("审计数据", "[JSON](" + detailLink + ")，保存运行路径、SDK、逐案结果和审查依据"));
         lines.add(markdownTable(List.of("项目", "本轮证据"), scopeRows) + "\n");
-        lines.add("类型矩阵覆盖本轮直连场景，不推导所有类型与 TLS、注册发现的全排列。"
-                + "Java 自体用例检查 DTO 中的实际声明字段，不推导根值调用或任意 Object 多态映射。\n");
+        lines.add("类型矩阵覆盖本轮直连场景，不推导所有类型与 TLS、注册发现的全排列。" + "Java 自体用例检查 DTO 中的实际声明字段，不推导根值调用或任意 Object 多态映射。\n");
 
         // 双向矩阵只有向量、发现方式及结论全部相同时才合并展示。
         Map<String, Object> roleNames = values("self", "Java 自体", "provider", "Meteor 作为提供者", //
@@ -734,8 +719,7 @@ public final class NxnTypeReport {
         return String.join("\n", lines);
     }
 
-    static Map<String, Object> generate(Path runDirectory, Path expectationsPath, Path catalogPath,
-            Path output, Path detailsPrefix) throws Exception {
+    static Map<String, Object> generate(Path runDirectory, Path expectationsPath, Path catalogPath, Path output, Path detailsPrefix) throws Exception {
         Map<String, Object> run = readRun(runDirectory);
         Map<String, Object> expectations = readExpectations(expectationsPath);
         Map<String, Map<String, Object>> catalog = new LinkedHashMap<>();
@@ -769,9 +753,7 @@ public final class NxnTypeReport {
         return report;
     }
 
-    private static void appendRole(List<String> lines, List<Map<String, Object>> languageCases,
-            Map<String, Object> axes, String language, List<String> protocols, String roleName,
-            List<String> selectedRoles) {
+    private static void appendRole(List<String> lines, List<Map<String, Object>> languageCases, Map<String, Object> axes, String language, List<String> protocols, String roleName, List<String> selectedRoles) {
         List<Map<String, Object>> roleCases = new ArrayList<>();
         for (Map<String, Object> entry : languageCases) {
             if (selectedRoles.contains(string(entry, "role"))) {
@@ -829,8 +811,7 @@ public final class NxnTypeReport {
         boolean jayson = StringUtils.equals(string(entry, "language"), "node") //
                 && StringUtils.equals(string(entry, "protocol"), "jsonrpc") && reason.startsWith("固定 Jayson 数字词法");
         if (jayson) {
-            return "Jayson 将整数解析为 Number；超过安全整数范围会舍入。Meteor 提供者按舍入后的数字词法接收，"
-                    + "超出 Java long 范围时返回 Invalid params；消费者方向由测试业务 guard 明确拒绝不安全整数。";
+            return "Jayson 将整数解析为 Number；超过安全整数范围会舍入。Meteor 提供者按舍入后的数字词法接收，" + "超出 Java long 范围时返回 Invalid params；消费者方向由测试业务 guard 明确拒绝不安全整数。";
         }
         return reason;
     }
@@ -848,8 +829,7 @@ public final class NxnTypeReport {
         return entry;
     }
 
-    private static void checkMapping(Map<String, Object> explicit, Map<String, Object> actual,
-            Collection<String> fields, String source, String caseId) {
+    private static void checkMapping(Map<String, Object> explicit, Map<String, Object> actual, Collection<String> fields, String source, String caseId) {
         for (String field : fields) {
             if (explicit.containsKey(field)) {
                 require(StringUtils.equals(string(explicit, field), string(actual, field)), //
@@ -895,16 +875,8 @@ public final class NxnTypeReport {
 
     private static Map<String, String> methodRoles() {
         Map<String, String> result = new LinkedHashMap<>();
-        String providerMethods = "meteorProviderPreservesPythonNativeType meteorProviderAcceptsOneNodeTypeVector "
-                + "meteorProviderAcceptsOnePythonTypeVector meteorProviderAcceptsPythonNativeType "
-                + "pythonConsumerCallsMeteorProvider pythonConsumerRejectsIntegerOutsideWireRange "
-                + "providerAcceptsOneNativeGoTypeVector goConsumerPreservesSelectedTypeOnMeteorProvider "
-                + "officialBrowserPreservesDeclaredType meteorProviderAcceptsNativeType";
-        String consumerMethods = "meteorConsumerPreservesPythonNativeType meteorConsumerAcceptsOneNodeTypeVector "
-                + "meteorConsumerAcceptsOnePythonTypeVector meteorConsumerReadsPythonNativeType "
-                + "meteorConsumerCallsPythonProvider meteorConsumerRejectsIntegerOutsideWireRange "
-                + "consumerReceivesOneNativeGoTypeVector meteorConsumerPreservesSelectedTypeOnGoProvider "
-                + "meteorConsumerReadsNativeType meteorConsumerRejectsUnrepresentableType";
+        String providerMethods = "meteorProviderPreservesPythonNativeType meteorProviderAcceptsOneNodeTypeVector " + "meteorProviderAcceptsOnePythonTypeVector meteorProviderAcceptsPythonNativeType " + "pythonConsumerCallsMeteorProvider pythonConsumerRejectsIntegerOutsideWireRange " + "providerAcceptsOneNativeGoTypeVector goConsumerPreservesSelectedTypeOnMeteorProvider " + "officialBrowserPreservesDeclaredType meteorProviderAcceptsNativeType";
+        String consumerMethods = "meteorConsumerPreservesPythonNativeType meteorConsumerAcceptsOneNodeTypeVector " + "meteorConsumerAcceptsOnePythonTypeVector meteorConsumerReadsPythonNativeType " + "meteorConsumerCallsPythonProvider meteorConsumerRejectsIntegerOutsideWireRange " + "consumerReceivesOneNativeGoTypeVector meteorConsumerPreservesSelectedTypeOnGoProvider " + "meteorConsumerReadsNativeType meteorConsumerRejectsUnrepresentableType";
         for (String method : names(providerMethods)) {
             result.put(method, "provider");
         }

@@ -21,6 +21,7 @@ import com.connectrpc.okhttp.ConnectOkHttpClient;
 import com.connectrpc.protocols.NetworkProtocol;
 import kotlin.Unit;
 import kotlin.jvm.JvmClassMappingKt;
+import net.hasor.example.Order;
 import net.hasor.example.OrderContract;
 import net.hasor.example.OrderExampleUtils;
 import net.hasor.example.OrderProtoUtils;
@@ -50,9 +51,10 @@ public final class SdkConsumerMain {
 
             // 先保存订单，再使用同一接口的查询方法读取并输出结果。
             var order = OrderProtoUtils.toProto(OrderExampleUtils.newOrder(1001, "connect-sdk"));
-            call(client, save, order);
-            var query = OrderContract.OrderQuery.newBuilder().setId(1001).build();
-            OrderExampleUtils.print(OrderProtoUtils.fromProto(call(client, find, query)));
+            Order saved = OrderProtoUtils.fromProto(call(client, save, order));
+            var query = OrderContract.OrderQuery.newBuilder().setId(order.getId()).build();
+            Order found = OrderProtoUtils.fromProto(call(client, find, query));
+            OrderExampleUtils.print(saved, found);
         } finally {
             // 当前入口创建并释放自己的 HTTP 连接和执行线程。
             http.dispatcher().executorService().shutdownNow();

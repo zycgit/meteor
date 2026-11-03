@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "java-connect-rpc-java",
+      "language": "java",
+      "implementation": "Connect RPC Java",
+      "runtimeManifestProperty": "meteor.test.sdk.manifest",
+      "launch": {
+        "provider": {
+          "container": "java",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.sdk.${entry}.SdkProviderMain"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "java-sdk-connect-server",
+          "api": "order-v1",
+          "protocol": "connect",
+          "protocolVersion": "1",
+          "wire": "connect-protobuf-http1-clear",
+          "roles": [
+            "provider"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "connectServer",
+          "entry": "connect"
+        }
+      ]
+    }
+  ]
+}

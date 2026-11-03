@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "java-framework-solon",
+      "language": "java",
+      "implementation": "Meteor Solon",
+      "framework": "solon",
+      "classpathProperty": "meteor.test.framework.solon.classpath",
+      "launch": {
+        "provider": {
+          "container": "java",
+          "command": [
+            "java",
+            "-Xmx256m",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.framework.solon.ProviderMain",
+            "${settings}",
+            "${result}"
+          ]
+        },
+        "consumer": {
+          "container": "java",
+          "command": [
+            "java",
+            "-Xmx256m",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.framework.solon.ConsumerMain",
+            "${settings}",
+            "${result}"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "solon-rsf-registry",
+          "api": "order-v1",
+          "protocol": "rsf",
+          "protocolVersion": "1",
+          "wire": "rsf-java-framework-orders",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "jdbc",
+            "nacos",
+            "zookeeper"
+          ]
+        },
+        {
+          "id": "solon-dubbo-registry",
+          "api": "order-v1",
+          "protocol": "dubbo",
+          "protocolVersion": "",
+          "wire": "dubbo-hessian2-framework-orders",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "dubbo"
+          ],
+          "serialGroup": "native-registry"
+        }
+      ]
+    }
+  ]
+}

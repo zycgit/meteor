@@ -6,9 +6,11 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.peer.sdk;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.ServerSocket;
 
 /** 官方 SDK 订单对端的独立进程网络配置，只依赖 JDK。 */
 public final class OrderPeerSettings {
@@ -27,6 +29,18 @@ public final class OrderPeerSettings {
         return new InetSocketAddress(bindHost(), port());
     }
 
+    /** SDK 不支持直接绑定端口零时，先在当前端点容器内申请一个操作系统临时端口。 */
+    public static int bindPort() throws IOException {
+        int requestedPort = port();
+        if (requestedPort != 0) {
+            return requestedPort;
+        }
+        try (ServerSocket socket = new ServerSocket()) {
+            socket.bind(new InetSocketAddress(bindHost(), 0));
+            return socket.getLocalPort();
+        }
+    }
+
     public static String publishHost() {
         String peerHost = environment("METEOR_TEST_PEER_HOST", bindHost());
         return environment("METEOR_ORDER_PUBLISH_HOST", peerHost);
@@ -37,12 +51,13 @@ public final class OrderPeerSettings {
     }
 
     public static URI target(String defaultAddress) {
-        // 调度端可以只传监听地址，协议入口补齐自身的方法挂载路径。
+        // 旧入口只传监听地址时补默认目录；NXN 返回空路径或 / 时明确使用服务端根目录。
         URI defaults = URI.create(defaultAddress);
         URI configured = URI.create(environment("METEOR_ORDER_TARGET", defaultAddress));
         String path = configured.getPath();
         boolean rootPath = path != null && path.length() == 1 && path.charAt(0) == '/';
-        if (path == null || path.isEmpty() || rootPath) {
+        boolean standardRequest = System.getenv("METEOR_NXN_REQUEST_FILE") != null;
+        if (!standardRequest && (path == null || path.isEmpty() || rootPath)) {
             path = defaults.getPath();
         }
         String query = configured.getQuery();

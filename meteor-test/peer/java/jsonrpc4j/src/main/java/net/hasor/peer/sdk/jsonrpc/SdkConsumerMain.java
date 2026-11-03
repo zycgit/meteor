@@ -25,10 +25,10 @@ public final class SdkConsumerMain {
 
         // SDK 按 orders 别名调用普通 Java 订单方法。
         Order order = OrderExampleUtils.newOrder(1001, "jsonrpc-sdk");
-        client.invoke("orders.save", new Object[] { order }, Order.class);
+        Order saved = client.invoke("orders.save", new Object[] { order }, Order.class);
         OrderQuery query = new OrderQuery();
-        query.setId(1001);
+        query.setId(order.getId());
         Order result = client.invoke("orders.find", new Object[] { query }, Order.class);
-        OrderExampleUtils.print(result);
+        OrderExampleUtils.print(saved, result);
     }
 }

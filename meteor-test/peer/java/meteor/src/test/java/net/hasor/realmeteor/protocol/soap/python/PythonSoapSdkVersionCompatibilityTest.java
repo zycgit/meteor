@@ -84,7 +84,8 @@ public class PythonSoapSdkVersionCompatibilityTest {
         try (PythonSoapPeer provider = PythonSoapPeer.provider(); //
              MetContext consumer = configuration.buildContext()) {
             consumer.start();
-            var contract = Path.of(System.getProperty("python.soap.contract")).toUri().toURL();
+            String defaultContract = "/opt/meteor-peer/python-soap-generated/orders.wsdl";
+            var contract = Path.of(System.getProperty("python.soap.contract", defaultContract)).toUri().toURL();
             var service = consumer.publisher().rsfService(OrderDemoService.class) //
                     .name("orders").protocol("soap").aliasName("soap", "orders") //
                     .bindResource("soap", new SoapWsdlResource(contract)).register();

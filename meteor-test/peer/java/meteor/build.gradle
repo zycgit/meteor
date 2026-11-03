@@ -1,6 +1,3 @@
-import groovy.json.JsonOutput
-import java.net.URLClassLoader
-
 plugins {
     id 'java'
 }
@@ -13,6 +10,14 @@ def fixtureDirectory = new File(meteorTestDirectory, 'resource')
 // 公共契约和证书只进入应用资源；Java 测试 SPI 与类型期望使用标准 test 资源。
 sourceSets.main.resources.srcDir(fixtureDirectory)
 
+// 本工程只声明自己的应用运行图和测试工作目录。
+ext.nxnRuntimeProperties = [
+        'meteor.test.application.classpath': sourceSets.main.runtimeClasspath,
+        'meteor.test.peerDirectory': files(new File(meteorTestDirectory, 'peer')),
+        'meteor.test.container.workDirectory': files(layout.buildDirectory.dir('container-scenarios')),
+        'limitTime': providers.systemProperty('meteor.test.nacos.limitTime').orElse('1000')
+]
+
 // WSDL 引用保持在同一资源根，构建时从共享目录补入 XSD。
 tasks.named('processResources') {
     from(new File(fixtureDirectory, 'protocol/xsd')) {
@@ -24,11 +29,11 @@ dependencies {
     implementation project(':meteor')
     implementation project(':meteor-test-contracts')
     def applicationModules = [
-        'meteor-registry', 'meteor-registry-jdbc', 'meteor-registry-nacos',
-        'meteor-registry-zookeeper', 'meteor-registry-dubbo', 'meteor-protocol-grpc',
-        'meteor-protocol-hprose', 'meteor-protocol-soap', 'meteor-protocol-jsonrpc',
-        'meteor-protocol-xmlrpc', 'meteor-protocol-hessian', 'meteor-protocol-connect',
-        'meteor-protocol-triple', 'meteor-protocol-dubbo', 'meteor-protocol-thrift', 'meteor-protocol-oncrpc'
+            'meteor-registry', 'meteor-registry-jdbc', 'meteor-registry-nacos',
+            'meteor-registry-zookeeper', 'meteor-registry-dubbo', 'meteor-protocol-grpc',
+            'meteor-protocol-hprose', 'meteor-protocol-soap', 'meteor-protocol-jsonrpc',
+            'meteor-protocol-xmlrpc', 'meteor-protocol-hessian', 'meteor-protocol-connect',
+            'meteor-protocol-triple', 'meteor-protocol-dubbo', 'meteor-protocol-thrift', 'meteor-protocol-oncrpc'
     ]
     applicationModules.each { module -> implementation project(":${module}") }
     implementation "com.h2database:h2:2.3.232"
@@ -58,116 +63,12 @@ tasks.withType(JavaCompile).configureEach {
     options.compilerArgs += '-parameters'
 }
 
+// 框架对端复用已编译的业务与进程工具，不继承应用工程的完整运行依赖。
+tasks.register('frameworkPeerJar', Jar) {
+    archiveClassifier = 'framework-peer'
+    from sourceSets.main.output
+    include 'net/hasor/example/integration/FrameworkOrderServiceImpl.class'
+    include 'net/hasor/peer/framework/FrameworkPeerUtils.class'
+}
+
 apply from: 'gradle/execution.gradle'
-
-tasks.named('test') {
-    workingDir meteorTestDirectory
-    maxHeapSize = '1536m'
-    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
-    dependsOn ':meteor-test-sdk:exportRuntimes'
-    doFirst {
-        // 官方 SDK 及其他对端在独立进程运行，继承当前测试的隔离目录。
-        def workDirectory = layout.buildDirectory.dir("test-work/${name}").get().asFile
-        def userDirectory = new File(workDirectory, 'home').absolutePath
-        def temporaryDirectory = new File(workDirectory, 'tmp').absolutePath
-        environment HOME: userDirectory, USERPROFILE: userDirectory,
-            TMPDIR: temporaryDirectory, TMP: temporaryDirectory, TEMP: temporaryDirectory
-
-        // 嵌套 JVM 保留调用方选项，并支持目录名中的空格与引号。
-        def quoteJvmOption = { String option -> '"' + option.replace('"', '"\'"\'"') + '"' }
-        def toolOptions = environment['JAVA_TOOL_OPTIONS'] ?: ''
-        def homeOption = quoteJvmOption("-Duser.home=${userDirectory}")
-        def temporaryOption = quoteJvmOption("-Djava.io.tmpdir=${temporaryDirectory}")
-        environment 'JAVA_TOOL_OPTIONS', "${toolOptions} ${homeOption} ${temporaryOption}".trim()
-
-        systemProperties executionProperties()
-
-        // SDK 运行图通过 JDK 参数文件传递，避免长类路径触发 Gradle 二次缩短。
-        def classpaths = systemProperties.findAll { name, value ->
-            name.toString().toLowerCase(Locale.ROOT).endsWith('classpath')
-        }
-        def argumentFile = layout.buildDirectory.file('java-peer-classpaths.args').get().asFile
-        argumentFile.parentFile.mkdirs()
-        def arguments = new TreeMap(classpaths).collect { name, value ->
-            def argument = "-D${name}=${value}".replace('\\', '\\\\').replace('"', '\\"')
-            '"' + argument + '"'
-        }
-        argumentFile.setText(arguments.join(System.lineSeparator()) + System.lineSeparator(), 'UTF-8')
-        setSystemProperties(systemProperties.findAll { name, value -> !classpaths.containsKey(name) })
-        def argumentOption = '@' + argumentFile.absolutePath
-        setJvmArgs(jvmArgs.findAll { it != argumentOption } + argumentOption)
-    }
-    testLogging {
-        events 'failed', 'skipped'
-        exceptionFormat = 'full'
-    }
-}
-
-tasks.register('exportExecution') {
-    description = 'Compile once and export the JUnit execution inputs for independent jobs.'
-    dependsOn tasks.named('testClasses'), ':meteor-test-sdk:exportRuntimes'
-    inputs.files(sourceSets.test.runtimeClasspath)
-    inputs.files(sourceSets.test.allJava)
-    def destination = layout.buildDirectory.file('execution/runtime.json')
-    outputs.file(destination)
-    outputs.upToDateWhen { false }
-    doLast {
-        // 源码只确定外层测试入口，方法清单随后从编译结果读取，避免混入嵌套 fixture。
-        def classNames = new TreeSet<String>()
-        sourceSets.test.allJava.files.sort().each { source ->
-            def text = source.getText('UTF-8')
-            def packageMatch = text =~ /(?m)^package\s+([\w.]+)\s*;/
-            def methodMatches = text =~ /@(?:org\.junit\.jupiter\.api\.)?Test\b(?:\s*\([^)]*\))?\s+[^{};]*?\bvoid\s+(\w+)\s*\(/
-            if (methodMatches.find() && packageMatch.find()) {
-                def className = packageMatch.group(1) + '.' + source.name.replaceFirst(/\.java$/, '')
-                classNames.add(className)
-            }
-        }
-        def classpath = sourceSets.test.runtimeClasspath.files.findAll { it.exists() }
-        def urls = classpath.collect { it.toURI().toURL() } as URL[]
-        def classMethods = new TreeMap<String, List<String>>()
-        def rpcCases = new TreeMap<String, Map<String, List<Map>>>()
-        new URLClassLoader(urls, ClassLoader.getPlatformClassLoader()).withCloseable { loader ->
-            def rpcAnnotation = Class.forName('net.hasor.meteor.test.nxn.NxnRpc', false, loader)
-            classNames.each { className ->
-                // false 禁止类初始化；不创建 JUnit Runner，也不执行参数工厂或任何测试方法。
-                def type = Class.forName(className, false, loader)
-                def testMethods = type.declaredMethods.findAll { method ->
-                    method.declaredAnnotations.any { annotation -> annotation.annotationType().name == 'org.junit.jupiter.api.Test' }
-                }
-                classMethods[className] = testMethods.collect { it.name }.unique().sort()
-
-                // 方法声明覆盖类声明；线协议版本及参数范围由场景自己声明。
-                def classDeclarations = type.getDeclaredAnnotationsByType(rpcAnnotation)
-                def methods = new TreeMap<String, List<Map>>()
-                testMethods.each { method ->
-                    def declarations = method.getDeclaredAnnotationsByType(rpcAnnotation)
-                    if (declarations.length == 0) {
-                        declarations = classDeclarations
-                    }
-                    if (declarations.length > 0) {
-                        methods[method.name] = declarations.collect { declaration ->
-                            [name: declaration.name(), version: declaration.version(), cases: declaration.cases()]
-                        }
-                    }
-                }
-                if (!methods.isEmpty()) {
-                    rpcCases[className] = methods
-                }
-            }
-        }
-        def runtime = [
-            classpath: classpath.collect { it.absolutePath },
-            jvmArguments: tasks.named('test').get().jvmArgs,
-            systemProperties: executionProperties(),
-            classNames: classNames.toList(),
-            classMethods: classMethods,
-            rpcCases: rpcCases,
-            sourceRoots: sourceSets.test.java.srcDirs.collect { it.absolutePath },
-            workingDirectory: meteorTestDirectory.absolutePath
-        ]
-        def file = destination.get().asFile
-        file.parentFile.mkdirs()
-        file.setText(JsonOutput.prettyPrint(JsonOutput.toJson(runtime)) + '\n', 'UTF-8')
-    }
-}

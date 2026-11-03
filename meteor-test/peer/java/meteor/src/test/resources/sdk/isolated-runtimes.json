@@ -1,0 +1,17 @@
+{
+  "profiles": {
+    "dubbo": {
+      "classpath": ["/sdk/current/classes", "/sdk cache/dubbo-3.3.6.jar"],
+      "sdk": "Apache Dubbo",
+      "version": "3.3.6"
+    },
+    "dubboLegacy": {
+      "classpath": ["/sdk/legacy/classes", "C:\\SDK cache\\dubbo-2.7.23.jar"],
+      "sdk": "Apache Dubbo",
+      "version": "2.7.23"
+    },
+    "empty": {
+      "classpath": []
+    }
+  }
+}

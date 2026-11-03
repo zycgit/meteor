@@ -1,95 +1,99 @@
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
+import org.gradle.api.file.FileCollection
+import org.gradle.api.provider.Provider
 
-// 文件路径始终以共享测试根目录为基准，不随 Java 子工程目录改变。
-ext.executionProperties = {
-    def testDirectory = rootProject.file('meteor-test')
-    def outputDirectory = layout.buildDirectory.get().asFile
-    def certificateDirectory = new File(testDirectory, 'resource/certs/acceptance')
-    def sdkManifest = project(':meteor-test-sdk').layout.buildDirectory.file('execution/runtimes.json').get().asFile
-    def sdkExecution = new JsonSlurper().parse(sdkManifest)
-    def profiles = sdkExecution.profiles
-    def classpaths = profiles.collectEntries { name, profile ->
-        [(name): profile.classpath.join(File.pathSeparator)]
-    }
+// 各测试工程自行声明运行配置；延迟收集，保留 FileCollection 携带的构建依赖。
+def runtimeProperties = providers.provider {
     def properties = new LinkedHashMap<String, Object>()
-    properties['meteor.test.sdk.compatibility'] = JsonOutput.toJson(sdkExecution.compatibility)
-    classpaths.each { name, classpath -> properties["meteor.test.sdk.profile.${name}.classpath"] = classpath }
-    def protocols = ['dubbo', 'thrift', 'hprose', 'soap', 'jsonrpc', 'xmlrpc', 'hessian', 'grpc', 'oncrpc']
-    protocols.each { name -> properties["meteor.test.sdk.${name}.classpath"] = classpaths[name] }
-    properties.putAll([
-        'meteor.test.sdk.grpcweb.classpath': classpaths.connect,
-        'meteor.test.sdk.connect.classpath': classpaths.connect,
-        'meteor.test.sdk.connect.providerClasspath': classpaths.connectServer,
-        'meteor.test.sdk.triple.classpath': classpaths.tripleLegacy,
-        'triple.peer.classpath': classpaths.dubbo,
-        'triple.peer.legacy.classpath': classpaths.tripleLegacy,
-        'hessian.peer.classpath': classpaths.hessian,
-        'hprose.java.peer.classpath': classpaths.hprose,
-        'soap.metro.peer.classpath': classpaths.soap,
-        'soap.axis.peer.classpath': classpaths.axis,
-        'thrift.peer.classpath': classpaths.thrift,
-        'jsonrpc.java.peer.classpath': classpaths.jsonrpc,
-        'xmlrpc.java.peer.classpath': classpaths.xmlrpc,
-        'oncrpc.java.peer.classpath': classpaths.oncrpc,
-        'connect.java.peer.classpath': classpaths.connect,
-        'connect.java.server.peer.classpath': classpaths.connectServer,
-        'dubbo.peer.classpath': classpaths.dubbo,
-        'dubbo.peer.tls.classpath': classpaths.dubboTls,
-        'dubbo.peer.legacy.classpath': classpaths.dubboLegacy
-    ])
-
-    // 应用进程只使用标准 main 输出，不借用 JUnit 或官方 SDK 的运行依赖。
-    properties['meteor.test.application.classpath'] = sourceSets.main.runtimeClasspath.asPath
-    properties['meteor.test.container.javaClasspath'] = sourceSets.main.runtimeClasspath.asPath
-    properties['meteor.test.peerDirectory'] = new File(testDirectory, 'peer').absolutePath
-    properties['limitTime'] = System.getProperty('meteor.test.nacos.limitTime', '1000')
-    properties['soap.peer.tls.directory'] = certificateDirectory.absolutePath
-    properties['go.order.peer.cert-dir'] = certificateDirectory.absolutePath
-
-    // 常驻容器持有语言工具链；场景输入仍挂载自同一份测试工作区。
-    properties.putAll([
-        'hprose.peer.dir': '/opt/meteor-peer/node/hprose',
-        'grpcweb.peer.dir': '/opt/meteor-peer/node/grpcweb',
-        'connect.peer.dir': '/opt/meteor-peer/node/connect',
-        'jsonrpc.peer.dir': '/opt/meteor-peer/node/jsonrpc',
-        'python.grpc.executable': '/opt/meteor-peer/python-grpc/bin/python',
-        'python.grpc.generated': '/opt/meteor-peer/python-grpc-generated',
-        'python.thrift.executable': '/opt/meteor-peer/python-thrift/bin/python',
-        'python.soap.executable': '/opt/meteor-peer/python-soap/bin/python',
-        'python.soap.contract': '/opt/meteor-peer/python-soap-generated/orders.wsdl',
-        'oncrpc.peer.executable': '/opt/meteor-peer/native/oncrpc_peer',
-        'oncrpc.rpcbind.peer.executable': '/opt/meteor-peer/native/oncrpc_rpcbind_peer',
-        'go.order.peer.binary': '/opt/meteor-peer/go/order-peer'
-    ])
-    ['grpc', 'thrift', 'soap'].each { name ->
-        properties["python.${name}.script"] = new File(testDirectory, "peer/python/${name}/peer.py").absolutePath
-    }
-    properties['xmlrpc.peer.script'] = new File(testDirectory, 'peer/python/xmlrpc/peer.py').absolutePath
-
-    // 编排器会为每组覆盖这些产物目录，标准 Gradle 运行则写当前 Java 工程 build。
-    def outputPaths = [
-        'dubbo.peer.output.directory': 'peer-logs',
-        'hessian.peer.output.directory': 'hessian-peer-logs',
-        'soap.peer.output.directory': 'soap-peer-logs',
-        'thrift.peer.output.directory': 'thrift-peer-logs',
-        'java.peer.output.directory': 'java-peer-logs',
-        'meteor.test.sdk.logDirectory': 'sdk-peer-logs',
-        'python.grpc.logs': 'python-grpc-peer-logs',
-        'python.thrift.logs': 'python-thrift-peer-logs',
-        'python.soap.logs': 'python-soap-peer-logs',
-        'oncrpc.peer.usage.file': 'oncrpc-native-process-usage.jsonl',
-        'oncrpc.peer.output.directory': 'oncrpc-peer-logs',
-        'go.order.peer.work-dir': 'go-peer/runs',
-        'meteor.test.container.workDirectory': 'container-scenarios'
-    ]
-    outputPaths.each { name, relative -> properties[name] = new File(outputDirectory, relative).absolutePath }
-    System.properties.findAll { key, value -> key.toString().startsWith('meteor.matrix.') }.each { key, value ->
-        properties[key.toString()] = value.toString()
-    }
-    // 与标准 Gradle 报告保留相同的依赖版本审计；不导出凭据或整个项目属性。
-    rootProject.properties.findAll { key, value -> key.toString().startsWith('lib.') }.each { key, value ->
-        properties[key.toString()] = value.toString()
+    rootProject.subprojects.findAll { it.ext.has('nxnRuntimeProperties') }.each { peer ->
+        peer.nxnRuntimeProperties.each { name, value ->
+            if (properties.putIfAbsent(name, value) != null) {
+                throw new GradleException("Duplicate NXN runtime property: ${name}")
+            }
+        }
     }
     properties
+}
+def runtimeFiles = files(runtimeProperties.map { it.values().findAll { it instanceof FileCollection } })
+def runtimeFile = layout.buildDirectory.file('execution/runtime.json')
+def testDirectory = rootProject.file('meteor-test')
+
+tasks.register('exportExecution', JavaExec) {
+    description = 'Export compiled tests and the runtime declarations of their peer projects.'
+    dependsOn tasks.named('testClasses'), runtimeFiles
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.hasor.meteor.test.nxn.NxnMain'
+    workingDir testDirectory
+    outputs.file(runtimeFile)
+    outputs.upToDateWhen { false }
+    doFirst {
+        def properties = runtimeProperties.get().collectEntries { name, value ->
+            def resolved = value
+            if (resolved instanceof Provider) {
+                resolved = resolved.get()
+            }
+            if (resolved instanceof FileCollection) {
+                if (name.endsWith('.classpath')) {
+                    // Java 插件会列出没有资源时不存在的输出目录；JAR 仍保留，缺制品由计划严格报错。
+                    resolved = resolved.filter { it.exists() || it.name.endsWith('.jar') }
+                }
+                resolved = resolved.asPath
+            }
+            [(name): resolved]
+        }
+        // 仅转发矩阵选项与公开依赖版本，不导出整个 Gradle 属性集合。
+        System.properties.each { name, value ->
+            if (name.toString().startsWith('meteor.matrix.')) {
+                properties[name.toString()] = value.toString()
+            }
+        }
+        rootProject.properties.each { name, value ->
+            if (name.toString().startsWith('lib.')) {
+                properties[name.toString()] = value.toString()
+            }
+        }
+        def seed = [classpath: sourceSets.test.runtimeClasspath.files.findAll { it.exists() }*.absolutePath,
+                    classDirectories: sourceSets.test.output.classesDirs.files*.absolutePath,
+                    jvmArguments: tasks.named('test').get().jvmArgs,
+                    systemProperties: properties, workingDirectory: testDirectory.absolutePath]
+        def input = layout.buildDirectory.file('execution/inputs.json').get().asFile
+        input.parentFile.mkdirs()
+        input.setText(JsonOutput.toJson(seed), 'UTF-8')
+        setArgs(['export', input.absolutePath, runtimeFile.get().asFile.absolutePath])
+    }
+}
+
+tasks.named('test') {
+    dependsOn tasks.named('exportExecution')
+    workingDir testDirectory
+    maxHeapSize = '1536m'
+    jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+    doFirst {
+        // 根构建隔离当前 JVM；子进程沿用同一组 HOME、临时目录和调用方 JVM 选项。
+        def homeDirectory = layout.buildDirectory.dir("test-work/${name}/home").get().asFile.absolutePath
+        def temporaryDirectory = layout.buildDirectory.dir("test-work/${name}/tmp").get().asFile.absolutePath
+        environment HOME: homeDirectory, USERPROFILE: homeDirectory,
+                TMPDIR: temporaryDirectory, TMP: temporaryDirectory, TEMP: temporaryDirectory
+        def quote = { value -> '"' + value.toString().replace('"', '"\'"\'"') + '"' }
+        def inherited = environment['JAVA_TOOL_OPTIONS'] ?: ''
+        def homeOption = quote('-Duser.home=' + homeDirectory)
+        def temporaryOption = quote('-Djava.io.tmpdir=' + temporaryDirectory)
+        environment 'JAVA_TOOL_OPTIONS', "${inherited} ${homeOption} ${temporaryOption}".trim()
+
+        // 大类路径仍通过标准 JDK 参数文件传递，避免 Gradle 再次缩短命令。
+        def properties = new JsonSlurper().parse(runtimeFile.get().asFile).systemProperties
+        def classpaths = properties.findAll { name, value -> name.endsWith('.classpath') }
+        systemProperties(properties.findAll { name, value -> !classpaths.containsKey(name) })
+        def argumentFile = layout.buildDirectory.file('java-peer-classpaths.args').get().asFile
+        def arguments = new TreeMap(classpaths).collect { name, value ->
+            '"' + "-D${name}=${value}".replace('\\', '\\\\').replace('"', '\\"') + '"'
+        }
+        argumentFile.setText(arguments.join(System.lineSeparator()) + System.lineSeparator(), 'UTF-8')
+        jvmArgs '@' + argumentFile.absolutePath
+    }
+    testLogging {
+        events 'failed', 'skipped'
+        exceptionFormat = 'full'
+    }
 }

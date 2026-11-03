@@ -31,11 +31,13 @@ public final class SdkConsumerMain {
 
             // 保存与查询分别对应 order.x 的过程 1、2，共用普通订单 DTO。
             Order order = OrderExampleUtils.newOrder(1001, "oncrpc-sdk");
-            SdkOrderValue saved = new SdkOrderValue(null);
-            client.call(1, new SdkOrderValue(order), saved);
-            SdkOrderValue found = new SdkOrderValue(null);
-            client.call(2, new XdrInt(1001), found);
-            OrderExampleUtils.print(found.getOrder());
+            SdkOrderValue savedValue = new SdkOrderValue(null);
+            client.call(1, new SdkOrderValue(order), savedValue);
+            Order saved = savedValue.getOrder();
+            SdkOrderValue foundValue = new SdkOrderValue(null);
+            client.call(2, new XdrInt(order.getId()), foundValue);
+            Order found = foundValue.getOrder();
+            OrderExampleUtils.print(saved, found);
         } finally {
             client.close();
         }

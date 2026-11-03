@@ -5,6 +5,7 @@
  */
 
 #include "order.h"
+#include "nxn_order.h"
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <stdio.h>
@@ -126,8 +127,12 @@ int main(void) {
     const char *publish_host = getenv("METEOR_ORDER_PUBLISH_HOST");
     publish_host = publish_host == NULL ? getenv("METEOR_TEST_PEER_HOST") : publish_host;
     publish_host = publish_host == NULL ? host : publish_host;
-    printf("Order provider is ready: oncrpc://%s:%u\n", publish_host, ntohs(address.sin_port));
-    fflush(stdout);
+    if (nxn_order_enabled()) {
+        nxn_order_ready("oncrpc", publish_host, ntohs(address.sin_port));
+    } else {
+        printf("Order provider is ready: oncrpc://%s:%u\n", publish_host, ntohs(address.sin_port));
+        fflush(stdout);
+    }
 
     // Dispatch save/find until the foreground process is stopped.
     svc_run();

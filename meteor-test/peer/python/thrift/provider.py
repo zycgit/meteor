@@ -11,6 +11,9 @@ from thrift.protocol import TBinaryProtocol
 from thrift.server import TServer
 from thrift.transport import TSocket, TTransport
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import nxn_control as nxn
+
 sys.path.insert(0, str(Path(__file__).with_name("generated")))
 from order import OrderThriftService
 
@@ -33,7 +36,11 @@ class OrderListener(TSocket.TServerSocket):
         bind_host = os.environ.get("METEOR_ORDER_BIND_HOST", "127.0.0.1")
         publish_host = os.environ.get("METEOR_ORDER_PUBLISH_HOST", os.environ.get("METEOR_TEST_PEER_HOST", bind_host))
         port = self.handle.getsockname()[1]
-        print(f"Order provider is ready: thrift://{publish_host}:{port}", flush=True)
+        target = f"thrift://{publish_host}:{port}"
+        if nxn.enabled():
+            nxn.ready(target)
+        else:
+            print(f"Order provider is ready: {target}", flush=True)
 
 
 def main():

@@ -31,6 +31,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 
 /** Metro 与 Axis 独立进程的生命周期及本地控制；场景仍使用真实 SOAP 网络。 */
 final class SoapPeerProcess implements AutoCloseable {
@@ -50,7 +51,7 @@ final class SoapPeerProcess implements AutoCloseable {
     }
 
     static SoapPeerProcess metroServer(String profile, String version, boolean mutualTls) throws Exception {
-        String tls = mutualTls ? System.getProperty("soap.peer.tls.directory") : "";
+        String tls = mutualTls ? tlsDirectory() : "";
         return server("metro", List.of("server", profile, version, tls));
     }
 
@@ -107,7 +108,7 @@ final class SoapPeerProcess implements AutoCloseable {
     }
 
     static String tlsDirectory() {
-        return System.getProperty("soap.peer.tls.directory");
+        return System.getProperty("soap.peer.tls.directory", "resource/certs/acceptance");
     }
 
     private static Map<String, Object> messageRequest(Map<String, Object> options, SOAPMessage message) throws Exception {
@@ -154,10 +155,11 @@ final class SoapPeerProcess implements AutoCloseable {
     }
 
     private static SoapPeerProcess start(String sdk, List<String> arguments) throws IOException {
-        String classpath = System.getProperty("soap." + sdk + ".peer.classpath");
-        if (StringUtils.isBlank(classpath)) {
-            throw new IllegalStateException("Official SOAP peer classpath is not configured");
+        String profile = "soap";
+        if (StringUtils.equals("axis", sdk)) {
+            profile = "axis";
         }
+        String classpath = JavaSdkPeerUtils.classpath(profile);
         Path log = Files.createTempFile(outputDirectory(), "peer-", ".log");
         Path java = Path.of(System.getProperty("java.home"), "bin", "java");
         List<String> command = new ArrayList<>();

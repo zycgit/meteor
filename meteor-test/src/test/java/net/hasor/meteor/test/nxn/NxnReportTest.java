@@ -10,11 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Stream;
 import javax.xml.parsers.DocumentBuilderFactory;
 import net.hasor.cobble.StringUtils;
@@ -28,10 +24,10 @@ import static org.junit.jupiter.api.Assertions.*;
 /** 报告完整性使用独立文件夹验证，不启动 Docker、Gradle 或协议对端。 */
 public class NxnReportTest {
     @TempDir
-    public Path temporary;
-    private Path root;
-    private Path build;
-    private Path manifestPath;
+    public  Path                temporary;
+    private Path                root;
+    private Path                build;
+    private Path                manifestPath;
     private Map<String, Object> manifest;
 
     @BeforeEach
@@ -70,6 +66,174 @@ public class NxnReportTest {
         Path selected = this.build.resolve("interoperability/selected-cases.json");
         List<Map<String, Object>> cases = readList(selected);
         assertEquals("test.First#first[vector]", cases.get(0).get("caseId"));
+    }
+
+    @Test
+    public void matrixDimensionsComeFromThePlanWithoutParsingDisplayNames() throws Exception {
+        // 两个普通显示名对应相反语言方向，维度只能从本轮计划精确关联。
+        this.declareMatrix("g1", "test.First#first[vector]", "java", "python");
+        this.declareMatrix("g2", "test.Second#second[vector]", "python", "java");
+        Map<String, Object> summary = this.aggregate();
+
+        // 固定矩阵统计不把运行期发现的旧场景伪装成静态计划。
+        assertEquals(list(), summary.get("aggregationErrors"));
+        Map<String, Object> matrix = child(summary, "matrixSummary");
+        assertEquals(2, matrix.get("planned"));
+        assertEquals(2, matrix.get("passed"));
+        assertEquals(1, entries(matrix, "byRpc").size());
+        assertEquals(list("2", "3"), entries(matrix, "byRpc").get(0).get("protocolVersions"));
+        assertEquals(2, entries(matrix, "byLanguage").size());
+        assertEquals("runtime", summary.get("legacyDiscovery"));
+        List<Map<String, Object>> results = entries(summary, "matrixResults");
+        Map<String, Object> provider = child(child(results.get(0), "matrix"), "provider");
+        assertEquals("java", provider.get("language"));
+        assertFalse(provider.containsKey("command"));
+        assertFalse(provider.containsKey("environment"));
+        String markdown = Files.readString(this.build.resolve("interoperability/report.md"));
+        assertTrue(markdown.contains("执行前计划 2 项"));
+        assertTrue(markdown.contains("提供者 `java` → 消费者 `python`"));
+    }
+
+    @Test
+    public void matrixGroupCannotChangeItsDeclaredWireProfile() throws Exception {
+        // 分组的运行范围必须与根计划一致，不能自行改成另一个传输组合。
+        this.declareMatrix("g1", "test.First#first[vector]", "java", "python");
+        entries(this.group(0), "matrixCases").get(0).put("wire", "different-wire");
+
+        this.assertError("changed its matrix case");
+    }
+
+    @Test
+    public void matrixProtocolVersionsRejectNonStringEntries() throws Exception {
+        // 版本是声明文本，不能把错误的数字或空值悄悄转换成另一份范围。
+        Map<String, Object> planned = this.declareMatrix( //
+                "g1", "test.First#first[vector]", "java", "python");
+        planned.put("protocolVersions", list("2", 3));
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, this::aggregate);
+        assertTrue(failure.getMessage().contains("protocolVersions must be a string array"));
+    }
+
+    @Test
+    public void reportedMatrixCannotOverrideThePlannedParticipants() throws Exception {
+        // XML 用例本身真实通过，但附带的消费者语言被逻辑报告篡改。
+        Map<String, Object> planned = this.declareMatrix( //
+                "g1", "test.First#first[vector]", "java", "python");
+        Map<String, Object> forged = new LinkedHashMap<>(planned);
+        forged.put("consumer", map("id", "other", "language", "cpp"));
+        Path selected = this.report("g1").resolve("selected-cases.json");
+        List<Map<String, Object>> reported = readList(selected);
+        reported.get(0).put("matrix", forged);
+        NxnReport.writeJson(selected, reported);
+
+        // 聚合拒绝冲突元数据，输出仍只能使用根计划中的真实双方。
+        Map<String, Object> summary = this.aggregate();
+        assertTrue(containsError(strings(summary, "aggregationErrors"), "conflicting matrix metadata"));
+        Map<String, Object> matrix = child(entries(summary, "matrixResults").get(0), "matrix");
+        assertEquals("python", child(matrix, "consumer").get("language"));
+    }
+
+    @Test
+    public void matrixCaseWithoutAGroupReportHasAnUnknownOutcome() throws Exception {
+        // 丢失工作进程报告后无法断言业务是否执行，不能补写通过或未执行。
+        this.declareMatrix("g1", "test.First#first[vector]", "java", "python");
+        Files.delete(this.report("g1").resolve("summary.json"));
+        Map<String, Object> summary = this.aggregate();
+
+        assertEquals(1, summary.get("tests"));
+        assertEquals(1, summary.get("passed"));
+        assertEquals(0, summary.get("notExecuted"));
+        assertEquals(1, summary.get("unknown"));
+        Map<String, Object> matrix = child(summary, "matrixSummary");
+        assertEquals(1, matrix.get("unknown"));
+        assertEquals(0, matrix.get("passed"));
+        assertEquals("unknown", entries(summary, "matrixResults").get(0).get("status"));
+    }
+
+    @Test
+    public void legacyUnknownOutcomesAreVisibleInTheOverallSummary() throws Exception {
+        // 旧场景报告完整，但某个已开始用例没有终态，不能归入未执行或通过。
+        String unknown = "test.First#unfinished[vector]";
+        this.update("g1", "summary.json", map( //
+                "plannedCases", list("test.First#first[vector]", unknown), //
+                "notExecutedCases", list(), "notExecuted", 0, "unknownCases", list(unknown), "unknown", 1));
+
+        // 不依赖标准矩阵或缺失工作组提示，顶层摘要也必须显示结果未知。
+        Map<String, Object> summary = this.aggregate();
+        assertEquals(1, summary.get("unknown"));
+        assertEquals(0, summary.get("notExecuted"));
+        assertEquals(false, summary.get("notExecutedUnknown"));
+        assertEquals(0, child(summary, "matrixSummary").get("planned"));
+        String markdown = Files.readString(this.build.resolve("interoperability/report.md"));
+        assertTrue(markdown.contains("已确认未执行 0 项，结果未知 1 项"));
+    }
+
+    @Test
+    public void matrixNotStartedCasesRemainSeparateFromUnknownOutcomes() throws Exception {
+        // 第一项已有 XML，后续固定计划未开始；工作组明确保留该未执行身份。
+        this.declareMatrix("g1", "test.First#first[vector]", "java", "python");
+        String missing = "test.First#later[second-vector]";
+        this.declareMatrix("g1", missing, "java", "python");
+        this.update("g1", "summary.json", map( //
+                "plannedCases", list("test.First#first[vector]", missing), //
+                "notExecutedCases", list(missing), "notExecuted", 1, "unknownCases", list(), "unknown", 0));
+
+        Map<String, Object> summary = this.aggregate();
+        assertEquals(2, summary.get("passed"));
+        assertEquals(1, summary.get("notExecuted"));
+        assertEquals(0, summary.get("unknown"));
+        Map<String, Object> matrix = child(summary, "matrixSummary");
+        assertEquals(2, matrix.get("planned"));
+        assertEquals(1, matrix.get("passed"));
+        assertEquals(1, matrix.get("notExecuted"));
+    }
+
+    @Test
+    public void preparationFailureNamesTheUnstartedMatrixCombination() throws Exception {
+        // 初始化错误是真实 XML 事件，原定 RPC 叶子没有执行结果。
+        this.replaceFirstGroup("failed");
+        this.rewriteFirstRpcCase("initializationError");
+        String caseId = "test.First#first[vector]";
+        this.declareMatrix("g1", caseId, "java", "python");
+        Map<String, Object> failure = map("caseId", "test.First#initializationError", //
+                "affectedCaseIds", list(caseId), "failure", "provider startup failed", //
+                "logs", map("stderr", "stderr.log"));
+        this.update("g1", "summary.json", map("plannedCases", list(caseId), //
+                "notExecutedCases", list(caseId), "notExecuted", 1, "preparationFailures", list(failure)));
+
+        // 准备失败保留双方和阶段，不伪造该 RPC 叶子为失败或成功 XML。
+        Map<String, Object> summary = this.aggregate();
+        assertEquals(2, summary.get("tests"));
+        Map<String, Object> result = entries(summary, "matrixResults").get(0);
+        assertEquals(caseId, result.get("caseId"));
+        assertEquals("preparation-failed", result.get("status"));
+        assertEquals("preparing", result.get("phase"));
+        assertEquals("python", child(child(result, "matrix"), "consumer").get("language"));
+        assertEquals(1, child(summary, "matrixSummary").get("preparationFailed"));
+        assertEquals(0, child(summary, "matrixSummary").get("failed"));
+    }
+
+    @Test
+    public void cleanupFailureDoesNotRewriteAPassedRpcResult() throws Exception {
+        // RPC 已通过，独立的关闭错误仍需影响整轮结果并定位原矩阵组合。
+        String caseId = "test.First#first[vector]";
+        this.declareMatrix("g1", caseId, "java", "python");
+        Map<String, Object> failure = map("caseId", "test.First#initializationError", //
+                "affectedCaseIds", list(caseId), "failure", "consumer close failed", //
+                "logs", map("stderr", "stderr.log"));
+        this.update("g1", "summary.json", map("cleanupFailures", list(failure)));
+
+        // 原始 XML 的通过证据不改写，矩阵结果单独说明清理失败。
+        Map<String, Object> summary = this.aggregate();
+        assertEquals(2, summary.get("passed"));
+        assertEquals(0, summary.get("failed"));
+        assertTrue(containsError(strings(summary, "aggregationErrors"), "preparation or cleanup failures"));
+        Map<String, Object> result = entries(summary, "matrixResults").get(0);
+        assertEquals("cleanup-failed", result.get("status"));
+        assertEquals("cleanup", result.get("phase"));
+        assertEquals(1, child(summary, "matrixSummary").get("cleanupFailed"));
+        assertEquals(0, child(summary, "matrixSummary").get("failed"));
+        assertEquals(0, child(summary, "matrixSummary").get("passed"));
     }
 
     @Test
@@ -1145,7 +1309,10 @@ public class NxnReportTest {
         // 用例身份及完整原因共同说明这一次失败。
         List<Map<String, Object>> failures = entries(this.aggregate(), "failedCases");
         Map<String, Object> expected = map("caseId", "test.First#first[vector]", //
-                "failure", "failed assertion");
+                "failure", "failed assertion", "groupId", "g1", "phase", "testing", //
+                "logs", map("stdout", "stdout.log", "stderr", "stderr.log", //
+                        "suiteStdout", "test-output/test.First.stdout.log", //
+                        "suiteStderr", "test-output/test.First.stderr.log"));
         assertEquals(list(expected), failures);
     }
 
@@ -1288,7 +1455,7 @@ public class NxnReportTest {
         // 摘要明确显示已确认的未执行项，跳过数量保持真实值。
         Path report = this.build.resolve("interoperability/report.md");
         String markdown = Files.readString(report, StandardCharsets.UTF_8);
-        assertTrue(markdown.contains("跳过 0 项，已确认未执行 1 项。"));
+        assertTrue(markdown.contains("跳过 0 项，已确认未执行 1 项，结果未知 0 项。"));
         assertTrue(markdown.contains("## 未执行用例\n\n- `" + missing + "`"));
         assertTrue(markdown.contains("结果：失败。"));
     }
@@ -1509,8 +1676,7 @@ public class NxnReportTest {
         return NxnReport.run(arguments);
     }
 
-    private void addGroup(String identity, String className, String scenario, String status, String selection)
-            throws Exception {
+    private void addGroup(String identity, String className, String scenario, String status, String selection) throws Exception {
         // 清单、原始 XML、逻辑报告和进程证据共同描述同一次执行。
         Path directory = this.root.resolve(identity);
         List<String> filters = list(selection == null ? className : selection);
@@ -1553,6 +1719,38 @@ public class NxnReportTest {
                 "reusedResults", false, "taskFailure", null));
         NxnReport.writeJson(report.resolve("summary.json"), summary);
         this.addProcess(directory.resolve("process"), identity, identity + "-jvm");
+    }
+
+    private Map<String, Object> declareMatrix(String groupId, String caseId, String provider, String consumer) throws Exception {
+        // 能力清单可包含进程配置，报告结果只能保留明确允许的双方身份字段。
+        Map<String, Object> endpoint = map("id", "provider-" + provider, "language", provider, //
+                "implementation", "Provider SDK", "version", "1.0", //
+                "command", list("java", "peer.Main"), "environment", map("PRIVATE_TOKEN", "not-result-data"));
+        Map<String, Object> peer = map("id", "consumer-" + consumer, "language", consumer, //
+                "implementation", "Consumer SDK", "version", "2.0");
+        Map<String, Object> testCase = map("caseId", caseId, "id", "vector", "api", "order-v1", //
+                "scenario", "save-find", "protocol", "dubbo", "protocolVersion", "", //
+                "protocolVersions", list("2", "3"), "wire", "dubbo-hessian2-tcp-clear", "discovery", "direct", //
+                "provider", endpoint, "consumer", peer);
+        this.manifest.computeIfAbsent("matrixCases", ignored -> new ArrayList<>());
+        entries(this.manifest, "matrixCases").add(testCase);
+        Map<String, Object> group = entries(this.manifest, "groups").stream() //
+                .filter(entry -> StringUtils.equals(groupId, (String) entry.get("id"))).findFirst().orElseThrow();
+        group.computeIfAbsent("matrixCases", ignored -> new ArrayList<>());
+        entries(group, "matrixCases").add(new LinkedHashMap<>(testCase));
+
+        // 每组显式持有其预定叶子，实际 XML 之外的计划项保持未执行。
+        List<String> planned = new ArrayList<>();
+        entries(group, "matrixCases").forEach(entry -> planned.add((String) entry.get("caseId")));
+        List<String> executed = new ArrayList<>();
+        readList(this.report(groupId).resolve("selected-cases.json")) //
+                .forEach(entry -> executed.add((String) entry.get("caseId")));
+        List<String> missing = new ArrayList<>(planned);
+        missing.removeAll(executed);
+        this.update(groupId, "summary.json", map("matrixCases", entries(group, "matrixCases"), //
+                "plannedCases", planned, "notExecutedCases", missing, "notExecuted", missing.size(), //
+                "unknownCases", list(), "unknown", 0));
+        return testCase;
     }
 
     private void declareRpcSelection() throws Exception {

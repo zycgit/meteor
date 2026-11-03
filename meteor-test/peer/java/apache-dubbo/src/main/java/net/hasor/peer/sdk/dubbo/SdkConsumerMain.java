@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.peer.sdk.dubbo;
+import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderExampleUtils;
 import net.hasor.example.OrderQuery;
@@ -42,10 +43,11 @@ public final class SdkConsumerMain {
             // 使用同一订单输入保存，再按编号查询，并打印查询结果。
             bootstrap.reference(reference).start();
             OrderDemoService orders = reference.get();
-            orders.save(OrderExampleUtils.newOrder(1001, "dubbo-sdk"));
+            Order order = OrderExampleUtils.newOrder(1001, "dubbo-sdk");
+            Order saved = orders.save(order);
             OrderQuery query = new OrderQuery();
-            query.setId(1001);
-            OrderExampleUtils.print(orders.find(query));
+            query.setId(order.getId());
+            OrderExampleUtils.print(saved, orders.find(query));
         } finally {
             bootstrap.destroy();
         }

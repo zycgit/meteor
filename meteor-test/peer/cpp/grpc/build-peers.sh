@@ -10,7 +10,11 @@ if [[ ! "$build_jobs" =~ ^[1-9][0-9]*$ ]]; then
     exit 2
 fi
 output_dir=$(cd -- "$output_dir" && pwd)
-prefix="$output_dir/prefix"
+prefix=${3:-"$output_dir/prefix"}
+test -f "$prefix/lib/pkgconfig/grpc++.pc" || {
+    printf 'Missing prepared gRPC SDK prefix: %s\n' "$prefix" >&2
+    exit 2
+}
 workspace="$output_dir/peer-work"
 export TMPDIR="$workspace/tmp"
 export HOME="$workspace/home"
@@ -23,34 +27,26 @@ mkdir -p "$generated"
 "$prefix/bin/protoc" -I "$contract_dir" --cpp_out="$generated" --grpc_out="$generated" \
     --plugin="protoc-gen-grpc=$prefix/bin/grpc_cpp_plugin" "$contract_dir/order.proto"
 protoc-c -I /usr/include --c_out="$generated" /usr/include/google/protobuf/wrappers.proto
-cat > "$workspace/CMakeLists.txt" <<'CMAKE'
-cmake_minimum_required(VERSION 3.22)
-project(meteor_grpc_version_peers LANGUAGES C CXX)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-find_package(Protobuf CONFIG REQUIRED)
-find_package(gRPC 1.85.0 EXACT CONFIG REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(PROTOBUF_C REQUIRED IMPORTED_TARGET libprotobuf-c)
-add_executable(order-peer "${PEER_SOURCE_DIR}/order_peer.cpp"
-    generated/order.pb.cc generated/order.grpc.pb.cc)
-target_include_directories(order-peer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/generated")
-target_link_libraries(order-peer PRIVATE gRPC::grpc++ protobuf::libprotobuf)
-set_target_properties(order-peer PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PEER_OUTPUT_DIR}/cpp")
-add_executable(echo-peer "${PEER_SOURCE_DIR}/../../c/grpc/echo_peer.c"
-    generated/google/protobuf/wrappers.pb-c.c)
-target_include_directories(echo-peer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/generated")
-target_compile_options(echo-peer PRIVATE -Werror=implicit-function-declaration)
-target_link_libraries(echo-peer PRIVATE gRPC::grpc PkgConfig::PROTOBUF_C)
-set_target_properties(echo-peer PROPERTIES LINKER_LANGUAGE CXX
-    RUNTIME_OUTPUT_DIRECTORY "${PEER_OUTPUT_DIR}/c")
-CMAKE
-cmake -S "$workspace" -B "$workspace/build" -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$prefix" \
-    -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON \
-    -DPEER_SOURCE_DIR="$source_dir" -DPEER_OUTPUT_DIR="$output_dir/peer" \
-    2>&1 | tee "$output_dir/peer-configure.log"
-cmake --build "$workspace/build" --parallel "$build_jobs" 2>&1 | tee "$output_dir/peer-build.log"
+# Runtime images contain compilers and installed SDK facts, without the SDK's CMake toolchain.
+export PKG_CONFIG_PATH="$prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+pkg-config --exact-version=1.85.0 grpc++
+read -r -a cpp_flags <<< "$(pkg-config --cflags grpc++ protobuf)"
+read -r -a cpp_libraries <<< "$(pkg-config --static --libs grpc++ protobuf)"
+read -r -a c_flags <<< "$(pkg-config --cflags grpc libprotobuf-c)"
+read -r -a c_libraries <<< "$(pkg-config --static --libs grpc libprotobuf-c)"
+{
+    # A linker group resolves the private static SDK graph without falling back to system gRPC.
+    g++ -std=c++17 -O2 -Wall -Wextra -pthread -I "$generated" "${cpp_flags[@]}" \
+        "$source_dir/order_peer.cpp" "$generated/order.pb.cc" "$generated/order.grpc.pb.cc" \
+        -Wl,--start-group "${cpp_libraries[@]}" -Wl,--end-group -ldl -lm -lrt \
+        -o "$output_dir/peer/cpp/order-peer"
+    gcc -std=c11 -O2 -Wall -Wextra -Werror=implicit-function-declaration -pthread \
+        -I "$generated" "${c_flags[@]}" -c "$source_dir/../../c/grpc/echo_peer.c" -o "$workspace/echo-peer.o"
+    gcc -std=c11 -O2 -Wall -Wextra -I "$generated" "${c_flags[@]}" \
+        -c "$generated/google/protobuf/wrappers.pb-c.c" -o "$workspace/wrappers.pb-c.o"
+    g++ -pthread "$workspace/echo-peer.o" "$workspace/wrappers.pb-c.o" \
+        -Wl,--start-group "${c_libraries[@]}" -Wl,--end-group -ldl -lm -lrt -o "$output_dir/peer/c/echo-peer"
+} 2>&1 | tee "$output_dir/peer-build.log"
 
 # Preserve the exact runtime libraries loaded by each independently runnable peer.
 {

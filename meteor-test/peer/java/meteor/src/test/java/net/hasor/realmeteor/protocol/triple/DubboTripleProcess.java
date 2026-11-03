@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 
 /** 独立官方 Dubbo Java 进程的所有者，协议行为由官方依赖实现。 */
 final class DubboTripleProcess implements AutoCloseable {
@@ -38,14 +39,14 @@ final class DubboTripleProcess implements AutoCloseable {
 
     static DubboTripleProcess start(String... arguments) throws IOException {
         // 独立 JVM 只加载官方 Dubbo 依赖和互通示例，不加载 Meteor 生产依赖。
-        return launch(System.getProperty("triple.peer.classpath"), List.of(arguments));
+        return launch(JavaSdkPeerUtils.classpath("dubbo"), List.of(arguments));
     }
 
     static DubboTripleProcess startLegacy(String... arguments) throws IOException {
         // 3.2.20 的原版服务端正确处理压缩首帧，用独立依赖验证出站 gzip。
         List<String> legacyArguments = new ArrayList<>(List.of(arguments));
         legacyArguments.add("--legacy=true");
-        return launch(System.getProperty("triple.peer.legacy.classpath"), legacyArguments);
+        return launch(JavaSdkPeerUtils.classpath("tripleLegacy"), legacyArguments);
     }
 
     private static DubboTripleProcess launch(String classpath, List<String> arguments) throws IOException {

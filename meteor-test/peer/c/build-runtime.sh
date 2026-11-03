@@ -37,13 +37,51 @@ bash "$source_dir/../cpp/hprose/build.sh" "$output_dir/cpp/hprose"
 bash "$source_dir/../cpp/connect/build.sh" "$output_dir/connect/cpp"
 bash "$source_dir/../cpp/hessian/build.sh" "$output_dir/hessian/cpp"
 
-# Extra releases reuse precompiled peers while retaining their own shared-library prefixes.
+# SDK prefixes belong to the image; every business peer is rebuilt from the current source snapshot.
 versions_dir=/opt/meteor-toolchain/sdk-versions
+require_sdk_file() {
+    test -e "$1" || {
+        printf 'Missing prepared native SDK file: %s; rebuild the SDK image\n' "$1" >&2
+        exit 2
+    }
+}
 for sdk in grpc thrift soap xmlrpc oncrpc jsonrpc; do
     for release in "$versions_dir/$sdk/"*; do
         version=$(basename "$release")
-        mkdir -p "$output_dir/versions/$sdk/$version"
-        cp -a "$release/peer/." "$output_dir/versions/$sdk/$version/"
+        destination="$output_dir/versions/$sdk/$version"
+        mkdir -p "$destination"
+        case "$sdk" in
+            grpc)
+                require_sdk_file "$release/prefix/include/grpcpp/grpcpp.h"
+                bash "$source_dir/../cpp/grpc/build-peers.sh" "$destination" 4 "$release/prefix"
+                cp -a "$destination/peer/." "$destination/"
+                ;;
+            thrift)
+                require_sdk_file "$release/install/include/thrift/Thrift.h"
+                bash "$source_dir/../cpp/thrift/build.sh" "$destination/cpp" "$release/install"
+                bash "$source_dir/thrift/build.sh" "$destination/c" "$release/install"
+                ;;
+            soap)
+                require_sdk_file "$release/prefix/include/stdsoap2.h"
+                SOAP_SDK_PREFIX="$release/prefix" bash "$source_dir/soap/build.sh" --output "$destination/c"
+                SOAP_SDK_PREFIX="$release/prefix" bash "$source_dir/../cpp/soap/build.sh" --output "$destination/cpp"
+                ;;
+            xmlrpc)
+                require_sdk_file "$release/prefix/bin/xmlrpc-c-config"
+                XMLRPC_C_CONFIG="$release/prefix/bin/xmlrpc-c-config" bash "$source_dir/xmlrpc/build.sh" "$destination/c"
+                XMLRPC_C_CONFIG="$release/prefix/bin/xmlrpc-c-config" bash "$source_dir/../cpp/xmlrpc/build.sh" "$destination/cpp"
+                ;;
+            oncrpc)
+                require_sdk_file "$release/prefix/include/tirpc/rpc/rpc.h"
+                make -B -C "$source_dir/order" "BUILD_DIR=$destination" \
+                    "TIRPC_INCLUDE=$release/prefix/include/tirpc" "LDLIBS=$release/prefix/lib/libtirpc.a -pthread"
+                ;;
+            jsonrpc)
+                require_sdk_file "$release/install/include/jsonrpccpp/client.h"
+                bash "$source_dir/../cpp/jsonrpc/build.sh" "$destination/cpp" "$release/install"
+                ;;
+        esac
+        find "$destination" -type f -executable -exec ldd -- {} + > "$destination/runtime-linked-libraries.txt"
     done
 done
 
@@ -67,6 +105,32 @@ find "$versions_dir" -type f \
     done
 find "$output_dir/versions" -type f -executable -exec sha256sum -- {} + \
     > "$preparation_dir/native-sdk-version-binaries.sha256"
+
+# NXN reads actual installed SDK identities and built executables, not a second version table.
+nxn_directory="$preparation_dir/sdk-versions/native"
+mkdir -p "$nxn_directory"
+latest_grpc=$(printf '%s\n' "$output_dir/versions/grpc/"* | sort -V | tail -n 1)
+latest_thrift=$(printf '%s\n' "$output_dir/versions/thrift/"* | sort -V | tail -n 1)
+latest_oncrpc=$(printf '%s\n' "$output_dir/versions/oncrpc/"* | sort -V | tail -n 1)
+test -x "$latest_grpc/cpp/order-peer"
+test -x "$latest_thrift/cpp/order-peer"
+test -x "$latest_oncrpc/c/provider"
+test -x "$latest_oncrpc/cpp/provider"
+jq -n --arg output "$output_dir" \
+    --arg tirpc "$(pkg-config --modversion libtirpc)" \
+    --arg grpc "$(pkg-config --modversion grpc++)" \
+    --arg thrift "$(pkg-config --modversion thrift)" \
+    --arg grpc_latest "$latest_grpc" --arg thrift_latest "$latest_thrift" --arg oncrpc_latest "$latest_oncrpc" \
+    '{profiles:{
+      cOncrpc:{version:$tirpc,sdk:"libtirpc",executable:($output+"/order/c")},
+      cppOncrpc:{version:$tirpc,sdk:"libtirpc",executable:($output+"/order/cpp")},
+      cOncrpcLatest:{version:($oncrpc_latest|split("/")|last),sdk:"libtirpc",executable:($oncrpc_latest+"/c")},
+      cppOncrpcLatest:{version:($oncrpc_latest|split("/")|last),sdk:"libtirpc",executable:($oncrpc_latest+"/cpp")},
+      grpcCurrent:{version:$grpc,sdk:"gRPC C++",executable:($output+"/cpp/grpc/order-peer")},
+      grpcLatest:{version:($grpc_latest|split("/")|last),sdk:"gRPC C++",executable:($grpc_latest+"/cpp/order-peer")},
+      thriftCurrent:{version:$thrift,sdk:"Apache Thrift C++",executable:($output+"/cpp/thrift/order-peer")},
+      thriftLatest:{version:($thrift_latest|split("/")|last),sdk:"Apache Thrift C++",executable:($thrift_latest+"/cpp/order-peer")}
+    }}' > "$nxn_directory/nxn-runtimes.json"
 jq -n --arg manifest "$output_dir/native-peer-runtime.json" \
     '{runtime:"native",manifest:$manifest}' > "$ready_file"
 printf '%s\n' "$ready_file"

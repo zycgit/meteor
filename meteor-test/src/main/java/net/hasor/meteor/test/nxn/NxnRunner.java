@@ -1,6 +1,4 @@
 package net.hasor.meteor.test.nxn;
-import net.hasor.cobble.StringUtils;
-
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.RandomAccessFile;
@@ -10,26 +8,14 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import com.fasterxml.jackson.databind.JsonNode;
+import net.hasor.cobble.StringUtils;
 
 /** Own the execution and cleanup of independent JUnit jobs in Compose-owned containers. */
 final class NxnRunner {
@@ -91,8 +77,7 @@ final class NxnRunner {
         }
     }
 
-    private static int runGroups(NxnPlan.Options options, AtomicBoolean interrupted, Map<String, Object> state)
-            throws Exception {
+    private static int runGroups(NxnPlan.Options options, AtomicBoolean interrupted, Map<String, Object> state) throws Exception {
         long started = System.nanoTime();
         Map<String, Object> runtime = NxnPlan.readObject(options.runtime);
         Map<String, Object> manifest = NxnPlan.prepare(options, runtime);
@@ -101,6 +86,7 @@ final class NxnRunner {
         timings.put("startedAt", NxnPlan.now());
         manifest.put("timings", timings);
         NxnPlan.writeJson(manifestPath, manifest);
+        NxnPlan.printSummary(manifest, System.out);
         List<Map<String, Object>> groups = groups(manifest);
         // 进度只由调度线程维护，不并发读取工作线程正在修改的分组结果。
         Map<String, Map<String, Object>> progress = new LinkedHashMap<>();
@@ -189,8 +175,7 @@ final class NxnRunner {
             manifest.put("orchestrationErrors", orchestrationFailures);
             NxnPlan.writeJson(manifestPath, manifest);
             Map<String, Object> summary = NxnReport.aggregate(manifestPath, options.buildDirectory, options.baseline);
-            Files.writeString(options.output.resolve("completed"),
-                    "Group execution and report validation completed.\n", StandardCharsets.UTF_8);
+            Files.writeString(options.output.resolve("completed"), "Group execution and report validation completed.\n", StandardCharsets.UTF_8);
             List<String> errors = NxnPlan.strings(summary.get("aggregationErrors"));
             errors.forEach(System.err::println);
             if (interrupted.get()) {
@@ -209,8 +194,7 @@ final class NxnRunner {
         }
     }
 
-    private static void readGroupOutput(Map<String, Map<String, Object>> progress, List<Future<?>> pending,
-            String runId, long now) {
+    private static void readGroupOutput(Map<String, Map<String, Object>> progress, List<Future<?>> pending, String runId, long now) {
         int index = 0;
         for (Map.Entry<String, Map<String, Object>> entry : progress.entrySet()) {
             boolean finished = pending.get(index++).isDone();
@@ -218,24 +202,20 @@ final class NxnRunner {
             Map<String, Object> observation = entry.getValue();
             Path directory = (Path) observation.get("directory");
             // attached exec 同时携带 JVM 输出和 Docker 自身诊断，作为唯一实时来源避免重复打印。
-            readProcessOutput(groupId, observation, directory.resolve("runner.log"),
-                    directory.resolve("runner-stderr.log"), finished);
+            readProcessOutput(groupId, observation, directory.resolve("runner.log"), directory.resolve("runner-stderr.log"), finished);
 
             // 机器进度与业务输出分开读取，任何标准输出都不承担内部控制协议。
-            readLines(directory.resolve("progress.jsonl"), observation, "progressOffset",
-                    json -> recordProgress(groupId, observation, runId, now, json), groupId);
+            readLines(directory.resolve("progress.jsonl"), observation, "progressOffset", json -> recordProgress(groupId, observation, runId, now, json), groupId);
             readPeerOutput(groupId, observation, runId, finished);
         }
     }
 
-    private static void readProcessOutput(String identity, Map<String, Object> observation, Path stdout,
-            Path stderr, boolean finished) {
+    private static void readProcessOutput(String identity, Map<String, Object> observation, Path stdout, Path stderr, boolean finished) {
         readOutput(identity, observation, stdout, "stdout", finished);
         readOutput(identity, observation, stderr, "stderr", finished);
     }
 
-    private static void readOutput(String identity, Map<String, Object> observation, Path log, String stream,
-            boolean finished) {
+    private static void readOutput(String identity, Map<String, Object> observation, Path log, String stream, boolean finished) {
         if (!Files.isRegularFile(log)) {
             return;
         }
@@ -303,8 +283,7 @@ final class NxnRunner {
         observation.put(stream + "CarriageReturn", afterCarriageReturn);
     }
 
-    private static void readLines(Path log, Map<String, Object> observation, String offset,
-            Consumer<String> consumer, String identity) {
+    private static void readLines(Path log, Map<String, Object> observation, String offset, Consumer<String> consumer, String identity) {
         if (!Files.isRegularFile(log)) {
             return;
         }
@@ -331,8 +310,7 @@ final class NxnRunner {
     }
 
     @SuppressWarnings("unchecked")
-    private static void readPeerOutput(String groupId, Map<String, Object> observation, String runId,
-            boolean groupFinished) {
+    private static void readPeerOutput(String groupId, Map<String, Object> observation, String runId, boolean groupFinished) {
         Path directory = ((Path) observation.get("directory")).resolve("process-evidence");
         Map<String, Map<String, Object>> peers = (Map<String, Map<String, Object>>) observation.get("peers");
         Set<String> completed = (Set<String>) observation.get("completedPeers");
@@ -341,8 +319,7 @@ final class NxnRunner {
         readLines(directory.resolve("peers.jsonl"), observation, "peerEventsOffset", json -> {
             try {
                 JsonNode event = NxnPlan.JSON.readTree(json);
-                boolean owned = event != null && StringUtils.equals(runId, event.path("runId").asText())
-                        && StringUtils.equals(groupId, event.path("groupId").asText());
+                boolean owned = event != null && StringUtils.equals(runId, event.path("runId").asText()) && StringUtils.equals(groupId, event.path("groupId").asText());
                 if (!owned) {
                     return;
                 }
@@ -372,8 +349,7 @@ final class NxnRunner {
             Map<String, Object> peer = entry.getValue();
             boolean finished = groupFinished || Boolean.TRUE.equals(peer.get("finished"));
             Path peerDirectory = (Path) peer.get("directory");
-            readProcessOutput(groupId + "][" + entry.getKey(), peer,
-                    peerDirectory.resolve("stdout.log"), peerDirectory.resolve("stderr.log"), finished);
+            readProcessOutput(groupId + "][" + entry.getKey(), peer, peerDirectory.resolve("stdout.log"), peerDirectory.resolve("stderr.log"), finished);
             if (finished) {
                 completed.add(entry.getKey());
                 entries.remove();
@@ -381,13 +357,10 @@ final class NxnRunner {
         }
     }
 
-    private static void recordProgress(String groupId, Map<String, Object> observation, String runId,
-            long now, String json) {
+    private static void recordProgress(String groupId, Map<String, Object> observation, String runId, long now, String json) {
         try {
             JsonNode snapshot = NxnPlan.JSON.readTree(json);
-            boolean valid = snapshot != null && snapshot.isObject()
-                    && StringUtils.equals(runId, snapshot.path("runId").asText())
-                    && StringUtils.equals(groupId, snapshot.path("groupId").asText());
+            boolean valid = snapshot != null && snapshot.isObject() && StringUtils.equals(runId, snapshot.path("runId").asText()) && StringUtils.equals(groupId, snapshot.path("groupId").asText());
             if (!valid) {
                 return;
             }
@@ -396,10 +369,27 @@ final class NxnRunner {
             if (snapshot.hasNonNull("failure")) {
                 String message = snapshot.path("case").asText() + ": " + snapshot.path("failure").asText();
                 System.out.println("[FAIL] " + groupId + " " + progressLine(message));
+                JsonNode matrix = snapshot.path("matrix");
+                if (matrix.isObject()) {
+                    String call = endpointLabel(matrix.path("consumer")) + " -> " + endpointLabel(matrix.path("provider"));
+                    System.out.println("[FAIL][matrix] " + matrix.path("api").asText() + "/" + matrix.path("scenario").asText() + " | " + matrix.path("protocol").asText() + " | " + matrix.path("wire").asText() + " | " + call + " | discovery=" + matrix.path("discovery").asText() + " | phase=" + snapshot.path("phase").asText());
+                    System.out.println("[FAIL][caseId] " + snapshot.path("caseId").asText());
+                    JsonNode logs = snapshot.path("logs");
+                    logs.fields().forEachRemaining(entry -> System.out.println("[FAIL][" + entry.getKey() + "] " + entry.getValue().asText()));
+                }
             }
         } catch (IOException failure) {
             progressWarning(observation, groupId, failure);
         }
+    }
+
+    private static String endpointLabel(JsonNode endpoint) {
+        String label = endpoint.path("language").asText() + "/" + endpoint.path("id").asText();
+        String version = endpoint.path("version").asText();
+        if (!version.isBlank()) {
+            label += "@" + version;
+        }
+        return label;
     }
 
     private static void progressWarning(Map<String, Object> observation, String groupId, IOException failure) {
@@ -417,8 +407,7 @@ final class NxnRunner {
         }
     }
 
-    private static void printProgress(Map<String, Map<String, Object>> progress, List<Future<?>> pending,
-            long started, long now) {
+    private static void printProgress(Map<String, Map<String, Object>> progress, List<Future<?>> pending, long started, long now) {
         long completedGroups = pending.stream().filter(Future::isDone).count();
         int completed = 0;
         int failed = 0;
@@ -432,8 +421,7 @@ final class NxnRunner {
             }
         }
         String elapsed = progressDuration(TimeUnit.NANOSECONDS.toMillis(now - started));
-        System.out.println("Progress: groups " + completedGroups + "/" + pending.size() + " finished; cases "
-                + completed + " completed; failed " + failed + "; skipped " + skipped + "; elapsed " + elapsed);
+        System.out.println("Progress: groups " + completedGroups + "/" + pending.size() + " finished; cases " + completed + " completed; failed " + failed + "; skipped " + skipped + "; elapsed " + elapsed);
 
         // 已完成组不反复展示；当前用例完成后，报告和远端进程清理仍属于工作组的生命周期。
         int index = 0;
@@ -523,8 +511,7 @@ final class NxnRunner {
         return command;
     }
 
-    static Map<String, Object> executeGroup(Map<String, Object> group, NxnPlan.Options options,
-            AtomicBoolean interrupted, AtomicBoolean failureStop) {
+    static Map<String, Object> executeGroup(Map<String, Object> group, NxnPlan.Options options, AtomicBoolean interrupted, AtomicBoolean failureStop) {
         Path directory = Path.of((String) group.get("outputDirectory"));
         long started = System.nanoTime();
         group.put("startedAt", NxnPlan.now());
@@ -566,8 +553,7 @@ final class NxnRunner {
             // The native supervisor proves the actual JVM exit independently of Docker's transport status.
             Map<String, Object> status = status(Path.of((String) group.get("launchFile")));
             String expectedProcess = options.runId + "-" + group.get("id") + "-junit";
-            if (!same(status.get("runId"), options.runId) || !same(status.get("groupId"), group.get("id"))
-                    || !same(status.get("processId"), expectedProcess)) {
+            if (!same(status.get("runId"), options.runId) || !same(status.get("groupId"), group.get("id")) || !same(status.get("processId"), expectedProcess)) {
                 throw new IllegalArgumentException("JVM exit evidence belongs to another run/group");
             }
             Object exitCode = status.get("exitCode");
@@ -575,8 +561,7 @@ final class NxnRunner {
                 throw new IllegalArgumentException("JVM exit evidence has no integer exitCode");
             }
             group.put("exitCode", ((Number) exitCode).intValue());
-            boolean clean = same(status.get("state"), "exited") && peerTreeCleaned(status)
-                    && !truthy(status.get("cleanupFailure")) && !truthy(status.get("error"));
+            boolean clean = same(status.get("state"), "exited") && peerTreeCleaned(status) && !truthy(status.get("cleanupFailure")) && !truthy(status.get("error"));
             if (!clean) {
                 cleanupFailures.add("Owned JVM process cleanup was not confirmed");
             }
@@ -629,8 +614,7 @@ final class NxnRunner {
             } catch (IOException failure) {
                 throw new IllegalStateException("Cannot preserve group execution evidence: " + directory, failure);
             }
-            System.out.println("Finished " + group.get("id") + ": exit " + group.get("exitCode")
-                    + ", " + group.get("wallSeconds") + " seconds");
+            System.out.println("Finished " + group.get("id") + ": exit " + group.get("exitCode") + ", " + group.get("wallSeconds") + " seconds");
         }
         return group;
     }
@@ -655,8 +639,7 @@ final class NxnRunner {
         }
     }
 
-    private static void cancelGroup(Map<String, Object> group, NxnPlan.Options options, boolean force)
-            throws IOException, InterruptedException {
+    private static void cancelGroup(Map<String, Object> group, NxnPlan.Options options, boolean force) throws IOException, InterruptedException {
         Path launch = Path.of((String) group.get("launchFile"));
         Map<String, Object> control = stopPeer(options.container, launch, force, options, 30);
         int exitCode = ((Number) control.get("exitCode")).intValue();
@@ -672,9 +655,7 @@ final class NxnRunner {
         Object state = status.get("state");
         Object pids = status.get("remainingPids");
         boolean terminal = same(state, "exited") || same(state, "failed");
-        return terminal && Boolean.TRUE.equals(status.get("processGroupEmpty"))
-                && pids instanceof List && ((List<?>) pids).isEmpty()
-                && Boolean.TRUE.equals(status.get("temporaryDirectoryRemoved"));
+        return terminal && Boolean.TRUE.equals(status.get("processGroupEmpty")) && pids instanceof List && ((List<?>) pids).isEmpty() && Boolean.TRUE.equals(status.get("temporaryDirectoryRemoved"));
     }
 
     static Map<String, Object> cleanupRemotePeers(Map<String, Object> group, NxnPlan.Options options) {
@@ -684,8 +665,7 @@ final class NxnRunner {
         List<Path> launchFiles = new ArrayList<>();
         if (Files.exists(evidence)) {
             try (Stream<Path> entries = Files.walk(evidence)) {
-                launchFiles = entries.filter(path -> same(path.getFileName().toString(), "launch.json"))
-                        .sorted().collect(Collectors.toList());
+                launchFiles = entries.filter(path -> same(path.getFileName().toString(), "launch.json")).sorted().collect(Collectors.toList());
             } catch (IOException failure) {
                 failures.add("Cannot enumerate remote peer launches: " + failure);
                 failure.printStackTrace(System.err);
@@ -708,8 +688,7 @@ final class NxnRunner {
         return result;
     }
 
-    private static Map<String, Object> auditRemotePeer(Map<String, Object> group, NxnPlan.Options options,
-            Path launchFile) {
+    private static Map<String, Object> auditRemotePeer(Map<String, Object> group, NxnPlan.Options options, Path launchFile) {
         Map<String, Object> record = new LinkedHashMap<>();
         record.put("processId", null);
         record.put("container", null);
@@ -747,8 +726,7 @@ final class NxnRunner {
                 throw new IllegalArgumentException("Remote peer metadata must be an object");
             }
             for (Map<String, Object> source : Arrays.asList(launch, metadata)) {
-                if (!same(source.get("processId"), processId) || !same(source.get("runId"), options.runId)
-                        || !same(source.get("groupId"), group.get("id"))) {
+                if (!same(source.get("processId"), processId) || !same(source.get("runId"), options.runId) || !same(source.get("groupId"), group.get("id"))) {
                     throw new IllegalArgumentException("Remote peer identity does not match its owning run/group");
                 }
             }
@@ -808,12 +786,9 @@ final class NxnRunner {
             Map<String, Object> finalStatus = NxnPlan.object(record.get("after"));
             if (!peerTreeCleaned(finalStatus)) {
                 failures.add("Remote peer process cleanup was not confirmed");
-            } else if (!same(finalStatus.get("processId"), processId)
-                    || !same(finalStatus.get("runId"), options.runId)
-                    || !same(finalStatus.get("groupId"), group.get("id"))) {
+            } else if (!same(finalStatus.get("processId"), processId) || !same(finalStatus.get("runId"), options.runId) || !same(finalStatus.get("groupId"), group.get("id"))) {
                 failures.add("Remote final status belongs to another process/run/group");
-            } else if (!same(finalStatus.get("state"), "exited") || truthy(finalStatus.get("error"))
-                    || truthy(finalStatus.get("cleanupFailure"))) {
+            } else if (!same(finalStatus.get("state"), "exited") || truthy(finalStatus.get("error")) || truthy(finalStatus.get("cleanupFailure"))) {
                 failures.add("Remote peer wrapper reported a lifecycle failure");
             }
         } catch (IOException | RuntimeException failure) {
@@ -841,8 +816,7 @@ final class NxnRunner {
         return null;
     }
 
-    private static Map<String, Object> stopPeer(String container, Path launchFile, boolean force,
-            NxnPlan.Options options, int timeoutSeconds) throws IOException, InterruptedException {
+    private static Map<String, Object> stopPeer(String container, Path launchFile, boolean force, NxnPlan.Options options, int timeoutSeconds) throws IOException, InterruptedException {
         List<String> command = new ArrayList<>();
         command.add(options.dockerExecutable);
         command.add("exec");

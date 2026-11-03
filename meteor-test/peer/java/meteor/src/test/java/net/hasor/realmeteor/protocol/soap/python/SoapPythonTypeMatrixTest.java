@@ -125,6 +125,8 @@ public class SoapPythonTypeMatrixTest {
     }
 
     private URL contract() throws Exception {
-        return Path.of(System.getProperty("python.soap.contract")).resolveSibling("types.wsdl").toUri().toURL();
+        String defaultContract = "/opt/meteor-peer/python-soap-generated/orders.wsdl";
+        Path contract = Path.of(System.getProperty("python.soap.contract", defaultContract));
+        return contract.resolveSibling("types.wsdl").toUri().toURL();
     }
 }

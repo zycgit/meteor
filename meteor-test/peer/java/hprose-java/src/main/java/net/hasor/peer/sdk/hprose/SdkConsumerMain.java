@@ -8,6 +8,7 @@
 package net.hasor.peer.sdk.hprose;
 import hprose.client.HproseHttpClient;
 import hprose.util.concurrent.Threads;
+import net.hasor.example.Order;
 import net.hasor.example.OrderDemoService;
 import net.hasor.example.OrderExampleUtils;
 import net.hasor.example.OrderQuery;
@@ -26,10 +27,11 @@ public final class SdkConsumerMain {
             OrderDemoService orders = client.useService(OrderDemoService.class, "orders");
 
             // 保存后按编号查询，结果保持为相同的普通 Java DTO。
-            orders.save(OrderExampleUtils.newOrder(1001, "hprose-sdk"));
+            Order order = OrderExampleUtils.newOrder(1001, "hprose-sdk");
+            Order saved = orders.save(order);
             OrderQuery query = new OrderQuery();
-            query.setId(1001);
-            OrderExampleUtils.print(orders.find(query));
+            query.setId(order.getId());
+            OrderExampleUtils.print(saved, orders.find(query));
         } finally {
             client.close();
             Threads.runShutdownHandler();

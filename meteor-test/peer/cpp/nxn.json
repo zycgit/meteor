@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "cpp-oncrpc", "language": "cpp", "implementation": "libtirpc",
+      "runtimeManifest": "../../build/preparation/sdk-versions/native/nxn-runtimes.json",
+      "launch": {
+        "provider": {"container": "native", "command": ["${executable}/provider"]},
+        "consumer": {"container": "native", "command": ["${executable}/consumer"]}
+      },
+      "capabilities": [
+        {
+          "id": "current", "api": "order-v1", "protocol": "oncrpc", "protocolVersion": "2",
+          "wire": "oncrpc-xdr-tcp-clear", "roles": ["provider", "consumer"],
+          "discoveries": ["direct"], "runtimeProfile": "cppOncrpc"
+        },
+        {
+          "id": "latest", "api": "order-v1", "protocol": "oncrpc", "protocolVersion": "2",
+          "wire": "oncrpc-xdr-tcp-clear", "roles": ["provider", "consumer"],
+          "discoveries": ["direct"], "runtimeProfile": "cppOncrpcLatest"
+        }
+      ]
+    },
+    {
+      "id": "cpp-grpc", "language": "cpp", "implementation": "gRPC C++",
+      "runtimeManifest": "../../build/preparation/sdk-versions/native/nxn-runtimes.json",
+      "launch": {
+        "provider": {"container": "native", "command": ["${executable}", "provider"]},
+        "consumer": {"container": "native", "command": ["${executable}", "consumer"]}
+      },
+      "capabilities": [
+        {
+          "id": "current", "api": "order-v1", "protocol": "grpc", "wire": "grpc-protobuf-http2-clear",
+          "roles": ["provider", "consumer"], "discoveries": ["direct"], "runtimeProfile": "grpcCurrent"
+        },
+        {
+          "id": "latest", "api": "order-v1", "protocol": "grpc", "wire": "grpc-protobuf-http2-clear",
+          "roles": ["provider", "consumer"], "discoveries": ["direct"], "runtimeProfile": "grpcLatest"
+        }
+      ]
+    },
+    {
+      "id": "cpp-thrift", "language": "cpp", "implementation": "Apache Thrift C++",
+      "runtimeManifest": "../../build/preparation/sdk-versions/native/nxn-runtimes.json",
+      "launch": {
+        "provider": {"container": "native", "command": ["${executable}", "provider"]},
+        "consumer": {"container": "native", "command": ["${executable}", "consumer"]}
+      },
+      "capabilities": [
+        {
+          "id": "current", "api": "order-v1", "protocol": "thrift", "wire": "thrift-binary-framed-tcp-clear",
+          "roles": ["provider", "consumer"], "discoveries": ["direct"], "runtimeProfile": "thriftCurrent"
+        },
+        {
+          "id": "latest", "api": "order-v1", "protocol": "thrift", "wire": "thrift-binary-framed-tcp-clear",
+          "roles": ["provider", "consumer"], "discoveries": ["direct"], "runtimeProfile": "thriftLatest"
+        }
+      ]
+    }
+  ]
+}

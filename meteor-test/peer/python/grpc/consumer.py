@@ -6,10 +6,14 @@
 import base64
 import json
 import os
+from pathlib import Path
 import sys
 from urllib.parse import urlsplit
 
 import grpc
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import nxn_control as nxn
 
 sys.path.insert(0, "/opt/meteor-peer/python-grpc-generated")
 import order_pb2
@@ -18,7 +22,9 @@ import order_pb2
 def main():
     # 创建固定挂载路径下的两个 RPC 方法。
     target = urlsplit(os.environ.get("METEOR_ORDER_TARGET", "grpc://127.0.0.1:8080/grpc"))
-    context_path = target.path.rstrip("/") or "/grpc"
+    context_path = target.path.rstrip("/")
+    if not nxn.enabled() and not context_path:
+        context_path = "/grpc"
     with grpc.insecure_channel(target.netloc) as channel:
         save = channel.unary_unary(
             context_path + "/meteor.example.OrderDemoService/save",
@@ -33,14 +39,19 @@ def main():
 
         # 保存订单，再按编号查询。
         order = order_pb2.Order(id=1001, description="Order from Python", attachment=b"Meteor")
-        save(order)
-        found = find(order_pb2.OrderQuery(id=1001))
+        if nxn.enabled():
+            order = order_pb2.Order(**nxn.request(binary=True))
+        saved = save(order, timeout=10)
+        found = find(order_pb2.OrderQuery(id=order.id), timeout=10)
         result = {
             "id": found.id,
             "description": found.description,
             "attachment": base64.b64encode(found.attachment).decode("ascii"),
         }
-        print(json.dumps(result, ensure_ascii=False))
+        if nxn.enabled():
+            nxn.result(result, {"id": saved.id, "description": saved.description, "attachment": saved.attachment})
+        else:
+            print(json.dumps(result, ensure_ascii=False))
 
 
 if __name__ == "__main__":

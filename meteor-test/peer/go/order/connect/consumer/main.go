@@ -29,7 +29,7 @@ func run() error {
 		target.Scheme = "http"
 	}
 	target.Path = strings.TrimRight(target.Path, "/")
-	if target.Path == "" {
+	if target.Path == "" && !order.NxnMode() {
 		target.Path = "/connect"
 	}
 
@@ -42,7 +42,10 @@ func run() error {
 	defer cancel()
 
 	// Save and query one order using the official Connect protocol and Protobuf encoding.
-	sample := order.Sample()
+	sample, err := order.Request()
+	if err != nil {
+		return err
+	}
 	saved, err := client.Save(ctx, connect.NewRequest(sample))
 	if err != nil {
 		return err

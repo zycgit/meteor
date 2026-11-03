@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Copyright 2015-2026 the original author or authors. Licensed under the Apache License, Version 2.0.
 import { createServer } from "node:http";
+import { orderReady } from "../order-nxn.mjs";
 
 const bindHost = process.env.METEOR_ORDER_BIND_HOST || "127.0.0.1";
 const bindPort = Number(process.env.METEOR_ORDER_PORT || "8080");
@@ -70,7 +71,7 @@ server.on("error", (error) => {
 });
 server.listen(bindPort, bindHost, () => {
     const port = server.address().port;
-    console.log(`Order provider is ready: http://${publishHost}:${port}/jsonrpc`);
+    orderReady(`http://${publishHost}:${port}/jsonrpc`);
 });
 const close = () => {
     server.close();

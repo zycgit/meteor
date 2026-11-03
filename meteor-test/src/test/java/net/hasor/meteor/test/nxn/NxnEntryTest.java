@@ -18,12 +18,12 @@ import static org.junit.jupiter.api.Assertions.*;
 /** 正式 Shell 入口使用私有假 Gradle，验证终端中断与重新启动，不访问 Docker 或校时服务。 */
 public class NxnEntryTest {
     @TempDir
-    public Path temporary;
-    private Path repository;
-    private Path entry;
-    private Path home;
-    private Map<String, String> environment;
-    private final List<Process> processes = new ArrayList<>();
+    public        Path                temporary;
+    private       Path                repository;
+    private       Path                entry;
+    private       Path                home;
+    private       Map<String, String> environment;
+    private final List<Process>       processes = new ArrayList<>();
 
     @BeforeEach
     public void prepareEntry() throws Exception {
@@ -303,13 +303,11 @@ public class NxnEntryTest {
     @Test
     public void rpcSelectionKeepsRepeatedTestcaseFilters() throws Exception {
         // 协议和具体 testcase 同时声明，由执行计划取交集。
-        Process process = start("first", "rpc", "grpc", "--tests", "FirstTest.call[json]",
-                "--tests", "SecondTest.some case");
+        Process process = start("first", "rpc", "grpc", "--tests", "FirstTest.call[json]", "--tests", "SecondTest.some case");
 
         // 重复筛选和值边界不会被协议目标覆盖。
         assertEquals(0, awaitExit(process));
-        List<String> expected = List.of(":meteor-test:dockerTest", "--rpc", "grpc", "--tests",
-                "FirstTest.call[json]", "--tests", "SecondTest.some case");
+        List<String> expected = List.of(":meteor-test:dockerTest", "--rpc", "grpc", "--tests", "FirstTest.call[json]", "--tests", "SecondTest.some case");
         assertEquals(expected, arguments("first"));
     }
 
@@ -331,8 +329,7 @@ public class NxnEntryTest {
 
         // 转换只影响别名，参数的原始顺序保持不变。
         assertEquals(0, awaitExit(process));
-        List<String> expected = List.of(":meteor-test:dockerTest", "--groups", "4", "--console", "plain",
-                "--stacktrace");
+        List<String> expected = List.of(":meteor-test:dockerTest", "--groups", "4", "--console", "plain", "--stacktrace");
         assertEquals(expected, arguments("first"));
     }
 
@@ -348,15 +345,23 @@ public class NxnEntryTest {
     }
 
     @Test
-    public void unknownRpcFailsBeforeCheckingSudoIdentity() throws Exception {
-        // 错误协议在 sudo 身份查询及校时控制之前报告。
+    public void malformedRpcFailsBeforeCheckingSudoIdentity() throws Exception {
+        // 协议名语法错误在 sudo 身份查询及校时控制之前报告。
         this.environment.put("SUDO_USER", "developer");
-        Process process = start("first", "rpc", "missing");
+        Process process = start("first", "rpc", "invalid/protocol");
 
         // 不认识的协议不会启动测试，也不掩盖为身份错误。
         assertEquals(2, awaitExit(process));
-        assertTrue(output("first").contains("Unknown RPC protocol: missing"));
+        assertTrue(output("first").contains("Invalid RPC name: invalid/protocol"));
         assertNoExecution("first");
+    }
+
+    @Test
+    public void customRpcIsValidatedByTheDiscoveredCapabilityCatalog() throws Exception {
+        // 新端点声明新协议后，入口无需同步维护协议名单。
+        Process process = start("first", "rpc", "custom-rpc");
+        assertEquals(0, awaitExit(process));
+        assertEquals(List.of(":meteor-test:dockerTest", "--rpc", "custom-rpc"), arguments("first"));
     }
 
     @Test
@@ -559,8 +564,7 @@ public class NxnEntryTest {
         // 原命令退出码、参数和恢复日志都得到保留。
         assertEquals(42, awaitExit(process));
         assertTrue(output("first").contains("[fake-clock] restored"));
-        assertEquals(List.of(":meteor-test:dockerTest", "--groups", "2"),
-                Files.readAllLines(this.repository.resolve("first.arguments")));
+        assertEquals(List.of(":meteor-test:dockerTest", "--groups", "2"), Files.readAllLines(this.repository.resolve("first.arguments")));
     }
 
     @Test

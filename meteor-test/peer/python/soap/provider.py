@@ -4,9 +4,14 @@
 """使用 soapfish2 发布订单服务及 WSDL。"""
 
 import os
+from pathlib import Path
+import sys
 from wsgiref.simple_server import make_server
 
 from soapfish import soap, soap_dispatch, xsd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import nxn_control as nxn
 
 NAMESPACE = "urn:hasor:meteor:soap:orders"
 
@@ -77,7 +82,10 @@ def main():
     with make_server(bind_host, bind_port, None) as server:
         location = f"http://{publish_host}:{server.server_port}/soap/orders"
         server.set_app(application(location))
-        print(f"Order provider is ready: {location}?wsdl", flush=True)
+        if nxn.enabled():
+            nxn.ready(location)
+        else:
+            print(f"Order provider is ready: {location}?wsdl", flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:

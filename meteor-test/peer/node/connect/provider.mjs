@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 import { OrderDemoService } from "./generated/order_pb.js";
+import { orderReady } from "../order-nxn.mjs";
 
 const bindHost = process.env.METEOR_ORDER_BIND_HOST || "127.0.0.1";
 const bindPort = Number(process.env.METEOR_ORDER_PORT || "8080");
@@ -41,7 +42,7 @@ server.on("error", (error) => {
 });
 server.listen(bindPort, bindHost, () => {
     const port = server.address().port;
-    console.log(`Order provider is ready: http://${publishHost}:${port}/connect`);
+    orderReady(`http://${publishHost}:${port}/connect`);
 });
 const close = () => {
     server.close();

@@ -41,8 +41,8 @@ public final class SdkProviderMain {
             server.getXmlRpcServer().setHandlerMapping(mapping);
             Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown, "xmlrpc-sdk-shutdown"));
             server.start();
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("http", server.getPort(), "/xmlrpc"));
+            String target = OrderPeerSettings.publishAddress("http", server.getPort(), "/xmlrpc").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
 
             // 当前进程拥有 SDK HTTP 服务，退出时释放监听和工作线程。
             OrderExampleUtils.awaitShutdown();

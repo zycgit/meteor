@@ -4,6 +4,7 @@
  * See LICENSE.txt or https://www.apache.org/licenses/LICENSE-2.0
  */
 #include "order.h"
+#include "nxn_order.h"
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <stdio.h>
@@ -76,31 +77,73 @@ int main(void) {
     }
 
     // Save the ordinary order DTO, then read it back through the same published contract.
-    int id = 1001;
-    char *description = "meteor-order";
+    struct nxn_order_input nxn_input = {0};
+    if (nxn_order_enabled() && !nxn_order_read(&nxn_input)) {
+        clnt_destroy(client);
+        return 2;
+    }
+    int id = nxn_order_enabled() ? nxn_input.id : 1001;
+    char *description = nxn_order_enabled() ? (char *) nxn_input.description : "meteor-order";
     char attachment_text[] = "Meteor";
     OrderAttachment attachment = {
-        .OrderAttachment_len = sizeof(attachment_text) - 1,
-        .OrderAttachment_val = attachment_text
+        .OrderAttachment_len = nxn_order_enabled() ? (u_int) nxn_input.attachment_length : sizeof(attachment_text) - 1,
+        .OrderAttachment_val = nxn_order_enabled() ? (char *) nxn_input.attachment : attachment_text
     };
     OrderValue input = {.id = id, .description = &description, .attachment = &attachment};
     OrderValue *saved = order_save_1(&input, client);
     if (saved == NULL) {
         clnt_perror(client, "Cannot save order");
+        free(nxn_input.attachment);
+        clnt_destroy(client);
+        return 2;
+    }
+    if (nxn_order_enabled() && (saved->id != input.id || saved->description == NULL
+            || saved->attachment == NULL || strcmp(*saved->description, description) != 0
+            || saved->attachment->OrderAttachment_len != attachment.OrderAttachment_len
+            || memcmp(saved->attachment->OrderAttachment_val, attachment.OrderAttachment_val,
+                    attachment.OrderAttachment_len) != 0)) {
+        fputs("ONC RPC save returned a different NXN order\n", stderr);
+        xdr_free((xdrproc_t) xdr_OrderValue, (char *) saved);
+        free(nxn_input.attachment);
         clnt_destroy(client);
         return 2;
     }
 
-    xdr_free((xdrproc_t) xdr_OrderValue, (char *) saved);
+    if (!nxn_order_enabled()) {
+        xdr_free((xdrproc_t) xdr_OrderValue, (char *) saved);
+    }
     OrderValue *found = order_find_1(&id, client);
     if (found == NULL) {
         clnt_perror(client, "Cannot find order");
+        if (nxn_order_enabled()) {
+            xdr_free((xdrproc_t) xdr_OrderValue, (char *) saved);
+        }
+        free(nxn_input.attachment);
         clnt_destroy(client);
         return 2;
     }
 
-    print_order(found);
+    if (nxn_order_enabled()) {
+        if (found->description == NULL || found->attachment == NULL) {
+            fputs("NXN order response is missing description or attachment\n", stderr);
+            xdr_free((xdrproc_t) xdr_OrderValue, (char *) found);
+            xdr_free((xdrproc_t) xdr_OrderValue, (char *) saved);
+            free(nxn_input.attachment);
+            clnt_destroy(client);
+            return 2;
+        }
+        // rpcgen owns separate response storage for save and find; keep both actual RPC results alive.
+        nxn_order_result(saved->id, *saved->description,
+                (const unsigned char *) saved->attachment->OrderAttachment_val,
+                saved->attachment->OrderAttachment_len, found->id, *found->description,
+                (const unsigned char *) found->attachment->OrderAttachment_val,
+                found->attachment->OrderAttachment_len);
+        xdr_free((xdrproc_t) xdr_OrderValue, (char *) saved);
+    } else {
+        print_order(found);
+    }
     xdr_free((xdrproc_t) xdr_OrderValue, (char *) found);
+    free(nxn_input.attachment);
     clnt_destroy(client);
     return 0;
 }

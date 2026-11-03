@@ -6,12 +6,11 @@
  * https://www.hasor.net
  */
 package net.hasor.meteor.test.nxn;
-import net.hasor.cobble.StringUtils;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.*;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -19,15 +18,11 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import net.hasor.cobble.StringUtils;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 /** Reads immutable JUnit evidence and merges split parameterized suites. */
 final class NxnJUnitReport {
@@ -50,6 +45,7 @@ final class NxnJUnitReport {
                 if (className.isEmpty() || scenario.isEmpty()) {
                     throw new IllegalArgumentException("Testcase has no identity: " + path);
                 }
+
                 List<Element> failures = children(child, "failure");
                 failures.addAll(children(child, "error"));
                 String status = "passed";
@@ -58,6 +54,7 @@ final class NxnJUnitReport {
                 } else if (!children(child, "skipped").isEmpty()) {
                     status = "skipped";
                 }
+
                 String seconds = child.hasAttribute("time") ? child.getAttribute("time") : "0";
                 new BigDecimal(seconds);
                 Map<String, Object> entry = new LinkedHashMap<>();
@@ -66,6 +63,21 @@ final class NxnJUnitReport {
                 entry.put("scenario", scenario);
                 entry.put("seconds", seconds);
                 entry.put("status", status);
+                if (child.hasAttribute("phase")) {
+                    entry.put("phase", child.getAttribute("phase"));
+                }
+
+                Map<String, String> logs = new LinkedHashMap<>();
+                for (String name : List.of("stdout", "stderr", "suiteStdout", "suiteStderr")) {
+                    if (child.hasAttribute(name)) {
+                        logs.put(name, child.getAttribute(name));
+                    }
+                }
+
+                if (!logs.isEmpty()) {
+                    entry.put("logs", logs);
+                }
+
                 if (!failures.isEmpty()) {
                     StringBuilder message = new StringBuilder();
                     for (Element failure : failures) {
@@ -115,6 +127,7 @@ final class NxnJUnitReport {
                 String message = "Cannot merge different JUnit suites into " + destination.getFileName();
                 throw new IllegalArgumentException(message);
             }
+
             Element property = mergedDocument.createElement("property");
             property.setAttribute("name", "meteor.group." + source.getKey() + ".source");
             property.setAttribute("value", source.getValue().toString());
@@ -125,9 +138,11 @@ final class NxnJUnitReport {
                     properties.appendChild(mergedDocument.importNode(nodes.item(index), true));
                 }
             }
+
             for (Element testCase : children(suite, "testcase")) {
                 merged.appendChild(mergedDocument.importNode(testCase, true));
             }
+
             for (Map.Entry<String, StringBuilder> stream : output.entrySet()) {
                 for (Element node : children(suite, stream.getKey())) {
                     if (!stream.getValue().isEmpty()) {
@@ -137,11 +152,13 @@ final class NxnJUnitReport {
                     stream.getValue().append(node.getTextContent());
                 }
             }
+
             seconds = seconds.add(new BigDecimal(suite.hasAttribute("time") ? suite.getAttribute("time") : "0"));
             if (suite.hasAttribute("timestamp") && !suite.getAttribute("timestamp").isEmpty()) {
                 timestamps.add(suite.getAttribute("timestamp"));
             }
         }
+
         if (merged == null) {
             throw new IllegalArgumentException("No JUnit suites to merge");
         }
@@ -156,6 +173,7 @@ final class NxnJUnitReport {
         if (!timestamps.isEmpty()) {
             merged.setAttribute("timestamp", timestamps.stream().min(Comparator.naturalOrder()).orElseThrow());
         }
+
         for (Map.Entry<String, StringBuilder> stream : output.entrySet()) {
             if (!stream.getValue().isEmpty()) {
                 Element node = mergedDocument.createElement(stream.getKey());
@@ -163,6 +181,7 @@ final class NxnJUnitReport {
                 merged.appendChild(node);
             }
         }
+
         TransformerFactory transformerFactory = TransformerFactory.newInstance();
         transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
         transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");

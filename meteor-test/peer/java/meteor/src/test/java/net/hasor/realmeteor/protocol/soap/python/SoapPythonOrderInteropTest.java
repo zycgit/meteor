@@ -141,7 +141,8 @@ public class SoapPythonOrderInteropTest {
                  MetContext consumer = outgoing.buildContext(); //
                  ForeignServiceRegistrar registrar = registry == null ? null : new ForeignServiceRegistrar(registry)) {
                 consumer.start();
-                var contract = Path.of(System.getProperty("python.soap.contract")).toUri().toURL();
+                String defaultContract = "/opt/meteor-peer/python-soap-generated/orders.wsdl";
+                var contract = Path.of(System.getProperty("python.soap.contract", defaultContract)).toUri().toURL();
                 MetBindInfo<OrderDemoService> service = consumer.publisher() //
                         .rsfService(OrderDemoService.class).name("orders") //
                         .protocol("soap").aliasName("soap", "orders") //

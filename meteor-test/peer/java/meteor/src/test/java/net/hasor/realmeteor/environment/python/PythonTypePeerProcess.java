@@ -73,11 +73,14 @@ public final class PythonTypePeerProcess implements AutoCloseable {
         // 复用已锁定的 Python SDK 镜像，契约由 Docker 内的官方生成器准备。
         boolean grpc = StringUtils.equals(protocol, "grpc");
         String runtime = grpc ? "grpc" : "thrift";
-        Path existingScript = Path.of(System.getProperty("python." + runtime + ".script"));
+        Path peers = Path.of(System.getProperty("meteor.test.peerDirectory", "peer"));
+        Path defaultScript = peers.resolve("python").resolve(runtime).resolve("peer.py");
+        Path existingScript = Path.of(System.getProperty("python." + runtime + ".script", defaultScript.toString()));
         Path scripts = existingScript.getParent().getParent().resolve("types");
         Path vectors = Path.of(PythonTypePeerProcess.class.getResource("/data/types/values.json").toURI());
         List<String> command = new ArrayList<>();
-        command.add(System.getProperty("python." + runtime + ".executable"));
+        String executable = "/opt/meteor-peer/python-" + runtime + "/bin/python";
+        command.add(System.getProperty("python." + runtime + ".executable", executable));
         command.add(scripts.resolve(runtime + "_peer.py").toString());
         command.add(role);
         command.add("--generated");
@@ -96,7 +99,8 @@ public final class PythonTypePeerProcess implements AutoCloseable {
         }
 
         // 每个参数实例独享日志和容器，现有订单 peer 的契约、参数和行为保持独立。
-        Path directory = Path.of(System.getProperty("python." + runtime + ".logs")).resolve("types");
+        String logs = System.getProperty("python." + runtime + ".logs", "build/python-" + runtime + "-peer-logs");
+        Path directory = Path.of(logs).resolve("types");
         Files.createDirectories(directory);
         Path log = Files.createTempFile(directory, role + "-" + vector + "-", ".log");
         ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);

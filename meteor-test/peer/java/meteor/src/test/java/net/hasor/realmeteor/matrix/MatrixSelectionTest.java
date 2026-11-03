@@ -63,6 +63,46 @@ public class MatrixSelectionTest {
     }
 
     @Test
+    public void registryOrderSelectionKeepsEveryProtocolAndRegisteredDiscovery() {
+        // 普通直连订单迁入标准能力矩阵，注册入口仍枚举全部已有注册方式。
+        Collection<Object[]> cases = OrderRegistryMatrixTest.registryConfigurations();
+
+        // 边界与 Unicode 入口使用的共享参数仍包含直连，不能被迁移一起裁掉。
+        int expected = OrderProtocol.values().length * (OrderDiscovery.values().length - 1);
+        assertEquals(expected, cases.size());
+        for (Object[] selected : cases) {
+            assertNotEquals(OrderDiscovery.DIRECT, selected[1]);
+        }
+        int all = OrderProtocol.values().length * OrderDiscovery.values().length;
+        assertEquals(all, OrderSelfMatrixTest.configurations().size());
+    }
+
+    @Test
+    public void registryOrderSelectionPreservesTheRequestedProtocolAndRegistry() {
+        // 同时选中直连与 JDBC 时，注册入口只接收请求的 JDBC 组合。
+        System.setProperty("meteor.matrix.protocols", "grpc");
+        System.setProperty("meteor.matrix.discoveries", "direct,jdbc");
+        Collection<Object[]> cases = OrderRegistryMatrixTest.registryConfigurations();
+
+        // 排除直连不会扩大协议或注册方式的选择范围。
+        assertEquals(1, cases.size());
+        Object[] selected = cases.iterator().next();
+        assertEquals(OrderProtocol.GRPC, selected[0]);
+        assertEquals(OrderDiscovery.JDBC, selected[1]);
+    }
+
+    @Test
+    public void registryOrderSelectionRejectsAnEmptyRegisteredSelection() {
+        // 显式只选直连时，注册入口不能以零测试宣称执行成功。
+        System.setProperty("meteor.matrix.discoveries", "direct");
+        IllegalArgumentException failure = assertThrows( //
+                IllegalArgumentException.class, OrderRegistryMatrixTest::registryConfigurations);
+
+        // 错误指出空的注册矩阵，普通直连仍由标准能力矩阵负责。
+        assertTrue(failure.getMessage().contains("registry"));
+    }
+
+    @Test
     public void orderSelectionRejectsAnUnknownProtocolBesideAKnownProtocol() {
         // 合法条目不能掩盖同一列表中的拼写错误。
         System.setProperty("meteor.matrix.protocols", "grpc,typo");

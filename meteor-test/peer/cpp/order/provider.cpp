@@ -4,6 +4,7 @@
  */
 
 #include "order.h"
+#include "../../c/order/nxn_order.h"
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -142,8 +143,12 @@ int main() {
         const char *publishHost = std::getenv("METEOR_ORDER_PUBLISH_HOST");
         publishHost = publishHost == nullptr ? std::getenv("METEOR_TEST_PEER_HOST") : publishHost;
         publishHost = publishHost == nullptr ? host : publishHost;
-        std::cout << "Order provider is ready: oncrpc://" << publishHost << ':'
-                  << ntohs(address.sin_port) << std::endl;
+        if (nxn_order_enabled()) {
+            nxn_order_ready("oncrpc", publishHost, ntohs(address.sin_port));
+        } else {
+            std::cout << "Order provider is ready: oncrpc://" << publishHost << ':'
+                      << ntohs(address.sin_port) << std::endl;
+        }
         svc_run();
         svc_destroy(transport);
         throw std::runtime_error("ONC RPC event loop stopped");

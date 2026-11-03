@@ -8,6 +8,7 @@
 package net.hasor.peer.sdk.triple;
 import java.net.URI;
 import meteor.example.OrderDemoService;
+import net.hasor.example.Order;
 import net.hasor.example.OrderContract;
 import net.hasor.example.OrderExampleUtils;
 import net.hasor.example.OrderProtoUtils;
@@ -47,9 +48,11 @@ public final class SdkConsumerMain {
             // 使用同一订单输入保存，再按编号查询，并打印查询结果。
             bootstrap.reference(reference).start();
             OrderDemoService orders = reference.get();
-            orders.save(OrderProtoUtils.toProto(OrderExampleUtils.newOrder(1001, "triple-sdk")));
-            OrderContract.OrderQuery query = OrderContract.OrderQuery.newBuilder().setId(1001).build();
-            OrderExampleUtils.print(OrderProtoUtils.fromProto(orders.find(query)));
+            OrderContract.Order order = OrderProtoUtils.toProto(OrderExampleUtils.newOrder(1001, "triple-sdk"));
+            Order saved = OrderProtoUtils.fromProto(orders.save(order));
+            OrderContract.OrderQuery query = OrderContract.OrderQuery.newBuilder().setId(order.getId()).build();
+            Order found = OrderProtoUtils.fromProto(orders.find(query));
+            OrderExampleUtils.print(saved, found);
         } finally {
             bootstrap.destroy();
         }

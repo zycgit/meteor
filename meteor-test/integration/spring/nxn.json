@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "java-framework-spring",
+      "language": "java",
+      "implementation": "Meteor Spring",
+      "framework": "spring",
+      "classpathProperty": "meteor.test.framework.spring.classpath",
+      "launch": {
+        "provider": {
+          "container": "java",
+          "command": [
+            "java",
+            "-Xmx256m",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.framework.spring.ProviderMain",
+            "${settings}",
+            "${result}"
+          ]
+        },
+        "consumer": {
+          "container": "java",
+          "command": [
+            "java",
+            "-Xmx256m",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.framework.spring.ConsumerMain",
+            "${settings}",
+            "${result}"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "spring-rsf-registry",
+          "api": "order-v1",
+          "protocol": "rsf",
+          "protocolVersion": "1",
+          "wire": "rsf-java-framework-orders",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "jdbc",
+            "nacos",
+            "zookeeper"
+          ]
+        },
+        {
+          "id": "spring-dubbo-registry",
+          "api": "order-v1",
+          "protocol": "dubbo",
+          "protocolVersion": "",
+          "wire": "dubbo-hessian2-framework-orders",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "dubbo"
+          ],
+          "serialGroup": "native-registry"
+        }
+      ]
+    }
+  ]
+}

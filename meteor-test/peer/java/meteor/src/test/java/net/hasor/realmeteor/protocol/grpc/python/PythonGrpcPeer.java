@@ -75,8 +75,10 @@ final class PythonGrpcPeer implements AutoCloseable {
             String scenario) throws Exception {
         // SDK 和生成契约仅通过独立 Python 解释器加载，不进入 Java classpath。
         List<String> command = new ArrayList<>();
+        Path peers = Path.of(System.getProperty("meteor.test.peerDirectory", "peer"));
+        Path script = peers.resolve("python/grpc/peer.py");
         command.add("/opt/meteor-peer/python-grpc-" + version + "/bin/python");
-        command.add(System.getProperty("python.grpc.script"));
+        command.add(System.getProperty("python.grpc.script", script.toString()));
         command.add(role);
         command.add("--sdk-version");
         command.add(version);
@@ -95,7 +97,7 @@ final class PythonGrpcPeer implements AutoCloseable {
         }
 
         // 每次启动都保留独立日志，读取线程持续排空 stdout，避免子进程被缓冲区阻塞。
-        Path directory = Path.of(System.getProperty("python.grpc.logs"));
+        Path directory = Path.of(System.getProperty("python.grpc.logs", "build/python-grpc-peer-logs"));
         Files.createDirectories(directory);
         Path log = directory.resolve(role + "-" + UUID.randomUUID() + ".log");
         ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);

@@ -9,6 +9,7 @@ package net.hasor.peer.sdk.soap;
 import java.net.URI;
 import javax.xml.namespace.QName;
 import javax.xml.ws.Service;
+import net.hasor.example.Order;
 import net.hasor.example.OrderExampleUtils;
 import net.hasor.peer.sdk.OrderPeerSettings;
 
@@ -26,9 +27,11 @@ public final class SdkConsumerMain {
         MetroOrderService orders = service.getPort(portName, MetroOrderService.class);
 
         // 使用普通订单业务内容完成保存和查询，结果统一打印为 JSON。
-        orders.save(MetroOrder.from(OrderExampleUtils.newOrder(1001, "soap-sdk")));
+        Order order = OrderExampleUtils.newOrder(1001, "soap-sdk");
+        Order saved = orders.save(MetroOrder.from(order)).toOrder();
         MetroOrderQuery query = new MetroOrderQuery();
-        query.setId(1001);
-        OrderExampleUtils.print(orders.find(query).toOrder());
+        query.setId(order.getId());
+        Order found = orders.find(query).toOrder();
+        OrderExampleUtils.print(saved, found);
     }
 }

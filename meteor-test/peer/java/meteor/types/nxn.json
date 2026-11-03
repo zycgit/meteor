@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "java-meteor-types",
+      "language": "java",
+      "implementation": "Meteor",
+      "classpathProperty": "meteor.test.application.classpath",
+      "launch": {
+        "provider": {
+          "container": "java-meteor-peer",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "-Xmx256m",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.application.StandardTypeApplicationMain",
+            "${api}",
+            "${protocol}",
+            "Provider"
+          ]
+        },
+        "consumer": {
+          "container": "java-meteor",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "-Xmx256m",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.application.StandardTypeApplicationMain",
+            "${api}",
+            "${protocol}",
+            "Consumer"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "scalar-v1-rsf",
+          "api": "scalar-v1",
+          "protocol": "rsf",
+          "protocolVersion": "1",
+          "wire": "rsf-json-tcp-clear-scalar-v1",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        },
+        {
+          "id": "scalar-v1-jsonrpc",
+          "api": "scalar-v1",
+          "protocol": "jsonrpc",
+          "protocolVersion": "2.0",
+          "wire": "jsonrpc2-json-http1-clear-scalar-v1",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        },
+        {
+          "id": "scalar-v1-hessian",
+          "api": "scalar-v1",
+          "protocol": "hessian",
+          "protocolVersion": "2",
+          "wire": "hessian2-http1-clear-scalar-v1",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        },
+        {
+          "id": "complex-v1-rsf",
+          "api": "complex-v1",
+          "protocol": "rsf",
+          "protocolVersion": "1",
+          "wire": "rsf-json-tcp-clear-complex-v1",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        },
+        {
+          "id": "complex-v1-jsonrpc",
+          "api": "complex-v1",
+          "protocol": "jsonrpc",
+          "protocolVersion": "2.0",
+          "wire": "jsonrpc2-json-http1-clear-complex-v1",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        },
+        {
+          "id": "complex-v1-hessian",
+          "api": "complex-v1",
+          "protocol": "hessian",
+          "protocolVersion": "2",
+          "wire": "hessian2-http1-clear-complex-v1",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ]
+        }
+      ]
+    }
+  ]
+}

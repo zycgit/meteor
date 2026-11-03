@@ -35,9 +35,9 @@ final class MeteorOrderContainerProcess implements AutoCloseable {
 
     static MeteorOrderContainerProcess start(String role, Path home, String address) throws Exception {
         // 测试编译输出和依赖缓存由容器共享卷提供，类路径由 Gradle 已解析结果直接传入。
-        String classpath = System.getProperty("meteor.test.container.javaClasspath");
+        String classpath = System.getProperty("meteor.test.application.classpath");
         if (StringUtils.isBlank(classpath)) {
-            throw new IllegalStateException("meteor.test.container.javaClasspath is required");
+            throw new IllegalStateException("meteor.test.application.classpath is required");
         }
         List<String> command = new ArrayList<>();
         command.add("java");

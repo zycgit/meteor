@@ -7,6 +7,7 @@
  */
 package net.hasor.peer.sdk.thrift;
 import net.hasor.example.OrderDemoServiceImpl;
+import net.hasor.example.OrderExampleUtils;
 import net.hasor.peer.sdk.OrderPeerSettings;
 import net.hasor.peer.sdk.thrift.generated.OrderThriftService;
 import org.apache.thrift.TProcessor;
@@ -35,8 +36,9 @@ public final class SdkProviderMain {
             Runtime.getRuntime().addShutdownHook(new Thread(server::stop, "thrift-sdk-provider-shutdown"));
 
             // 在当前线程接受连接，Ctrl+C 关闭服务。
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("tcp", listener.getServerSocket().getLocalPort(), ""));
+            int actualPort = listener.getServerSocket().getLocalPort();
+            String target = OrderPeerSettings.publishAddress("tcp", actualPort, "").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
             server.serve();
         }
     }

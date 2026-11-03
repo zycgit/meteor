@@ -4,7 +4,12 @@
 """使用 Python 标准库发布 XML-RPC 订单服务。"""
 
 import os
+from pathlib import Path
+import sys
 from xmlrpc.server import SimpleXMLRPCRequestHandler, SimpleXMLRPCServer
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import nxn_control as nxn
 
 
 class OrderService:
@@ -36,7 +41,11 @@ def main():
         service = OrderService()
         server.register_function(service.save, "orders.save")
         server.register_function(service.find, "orders.find")
-        print(f"Order provider is ready: http://{publish_host}:{server.server_address[1]}/xmlrpc", flush=True)
+        target = f"http://{publish_host}:{server.server_address[1]}/xmlrpc"
+        if nxn.enabled():
+            nxn.ready(target)
+        else:
+            print(f"Order provider is ready: {target}", flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:

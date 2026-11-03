@@ -7,9 +7,14 @@ import copy
 from importlib import import_module
 from importlib.metadata import version
 import json
+import os
+from pathlib import Path
 import sys
 import threading
 from waitress.server import create_server
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import nxn_control as nxn
 
 
 def provider(bindings):
@@ -30,7 +35,11 @@ def provider(bindings):
     server = create_server(application, host="0.0.0.0", port=0, threads=2)
     worker = threading.Thread(target=server.run, daemon=True)
     worker.start()
-    print(f"READY {server.effective_port}", flush=True)
+    if nxn.enabled():
+        host = os.environ.get("METEOR_ORDER_PUBLISH_HOST", os.environ.get("METEOR_TEST_PEER_HOST", "127.0.0.1"))
+        nxn.ready(f"http://{host}:{server.effective_port}/")
+    else:
+        print(f"READY {server.effective_port}", flush=True)
 
     # EOF is the scenario owner's shutdown signal; no process or shared container is abandoned.
     try:
@@ -49,7 +58,11 @@ def consumer(bindings, messages, arguments):
     if arguments.protocol == "grpc-web":
         protocol = ProtocolType.GRPC_WEB
     request = messages.Order(id=1001, description="Python Connect 订单 🙂", attachment=b"Meteor")
-    with bindings.OrderDemoServiceClientSync(arguments.target, protocol=protocol,
+    target = arguments.target
+    if nxn.enabled():
+        request = messages.Order(**nxn.request(binary=True))
+        target = os.environ["METEOR_ORDER_TARGET"]
+    with bindings.OrderDemoServiceClientSync(target, protocol=protocol,
                                            send_compression=None, timeout_ms=10000) as client:
         saved = client.save(request)
         found = client.find(messages.OrderQuery(id=request.id))
@@ -59,7 +72,10 @@ def consumer(bindings, messages, arguments):
     # JSON is control-plane evidence; it is never the RPC payload codec.
     result = {"id": found.id, "description": found.description,
               "attachment": base64.b64encode(found.attachment).decode("ascii")}
-    print("RESULT " + json.dumps(result, ensure_ascii=False), flush=True)
+    if nxn.enabled():
+        nxn.result(result, {"id": saved.id, "description": saved.description, "attachment": saved.attachment})
+    else:
+        print("RESULT " + json.dumps(result, ensure_ascii=False), flush=True)
 
 
 def main():

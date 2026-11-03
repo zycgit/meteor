@@ -33,8 +33,9 @@ public final class SdkProviderMain extends HproseService implements AutoCloseabl
         try (SdkProviderMain provider = new SdkProviderMain()) {
             Runtime.getRuntime().addShutdownHook(new Thread(provider::close, "hprose-sdk-shutdown"));
             provider.server.start();
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("http", provider.server.getAddress().getPort(), "/hprose"));
+            int actualPort = provider.server.getAddress().getPort();
+            String target = OrderPeerSettings.publishAddress("http", actualPort, "/hprose").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
             OrderExampleUtils.awaitShutdown();
         }
     }

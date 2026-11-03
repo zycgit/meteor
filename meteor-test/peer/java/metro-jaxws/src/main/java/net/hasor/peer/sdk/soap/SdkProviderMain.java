@@ -27,8 +27,9 @@ public final class SdkProviderMain {
                 endpoint.stop();
                 server.stop(0);
             }, "metro-order-provider-shutdown"));
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("http", server.getAddress().getPort(), "/soap/orders"));
+            int actualPort = server.getAddress().getPort();
+            String target = OrderPeerSettings.publishAddress("http", actualPort, "/soap/orders").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
 
             // Ctrl+C 时关闭服务。
             OrderExampleUtils.awaitShutdown();

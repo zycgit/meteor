@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "apis": [
+    {
+      "id": "order-v1",
+      "description": "Validate the actual save response and find response for the same int32 id, non-null text and binary attachment.",
+      "scenarios": [
+        {
+          "id": "save-find",
+          "method": "savesAndFindsOrder",
+          "request": {
+            "id": 1001,
+            "description": "nxn-order",
+            "attachment": "AAEAf/8="
+          }
+        }
+      ]
+    },
+    {
+      "id": "scalar-v1",
+      "description": "Typed boolean, int32, non-null text and bytes; the provider creates a receipt from caseId.",
+      "scenarios": [
+        {
+          "id": "echo",
+          "class": "net.hasor.realmeteor.matrix.standard.StandardTypeMatrixTest",
+          "method": "typedApiPreservesDeclaredValues",
+          "request": {
+            "caseId": "nxn-scalar-v1",
+            "booleanValue": true,
+            "int32Value": -2147483648,
+            "textValue": "NXN 类型往返 <&>",
+            "binaryValue": "AAEAf/8=",
+            "receipt": "client-scalar"
+          }
+        }
+      ]
+    },
+    {
+      "id": "complex-v1",
+      "description": "Concrete nested objects, ordered lists and typed maps; each method creates a server-side receipt.",
+      "scenarios": [
+        {
+          "id": "document",
+          "class": "net.hasor.realmeteor.matrix.standard.StandardTypeMatrixTest",
+          "method": "typedApiPreservesDeclaredValues",
+          "request": {
+            "document": {
+              "documentId": 42,
+              "customer": {
+                "code": "customer_A",
+                "name": "Alice <Retail> & \"Partners\"",
+                "verified": true,
+                "rating": 4.5
+              },
+              "lines": [
+                {
+                  "sku": "SKU_A",
+                  "quantity": 3,
+                  "unitPrice": 19.25
+                },
+                {
+                  "sku": "SKU_B",
+                  "quantity": 4,
+                  "unitPrice": 48.5
+                }
+              ],
+              "route": [
+                "warehouse_A",
+                "store_B"
+              ],
+              "receipt": "client-document"
+            }
+          }
+        },
+        {
+          "id": "index",
+          "class": "net.hasor.realmeteor.matrix.standard.StandardTypeMatrixTest",
+          "method": "typedApiPreservesDeclaredValues",
+          "request": {
+            "index": {
+              "revision": 9,
+              "linesByCode": {
+                "firstLine": {
+                  "sku": "SKU_A",
+                  "quantity": 3,
+                  "unitPrice": 19.25
+                },
+                "secondLine": {
+                  "sku": "SKU_B",
+                  "quantity": 4,
+                  "unitPrice": 48.5
+                }
+              },
+              "stockByCode": {
+                "warehouse_A": 5,
+                "warehouse_B": 7
+              },
+              "receipt": "client-index"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

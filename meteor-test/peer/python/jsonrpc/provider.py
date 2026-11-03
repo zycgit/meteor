@@ -5,7 +5,12 @@
 
 import json
 import os
+from pathlib import Path
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import nxn_control as nxn
 
 
 class OrderRequestHandler(BaseHTTPRequestHandler):
@@ -32,7 +37,11 @@ def main():
     bind_port = int(os.environ.get("METEOR_ORDER_PORT", "8080"))
     publish_host = os.environ.get("METEOR_ORDER_PUBLISH_HOST", os.environ.get("METEOR_TEST_PEER_HOST", bind_host))
     with HTTPServer((bind_host, bind_port), OrderRequestHandler) as server:
-        print(f"Order provider is ready: http://{publish_host}:{server.server_address[1]}/jsonrpc", flush=True)
+        target = f"http://{publish_host}:{server.server_address[1]}/jsonrpc"
+        if nxn.enabled():
+            nxn.ready(target)
+        else:
+            print(f"Order provider is ready: {target}", flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:

@@ -6,10 +6,6 @@
  * https://www.hasor.net
  */
 package net.hasor.meteor.test.nxn;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import net.hasor.cobble.StringUtils;
-import net.hasor.cobble.ObjectUtils;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -17,25 +13,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.HexFormat;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import net.hasor.cobble.ObjectUtils;
+import net.hasor.cobble.StringUtils;
 
 /** Validates and merges evidence from the current persistent-container JUnit groups. */
 public final class NxnReport {
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final Pattern SDK_CASE = Pattern.compile(
-            "\\[sdk/([^/\\[\\]\\r\\n]+)/([^/\\[\\]\\r\\n]+)/([^/@\\[\\]\\r\\n]+)@([^/\\[\\]\\r\\n]+)/"
-                    + "([^/\\[\\]\\r\\n]+)(?:/(SDK-to-Meteor|Meteor-to-SDK))?\\]$");
+    private static final ObjectMapper JSON     = new ObjectMapper();
+    private static final Pattern      SDK_CASE = Pattern.compile("\\[sdk/([^/\\[\\]\\r\\n]+)/([^/\\[\\]\\r\\n]+)/([^/@\\[\\]\\r\\n]+)@([^/\\[\\]\\r\\n]+)/" + "([^/\\[\\]\\r\\n]+)(?:/(SDK-to-Meteor|Meteor-to-SDK))?\\]$");
 
     private NxnReport() {
     }
@@ -75,8 +64,7 @@ public final class NxnReport {
         }
     }
 
-    public static Map<String, Object> aggregate(Path manifestPath, Path buildDirectory, Path baselinePath)
-            throws Exception {
+    public static Map<String, Object> aggregate(Path manifestPath, Path buildDirectory, Path baselinePath) throws Exception {
         Map<String, Object> manifest = object(readJson(manifestPath));
         if (!integerEquals(manifest.get("schemaVersion"), 3)) {
             throw new IllegalArgumentException("Expected persistent-container manifest schemaVersion 3");
@@ -97,6 +85,7 @@ public final class NxnReport {
         // 本轮清单是唯一输入，清理总结果目录中的旧 XML 后再收集当前分组。
         List<String> errors = new ArrayList<>();
         validateAssignments(manifest, errors);
+        validateMatrixAssignments(manifest, errors);
         errors.addAll(strings(manifest.getOrDefault("orchestrationErrors", List.of())));
         Files.createDirectories(report);
         Path results = buildDirectory.resolve("test-results/test");
@@ -108,6 +97,7 @@ public final class NxnReport {
         List<Map<String, Object>> details = new ArrayList<>();
         List<String> plannedCases = new ArrayList<>();
         List<String> notExecutedCases = new ArrayList<>();
+        List<String> unknownCases = new ArrayList<>();
         Map<String, Map<String, Path>> suites = new LinkedHashMap<>();
         Set<String> executedClasses = new LinkedHashSet<>();
         boolean rpcSelection = present(manifest.get("rpc"));
@@ -119,6 +109,7 @@ public final class NxnReport {
             details.add(detail);
             plannedCases.addAll(strings(detail.getOrDefault("plannedCases", List.of())));
             notExecutedCases.addAll(strings(detail.getOrDefault("notExecutedCases", List.of())));
+            unknownCases.addAll(strings(detail.getOrDefault("unknownCases", List.of())));
             Set<String> currentClasses = new LinkedHashSet<>();
             for (Map<String, Object> testCase : current) {
                 currentClasses.add(string(testCase.get("className")));
@@ -187,6 +178,11 @@ public final class NxnReport {
                 Map<String, Object> failure = new LinkedHashMap<>();
                 failure.put("caseId", testCase.get("caseId"));
                 failure.put("failure", testCase.get("failure"));
+                for (String name : List.of("groupId", "phase", "logs", "matrix")) {
+                    if (testCase.containsKey(name)) {
+                        failure.put(name, testCase.get(name));
+                    }
+                }
                 failedCases.add(failure);
             }
         }
@@ -207,6 +203,9 @@ public final class NxnReport {
         summary.put("plannedCases", plannedCases);
         summary.put("notExecuted", notExecutedCases.size());
         summary.put("notExecutedCases", notExecutedCases);
+        unknownCases.sort(String::compareTo);
+        summary.put("unknown", unknownCases.size());
+        summary.put("unknownCases", unknownCases);
         summary.put("notExecutedUnknown", anyTrue(details, "notExecutedUnknown"));
         summary.put("classes", executedClasses.size());
         summary.put("resultsAvailable", !cases.isEmpty());
@@ -235,6 +234,10 @@ public final class NxnReport {
         summary.put("timings", timings);
         summary.put("baseline", baseline);
         summary.put("groups", details);
+        List<Map<String, Object>> matrixResults = matrixResults(manifest, cases, details);
+        summary.put("matrixResults", matrixResults);
+        summary.put("matrixSummary", matrixSummary(matrixResults));
+        summary.put("legacyDiscovery", "runtime");
         Path copiedResults = report.resolve("test-results");
         Files.createDirectories(copiedResults);
         for (Path source : xmlFiles(results)) {
@@ -246,6 +249,251 @@ public final class NxnReport {
         writeMarkdown(report.resolve("report.md"), summary);
         System.out.println("Interoperability results: " + report);
         return summary;
+    }
+
+    private static List<Map<String, Object>> matrixPlan(Object value) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> testCase : objects(value == null ? List.of() : value)) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("caseId", string(testCase.get("caseId")));
+            entry.putAll(matrixMetadata(testCase));
+            result.add(entry);
+        }
+        return result;
+    }
+
+    private static Map<String, Object> matrixMetadata(Map<String, Object> testCase) {
+        // 结果只关联矩阵身份与双方能力，不复制启动命令、环境、请求或凭据。
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        for (String name : List.of("id", "api", "scenario", "protocol", "protocolVersion", "wire", "discovery")) {
+            if (testCase.containsKey(name)) {
+                metadata.put(name, string(testCase.get(name)));
+            }
+        }
+        if (testCase.containsKey("protocolVersions")) {
+            if (!(testCase.get("protocolVersions") instanceof List<?> values)) {
+                throw new IllegalArgumentException("Matrix protocolVersions must be a string array");
+            }
+            List<String> versions = new ArrayList<>();
+            for (Object value : values) {
+                if (!(value instanceof String version)) {
+                    throw new IllegalArgumentException("Matrix protocolVersions must be a string array");
+                }
+                versions.add(version);
+            }
+            metadata.put("protocolVersions", versions);
+        }
+        for (String role : List.of("provider", "consumer")) {
+            Map<String, Object> source = object(testCase.getOrDefault(role, Map.of()));
+            Map<String, Object> endpoint = new LinkedHashMap<>();
+            for (String name : List.of("id", "language", "implementation", "version", "framework", "runtimeProfile")) {
+                if (source.containsKey(name)) {
+                    endpoint.put(name, string(source.get(name)));
+                }
+            }
+            metadata.put(role, endpoint);
+        }
+        return metadata;
+    }
+
+    private static void validateMatrixAssignments(Map<String, Object> manifest, List<String> errors) {
+        Map<String, Map<String, Object>> expected = new LinkedHashMap<>();
+        for (Map<String, Object> testCase : matrixPlan(manifest.get("matrixCases"))) {
+            String caseId = string(testCase.get("caseId"));
+            if (caseId.isBlank() || expected.putIfAbsent(caseId, testCase) != null) {
+                errors.add("Matrix case identities must be present and unique: " + caseId);
+            }
+        }
+        List<String> assigned = new ArrayList<>();
+        for (Map<String, Object> group : objects(manifest.get("groups"))) {
+            for (Map<String, Object> testCase : matrixPlan(group.get("matrixCases"))) {
+                String caseId = string(testCase.get("caseId"));
+                assigned.add(caseId);
+                if (!testCase.equals(expected.get(caseId))) {
+                    errors.add("Group " + group.get("id") + " changed its matrix case: " + caseId);
+                }
+                int separator = caseId.indexOf('#');
+                if (separator < 1 || !strings(group.get("classes")).contains(caseId.substring(0, separator))) {
+                    errors.add("Group " + group.get("id") + " has a matrix case outside its classes: " + caseId);
+                }
+            }
+        }
+        if (!counts(assigned).equals(counts(new ArrayList<>(expected.keySet())))) {
+            errors.add("Matrix group assignments must cover selected cases exactly once");
+        }
+    }
+
+    private static void enrichCases(List<Map<String, Object>> cases, List<Map<String, Object>> reported, Map<String, Object> group, List<String> errors) {
+        Map<String, Map<String, Object>> matrix = new LinkedHashMap<>();
+        for (Map<String, Object> testCase : matrixPlan(group.get("matrixCases"))) {
+            matrix.put(string(testCase.get("caseId")), matrixMetadata(testCase));
+        }
+        Map<String, Map<String, Object>> reportedCases = new LinkedHashMap<>();
+        reported.forEach(testCase -> reportedCases.put(string(testCase.get("caseId")), testCase));
+        for (Map<String, Object> testCase : cases) {
+            String caseId = string(testCase.get("caseId"));
+            String className = string(testCase.get("className"));
+            testCase.put("groupId", group.get("id"));
+            String phase = string(testCase.get("phase"));
+            if (phase.isBlank()) {
+                phase = string(testCase.get("scenario")).startsWith("initializationError") ? "preparing" : "testing";
+            }
+            testCase.put("phase", phase);
+            Map<String, Object> logs = caseLogs(className);
+            logs.putAll(logPaths(testCase.get("logs")));
+            testCase.put("logs", logs);
+            Map<String, Object> metadata = matrix.get(caseId);
+            if (metadata != null) {
+                Map<String, Object> reportedCase = reportedCases.getOrDefault(caseId, Map.of());
+                if (reportedCase.containsKey("matrix") && !metadata.equals(object(reportedCase.get("matrix")))) {
+                    errors.add("Group " + group.get("id") + " reported conflicting matrix metadata: " + caseId);
+                }
+                testCase.put("matrix", metadata);
+            } else if (!string(testCase.get("scenario")).startsWith("initializationError")) {
+                boolean matrixClass = matrix.keySet().stream().anyMatch(id -> id.startsWith(className + "#"));
+                if (matrixClass) {
+                    errors.add("Group " + group.get("id") + " executed an unplanned matrix case: " + caseId);
+                }
+            }
+        }
+    }
+
+    private static Map<String, Object> caseLogs(String className) {
+        Map<String, Object> logs = new LinkedHashMap<>();
+        logs.put("stdout", "stdout.log");
+        logs.put("stderr", "stderr.log");
+        logs.put("suiteStdout", "test-output/" + className + ".stdout.log");
+        logs.put("suiteStderr", "test-output/" + className + ".stderr.log");
+        return logs;
+    }
+
+    private static Map<String, Object> logPaths(Object value) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        Map<String, Object> source = object(value == null ? Map.of() : value);
+        for (String name : List.of("stdout", "stderr", "suiteStdout", "suiteStderr")) {
+            if (source.get(name) instanceof String) {
+                result.put(name, source.get(name));
+            }
+        }
+        return result;
+    }
+
+    private static List<Map<String, Object>> matrixFailures(Object value, String phase) {
+        List<Map<String, Object>> failures = new ArrayList<>();
+        for (Map<String, Object> source : objects(value == null ? List.of() : value)) {
+            Map<String, Object> failure = new LinkedHashMap<>();
+            failure.put("caseId", string(source.get("caseId")));
+            failure.put("phase", phase);
+            failure.put("failure", string(source.get("failure")));
+            failure.put("affectedCaseIds", strings(source.getOrDefault("affectedCaseIds", List.of())));
+            failure.put("logs", logPaths(source.get("logs")));
+            failures.add(failure);
+        }
+        return failures;
+    }
+
+    private static List<Map<String, Object>> matrixResults(Map<String, Object> manifest, List<Map<String, Object>> cases, List<Map<String, Object>> groups) {
+        Map<String, Map<String, Object>> actual = new LinkedHashMap<>();
+        cases.forEach(testCase -> actual.put(string(testCase.get("caseId")), testCase));
+        Map<String, Map<String, Object>> owners = new LinkedHashMap<>();
+        for (Map<String, Object> group : groups) {
+            for (Map<String, Object> testCase : objects(group.get("matrixCases"))) {
+                owners.put(string(testCase.get("caseId")), group);
+            }
+        }
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (Map<String, Object> planned : matrixPlan(manifest.get("matrixCases"))) {
+            String caseId = string(planned.get("caseId"));
+            Map<String, Object> group = owners.getOrDefault(caseId, Map.of());
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("caseId", caseId);
+            result.put("groupId", group.get("id"));
+            result.put("matrix", matrixMetadata(planned));
+            Map<String, Object> execution = actual.get(caseId);
+            if (execution != null) {
+                for (String name : List.of("status", "phase", "seconds", "failure", "logs")) {
+                    if (execution.containsKey(name)) {
+                        result.put(name, execution.get(name));
+                    }
+                }
+            } else {
+                // 无终态证据保持未知；只有报告明确证明未启动时才记为未执行。
+                String status = "unknown";
+                if (strings(group.getOrDefault("notExecutedCases", List.of())).contains(caseId)) {
+                    status = "not-executed";
+                }
+                result.put("status", status);
+                result.put("phase", "unknown");
+            }
+            for (String category : List.of("preparationFailures", "cleanupFailures")) {
+                for (Map<String, Object> failure : objects(group.getOrDefault(category, List.of()))) {
+                    if (!strings(failure.get("affectedCaseIds")).contains(caseId)) {
+                        continue;
+                    }
+                    boolean preparing = StringUtils.equals("preparationFailures", category);
+                    result.put("status", preparing ? "preparation-failed" : "cleanup-failed");
+                    result.put("phase", failure.get("phase"));
+                    result.put("failure", failure.get("failure"));
+                    result.put("logs", failure.get("logs"));
+                }
+            }
+            results.add(result);
+        }
+        return results;
+    }
+
+    private static Map<String, Object> matrixSummary(List<Map<String, Object>> results) {
+        Map<String, Object> summary = matrixCounts();
+        Map<String, Map<String, Object>> byRpc = new TreeMap<>();
+        Map<String, Map<String, Object>> byLanguage = new TreeMap<>();
+        for (Map<String, Object> result : results) {
+            Map<String, Object> matrix = object(result.get("matrix"));
+            String protocol = string(matrix.get("protocol"));
+            String version = string(matrix.get("protocolVersion"));
+            List<String> versions = strings(matrix.getOrDefault("protocolVersions", List.of()));
+            String versionKey = version + "/" + String.join(",", versions);
+            Map<String, Object> rpc = byRpc.computeIfAbsent(protocol + "/" + versionKey, ignored -> {
+                Map<String, Object> entry = matrixCounts();
+                entry.put("protocol", protocol);
+                entry.put("protocolVersion", version);
+                entry.put("protocolVersions", versions);
+                return entry;
+            });
+            String provider = string(object(matrix.get("provider")).get("language"));
+            String consumer = string(object(matrix.get("consumer")).get("language"));
+            Map<String, Object> languages = byLanguage.computeIfAbsent(provider + "/" + consumer, ignored -> {
+                Map<String, Object> entry = matrixCounts();
+                entry.put("providerLanguage", provider);
+                entry.put("consumerLanguage", consumer);
+                return entry;
+            });
+            addMatrixCount(summary, string(result.get("status")));
+            addMatrixCount(rpc, string(result.get("status")));
+            addMatrixCount(languages, string(result.get("status")));
+        }
+        summary.put("byRpc", new ArrayList<>(byRpc.values()));
+        summary.put("byLanguage", new ArrayList<>(byLanguage.values()));
+        return summary;
+    }
+
+    private static Map<String, Object> matrixCounts() {
+        // 矩阵终态互斥计数，准备与清理失败单列；顶层失败数仍由原始 JUnit XML 决定。
+        Map<String, Object> counts = new LinkedHashMap<>();
+        for (String name : List.of("planned", "passed", "failed", "skipped", "notExecuted", "unknown", "preparationFailed", "cleanupFailed")) {
+            counts.put(name, 0);
+        }
+        return counts;
+    }
+
+    private static void addMatrixCount(Map<String, Object> counts, String status) {
+        counts.put("planned", (Integer) counts.get("planned") + 1);
+        String field = switch (status) {
+            case "preparation-failed" -> "preparationFailed";
+            case "cleanup-failed" -> "cleanupFailed";
+            case "not-executed" -> "notExecuted";
+            default -> status;
+        };
+        counts.put(field, (Integer) counts.get(field) + 1);
     }
 
     private static void writeMarkdown(Path destination, Map<String, Object> summary) throws IOException {
@@ -274,12 +522,44 @@ public final class NxnReport {
         markdown.append("。\n\n通过 ").append(summary.get("passed"));
         markdown.append(" 项，失败 ").append(summary.get("failed"));
         markdown.append(" 项，跳过 ").append(summary.get("skipped"));
-        markdown.append(" 项，已确认未执行 ").append(summary.get("notExecuted")).append(" 项。\n\n");
+        markdown.append(" 项，已确认未执行 ").append(summary.get("notExecuted"));
+        markdown.append(" 项，结果未知 ").append(summary.get("unknown")).append(" 项。\n\n");
         boolean unknown = Boolean.TRUE.equals(summary.get("notExecutedUnknown"));
         if (unknown) {
             markdown.append("部分工作组缺少完整执行报告，未执行总数不确定。\n\n");
         }
         markdown.append("详细结果：[summary.json](summary.json)\n");
+        Map<String, Object> matrix = object(summary.get("matrixSummary"));
+        if (!integerEquals(matrix.get("planned"), 0)) {
+            markdown.append("\n## 标准矩阵\n\n");
+            markdown.append("执行前计划 ").append(matrix.get("planned")).append(" 项；通过 ");
+            markdown.append(matrix.get("passed")).append("，失败 ").append(matrix.get("failed"));
+            markdown.append("，准备失败 ").append(matrix.get("preparationFailed"));
+            markdown.append("，清理失败 ").append(matrix.get("cleanupFailed"));
+            markdown.append("，跳过 ").append(matrix.get("skipped"));
+            markdown.append("，未执行 ").append(matrix.get("notExecuted"));
+            markdown.append("，结果未知 ").append(matrix.get("unknown")).append("。\n\n");
+            markdown.append("本节各状态互斥；准备失败与清理失败单列，顶部通过和失败数来自原始 JUnit 结果。\n\n");
+            markdown.append("其它既有场景按运行期发现统计，不计入执行前精确计划。\n\n");
+            for (Map<String, Object> rpc : objects(matrix.get("byRpc"))) {
+                markdown.append("- RPC `").append(rpc.get("protocol")).append('`');
+                if (present(rpc.get("protocolVersion"))) {
+                    markdown.append("，版本 `").append(rpc.get("protocolVersion")).append('`');
+                } else if (present(rpc.get("protocolVersions"))) {
+                    markdown.append("，声明版本 `");
+                    markdown.append(String.join("`、`", strings(rpc.get("protocolVersions")))).append('`');
+                }
+                markdown.append("：计划 ").append(rpc.get("planned"));
+                markdown.append("，通过 ").append(rpc.get("passed")).append("。\n");
+            }
+            markdown.append('\n');
+            for (Map<String, Object> languages : objects(matrix.get("byLanguage"))) {
+                markdown.append("- 提供者 `").append(languages.get("providerLanguage"));
+                markdown.append("` → 消费者 `").append(languages.get("consumerLanguage"));
+                markdown.append("`：计划 ").append(languages.get("planned"));
+                markdown.append("，通过 ").append(languages.get("passed")).append("。\n");
+            }
+        }
 
         // 版本与方向只来自已执行用例，清单中声明的依赖不能充当通过证据。
         List<Map<String, Object>> sdkVersions = objects(summary.get("sdkCompatibility"));
@@ -304,12 +584,28 @@ public final class NxnReport {
             markdown.append("\n## 失败用例\n");
             for (Map<String, Object> failure : failures) {
                 markdown.append("\n- `").append(failure.get("caseId")).append("`\n\n");
+                appendCaseContext(markdown, failure, summary, destination);
                 for (String line : string(failure.get("failure")).split("\n", -1)) {
                     String rendered = line.replace("\t", "    ").stripTrailing();
                     if (!rendered.isEmpty()) {
                         markdown.append("      ").append(rendered);
                     }
                     markdown.append('\n');
+                }
+            }
+        }
+        List<Map<String, Object>> matrixProblems = objects(summary.get("matrixResults")).stream() //
+                .filter(result -> !Set.of("passed", "failed").contains(string(result.get("status")))) //
+                .toList();
+        if (!matrixProblems.isEmpty()) {
+            markdown.append("\n## 未完成的矩阵组合\n");
+            for (Map<String, Object> result : matrixProblems) {
+                markdown.append("\n- `").append(result.get("caseId")).append("`，状态 `");
+                markdown.append(result.get("status")).append("`。\n\n");
+                appendCaseContext(markdown, result, summary, destination);
+                if (present(result.get("failure"))) {
+                    markdown.append("  ").append(string(result.get("failure")).split("\n", 2)[0]);
+                    markdown.append("\n\n");
                 }
             }
         }
@@ -337,6 +633,45 @@ public final class NxnReport {
             }
         }
         Files.writeString(destination, markdown.toString(), StandardCharsets.UTF_8);
+    }
+
+    private static void appendCaseContext(StringBuilder markdown, Map<String, Object> testCase, Map<String, Object> summary, Path destination) {
+        Map<String, Object> matrix = object(testCase.getOrDefault("matrix", Map.of()));
+        if (!matrix.isEmpty()) {
+            markdown.append("  提供者：").append(endpointLabel(object(matrix.get("provider"))));
+            markdown.append("；消费者：").append(endpointLabel(object(matrix.get("consumer"))));
+            markdown.append("；RPC：`").append(matrix.get("protocol"));
+            markdown.append("`；传输：`").append(matrix.get("wire"));
+            markdown.append("`；发现：`").append(matrix.get("discovery")).append("`。\n\n");
+        }
+        if (present(testCase.get("phase"))) {
+            markdown.append("  阶段：`").append(testCase.get("phase")).append("`。\n\n");
+        }
+        String groupId = string(testCase.get("groupId"));
+        Map<String, Object> logs = object(testCase.getOrDefault("logs", Map.of()));
+        for (Map<String, Object> group : objects(summary.get("groups"))) {
+            if (!StringUtils.equals(groupId, string(group.get("id")))) {
+                continue;
+            }
+            Path directory = Path.of(string(group.get("outputDirectory")));
+            for (Map.Entry<String, Object> log : logs.entrySet()) {
+                Path target = directory.resolve(string(log.getValue())).toAbsolutePath().normalize();
+                if (Files.isRegularFile(target)) {
+                    Path relative = destination.toAbsolutePath().getParent().relativize(target);
+                    markdown.append("  [").append(log.getKey()).append("](<");
+                    markdown.append(relative.toString().replace('\\', '/')).append(">)\n\n");
+                }
+            }
+        }
+    }
+
+    private static String endpointLabel(Map<String, Object> endpoint) {
+        String label = "`" + string(endpoint.get("id")) + "`（" + string(endpoint.get("language"));
+        label += "，" + string(endpoint.get("implementation"));
+        if (present(endpoint.get("version"))) {
+            label += " " + endpoint.get("version");
+        }
+        return label + "）";
     }
 
     private static List<Map<String, Object>> sdkCompatibility(List<Map<String, Object>> cases) {
@@ -417,8 +752,7 @@ public final class NxnReport {
         };
     }
 
-    private static Map<String, Object> collectGroup(Map<String, Object> group, Map<String, Object> manifest,
-            Path manifestDirectory, List<String> errors, List<Map<String, Object>> cases, List<Path> files) {
+    private static Map<String, Object> collectGroup(Map<String, Object> group, Map<String, Object> manifest, Path manifestDirectory, List<String> errors, List<Map<String, Object>> cases, List<Path> files) {
         String groupId = string(group.get("id"));
         String runId = string(manifest.get("runId"));
         Path declaredDirectory = Path.of(string(group.get("outputDirectory")));
@@ -440,6 +774,14 @@ public final class NxnReport {
         detail.put("outputDirectory", directory.toString());
         detail.put("exitCode", group.get("exitCode"));
         detail.put("wallSeconds", group.get("wallSeconds"));
+        List<Map<String, Object>> matrixCases = matrixPlan(group.get("matrixCases"));
+        detail.put("matrixCases", matrixCases);
+        if (!matrixCases.isEmpty()) {
+            List<String> unknown = new ArrayList<>();
+            matrixCases.forEach(testCase -> unknown.add(string(testCase.get("caseId"))));
+            detail.put("unknownCases", unknown);
+            detail.put("unknown", unknown.size());
+        }
         if (!integerEquals(group.get("exitCode"), 0)) {
             errors.add("Group " + groupId + " exited with " + group.get("exitCode"));
         }
@@ -469,8 +811,7 @@ public final class NxnReport {
                     errors.add("Group " + groupId + " peer process evidence is invalid: " + failure.getMessage());
                 }
             }
-            Map<String, Object> cleanup = checkRemoteCleanup(group, processes, launches,
-                    declaredDirectory, directory, errors);
+            Map<String, Object> cleanup = checkRemoteCleanup(group, processes, launches, declaredDirectory, directory, errors);
             detail.put("remoteCleanup", cleanup);
         } catch (Exception failure) {
             errors.add("Group " + groupId + " remote cleanup evidence is invalid: " + failure.getMessage());
@@ -517,6 +858,14 @@ public final class NxnReport {
             detail.put("reusedResults", !Boolean.FALSE.equals(summary.get("reusedResults")));
             detail.put("configuration", configuration);
             detail.put("timings", summary.getOrDefault("timings", Map.of()));
+            detail.put("preparationFailures", matrixFailures(summary.get("preparationFailures"), "preparing"));
+            detail.put("cleanupFailures", matrixFailures(summary.get("cleanupFailures"), "cleanup"));
+            if (present(detail.get("preparationFailures")) || present(detail.get("cleanupFailures"))) {
+                errors.add("Group " + groupId + " reported testcase preparation or cleanup failures");
+            }
+            if (!matrixCases.isEmpty() && !matrixCases.equals(matrixPlan(summary.get("matrixCases")))) {
+                errors.add("Group " + groupId + " matrix plan differs from its assignment");
+            }
             Map<String, Object> registry = object(summary.getOrDefault("registryCleanup", Map.of()));
             if (Boolean.FALSE.equals(registry.get("successful"))) {
                 errors.add("Group " + groupId + " reported unsuccessful registry cleanup");
@@ -550,6 +899,7 @@ public final class NxnReport {
             checkSummaryCount(summary, "failed", countStatus(current, "failed"), groupId, errors);
             checkSummaryCount(summary, "skipped", countStatus(current, "skipped"), groupId, errors);
             detail.put("tests", current.size());
+            enrichCases(current, reported, group, errors);
             cases.addAll(current);
             files.addAll(currentFiles);
             checkPlannedCases(summary, current, detail, groupId, errors);
@@ -563,8 +913,7 @@ public final class NxnReport {
         return detail;
     }
 
-    private static boolean checkRpcSelection(Map<String, Object> group, Map<String, Object> manifest,
-            Map<String, Object> configuration, Map<String, Object> summary, List<String> errors) {
+    private static boolean checkRpcSelection(Map<String, Object> group, Map<String, Object> manifest, Map<String, Object> configuration, Map<String, Object> summary, List<String> errors) {
         boolean selected = present(manifest.get("rpc"));
         String groupId = string(group.get("id"));
         if (!selected) {
@@ -668,8 +1017,7 @@ public final class NxnReport {
         }
     }
 
-    private static void checkPlannedCases(Map<String, Object> summary, List<Map<String, Object>> cases,
-            Map<String, Object> detail, String groupId, List<String> errors) {
+    private static void checkPlannedCases(Map<String, Object> summary, List<Map<String, Object>> cases, Map<String, Object> detail, String groupId, List<String> errors) {
         // 旧归档没有叶子用例计划；新报告以执行前计划核对未执行项，不补写跳过或通过结果。
         boolean hasPlan = summary.containsKey("plannedCases") || summary.containsKey("notExecutedCases");
         hasPlan |= summary.containsKey("notExecuted");
@@ -678,16 +1026,27 @@ public final class NxnReport {
         }
         List<String> planned = strings(summary.get("plannedCases"));
         List<String> declaredMissing = strings(summary.get("notExecutedCases"));
-        if (hasDuplicate(counts(planned)) || hasDuplicate(counts(declaredMissing))) {
+        List<String> unknown = strings(summary.getOrDefault("unknownCases", List.of()));
+        if (hasDuplicate(counts(planned)) || hasDuplicate(counts(declaredMissing)) || hasDuplicate(counts(unknown))) {
             errors.add("Group " + groupId + " testcase plan contains duplicate identities");
         }
+        Set<String> executed = caseIdentities(cases).keySet();
+        Set<String> validUnknown = new LinkedHashSet<>(unknown);
+        validUnknown.retainAll(executed);
+        if (!planned.containsAll(unknown) || !validUnknown.isEmpty()) {
+            errors.add("Group " + groupId + " unknown cases conflict with its plan or XML");
+        }
         Set<String> missing = new LinkedHashSet<>(planned);
-        missing.removeAll(caseIdentities(cases).keySet());
+        missing.removeAll(executed);
+        missing.removeAll(unknown);
         List<String> notExecuted = new ArrayList<>(missing);
         notExecuted.sort(Comparator.naturalOrder());
         detail.put("plannedCases", planned);
         detail.put("notExecuted", notExecuted.size());
         detail.put("notExecutedCases", notExecuted);
+        unknown.sort(String::compareTo);
+        detail.put("unknown", unknown.size());
+        detail.put("unknownCases", unknown);
         declaredMissing.sort(Comparator.naturalOrder());
         if (!declaredMissing.equals(notExecuted)) {
             errors.add("Group " + groupId + " notExecutedCases does not match its plan and XML");
@@ -696,10 +1055,15 @@ public final class NxnReport {
         if (!notExecuted.isEmpty()) {
             errors.add("Group " + groupId + " has unexecuted testcases: " + notExecuted);
         }
+        if (summary.containsKey("unknown")) {
+            checkSummaryCount(summary, "unknown", unknown.size(), groupId, errors);
+        }
+        if (!unknown.isEmpty()) {
+            errors.add("Group " + groupId + " has testcase results with unknown outcomes: " + unknown);
+        }
     }
 
-    private static Map<String, Object> checkProcess(Path directory, String runId, String groupId,
-            List<String> errors, boolean requireSuccess) throws Exception {
+    private static Map<String, Object> checkProcess(Path directory, String runId, String groupId, List<String> errors, boolean requireSuccess) throws Exception {
         int before = errors.size();
         Map<String, Object> launch = object(readJson(directory.resolve("launch.json")));
         Map<String, Object> status = object(readJson(directory.resolve("status.json")));
@@ -707,10 +1071,7 @@ public final class NxnReport {
         if (!present(identity) || !ObjectUtils.equals(identity, status.get("processId"))) {
             errors.add("Group " + groupId + " process identity does not match launch: " + directory);
         }
-        if (!StringUtils.equals(runId, string(launch.get("runId")))
-                || !StringUtils.equals(runId, string(status.get("runId")))
-                || !StringUtils.equals(groupId, string(launch.get("groupId")))
-                || !StringUtils.equals(groupId, string(status.get("groupId")))) {
+        if (!StringUtils.equals(runId, string(launch.get("runId"))) || !StringUtils.equals(runId, string(status.get("runId"))) || !StringUtils.equals(groupId, string(launch.get("groupId"))) || !StringUtils.equals(groupId, string(status.get("groupId")))) {
             errors.add("Group " + groupId + " process belongs to another run/group: " + directory);
         }
         boolean exited = StringUtils.equals("exited", string(status.get("state")));
@@ -739,9 +1100,7 @@ public final class NxnReport {
         return result;
     }
 
-    private static Map<String, Object> checkRemoteCleanup(Map<String, Object> group,
-            List<Map<String, Object>> processes, List<Path> launches, Path declaredDirectory,
-            Path directory, List<String> errors) throws Exception {
+    private static Map<String, Object> checkRemoteCleanup(Map<String, Object> group, List<Map<String, Object>> processes, List<Path> launches, Path declaredDirectory, Path directory, List<String> errors) throws Exception {
         String groupId = string(group.get("id"));
         int before = errors.size();
         Object rawCleanup = group.get("remoteCleanup");
@@ -840,8 +1199,7 @@ public final class NxnReport {
         return result;
     }
 
-    private static Map<String, Object> checkRegistryCleanup(Path directory, String groupId, List<String> errors)
-            throws Exception {
+    private static Map<String, Object> checkRegistryCleanup(Path directory, String groupId, List<String> errors) throws Exception {
         int before = errors.size();
         List<Map<String, Object>> services = new ArrayList<>();
         List<Path> serviceDirectories = new ArrayList<>();
@@ -948,8 +1306,7 @@ public final class NxnReport {
         }
     }
 
-    private static void checkSelections(String groupId, List<Map<String, Object>> cases,
-            List<String> filters, boolean requireEverySelection, List<String> errors) {
+    private static void checkSelections(String groupId, List<Map<String, Object>> cases, List<String> filters, boolean requireEverySelection, List<String> errors) {
         for (Map<String, Object> testCase : cases) {
             boolean assigned = false;
             for (String selection : filters) {
@@ -982,12 +1339,10 @@ public final class NxnReport {
         String expression = Pattern.quote(selection).replace("*", "\\E.*\\Q");
         Pattern pattern = Pattern.compile(expression);
         String className = string(testCase.get("className"));
-        return pattern.matcher(className).matches() || pattern.matcher(className + "." + scenario).matches()
-                || pattern.matcher(className + "." + method).matches();
+        return pattern.matcher(className).matches() || pattern.matcher(className + "." + scenario).matches() || pattern.matcher(className + "." + method).matches();
     }
 
-    private static void checkReportIdentity(String kind, Map<String, Object> data, String groupId,
-            String runId, String reportId, Object filters, List<String> errors) {
+    private static void checkReportIdentity(String kind, Map<String, Object> data, String groupId, String runId, String reportId, Object filters, List<String> errors) {
         boolean current = StringUtils.equals(reportId, string(data.get("runId")));
         current &= StringUtils.equals(runId, string(data.get("orchestrationRunId")));
         if (!current) {
@@ -1001,15 +1356,13 @@ public final class NxnReport {
         }
     }
 
-    private static void checkSummaryCount(Map<String, Object> summary, String key, int count,
-            String groupId, List<String> errors) {
+    private static void checkSummaryCount(Map<String, Object> summary, String key, int count, String groupId, List<String> errors) {
         if (!integerEquals(summary.get(key), count)) {
             errors.add("Group " + groupId + " summary " + key + " does not match its XML");
         }
     }
 
-    private static Map<String, Object> baseline(Map<String, Object> manifest, List<Map<String, Object>> cases,
-            Path baselinePath, List<String> errors) throws IOException {
+    private static Map<String, Object> baseline(Map<String, Object> manifest, List<Map<String, Object>> cases, Path baselinePath, List<String> errors) throws IOException {
         if (baselinePath == null) {
             return null;
         }

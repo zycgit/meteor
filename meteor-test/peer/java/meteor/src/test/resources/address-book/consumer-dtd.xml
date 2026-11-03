@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE address-book SYSTEM "https://www.hasor.net/rsf/schema/meteor-address-book.dtd">
+<address-book>
+    <service group="consumer-address-book" name="echo" version="1.0">
+        <address>${rsfAddress}</address>
+        <address>${jsonrpcAddress}</address>
+    </service>
+</address-book>

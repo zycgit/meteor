@@ -42,7 +42,10 @@ func run() error {
 	defer cancel()
 
 	// Save and find the same order through the generated client contract.
-	sample := order.Sample()
+	sample, err := order.Request()
+	if err != nil {
+		return err
+	}
 	saved, err := client.Save(ctx, &thriftorders.ThriftOrder{
 		ID: sample.Id, Description: &sample.Description, Attachment: sample.Attachment,
 	})

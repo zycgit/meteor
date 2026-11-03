@@ -11,6 +11,7 @@ import io.grpc.ServerServiceDefinition;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.ServerCalls;
 import net.hasor.example.OrderDemoServiceImpl;
+import net.hasor.example.OrderExampleUtils;
 import net.hasor.example.OrderProtoUtils;
 import net.hasor.example.OrderQuery;
 import net.hasor.peer.sdk.OrderPeerSettings;
@@ -42,8 +43,8 @@ public final class SdkProviderMain {
                 .build().start();
         Runtime.getRuntime().addShutdownHook(new Thread(server::shutdownNow, "grpc-sdk-provider-shutdown"));
         try {
-            System.out.println("SDK order provider is ready: "
-                    + OrderPeerSettings.publishAddress("http", server.getPort(), "/grpc"));
+            String target = OrderPeerSettings.publishAddress("http", server.getPort(), "/grpc").toString();
+            OrderExampleUtils.ready(target, "SDK order provider is ready: ");
             server.awaitTermination();
         } finally {
             server.shutdownNow();

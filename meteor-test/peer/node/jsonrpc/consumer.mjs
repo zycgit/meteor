@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // Copyright 2015-2026 the original author or authors. Licensed under the Apache License, Version 2.0.
-const target = new URL(process.env.METEOR_ORDER_TARGET || "http://127.0.0.1:8080/jsonrpc");
-if (target.pathname === "/") {
-    target.pathname = "/jsonrpc";
-}
+import { orderRequest, orderResult, orderTarget } from "../order-nxn.mjs";
+
+const target = orderTarget("http://127.0.0.1:8080/jsonrpc", "/jsonrpc");
 
 async function call(method, argument) {
     const response = await fetch(target, {
@@ -21,15 +20,12 @@ async function call(method, argument) {
 
 async function main() {
     // JSON 中的二进制附件使用 Base64。
-    await call("save", {
-        id: 1001,
-        description: "Order from Node.js",
-        attachment: Buffer.from("Meteor").toString("base64"),
-    });
+    const request = orderRequest();
+    const saved = await call("save", request);
 
     // 保存后查询，打印业务结果。
-    const result = await call("find", { id: 1001 });
-    console.log(JSON.stringify({ language: "node", protocol: "jsonrpc", result }));
+    const result = await call("find", { id: request.id });
+    orderResult("jsonrpc", result, saved);
 }
 
 main().catch((error) => {

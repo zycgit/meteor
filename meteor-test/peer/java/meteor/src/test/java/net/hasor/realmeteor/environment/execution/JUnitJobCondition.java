@@ -14,7 +14,8 @@ import java.util.List;
 /** 在 Jupiter 展开参数后选择当前工作组的向量，并保留快速失败后的未执行身份。 */
 public final class JUnitJobCondition implements ExecutionCondition {
     static final String INTERNAL_REASON = "NXN internal: ";
-    private static final ThreadLocal<JUnitJobReport> CURRENT = new ThreadLocal<>();
+    // Jupiter 的 SEPARATE_THREAD 超时线程继承所属工作组，独立 JVM 不跨组共享此上下文。
+    private static final InheritableThreadLocal<JUnitJobReport> CURRENT = new InheritableThreadLocal<>();
 
     static JUnitJobReport current() {
         return CURRENT.get();
@@ -25,6 +26,14 @@ public final class JUnitJobCondition implements ExecutionCondition {
             CURRENT.remove();
         } else {
             CURRENT.set(report);
+        }
+    }
+
+    /** 声明当前标准用例的准备、调用或清理阶段；普通 Gradle 执行没有 NXN 报告时不做处理。 */
+    public static void phase(String caseId, String phase) {
+        JUnitJobReport report = CURRENT.get();
+        if (report != null) {
+            report.phase(caseId, phase);
         }
     }
 

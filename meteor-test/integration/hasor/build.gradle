@@ -1,0 +1,24 @@
+plugins {
+    id 'java'
+}
+
+description = 'Isolated hasor framework peers for Docker NXN'
+
+dependencies {
+    implementation files(rootProject.project(':meteor-test-contracts').sourceSets.main.output)
+    implementation files(rootProject.project(':meteor-test-app').tasks.named('frameworkPeerJar'))
+    implementation project(':meteor-hasor')
+    implementation project(':meteor-registry-dubbo')
+    implementation 'com.h2database:h2:2.3.232'
+    runtimeOnly project(':meteor-registry-jdbc')
+    runtimeOnly project(':meteor-registry-nacos')
+    runtimeOnly project(':meteor-registry-zookeeper')
+    runtimeOnly project(':meteor-protocol-dubbo')
+    runtimeOnly 'org.slf4j:slf4j-simple:2.0.18'
+    implementation "net.hasor:hasor-boot:${property('lib.hasor')}"
+}
+
+// 向 NXN 声明本工程的独立运行图，公共构建不维护框架名单。
+ext.nxnRuntimeProperties = [
+        'meteor.test.framework.hasor.classpath': sourceSets.main.runtimeClasspath
+]

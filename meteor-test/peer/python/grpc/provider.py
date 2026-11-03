@@ -5,9 +5,13 @@
 
 from concurrent.futures import ThreadPoolExecutor
 import os
+from pathlib import Path
 import sys
 
 import grpc
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import nxn_control as nxn
 
 sys.path.insert(0, "/opt/meteor-peer/python-grpc-generated")
 import order_pb2
@@ -43,14 +47,20 @@ def main():
     }
     with ThreadPoolExecutor(max_workers=2) as executor:
         server = grpc.server(executor)
-        handler = grpc.method_handlers_generic_handler("grpc/meteor.example.OrderDemoService", methods)
+        service_name = "grpc/meteor.example.OrderDemoService"
+        if nxn.enabled():
+            service_name = "meteor.example.OrderDemoService"
+        handler = grpc.method_handlers_generic_handler(service_name, methods)
         server.add_generic_rpc_handlers((handler,))
         bind_host = os.environ.get("METEOR_ORDER_BIND_HOST", "127.0.0.1")
         bind_port = int(os.environ.get("METEOR_ORDER_PORT", "8080"))
         port = server.add_insecure_port(f"{bind_host}:{bind_port}")
         server.start()
         publish_host = os.environ.get("METEOR_ORDER_PUBLISH_HOST", os.environ.get("METEOR_TEST_PEER_HOST", bind_host))
-        print(f"Order provider is ready: grpc://{publish_host}:{port}/grpc", flush=True)
+        if nxn.enabled():
+            nxn.ready(f"grpc://{publish_host}:{port}/")
+        else:
+            print(f"Order provider is ready: grpc://{publish_host}:{port}/grpc", flush=True)
         try:
             server.wait_for_termination()
         finally:

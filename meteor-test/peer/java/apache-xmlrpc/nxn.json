@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "java-apache-xmlrpc",
+      "language": "java",
+      "implementation": "Apache XML-RPC",
+      "runtimeManifestProperty": "meteor.test.sdk.manifest",
+      "launch": {
+        "provider": {
+          "container": "java",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.sdk.${entry}.SdkProviderMain"
+          ]
+        },
+        "consumer": {
+          "container": "java",
+          "command": [
+            "java",
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "-cp",
+            "${classpath}",
+            "net.hasor.peer.sdk.${entry}.SdkConsumerMain"
+          ]
+        }
+      },
+      "capabilities": [
+        {
+          "id": "java-sdk-xmlrpc",
+          "api": "order-v1",
+          "protocol": "xmlrpc",
+          "protocolVersion": "",
+          "wire": "xmlrpc-xml-http1-clear",
+          "roles": [
+            "provider",
+            "consumer"
+          ],
+          "discoveries": [
+            "direct"
+          ],
+          "runtimeProfile": "xmlrpc",
+          "entry": "xmlrpc"
+        }
+      ]
+    }
+  ]
+}

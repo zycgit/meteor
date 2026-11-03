@@ -4,11 +4,9 @@ import { Agent } from "node:http";
 import { createClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
 import { OrderDemoService } from "./generated/order_pb.js";
+import { orderRequest, orderResult, orderTarget } from "../order-nxn.mjs";
 
-const target = new URL(process.env.METEOR_ORDER_TARGET || "http://127.0.0.1:8080/connect");
-if (target.pathname === "/") {
-    target.pathname = "/connect";
-}
+const target = orderTarget("http://127.0.0.1:8080/connect", "/connect");
 
 async function main() {
     // 按 order.proto 创建官方 Connect 客户端。
@@ -23,18 +21,10 @@ async function main() {
     const orders = createClient(OrderDemoService, transport);
     try {
         // 保存并查询订单，Protobuf 附件直接使用 Uint8Array。
-        await orders.save({
-            id: 1001,
-            description: "Order from Node.js",
-            attachment: Buffer.from("Meteor"),
-        });
-        const found = await orders.find({ id: 1001 });
-        const result = {
-            id: found.id,
-            description: found.description,
-            attachment: Buffer.from(found.attachment).toString("base64"),
-        };
-        console.log(JSON.stringify({ language: "node", protocol: "connect", result }));
+        const request = orderRequest(true);
+        const saved = await orders.save(request);
+        const found = await orders.find({ id: request.id });
+        orderResult("connect", found, saved);
     } finally {
         agent.destroy();
     }

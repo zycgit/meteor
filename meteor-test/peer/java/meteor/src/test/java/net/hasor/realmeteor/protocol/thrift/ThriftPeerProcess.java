@@ -20,6 +20,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import net.hasor.cobble.StringUtils;
 import net.hasor.realmeteor.environment.container.ContainerProcess;
+import net.hasor.realmeteor.protocol.support.JavaSdkPeerUtils;
 
 /** 独立官方 Thrift JVM；有界等待并持久保留每个原生对端的完整输出。 */
 final class ThriftPeerProcess implements AutoCloseable {
@@ -39,10 +40,7 @@ final class ThriftPeerProcess implements AutoCloseable {
 
     static ThriftPeerProcess start(String... arguments) throws IOException {
         // 子进程复用标准测试 class 目录，依赖仅限官方 SDK，不继承完整测试运行类路径。
-        String classpath = System.getProperty("thrift.peer.classpath");
-        if (StringUtils.isBlank(classpath)) {
-            throw new IllegalStateException("Official Thrift peer classpath is not configured");
-        }
+        String classpath = JavaSdkPeerUtils.classpath("thrift");
         String configuredOutput = System.getProperty("thrift.peer.output.directory", "build/reports/thrift-peer");
         Path reportDirectory = Path.of(configuredOutput).toAbsolutePath();
         Files.createDirectories(reportDirectory);

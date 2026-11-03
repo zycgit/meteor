@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "endpoints": [
+    {
+      "id": "node-jsonrpc",
+      "language": "node",
+      "implementation": "Node HTTP JSON-RPC",
+      "launch": {
+        "provider": {"container": "node", "command": ["node", "/opt/meteor-peer/node/jsonrpc/provider.mjs"]},
+        "consumer": {"container": "node", "command": ["node", "/opt/meteor-peer/node/jsonrpc/consumer.mjs"]}
+      },
+      "capabilities": [
+        {"id": "node-jsonrpc-order", "api": "order-v1", "protocol": "jsonrpc", "protocolVersion": "2.0", "wire": "jsonrpc2-json-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"]}
+      ]
+    },
+    {
+      "id": "node-hprose",
+      "language": "node",
+      "implementation": "Hprose Node",
+      "launch": {
+        "provider": {"container": "node", "command": ["node", "/opt/meteor-peer/node/hprose/provider.mjs"]},
+        "consumer": {"container": "node", "command": ["node", "/opt/meteor-peer/node/hprose/consumer.mjs"]}
+      },
+      "capabilities": [
+        {"id": "node-hprose-order", "api": "order-v1", "protocol": "hprose", "protocolVersion": "", "wire": "hprose-hprose-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"]}
+      ]
+    },
+    {
+      "id": "node-thrift",
+      "language": "node",
+      "implementation": "Apache Thrift Node",
+      "launch": {
+        "provider": {"container": "node", "command": ["node", "/opt/meteor-peer/node/thrift/provider.mjs"]},
+        "consumer": {"container": "node", "command": ["node", "/opt/meteor-peer/node/thrift/consumer.mjs"]}
+      },
+      "capabilities": [
+        {"id": "node-thrift-order", "api": "order-v1", "protocol": "thrift", "protocolVersion": "", "wire": "thrift-binary-framed-tcp-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"]}
+      ]
+    },
+    {
+      "id": "node-connect",
+      "language": "node",
+      "implementation": "Connect-ES",
+      "launch": {
+        "provider": {"container": "node", "command": ["node", "/opt/meteor-peer/node/connect/provider.mjs"]},
+        "consumer": {"container": "node", "command": ["node", "/opt/meteor-peer/node/connect/consumer.mjs"]}
+      },
+      "capabilities": [
+        {"id": "node-connect-order", "api": "order-v1", "protocol": "connect", "protocolVersion": "1", "wire": "connect-protobuf-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"]}
+      ]
+    },
+    {
+      "id": "node-connect-grpc",
+      "language": "node",
+      "implementation": "Connect-ES",
+      "launch": {
+        "provider": {"container": "node", "command": ["node", "/opt/meteor-peer/node/connect/grpc-order.mjs", "${protocol}", "provider"]},
+        "consumer": {"container": "node", "command": ["node", "/opt/meteor-peer/node/connect/grpc-order.mjs", "${protocol}", "consumer"]}
+      },
+      "capabilities": [
+        {"id": "node-grpc-order", "api": "order-v1", "protocol": "grpc", "protocolVersion": "", "wire": "grpc-protobuf-http2-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"]},
+        {"id": "node-grpc-web-order", "api": "order-v1", "protocol": "grpc-web", "protocolVersion": "", "wire": "grpc-web-protobuf-http1-clear", "roles": ["provider", "consumer"], "discoveries": ["direct"]}
+      ]
+    }
+  ]
+}
