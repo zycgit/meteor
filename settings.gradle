@@ -78,11 +78,18 @@ if (providers.gradleProperty('includeTestProjects').getOrElse('true').toBoolean(
     include 'meteor-test-app'
     include 'meteor-test-contracts'
     include 'meteor-test-sdk'
+    include 'meteor-test-integration-hasor'
+    include 'meteor-test-integration-solon'
+    include 'meteor-test-integration-spring'
     include 'meteor-test-sdk:connect-rpc-java-0.2'
     include 'meteor-test-sdk:connect-kotlin-0.10'
     include 'meteor-test-sdk:alibaba-dubbo-2.6'
     include 'meteor-test-sdk:metro-jaxws-2.3'
     include 'meteor-test-sdk:apache-thrift-0.10'
+    //
+    project(':meteor-test-integration-hasor').projectDir = file('meteor-test/integration/hasor')
+    project(':meteor-test-integration-solon').projectDir = file('meteor-test/integration/solon')
+    project(':meteor-test-integration-spring').projectDir = file('meteor-test/integration/spring')
     project(':meteor-test-app').projectDir = file('meteor-test/peer/java/meteor')
     project(':meteor-test-contracts').projectDir = file('meteor-test/peer/java/contracts')
     project(':meteor-test-sdk').projectDir = file('meteor-test/peer/java')

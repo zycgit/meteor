@@ -55,7 +55,7 @@ EOF
     if [[ -n "$web_project" ]]; then
         printf '  .\\gradlew.bat :%s:assemble -x test\n' "$web_project"
     elif [[ ${#web_command[@]} -gt 0 ]]; then
-        echo '  .\gradlew.bat -PincludeTestProjects=false :meteor-console:processResources'
+        echo '  .\gradlew.bat -PincludeTestProjects=false :meteor-console:webBuild :meteor-console:processResources'
     fi
 }
 
