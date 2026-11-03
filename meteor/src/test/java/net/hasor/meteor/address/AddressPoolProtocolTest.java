@@ -8,11 +8,13 @@
 package net.hasor.meteor.address;
 import java.util.List;
 import java.util.Set;
+import net.hasor.meteor.address.dsl.RouteContext;
+import net.hasor.meteor.address.route.FlowControlScripts;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AddressPoolProtocolTest {
-    private final InterAddress rsf = new InterAddress("rsf", "127.0.0.1", 28001, "local");
+    private final InterAddress rsf     = new InterAddress("rsf", "127.0.0.1", 28001, "local");
     private final InterAddress jsonrpc = new InterAddress("jsonrpc", "127.0.0.2", 28002, "remote");
     private final InterAddress hessian = new InterAddress("hessian", "127.0.0.3", 28003, "local");
 
@@ -118,5 +120,94 @@ class AddressPoolProtocolTest {
         assertEquals(List.of(this.jsonrpc), pool.queryAvailableAddresses("discovered"));
         assertEquals(List.of(this.jsonrpc), pool.queryAvailableAddresses("registered"));
         assertEquals(List.of(this.jsonrpc), pool.queryAvailableAddresses("later"));
+    }
+
+    @Test
+    void callProtocolSchemesDoNotChangeOtherCallsOrStoredAddresses() {
+        // 同一服务同时保留两个协议地址，调用上下文分别选择其中一种。
+        AddressPool pool = new AddressPool();
+        pool.appendAddress("service", List.of(this.rsf, this.jsonrpc));
+        RouteContext first = new RouteContext("service", "echo", null);
+        first.setAddressSchemes(Set.of("rsf"));
+        RouteContext second = new RouteContext("service", "echo", null);
+        second.setAddressSchemes(Set.of("jsonrpc"));
+
+        // 本次筛选不写入 bucket；后续调用和完整地址列表保持独立。
+        assertEquals(this.rsf, pool.nextAddress(first));
+        assertEquals(this.jsonrpc, pool.nextAddress(second));
+        assertEquals(List.of(this.rsf, this.jsonrpc), pool.queryAvailableAddresses("service"));
+        assertTrue(pool.getSupportedProtocols("service").isEmpty());
+    }
+
+    @Test
+    void callProtocolSchemesApplyBeforeUnitPreference() {
+        // 本单元只有 RSF，远端才有 JSON RPC；全局单元优先原本选择本地地址。
+        AddressPool pool = new AddressPool("local", 30000);
+        pool.appendAddress("service", List.of(this.rsf, this.jsonrpc));
+        String control = "<controlSet>" + FlowControlScripts.unit(true, 0, "") + "</controlSet>";
+        assertTrue(pool.updateFlowControl("service", control));
+        assertEquals(List.of(this.rsf), pool.queryLocalUnitAddresses("service"));
+
+        // 当前调用只允许 JSON RPC，本地不同协议不能遮蔽合法的远端地址。
+        RouteContext input = new RouteContext("service", "echo", null);
+        input.setAddressSchemes(Set.of("jsonrpc"));
+        assertEquals(this.jsonrpc, pool.nextAddress(input));
+        assertEquals(List.of(this.rsf, this.jsonrpc), pool.queryAllAddresses("service"));
+    }
+
+    @Test
+    void callProtocolSchemesPreserveUnitPreferenceForMatchingAddresses() {
+        // JSON RPC 同时有本地与远端地址，RSF 也有本地地址。
+        AddressPool pool = new AddressPool("local", 30000);
+        InterAddress local = new InterAddress("jsonrpc", "127.0.0.4", 28004, "local");
+        pool.appendAddress("service", List.of(this.rsf, this.jsonrpc, local));
+        String control = "<controlSet>" + FlowControlScripts.unit(true, 0, "") + "</controlSet>";
+        assertTrue(pool.updateFlowControl("service", control));
+
+        // 协议筛选之后仍使用相同的单元优先规则，只选本地 JSON RPC。
+        RouteContext input = new RouteContext("service", "echo", null);
+        input.setAddressSchemes(Set.of("jsonrpc"));
+        assertEquals(local, pool.nextAddress(input));
+    }
+
+    @Test
+    void callProtocolSchemesDoNotBypassRoutingRules() {
+        // 当前协议有合法地址，但服务治理明确拒绝全部候选。
+        AddressPool pool = new AddressPool();
+        pool.appendAddress("service", List.of(this.rsf, this.jsonrpc));
+        assertTrue(pool.updateServiceRoute("service", "<route><return value='{}'/></route>"));
+
+        // 不能因为已经按协议筛选就跳过原有路由，也不能回退到其它协议。
+        RouteContext input = new RouteContext("service", "echo", null);
+        input.setAddressSchemes(Set.of("jsonrpc"));
+        assertNull(pool.nextAddress(input));
+    }
+
+    @Test
+    void emptyCallProtocolSchemesHaveNoCandidates() {
+        // 非空地址本遇到显式空的可用 scheme 集合，表示当前声明没有合法挂载。
+        AddressPool pool = new AddressPool();
+        pool.appendAddress("service", List.of(this.rsf, this.jsonrpc));
+        RouteContext input = new RouteContext("service", "echo", null);
+        input.setAddressSchemes(Set.of());
+
+        // 空集合不是不限协议；地址本和没有附加限制的另一次调用保持可用。
+        assertNull(pool.nextAddress(input));
+        assertNotNull(pool.nextAddress("service", "echo", null));
+        assertEquals(List.of(this.rsf, this.jsonrpc), pool.queryAllAddresses("service"));
+    }
+
+    @Test
+    void callProtocolSchemesDoNotRestoreInvalidAddresses() {
+        // 当前协议的唯一地址已失效，另一个协议仍然可用。
+        AddressPool pool = new AddressPool();
+        pool.appendAddress("service", List.of(this.rsf, this.jsonrpc));
+        pool.invalidAddress(this.jsonrpc);
+        RouteContext input = new RouteContext("service", "echo", null);
+        input.setAddressSchemes(Set.of("jsonrpc"));
+
+        // 本次协议筛选只能使用有效快照，不能从全量地址中重新激活失效地址。
+        assertNull(pool.nextAddress(input));
+        assertEquals(List.of(this.jsonrpc), pool.queryInvalidAddresses("service"));
     }
 }

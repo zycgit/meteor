@@ -8,6 +8,7 @@
 package net.hasor.meteor.address.dsl;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /** 一次选址的输入，由调用层组装；地址层不依赖 RPC 或注册中心。 */
 public final class RouteContext {
@@ -16,6 +17,7 @@ public final class RouteContext {
     private final Map<String, Object> service = new LinkedHashMap<>();
     private final Map<String, Object> method  = new LinkedHashMap<>();
     private final Object[]            args;
+    private       Set<String>         addressSchemes;
 
     public RouteContext(String serviceId, String methodName, Object[] args) {
         this.serviceId = serviceId;
@@ -43,5 +45,18 @@ public final class RouteContext {
 
     public Object[] getArgs() {
         return this.args;
+    }
+
+    /** 本次调用允许的地址 scheme；null 不增加限制，空集合不允许任何地址。 */
+    public Set<String> getAddressSchemes() {
+        return this.addressSchemes;
+    }
+
+    public void setAddressSchemes(Set<String> addressSchemes) {
+        if (addressSchemes == null) {
+            this.addressSchemes = null;
+        } else {
+            this.addressSchemes = Set.copyOf(addressSchemes);
+        }
     }
 }

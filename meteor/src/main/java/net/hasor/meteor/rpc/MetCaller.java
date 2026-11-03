@@ -136,6 +136,7 @@ public final class MetCaller implements AutoCloseable {
 
         routing.getService().put("meta", metadata);
         routing.getMethod().put("signature", targetMethod.toGenericString());
+        routing.setAddressSchemes(this.selectedSchemes(bindInfo));
         InterAddress targetAddress = target.get(routing);
 
         MetRequestObject request = new MetRequestObject(//
@@ -149,6 +150,27 @@ public final class MetCaller implements AutoCloseable {
         // 创建时复制默认选项，后续由调用方覆盖或删除。
         request.addOptionMap(this.context.getSettings().getRequestOptions());
         return request;
+    }
+
+    /** 服务显式选择的协议先映射为地址 scheme，避免发现选址选中其它已安装的协议。 */
+    private Set<String> selectedSchemes(MetBindInfo<?> service) {
+        Set<String> declared = service.getBindProtocols();
+        if (declared == null || declared.isEmpty()) {
+            return null;
+        }
+
+        Set<String> schemes = new HashSet<>();
+        for (ConnectorConfig endpoint : this.context.getSettings().getConnectorConfigs()) {
+            for (ProtocolConfig mount : endpoint.protocols()) {
+                for (String selector : declared) {
+                    if (StringUtils.equalsIgnoreCase(mount.name(), selector)) {
+                        schemes.add(mount.scheme());
+                        break;
+                    }
+                }
+            }
+        }
+        return schemes;
     }
 
     /** 根据服务配置与本地提供者选择本地调用或分布式调用。 */

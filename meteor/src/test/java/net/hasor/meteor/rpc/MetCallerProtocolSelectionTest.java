@@ -22,8 +22,12 @@ import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetFuture;
 import net.hasor.meteor.MetSettings;
 import net.hasor.meteor.SendLimitPolicy;
+import net.hasor.meteor.address.AddressPool;
 import net.hasor.meteor.address.InterAddress;
+import net.hasor.meteor.address.provider.AddressProvider;
 import net.hasor.meteor.address.provider.InstanceAddressProvider;
+import net.hasor.meteor.address.provider.PoolAddressProvider;
+import net.hasor.meteor.address.route.random.RandomFlowControl;
 import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.ConnectorManager;
 import net.hasor.meteor.connector.MetChannel;
@@ -212,6 +216,128 @@ public class MetCallerProtocolSelectionTest {
         }
     }
 
+    @Test
+    public void explicitProtocolFiltersDiscoveredTargetsBeforeConnection() throws Exception {
+        // 注册管理 RSF 与业务 gRPC 同时安装，发现结果也同时包含两种业务地址。
+        ConnectorConfig tcp = endpoint("tcp", "rsf", 2181, "rsf");
+        ConnectorConfig http = endpoint("http", "grpc", 8080, "grpc");
+        InterAddress rsf = new InterAddress("rsf://127.0.0.1:3181/default");
+        InterAddress grpc = new InterAddress("grpc://127.0.0.1:9080/default");
+        try (Host host = new Host("rsf", List.of(tcp, http), Set.of("grpc"), null)) {
+            AddressPool pool = firstAddressPool(host.service.getBindID(), rsf, grpc);
+
+            // 即使随机策略总取首地址，也只能看见当前服务声明的 gRPC 候选。
+            MetFuture future = host.invoke(new PoolAddressProvider(pool));
+            assertEquals(grpc, future.getRequest().getTargetAddress());
+            assertEquals("grpc", host.connectedProtocol.get());
+            assertEquals(List.of(rsf, grpc), pool.queryAllAddresses(host.service.getBindID()));
+            assertTrue(future.cancel(true));
+        }
+    }
+
+    @Test
+    public void discoveredTargetsUseTheConfiguredSchemeOfTheDeclaredProtocol() throws Exception {
+        // 逻辑协议名为 gRPC，但地址以 HTTPS 发布，不能直接按协议名筛地址前缀。
+        ConnectorConfig tcp = endpoint("tcp", "rsf", 2181, "rsf");
+        ConnectorConfig http = endpoint("http", "https", 8443, "grpc");
+        InterAddress rsf = new InterAddress("rsf://127.0.0.1:3181/default");
+        InterAddress https = new InterAddress("https://127.0.0.1:9443/default");
+        try (Host host = new Host("rsf", List.of(tcp, http), Set.of("GRPC"), null)) {
+            AddressPool pool = firstAddressPool(host.service.getBindID(), rsf, https);
+
+            // 通过当前连接器挂载完成大小写无关的协议名到 scheme 映射。
+            MetFuture future = host.invoke(new PoolAddressProvider(pool));
+            assertEquals(https, future.getRequest().getTargetAddress());
+            assertEquals("grpc", host.connectedProtocol.get());
+            assertTrue(future.cancel(true));
+        }
+    }
+
+    @Test
+    public void discoveryDoesNotInterpretAnAddressSchemeAsAProtocolName() throws Exception {
+        // 名为 HTTPS 的逻辑协议使用 TCP scheme，gRPC 则使用 HTTPS scheme。
+        ConnectorConfig named = endpoint("named", "tcp", 2181, "https");
+        ConnectorConfig alias = endpoint("alias", "https", 8443, "grpc");
+        InterAddress https = new InterAddress("https://127.0.0.1:9443/default");
+        InterAddress tcp = new InterAddress("tcp://127.0.0.1:3181/default");
+        try (Host host = new Host("grpc", List.of(named, alias), Set.of("https"), null)) {
+            AddressPool pool = firstAddressPool(host.service.getBindID(), https, tcp);
+
+            // 显式声明选择名为 HTTPS 的协议，不能误取同前缀的 gRPC 地址。
+            MetFuture future = host.invoke(new PoolAddressProvider(pool));
+            assertEquals(tcp, future.getRequest().getTargetAddress());
+            assertEquals("https", host.connectedProtocol.get());
+            assertTrue(future.cancel(true));
+        }
+    }
+
+    @Test
+    public void unavailableDeclaredProtocolDoesNotFallBackToAnotherDiscoveredProtocol() throws Exception {
+        // 服务显式声明 gRPC，但连接器和发现结果都只有 RSF。
+        ConnectorConfig tcp = endpoint("tcp", "rsf", 2181, "rsf");
+        InterAddress rsf = new InterAddress("rsf://127.0.0.1:3181/default");
+        try (Host host = new Host("rsf", List.of(tcp), Set.of("grpc"), null)) {
+            AddressPool pool = firstAddressPool(host.service.getBindID(), rsf);
+
+            // 没有合法 scheme 代表没有可选地址，不能把空集合当作不限协议。
+            MetException failure = failure(host.invoke(new PoolAddressProvider(pool)));
+            assertEquals(ProtocolStatus.Forbidden, failure.getStatus());
+            assertEquals(0, host.connectCalls.get());
+            assertEquals(List.of(rsf), pool.queryAllAddresses(host.service.getBindID()));
+        }
+    }
+
+    @Test
+    public void emptyDeclarationPreservesDiscoveredTargetSchemeFallback() throws Exception {
+        // 服务没有显式协议，默认 RSF 与实际发现的唯一 Hprose 地址不匹配。
+        ConnectorConfig tcp = endpoint("tcp", "rsf", 2181, "rsf");
+        ConnectorConfig http = endpoint("http", "hprose", 8080, "hprose");
+        InterAddress hprose = new InterAddress("hprose://127.0.0.1:9080/default");
+        try (Host host = new Host("rsf", List.of(tcp, http), Set.of(), null)) {
+            AddressPool pool = firstAddressPool(host.service.getBindID(), hprose);
+
+            // 不增加显式协议限制，仍按原有唯一目标 scheme 回退规则连接。
+            MetFuture future = host.invoke(new PoolAddressProvider(pool));
+            assertEquals(hprose, future.getRequest().getTargetAddress());
+            assertEquals("hprose", host.connectedProtocol.get());
+            assertTrue(future.cancel(true));
+        }
+    }
+
+    @Test
+    public void differentDeclarationsDoNotChangeTheSharedServiceAddressBook() throws Exception {
+        // 两个调用绑定使用同一服务身份、相同完整地址本，但分别选择 gRPC 和 RSF。
+        ConnectorConfig tcp = endpoint("tcp", "rsf", 2181, "rsf");
+        ConnectorConfig http = endpoint("http", "grpc", 8080, "grpc");
+        InterAddress rsf = new InterAddress("rsf://127.0.0.1:3181/default");
+        InterAddress grpc = new InterAddress("grpc://127.0.0.1:9080/default");
+        try (Host grpcHost = new Host("rsf", List.of(tcp, http), Set.of("grpc"), null); //
+             Host rsfHost = new Host("rsf", List.of(tcp, http), Set.of("rsf"), null)) {
+            AddressPool pool = firstAddressPool(grpcHost.service.getBindID(), rsf, grpc);
+
+            // 每个请求独立筛选，前一个请求不收窄共享 bucket 的协议或地址。
+            MetFuture grpcCall = grpcHost.invoke(new PoolAddressProvider(pool));
+            MetFuture rsfCall = rsfHost.invoke(new PoolAddressProvider(pool));
+            assertEquals(grpc, grpcCall.getRequest().getTargetAddress());
+            assertEquals(rsf, rsfCall.getRequest().getTargetAddress());
+            assertEquals(List.of(rsf, grpc), pool.queryAvailableAddresses(grpcHost.service.getBindID()));
+            assertTrue(grpcCall.cancel(true));
+            assertTrue(rsfCall.cancel(true));
+        }
+    }
+
+    private static AddressPool firstAddressPool(String serviceId, InterAddress... addresses) {
+        AddressPool pool = new AddressPool();
+        pool.appendAddress(serviceId, Arrays.asList(addresses));
+        pool.getBucket(serviceId).getFlowControlRef().randomFlowControl = new RandomFlowControl() {
+            @Override
+            public InterAddress getServiceAddress(List<InterAddress> candidates) {
+                return candidates.get(0);
+            }
+        };
+        return pool;
+    }
+
     private static ConnectorConfig endpoint(String name, String scheme, int port, String... protocols) {
         return endpoint(name, scheme, port, true, protocols);
     }
@@ -366,7 +492,10 @@ public class MetCallerProtocolSelectionTest {
         }
 
         private MetFuture invoke() throws Exception {
-            InstanceAddressProvider provider = new InstanceAddressProvider(this.target);
+            return this.invoke(new InstanceAddressProvider(this.target));
+        }
+
+        private MetFuture invoke(AddressProvider provider) throws Exception {
             Class<?>[] parameterTypes = { String.class };
             Object[] arguments = { "value" };
             MetRequestObject request = this.caller.createRequest(//
