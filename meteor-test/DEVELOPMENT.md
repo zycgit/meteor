@@ -9,16 +9,31 @@
 - `runner` 负责调度和报告，`java-meteor` 执行 Java 构建与 JUnit；`java-sdk` 在独立 JVM 和 classpath 中运行 SDK。
 - Python、Node.js、Go、native、browser 容器分别提供语言环境，native 包含 C/C++。Nacos、ZooKeeper、JDBC 提供注册存储；原生 ZooKeeper、Envoy 和专用节点供相应场景使用。
 - JUnit 启动 Meteor 和对端程序，等待就绪后通过 Docker DNS、真实监听端口发起 RPC，再校验响应、错误和资源释放。默认 16 表示并发场景数，各场景共用容器。
-- 矩阵方向以 Meteor 为基准：`self` 为 Meteor 两端，`provider` 为 SDK → Meteor，`consumer` 为 Meteor → SDK；按对端实际能力安排方向。
+- 旧协议场景以 Meteor 为基准记录 `self/provider/consumer`；标准矩阵按真实消费者 → 提供者记录方向，允许同协议的 SDK 和语言相互调用。
 
 ## 源码结构
 
 - `src/main/java/net/hasor/meteor/test/nxn`：编排、调度及报告；`src/main/c`：Linux 进程执行器；`src/test`：框架测试。
 - `peer/<语言>`：对端业务源码、启动脚本及工具链 Dockerfile；Java 的业务、JUnit、SDK 与公共契约分开组织，见下文。
+- `integration`：各框架专属的启动入口、Bean 装配和独立运行依赖，复用 Java 工程中的矩阵用例。
 - `docker`：Compose、编排与存储环境、代理配置。C/C++ 共用 native 工具链，Node.js 与浏览器使用同一 Dockerfile 的不同构建目标。
 - `resource`：共享契约、数据、矩阵清单和证书。
 - `tools`：契约生成、诊断与校时维护工具。
 - `build`：本工程的编译、临时文件、用户缓存、控制状态及运行归档。
+
+## 测试标准 API
+
+- [apis.json](resource/matrix/apis.json) 定义 API、场景、输入向量和 JUnit 入口。
+- 各对端的 `nxn.json` 声明 API、角色、RPC、`wire` 和发现方式，NXN 按共同能力自动组合。`wire` 区分契约绑定、编码、帧及安全要求。
+- Gradle 通过 `nxnRuntimeProperties` 导出运行依赖；JUnit 读取分组计划，以稳定的 `caseId` 关联统计和结果。
+- 对端读取 `METEOR_NXN_REQUEST_FILE`，以单行 JSON 输出 `ready`、`result`，结果必须来自真实 RPC。
+- 独占环境用 `serialGroup` 串行执行；协议特有场景保留在所属工程。
+
+## 框架与注册中心
+
+- `integration/hasor`、`integration/solon`、`integration/spring` 保存各框架的装配与启动入口，复用公共订单契约，使用独立 JVM 和运行依赖。
+- 按提供框架 × 消费框架 × 注册扩展生成矩阵。消费者只接收注册配置，由框架完成发布、注入和发现。
+- JDBC、Nacos、ZooKeeper 使用 `meteor.registry.*` 自动装配，JDBC 额外提供命名 DataSource；Dubbo 通过 Bean 安装 `DubboRegistryConfiguration`，验证原生注册发现。
 
 ## 语言对端
 

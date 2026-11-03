@@ -10,8 +10,8 @@
 
 ## Nacos 的分层范例
 
-1. [NacosDiscoveryMain](../../../../meteor-integration/meteor-registry-nacos/src/test/java/net/hasor/example/registry/nacos/NacosDiscoveryMain.java)：从正式配置创建并启动两个上下文，再发布、订阅并通过真实 RPC 调用；可直接运行的用户用法放在 `net.hasor.example.registry.nacos`。
-2. [NacosRegistryConfigurationTest](../../../../meteor-integration/meteor-registry-nacos/src/test/java/net/hasor/meteor/registry/nacos/NacosRegistryConfigurationTest.java)：在生产同名测试包隔离外部 SDK，验证配置传递、打开失败及资源回收，不把模拟 SDK 的成功称为真实 Nacos 互通。
+1. [NacosDiscoveryMain](../../../../meteor-integration/registry-nacos/src/test/java/net/hasor/example/registry/nacos/NacosDiscoveryMain.java)：从正式配置创建并启动两个上下文，再发布、订阅并通过真实 RPC 调用；可直接运行的用户用法放在 `net.hasor.example.registry.nacos`。
+2. [NacosRegistryConfigurationTest](../../../../meteor-integration/registry-nacos/src/test/java/net/hasor/meteor/registry/nacos/NacosRegistryConfigurationTest.java)：在生产同名测试包隔离外部 SDK，验证配置传递、打开失败及资源回收，不把模拟 SDK 的成功称为真实 Nacos 互通。
 3. 参考其分层、入口和资源管理方式。已有方法若同时验证多种错误条件或独立行为，仍要按主 Skill 拆分，不能照搬组合过大的测试。
 
 ## 按验证目标阅读现有测试

@@ -1,6 +1,6 @@
 # 协议插件测试
 
-适用于 `meteor-integration/meteor-protocol-*` 与 `meteor-test`；与仓库 `AGENTS.md`、主 Skill 一起使用。
+适用于 `meteor-integration/protocol-*` 与 `meteor-test`；与仓库 `AGENTS.md`、主 Skill 一起使用。
 
 ## 分层与归属
 
