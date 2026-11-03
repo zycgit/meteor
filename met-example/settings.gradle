@@ -1,5 +1,6 @@
 pluginManagement {
     repositories {
+        mavenLocal()
         gradlePluginPortal()
         mavenCentral()
     }
@@ -15,9 +16,9 @@ dependencyResolutionManagement {
 
 rootProject.name = 'met-example'
 
-// 独立导入示例工程时，直接使用当前仓库中的 Meteor 实现。
+//
 includeBuild('..')
-
+//
 include 'peer:java:contracts'
 include 'peer:java:meteor'
 include 'peer:java:apache-dubbo:3.3.6'
@@ -32,3 +33,7 @@ include 'peer:java:connect-kotlin'
 include 'peer:java:connect-rpc-java'
 include 'peer:java:apache-dubbo:3.2.20'
 include 'peer:java:remotetea'
+//
+include 'integration:java:hasor'
+include 'integration:java:solon'
+include 'integration:java:spring'

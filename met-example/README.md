@@ -1,9 +1,10 @@
 # Meteor 示例目录
 
-本工程演示各语言发布和调用订单服务的用法。Meteor 运行在 Java 端，源码按 `peer/<语言>` 组织，各语言 README 按协议给出双方入口和运行步骤。
+本工程演示各语言发布和调用订单服务的用法。Meteor 运行在 Java 端，协议互通示例按 `peer/<语言>` 组织，框架整合示例位于 `integration/java`。
 
 - [运行约定](#run)
 - [业务服务示例](#service-examples)
+- [框架整合](#framework-integration)
 - [管理 API](#management-api)
 - [共享资源](#resources)
 
@@ -13,7 +14,7 @@
 
 1. 准备 JDK 17，在 IDEA 中独立打开 `met-example` 并同步 Gradle。工程通过 `includeBuild('..')` 引用当前 Meteor 源码，Java 入口直接运行各自模块的 `main`。
 2. 按语言 README 准备对应工具链。除另有说明，命令从 Meteor 仓库根目录执行。
-3. 每次选择一组示例，先启动提供者，再在另一进程运行消费者。各示例共用本地业务端口 `8080`，切换前停止原提供者。
+3. 每次选择一组示例，先启动提供者，再在另一进程运行消费者。协议互通示例默认共用本地业务端口 `8080`，切换前停止原提供者。
 
 消费者保存并查询订单 `1001`，结果包含编号、描述和附件。`→` 表示消费者调用提供者，`↔` 表示分别提供两个调用方向的示例。
 
@@ -88,6 +89,33 @@
 ### Shell / curl
 
 - [JSON-RPC](peer/shell/README.md#jsonrpc)：curl → Meteor，环境要求见 [Shell 示例](peer/shell/README.md)。
+
+<a id="framework-integration"></a>
+
+# 框架整合
+
+演示容器自动发布同一订单服务、注入消费接口，并通过 ZooKeeper 注册发现。JSON-RPC（`/jsonrpc`）和 Hessian（`/hessian`）共用一个 HTTP 端口，同时提供 RSF 服务。
+
+- **Hasor Boot**：[提供者](integration/java/hasor/src/main/java/net/hasor/example/integration/ProviderMain.java)、[消费者](integration/java/hasor/src/main/java/net/hasor/example/integration/ConsumerMain.java)、[配置](integration/java/hasor/src/main/resources)。
+- **Solon**：[提供者](integration/java/solon/src/main/java/net/hasor/example/integration/ProviderMain.java)、[消费者](integration/java/solon/src/main/java/net/hasor/example/integration/ConsumerMain.java)、[配置](integration/java/solon/src/main/resources)。
+- **Spring Boot**：[提供者](integration/java/spring/src/main/java/net/hasor/example/integration/ProviderMain.java)、[消费者](integration/java/spring/src/main/java/net/hasor/example/integration/ConsumerMain.java)、[配置](integration/java/spring/src/main/resources)。
+
+先准备 ZooKeeper（默认 `127.0.0.1:2181`），再依次运行提供者、消费者的 `main`；消费者完成订单保存和查询后退出。服务地址由注册中心发现，消费协议由地址和已启用的连接器决定。
+
+也可打包后运行。Hasor、Spring 使用各自的 `bootJar`；Solon 在 Gradle 下使用 Shadow 合并协议 SPI。以下以 Hasor 为例，在 Meteor 仓库根目录执行：
+
+```bash
+# 分别生成提供者、消费者 JAR
+./gradlew -p met-example :integration:java:hasor:build
+./gradlew -p met-example :integration:java:hasor:build \
+  -PmainClass=net.hasor.example.integration.ConsumerMain
+
+# 在两个终端分别启动
+java -jar met-example/integration/java/hasor/build/libs/hasor-*-provider.jar
+java -jar met-example/integration/java/hasor/build/libs/hasor-*-consumer.jar
+```
+
+将命令中的 `hasor` 换为 `solon` 或 `spring` 即可切换框架。也可跨框架配对调用。
 
 <a id="management-api"></a>
 

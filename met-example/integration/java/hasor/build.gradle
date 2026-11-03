@@ -1,6 +1,6 @@
 plugins {
     id 'application'
-    id 'net.hasor.boot'
+    id 'net.hasor.boot' version "${hasorVersion}"
 }
 
 description = 'Meteor hasor service publishing and discovery example'
@@ -16,12 +16,12 @@ configurations {
 dependencies {
     implementation project(':peer:java:contracts')
     implementation "net.hasor:meteor-hasor:${version}"
-    implementation "net.hasor:hasor-boot:${rootProject.hasorVersion}"
+    implementation "net.hasor:hasor-boot:${hasorVersion}"
     runtimeOnly "net.hasor:meteor-registry-zookeeper:${version}"
     runtimeOnly "net.hasor:meteor-protocol-jsonrpc:${version}"
     runtimeOnly "net.hasor:meteor-protocol-hessian:${version}"
     runtimeOnly 'org.slf4j:slf4j-simple:1.7.36'
-    bootLoader "net.hasor:hasor-boot-loader:${rootProject.hasorVersion}"
+    bootLoader "net.hasor:hasor-boot-loader:${hasorVersion}"
 }
 
 tasks.named('bootJar') {
