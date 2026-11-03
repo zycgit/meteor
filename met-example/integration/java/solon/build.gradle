@@ -1,0 +1,38 @@
+plugins {
+    id 'application'
+    id 'com.gradleup.shadow'
+}
+
+description = 'Meteor solon service publishing and discovery example'
+
+application {
+    mainClass = providers.gradleProperty('mainClass').orElse('net.hasor.example.integration.ProviderMain')
+}
+
+dependencies {
+    implementation project(':peer:java:contracts')
+    implementation "net.hasor:meteor-solon:${version}"
+    runtimeOnly "net.hasor:meteor-registry-zookeeper:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-jsonrpc:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-hessian:${version}"
+    runtimeOnly 'org.slf4j:slf4j-simple:2.0.18'
+}
+
+tasks.named('shadowJar') {
+    archiveClassifier.set(application.mainClass.map { entry ->
+        if (entry.endsWith('ConsumerMain')) {
+            return 'consumer'
+        }
+        return 'provider'
+    })
+    // 合并 Meteor 协议、传输和扩展 SPI，保留所有实现声明。
+    filesMatching('META-INF/services/**') {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
+    mergeServiceFiles()
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('shadowJar')
+}

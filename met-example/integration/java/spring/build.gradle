@@ -1,0 +1,29 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot'
+}
+
+description = 'Meteor spring service publishing and discovery example'
+
+springBoot {
+    mainClass = providers.gradleProperty('mainClass').orElse('net.hasor.example.integration.ProviderMain')
+}
+
+dependencies {
+    implementation platform(org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES)
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation project(':peer:java:contracts')
+    implementation "net.hasor:meteor-spring:${version}"
+    runtimeOnly "net.hasor:meteor-registry-zookeeper:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-jsonrpc:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-hessian:${version}"
+}
+
+tasks.named('bootJar') {
+    archiveClassifier.set(springBoot.mainClass.map { entry ->
+        if (entry.endsWith('ConsumerMain')) {
+            return 'consumer'
+        }
+        return 'provider'
+    })
+}

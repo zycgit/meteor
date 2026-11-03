@@ -1,0 +1,36 @@
+plugins {
+    id 'application'
+    id 'net.hasor.boot'
+}
+
+description = 'Meteor hasor service publishing and discovery example'
+
+application {
+    mainClass = providers.gradleProperty('mainClass').orElse('net.hasor.example.integration.ProviderMain')
+}
+
+configurations {
+    bootLoader
+}
+
+dependencies {
+    implementation project(':peer:java:contracts')
+    implementation "net.hasor:meteor-hasor:${version}"
+    implementation "net.hasor:hasor-boot:${rootProject.hasorVersion}"
+    runtimeOnly "net.hasor:meteor-registry-zookeeper:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-jsonrpc:${version}"
+    runtimeOnly "net.hasor:meteor-protocol-hessian:${version}"
+    runtimeOnly 'org.slf4j:slf4j-simple:1.7.36'
+    bootLoader "net.hasor:hasor-boot-loader:${rootProject.hasorVersion}"
+}
+
+tasks.named('bootJar') {
+    mainClass.set(application.mainClass)
+    loaderClasspath.from(configurations.bootLoader)
+    archiveClassifier.set(application.mainClass.map { entry ->
+        if (entry.endsWith('ConsumerMain')) {
+            return 'consumer'
+        }
+        return 'provider'
+    })
+}
