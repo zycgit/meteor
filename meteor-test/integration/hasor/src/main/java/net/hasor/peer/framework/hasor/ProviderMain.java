@@ -24,7 +24,8 @@ import net.hasor.peer.framework.FrameworkPeerUtils;
 public class ProviderMain implements Module {
     public static void main(String[] args) throws Exception {
         String location = Path.of(args[0]).toUri().toString();
-        try (BootApplication app = new Boot().hconfigFile(location).sources(ProviderMain.class).start()) {
+        Boot boot = new Boot().hconfigFile(location).sources(ProviderMain.class);
+        try (BootApplication app = boot.start()) {
             MetContext meteor = app.getAppContext().getInstance(MetContext.class);
             FrameworkPeerUtils.ready(meteor, Path.of(args[1]));
             app.join();

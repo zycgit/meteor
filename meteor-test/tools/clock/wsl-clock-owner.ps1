@@ -27,7 +27,7 @@ $script:debugShell = $null
 function Write-ClockLog([string] $Message) {
     $line = '[WSL chronyd] ' + $Message + [Environment]::NewLine
     [System.IO.File]::AppendAllText($logPath, $line, $utf8)
-    Write-Host $line.TrimEnd()
+    # 外层已转发日志；管理员控制台处于选择模式时，Write-Host 会阻塞恢复。
 }
 
 function Write-Marker([string] $Name, [object] $Value) {
@@ -45,7 +45,6 @@ function Write-Failure([object] $Failure) {
     $details = ($Failure | Format-List * -Force | Out-String) + $Failure.Exception.ToString()
     $message = $script:failureStage + ': ' + $Failure.Exception.Message
     $message = $message.Replace("`r", ' ').Replace("`n", ' ')
-    [Console]::Error.WriteLine($message + [Environment]::NewLine + $details)
     try {
         [System.IO.File]::AppendAllText((Join-Path $StateDirectory 'failed'), $details, $utf8)
         $summary = Join-Path $StateDirectory 'failure-message.txt'
@@ -54,7 +53,11 @@ function Write-Failure([object] $Failure) {
         }
         Write-ClockLog $details
     } catch {
-        [Console]::Error.WriteLine('Cannot retain clock failure in the state directory: ' + $_.Exception.ToString())
+        # 已开始控制 chronyd 后不写管理员控制台，避免其选择模式阻塞恢复。
+        if (-not $stateAccessible) {
+            [Console]::Error.WriteLine($message + [Environment]::NewLine + $details +
+                [Environment]::NewLine + 'Cannot retain clock failure in the state directory: ' + $_.Exception.ToString())
+        }
     }
 }
 
@@ -92,11 +95,13 @@ function Open-DebugShell([int] $TimeoutMilliseconds = 30000) {
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $info
     [void] $process.Start()
+    $process.StandardInput.AutoFlush = $true
     $script:debugShell = @{
         Process = $process
         Errors = $process.StandardError.ReadToEndAsync()
         Buffer = New-Object char[] 2048
         PendingRead = $null
+        PendingWrite = $null
         LastConfirmed = $false
     }
     $script:failureStage = 'debug:login'
@@ -142,16 +147,31 @@ function Invoke-DebugShell([string] $Commands, [string] $Completion, [switch] $C
         $delimiter = 'METEOR_SCRIPT_' + [Guid]::NewGuid().ToString('N')
         $payload = "sh <<'" + $delimiter + "'`n" + $Commands.Replace("`r`n", "`n") + "`n" +
             $delimiter + "`nmeteor_status=`$?`nprintf '\n" + $resultMarker + ":%s\n' `"`$meteor_status`"`n"
-        $commandsSent = $true
-        $process.StandardInput.Write($payload)
-        $process.StandardInput.Flush()
+        # 发送与读取共用预算，并持续读取输出，避免两端管道相互等待。
         $watch = [System.Diagnostics.Stopwatch]::StartNew()
+        Write-ClockLog ('Sending debug command ' + $Completion + ': client PID=' + $process.Id + '.')
+        $script:failureStage = 'debug:' + $Completion + ':send'
+        $commandsSent = $true
+        $script:debugShell.PendingWrite = $process.StandardInput.WriteAsync($payload)
         while ($watch.ElapsedMilliseconds -lt $TimeoutMilliseconds) {
+            if ($null -ne $script:debugShell.PendingWrite -and $script:debugShell.PendingWrite.IsCompleted) {
+                [void] $script:debugShell.PendingWrite.GetAwaiter().GetResult()
+                $script:debugShell.PendingWrite = $null
+                $script:failureStage = 'debug:' + $Completion + ':response'
+                Write-ClockLog ('Sent debug command ' + $Completion + ': client PID=' + $process.Id + '.')
+            }
             if ($null -eq $script:debugShell.PendingRead) {
                 $script:debugShell.PendingRead = $process.StandardOutput.ReadAsync($script:debugShell.Buffer, 0, 2048)
             }
             $remaining = [Math]::Max(1, $TimeoutMilliseconds - [int] $watch.ElapsedMilliseconds)
-            if (-not $script:debugShell.PendingRead.Wait($remaining)) {
+            if ($null -ne $script:debugShell.PendingWrite) {
+                $pending = [System.Threading.Tasks.Task[]] @($script:debugShell.PendingRead, $script:debugShell.PendingWrite)
+                if ([System.Threading.Tasks.Task]::WaitAny($pending, $remaining) -eq -1) {
+                    $endReason = 'timeout'
+                    break
+                }
+                if (-not $script:debugShell.PendingRead.IsCompleted) { continue }
+            } elseif (-not $script:debugShell.PendingRead.Wait($remaining)) {
                 $endReason = 'timeout'
                 break
             }
@@ -175,6 +195,16 @@ function Invoke-DebugShell([string] $Commands, [string] $Completion, [switch] $C
             throw ('WSL command ' + $Completion + ' ended with ' + $endReason +
                 ' before confirmation; client exit=' + $clientExitCode + '; see chrony.log.')
         }
+        if ($null -ne $script:debugShell.PendingWrite) {
+            $remaining = [Math]::Max(1, $TimeoutMilliseconds - [int] $watch.ElapsedMilliseconds)
+            if (-not $script:debugShell.PendingWrite.Wait($remaining)) {
+                throw ('WSL command ' + $Completion + ' send timed out before completion; see chrony.log.')
+            }
+            [void] $script:debugShell.PendingWrite.GetAwaiter().GetResult()
+            $script:debugShell.PendingWrite = $null
+            $script:failureStage = 'debug:' + $Completion + ':response'
+            Write-ClockLog ('Sent debug command ' + $Completion + ': client PID=' + $process.Id + '.')
+        }
         Write-ClockLog ('Debug command ' + $Completion + ': client PID=' + $process.Id + ', remote exit=' + $remoteExitCode + '.')
         if ($remoteExitCode -ne 0) { throw ('WSL command ' + $Completion + ' failed with exit code ' + $remoteExitCode + '.') }
         $markerPattern = '(?m)^' + [regex]::Escape($Completion) + '\r?$'
@@ -194,12 +224,18 @@ function Close-DebugShell {
     $expectedDisconnect = $false
     $remainingOutput = $null
     try {
+        # 先排空输出再等待 exit 发送，避免对端先写尾部日志时两根管道互等。
+        if ($null -eq $owned.PendingRead) { $remainingOutput = $process.StandardOutput.ReadToEndAsync() }
         # 所有远端业务阶段结束后，才退出 root shell 并释放本地传输客户端。
         if (-not $process.HasExited) {
-            $process.StandardInput.Write("exit`n")
-            $process.StandardInput.Close()
+            if ($null -eq $owned.PendingWrite) {
+                $owned.PendingWrite = $process.StandardInput.WriteAsync("exit`n")
+            }
+            if (-not $owned.PendingWrite.Wait(1000)) {
+                $expectedDisconnect = $owned.LastConfirmed
+                $process.Kill()
+            }
         }
-        if ($null -eq $owned.PendingRead) { $remainingOutput = $process.StandardOutput.ReadToEndAsync() }
         if (-not $process.WaitForExit(1000) -and -not $process.HasExited) {
             $expectedDisconnect = $owned.LastConfirmed
             $process.Kill()

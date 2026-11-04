@@ -22,7 +22,8 @@ import net.hasor.peer.framework.FrameworkPeerUtils;
 public class ConsumerMain implements Module {
     public static void main(String[] args) throws Exception {
         String location = Path.of(args[0]).toUri().toString();
-        try (BootApplication app = new Boot().hconfigFile(location).sources(ConsumerMain.class).start()) {
+        Boot boot = new Boot().hconfigFile(location).sources(ConsumerMain.class);
+        try (BootApplication app = boot.start()) {
             OrderClient client = app.getAppContext().getInstance(OrderClient.class);
             client.invoke(Path.of(args[1]));
         }

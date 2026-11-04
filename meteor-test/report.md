@@ -6,9 +6,65 @@ skipError：`true`。
 
 用例筛选：全部。
 
-通过 7829 项，失败 0 项，跳过 0 项，已确认未执行 0 项。
+通过 8154 项，失败 0 项，跳过 0 项，已确认未执行 0 项，结果未知 0 项。
 
 详细结果：[summary.json](build/docker-runs/meteor-test/build/interoperability/summary.json)
+
+## 标准矩阵
+
+执行前计划 398 项；通过 398，失败 0，准备失败 0，清理失败 0，跳过 0，未执行 0，结果未知 0。
+
+本节各状态互斥；准备失败与清理失败单列，顶部通过和失败数来自原始 JUnit 结果。
+
+其它既有场景按运行期发现统计，不计入执行前精确计划。
+
+- RPC `connect`，版本 `1`：计划 35，通过 35。
+- RPC `dubbo`：计划 10，通过 10。
+- RPC `dubbo`，版本 `2`：计划 8，通过 8。
+- RPC `dubbo`，版本 `2/3`：计划 4，通过 4。
+- RPC `dubbo`，版本 `3`：计划 3，通过 3。
+- RPC `grpc-web`：计划 18，通过 18。
+- RPC `grpc`：计划 49，通过 49。
+- RPC `hessian`，版本 `2`：计划 12，通过 12。
+- RPC `hprose`：计划 9，通过 9。
+- RPC `jsonrpc`，版本 `2.0`：计划 19，通过 19。
+- RPC `oncrpc`，版本 `2`：计划 36，通过 36。
+- RPC `rsf`，版本 `1`：计划 31，通过 31。
+- RPC `soap`，版本 `1.1`：计划 25，通过 25。
+- RPC `thrift`：计划 121，通过 121。
+- RPC `triple`：计划 9，通过 9。
+- RPC `xmlrpc`：计划 9，通过 9。
+
+- 提供者 `c` → 消费者 `c`：计划 4，通过 4。
+- 提供者 `c` → 消费者 `cpp`：计划 4，通过 4。
+- 提供者 `c` → 消费者 `java`：计划 4，通过 4。
+- 提供者 `cpp` → 消费者 `c`：计划 4，通过 4。
+- 提供者 `cpp` → 消费者 `cpp`：计划 12，通过 12。
+- 提供者 `cpp` → 消费者 `go`：计划 4，通过 4。
+- 提供者 `cpp` → 消费者 `java`：计划 20，通过 20。
+- 提供者 `cpp` → 消费者 `node`：计划 4，通过 4。
+- 提供者 `cpp` → 消费者 `python`：计划 4，通过 4。
+- 提供者 `go` → 消费者 `cpp`：计划 4，通过 4。
+- 提供者 `go` → 消费者 `go`：计划 3，通过 3。
+- 提供者 `go` → 消费者 `java`：计划 12，通过 12。
+- 提供者 `go` → 消费者 `node`：计划 3，通过 3。
+- 提供者 `go` → 消费者 `python`：计划 3，通过 3。
+- 提供者 `java` → 消费者 `c`：计划 4，通过 4。
+- 提供者 `java` → 消费者 `cpp`：计划 20，通过 20。
+- 提供者 `java` → 消费者 `go`：计划 10，通过 10。
+- 提供者 `java` → 消费者 `java`：计划 164，通过 164。
+- 提供者 `java` → 消费者 `node`：计划 15，通过 15。
+- 提供者 `java` → 消费者 `python`：计划 19，通过 19。
+- 提供者 `node` → 消费者 `cpp`：计划 4，通过 4。
+- 提供者 `node` → 消费者 `go`：计划 3，通过 3。
+- 提供者 `node` → 消费者 `java`：计划 20，通过 20。
+- 提供者 `node` → 消费者 `node`：计划 6，通过 6。
+- 提供者 `node` → 消费者 `python`：计划 5，通过 5。
+- 提供者 `python` → 消费者 `cpp`：计划 4，通过 4。
+- 提供者 `python` → 消费者 `go`：计划 3，通过 3。
+- 提供者 `python` → 消费者 `java`：计划 24，通过 24。
+- 提供者 `python` → 消费者 `node`：计划 5，通过 5。
+- 提供者 `python` → 消费者 `python`：计划 7，通过 7。
 
 ## SDK 版本兼容
 
@@ -34,14 +90,8 @@ skipError：`true`。
 | c | grpc | gRPC-Core | 1.85.0 | upstream-latest | 通过 | 通过 |
 | c | thrift | Apache-Thrift | 0.17.0 | debian-baseline | 通过 | 通过 |
 | c | thrift | Apache-Thrift | 0.25.0 | upstream-latest | 通过 | 通过 |
-| cpp | grpc | gRPC-Core | 1.51.1 | debian-baseline | 通过 | 通过 |
-| cpp | grpc | gRPC-Core | 1.85.0 | upstream-latest | 通过 | 通过 |
-| cpp | thrift | Apache-Thrift | 0.17.0 | debian-baseline | 通过 | 通过 |
-| cpp | thrift | Apache-Thrift | 0.25.0 | upstream-latest | 通过 | 通过 |
 | cpp | jsonrpc | libjson-rpc-cpp | 0.7.0 | legacy-debian | 通过 | 通过 |
 | cpp | jsonrpc | libjson-rpc-cpp | 1.4.1 | upstream-latest | 通过 | 通过 |
-| c | oncrpc | libtirpc | 1.3.8 | upstream-latest | 通过 | 通过 |
-| cpp | oncrpc | libtirpc | 1.3.8 | upstream-latest | 通过 | 通过 |
 | node | connect | Connect-ES | 1.7.0 | connect-1.7.0 | 通过 | 通过 |
 | node | connect | Connect-ES | 2.3.0 | connect-2.3.0 | 通过 | 通过 |
 | node | dubbo | dubbo2.js | 1.0.4 | dubbo-1.0.4 | 通过 | — |
@@ -98,33 +148,6 @@ skipError：`true`。
 | c | xmlrpc | xmlrpc-c | 1.64.04 | upstream-latest | 通过 | 通过 |
 | cpp | xmlrpc | xmlrpc-c | 1.33.14 | legacy-debian | 通过 | 通过 |
 | cpp | xmlrpc | xmlrpc-c | 1.64.04 | upstream-latest | 通过 | 通过 |
-| java | connect | Connect Kotlin | 0.10.0 | connectCurrent | 通过 | — |
-| java | connect | Connect Kotlin | 0.4.0 | connectLegacy | 通过 | — |
-| java | connect | Connect Kotlin | 0.5.1 | connect | 通过 | — |
-| java | dubbo | Alibaba Dubbo | 2.6.12 | dubboClassic | 通过 | 通过 |
-| java | dubbo | Apache Dubbo | 2.7.23 | dubboLegacy | 通过 | 通过 |
-| java | dubbo | Apache Dubbo | 3.3.6 | dubbo | 通过 | 通过 |
-| java | grpc | gRPC-Java | 1.85.1 | grpcCurrent | 通过 | 通过 |
-| java | grpcweb | Connect Kotlin | 0.10.0 | connectCurrent | 通过 | — |
-| java | grpcweb | Connect Kotlin | 0.4.0 | connectLegacy | 通过 | — |
-| java | grpcweb | Connect Kotlin | 0.5.1 | connect | 通过 | — |
-| java | hessian | Caucho Hessian | 4.0.51 | hessianLegacy | 通过 | 通过 |
-| java | hessian | Caucho Hessian | 4.0.66 | hessianRecent | 通过 | 通过 |
-| java | hprose | Hprose Java | 2.0.38 | hprose | 通过 | 通过 |
-| java | jsonrpc | jsonrpc4j | 1.7 | jsonrpc | 通过 | 通过 |
-| java | oncrpc | RemoteTea | 1.1.6 | oncrpc | 通过 | 通过 |
-| java | soap | Metro JAX-WS | 2.3.7 | soapJavax | 通过 | 通过 |
-| java | soap | Metro JAX-WS | 3.0.2 | soapLegacy | 通过 | 通过 |
-| java | soap | Metro JAX-WS | 4.0.5 | soap | 通过 | 通过 |
-| java | thrift | Apache Thrift | 0.10.0 | thriftClassic | 通过 | 通过 |
-| java | thrift | Apache Thrift | 0.13.0 | thriftPreLayered | 通过 | 通过 |
-| java | thrift | Apache Thrift | 0.16.0 | thriftLayered | 通过 | 通过 |
-| java | thrift | Apache Thrift | 0.22.0 | thriftLegacy | 通过 | 通过 |
-| java | thrift | Apache Thrift | 0.25.0 | thrift | 通过 | 通过 |
-| java | triple | Apache Dubbo | 3.2.20 | tripleLegacy | 通过 | 通过 |
-| java | triple | Apache Dubbo | 3.3.6 | dubbo | 通过 | 通过 |
-| java | xmlrpc | Apache XML-RPC | 3.1.3 | xmlrpc | 通过 | 通过 |
-| java | connect | Connect RPC Java | 0.2.1 | connectServer | — | 通过 |
 | python | connect | connectrpc | 0.10.1 | google | 通过 | 通过 |
 | python | connect | connectrpc | 0.11.1 | google | 通过 | 通过 |
 | python | connect | connectrpc | 0.11.1 | native | 通过 | 通过 |
