@@ -53,9 +53,9 @@ final class SoapGeneratedDefinitionResource extends SoapDefinitionResource {
         this.style = config.option("soapStyle", "document");
         this.use = config.option("soapUse", "literal");
         this.bare = StringUtils.equals("bare", SoapDefinitionResource.parameterStyle(config));
-        String alias = service.getAliasName("soap");
+        String alias = MetRuntimeUtils.getProtocolServiceName(service, "soap");
         this.wsdl = SoapXmlUtils.newDocument();
-        SoapXmlUtils.requireName(this.wsdl, alias, "SOAP service alias");
+        SoapXmlUtils.requireName(this.wsdl, alias, "SOAP service name");
         String namespace = "urn:hasor:meteor:soap:" + alias;
 
         // 方法顺序和参数名称与编译器保留的源码参数名无关，两端可独立生成相同契约。

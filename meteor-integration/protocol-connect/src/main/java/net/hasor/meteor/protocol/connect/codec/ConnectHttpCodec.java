@@ -113,13 +113,7 @@ public final class ConnectHttpCodec {
         if (parts.length != 2 || parts[0].isEmpty() || parts[1].isEmpty()) {
             throw invalid("Expected /service/method");
         }
-        MetBindInfo<?> service = this.context.getServiceInfo(this.config.name(), parts[0]);
-        if (service == null || service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
-            throw new UnsupportedOperationException("Unknown Connect service: " + parts[0]);
-        }
-        if (!this.routes.accepts(service, mount)) {
-            throw new UnsupportedOperationException("Service is not exposed on this protocol mount");
-        }
+        MetBindInfo<?> service = this.findService(parts[0], mount);
         Method method = this.definition(service).remoteMethod(parts[1]);
         GrpcMethodShape shape = this.definition(service).shape(method);
         Map<String, String> query = get ? query(input.uri()) : Map.of();
@@ -203,7 +197,7 @@ public final class ConnectHttpCodec {
         }
         MetBindInfo<?> service = this.service(request);
         String operation = this.definition(service).remoteName(method);
-        String path = this.routes.requestPath(service, this.alias(service) + "/" + operation);
+        String path = this.routes.requestPath(service, this.serviceName(service) + "/" + operation);
         Map<String, List<String>> headers = this.requestHeaders(request, false);
         byte[] body = this.encodeValue(request, request.getParameterValues().get(0), true);
         body = this.frames.compress(body, this.compression);
@@ -228,7 +222,7 @@ public final class ConnectHttpCodec {
             throw new UnsupportedOperationException("Bidirectional Connect streams require HTTP/2");
         }
         String operation = this.definition(service).remoteName(method);
-        String path = this.routes.requestPath(service, this.alias(service) + "/" + operation);
+        String path = this.routes.requestPath(service, this.serviceName(service) + "/" + operation);
         return HttpRequest.newStreaming("POST", path, this.requestHeaders(request, true), body, this.httpVersion());
     }
 
@@ -559,9 +553,13 @@ public final class ConnectHttpCodec {
         }
         int separator = path.indexOf('/', 1);
         if (separator > 1) {
-            MetBindInfo<?> service = this.context.getServiceInfo(this.config.name(), path.substring(1, separator));
-            if (service != null && this.routes.accepts(service) && this.routes.exactPaths(service).contains(path)) {
-                return RouteMount.exact(path);
+            String name = path.substring(1, separator);
+            for (String id : this.context.getServiceIDs()) {
+                MetBindInfo<?> service = this.context.getServiceInfo(id);
+                if (service != null && this.routes.accepts(service) && this.routes.exactPaths(service).contains(path) //
+                        && StringUtils.equals(name, this.definition(service).serviceName())) {
+                    return RouteMount.exact(path);
+                }
             }
         }
         return this.routes.match(path);
@@ -662,12 +660,30 @@ public final class ConnectHttpCodec {
         return service;
     }
 
-    private String alias(MetBindInfo<?> service) {
-        String alias = service.getAliasName(this.config.name());
-        if (StringUtils.isBlank(alias)) {
-            throw invalid("Service must declare its Connect alias");
+    private String serviceName(MetBindInfo<?> service) {
+        return this.definition(service).serviceName();
+    }
+
+    private MetBindInfo<?> findService(String name, RouteMount mount) {
+        MetBindInfo<?> selected = null;
+        for (String id : this.context.getServiceIDs()) {
+            MetBindInfo<?> service = this.context.getServiceInfo(id);
+            if (service == null || service.isShadow() || service.getServiceType() != MetServiceType.Provider //
+                    || !this.routes.accepts(service, mount)) {
+                continue;
+            }
+            if (!StringUtils.equals(name, this.definition(service).serviceName())) {
+                continue;
+            }
+            if (selected != null) {
+                throw invalid("Ambiguous Connect service: " + name);
+            }
+            selected = service;
         }
-        return alias;
+        if (selected == null) {
+            throw new UnsupportedOperationException("Unknown Connect service: " + name);
+        }
+        return selected;
     }
 
     private Method findMethod(MetBindInfo<?> service, String name) {

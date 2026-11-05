@@ -7,12 +7,15 @@
  */
 package net.hasor.meteor.protocol.grpc;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ObjLongConsumer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolServiceRouting;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.NetworkChannel;
@@ -28,7 +31,7 @@ import net.hasor.meteor.protocol.grpc.session.GrpcMountRuntime;
 import net.hasor.meteor.protocol.grpc.session.GrpcWebSession;
 
 /** gRPC-Web 的 HTTP 挂载入口，复用 gRPC 服务映射与调用生命周期。 */
-public final class GrpcWebProtocol implements HttpProtocolProvider {
+public final class GrpcWebProtocol implements HttpProtocolProvider, ProtocolServiceRouting {
     private final Map<ProtocolConfig, GrpcMountRuntime> runtimes = new ConcurrentHashMap<>();
 
     @Override
@@ -39,6 +42,11 @@ public final class GrpcWebProtocol implements HttpProtocolProvider {
     @Override
     public String defaultSerialize() {
         return "Protobuf";
+    }
+
+    @Override
+    public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+        return List.of(((GrpcServiceBinding) binding.getDefinition()).serviceName());
     }
 
     @Override

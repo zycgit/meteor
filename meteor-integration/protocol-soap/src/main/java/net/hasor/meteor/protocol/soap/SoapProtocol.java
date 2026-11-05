@@ -23,6 +23,7 @@ import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.connector.ProtocolServiceRouting;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
@@ -43,7 +44,7 @@ import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 import net.hasor.meteor.protocol.soap.mapping.SoapXmlProperty;
 
 /** SOAP 1.1/1.2 协议入口及 Java 服务映射校验。 */
-public final class SoapProtocol implements HttpProtocolProvider {
+public final class SoapProtocol implements HttpProtocolProvider, ProtocolServiceRouting {
     @Override
     public String name() {
         return "soap";
@@ -55,18 +56,21 @@ public final class SoapProtocol implements HttpProtocolProvider {
     }
 
     @Override
+    public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+        SoapProtocolMeta definition = (SoapProtocolMeta) binding.getDefinition();
+        return List.of(definition.serviceName());
+    }
+
+    @Override
     public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
         MetBindInfo<?> service = meta.getService();
         this.validateAttachments(config);
-        String alias = service.getAliasName(this.name());
-        if (StringUtils.isBlank(alias)) {
-            return null;
-        }
+        String serviceName = MetRuntimeUtils.getProtocolServiceName(service, this.name());
         if (!this.supports(service)) {
             return null;
         }
-        if (!this.isPathSegment(alias)) {
-            throw new IllegalArgumentException("SOAP service alias must be one URI path segment: " + alias);
+        if (!this.isPathSegment(serviceName)) {
+            throw new IllegalArgumentException("SOAP service name must be one URI path segment: " + serviceName);
         }
         XmlMapper template = context == null ? null : context.getExtension(XmlMapper.class);
         XmlMapper mapper = SoapXmlMapping.configuredMapper(template);
@@ -304,7 +308,7 @@ public final class SoapProtocol implements HttpProtocolProvider {
     }
 
     private boolean isPathSegment(String alias) {
-        if (StringUtils.equals(".", alias) || StringUtils.equals("..", alias)) {
+        if (StringUtils.isBlank(alias) || StringUtils.equals(".", alias) || StringUtils.equals("..", alias)) {
             return false;
         }
         for (int index = 0; index < alias.length(); index++) {

@@ -61,15 +61,104 @@ public class SoapProtocolTest {
     }
 
     @Test
-    public void serviceWithoutSoapAliasIsRejected() throws Exception {
-        // 准备合法 WSDL，但服务声明不包含 SOAP 别名。
+    public void serviceWithoutSoapAliasUsesItsDeclaredName() throws Exception {
+        // 外部 WSDL 决定 XML 契约，服务登记名只决定运行时端点。
+        ServiceDomain<EchoService> service = new ServiceDomain<>(EchoService.class);
+        service.setBindName("LocalEcho");
+        service.setBindResource("soap", new SoapWsdlResource(this.getClass().getResource("/wsdl/echo.wsdl")));
+        ProtocolConfig config = this.configuration();
+        ProtocolMeta meta = service.getProtocolMeta("soap");
+
+        // 默认端点名不能重命名 WSDL 的 service、port 或命名空间。
+        ProtocolBinding binding = new SoapProtocol().prepareBinding(config, null, meta);
+        SoapProtocolMeta prepared = (SoapProtocolMeta) binding.getDefinition();
+        URI endpoint = URI.create("http://localhost/services/LocalEcho");
+        String wsdl = new String(prepared.resource().renderWsdl(endpoint), StandardCharsets.UTF_8);
+        assertEquals("LocalEcho", binding.getDescription().path("name").asText());
+        assertTrue(wsdl.contains("name=\"EchoService\""));
+        assertTrue(wsdl.contains("name=\"EchoPort\""));
+        assertTrue(wsdl.contains("targetNamespace=\"urn:meteor:test:echo\""));
+        assertTrue(wsdl.contains("location=\"" + endpoint + "\""));
+    }
+
+    @Test
+    public void explicitEmptySoapAliasIsRejected() throws Exception {
+        // 已显式配置的空别名属于错误配置，不能回退到服务名掩盖它。
         ServiceDomain<EchoService> service = this.service(EchoService.class, "/wsdl/echo.wsdl");
         service.putAliasName("soap", "");
         ProtocolConfig config = this.configuration();
         ProtocolMeta meta = service.getProtocolMeta("soap");
 
-        // 缺少必需绑定时拒绝此端点，不影响其它协议接受同一服务。
-        assertNull(new SoapProtocol().prepareBinding(config, null, meta));
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> new SoapProtocol().prepareBinding(config, null, meta));
+        assertEquals("SOAP service name must be one URI path segment: ", failure.getMessage());
+    }
+
+    @Test
+    public void unsafeDefaultServiceNameIsRejected() throws Exception {
+        // 没有协议别名时，默认服务名也必须通过端点路径校验。
+        ServiceDomain<EchoService> service = new ServiceDomain<>(EchoService.class);
+        service.setBindName("unsafe/echo");
+        ProtocolConfig config = this.configuration();
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> new SoapProtocol().prepareBinding(config, null, meta));
+        assertEquals("SOAP service name must be one URI path segment: unsafe/echo", failure.getMessage());
+    }
+
+    @Test
+    public void explicitSoapAliasOverridesTheDefaultServiceName() throws Exception {
+        // 内部服务名不适合 XML/HTTP 时，调用方可以显式给出合法协议名。
+        ServiceDomain<EchoService> service = new ServiceDomain<>(EchoService.class);
+        service.setBindName("internal/echo");
+        service.putAliasName("soap", "PublicEcho");
+        ProtocolConfig config = this.configuration();
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        // 发布描述和生成契约使用同一个生效名称。
+        ProtocolBinding binding = new SoapProtocol().prepareBinding(config, null, meta);
+        SoapProtocolMeta prepared = (SoapProtocolMeta) binding.getDefinition();
+        String wsdl = new String(prepared.resource().renderWsdl( //
+                URI.create("http://localhost/services/PublicEcho")), StandardCharsets.UTF_8);
+        assertEquals("PublicEcho", binding.getDescription().path("name").asText());
+        assertTrue(wsdl.contains("name=\"PublicEcho\""));
+        assertTrue(wsdl.contains("targetNamespace=\"urn:hasor:meteor:soap:PublicEcho\""));
+    }
+
+    @Test
+    public void generatedDefaultServiceNameMustBeAnXmlLocalName() {
+        // 生成 WSDL 时默认名同样用于 service、portType 和 binding 组件。
+        ServiceDomain<EchoService> service = new ServiceDomain<>(EchoService.class);
+        service.setBindName("123");
+        ProtocolConfig config = this.configuration();
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        // 纯数字可作为外部 WSDL 的端点路径，但不能生成 XML NCName。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> new SoapProtocol().prepareBinding(config, null, meta));
+        assertEquals("SOAP service name must be an XML local name: 123", failure.getMessage());
+    }
+
+    @Test
+    public void rejectedRenameDoesNotChangeThePreparedServiceName() throws Exception {
+        // 已接受的端点必须保存发布时名称，不能在路由时重新读取可变服务配置。
+        ServiceDomain<EchoService> service = new ServiceDomain<>(EchoService.class);
+        service.setBindName("AcceptedEcho");
+        ProtocolConfig config = this.configuration();
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+        SoapProtocol protocol = new SoapProtocol();
+        ProtocolBinding accepted = protocol.prepareBinding(config, null, meta);
+        SoapProtocolMeta prepared = (SoapProtocolMeta) accepted.getDefinition();
+
+        // 后续无效重命名失败时，原协议定义及路由键保持不变。
+        service.putAliasName("soap", "invalid/name");
+        assertThrows(IllegalArgumentException.class, () -> protocol.prepareBinding(config, null, meta));
+        assertEquals("AcceptedEcho", prepared.serviceName());
+        assertEquals(List.of("AcceptedEcho"), protocol.serviceKey(service, accepted));
+        String wsdl = new String(prepared.resource().renderWsdl( //
+                URI.create("http://localhost/services/AcceptedEcho")), StandardCharsets.UTF_8);
+        assertTrue(wsdl.contains("name=\"AcceptedEcho\""));
     }
 
     @Test
@@ -83,7 +172,7 @@ public class SoapProtocolTest {
         // 错误别名不能被注册到后续路由。
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
                 () -> new SoapProtocol().prepareBinding(config, null, meta));
-        assertEquals("SOAP service alias must be one URI path segment: Echo Service?", failure.getMessage());
+        assertEquals("SOAP service name must be one URI path segment: Echo Service?", failure.getMessage());
     }
 
     @Test
@@ -95,7 +184,7 @@ public class SoapProtocolTest {
         ProtocolMeta meta = service.getProtocolMeta("soap");
 
         // XML NCName 限制只适用于自动生成，不能缩窄合法 URI 路径别名。
-        new SoapProtocol().prepareBinding(config, null, meta);
+        assertNotNull(new SoapProtocol().prepareBinding(config, null, meta));
     }
 
     @Test
@@ -109,7 +198,7 @@ public class SoapProtocolTest {
         // 防止 HTTP 客户端规范化地址后改变已发布的服务端点。
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
                 () -> new SoapProtocol().prepareBinding(config, null, meta));
-        assertEquals("SOAP service alias must be one URI path segment: .", failure.getMessage());
+        assertEquals("SOAP service name must be one URI path segment: .", failure.getMessage());
     }
 
     @Test
@@ -123,7 +212,7 @@ public class SoapProtocolTest {
         // 发布阶段拒绝路径折叠，保留挂载点的实际隔离范围。
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
                 () -> new SoapProtocol().prepareBinding(config, null, meta));
-        assertEquals("SOAP service alias must be one URI path segment: ..", failure.getMessage());
+        assertEquals("SOAP service name must be one URI path segment: ..", failure.getMessage());
     }
 
     @Test

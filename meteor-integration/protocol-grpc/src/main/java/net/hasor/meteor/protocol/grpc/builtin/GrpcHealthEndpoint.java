@@ -15,7 +15,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.concurrent.future.Cancellable;
-import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.MetContextEventType;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
@@ -75,8 +74,8 @@ final class GrpcHealthEndpoint implements GrpcHealthService {
         Map<String, String> result = new TreeMap<>();
         String status = !this.closed && this.services.online() ? "SERVING" : "NOT_SERVING";
         result.put("", status);
-        for (MetBindInfo<?> service : this.services.published()) {
-            result.put(service.getAliasName("grpc"), status);
+        for (String name : this.services.publishedNames()) {
+            result.put(name, status);
         }
         return result;
     }

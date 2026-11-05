@@ -68,10 +68,10 @@ public final class SoapEndpointRouter {
         if (service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
             return List.of();
         }
-        String alias = service.getAliasName("soap");
-        if (!routes.accepts(service) || StringUtils.isBlank(alias)) {
+        if (!routes.accepts(service)) {
             return List.of();
         }
+        String alias = serviceName(routes, service);
 
         Set<String> exact = routes.exactPaths(service);
         if (!exact.isEmpty()) {
@@ -126,8 +126,8 @@ public final class SoapEndpointRouter {
                 continue;
             }
 
-            String alias = service.getAliasName("soap");
-            if (StringUtils.isBlank(alias) || !StringUtils.equals(path, this.endpoint(mount, alias))) {
+            String alias = serviceName(this.routes, service);
+            if (!StringUtils.equals(path, this.endpoint(mount, alias))) {
                 continue;
             }
             if (selected != null) {
@@ -202,7 +202,7 @@ public final class SoapEndpointRouter {
     }
 
     private URI endpointUri(HttpRequest request, MetBindInfo<?> service, RouteMount mount) {
-        String alias = service.getAliasName("soap");
+        String alias = serviceName(this.routes, service);
         String path = this.endpoint(mount, alias);
         String publicBase = this.config.option("publicBaseUrl", null);
         if (StringUtils.isNotBlank(publicBase)) {
@@ -231,7 +231,7 @@ public final class SoapEndpointRouter {
             }
             Map<String, String> selected = this.routes.exactPaths(service).isEmpty() ? services : exactServices;
             for (String endpoint : SoapEndpointRouter.serviceEndpoints(this.routes, service)) {
-                selected.put(endpoint, service.getAliasName("soap"));
+                selected.put(endpoint, serviceName(this.routes, service));
             }
         }
         services.putAll(exactServices);
@@ -263,6 +263,11 @@ public final class SoapEndpointRouter {
 
     private String endpoint(RouteMount mount, String alias) {
         return mount.exact() ? mount.path() : mount.prefix() + alias;
+    }
+
+    private static String serviceName(RouteMountIndex routes, MetBindInfo<?> service) {
+        SoapProtocolMeta definition = (SoapProtocolMeta) routes.binding(service).getDefinition();
+        return definition.serviceName();
     }
 
     private String path(String uri) {

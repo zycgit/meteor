@@ -12,8 +12,10 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
@@ -24,8 +26,10 @@ import net.hasor.meteor.connector.ConnectorConfig;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.domain.MetRuntimeUtils;
 import net.hasor.meteor.domain.MetServiceType;
+import net.hasor.meteor.domain.ProtocolBinding;
 import net.hasor.meteor.domain.ProtocolConfig;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
+import net.hasor.meteor.protocol.grpc.binding.GrpcServiceBinding;
 
 /** 扩展只拥有自己发布的标准服务和事件订阅，不建立第二个 gRPC 服务器。 */
 final class GrpcBuiltinServicesExtension implements MetExtension {
@@ -119,14 +123,23 @@ final class GrpcBuiltinServicesExtension implements MetExtension {
             if (service == null || service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
                 continue;
             }
-            if (StringUtils.isBlank(service.getAliasName("grpc"))) {
-                continue;
-            }
-
             for (RouteMountIndex routes : this.mounts.values()) {
                 if (routes.accepts(service)) {
                     result.add(service);
                     break;
+                }
+            }
+        }
+        return result;
+    }
+
+    Set<String> publishedNames() {
+        Set<String> result = new LinkedHashSet<>();
+        for (MetBindInfo<?> service : this.published()) {
+            for (RouteMountIndex routes : this.mounts.values()) {
+                ProtocolBinding endpoint = routes.binding(service);
+                if (endpoint != null && endpoint.getDefinition() instanceof GrpcServiceBinding binding) {
+                    result.add(binding.serviceName());
                 }
             }
         }

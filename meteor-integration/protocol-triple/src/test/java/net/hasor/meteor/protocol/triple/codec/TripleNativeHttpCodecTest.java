@@ -557,42 +557,30 @@ public class TripleNativeHttpCodecTest {
     }
 
     @Test
-    public void methodMissingFromBoundServiceIsNotExposed() throws Exception {
+    public void methodMissingFromBoundServiceIsRejectedDuringPublication() throws Exception {
         // Java 方法必须能在绑定的 proto 服务描述中找到。
         try (MetContext context = this.configuration("grpc").buildContext()) {
             GrpcProtoResource resource = this.resource();
-            MetBindInfo<MissingMethod> service = context.publisher() //
-                    .rsfService(MissingMethod.class, request -> request) //
-                    .aliasName("triple", ALIAS) //
-                    .serialize("Protobuf") //
-                    .bindResource("triple", resource) //
-                    .register();
-            MetBindInfo<?> registered = context.getServiceInfo(service.getBindID());
-            assertNotNull(registered);
-            assertEquals(service.getBindID(), registered.getBindID());
-            ProtocolMeta declaration = MetBindInfoWrap.unwrap(service).getProtocolMeta("triple");
-            assertSame(resource, declaration.getBindResource());
-            assertTrue(declaration.getEndpoints().isEmpty());
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                context.publisher().rsfService(MissingMethod.class, request -> request) //
+                        .aliasName("triple", ALIAS).serialize("Protobuf") //
+                        .bindResource("triple", resource).register();
+            });
+            assertTrue(failure.getMessage().contains("Method is not declared by proto service"));
         }
     }
 
     @Test
-    public void flowShapeDifferentFromProtoDescriptorIsNotExposed() throws Exception {
+    public void flowShapeDifferentFromProtoDescriptorIsRejectedDuringPublication() throws Exception {
         // count 在 proto 中返回流，普通单返回值签名不能假装匹配它。
         try (MetContext context = this.configuration("grpc").buildContext()) {
             GrpcProtoResource resource = this.resource();
-            MetBindInfo<WrongFlowShape> service = context.publisher() //
-                    .rsfService(WrongFlowShape.class, request -> request) //
-                    .aliasName("triple", ALIAS) //
-                    .serialize("Protobuf") //
-                    .bindResource("triple", resource) //
-                    .register();
-            MetBindInfo<?> registered = context.getServiceInfo(service.getBindID());
-            assertNotNull(registered);
-            assertEquals(service.getBindID(), registered.getBindID());
-            ProtocolMeta declaration = MetBindInfoWrap.unwrap(service).getProtocolMeta("triple");
-            assertSame(resource, declaration.getBindResource());
-            assertTrue(declaration.getEndpoints().isEmpty());
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                context.publisher().rsfService(WrongFlowShape.class, request -> request) //
+                        .aliasName("triple", ALIAS).serialize("Protobuf") //
+                        .bindResource("triple", resource).register();
+            });
+            assertTrue(failure.getMessage().contains("Streaming mode differs from proto service"));
         }
     }
 

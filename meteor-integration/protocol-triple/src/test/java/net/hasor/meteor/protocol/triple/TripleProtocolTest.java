@@ -22,6 +22,8 @@ import net.hasor.meteor.domain.*;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** 入口提供者的注册身份与发布期契约。 */
@@ -74,6 +76,74 @@ public class TripleProtocolTest {
         ProtocolConfig json = ProtocolConfig.newConfig("triple", "triple", options);
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
         assertNotNull(new TripleProtocol().prepareBinding(json, null, meta));
+    }
+
+    @Test
+    public void anOrdinaryProviderUsesItsDeclaredNameWithoutAnAlias() {
+        // POJO 模式只要求有效名称能够作为一个安全的 URI 路径段。
+        ServiceDomain<TripleDemoService> service = this.defaultService(TripleDemoService.class, "orders.Order-v2");
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        ProtocolBinding binding = new TripleProtocol().prepareBinding(this.config(), null, meta);
+        assertNotNull(binding);
+        assertEquals("orders.Order-v2", binding.getDescription().path("name").asText());
+    }
+
+    @Test
+    public void anExplicitAliasOverridesTheDeclaredName() {
+        // 显式别名始终优先于默认登记名，并用于导出协议描述。
+        ServiceDomain<TripleDemoService> service = this.defaultService(TripleDemoService.class, "orders.OrderService");
+        service.putAliasName("triple", "rpc.PublicOrderService");
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        ProtocolBinding binding = new TripleProtocol().prepareBinding(this.config(), null, meta);
+        assertEquals("rpc.PublicOrderService", binding.getDescription().path("name").asText());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "", ".", "..", "bad/name", "bad?name", "bad#name", "bad name", "bad%2Fname" })
+    public void anInvalidDefaultNameIsRejectedDuringPublication(String name) {
+        // 路径、查询、片段和转义字符不能混入线上服务名称。
+        ServiceDomain<TripleDemoService> service = this.defaultService(TripleDemoService.class, name);
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        assertThrows(IllegalArgumentException.class, //
+                () -> new TripleProtocol().prepareBinding(this.config(), null, meta));
+    }
+
+    @Test
+    public void anInvalidExplicitAliasDoesNotFallBackToTheDeclaredName() {
+        // 即便默认名称合法，显式给出的非法别名也必须报告。
+        ServiceDomain<TripleDemoService> service = this.defaultService(TripleDemoService.class, "orders.OrderService");
+        service.putAliasName("triple", "bad/name");
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        assertThrows(IllegalArgumentException.class, //
+                () -> new TripleProtocol().prepareBinding(this.config(), null, meta));
+    }
+
+    @Test
+    public void aNativeProviderRequiresAnIdlServiceName() {
+        // 原生 Protobuf 不能使用仅在普通 POJO 模式下合法的 URI 段名称。
+        ServiceDomain<TripleDemoService> service = this.defaultService(TripleDemoService.class, "orders.Order-v2");
+        service.setSerializeType("Protobuf");
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        assertThrows(IllegalArgumentException.class, //
+                () -> new TripleProtocol().prepareBinding(this.config(), null, meta));
+    }
+
+    @Test
+    public void theDefaultNameMustIdentifyTheBoundProtoService() throws Exception {
+        // 外部 proto 服务的完整名称不可由默认名称静默改写。
+        ServiceDomain<TripleFlowService> service = this.defaultService(TripleFlowService.class, "orders.OrderService");
+        service.setSerializeType("Protobuf");
+        GrpcProtoResource resource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
+        ProtocolMeta meta = new ProtocolMeta(service, null, resource, Map.of());
+
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> new TripleProtocol().prepareBinding(this.config(), null, meta));
+        assertTrue(failure.getMessage().contains("orders.OrderService"));
     }
 
     @Test
@@ -178,14 +248,16 @@ public class TripleProtocolTest {
     }
 
     @Test
-    public void providerMustDeclareATripleAlias() {
-        // 协议调用路径由公开别名确定，缺失别名不能进入已发布状态。
+    public void providerWithoutAnAliasUsesItsInterfaceName() {
+        // 未声明别名和登记名称时，采用接口的规范名称。
         ProtocolConfig config = this.config();
         ServiceDomain<TripleDemoService> service = new ServiceDomain<>(TripleDemoService.class);
         service.setServiceType(MetServiceType.Provider);
         service.setSerializeType("Hessian2");
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
-        assertNull(new TripleProtocol().prepareBinding(config, null, meta));
+        ProtocolBinding binding = new TripleProtocol().prepareBinding(config, null, meta);
+        assertNotNull(binding);
+        assertEquals(TripleDemoService.class.getCanonicalName(), binding.getDescription().path("name").asText());
     }
 
     @Test
@@ -195,7 +267,8 @@ public class TripleProtocolTest {
         ServiceDomain<TripleDemoService> service = this.service(TripleDemoService.class);
         service.putAliasName("triple", "example.Service/other");
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
-        assertNull(new TripleProtocol().prepareBinding(config, null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new TripleProtocol().prepareBinding(config, null, meta));
     }
 
     @Test
@@ -229,7 +302,8 @@ public class TripleProtocolTest {
         service.setSerializeType("Protobuf");
         Object bindResource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
         ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
-        assertNull(new TripleProtocol().prepareBinding(config, null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new TripleProtocol().prepareBinding(config, null, meta));
     }
 
     @Test
@@ -241,7 +315,8 @@ public class TripleProtocolTest {
         service.putAliasName("triple", "meteor.triple.demo.TripleFlowService");
         Object bindResource = new GrpcProtoResource(this.getClass().getResource("/proto/triple-demo.proto"));
         ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
-        assertNull(new TripleProtocol().prepareBinding(config, null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new TripleProtocol().prepareBinding(config, null, meta));
     }
 
     @Test
@@ -321,6 +396,14 @@ public class TripleProtocolTest {
         ServiceDomain<T> service = new ServiceDomain<>(type);
         service.setBindName(type.getName());
         service.putAliasName("triple", type.getName());
+        service.setServiceType(MetServiceType.Provider);
+        service.setSerializeType("Hessian2");
+        return service;
+    }
+
+    private <T> ServiceDomain<T> defaultService(Class<T> type, String name) {
+        ServiceDomain<T> service = new ServiceDomain<>(type);
+        service.setBindName(name);
         service.setServiceType(MetServiceType.Provider);
         service.setSerializeType("Hessian2");
         return service;

@@ -372,7 +372,8 @@ public class ConnectProtoMappingTest {
         Object bindResource = this.resource();
         ProtocolConfig protocol = this.protocol();
         ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
-        assertNull(ConnectHttpCodec.prepareServiceDefinition(protocol, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> ConnectHttpCodec.prepareServiceDefinition(protocol, meta));
     }
 
     private MetConfiguration configuration() {

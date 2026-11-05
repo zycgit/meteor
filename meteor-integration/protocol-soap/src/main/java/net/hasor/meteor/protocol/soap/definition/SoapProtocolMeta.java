@@ -26,6 +26,7 @@ import net.hasor.meteor.protocol.soap.mapping.SoapXmlMapping;
 
 /** 一个服务在一个接入点上准备的 SOAP 契约与 XML 映射配置。 */
 public final class SoapProtocolMeta {
+    private final String                       serviceName;
     private final SoapDefinitionResource       resource;
     private final XmlMapper                    mapper;
     private final SoapXmlMapping               mapping;
@@ -35,6 +36,7 @@ public final class SoapProtocolMeta {
     private final Map<Method, int[]>           parameterOrder = new LinkedHashMap<>();
 
     public SoapProtocolMeta(SoapDefinitionResource resource, SoapXmlMapping mapping, MetBindInfo<?> service) {
+        this.serviceName = MetRuntimeUtils.getProtocolServiceName(service, "soap");
         this.resource = resource;
         this.mapper = mapping.mapper();
         this.mapping = mapping;
@@ -69,8 +71,14 @@ public final class SoapProtocolMeta {
         return this.resource;
     }
 
+    /** 当前端点发布时确定的有效名称，不受后续未提交配置影响。 */
+    public String serviceName() {
+        return this.serviceName;
+    }
+
     /** 导出实际 WSDL 操作、参数顺序和已编译 XML 映射，保留当前端点的资源版本。 */
     public ObjectNode describeContract(ObjectNode description) {
+        description.put("name", this.serviceName);
         SoapDefinition definition = this.resource.definition();
         ArrayNode operations = description.putArray("methods");
         for (Map.Entry<String, Method> entry : this.methods.entrySet()) {

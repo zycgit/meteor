@@ -27,6 +27,91 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class GrpcProtocolTest {
     @Test
+    public void serviceWithoutAnAliasUsesItsBoundName() {
+        // 提供者只声明普通服务名，不需要重复声明相同的协议别名。
+        ServiceDomain<Echo> service = new ServiceDomain<>(Echo.class);
+        service.setBindName("catalog.Orders");
+        service.setServiceType(MetServiceType.Provider);
+        service.setSerializeType("Json");
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        // JSON 没有 proto 描述符时，同样导出实际请求使用的名称。
+        ProtocolBinding binding = new GrpcProtocol().prepareBinding(this.config(), null, meta);
+        assertNotNull(binding);
+        assertEquals("catalog.Orders", binding.getDescription().path("name").asText());
+    }
+
+    @Test
+    public void explicitAliasOverridesTheBoundName() {
+        // 普通服务名不满足 gRPC 命名时，可以用协议别名给出合法名称。
+        ServiceDomain<Echo> service = this.service(Echo.class, "catalog.Orders");
+        service.setBindName("orders/internal");
+        service.setSerializeType("Json");
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        // 只校验最终选择的名字，既有显式别名保持优先。
+        ProtocolBinding binding = new GrpcProtocol().prepareBinding(this.config(), null, meta);
+        assertNotNull(binding);
+        assertEquals("catalog.Orders", binding.getDescription().path("name").asText());
+    }
+
+    @Test
+    public void blankExplicitAliasDoesNotFallBackToTheBoundName() {
+        // 显式配置的空名称是错误值，不能被合法的普通服务名掩盖。
+        ServiceDomain<Echo> service = this.service(Echo.class, "");
+        service.setBindName("catalog.Orders");
+        service.setSerializeType("Json");
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        // 与其他非法名称一样，在发布准备阶段立即报告。
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcProtocol().prepareBinding(this.config(), null, meta));
+    }
+
+    @Test
+    public void boundNameWithoutAnAliasMustBeAValidGrpcName() {
+        // 未配置别名时不会自动清理服务名中的非法路径字符。
+        ServiceDomain<Echo> service = new ServiceDomain<>(Echo.class);
+        service.setBindName("orders/internal");
+        service.setServiceType(MetServiceType.Provider);
+        service.setSerializeType("Json");
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        // 让用户在发布时看到原因，而不是延迟到路由失败。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcProtocol().prepareBinding(this.config(), null, meta));
+        assertTrue(failure.getMessage().contains("orders/internal"));
+    }
+
+    @Test
+    public void externalProtoCanUseTheBoundNameWithoutAnAlias() throws Exception {
+        // 外部 proto 已有标准服务名，普通绑定名与它保持一致即可。
+        ServiceDomain<Echo> service = new ServiceDomain<>(Echo.class);
+        service.setBindName("example.Echo");
+        service.setServiceType(MetServiceType.Provider);
+        ProtocolMeta meta = new ProtocolMeta(service, null, this.resource(), Map.of());
+
+        // 契约中已声明的服务名不被 Java 接口名替换。
+        ProtocolBinding binding = new GrpcProtocol().prepareBinding(this.config(), null, meta);
+        assertNotNull(binding);
+        assertEquals("example.Echo", binding.getDescription().path("name").asText());
+    }
+
+    @Test
+    public void externalProtoRejectsADifferentDefaultName() throws Exception {
+        // 没有别名时，不能为了适配外部文件而偷偷选择它的唯一服务。
+        ServiceDomain<Echo> service = new ServiceDomain<>(Echo.class);
+        service.setBindName("catalog.Orders");
+        service.setServiceType(MetServiceType.Provider);
+        ProtocolMeta meta = new ProtocolMeta(service, null, this.resource(), Map.of());
+
+        // 错误清楚指出不一致的有效服务名。
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcProtocol().prepareBinding(this.config(), null, meta));
+        assertTrue(failure.getMessage().contains("catalog.Orders"));
+    }
+
+    @Test
     public void matchingProtoDefinitionAcceptsTheProvider() throws Exception {
         // Java 方法名称和 unary 方向与已有 Echo proto 一致。
         ServiceDomain<Echo> service = this.service(Echo.class, "example.Echo");
@@ -96,9 +181,10 @@ public class GrpcProtocolTest {
         ServiceDomain<Echo> service = this.service(Echo.class, "example.Missing");
         Object bindResource = this.resource();
 
-        // 不支持的发布返回 null，不作为资源解析异常抛出。
+        // 显式契约与有效服务名冲突，在发布准备阶段明确报错。
         ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
-        assertNull(new GrpcProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -109,7 +195,8 @@ public class GrpcProtocolTest {
 
         // 缺失过程使当前协议无法承载整份 Java 服务。
         ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
-        assertNull(new GrpcProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -121,7 +208,8 @@ public class GrpcProtocolTest {
 
         // 双方方向不一致时，不能把流服务按普通消息公开。
         ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
-        assertNull(new GrpcProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -133,7 +221,8 @@ public class GrpcProtocolTest {
 
         // 响应方向和请求方向分别属于发布契约。
         ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
-        assertNull(new GrpcProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -144,7 +233,8 @@ public class GrpcProtocolTest {
 
         // 路由无法唯一表达的别名不被当前挂载接受。
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
-        assertNull(new GrpcProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -155,7 +245,8 @@ public class GrpcProtocolTest {
 
         // 非法地址字符不会混入发布结果。
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
-        assertNull(new GrpcProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -166,7 +257,8 @@ public class GrpcProtocolTest {
 
         // 不依赖首次调用才发现路径无法发送。
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
-        assertNull(new GrpcProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test

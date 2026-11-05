@@ -22,6 +22,21 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class GrpcWebProtocolTest {
     @Test
+    public void nestedInterfaceWithoutAnAliasUsesItsCanonicalName() {
+        // Java 嵌套接口的二进制名称含 $，默认线上名称使用合法的限定名称。
+        ServiceDomain<Unary> service = new ServiceDomain<>(Unary.class);
+        service.setBindName(Unary.class.getName());
+        service.setServiceType(MetServiceType.Provider);
+        service.setSerializeType("Json");
+        ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
+
+        // 描述、路由和消费侧都共享这个有效名称。
+        ProtocolBinding binding = new GrpcWebProtocol().prepareBinding(this.config(), null, meta);
+        assertNotNull(binding);
+        assertEquals(Unary.class.getCanonicalName(), binding.getDescription().path("name").asText());
+    }
+
+    @Test
     public void providerDeclaresHttpExchangeTransport() {
         // Web 适配与标准 gRPC 共享 HTTP 传输，不注册新的底层通道。
         HttpProtocolProvider protocol = new GrpcWebProtocol();
@@ -202,9 +217,10 @@ public class GrpcWebProtocolTest {
         service.setSerializeType("Protobuf");
         Object bindResource = this.resource();
 
-        // 不匹配的绑定不影响其他协议继续发布。
+        // 显式契约与有效服务名冲突，在发布准备阶段明确报错。
         ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
-        assertNull(new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -217,7 +233,8 @@ public class GrpcWebProtocolTest {
 
         // 只有方法契约一致的服务才会被端点公开。
         ProtocolMeta meta = new ProtocolMeta(service, null, resource, Map.of());
-        assertNull(new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -229,7 +246,8 @@ public class GrpcWebProtocolTest {
 
         // 不能只依据 Java 返回值忽略 wire 契约的流方向。
         ProtocolMeta meta = new ProtocolMeta(service, null, bindResource, Map.of());
-        assertNull(new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -240,7 +258,8 @@ public class GrpcWebProtocolTest {
 
         // JSON 没有 proto，仍然必须满足地址要求。
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
-        assertNull(new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -251,7 +270,8 @@ public class GrpcWebProtocolTest {
 
         // 协议拒绝无法正确构造请求路径的服务别名。
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
-        assertNull(new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
     }
 
     @Test
@@ -262,7 +282,8 @@ public class GrpcWebProtocolTest {
 
         // 不能把只存在于客户端 URL 的部分发布为方法路径。
         ProtocolMeta meta = new ProtocolMeta(service, null, null, Map.of());
-        assertNull(new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
+        assertThrows(IllegalArgumentException.class, //
+                () -> new GrpcWebProtocol().prepareBinding(this.config(), null, meta));
     }
 
     private GrpcProtoResource resource() throws Exception {

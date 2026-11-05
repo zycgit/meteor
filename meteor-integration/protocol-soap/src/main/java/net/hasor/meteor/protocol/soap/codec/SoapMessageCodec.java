@@ -206,7 +206,7 @@ public final class SoapMessageCodec {
             request.setSerializeType("Xml");
         }
 
-        String alias = service.getAliasName("soap");
+        String alias = this.binding.serviceName();
         String path = this.requestPath(service, alias);
         Map<String, List<String>> headers = this.requestHeaders(request);
         if (this.version == SoapVersion.SOAP_12 && method.isAnnotationPresent(SoapGet.class)) {

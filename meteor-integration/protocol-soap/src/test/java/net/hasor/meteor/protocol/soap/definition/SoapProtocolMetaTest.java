@@ -63,8 +63,10 @@ public class SoapProtocolMetaTest {
         JsonNode result = method.path("returns").get(0);
 
         // 名称与公共注解一致，XML 专属信息排在主体之后。
-        String[] serviceFields = { "methods", "types", "schemas", "version", "namespace" };
+        String[] serviceFields = { "name", "methods", "types", "schemas", "version", "namespace" };
         assertArrayEquals(serviceFields, fieldNames(description));
+        assertEquals("Names", description.path("name").asText());
+        assertEquals(binding.serviceName(), description.path("name").asText());
         String[] methodFields = { "name", "javaSignature", "message", "parameters", "returns", "faults", //
                 "soapAction", "style", "use", "requestWrapper", "responseWrapper" };
         assertArrayEquals(methodFields, fieldNames(method));

@@ -6,11 +6,14 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.connect;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ObjLongConsumer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.connector.ProtocolServiceRouting;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.RouteMountIndex;
@@ -28,7 +31,7 @@ import net.hasor.meteor.protocol.connect.session.ConnectSession;
 import net.hasor.meteor.protocol.grpc.binding.GrpcServiceBinding;
 
 /** Connect 协议的 SPI 入口，按挂载点组装消息转换与调用会话。 */
-public final class ConnectProtocol implements HttpProtocolProvider {
+public final class ConnectProtocol implements HttpProtocolProvider, ProtocolServiceRouting {
     private final Map<ProtocolConfig, ConnectMountRuntime> runtimes = new ConcurrentHashMap<>();
 
     @Override
@@ -53,6 +56,12 @@ public final class ConnectProtocol implements HttpProtocolProvider {
         ObjectNode description = meta.createServiceDescription(config, this.defaultSerialize());
         definition.describeContract(description);
         return meta.build(config, definition, description);
+    }
+
+    @Override
+    public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+        GrpcServiceBinding definition = (GrpcServiceBinding) binding.getDefinition();
+        return List.of(definition.serviceName());
     }
 
     @Override

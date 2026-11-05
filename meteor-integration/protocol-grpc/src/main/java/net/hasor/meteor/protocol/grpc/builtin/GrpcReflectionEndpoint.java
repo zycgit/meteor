@@ -120,9 +120,8 @@ final class GrpcReflectionEndpoint implements GrpcReflectionService {
             if (endpoint == null) {
                 continue;
             }
-            String name = info.getAliasName("grpc");
             if (endpoint.getDefinition() instanceof GrpcServiceBinding binding && binding.schema() != null) {
-                result.put(name, binding.service());
+                result.put(binding.serviceName(), binding.service());
             }
         }
         return result;

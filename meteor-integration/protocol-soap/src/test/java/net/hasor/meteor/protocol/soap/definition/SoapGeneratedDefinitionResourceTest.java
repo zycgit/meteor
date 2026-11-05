@@ -60,7 +60,7 @@ public class SoapGeneratedDefinitionResourceTest {
         // 生成器必须在创建任何 WSDL 组件之前拒绝非法名称。
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
                 () -> new SoapGeneratedDefinitionResource(service, config, SoapXmlMapping.newMapper()));
-        assertEquals("SOAP service alias must be an XML local name: 123", failure.getMessage());
+        assertEquals("SOAP service name must be an XML local name: 123", failure.getMessage());
     }
 
     @Test
@@ -73,7 +73,7 @@ public class SoapGeneratedDefinitionResourceTest {
         // 不应返回表面成功、但外部客户端无法读取的 WSDL。
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, //
                 () -> new SoapGeneratedDefinitionResource(service, config, SoapXmlMapping.newMapper()));
-        assertEquals("SOAP service alias must be an XML local name: -echo", failure.getMessage());
+        assertEquals("SOAP service name must be an XML local name: -echo", failure.getMessage());
     }
 
     @Test

@@ -44,6 +44,7 @@ import net.hasor.meteor.protocol.grpc.GrpcProtoResource;
 import net.hasor.meteor.protocol.grpc.GrpcStatusException;
 import net.hasor.meteor.protocol.grpc.binding.GrpcServiceBinding;
 import net.hasor.meteor.protocol.grpc.codec.GrpcHttpCodec;
+import net.hasor.meteor.protocol.triple.binding.TripleServiceBinding;
 
 /** Triple 的 HTTP、gRPC 和 POJO wrapper 消息映射，不持有调用或网络生命周期。 */
 public final class TripleHttpCodec {
@@ -89,9 +90,9 @@ public final class TripleHttpCodec {
     /** 准备端点发布绑定；普通 Java POJO 不要求 proto，IDL 模式复用已有绑定资源。 */
     public static ProtocolBinding prepareBinding(ProtocolConfig config, ProtocolMeta meta) {
         MetBindInfo<?> service = meta.getService();
-        String alias = service.getAliasName(config.name());
-        if (StringUtils.isBlank(alias) || alias.indexOf('/') >= 0 || alias.indexOf('?') >= 0) {
-            return null;
+        String serviceName = MetRuntimeUtils.getProtocolServiceName(service, config.name());
+        if (!isServiceName(serviceName)) {
+            throw new IllegalArgumentException("Triple service name must be one URI path segment: " + serviceName);
         }
         String mode = config.option("httpMode", "grpc");
         String coding = service.getSerializeType();
@@ -168,9 +169,15 @@ public final class TripleHttpCodec {
         }
 
         // POJO 分支按实际方法名称导出描述，和原生 Protobuf 分支共享提交语义。
-        Map<Method, String> operations = Collections.unmodifiableMap(names);
-        ObjectNode description = meta.createServiceDescription(config, "Hessian2", operations);
-        return meta.build(config, operations, description);
+        TripleServiceBinding binding = new TripleServiceBinding(serviceName, names);
+        ObjectNode description = meta.createServiceDescription(config, "Hessian2", binding.methods());
+        description.put("name", binding.serviceName());
+        return meta.build(config, binding, description);
+    }
+
+    private static boolean isServiceName(String name) {
+        return name != null && !StringUtils.equals(name, ".") && !StringUtils.equals(name, "..") //
+                && name.matches("[A-Za-z0-9._~!$&'()*+,;=:@-]+");
     }
 
     public RequestPayload open(HttpRequest input) throws Exception {
@@ -701,16 +708,17 @@ public final class TripleHttpCodec {
         return service;
     }
 
-    private MetBindInfo<?> findService(String alias, HttpRequest input, RouteMount mount) {
+    private MetBindInfo<?> findService(String name, HttpRequest input, RouteMount mount) {
         String group = input.header("tri-service-group");
         String version = input.header("tri-service-version");
         MetBindInfo<?> selected = null;
         for (String id : this.context.getServiceIDs()) {
             MetBindInfo<?> service = this.context.getServiceInfo(id);
-            if (service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
+            if (service == null || service.isShadow() || service.getServiceType() != MetServiceType.Provider //
+                    || !this.routes.accepts(service, mount)) {
                 continue;
             }
-            if (!StringUtils.equals(alias, service.getAliasName(this.config.name()))) {
+            if (!StringUtils.equals(name, this.serviceName(service))) {
                 continue;
             }
             if (group != null && !StringUtils.equals(group, service.getBindGroup())) {
@@ -719,16 +727,13 @@ public final class TripleHttpCodec {
             if (version != null && !StringUtils.equals(version, service.getBindVersion())) {
                 continue;
             }
-            if (!this.routes.accepts(service, mount)) {
-                continue;
-            }
             if (selected != null) {
                 throw status(3, "Ambiguous Triple service; specify tri-service-group and tri-service-version");
             }
             selected = service;
         }
         if (selected == null) {
-            throw status(12, "Unknown Triple service: " + alias);
+            throw status(12, "Unknown Triple service: " + name);
         }
         return selected;
     }
@@ -755,9 +760,9 @@ public final class TripleHttpCodec {
         throw status(12, "Unknown Triple method: " + name);
     }
 
-    @SuppressWarnings("unchecked")
     private Map<Method, String> legacyNames(MetBindInfo<?> service) {
-        return (Map<Method, String>) this.routes.binding(service).getDefinition();
+        TripleServiceBinding binding = (TripleServiceBinding) this.routes.binding(service).getDefinition();
+        return binding.methods();
     }
 
     private Method requestMethod(RequestPayload request, List<String> types) {
@@ -919,8 +924,13 @@ public final class TripleHttpCodec {
         return null;
     }
 
-    private String alias(MetBindInfo<?> service) {
-        return service.getAliasName(this.config.name());
+    private String serviceName(MetBindInfo<?> service) {
+        GrpcServiceBinding definition = this.definition(service);
+        if (definition != null) {
+            return definition.serviceName();
+        }
+        TripleServiceBinding binding = (TripleServiceBinding) this.routes.binding(service).getDefinition();
+        return binding.serviceName();
     }
 
     private String path(RequestPayload request) {
@@ -928,7 +938,7 @@ public final class TripleHttpCodec {
         Method method = this.target(request);
         GrpcServiceBinding definition = this.definition(service);
         String name = definition == null ? this.legacyNames(service).get(method) : definition.remoteName(method);
-        return this.routes.requestPath(service, this.alias(service) + "/" + name);
+        return this.routes.requestPath(service, this.serviceName(service) + "/" + name);
     }
 
     private String requestMode(RequestPayload request) {

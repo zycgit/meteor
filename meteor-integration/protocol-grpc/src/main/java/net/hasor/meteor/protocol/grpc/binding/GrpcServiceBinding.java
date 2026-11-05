@@ -29,6 +29,7 @@ import net.hasor.meteor.protocol.grpc.GrpcProtoSchema;
 
 /** gRPC 家族共享的静态服务绑定；不持有会话、网络资源或业务对象。 */
 public final class GrpcServiceBinding {
+    private final String                        serviceName;
     private final GrpcProtoSchema               schema;
     private final ServiceDescriptor             service;
     private final Map<String, Method>           javaMethods;
@@ -39,9 +40,10 @@ public final class GrpcServiceBinding {
     private final Map<Method, GrpcValueMapping> responses     = new LinkedHashMap<>();
     private final JsonFormat.TypeRegistry       registry;
 
-    private GrpcServiceBinding(GrpcProtoSchema schema, String alias, Map<String, Method> methods, Class<?> type) {
+    private GrpcServiceBinding(GrpcProtoSchema schema, String serviceName, Map<String, Method> methods, Class<?> type) {
+        this.serviceName = serviceName;
         this.schema = schema;
-        this.service = schema == null ? null : schema.service(alias);
+        this.service = schema == null ? null : schema.service(serviceName);
         this.javaMethods = methods;
         Map<String, GrpcValueMapping> mappings = new LinkedHashMap<>();
         for (Method method : methods.values()) {
@@ -72,10 +74,12 @@ public final class GrpcServiceBinding {
     /** 无文件时按公共编号编译；显式资源类型或映射冲突立即报错。 */
     public static GrpcServiceBinding prepare(ProtocolConfig config, ProtocolMeta meta, String defaultCoding) {
         MetBindInfo<?> service = meta.getService();
-        String alias = service.getAliasName(config.name());
-        if (service.isMessage() || alias == null //
-                || !alias.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*")) {
+        if (service.isMessage()) {
             return null;
+        }
+        String serviceName = MetRuntimeUtils.getProtocolServiceName(service, config.name());
+        if (serviceName == null || !serviceName.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*")) {
+            throw new IllegalArgumentException("Invalid " + config.name() + " service name: " + serviceName);
         }
         Object source = meta.getBindResource();
         if (source != null && !(source instanceof GrpcProtoResource)) {
@@ -104,32 +108,35 @@ public final class GrpcServiceBinding {
             GrpcProtoCompiler.identifier(name);
         }
         if (schema == null && StringUtils.equalsIgnoreCase(coding, "Protobuf")) {
-            schema = GrpcProtoCompiler.compile(alias, methods.values(), description);
+            schema = GrpcProtoCompiler.compile(serviceName, methods.values(), description);
             if (schema == null) {
                 return null;
             }
         }
         if (schema != null) {
-            ServiceDescriptor declared = schema.service(alias);
+            ServiceDescriptor declared = schema.service(serviceName);
             if (declared == null) {
-                return null;
+                throw new IllegalArgumentException("Service is not declared by proto: " + serviceName);
             }
             for (Method method : methods.values()) {
                 MethodDescriptor target = declared.findMethodByName(MetRuntimeUtils.getProtocolMethodName(method));
                 if (target == null) {
-                    if (ServiceMetaParser.method(method).getDeclaredName() != null) {
-                        throw new IllegalArgumentException("Annotated method is not declared by proto: " + method);
-                    }
-                    return null;
+                    String message = "Method is not declared by proto service " + serviceName + ": " + method;
+                    throw new IllegalArgumentException(message);
                 }
                 boolean request = GrpcValueMapping.streaming(method, true) == target.isClientStreaming();
                 boolean response = GrpcValueMapping.streaming(method, false) == target.isServerStreaming();
                 if (!request || !response) {
-                    return null;
+                    String message = "Streaming mode differs from proto service " + serviceName + ": " + method;
+                    throw new IllegalArgumentException(message);
                 }
             }
         }
-        return new GrpcServiceBinding(schema, alias, methods, service.getBindType());
+        return new GrpcServiceBinding(schema, serviceName, methods, service.getBindType());
+    }
+
+    public String serviceName() {
+        return this.serviceName;
     }
 
     public GrpcProtoSchema schema() {
@@ -138,9 +145,7 @@ public final class GrpcServiceBinding {
 
     /** 从已编译的操作和消息图导出端点契约，外部 proto 和自动生成入口共用。 */
     public ObjectNode describeContract(ObjectNode description) {
-        if (this.service != null) {
-            description.put("name", this.service.getFullName());
-        }
+        description.put("name", this.serviceName);
         ArrayNode methods = description.putArray("methods");
         ObjectNode types = description.putObject("types");
         for (Method method : this.javaMethods.values()) {

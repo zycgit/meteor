@@ -21,6 +21,29 @@ import org.junit.jupiter.api.Timeout;
 public class GrpcAnnotationScenarioTest {
     @Test
     @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    public void annotationServiceUsesTheInterfaceNameWithoutAnAlias() throws Exception {
+        // 双方都仅提供 Java 契约和字段号，服务名由接口类型推导。
+        MetConfiguration incoming = this.serverConfiguration();
+        MetConfiguration outgoing = this.clientConfiguration();
+        try (MetContext server = incoming.buildContext(); //
+             MetContext client = outgoing.buildContext()) {
+            server.start();
+            client.start();
+            server.publisher().rsfService(AnnotatedEcho.class, new AnnotatedEchoImpl()) //
+                    .serialize("Protobuf").register();
+            MetBindInfo<AnnotatedEcho> service = client.publisher().rsfService(AnnotatedEcho.class) //
+                    .serialize("Protobuf").register();
+
+            // 提供者和消费者在不同上下文中，通过推导出的名称完成真实 HTTP/2 调用。
+            AnnotatedEcho remote = client.getRsfClient(server.getListenAddress("grpc")).getRemote(service);
+            AnnotatedMessage response = remote.mirror(this.message());
+            assertEquals("annotation", response.getValue());
+            assertEquals(8, response.getCount());
+        }
+    }
+
+    @Test
+    @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
     public void annotationProviderAcceptsAFileBasedConsumer() throws Exception {
         // 服务端由注解生成描述，客户端按已有 proto 绑定相同 Java 接口。
         MetConfiguration incoming = this.serverConfiguration();

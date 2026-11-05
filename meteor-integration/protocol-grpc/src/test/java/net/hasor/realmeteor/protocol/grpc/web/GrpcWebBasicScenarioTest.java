@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Timeout;
 public class GrpcWebBasicScenarioTest {
     @Test
     @Timeout(value = 20000, unit = TimeUnit.MILLISECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
-    public void bootstrapPublishesAndConsumesJsonService() throws Exception {
+    public void bootstrapPublishesAndConsumesJsonServiceWithoutAnAlias() throws Exception {
         // HTTP/1 上仅挂载 grpc-web，客户端不开放监听端口。
         MetConfiguration incoming = new MetConfiguration().setDefaultProtocol("grpc-web");
         incoming.connector("http").bind("127.0.0.1", 0) //
@@ -36,9 +36,9 @@ public class GrpcWebBasicScenarioTest {
             server.start();
             client.start();
             server.publisher().rsfService(Echo.class, implementation) //
-                    .aliasName("grpc-web", "example.Echo").serialize("Json").register();
+                    .serialize("Json").register();
             MetBindInfo<Echo> service = client.publisher().rsfService(Echo.class) //
-                    .aliasName("grpc-web", "example.Echo").serialize("Json").register();
+                    .serialize("Json").register();
 
             // 业务值和服务端调用次数一起证明实际调用了已发布的实现。
             Echo remote = client.getRsfClient(server.getListenAddress("grpc-web")).getRemote(service);

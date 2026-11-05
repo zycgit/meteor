@@ -85,12 +85,9 @@ public final class GrpcHttpCodec {
         if (parts.length != 2) {
             throw new IllegalArgumentException("Expected /service/method");
         }
-        MetBindInfo<?> service = this.context.getServiceInfo(this.config.name(), parts[0]);
-        if (service == null || service.isShadow() || service.getServiceType() != MetServiceType.Provider) {
+        MetBindInfo<?> service = this.findService(parts[0], mount);
+        if (service == null) {
             throw new UnsupportedOperationException("Unknown gRPC service: " + parts[0]);
-        }
-        if (!this.routes.accepts(service, mount)) {
-            throw new UnsupportedOperationException("Service is not exposed on this protocol mount");
         }
 
         Method method = this.definition(service).remoteMethod(parts[1]);
@@ -130,7 +127,7 @@ public final class GrpcHttpCodec {
         String path = input.uri();
         int separator = path.indexOf('/', 1);
         if (path.startsWith("/") && separator > 1) {
-            MetBindInfo<?> service = this.context.getServiceInfo(this.config.name(), path.substring(1, separator));
+            MetBindInfo<?> service = this.findService(path.substring(1, separator), RouteMount.exact(path));
             if (service != null && this.routes.accepts(service) && this.routes.exactPaths(service).contains(path)) {
                 return RouteMount.exact(path);
             }
@@ -152,7 +149,7 @@ public final class GrpcHttpCodec {
         String coding = request.getSerializeType();
         byte[] body = this.encode(service, method, coding, request.getParameterValues().get(0), true);
         String remoteName = this.definition(service).remoteName(method);
-        String path = this.routes.requestPath(service, this.alias(service) + "/" + remoteName);
+        String path = this.routes.requestPath(service, this.definition(service).serviceName() + "/" + remoteName);
         Map<String, List<String>> headers = this.metadata(request);
         headers.putAll(GrpcMetadata.from(request).getHeaders());
         headers.put("content-type", List.of(this.contentType(coding)));
@@ -166,7 +163,7 @@ public final class GrpcHttpCodec {
     public HttpRequest streamRequest(RequestPayload request, HttpBodyStream body) {
         MetBindInfo<?> service = this.service(request);
         String remoteName = this.definition(service).remoteName(this.target(request));
-        String path = this.routes.requestPath(service, this.alias(service) + "/" + remoteName);
+        String path = this.routes.requestPath(service, this.definition(service).serviceName() + "/" + remoteName);
         Map<String, List<String>> headers = this.metadata(request);
         headers.putAll(GrpcMetadata.from(request).getHeaders());
         headers.put("content-type", List.of(this.contentType(request.getSerializeType())));
@@ -562,12 +559,22 @@ public final class GrpcHttpCodec {
         return service;
     }
 
-    private String alias(MetBindInfo<?> service) {
-        String name = service.getAliasName(this.config.name());
-        if (StringUtils.isBlank(name)) {
-            throw new IllegalArgumentException("Service must declare its " + this.config.name() + " alias");
+    private MetBindInfo<?> findService(String name, RouteMount mount) {
+        MetBindInfo<?> selected = null;
+        for (String id : this.context.getServiceIDs()) {
+            MetBindInfo<?> service = this.context.getServiceInfo(id);
+            if (service == null || service.isShadow() || service.getServiceType() != MetServiceType.Provider //
+                    || !this.routes.accepts(service, mount)) {
+                continue;
+            }
+            if (StringUtils.equals(this.definition(service).serviceName(), name)) {
+                if (selected != null) {
+                    throw new IllegalStateException("Ambiguous " + this.config.name() + " service: " + name);
+                }
+                selected = service;
+            }
         }
-        return name;
+        return selected;
     }
 
     public Method target(RequestPayload request) {

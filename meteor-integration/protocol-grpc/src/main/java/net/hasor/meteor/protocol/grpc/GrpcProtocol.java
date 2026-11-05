@@ -6,12 +6,15 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.protocol.grpc;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ObjLongConsumer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolServiceRouting;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.NetworkChannel;
@@ -26,7 +29,7 @@ import net.hasor.meteor.protocol.grpc.session.GrpcMountRuntime;
 import net.hasor.meteor.protocol.grpc.session.GrpcSession;
 
 /** Grpc SPI provider using the same session contract as every other protocol. */
-public final class GrpcProtocol implements HttpProtocolProvider {
+public final class GrpcProtocol implements HttpProtocolProvider, ProtocolServiceRouting {
     private final Map<ProtocolConfig, GrpcMountRuntime> runtimes = new ConcurrentHashMap<>();
 
     public String name() {
@@ -36,6 +39,11 @@ public final class GrpcProtocol implements HttpProtocolProvider {
     @Override
     public String defaultSerialize() {
         return "Protobuf";
+    }
+
+    @Override
+    public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+        return List.of(((GrpcServiceBinding) binding.getDefinition()).serviceName());
     }
 
     @Override
