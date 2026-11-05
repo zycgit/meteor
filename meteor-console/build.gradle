@@ -1,0 +1,164 @@
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "net.hasor:hasor-boot-gradle-plugin:${project.property('lib.hasor')}"
+    }
+}
+
+plugins {
+    id 'application'
+}
+
+apply plugin: 'net.hasor.boot'
+
+description = 'Meteor registry management console using the Registry administration API.'
+
+def npmCommand = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows') ? 'npm.cmd' : 'npm'
+
+configurations {
+    bootLoader
+}
+
+dependencies {
+    implementation project(':meteor-registry')
+    implementation project(':meteor-registry-jdbc')
+    implementation project(':meteor-registry-nacos')
+    implementation project(':meteor-registry-zookeeper')
+
+    // 源码运行使用普通项目产物，为治理规则提供脚本引擎。
+    runtimeOnly "ognl:ognl:${property('lib.ognl')}"
+
+    implementation "net.hasor:hasor-boot-web:${property('lib.hasor')}"
+    implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
+    runtimeOnly "net.hasor:hasor-boot-web-tomcat:${property('lib.hasor')}"
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
+    runtimeOnly 'com.h2database:h2:2.3.232'
+    runtimeOnly 'org.postgresql:postgresql:42.7.4'
+    runtimeOnly 'com.mysql:mysql-connector-j:8.4.0'
+    runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc:10.2.1.jre8'
+    runtimeOnly 'com.oracle.database.jdbc:ojdbc8:21.1.0.0'
+    bootLoader "net.hasor:hasor-boot-loader:${property('lib.hasor')}"
+
+    // for test
+    testImplementation project(':meteor-hasor')
+    testImplementation 'com.h2database:h2:2.3.232'
+    testImplementation project(':meteor-protocol-hprose')
+    testImplementation project(':meteor-protocol-dubbo')
+    testImplementation project(':meteor-protocol-thrift')
+    testImplementation project(':meteor-protocol-oncrpc')
+    testImplementation project(':meteor-protocol-jsonrpc')
+    testImplementation project(':meteor-protocol-xmlrpc')
+    testImplementation project(':meteor-protocol-hessian')
+}
+
+application {
+    mainClass = 'net.hasor.meteor.console.ConsoleMain'
+}
+
+tasks.named('bootJar') {
+    mainClass.set(application.mainClass)
+    loaderClasspath.from(configurations.bootLoader)
+    archiveClassifier.set('')
+}
+
+// Boot 产物使用正式文件名，普通 JAR 留在独立目录以免覆盖打包输入。
+tasks.named('jar') {
+    destinationDirectory.set(layout.buildDirectory.dir('libs/plain'))
+}
+
+// Frontend tooling writes downloads, diagnostics and temporary files into this module.
+tasks.withType(Exec).configureEach {
+    def cacheDirectory = layout.buildDirectory.dir('cache/npm').get().asFile
+    def temporaryDirectory = layout.buildDirectory.dir('tmp/node').get().asFile
+    environment 'npm_config_cache', cacheDirectory.absolutePath
+    environment 'PLAYWRIGHT_BROWSERS_PATH', layout.buildDirectory.dir('cache/playwright').get().asFile.absolutePath
+    environment 'TMPDIR', temporaryDirectory.absolutePath
+    environment 'TMP', temporaryDirectory.absolutePath
+    environment 'TEMP', temporaryDirectory.absolutePath
+    doFirst {
+        cacheDirectory.mkdirs()
+        temporaryDirectory.mkdirs()
+    }
+}
+
+tasks.register('webInstall', Exec) {
+    workingDir 'src/web'
+    commandLine npmCommand, 'ci', '--no-audit', '--no-fund'
+    inputs.files('src/web/package.json', 'src/web/package-lock.json')
+    outputs.file('src/web/node_modules/.package-lock.json')
+}
+tasks.register('webBuild', Exec) {
+    dependsOn 'webInstall'
+    workingDir 'src/web'
+    commandLine npmCommand, 'run', 'build'
+    inputs.dir('src/web/src')
+    inputs.files('src/web/index.html', 'src/web/vite.config.js', 'src/web/package.json', 'src/web/package-lock.json')
+    outputs.dir('src/main/resources/META-INF/resources')
+}
+// 普通 Java 构建只复制已有资源；显式构建前端时，先生成资源再复制。
+tasks.named('processResources') {
+    mustRunAfter 'webBuild'
+}
+
+// 浏览器测试启动真实应用、内存注册中心及两个控制台，不进入发布产物。
+tasks.register('prepareBrowserFixture') {
+    dependsOn 'testClasses'
+    def description = layout.buildDirectory.file('browser-fixture.json')
+    outputs.file(description)
+    inputs.files(sourceSets.test.runtimeClasspath)
+    doLast {
+        def launcher = javaToolchains.launcherFor(java.toolchain).get()
+        def workDirectory = layout.buildDirectory.dir('test-work/browser-fixture').get().asFile
+        def temporaryDirectory = new File(workDirectory, 'tmp')
+        def userDirectory = new File(workDirectory, 'home')
+        temporaryDirectory.mkdirs()
+        userDirectory.mkdirs()
+        description.get().asFile.text = groovy.json.JsonOutput.toJson([
+                java              : launcher.executablePath.asFile.absolutePath,
+                classpath         : sourceSets.test.runtimeClasspath.asPath,
+                temporaryDirectory: temporaryDirectory.absolutePath,
+                userDirectory     : userDirectory.absolutePath
+        ])
+    }
+}
+
+tasks.register('webTest', Exec) {
+    dependsOn 'webBuild', 'prepareBrowserFixture'
+    workingDir 'src/web'
+    commandLine npmCommand, 'run', 'test:e2e'
+}
+
+tasks.named('run') { workingDir project.projectDir }
+
+// 四个调试角色使用标准 test 类路径，分别运行；生命周期由各自的 Hasor Boot 管理。
+[Provider: 'ProviderMain', Consumer: 'ConsumerMain', Console: 'ConsoleLauncher', Registry: 'RegistryMain'].each { role, entry ->
+    tasks.register("run${role}", JavaExec) {
+        description = "Run the ${role.toLowerCase(Locale.ROOT)} example."
+        group = 'application'
+        dependsOn 'testClasses'
+        classpath = sourceSets.test.runtimeClasspath
+        mainClass = "net.hasor.meteor.example.${entry}"
+        workingDir projectDir
+        def directory = layout.buildDirectory.dir("examples/${role.toLowerCase(Locale.ROOT)}").get().asFile
+        systemProperty 'java.io.tmpdir', new File(directory, 'tmp').absolutePath
+        systemProperty 'user.home', new File(directory, 'home').absolutePath
+        jvmArgs '-XX:ActiveProcessorCount=2'
+        if (role == 'Provider' || role == 'Consumer') {
+            // Hprose 2.x 的对象构造器在 JDK 17 上需要访问 java.io。
+            jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+        }
+        ['config', 'console.example.registry.port'].each { key ->
+            def value = System.getProperty(key)
+            if (value != null) {
+                systemProperty key, value
+            }
+        }
+        doFirst {
+            new File(directory, 'tmp').mkdirs()
+            new File(directory, 'home').mkdirs()
+        }
+    }
+}
