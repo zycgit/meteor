@@ -1,5 +1,6 @@
 net.hasor.example.connector.protocol.EndpointTestProtocols$HttpA
 net.hasor.example.connector.protocol.EndpointTestProtocols$HttpB
+net.hasor.example.connector.protocol.EndpointTestProtocols$HttpNamed
 net.hasor.example.connector.protocol.EndpointTestProtocols$WireA
 net.hasor.example.connector.protocol.EndpointTestProtocols$WireB
 net.hasor.example.connector.protocol.EndpointTestProtocols$DatagramWireA

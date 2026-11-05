@@ -15,8 +15,10 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import net.hasor.cobble.ClassUtils;
+import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.cobble.logging.LoggerFactory;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.domain.meta.MethodMeta;
 import net.hasor.meteor.domain.meta.ServiceMetaParser;
 
@@ -30,6 +32,22 @@ public class MetRuntimeUtils {
     private static final ConcurrentMap<Class<?>, ConcurrentMap<String, Method>> methodCache = new ConcurrentHashMap<>();
 
     private MetRuntimeUtils() {
+    }
+
+    /** 显式别名优先；默认使用注册名，Java 类型默认名使用规范全名，合法性由协议检查。 */
+    public static String getProtocolServiceName(MetBindInfo<?> service, String protocol) {
+        String alias = service.getAliasName(protocol);
+        if (alias != null) {
+            return alias;
+        }
+
+        String name = service.getBindName();
+        Class<?> type = service.getBindType();
+        if (name == null || StringUtils.equals(name, type.getName())) {
+            String canonical = type.getCanonicalName();
+            return canonical == null ? type.getName() : canonical;
+        }
+        return name;
     }
 
     /** 读取公共描述中的远程名称，Dispatcher 继续使用原始 Java 方法签名。 */

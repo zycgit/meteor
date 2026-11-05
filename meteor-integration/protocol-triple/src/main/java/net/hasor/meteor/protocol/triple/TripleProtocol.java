@@ -14,7 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ObjLongConsumer;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.ProtocolServiceRouting;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.RouteMountIndex;
@@ -32,7 +31,7 @@ import net.hasor.meteor.protocol.triple.session.TripleMountRuntime;
 import net.hasor.meteor.protocol.triple.session.TripleSession;
 
 /** Triple SPI 入口；按挂载点组装编码规则和调用会话。 */
-public final class TripleProtocol implements HttpProtocolProvider, ProtocolServiceRouting {
+public final class TripleProtocol implements HttpProtocolProvider {
     private final Map<ProtocolConfig, TripleMountRuntime> runtimes = new ConcurrentHashMap<>();
 
     @Override

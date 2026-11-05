@@ -6,6 +6,7 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.meteor.registry.shared;
+import java.util.List;
 import java.util.function.ObjLongConsumer;
 import net.hasor.cobble.StringUtils;
 import net.hasor.meteor.MetBindInfo;
@@ -39,6 +40,11 @@ public final class RegistryHttpProtocol implements HttpProtocolProvider {
             return null;
         }
         return meta.build(config, null, meta.createServiceDescription(config, this.defaultSerialize()));
+    }
+
+    @Override
+    public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+        return List.of();
     }
 
     @Override

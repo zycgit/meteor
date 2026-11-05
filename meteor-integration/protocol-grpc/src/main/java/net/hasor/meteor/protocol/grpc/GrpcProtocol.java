@@ -14,7 +14,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.ProtocolSession;
-import net.hasor.meteor.connector.ProtocolServiceRouting;
 import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.RouteMountIndex;
 import net.hasor.meteor.connector.transport.NetworkChannel;
@@ -29,7 +28,7 @@ import net.hasor.meteor.protocol.grpc.session.GrpcMountRuntime;
 import net.hasor.meteor.protocol.grpc.session.GrpcSession;
 
 /** Grpc SPI provider using the same session contract as every other protocol. */
-public final class GrpcProtocol implements HttpProtocolProvider, ProtocolServiceRouting {
+public final class GrpcProtocol implements HttpProtocolProvider {
     private final Map<ProtocolConfig, GrpcMountRuntime> runtimes = new ConcurrentHashMap<>();
 
     public String name() {

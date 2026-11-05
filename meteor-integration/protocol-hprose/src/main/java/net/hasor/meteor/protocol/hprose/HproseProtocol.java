@@ -7,10 +7,12 @@
  */
 package net.hasor.meteor.protocol.hprose;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ObjLongConsumer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
@@ -36,6 +38,11 @@ public final class HproseProtocol implements HttpProtocolProvider {
     @Override
     public String defaultSerialize() {
         return "Hprose";
+    }
+
+    @Override
+    public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+        return List.of();
     }
 
     @Override

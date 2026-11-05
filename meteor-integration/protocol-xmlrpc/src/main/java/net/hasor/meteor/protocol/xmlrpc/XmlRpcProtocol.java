@@ -7,9 +7,11 @@
  */
 package net.hasor.meteor.protocol.xmlrpc;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map;
 import java.util.function.ObjLongConsumer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
@@ -33,6 +35,11 @@ public final class XmlRpcProtocol implements HttpProtocolProvider {
     @Override
     public String defaultSerialize() {
         return "Json";
+    }
+
+    @Override
+    public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+        return List.of();
     }
 
     @Override

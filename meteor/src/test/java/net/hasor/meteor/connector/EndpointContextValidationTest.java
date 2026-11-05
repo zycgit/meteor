@@ -457,6 +457,286 @@ public class EndpointContextValidationTest {
     }
 
     @Test
+    public void sameProtocolServiceKeyConflictsAtTheSameEndpointContext() {
+        // 两个提供者的 Java 类型不同，但协议名称和默认目录相同。
+        ProtocolConfig protocol = ProtocolConfig.newConfig("httpnamed", "http", Map.of("contextPath", "/orders"));
+        ConnectorConfig endpoint = this.endpoint(protocol);
+        ServiceDomain<Runnable> existing = this.namedService(Runnable.class, "Orders", null);
+        ServiceDomain<AutoCloseable> candidate = this.namedService(AutoCloseable.class, "Orders", null);
+
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(existing);
+            ProtocolBinding accepted = existing.getProtocolMeta("httpnamed").getEndpoint(endpoint.name());
+            assertNotNull(accepted);
+
+            // 相同入站身份必须在提交前拒绝，不能覆盖先前服务的有效绑定。
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                runtime.register(candidate);
+            });
+            assertTrue(failure.getMessage().contains("Conflicting service route for protocol httpnamed"));
+            assertTrue(failure.getMessage().contains(endpoint.name()));
+            assertTrue(failure.getMessage().contains("Orders"));
+            assertSame(accepted, existing.getProtocolMeta("httpnamed").getEndpoint(endpoint.name()));
+            assertTrue(candidate.getProtocolMeta("httpnamed").getEndpoints().isEmpty());
+        }
+    }
+
+    @Test
+    public void intersectingPathSetsConflictForTheSameProtocolServiceKey() {
+        // 两个精确路径集合只共享其中一个地址，也会形成同名服务歧义。
+        ConnectorConfig endpoint = this.endpoint(ProtocolConfig.newConfig("httpnamed", "http", Map.of()));
+        ContextPath firstPaths = new ContextPath(List.of("/orders/first", "/orders/shared"), true);
+        ContextPath secondPaths = new ContextPath(List.of("/orders/shared", "/orders/second"), true);
+        ServiceDomain<Runnable> existing = this.namedService(Runnable.class, "Orders", firstPaths);
+        ServiceDomain<AutoCloseable> candidate = this.namedService(AutoCloseable.class, "Orders", secondPaths);
+
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(existing);
+            RouteSelection previous = runtime.manager.routeResolver(endpoint.name()).apply("/orders/shared");
+            assertNotNull(previous);
+
+            // 集合存在交集就拒绝整轮发布，候选独有路径也不能提前进入路由。
+            assertThrows(IllegalArgumentException.class, () -> runtime.register(candidate));
+            assertSame(previous, runtime.manager.routeResolver(endpoint.name()).apply("/orders/shared"));
+            assertNotNull(runtime.manager.routeResolver(endpoint.name()).apply("/orders/first"));
+            assertNull(runtime.manager.routeResolver(endpoint.name()).apply("/orders/second"));
+            assertTrue(candidate.getProtocolMeta("httpnamed").getEndpoints().isEmpty());
+        }
+    }
+
+    @Test
+    public void distinctContextsAllowTheSameProtocolServiceKey() {
+        // 同一端点的两个目录各自发布同名服务，调用路径可以唯一地区分它们。
+        ProtocolConfig protocol = ProtocolConfig.newConfig("httpnamed", "http", //
+                Map.of("contextPath", "/orders", "contextPaths", "[\"/inventory\"]"));
+        ConnectorConfig endpoint = this.endpoint(protocol);
+        ContextPath orders = new ContextPath(List.of("/orders"), false);
+        ContextPath inventory = new ContextPath(List.of("/inventory"), false);
+        ServiceDomain<Runnable> first = this.namedService(Runnable.class, "Service", orders);
+        ServiceDomain<AutoCloseable> second = this.namedService(AutoCloseable.class, "Service", inventory);
+
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(first);
+            runtime.register(second);
+
+            // 名称校验限定在所选目录，各自绑定保留自己的可达范围。
+            ProtocolBinding firstBinding = first.getProtocolMeta("httpnamed").getEndpoint(endpoint.name());
+            ProtocolBinding secondBinding = second.getProtocolMeta("httpnamed").getEndpoint(endpoint.name());
+            assertEquals(orders, firstBinding.getContextPath());
+            assertEquals(inventory, secondBinding.getContextPath());
+            assertEquals("Service", firstBinding.getDefinition());
+            assertEquals("Service", secondBinding.getDefinition());
+        }
+    }
+
+    @Test
+    public void exactAndDirectoryPathsDoNotConflictForTheSameProtocolServiceKey() {
+        // 路径文本相同，但一个是精确地址，另一个是目录挂载。
+        ProtocolConfig protocol = ProtocolConfig.newConfig("httpnamed", "http", Map.of("contextPath", "/orders"));
+        ConnectorConfig endpoint = this.endpoint(protocol);
+        ServiceDomain<Runnable> exact = this.namedService(Runnable.class, "Orders", //
+                new ContextPath(List.of("/orders"), true));
+        ServiceDomain<AutoCloseable> directory = this.namedService(AutoCloseable.class, "Orders", //
+                new ContextPath(List.of("/orders"), false));
+
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(exact);
+            runtime.register(directory);
+
+            // 匹配方式参与身份范围判断，登记目录不会替换精确路由。
+            ProtocolBinding exactBinding = exact.getProtocolMeta("httpnamed").getEndpoint(endpoint.name());
+            ProtocolBinding directoryBinding = directory.getProtocolMeta("httpnamed").getEndpoint(endpoint.name());
+            assertTrue(exactBinding.getContextPath().isExact());
+            assertFalse(directoryBinding.getContextPath().isExact());
+            assertNotNull(runtime.manager.routeResolver(endpoint.name()).apply("/orders"));
+        }
+    }
+
+    @Test
+    public void distinctEndpointsAllowTheSameProtocolServiceKeyAndPath() {
+        // 两个端点各自只接受一个 Java 类型，即使名称和路径相同也不会相互影响。
+        ProtocolConfig first = ProtocolConfig.newConfig("httpnamed", "http", //
+                Map.of("rejectServiceType", AutoCloseable.class.getName()));
+        ProtocolConfig second = ProtocolConfig.newConfig("httpnamed", "https", //
+                Map.of("rejectServiceType", Runnable.class.getName()));
+        ConnectorConfig plain = this.endpoint("plain", first);
+        ConnectorConfig secure = this.endpoint("secure", second);
+        ContextPath path = new ContextPath(List.of("/orders/echo"), true);
+        ServiceDomain<Runnable> firstService = this.namedService(Runnable.class, "Orders", path);
+        ServiceDomain<AutoCloseable> secondService = this.namedService(AutoCloseable.class, "Orders", path);
+
+        try (ValidationRuntime runtime = this.runtime(plain, secure)) {
+            runtime.register(firstService);
+            runtime.register(secondService);
+
+            // 仅已接受的端点参与名称占用，另一个端点的同名服务仍可正常发布。
+            assertEquals(Set.of("plain"), firstService.getProtocolMeta("httpnamed").getEndpoints().keySet());
+            assertEquals(Set.of("secure"), secondService.getProtocolMeta("httpnamed").getEndpoints().keySet());
+            assertNotNull(runtime.manager.routeResolver("plain").apply("/orders/echo"));
+            assertNotNull(runtime.manager.routeResolver("secure").apply("/orders/echo"));
+        }
+    }
+
+    @Test
+    public void consumerBindingDoesNotReserveAnInboundProtocolServiceKey() {
+        // 消费者和提供者使用同一个协议名称及精确路径。
+        ConnectorConfig endpoint = this.endpoint(ProtocolConfig.newConfig("httpnamed", "http", Map.of()));
+        ContextPath path = new ContextPath(List.of("/orders/echo"), true);
+        ServiceDomain<Runnable> consumer = this.namedService(Runnable.class, "Orders", path);
+        consumer.setServiceType(MetServiceType.Consumer);
+        ServiceDomain<AutoCloseable> provider = this.namedService(AutoCloseable.class, "Orders", path);
+
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(consumer);
+            assertNotNull(consumer.getProtocolMeta("httpnamed").getEndpoint(endpoint.name()));
+            assertNull(runtime.manager.routeResolver(endpoint.name()).apply("/orders/echo"));
+
+            // 出站绑定不占用入站身份，后续提供者可以登记同名路由。
+            runtime.register(provider);
+            assertNotNull(provider.getProtocolMeta("httpnamed").getEndpoint(endpoint.name()));
+            assertNotNull(runtime.manager.routeResolver(endpoint.name()).apply("/orders/echo"));
+        }
+    }
+
+    @Test
+    public void shadowBindingDoesNotReserveAnInboundProtocolServiceKey() {
+        // 隐藏提供者已经准备协议绑定，但尚未对外提供服务。
+        ConnectorConfig endpoint = this.endpoint(ProtocolConfig.newConfig("httpnamed", "http", Map.of()));
+        ContextPath path = new ContextPath(List.of("/orders/echo"), true);
+        ServiceDomain<Runnable> hidden = this.namedService(Runnable.class, "Orders", path);
+        hidden.setShadow(true);
+        ServiceDomain<AutoCloseable> visible = this.namedService(AutoCloseable.class, "Orders", path);
+
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(hidden);
+            assertNotNull(hidden.getProtocolMeta("httpnamed").getEndpoint(endpoint.name()));
+            assertNull(runtime.manager.routeResolver(endpoint.name()).apply("/orders/echo"));
+
+            // 隐藏绑定不预留名称，正常提供者可以发布相同的入站身份。
+            runtime.register(visible);
+            assertNotNull(visible.getProtocolMeta("httpnamed").getEndpoint(endpoint.name()));
+            assertNotNull(runtime.manager.routeResolver(endpoint.name()).apply("/orders/echo"));
+        }
+    }
+
+    @Test
+    public void replacingAServiceDoesNotConflictWithItsOwnProtocolServiceKey() {
+        // 相同服务以相同名称和精确地址重新准备协议绑定。
+        ConnectorConfig endpoint = this.endpoint(ProtocolConfig.newConfig("httpnamed", "http", Map.of()));
+        ContextPath path = new ContextPath(List.of("/orders/echo"), true);
+        ServiceDomain<Runnable> service = this.namedService(Runnable.class, "Orders", path);
+
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(service);
+            ProtocolBinding previous = service.getProtocolMeta("httpnamed").getEndpoint(endpoint.name());
+            RouteSelection route = runtime.manager.routeResolver(endpoint.name()).apply("/orders/echo");
+            assertNotNull(route);
+
+            // 替换时只与其他服务比较，不会把自己的旧发布结果判定为冲突。
+            runtime.register(service);
+            ProtocolBinding current = service.getProtocolMeta("httpnamed").getEndpoint(endpoint.name());
+            assertNotSame(previous, current);
+            assertEquals("Orders", current.getDefinition());
+            assertSame(route, runtime.manager.routeResolver(endpoint.name()).apply("/orders/echo"));
+        }
+    }
+
+    @Test
+    public void laterEndpointServiceKeyConflictPreservesAllPublishedBindingsAndRoutes() {
+        // 首个端点拒绝占位服务，第二个端点接受两个原本名称和路径都不同的提供者。
+        ProtocolConfig first = ProtocolConfig.newConfig("httpnamed", "http", //
+                Map.of("rejectServiceType", AutoCloseable.class.getName()));
+        ProtocolConfig second = ProtocolConfig.newConfig("httpnamed", "https", Map.of());
+        ConnectorConfig plain = this.endpoint("plain", first);
+        ConnectorConfig secure = this.endpoint("secure", second);
+        ContextPath originalPath = new ContextPath(List.of("/orders/original"), true);
+        ContextPath occupiedPath = new ContextPath(List.of("/orders/occupied"), true);
+        ServiceDomain<Runnable> service = this.namedService(Runnable.class, "Original", originalPath);
+        ServiceDomain<AutoCloseable> blocker = this.namedService(AutoCloseable.class, "Occupied", occupiedPath);
+
+        try (ValidationRuntime runtime = this.runtime(plain, secure)) {
+            runtime.register(service);
+            runtime.register(blocker);
+            ProtocolMeta previous = service.getProtocolMeta("httpnamed");
+            ProtocolBinding plainBinding = previous.getEndpoint("plain");
+            ProtocolBinding secureBinding = previous.getEndpoint("secure");
+            RouteSelection plainRoute = runtime.manager.routeResolver("plain").apply("/orders/original");
+            RouteSelection secureRoute = runtime.manager.routeResolver("secure").apply("/orders/original");
+            RouteSelection occupiedRoute = runtime.manager.routeResolver("secure").apply("/orders/occupied");
+            assertNotNull(plainRoute);
+            assertNotNull(secureRoute);
+            assertNotNull(occupiedRoute);
+
+            // 首个端点可以改名换址，但第二个端点发现与占位服务身份冲突。
+            service.setBindResource("httpnamed", "Occupied");
+            service.setBindContextPaths("httpnamed", occupiedPath);
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> {
+                runtime.register(service);
+            });
+            assertTrue(failure.getMessage().contains("Conflicting service route"));
+            assertTrue(failure.getMessage().contains("secure"));
+
+            // 整轮更新均不提交，两个端点的旧定义和路由仍然有效。
+            ProtocolMeta retained = service.getProtocolMeta("httpnamed");
+            assertSame(plainBinding, retained.getEndpoint("plain"));
+            assertSame(secureBinding, retained.getEndpoint("secure"));
+            assertEquals("Original", plainBinding.getDefinition());
+            assertEquals("Original", secureBinding.getDefinition());
+            assertEquals(originalPath, plainBinding.getContextPath());
+            assertEquals(originalPath, secureBinding.getContextPath());
+            assertSame(plainRoute, runtime.manager.routeResolver("plain").apply("/orders/original"));
+            assertSame(secureRoute, runtime.manager.routeResolver("secure").apply("/orders/original"));
+            assertSame(occupiedRoute, runtime.manager.routeResolver("secure").apply("/orders/occupied"));
+            assertNull(runtime.manager.routeResolver("plain").apply("/orders/occupied"));
+        }
+    }
+
+    @Test
+    public void emptyProtocolServiceKeysDoNotConflict() {
+        // 协议没有提供服务名称时，不应把空标识当成一个共享的入站身份。
+        ConnectorConfig endpoint = this.endpoint(ProtocolConfig.newConfig("httpnamed", "http", Map.of()));
+        ContextPath path = new ContextPath(List.of("/orders/echo"), true);
+        ServiceDomain<Runnable> first = this.namedService(Runnable.class, null, path);
+        ServiceDomain<AutoCloseable> second = this.namedService(AutoCloseable.class, null, path);
+
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(first);
+            runtime.register(second);
+
+            // 两份绑定都被接纳，精确路由仍由同一个协议处理。
+            ProtocolBinding firstBinding = first.getProtocolMeta("httpnamed").getEndpoint(endpoint.name());
+            ProtocolBinding secondBinding = second.getProtocolMeta("httpnamed").getEndpoint(endpoint.name());
+            assertNotNull(firstBinding);
+            assertNotNull(secondBinding);
+            assertNull(firstBinding.getDefinition());
+            assertNull(secondBinding.getDefinition());
+            assertNotNull(runtime.manager.routeResolver(endpoint.name()).apply("/orders/echo"));
+        }
+    }
+
+    @Test
+    public void removingAServiceReleasesItsProtocolServiceKey() {
+        // 原提供者占用一个名称和精确路径，替代者使用相同入站身份。
+        ConnectorConfig endpoint = this.endpoint(ProtocolConfig.newConfig("httpnamed", "http", Map.of()));
+        ContextPath path = new ContextPath(List.of("/orders/echo"), true);
+        ServiceDomain<Runnable> removed = this.namedService(Runnable.class, "Orders", path);
+        ServiceDomain<AutoCloseable> replacement = this.namedService(AutoCloseable.class, "Orders", path);
+
+        try (ValidationRuntime runtime = this.runtime(endpoint)) {
+            runtime.register(removed);
+            runtime.remove(removed);
+            assertTrue(removed.getProtocolMeta("httpnamed").getEndpoints().isEmpty());
+            assertNull(runtime.manager.routeResolver(endpoint.name()).apply("/orders/echo"));
+
+            // 移除操作同时释放名称，后续服务能够重新占用这条调用路径。
+            runtime.register(replacement);
+            ProtocolBinding binding = replacement.getProtocolMeta("httpnamed").getEndpoint(endpoint.name());
+            assertEquals("Orders", binding.getDefinition());
+            assertNotNull(runtime.manager.routeResolver(endpoint.name()).apply("/orders/echo"));
+        }
+    }
+
+    @Test
     public void publishedSchemeCannotSelectServiceContexts() {
         // 已注册的 HTTP 协议使用独立的公开地址前缀。
         ProtocolConfig protocol = ProtocolConfig.newConfig("httpa", "a", Map.of("contextPath", "/orders"));
@@ -1056,6 +1336,17 @@ public class EndpointContextValidationTest {
             assertEquals(Set.of("/orders/echo"), routes.exactPaths(service));
             assertEquals("public", endpoint.protocol("httpa").scheme());
         }
+    }
+
+    private <T> ServiceDomain<T> namedService(Class<T> type, String name, ContextPath path) {
+        ServiceDomain<T> service = new ServiceDomain<>(type);
+        service.setServiceType(MetServiceType.Provider);
+        service.addBindProtocol("httpnamed");
+        service.setBindResource("httpnamed", name);
+        if (path != null) {
+            service.setBindContextPaths("httpnamed", path);
+        }
+        return service;
     }
 
     private ValidationRuntime runtime(ConnectorConfig... endpoints) {

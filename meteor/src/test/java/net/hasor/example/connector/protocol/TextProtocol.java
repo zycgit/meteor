@@ -8,10 +8,12 @@
 package net.hasor.example.connector.protocol;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.ObjLongConsumer;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ProtocolSession;
@@ -37,6 +39,11 @@ public class TextProtocol implements TestHttpCodec, HttpProtocolProvider {
     @Override
     public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
         return meta.build(config, null, meta.createServiceDescription(config, this.defaultSerialize()));
+    }
+
+    @Override
+    public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+        return List.of();
     }
 
     public String name() {

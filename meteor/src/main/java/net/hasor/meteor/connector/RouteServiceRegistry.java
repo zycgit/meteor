@@ -8,10 +8,12 @@
 package net.hasor.meteor.connector;
 import java.util.*;
 import java.util.function.Function;
+import net.hasor.cobble.CollectionUtils;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.logging.Logger;
 import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
+import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.domain.*;
 import net.hasor.meteor.domain.meta.ProtocolMeta;
 import net.hasor.meteor.domain.warp.MetBindInfoWrap;
@@ -74,6 +76,9 @@ final class RouteServiceRegistry {
 
         // 所有端点的协议准备完成后，再统一构建候选索引并检查冲突。
         Map<String, ProtocolMeta> inbound = provider ? metas : Map.of();
+        for (RouteEndpoint endpoint : this.endpoints.values()) {
+            endpoint.validateServiceKeys(service, inbound, this.publications);
+        }
         Map<RouteEndpoint, Map<String, RouteSelection>> candidates = this.prepareExactIndexes(service, inbound);
 
         // 第二阶段统一提交本轮完整元信息和精确路由快照。
@@ -254,6 +259,47 @@ final class RouteServiceRegistry {
                 }
             }
             return false;
+        }
+
+        private void validateServiceKeys(MetBindInfo<?> service, Map<String, ProtocolMeta> metas, Map<MetBindInfo<?>, Map<String, ProtocolMeta>> publications) {
+            for (ProtocolMountBinding<?> protocol : this.protocols) {
+                if (!(protocol.provider() instanceof HttpProtocolProvider http)) {
+                    continue;
+                }
+                String name = protocol.config().name();
+                ProtocolMeta meta = metas.get(name);
+                ProtocolBinding binding = meta == null ? null : meta.getEndpoint(this.config.name());
+                if (binding == null || binding.getContextPath() == null) {
+                    continue;
+                }
+                List<String> key = http.serviceKey(service, binding);
+                if (key.isEmpty()) {
+                    continue;
+                }
+
+                // 只比较其他服务已经提交的同端点绑定，本轮失败不改动旧发布状态。
+                for (Map.Entry<MetBindInfo<?>, Map<String, ProtocolMeta>> entry : publications.entrySet()) {
+                    if (entry.getKey() == service) {
+                        continue;
+                    }
+                    ProtocolMeta previous = entry.getValue().get(name);
+                    ProtocolBinding existing = previous == null ? null : previous.getEndpoint(this.config.name());
+                    if (existing == null || !this.overlappingPaths(binding, existing)) {
+                        continue;
+                    }
+                    if (key.equals(http.serviceKey(entry.getKey(), existing))) {
+                        String message = "Conflicting service route for protocol " + name + " at endpoint ";
+                        throw new IllegalArgumentException(message + this.config.name() + ": " + key);
+                    }
+                }
+            }
+        }
+
+        private boolean overlappingPaths(ProtocolBinding first, ProtocolBinding second) {
+            ContextPath left = first.getContextPath();
+            ContextPath right = second.getContextPath();
+            return left != null && right != null && left.isExact() == right.isExact() //
+                    && CollectionUtils.containsAny(left.getPaths(), right.getPaths());
         }
 
         private void addExactRoutes(Map<String, ProtocolMeta> metas, Map<String, RouteSelection> selected) {

@@ -6,7 +6,9 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.example.rpc.websocket;
+import java.util.List;
 import java.util.function.ObjLongConsumer;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.connector.ProtocolSession;
 import net.hasor.meteor.connector.ProtocolSessionContext;
@@ -34,6 +36,11 @@ public final class JsonWebSocketProtocol implements HttpProtocolProvider {
     public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
         // 示例接受普通发布接口，方法签名在每个请求到达时解析。
         return meta.build(config, null, meta.createServiceDescription(config, this.defaultSerialize()));
+    }
+
+    @Override
+    public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+        return List.of();
     }
 
     @Override

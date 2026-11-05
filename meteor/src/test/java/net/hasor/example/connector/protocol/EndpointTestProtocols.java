@@ -8,6 +8,7 @@
 package net.hasor.example.connector.protocol;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.ObjLongConsumer;
@@ -15,6 +16,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.hasor.cobble.StringUtils;
 import net.hasor.cobble.concurrent.future.BasicFuture;
 import net.hasor.cobble.concurrent.future.Future;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
 import net.hasor.meteor.address.InterAddress;
 import net.hasor.meteor.connector.ProtocolSession;
@@ -94,6 +96,11 @@ public final class EndpointTestProtocols {
             return meta.build(config, definition, description);
         }
 
+        @Override
+        public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+            return List.of();
+        }
+
         public String name() {
             return this.getClass().getSimpleName().toLowerCase(Locale.ROOT);
         }
@@ -144,6 +151,26 @@ public final class EndpointTestProtocols {
     public static class HttpB extends HttpA {
         protected String marker() {
             return "B";
+        }
+    }
+
+    public static class HttpNamed extends HttpA {
+        @Override
+        public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
+            String rejected = config.option("rejectServiceType", null);
+            if (StringUtils.equals(rejected, meta.getService().getBindType().getName())) {
+                return null;
+            } else {
+                return super.prepareBinding(config, context, meta);
+            }
+        }
+
+        @Override
+        public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+            if (binding.getDefinition() instanceof String name) {
+                return List.of(name);
+            }
+            return List.of();
         }
     }
 

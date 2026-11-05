@@ -6,9 +6,12 @@
  * https://www.apache.org/licenses/LICENSE-2.0
  */
 package net.hasor.realmeteor.protocol.hprose.bootstrap.spi;
+import java.util.List;
 import java.util.function.ObjLongConsumer;
+import net.hasor.meteor.MetBindInfo;
 import net.hasor.meteor.MetContext;
-import net.hasor.meteor.connector.*;
+import net.hasor.meteor.connector.ProtocolSession;
+import net.hasor.meteor.connector.ProtocolSessionContext;
 import net.hasor.meteor.connector.transport.NetworkChannel;
 import net.hasor.meteor.connector.transport.http.HttpProtocolProvider;
 import net.hasor.meteor.connector.transport.http.channel.HttpExchange;
@@ -32,6 +35,11 @@ public class TestHproseProtocolA implements HttpProtocolProvider {
     public ProtocolBinding prepareBinding(ProtocolConfig config, MetContext context, ProtocolMeta meta) {
         // 别名入口同样需要准备真实 Hprose 操作表，供正式会话查找方法。
         return new HproseProtocol().prepareBinding(config, context, meta);
+    }
+
+    @Override
+    public List<String> serviceKey(MetBindInfo<?> service, ProtocolBinding binding) {
+        return List.of();
     }
 
     public ProtocolSession<HttpExchange> createSession(ProtocolConfig config, //
